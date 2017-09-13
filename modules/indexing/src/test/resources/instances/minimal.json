@@ -1,0 +1,6 @@
+{
+  "@context": {
+    "nexusvoc": "{{base}}/voc/nexus/core/"
+  },
+  "nexusvoc:desc": "random"
+}

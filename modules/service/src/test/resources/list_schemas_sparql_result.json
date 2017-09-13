@@ -1,0 +1,31 @@
+{
+  "head": {
+    "vars": [
+      "total",
+      "s"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://localhost/v0/schemas/org/domain/subject/v1.0.0"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://localhost/v0/schemas/org/domain/subject2/v1.0.0"
+        }
+      },
+      {
+        "total": {
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "type": "literal",
+          "value": "2"
+        }
+      }
+    ]
+  }
+}

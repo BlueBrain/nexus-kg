@@ -1,0 +1,13 @@
+{
+  "@id": "http://bbp-nexus.epfl.ch/staging/v0/schemas/nexus/core/organization/v1.0.0/shape/IdNodeShape2",
+  "@type": "sh:NodeShape2",
+  "property": [
+    {
+      "datatype": "xsd:integer",
+      "maxCount": "1",
+      "minCount": "1",
+      "path": "schema:value"
+    }
+  ],
+  "targetClass": "schema:QuantitativeValue"
+}

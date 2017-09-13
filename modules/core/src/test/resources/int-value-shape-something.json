@@ -1,0 +1,13 @@
+{
+  "@id": "bbp:IdSomething",
+  "@type": "sh:Something",
+  "property": [
+    {
+      "datatype": "xsd:integer",
+      "maxCount": "1",
+      "minCount": "1",
+      "path": "schema:value"
+    }
+  ],
+  "targetClass": "schema:QuantitativeValue"
+}

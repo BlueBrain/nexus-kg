@@ -1,0 +1,94 @@
+package ch.epfl.bluebrain.nexus.kg.indexing.query
+
+import cats.Functor
+import io.circe.Encoder
+
+/**
+  * Defines the signature for a collection of query results with their metadata
+  * including pagination
+  *
+  * @tparam A generic type of the response's payload
+  */
+sealed trait QueryResults[A] extends Product with Serializable {
+  def total: Long
+
+  def results: List[QueryResult[A]]
+}
+
+object QueryResults {
+
+  /**
+    * A collection of query results with score including pagination.
+    *
+    * @param total    the total number of results
+    * @param maxScore the maximum score of the individual query results
+    * @param results  the collection of results
+    * @tparam A generic type of the response's payload
+    */
+  final case class ScoredQueryResults[A](total: Long, maxScore: Float, results: List[QueryResult[A]])
+    extends QueryResults[A]
+
+  /**
+    * A collection of query results including pagination.
+    *
+    * @param total   the total number of results
+    * @param results the collection of results
+    * @tparam A generic type of the response's payload
+    */
+  final case class UnscoredQueryResults[A](total: Long, results: List[QueryResult[A]])
+    extends QueryResults[A]
+
+  final implicit def scoredQueryResultsFunctor(implicit F: Functor[QueryResult]): Functor[ScoredQueryResults] =
+    new Functor[ScoredQueryResults] {
+      override def map[A, B](fa: ScoredQueryResults[A])(f: A => B): ScoredQueryResults[B] =
+        fa.copy(results = fa.results.map(qr => F.map(qr)(f)))
+    }
+
+  final implicit def unscoreduQeryResultsFunctor(implicit F: Functor[QueryResult]): Functor[UnscoredQueryResults] =
+    new Functor[UnscoredQueryResults] {
+      override def map[A, B](fa: UnscoredQueryResults[A])(f: A => B): UnscoredQueryResults[B] =
+        fa.copy(results = fa.results.map(qr => F.map(qr)(f)))
+    }
+
+  final implicit def queryResultsFunctor(implicit F: Functor[QueryResult]): Functor[QueryResults] =
+    new Functor[QueryResults] {
+
+      import cats.syntax.functor._
+
+      override def map[A, B](fa: QueryResults[A])(f: A => B): QueryResults[B] =
+        fa match {
+          case sqr: ScoredQueryResults[A]   => sqr.map(f)
+          case uqr: UnscoredQueryResults[A] => uqr.map(f)
+        }
+    }
+
+  final implicit def queryResultEncoder[A](implicit
+    S: Encoder[ScoredQueryResults[A]],
+    U: Encoder[UnscoredQueryResults[A]]): Encoder[QueryResults[A]] = Encoder.instance {
+    case s: ScoredQueryResults[A]   => S.apply(s)
+    case u: UnscoredQueryResults[A] => U.apply(u)
+  }
+
+  /**
+    * Constructs an [[ScoredQueryResults]]
+    *
+    * @param total      the total number of results
+    * @param maxScore   the maximum score of the individual query results
+    * @param results    the collection of results
+    * @tparam A generic type of the response's payload
+    * @return an socred instance of [[QueryResults]]
+    */
+  final def apply[A](total: Long, maxScore: Float, results: List[QueryResult[A]]): QueryResults[A] =
+    new ScoredQueryResults[A](total, maxScore, results)
+
+  /**
+    * Constructs an [[UnscoredQueryResults]]
+    *
+    * @param total      the total number of results
+    * @param results    the collection of results
+    * @tparam A generic type of the response's payload
+    * @return an unscored instance of [[QueryResults]]
+    */
+  final def apply[A](total: Long, results: List[QueryResult[A]]): QueryResults[A] =
+    new UnscoredQueryResults[A](total, results)
+}

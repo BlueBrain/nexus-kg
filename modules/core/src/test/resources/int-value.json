@@ -1,0 +1,8 @@
+{
+  "@context": {
+    "value": "http://schema.org/value",
+    "QuantitativeValue": "http://schema.org/QuantitativeValue"
+  },
+  "@type": "QuantitativeValue",
+  "value": 16
+}

@@ -1,0 +1,114 @@
+package ch.epfl.bluebrain.nexus.kg.service.routes
+
+import akka.http.scaladsl.model.{StatusCodes, Uri}
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
+import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
+import ch.epfl.bluebrain.nexus.kg.service.query.FilterQueries
+import io.circe.generic.auto._
+import io.circe.{Encoder, Json}
+import kamon.akka.http.KamonTraceDirectives._
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Http route definitions for organization specific functionality.
+  *
+  * @param orgs          the organization operation bundle
+  * @param querySettings query parameters form settings
+  * @param queryBuilder  query builder for organizations
+  * @param base          the service public uri + prefix
+  */
+final class OrganizationRoutes(orgs: Organizations[Future], querySettings: QuerySettings, queryBuilder: FilterQueries[OrgId], base: Uri) {
+
+  private val encoders = new OrgCustomEncoders(base)
+
+  import encoders._, queryBuilder._
+
+  private val pagination = querySettings.pagination
+
+  def routes: Route = handleExceptions(ExceptionHandling.exceptionHandler) {
+    handleRejections(RejectionHandling.rejectionHandler) {
+      pathPrefix("organizations") {
+        pathEndOrSingleSlash {
+          (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
+            traceName("listOrganizations") {
+              queryBuilder.listingQuery(deprecated, Pagination(from, size)).response
+            }
+          }
+        } ~
+        pathPrefix(Segment) { id =>
+          val orgId = OrgId(id)
+          pathEnd {
+            (put & entity(as[Json])) { json =>
+              parameter('rev.as[Long].?) {
+                case Some(rev) =>
+                  traceName("updateOrganization") {
+                    onSuccess(orgs.update(orgId, rev, json)) { ref =>
+                      complete(StatusCodes.OK -> ref)
+                    }
+                  }
+                case None      =>
+                  traceName("createOrganization") {
+                    onSuccess(orgs.create(orgId, json)) { ref =>
+                      complete(StatusCodes.Created -> ref)
+                    }
+                  }
+              }
+            } ~
+            get {
+              traceName("getOrganization") {
+                onSuccess(orgs.fetch(orgId)) {
+                  case Some(org) => complete(org)
+                  case None      => complete(StatusCodes.NotFound)
+                }
+              }
+            } ~
+            delete {
+              parameter('rev.as[Long]) { rev =>
+                traceName("deprecateOrganization") {
+                  onSuccess(orgs.deprecate(orgId, rev)) { ref =>
+                    complete(StatusCodes.OK -> ref)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+  object OrganizationRoutes {
+    /**
+      * Constructs a new ''OrganizationRoutes'' instance that defines the http routes specific to organizations.
+      *
+      * @param orgs          the organization operation bundle
+      * @param client        the sparql client
+      * @param querySettings query parameters form settings
+      * @param base          the service public uri + prefix
+      * @return a new ''OrganizationRoutes'' instance
+      */
+    final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(implicit
+      ec: ExecutionContext): OrganizationRoutes =
+      new OrganizationRoutes(orgs, querySettings, new FilterQueries(SparqlQuery[Future](client), querySettings), base)
+  }
+
+  private class OrgCustomEncoders(base: Uri) extends RoutesEncoder[OrgId, OrgRef](base) {
+
+    implicit val orgEncoder: Encoder[Organization] = Encoder.encodeJson.contramap { org =>
+      val meta = refEncoder.apply(OrgRef(org.id, org.rev)).deepMerge(Json.obj(
+        "deprecated" -> Json.fromBoolean(org.deprecated)
+      ))
+      org.value.deepMerge(meta)
+    }
+  }
