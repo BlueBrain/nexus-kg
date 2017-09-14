@@ -1,8 +1,8 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.query
+package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryBuilder._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryBuilderStages._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilderStages._
 
 
 
@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryBuilderStages._
   */
 private sealed trait AggregationQueryBuilder extends QueryBuilder {
 
-  def groupBy(fields: String*): Aggregation = new Aggregation(params.copy(group = params.group union fields))
+  def groupBy(fields: Field*): Aggregation = new Aggregation(params.copy(group = params.group union fields))
 
   def pagination(p: Pagination): Aggregation = new Aggregation(params.copy(pagination = Some(p)))
 
@@ -25,9 +25,9 @@ private sealed trait AggregationQueryBuilder extends QueryBuilder {
 private sealed trait SupportWhere {
   def params: QueryParams
 
-  def where(values: Where[WhereField]): Wheres = new Wheres(params.copy(where = values +: params.where))
+  def where(values: Triple[TripleContent]): Wheres = new Wheres(params.copy(where = values +: params.where))
 
-  def where(values: Option[Where[WhereField]]): Wheres = values.map(where(_)).getOrElse(new Wheres(params))
+  def where(values: Option[Triple[TripleContent]]): Wheres = values.map(where(_)).getOrElse(new Wheres(params))
 }
 
 object QueryBuilderStages {
@@ -38,15 +38,15 @@ object QueryBuilderStages {
     *
     * @param fields the defined prefix mappings
     */
-  private[query] class PrefixMappings(val fields: PrefixMapping*) {
+  private[builder] class PrefixMappings(val fields: PrefixMapping*) {
 
     def prefix(prefix: PrefixMapping) = new PrefixMappings((prefix +: fields): _*)
 
-    def select(values: SelectField*) = selects(false, values: _*)
+    def select(values: Field*) = selects(false, values: _*)
 
-    def selectDistinct(values: SelectField*) = selects(true, values: _*)
+    def selectDistinct(values: Field*) = selects(true, values: _*)
 
-    private def selects(distinct: Boolean, values: SelectField*) =
+    private def selects(distinct: Boolean, values: Field*) =
       new Selects(QueryParams(fields, values, distinct))
 
   }
@@ -55,15 +55,15 @@ object QueryBuilderStages {
     * Holds the select fields of a query and defines the
     * available actions during the select step
     */
-  private[query] class Selects(val params: QueryParams) extends AggregationQueryBuilder with SupportWhere {
+  private[builder] class Selects(val params: QueryParams) extends AggregationQueryBuilder with SupportWhere {
 
     def subQuery[A <: QueryBuilder](q: QueryBuilder) = {
-      val subQueries = new SelectQueryBuilder(q.params) +: params.subQueries
+      val subQueries = q.params +: params.subQueries
       new Selects(params.copy(subQueries = subQueries))
     }
 
     def union[A <: QueryBuilder](q: QueryBuilder) = {
-      val unions = new SelectQueryBuilder(q.params) +: params.unions
+      val unions = q.params +: params.unions
       new Selects(params.copy(unions = unions))
     }
   }
@@ -72,7 +72,7 @@ object QueryBuilderStages {
     * Holds the where triple of a query and defines the
     * available actions during the where step
     */
-  private[query] class Wheres(val params: QueryParams) extends AggregationQueryBuilder with SupportWhere {
+  private[builder] class Wheres(val params: QueryParams) extends AggregationQueryBuilder with SupportWhere {
 
     def filter(filter: String): Aggregation =
       if(filter.trim.isEmpty) new Aggregation(params)
@@ -84,6 +84,6 @@ object QueryBuilderStages {
     * Holds the fields for the aggregation steps and defines the
     * available actions during the aggregation step
     */
-  private[query] class Aggregation(val params: QueryParams) extends AggregationQueryBuilder
+  private[builder] class Aggregation(val params: QueryParams) extends AggregationQueryBuilder
 
 }

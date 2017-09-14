@@ -11,23 +11,21 @@ class FullTextSearchQueriesSpec extends WordSpecLike with Matchers {
       val term = "rand"
       val expected =
         s"""
-           |
-           |PREFIX  bds:  <http://www.bigdata.com/rdf/search#>
-           |
-           |SELECT DISTINCT  ?s ?matchedProperty ?score ?rank (GROUP_CONCAT(DISTINCT ?matchedValue ; separator=',') AS ?groupedConcatenatedMatchedValue)
+           |PREFIX bds: <http://www.bigdata.com/rdf/search#>
+           |SELECT DISTINCT ?s ?matchedProperty ?score ?rank (GROUP_CONCAT(DISTINCT ?matchedValue ; separator=',') AS ?groupedConcatenatedMatchedValue)
            |WHERE
-           |  { ?matchedValue
-           |              bds:search        "$term" ;
-           |              bds:relevance     ?score ;
-           |              bds:rank          ?rank .
-           |    ?s        ?matchedProperty  ?matchedValue
-           |    FILTER ( ! isBlank(?s) )
-           |  }
+           |{
+           |	?matchedValue bds:search "$term" .
+           |	?matchedValue bds:relevance ?score .
+           |	?matchedValue bds:rank ?rank .
+           |	?s ?matchedProperty ?matchedValue .
+           |	FILTER ( !isBlank(?s) )
+           |}
            |GROUP BY ?s ?matchedProperty ?score ?rank
-           |LIMIT   100
+           |LIMIT 100
         """.stripMargin.trim
 
-      matchAllTerms("s", term, Pagination(0,100)).serialize().trim shouldEqual expected
+      matchAllTerms("s", term, Pagination(0,100)).pretty shouldEqual expected
     }
   }
 }

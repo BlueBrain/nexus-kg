@@ -7,9 +7,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.IndexingVocab.SelectTerms
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.Query
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder.Field.Var
 import journal.Logger
-import org.apache.jena.query.{Query, QuerySolution, ResultSet}
-
+import org.apache.jena.query.{QuerySolution, ResultSet}
 import scala.collection.JavaConverters._
 import scala.util.Try
 
@@ -55,10 +56,10 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
       else QueryResults[A](total, vector.toList)
     }
 
-    val serializedQuery = query.serialize()
+    val serializedQuery = query.pretty
     log.debug(s"Running query: '$serializedQuery'")
 
-    val scoredResponse = query.getResultVars.contains(SelectTerms.score)
+    val scoredResponse = query.containsResult(Var(SelectTerms.score))
 
     client.query(index, serializedQuery).map { rs =>
       val listWithTotal = rs.asScala.foldLeft[(Vector[QueryResult[A]], Long)](Vector.empty -> 0L) {
