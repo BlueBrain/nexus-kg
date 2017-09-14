@@ -15,8 +15,7 @@ private sealed trait AggregationQueryBuilder extends QueryBuilder {
 
   def pagination(p: Pagination): Aggregation = new Aggregation(params.copy(pagination = Some(p)))
 
-  def total(totalCount: TotalCount): Aggregation = new Aggregation(params.copy(total = Some(totalCount)))
-
+  def orderBy(fields: Order): Aggregation = new Aggregation(params.copy(order = fields +: params.order))
 }
 
 /**
@@ -27,7 +26,11 @@ private sealed trait SupportWhere {
 
   def where(values: Triple[TripleContent]): Wheres = new Wheres(params.copy(where = values +: params.where))
 
-  def where(values: Option[Triple[TripleContent]]): Wheres = values.map(where(_)).getOrElse(new Wheres(params))
+  def where(values: Option[Triple[TripleContent]]): Wheres = values.map(where).getOrElse(new Wheres(params))
+
+  def include(name: String): Wheres = new Wheres(params.copy(includes = name +: params.includes))
+
+  def optional(values: Triple[TripleContent]): Wheres = new Wheres(params.copy(optional = values +: params.optional))
 }
 
 object QueryBuilderStages {
@@ -40,11 +43,11 @@ object QueryBuilderStages {
     */
   private[builder] class PrefixMappings(val fields: PrefixMapping*) {
 
-    def prefix(prefix: PrefixMapping) = new PrefixMappings((prefix +: fields): _*)
+    def prefix(prefix: PrefixMapping) = new PrefixMappings(prefix +: fields: _*)
 
-    def select(values: Field*) = selects(false, values: _*)
+    def select(values: Field*): Selects = selects(false, values: _*)
 
-    def selectDistinct(values: Field*) = selects(true, values: _*)
+    def selectDistinct(values: Field*): Selects = selects(true, values: _*)
 
     private def selects(distinct: Boolean, values: Field*) =
       new Selects(QueryParams(fields, values, distinct))
@@ -57,14 +60,19 @@ object QueryBuilderStages {
     */
   private[builder] class Selects(val params: QueryParams) extends AggregationQueryBuilder with SupportWhere {
 
-    def subQuery[A <: QueryBuilder](q: QueryBuilder) = {
+    def subQuery[A <: QueryBuilder](q: QueryBuilder): Selects = {
       val subQueries = q.params +: params.subQueries
       new Selects(params.copy(subQueries = subQueries))
     }
 
-    def union[A <: QueryBuilder](q: QueryBuilder) = {
+    def union[A <: QueryBuilder](q: QueryBuilder): Selects = {
       val unions = q.params +: params.unions
       new Selects(params.copy(unions = unions))
+    }
+
+    def `with`[A <: QueryBuilder](q: QueryBuilder, name: String): Selects = {
+      val withs = (q.params -> name) +: params.withs
+      new Selects(params.copy(withs = withs))
     }
   }
 
@@ -77,7 +85,6 @@ object QueryBuilderStages {
     def filter(filter: String): Aggregation =
       if(filter.trim.isEmpty) new Aggregation(params)
       else new Aggregation(params.copy(filter = Some(filter)))
-
   }
 
   /**

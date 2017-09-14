@@ -4,8 +4,11 @@ import akka.http.scaladsl.model.Uri
 import cats.instances.string._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.IndexingVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder.Field._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder.Order.Desc
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder.TripleContent._
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import org.scalatest.{Matchers, WordSpecLike}
@@ -324,27 +327,35 @@ class QueryBuilderSpec extends WordSpecLike with Matchers {
     }
 
 
-    "create a query counting the total (sparQL compatible)" in {
+    "create a query counting the total" in {
 
       val expected =
         s"""
-           |PREFIX vocab: <${vocab.toString}>
+           |PREFIX vocab: <${vocab.toString()}>
            |SELECT ?total ?s
+           |WITH {
+           |	SELECT ?s
+           |	WHERE
+           |	{
+           |		?s vocab:organization ?org .
+           |		?s vocab:domain ?domain .
+           |		?s vocab:version ?v .
+           |		?s vocab:schema ?name .
+           |		FILTER ( ?org = "bbp" && ?domain = "core" )
+           |	}
+           |	GROUP BY ?total ?s
+           |} AS %resultSet
            |WHERE
            |{
-           |	{ SELECT (COUNT(?s) AS ?total)
+           |	{ SELECT (COUNT(DISTINCT ?s) AS ?total)
            |		WHERE
            |		{
-           |			?s vocab:organization ?org .
-           |			?s vocab:domain ?domain .
-           |			?s vocab:version ?v .
-           |			?s vocab:schema ?name .
-           |			FILTER ( ?org = "bbp" && ?domain = "core" )
+           |			INCLUDE %resultSet
            |		}
            |	}
            |	UNION
            |	{
-           |		SELECT ?s
+           |		SELECT *
            |		WHERE
            |		{
            |			?s vocab:organization ?org .
@@ -352,12 +363,14 @@ class QueryBuilderSpec extends WordSpecLike with Matchers {
            |			?s vocab:version ?v .
            |			?s vocab:schema ?name .
            |			FILTER ( ?org = "bbp" && ?domain = "core" )
+           |			INCLUDE %resultSet
            |		}
            |		GROUP BY ?total ?s
            |		LIMIT 10
            |	}
            |}
          """.stripMargin.trim
+
 
       QueryBuilder.prefix("vocab" -> vocab)
         .select(subject)
@@ -368,7 +381,66 @@ class QueryBuilderSpec extends WordSpecLike with Matchers {
         .filter("""?org = "bbp" && ?domain = "core"""")
         .pagination(Pagination(0L, 10))
         .groupBy(total, subject)
-        .total(subject -> total)
+        .buildCount().pretty shouldEqual expected
+    }
+
+
+    "create a query with WITH, INCLUDE, OPTIONAL and ORDER BY clauses" in {
+      val term = "subject*"
+      val expected =
+        s"""
+           |PREFIX bds: <http://www.bigdata.com/rdf/search#>
+           |SELECT DISTINCT ?total ?s ?maxscore ?score ?rank ?field
+           |WITH {
+           |	SELECT DISTINCT ?s (max(?rsv) AS ?score) (max(?pos) AS ?rank)
+           |	WHERE
+           |	{
+           |		?s ?matchedProperty ?matchedValue .
+           |		?matchedValue bds:search "subject*" .
+           |		?matchedValue bds:relevance ?rsv .
+           |		?matchedValue bds:rank ?pos .
+           |	}
+           |	GROUP BY ?s
+           |} AS %resultSet
+           |WHERE
+           |{
+           |	{ SELECT (COUNT(DISTINCT ?s) AS ?total) (max(?score) AS ?maxscore)
+           |		WHERE
+           |		{
+           |			INCLUDE %resultSet
+           |		}
+           |	}
+           |	{ SELECT DISTINCT ?field
+           |		WHERE
+           |		{
+           |			INCLUDE %resultSet
+           |			OPTIONAL {
+           |				?s <http://localhost/v0/voc/organization> ?field .
+           |			}
+           |		}
+           |	}
+           |	INCLUDE %resultSet
+           |}
+           |ORDER BY DESC(?score) ASC(?s)
+           |LIMIT 10
+         """.stripMargin.trim
+
+      val withQuery =
+        QueryBuilder.selectDistinct(subject, "max(?rsv)" -> score, "max(?pos)" -> rank)
+          .where((VarContent(subject), VarContent("matchedProperty"), VarContent("matchedValue")))
+          .where((VarContent("matchedValue"), QueryContent(bdsSearch), ValContent(term)))
+          .where((VarContent("matchedValue"), QueryContent(bdsRelevance), VarContent("rsv")))
+          .where((VarContent("matchedValue"), QueryContent(bdsRank), VarContent("pos")))
+          .groupBy(subject)
+
+      QueryBuilder.prefix("bds" -> bdsUri)
+        .selectDistinct(total, subject, maxScore, score, rank, "field")
+        .`with`(withQuery, "resultSet")
+        .subQuery(QueryBuilder.select(count(), s"max(?$score)" -> maxScore).include("resultSet"))
+        .subQuery(QueryBuilder.selectDistinct("field").optional("organization".qualify -> "field").include("resultSet"))
+        .include("resultSet")
+        .pagination(Pagination(0L, 10))
+        .orderBy(Desc(score)).orderBy(subject)
         .build().pretty shouldEqual expected
     }
   }

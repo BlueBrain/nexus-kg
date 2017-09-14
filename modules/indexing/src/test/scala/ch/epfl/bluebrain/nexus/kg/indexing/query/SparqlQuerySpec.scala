@@ -35,7 +35,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture,
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import ch.epfl.bluebrain.nexus.kg.indexing.query.IndexingVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder
 
 import scala.concurrent.duration._
@@ -138,8 +138,14 @@ class SparqlQuerySpec(blazegraphPort: Int)
       val pagination = Pagination(0L, 100)
       val result = query.apply[InstanceId](index, FullTextSearchQuery("random", pagination).build()).futureValue
       result.asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]].maxScore shouldEqual 1F
-      result.total shouldEqual 0L
+      result.total shouldEqual 20L
       result.results.size shouldEqual 20
+
+      val pagination2 = Pagination(100L, 100)
+      val result2 = query.apply[InstanceId](index, FullTextSearchQuery("random", pagination2).build()).futureValue
+      result2.asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]].maxScore shouldEqual 1F
+      result2.total shouldEqual 20L
+      result2.results.size shouldEqual 0
     }
 
 
@@ -165,8 +171,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
         .where("deprecated".qualify -> "deprecated")
         .filter(s"""?deprecated = false""")
         .pagination(pagination)
-        .total(subject -> total)
-        .build()
+        .buildCount()
       val result = query.apply[OrgId](indexOrgs, q).futureValue
       result.total shouldEqual 10L
       result.results.size shouldEqual 10
@@ -179,8 +184,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
         .where("deprecated".qualify -> "deprecated")
         .filter(s"""?org = "org-0" && ?deprecated = false""")
         .pagination(pagination)
-        .total(subject -> total)
-        .build()
+        .buildCount()
       val result2 = query.apply[OrgId](indexOrgs, q2).futureValue
       result2.total shouldEqual 1L
       result2.results.size shouldEqual 1
@@ -218,8 +222,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
         .where("deprecated".qualify -> "deprecated")
         .filter(s"""?org = "org" && ?deprecated = false""")
         .pagination(pagination)
-        .total(subject -> total)
-        .build()
+        .buildCount()
       val result = query.apply[DomainId](indexDomains, q).futureValue
       result.total shouldEqual 10L
       result.results.size shouldEqual 10
@@ -258,8 +261,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
         .where("deprecated".qualify -> "deprecated")
         .filter(s"""?org = "org" && ?domain = "dom" && ?deprecated = false""")
         .pagination(pagination)
-        .total(subject -> total)
-        .build()
+        .buildCount()
       val result = query.apply[SchemaId](indexSchemas, q).futureValue
       result.total shouldEqual 10L
       result.results.size shouldEqual 10
@@ -305,8 +307,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
         .where("schema".qualify -> "name")
         .filter(s"""?org = "test" && ?domain = "dom" && ?name = "$name" && ?deprecated = false""")
         .pagination(pagination)
-        .total(subject -> total)
-        .build()
+        .buildCount()
       val result = query.apply[InstanceId](index, q).futureValue
       result.total shouldEqual 10L
       result.results.size shouldEqual 2
@@ -325,8 +326,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
         .where("schema".qualify -> "name")
         .filter(s"""?org = "test" && ?domain = "dom" && ?name = "$name" && ?deprecated = false""")
         .pagination(pagination2)
-        .total(subject -> total)
-        .build()
+        .buildCount()
       val result2 = query.apply[InstanceId](index, q2).futureValue
       result2.total shouldEqual 10L
       result2.results.size shouldEqual 0

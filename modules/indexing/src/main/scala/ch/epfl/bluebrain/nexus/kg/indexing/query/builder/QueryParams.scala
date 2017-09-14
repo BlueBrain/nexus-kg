@@ -4,7 +4,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder._
 
 /**
-  * Holds all the provided parameters to build a SPARQL query.
+  * Holds all the provided parameters to build a Blazegraph query.
   *
   * @param prefix     the parameters for the prefix step
   * @param select     the parameters for the select step
@@ -15,8 +15,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder._
   * @param subQueries the parameters for the subquery
   * @param unions     the parameters for the union step
   * @param pagination the parameters for the pagination step
-  * @param total      the optional parameters which defines the field where to take the
-  *                   total count from
+  * @param withs      the parameters for the with step
+  * @param includes   the included variables stored with the with clause
+  * @param order      the parameters for the ORDER BY clause
+  * @param optional   the parameters for the OPTIONAL clause
   */
 private[builder] final case class QueryParams(
   prefix: Seq[PrefixMapping] = Seq.empty,
@@ -28,4 +30,8 @@ private[builder] final case class QueryParams(
   subQueries: Seq[QueryParams] = Seq.empty,
   unions: Seq[QueryParams] = Seq.empty,
   pagination: Option[Pagination] = None,
-  total: Option[TotalCount] = None)
+  withs: Seq[(QueryParams, String)] = Seq.empty,
+  includes: Seq[String] = Seq.empty,
+  order: Seq[Order] = Seq.empty,
+  optional: Seq[Triple[TripleContent]] = Seq.empty
+)

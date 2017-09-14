@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult,
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{FullTextSearchQuery, QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.IndexingVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.{Query, QueryBuilder}
 import io.circe.Encoder
 import io.circe.generic.auto._
@@ -121,7 +121,7 @@ class FilterQueries[A](queryClient: SparqlQuery[Future], querySettings: QuerySet
       .where(addOptionalWhere("published", published))
       .filter(filterText(orgId, domainId, schemaName, version, deprecated, published))
       .pagination(pagination)
-      .total(subject -> total).build()
+      .buildCount()
 
   private def addOptionalWhere[B](key: String, field: Option[B]): Option[Triple[TripleContent]] = field.map(_ => key.qualify -> key)
 
@@ -142,7 +142,7 @@ class FilterQueries[A](queryClient: SparqlQuery[Future], querySettings: QuerySet
       .append(published.map(v => s" && ?published = $v").getOrElse("")).toString().dropWhile(_ == '&').trim
 
   implicit class BuildResponseOps(q: Query)(implicit Q: ConfiguredQualifier[A], R: Encoder[UnscoredQueryResult[A]], S: Encoder[ScoredQueryResult[A]]) {
-    def response = buildResponse(q)
+    def response: Route = buildResponse(q)
   }
 
 }

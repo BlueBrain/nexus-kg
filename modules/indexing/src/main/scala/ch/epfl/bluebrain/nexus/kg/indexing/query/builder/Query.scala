@@ -4,7 +4,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder.Field.Var
 
 /**
-  * Data type which represents a SPARQL query with some metadata information.
+  * Data type which represents a Blazegraph query with some metadata information.
   *
   * @param selectFields the variables that are going to be retrieved from the query
   * @param serialized   the string representation of the query

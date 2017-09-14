@@ -62,7 +62,7 @@ object SearchRoutesSpec {
   private val baseUri = Uri("http://127.0.0.1:8080/v0")
 
   private def fixedListSchemas(uri: Uri) =
-    Results(0L, 1F, List(
+    Results(2L, 0.8F, List(
       Result(
         s"$baseUri/data/org/domain/subject/v1.0.0/e973d182-373e-414a-a84f-dd9750636b27",
         0.625F,
