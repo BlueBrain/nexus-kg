@@ -1,0 +1,8 @@
+{
+  "filter": {
+    "op": "and",
+    "value": [
+      "string"
+    ]
+  }
+}

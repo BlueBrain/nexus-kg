@@ -1,0 +1,10 @@
+{
+  "filter": {
+    "path": [
+      "nxv:deprecated",
+      "nxv:rev"
+    ],
+    "op": "eq",
+    "value": false
+  }
+}

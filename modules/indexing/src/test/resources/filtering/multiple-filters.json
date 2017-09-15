@@ -1,0 +1,14 @@
+{
+  "filter": [
+    {
+      "path": "nxv:deprecated",
+      "op": "eq",
+      "value": false
+    },
+    {
+      "path": "nxv:rev",
+      "op": "eq",
+      "value": 1
+    }
+  ]
+}

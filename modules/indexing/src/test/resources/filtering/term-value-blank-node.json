@@ -1,0 +1,50 @@
+{
+  "@context": {
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "bbpprod": "{{base}}/voc/bbp/productionentity/core/",
+    "bbpagent": "{{base}}/voc/bbp/agent/core/"
+  },
+  "filter": {
+    "op": "and",
+    "value": [
+      {
+        "path": "prov:wasDerivedFrom",
+        "op": "eq",
+        "value": "{{base}}/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90"
+      },
+      {
+        "path": "nxv:deprecated",
+        "op": "ne",
+        "value": false
+      },
+      {
+        "path": "rdf:type",
+        "op": "in",
+        "value": {
+          "key": "value"
+        }
+      },
+      {
+        "path": "nxv:rev",
+        "op": "lte",
+        "value": 5
+      },
+      {
+        "op": "xor",
+        "value": [
+          {
+            "path": "prov:wasAttributedTo",
+            "op": "eq",
+            "value": "bbpagent:sy"
+          },
+          {
+            "path": "prov:wasAttributedTo",
+            "op": "eq",
+            "value": "bbpagent:dmontero"
+          }
+        ]
+      }
+    ]
+  }
+}
