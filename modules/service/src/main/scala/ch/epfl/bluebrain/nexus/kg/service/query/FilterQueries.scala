@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.query
 
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives.{complete, onSuccess}
 import akka.http.scaladsl.server.Route
 import cats.instances.string._
@@ -30,8 +30,9 @@ import scala.concurrent.Future
   *
   * @param queryClient   the sparql query
   * @param querySettings query parameters form settings
+  * @param base          the service public uri + prefix
   */
-class FilterQueries[A](queryClient: SparqlQuery[Future], querySettings: QuerySettings) {
+class FilterQueries[A](queryClient: SparqlQuery[Future], querySettings: QuerySettings, base: Uri) {
 
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](querySettings.nexusVocBase)
 
@@ -128,7 +129,7 @@ class FilterQueries[A](queryClient: SparqlQuery[Future], querySettings: QuerySet
   def buildResponse(q: Query)(implicit Q: ConfiguredQualifier[A], R: Encoder[UnscoredQueryResult[A]], S: Encoder[ScoredQueryResult[A]]): Route =
     extract(_.request.uri) { uri =>
       onSuccess(queryClient[A](querySettings.index, q)) { result =>
-        complete(StatusCodes.OK -> LinksQueryResults(result, q.pagination.getOrElse(querySettings.pagination), uri))
+        complete(StatusCodes.OK -> LinksQueryResults(result, q.pagination.getOrElse(querySettings.pagination), base.copy(path = uri.path, fragment = uri.fragment, rawQueryString = uri.rawQueryString)))
       }
     }
 

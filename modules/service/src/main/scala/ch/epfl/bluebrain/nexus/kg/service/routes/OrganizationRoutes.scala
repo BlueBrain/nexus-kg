@@ -99,8 +99,10 @@ final class OrganizationRoutes(orgs: Organizations[Future], querySettings: Query
       * @return a new ''OrganizationRoutes'' instance
       */
     final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(implicit
-      ec: ExecutionContext): OrganizationRoutes =
-      new OrganizationRoutes(orgs, querySettings, new FilterQueries(SparqlQuery[Future](client), querySettings), base)
+      ec: ExecutionContext): OrganizationRoutes = {
+      val filterQueries = new FilterQueries[OrgId](SparqlQuery[Future](client), querySettings, base)
+      new OrganizationRoutes(orgs, querySettings, filterQueries, base)
+    }
   }
 
   private class OrgCustomEncoders(base: Uri) extends RoutesEncoder[OrgId, OrgRef](base) {

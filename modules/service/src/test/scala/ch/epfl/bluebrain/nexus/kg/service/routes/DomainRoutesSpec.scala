@@ -93,7 +93,7 @@ class DomainRoutesSpec
     "return list of domains from organization" in {
       Get(s"/organizations/org/domains") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListDomains(Uri("http://example.com/organizations/org/domains"))
+        responseAs[Results] shouldEqual fixedListDomains(Uri("http://localhost/organizations/org/domains"))
       }
     }
 
@@ -101,7 +101,7 @@ class DomainRoutesSpec
       val pagination = Pagination(1,200)
       Get(s"/organizations/org/domains?from=${pagination.from}&size=${pagination.size}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListDomains(Uri(s"http://example.com/organizations/org/domains?from=${pagination.from}&size=${pagination.size}"))
+        responseAs[Results] shouldEqual fixedListDomains(Uri(s"http://localhost/organizations/org/domains?from=${pagination.from}&size=${pagination.size}"))
       }
     }
 

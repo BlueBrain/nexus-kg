@@ -200,8 +200,10 @@ object InstanceRoutes {
     client: SparqlClient[Future],
     querySettings: QuerySettings,
     base: Uri)(implicit
-    ec: ExecutionContext): InstanceRoutes =
-    new InstanceRoutes(instances, querySettings, new FilterQueries(SparqlQuery[Future](client), querySettings), base)
+    ec: ExecutionContext): InstanceRoutes = {
+    val filterQueries = new FilterQueries[InstanceId](SparqlQuery[Future](client), querySettings, base)
+    new InstanceRoutes(instances, querySettings, filterQueries, base)
+  }
 }
 
 private class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link]) extends RoutesEncoder[InstanceId, InstanceRef](base) {
