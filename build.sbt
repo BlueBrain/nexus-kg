@@ -1,7 +1,7 @@
 import com.typesafe.sbt.packager.Keys.dockerCommands
 import com.typesafe.sbt.packager.docker.Cmd
 
-val commonsVersion     = "0.4.3-SNAPSHOT"
+val commonsVersion     = "0.4.3"
 val metricsCoreVersion = "3.2.2"
 val jenaVersion        = "3.4.0"
 val blazegraphVersion  = "2.1.4"
