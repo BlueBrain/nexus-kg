@@ -82,7 +82,7 @@ object Filter {
             Try(head.getLiteral.getLexicalForm).toOption
               .flatMap(str => ComparisonOp.fromString(str))
               .map(op => Right(op))
-              .getOrElse(Left(DecodingFailure(s"A filter expression with a 'path' value must present a comparison operator", history)))
+              .getOrElse(Left(DecodingFailure("A filter expression with a 'path' value must present a comparison operator", history)))
           case _           =>
             Left(DecodingFailure("A filter expression must always define an 'op' value", history))
         }
@@ -97,7 +97,7 @@ object Filter {
             Try(head.getLiteral.getLexicalForm).toOption
               .flatMap(str => LogicalOp.fromString(str))
               .map(op => Right(op))
-              .getOrElse(Left(DecodingFailure(s"A filter expression without a 'path' value must present a logical operator", history)))
+              .getOrElse(Left(DecodingFailure("A filter expression without a 'path' value must present a logical operator", history)))
           case _           =>
             Left(DecodingFailure("A filter expression must always define an 'op' value", history))
         }
