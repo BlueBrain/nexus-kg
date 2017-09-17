@@ -124,7 +124,11 @@ object Filter {
                     .map(uri => UriTerm(uri))
                     .orElse {
                       if (el.getLiteralLexicalForm.indexOf(":") > -1) Failure(failure)
-                      else Try(LiteralTerm(el.getLiteral.getLexicalForm))
+                      else Try(LiteralTerm({
+                        val lit = el.getLiteral
+                        if (classOf[java.lang.Number].isInstance(lit.getValue) || classOf[java.lang.Boolean].isInstance(lit.getValue)) lit.getLexicalForm
+                        else s""""${lit.getLexicalForm}""""
+                      }))
                     }
                     .toEither
                     .leftMap(_ => failure)
