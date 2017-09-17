@@ -24,7 +24,8 @@ object Term {
 
   /**
     * A term that describes a collection of terms
+    *
     * @param values the underlying terms
     */
-  final case class TermCollection(values: Set[Term]) extends Term
+  final case class TermCollection(values: List[Term])
 }

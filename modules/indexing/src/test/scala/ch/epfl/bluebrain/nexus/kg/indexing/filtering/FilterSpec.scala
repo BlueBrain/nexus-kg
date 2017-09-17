@@ -4,7 +4,7 @@ import java.util.regex.Pattern
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.kg.core.Resources
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
@@ -35,12 +35,12 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
       "using nested comparisons" in {
         val json = jsonContentOf("/filtering/nested-comparison.json", replacements)
         val expected = Filter(
-          LogicalExpr(And, Set(
+          LogicalExpr(And, List(
             ComparisonExpr(Eq, UriTerm(s"${prov}wasDerivedFrom"), UriTerm(s"$base/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90")),
             ComparisonExpr(Ne, UriTerm(s"${nxv}deprecated"), LiteralTerm("false")),
-            ComparisonExpr(In, UriTerm(s"${rdf}type"), TermCollection(Set(UriTerm(s"${prov}Entity"), UriTerm(s"${bbpprod}Circuit")))),
+            InExpr(UriTerm(s"${rdf}type"), TermCollection(List(UriTerm(s"${prov}Entity"), UriTerm(s"${bbpprod}Circuit")))),
             ComparisonExpr(Lte, UriTerm(s"${nxv}rev"), LiteralTerm("5")),
-            LogicalExpr(Xor, Set(
+            LogicalExpr(Xor, List(
               ComparisonExpr(Eq, UriTerm(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}sy")),
               ComparisonExpr(Eq, UriTerm(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}dmontero")),
             ))
@@ -56,6 +56,30 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
     }
 
     "fail to parse from a json" when {
+
+      "using a nested or" in {
+        val json = jsonContentOf("/filtering/nested-or.json", replacements)
+        val expectedHistory = "DownField(filter)/DownField(value)/DownN(4)"
+        json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
+      }
+
+      "using a nested xor" in {
+        val json = jsonContentOf("/filtering/nested-xor.json", replacements)
+        val expectedHistory = "DownField(filter)/DownField(value)/DownN(4)"
+        json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
+      }
+
+      "using a nested not" in {
+        val json = jsonContentOf("/filtering/nested-not.json", replacements)
+        val expectedHistory = "DownField(filter)/DownField(value)/DownN(4)"
+        json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
+      }
+
+      "using a multi value for comparison ops" in {
+        val json = jsonContentOf("/filtering/single-term-value.json", replacements)
+        val expectedHistory = "DownField(filter)/DownField(value)"
+        json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
+      }
 
       "using an incorrect comparison op" in {
         val json = jsonContentOf("/filtering/incorrect-comparison-op.json", replacements)
@@ -93,6 +117,12 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
         json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
       }
 
+      "using a logical non-nested op and an empty value" in {
+        val json = jsonContentOf("/filtering/logical-non-nested-op-empty-value.json", replacements)
+        val expectedHistory = "DownField(filter)/DownField(value)"
+        json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
+      }
+
       "using a logical op with a non blank node value" in {
         val json = jsonContentOf("/filtering/logical-op-string-value.json", replacements)
         val expectedHistory = "DownField(filter)/DownField(value)"
@@ -117,6 +147,12 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
         json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
       }
 
+      "using a blank node as a term value on non-nested" in {
+        val json = jsonContentOf("/filtering/term-value-non-blank-non-nested.json", replacements)
+        val expectedHistory = "DownField(filter)/DownField(value)/DownN(4)/DownField(value)"
+        json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
+      }
+
       "using a missing term value" in {
         val json = jsonContentOf("/filtering/term-value-missing.json", replacements)
         val expectedHistory = "DownField(filter)/DownField(value)/DownN(2)/DownField(value)"
@@ -134,7 +170,6 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
         val expectedHistory = "DownField(filter)"
         json.as[Filter].left.value.history.reverse.mkString("/") shouldEqual expectedHistory
       }
-
     }
   }
 

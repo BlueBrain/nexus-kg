@@ -41,7 +41,6 @@ object Op {
   final case object Gt extends ComparisonOp
   final case object Lte extends ComparisonOp
   final case object Gte extends ComparisonOp
-  final case object In extends ComparisonOp
 
   object ComparisonOp {
 
@@ -57,8 +56,21 @@ object Op {
       case "lte" => Some(Lte)
       case "gt"  => Some(Gt)
       case "gte" => Some(Gte)
-      case "in"  => Some(In)
       case _     => None
     }
+  }
+
+  /**
+    * Operator to represent value checks within a collection.
+    */
+  sealed trait In extends Op
+  final case object In extends In {
+    /**
+      * Attempts to construct ''In'' from the provided string.
+      *
+      * @param string the string representation of the ''In'' operator
+      */
+    def fromString(string: String): Option[In] =
+      if (string == "in") Some(In) else None
   }
 }
