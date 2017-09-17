@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.FullTextSearchQueries._
 import org.scalatest.{Matchers, WordSpecLike}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 
 class FullTextSearchQueriesSpec extends WordSpecLike with Matchers {
 
@@ -11,23 +12,41 @@ class FullTextSearchQueriesSpec extends WordSpecLike with Matchers {
       val term = "rand"
       val expected =
         s"""
-           |
-           |PREFIX  bds:  <http://www.bigdata.com/rdf/search#>
-           |
-           |SELECT DISTINCT  ?s ?matchedProperty ?score ?rank (GROUP_CONCAT(DISTINCT ?matchedValue ; separator=',') AS ?groupedConcatenatedMatchedValue)
+           |PREFIX bds: <http://www.bigdata.com/rdf/search#>
+           |SELECT DISTINCT ?total ?s ?maxscore ?score ?rank
+           |WITH {
+           |	SELECT DISTINCT ?s (max(?rsv) AS ?score) (max(?pos) AS ?rank)
+           |	WHERE
+           |	{
+           |		?s ?matchedProperty ?matchedValue .
+           |		?matchedValue bds:search "rand" .
+           |		?matchedValue bds:relevance ?rsv .
+           |		?matchedValue bds:rank ?pos .
+           |		FILTER ( !isBlank(?s) )
+           |	}
+           |	GROUP BY ?s
+           |} AS %resultSet
            |WHERE
-           |  { ?matchedValue
-           |              bds:search        "$term" ;
-           |              bds:relevance     ?score ;
-           |              bds:rank          ?rank .
-           |    ?s        ?matchedProperty  ?matchedValue
-           |    FILTER ( ! isBlank(?s) )
-           |  }
-           |GROUP BY ?s ?matchedProperty ?score ?rank
-           |LIMIT   100
-        """.stripMargin.trim
-
-      matchAllTerms("s", term, Pagination(0,100)).serialize().trim shouldEqual expected
+           |{
+           |	{ SELECT (COUNT(DISTINCT ?s) AS ?total) (max(?score) AS ?maxscore)
+           |		WHERE
+           |		{
+           |			INCLUDE %resultSet
+           |		}
+           |	}
+           |	UNION
+           |	{
+           |		SELECT *
+           |		WHERE
+           |		{
+           |			INCLUDE %resultSet
+           |		}
+           |		LIMIT 100
+           |	}
+           |}
+           |ORDER BY DESC(?score)
+         """.stripMargin.trim
+      matchAllTerms(subject, term, Pagination(0,100)).pretty shouldEqual expected
     }
   }
 }

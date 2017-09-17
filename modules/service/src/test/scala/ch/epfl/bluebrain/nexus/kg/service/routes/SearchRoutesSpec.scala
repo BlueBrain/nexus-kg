@@ -36,7 +36,7 @@ class SearchRoutesSpec extends WordSpecLike with ScalatestRouteTest with Matcher
 
       "performing a full text search" in {
         Get("/data?q=another") ~> routes ~> check {
-          val expected = fixedListSchemas(Uri("http://example.com/data?q=another"))
+          val expected = fixedListSchemas(Uri("http://127.0.0.1:8080/data?q=another"))
           status shouldEqual StatusCodes.OK
           responseAs[Results] shouldEqual expected
         }
@@ -45,7 +45,7 @@ class SearchRoutesSpec extends WordSpecLike with ScalatestRouteTest with Matcher
       "performing a full text search with specific pagination" in {
         val specificPagination = Pagination(0L, 2)
         Get(s"/data?q=another&from=${specificPagination.from}&size=${specificPagination.size}") ~> routes ~> check {
-          val expected = fixedListSchemas(Uri(s"http://example.com/data?q=another&from=${specificPagination.from}&size=${specificPagination.size}"))
+          val expected = fixedListSchemas(Uri(s"http://127.0.0.1:8080/data?q=another&from=${specificPagination.from}&size=${specificPagination.size}"))
           status shouldEqual StatusCodes.OK
           responseAs[Results] shouldEqual expected
         }
@@ -62,7 +62,7 @@ object SearchRoutesSpec {
   private val baseUri = Uri("http://127.0.0.1:8080/v0")
 
   private def fixedListSchemas(uri: Uri) =
-    Results(0L, 1F, List(
+    Results(2L, 0.8F, List(
       Result(
         s"$baseUri/data/org/domain/subject/v1.0.0/e973d182-373e-414a-a84f-dd9750636b27",
         0.625F,

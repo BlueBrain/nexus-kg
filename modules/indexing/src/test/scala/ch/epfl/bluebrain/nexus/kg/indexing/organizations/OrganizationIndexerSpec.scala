@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.organizations
 
 import java.util.regex.Pattern
-import ch.epfl.bluebrain.nexus.kg.indexing.query.IndexingVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer

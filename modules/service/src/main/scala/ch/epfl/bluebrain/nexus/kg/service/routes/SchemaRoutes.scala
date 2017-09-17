@@ -156,8 +156,10 @@ object SchemaRoutes {
     * @return a new ''SchemaRoutes'' instance
     */
   final def apply(schemas: Schemas[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(implicit
-    ec: ExecutionContext): SchemaRoutes =
-    new SchemaRoutes(schemas, querySettings, new FilterQueries(SparqlQuery[Future](client), querySettings), base)
+    ec: ExecutionContext): SchemaRoutes = {
+    val filterQueries = new FilterQueries[SchemaId](SparqlQuery[Future](client), querySettings, base)
+    new SchemaRoutes(schemas, querySettings, filterQueries, base)
+  }
 
 
   /**

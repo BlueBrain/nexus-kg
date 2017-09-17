@@ -100,8 +100,10 @@ object DomainRoutes {
     * @return a new ''DomainRoutes'' instance
     */
   final def apply(domains: Domains[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(implicit
-    ec: ExecutionContext): DomainRoutes =
-    new DomainRoutes(domains, querySettings, new FilterQueries(SparqlQuery[Future](client), querySettings), base)
+    ec: ExecutionContext): DomainRoutes = {
+    val filterQueries = new FilterQueries[DomainId](SparqlQuery[Future](client), querySettings, base)
+    new DomainRoutes(domains, querySettings, filterQueries, base)
+  }
 }
 
 private class DomainCustomEncoders(base: Uri) extends RoutesEncoder[DomainId, DomainRef](base){

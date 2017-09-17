@@ -114,7 +114,7 @@ class SchemaRoutesSpec
     "return list of schemas from organization" in {
       Get(s"/schemas/org") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListSchemas(Uri("http://example.com/schemas/org"))
+        responseAs[Results] shouldEqual fixedListSchemas(Uri("http://localhost/schemas/org"))
       }
     }
 
@@ -122,14 +122,14 @@ class SchemaRoutesSpec
       val specificPagination = Pagination(0L, 10)
       Get(s"/schemas/org/domain?from=${specificPagination.from}&size=${specificPagination.size}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListSchemas(Uri(s"http://example.com/schemas/org/domain?from=${specificPagination.from}&size=${specificPagination.size}"))
+        responseAs[Results] shouldEqual fixedListSchemas(Uri(s"http://localhost/schemas/org/domain?from=${specificPagination.from}&size=${specificPagination.size}"))
       }
     }
 
     "return a list of schemas from schema name with deprecated results" in {
       Get(s"/schemas/org/domain/subject?deprecated=true") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListSchemas(Uri(s"http://example.com/schemas/org/domain/subject?deprecated=true"))
+        responseAs[Results] shouldEqual fixedListSchemas(Uri(s"http://localhost/schemas/org/domain/subject?deprecated=true"))
       }
     }
 

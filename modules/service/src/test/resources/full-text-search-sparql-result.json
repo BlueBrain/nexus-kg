@@ -57,6 +57,19 @@
           "type": "literal",
           "value": " Yet Another Name"
         }
+      },
+
+      {
+        "total": {
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "type": "literal",
+          "value": "2"
+        },
+        "maxscore": {
+          "datatype": "http://www.w3.org/2001/XMLSchema#double",
+          "type": "literal",
+          "value": "0.8"
+        }
       }
     ]
   }
