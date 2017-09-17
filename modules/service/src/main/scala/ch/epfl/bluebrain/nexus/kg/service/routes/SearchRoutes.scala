@@ -60,7 +60,8 @@ object SearchRoutes {
     */
   final def apply(client: SparqlClient[Future], base: Uri, querySettings: QuerySettings)
     (implicit ec: ExecutionContext): SearchRoutes = {
-    new SearchRoutes(base, new FilterQueries(SparqlQuery[Future](client), querySettings), querySettings)
+    val filterQueries = new FilterQueries[InstanceId](SparqlQuery[Future](client), querySettings, base)
+    new SearchRoutes(base, filterQueries, querySettings)
   }
 
   private class InstanceIdCustomEncoders(base: Uri)(implicit le: Encoder[Link]) extends RoutesEncoder[InstanceId, InstanceRef](base) {

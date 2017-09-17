@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import ch.epfl.bluebrain.nexus.kg.indexing.query.IndexingVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}

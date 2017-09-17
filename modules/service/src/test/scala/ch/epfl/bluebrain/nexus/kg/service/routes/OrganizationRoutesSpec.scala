@@ -108,7 +108,7 @@ class OrganizationRoutesSpec
     "return list of organizations" in {
       Get(s"/organizations") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListOrgs(Uri("http://example.com/organizations"))
+        responseAs[Results] shouldEqual fixedListOrgs(Uri("http://localhost/organizations"))
       }
     }
 
@@ -116,7 +116,7 @@ class OrganizationRoutesSpec
       val pagination = Pagination(1,200)
       Get(s"/organizations?from=${pagination.from}&size=${pagination.size}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListOrgs(Uri(s"http://example.com/organizations?from=${pagination.from}&size=${pagination.size}"))
+        responseAs[Results] shouldEqual fixedListOrgs(Uri(s"http://localhost/organizations?from=${pagination.from}&size=${pagination.size}"))
       }
     }
 

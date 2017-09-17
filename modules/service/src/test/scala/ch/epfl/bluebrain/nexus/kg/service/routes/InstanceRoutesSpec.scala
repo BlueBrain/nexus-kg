@@ -220,7 +220,7 @@ class InstanceRoutesSpec
     "return list of instances from organization" in new Context {
       Get(s"/data/org") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual staticQueryResponse(Uri("http://example.com/data/org"), instanceIdQuery1, instanceIdQuery2)
+        responseAs[Results] shouldEqual staticQueryResponse(Uri("http://localhost/data/org"), instanceIdQuery1, instanceIdQuery2)
       }
     }
 
@@ -228,7 +228,7 @@ class InstanceRoutesSpec
       val specificPagination = Pagination(0L, 10)
       Get(s"/data/org/domain?from=${specificPagination.from}&size=${specificPagination.size}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual staticQueryResponse(Uri(s"http://example.com/data/org/domain?from=${specificPagination.from}&size=${specificPagination.size}"), instanceIdQuery1, instanceIdQuery2)
+        responseAs[Results] shouldEqual staticQueryResponse(Uri(s"http://localhost/data/org/domain?from=${specificPagination.from}&size=${specificPagination.size}"), instanceIdQuery1, instanceIdQuery2)
       }
     }
 
@@ -238,7 +238,7 @@ class InstanceRoutesSpec
       Get(path) ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Results] shouldEqual
-          staticQueryResponse(Uri(s"http://example.com$path"), instanceIdQuery1, instanceIdQuery2)
+          staticQueryResponse(Uri(s"http://localhost$path"), instanceIdQuery1, instanceIdQuery2)
       }
     }
 
