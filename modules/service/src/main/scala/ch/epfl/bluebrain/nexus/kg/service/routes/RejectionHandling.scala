@@ -4,9 +4,9 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server._
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections._
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
 /**
   * A rejection encapsulates a specific reason why a route was not able to handle a request.
@@ -15,16 +15,21 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
   */
 object RejectionHandling {
 
-  final def rejectionHandler = RejectionHandler.newBuilder()
+  final def rejectionHandler: RejectionHandler = RejectionHandler.newBuilder()
     .handleAll[MalformedRequestContentRejection] { rejection =>
-    val aggregate = rejection.map(_.message).mkString(", ")
-    complete(BadRequest -> (WrongOrInvalidJson(Some(aggregate)): CommonRejections))
-  }
-
+      val aggregate = rejection.map(_.message).mkString(", ")
+      complete(BadRequest -> (WrongOrInvalidJson(Some(aggregate)): CommonRejections))
+    }
     .handleAll[MethodRejection] { methodRejections =>
-    val names = methodRejections.map(_.supported.name)
-    complete(MethodNotAllowed -> (MethodNotSupported(names): CommonRejections))
-  }
+      val names = methodRejections.map(_.supported.name)
+      complete(MethodNotAllowed -> (MethodNotSupported(names): CommonRejections))
+    }
+    .handle {
+      case MalformedQueryParamRejection(_, _, Some(e: WrongOrInvalidJson)) =>
+        complete(BadRequest -> (e: CommonRejections))
+      case MalformedQueryParamRejection(_, _, Some(e: IllegalFilterFormat)) =>
+        complete(BadRequest -> (e: CommonRejections))
+    }
     .result()
 
   /**

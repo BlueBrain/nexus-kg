@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import ch.epfl.bluebrain.nexus.common.types.Err
 import ch.epfl.bluebrain.nexus.kg.core.Rejection
 
 /**
@@ -21,14 +22,17 @@ object CommonRejections {
     *
     * @param details optional explanation about what went wrong while parsing the Json payload
     */
-  final case class WrongOrInvalidJson(details: Option[String]) extends CommonRejections
+  final case class WrongOrInvalidJson(details: Option[String])
+    extends Err("Invalid json") with CommonRejections
 
   /**
     * Signals the inability to parse a json structure into a [[ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter]]
     * instance.
     *
-    * @param field the offending field
+    * @param message a human readable description of the cause
+    * @param field   the offending field
     */
-  final case class IllegalFilterFormat(message: String, field: String) extends CommonRejections
+  final case class IllegalFilterFormat(override val message: String, field: String)
+    extends Err(message) with CommonRejections
 
 }

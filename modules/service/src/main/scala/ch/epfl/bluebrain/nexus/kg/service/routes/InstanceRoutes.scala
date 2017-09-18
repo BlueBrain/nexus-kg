@@ -18,42 +18,39 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRejection}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, FilteringSettings, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, FilteringSettings, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.query.{InstanceQueries, LinksQueryResults}
-import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalFilterFormat, WrongOrInvalidJson}
 import io.circe.generic.auto._
-import io.circe.{DecodingFailure, Encoder, Json, ParsingFailure}
-import io.circe.parser._
-import kamon.akka.http.KamonTraceDirectives.traceName
 import io.circe.syntax._
+import io.circe.{Encoder, Json}
+import kamon.akka.http.KamonTraceDirectives.traceName
 
 import scala.concurrent.{ExecutionContext, Future}
-
 
 /**
   * Http route definitions for instance specific functionality.
   *
-  * @param instances       the instances operation bundle
-  * @param querySettings   query parameters form settings
-  * @param instanceQueries query builder for schemas
-  * @param base            the service public uri + prefix
+  * @param instances         the instances operation bundle
+  * @param instanceQueries   query builder for schemas
+  * @param base              the service public uri + prefix
+  * @param querySettings     query parameters from settings
+  * @param filteringSettings filtering parameters from settings
   */
 class InstanceRoutes(
   instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
-  querySettings: QuerySettings,
   instanceQueries: InstanceQueries,
-  base: Uri)(implicit filteringSettings: FilteringSettings) {
+  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
 
   private val encoders = new InstanceCustomEncoders(base)
-
   import encoders._
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler
@@ -117,23 +114,29 @@ class InstanceRoutes(
                   pathPrefix(Segment) { id =>
                     val instanceId = InstanceId(schemaId, id)
                     (pathPrefix("outgoing") & pathEndOrSingleSlash & get) {
-                      (parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size)) { (from, size) =>
-                        val pagination = Pagination(from, size)
-                        parameter('deprecated.as[Boolean].?) { deprecated =>
-                          parameter('filter.?) {
-                            case Some(filterString) =>
-                              decode[Filter](filterString) match {
-                                case Left(_: ParsingFailure)   =>
-                                  complete(StatusCodes.BadRequest -> WrongOrInvalidJson(Some("The filter format is invalid")))
-                                case Left(df: DecodingFailure) =>
-                                  complete(StatusCodes.BadRequest -> IllegalFilterFormat(df.message, df.history.reverse.mkString("/")))
-                                case Right(clientFilter)       =>
-                                  val filter = Filter(LogicalExpr(Op.And, List(deprecatedAndRev(deprecated), clientFilter.expr)))
-                                  buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
-                              }
-                            case None               =>
+                      parameter('deprecated.as[Boolean].?) { deprecated =>
+                        paginatedAndFiltered.apply { (pagination, filterOpt) =>
+                          filterOpt match {
+                            case Some(clientFilter) =>
+                              val filter = Filter(LogicalExpr(Op.And, List(deprecatedAndRev(deprecated), clientFilter.expr)))
+                              buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
+                            case None =>
                               val filter = Filter(deprecatedAndRev(deprecated))
                               buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
+                          }
+                        }
+                      }
+                    } ~
+                    (pathPrefix("incoming") & pathEndOrSingleSlash & get) {
+                      parameter('deprecated.as[Boolean].?) { deprecated =>
+                        paginatedAndFiltered.apply { (pagination, filterOpt) =>
+                          filterOpt match {
+                            case Some(clientFilter) =>
+                              val filter = Filter(LogicalExpr(Op.And, List(deprecatedAndRev(deprecated), clientFilter.expr)))
+                              buildResponse(instanceQueries.incoming(instanceId, filter, pagination), pagination)
+                            case None =>
+                              val filter = Filter(deprecatedAndRev(deprecated))
+                              buildResponse(instanceQueries.incoming(instanceId, filter, pagination), pagination)
                           }
                         }
                       }
@@ -263,8 +266,9 @@ object InstanceRoutes {
     base: Uri)(implicit
     ec: ExecutionContext,
     filteringSettings: FilteringSettings): InstanceRoutes = {
+    implicit val qs: QuerySettings = querySettings
     val instanceQueries = new InstanceQueries(SparqlQuery[Future](client), querySettings, base)
-    new InstanceRoutes(instances, querySettings, instanceQueries, base)
+    new InstanceRoutes(instances, instanceQueries, base)
   }
 }
 

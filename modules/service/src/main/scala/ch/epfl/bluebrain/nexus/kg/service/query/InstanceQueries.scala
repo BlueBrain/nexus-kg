@@ -116,6 +116,19 @@ class InstanceQueries(queryClient: SparqlQuery[Future], querySettings: QuerySett
     val query = FilteredQuery.outgoing(thisFilter, filter, pagination)
     queryClient[InstanceId](querySettings.index, query, scored = false)
   }
+
+  /**
+    * Lists all incoming instances linked to the instance identified by ''id'' that match the given filter.
+    *
+    * @param id         the selected instance id (this)
+    * @param filter     the filter to apply to incoming instances
+    * @param pagination the pagination values
+    */
+  def incoming(id: InstanceId, filter: Filter, pagination: Pagination): Future[QueryResults[InstanceId]] = {
+    val thisFilter = Filter(ComparisonExpr(Op.Eq, UriTerm("uuid".qualify), LiteralTerm(s""""${id.id}"""")))
+    val query = FilteredQuery.incoming(thisFilter, filter, pagination)
+    queryClient[InstanceId](querySettings.index, query, scored = false)
+  }
 }
 
 object InstanceQueries {

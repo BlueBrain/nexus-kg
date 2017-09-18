@@ -82,6 +82,41 @@ object FilteredQuery {
        |}""".stripMargin
   }
 
+  /**
+    * Constructs a SPARQL query based on the provided filters and pagination settings that also computes the total
+    * number of results.
+    *
+    * @param thisFilter   the filter to be applied to select the objects
+    * @param sourceFilter the filter to be applied to filter the subjects
+    * @param pagination   the pagination settings for the generated query
+    */
+  def incoming(thisFilter: Filter, sourceFilter: Filter, pagination: Pagination): String = {
+    s"""
+       |SELECT ?total ?s
+       |WITH {
+       |  SELECT ?s
+       |  WHERE {
+       |
+       |?s ?p ?ss.
+       |${buildWhere(thisFilter.expr, "?ss", "this")}
+       |${buildWhere(sourceFilter.expr, "?s", "var")}
+       |  }
+       |} AS %resultSet
+       |WHERE {
+       |  {
+       |    SELECT (COUNT(DISTINCT ?s) AS ?total)
+       |    WHERE { INCLUDE %resultSet }
+       |  }
+       |  UNION
+       |  {
+       |    SELECT *
+       |    WHERE { INCLUDE %resultSet }
+       |    LIMIT ${pagination.size}
+       |    OFFSET ${pagination.from}
+       |  }
+       |}""".stripMargin
+  }
+
   private final case class Stmt(stmt: String, filter: String, variable: String)
 
   private def buildWhere(expr: Expr, subjectVar: String, varPrefix: String): String = {

@@ -254,9 +254,28 @@ class InstanceRoutesSpec
       }
     }
 
-    "reject the request with 400 for incorrect filter format" in new Context {
+    "reject the request with 400 for outgoing links incorrect filter format" in new Context {
       private val filter = URLEncoder.encode("""{"filter": {}}""", "UTF-8")
       private val path = s"""/data/${instanceRef.id.show}/outgoing?filter=$filter"""
+      Get(path) ~> route ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        val json: Json = responseAs[Json]
+        json.hcursor.get[String]("field") shouldEqual Right("DownField(filter)/DownField(op)")
+      }
+    }
+
+    "return the instances that the selected instance is linked with as an incoming link" in new Context  {
+      private val path = s"/data/${instanceRef.id.show}/incoming"
+      Get(path) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Results] shouldEqual
+          staticQueryResponse(Uri(s"http://localhost$path"), instanceIdQuery1, instanceIdQuery2)
+      }
+    }
+
+    "reject the request with 400 for incoming links with incorrect filter format" in new Context {
+      private val filter = URLEncoder.encode("""{"filter": {}}""", "UTF-8")
+      private val path = s"""/data/${instanceRef.id.show}/incoming?filter=$filter"""
       Get(path) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         val json: Json = responseAs[Json]
