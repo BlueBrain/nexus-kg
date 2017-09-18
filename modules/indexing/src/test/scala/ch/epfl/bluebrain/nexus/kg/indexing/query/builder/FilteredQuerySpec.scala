@@ -4,6 +4,7 @@ import java.util.regex.Pattern
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.kg.core.Resources
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.NoopExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
@@ -22,11 +23,40 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
   private val bbpagent = Uri(s"$base/voc/bbp/agent/core/")
 
   "A FilteredQuery" should {
+    val pagination = Pagination(13, 17)
+
     "build the appropriate SPARQL query" when {
+
+      "using a noop filter expression" in {
+        val expected =
+          s"""
+             |SELECT ?total ?s
+             |WITH {
+             |  SELECT ?s
+             |  WHERE {
+             |?s ?p ?o
+             |  }
+             |} AS %resultSet
+             |WHERE {
+             |  {
+             |    SELECT (COUNT(DISTINCT ?s) AS ?total)
+             |    WHERE { INCLUDE %resultSet }
+             |  }
+             |  UNION
+             |  {
+             |    SELECT *
+             |    WHERE { INCLUDE %resultSet }
+             |    LIMIT 17
+             |    OFFSET 13
+             |  }
+             |}""".stripMargin
+        val result = FilteredQuery(Filter(NoopExpr), pagination)
+        result shouldEqual expected
+      }
+
       "using a filter" in {
         val json = jsonContentOf("/query/builder/filter-only.json", replacements)
         val filter = json.as[Filter].right.value
-        val pagination = Pagination(13, 17)
         val expectedWhere =
           s"""
              |?s <${prov}wasDerivedFrom> ?var_1 .

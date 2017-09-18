@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import cats.Show
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Term}
@@ -115,6 +115,7 @@ object FilteredQuery {
     }
 
     def fromExpr(expr: Expr): String = expr match {
+      case NoopExpr                => "?s ?p ?o"
       case e: ComparisonExpr       => compExpr(e).show
       case e: InExpr               => inExpr(e).show
       case LogicalExpr(And, exprs) =>
@@ -122,6 +123,7 @@ object FilteredQuery {
           case ((stmts, str), e: ComparisonExpr) => (stmts :+ compExpr(e), str)
           case ((stmts, str), e: InExpr)         => (stmts :+ inExpr(e), str)
           case ((stmts, str), l: LogicalExpr)    => (stmts, str.append(fromExpr(l)))
+          case ((stmts, str), NoopExpr)          => (stmts, str)
         }
         fromStmts(And, statements) + builder.mkString
       case LogicalExpr(op, exprs)  =>

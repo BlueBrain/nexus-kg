@@ -1,12 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives.{parameter, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.IOResult
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
+import cats.instances.string._
 import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -16,37 +17,42 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, Instance
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRejection}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, NoopExpr}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.query.FilterQueries
+import ch.epfl.bluebrain.nexus.kg.service.query.{InstanceQueries, LinksQueryResults}
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
-import kamon.akka.http.KamonTraceDirectives._
+import kamon.akka.http.KamonTraceDirectives.traceName
 import io.circe.syntax._
+
 import scala.concurrent.{ExecutionContext, Future}
 
 
 /**
   * Http route definitions for instance specific functionality.
   *
-  * @param instances     the instances operation bundle
-  * @param querySettings query parameters form settings
-  * @param queryBuilder  query builder for schemas
-  * @param base          the service public uri + prefix
+  * @param instances       the instances operation bundle
+  * @param querySettings   query parameters form settings
+  * @param instanceQueries query builder for schemas
+  * @param base            the service public uri + prefix
   */
 class InstanceRoutes(
   instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
   querySettings: QuerySettings,
-  queryBuilder: FilterQueries[InstanceId],
+  instanceQueries: InstanceQueries,
   base: Uri) {
 
   private val encoders = new InstanceCustomEncoders(base)
 
-  import encoders._, queryBuilder._
+  import encoders._
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler
   private val pagination = querySettings.pagination
@@ -58,7 +64,8 @@ class InstanceRoutes(
         pathEndOrSingleSlash {
           (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
             traceName("listInstancesOfOrg") {
-              queryBuilder.listingQuery(orgId, deprecated, None, Pagination(from, size)).response
+              val filter = Filter(deprecatedOrNoop(deprecated))
+              buildResponse(instanceQueries.list(orgId, filter, Pagination(from, size)), Pagination(from, size))
             }
           }
         } ~
@@ -67,7 +74,8 @@ class InstanceRoutes(
           pathEndOrSingleSlash {
             (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
               traceName("listInstancesOfDomain") {
-                queryBuilder.listingQuery(domainId, deprecated, None, Pagination(from, size)).response
+                val filter = Filter(deprecatedOrNoop(deprecated))
+                buildResponse(instanceQueries.list(domainId, filter, Pagination(from, size)), Pagination(from, size))
               }
             }
           } ~
@@ -75,7 +83,8 @@ class InstanceRoutes(
             pathEndOrSingleSlash {
               (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
                 traceName("listInstancesOfSchemaName") {
-                  queryBuilder.listingQuery(domainId, name, deprecated, None, Pagination(from, size)).response
+                  val filter = Filter(deprecatedOrNoop(deprecated))
+                  buildResponse(instanceQueries.list(domainId, name, filter, Pagination(from, size)), Pagination(from, size))
                 }
               }
             } ~
@@ -89,7 +98,8 @@ class InstanceRoutes(
                   pathEndOrSingleSlash {
                     (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
                       traceName("listInstancesOfSchema") {
-                        queryBuilder.listingQuery(domainId, schemaId, deprecated, None, Pagination(from, size)).response
+                        val filter = Filter(deprecatedOrNoop(deprecated))
+                        buildResponse(instanceQueries.list(schemaId, filter, Pagination(from, size)), Pagination(from, size))
                       }
                     }
                   } ~
@@ -141,13 +151,12 @@ class InstanceRoutes(
                     path("attachment") {
                       (put & parameter('rev.as[Long])) { rev =>
                         fileUpload("file") {
-                          case (metadata, byteSource) => {
+                          case (metadata, byteSource) =>
                             traceName("createInstanceAttachment") {
                               onSuccess(instances.createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) { info =>
                                 complete(StatusCodes.Created -> info)
                               }
                             }
-                          }
                         }
                       } ~
                       (delete & parameter('rev.as[Long])) { rev =>
@@ -183,6 +192,24 @@ class InstanceRoutes(
       }
     }
   }
+
+  private def deprecatedOrNoop(deprecated: Option[Boolean]): Expr = {
+    deprecated.map { value =>
+      val depr = value.toString.qualifyWith(querySettings.nexusVocBase)
+      ComparisonExpr(Op.Eq, UriTerm(depr), LiteralTerm(value.toString))
+    }.getOrElse(NoopExpr)
+  }
+
+  private def buildResponse[A](qr: Future[QueryResults[A]], pagination: Pagination)(implicit
+    R: Encoder[UnscoredQueryResult[A]],
+    S: Encoder[ScoredQueryResult[A]]): Route =
+    extract(_.request.uri) { uri =>
+      onSuccess(qr) { result =>
+        val lqu = base.copy(path = uri.path, fragment = uri.fragment, rawQueryString = uri.rawQueryString)
+        val lqrs = LinksQueryResults(result, pagination, lqu)
+        complete(StatusCodes.OK -> lqrs)
+      }
+    }
 }
 
 object InstanceRoutes {
@@ -201,8 +228,8 @@ object InstanceRoutes {
     querySettings: QuerySettings,
     base: Uri)(implicit
     ec: ExecutionContext): InstanceRoutes = {
-    val filterQueries = new FilterQueries[InstanceId](SparqlQuery[Future](client), querySettings, base)
-    new InstanceRoutes(instances, querySettings, filterQueries, base)
+    val instanceQueries = new InstanceQueries(SparqlQuery[Future](client), querySettings, base)
+    new InstanceRoutes(instances, querySettings, instanceQueries, base)
   }
 }
 

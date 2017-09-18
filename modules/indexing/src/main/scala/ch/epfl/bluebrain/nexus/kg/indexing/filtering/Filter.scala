@@ -5,7 +5,7 @@ import java.io.ByteArrayInputStream
 import akka.http.scaladsl.model.Uri
 import cats.Eval
 import cats.syntax.either._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
 import io.circe._
@@ -169,6 +169,7 @@ object Filter {
                   case Right(expr: InExpr)         => Right(expr :: list)
                   case Right(expr: ComparisonExpr) => Right(expr :: list)
                   case Right(_: LogicalExpr)       => Left(DecodingFailure("Logical expression cannot be nested further", exprCursor.history))
+                  case Right(NoopExpr)             => Left(DecodingFailure("Impossible case", exprCursor.history))
                 }.value
               }
           }.map(_.reverse)

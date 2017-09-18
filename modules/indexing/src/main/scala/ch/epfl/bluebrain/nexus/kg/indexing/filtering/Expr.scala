@@ -31,4 +31,8 @@ object Expr {
     * @param value the sum of possible term values
     */
   final case class InExpr(path: UriTerm, value: TermCollection) extends Expr
+  /**
+    * An expression that doesn't filter anything.
+    */
+  final case object NoopExpr extends Expr
 }
