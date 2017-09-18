@@ -22,6 +22,7 @@ object CommonRejections {
     *
     * @param details optional explanation about what went wrong while parsing the Json payload
     */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
   final case class WrongOrInvalidJson(details: Option[String])
     extends Err("Invalid json") with CommonRejections
 
@@ -32,6 +33,7 @@ object CommonRejections {
     * @param message a human readable description of the cause
     * @param field   the offending field
     */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
   final case class IllegalFilterFormat(override val message: String, field: String)
     extends Err(message) with CommonRejections
 
