@@ -33,7 +33,7 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives.traceName
-
+import ch.epfl.bluebrain.nexus.kg.service.query.InstanceQueries._
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -54,36 +54,41 @@ class InstanceRoutes(
   import encoders._
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler
-  private val pagination = querySettings.pagination
 
   def routes: Route = handleExceptions(exceptionHandler) {
     handleRejections(RejectionHandling.rejectionHandler) {
       pathPrefix("data" / Segment) { orgIdString =>
         val orgId = OrgId(orgIdString)
         pathEndOrSingleSlash {
-          (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
+          (get & paginatedAndFiltered) { (pagination, filterOpt) =>
             traceName("listInstancesOfOrg") {
-              val filter = Filter(deprecatedOrNoop(deprecated))
-              buildResponse(instanceQueries.list(orgId, filter, Pagination(from, size)), Pagination(from, size))
+              parameter('deprecated.as[Boolean].?) { deprecated =>
+                val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
+                buildResponse(instanceQueries.list(orgId, filter, pagination), pagination)
+              }
             }
           }
         } ~
         pathPrefix(Segment) { domain =>
           val domainId = DomainId(orgId, domain)
           pathEndOrSingleSlash {
-            (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
-              traceName("listInstancesOfDomain") {
-                val filter = Filter(deprecatedOrNoop(deprecated))
-                buildResponse(instanceQueries.list(domainId, filter, Pagination(from, size)), Pagination(from, size))
+            (get & paginatedAndFiltered) { (pagination, filterOpt) =>
+              parameter('deprecated.as[Boolean].?) { deprecated =>
+                traceName("listInstancesOfDomain") {
+                  val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
+                  buildResponse(instanceQueries.list(domainId, filter, pagination), pagination)
+                }
               }
             }
           } ~
           pathPrefix(Segment) { name =>
             pathEndOrSingleSlash {
-              (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
-                traceName("listInstancesOfSchemaName") {
-                  val filter = Filter(deprecatedOrNoop(deprecated))
-                  buildResponse(instanceQueries.list(domainId, name, filter, Pagination(from, size)), Pagination(from, size))
+              (get & paginatedAndFiltered) { (pagination, filterOpt) =>
+                parameter('deprecated.as[Boolean].?) { deprecated =>
+                  traceName("listInstancesOfSchemaName") {
+                    val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
+                    buildResponse(instanceQueries.list(domainId, name, filter, pagination), pagination)
+                  }
                 }
               }
             } ~
@@ -95,10 +100,12 @@ class InstanceRoutes(
                   val schemaId = SchemaId(DomainId(orgId, domain), name, version)
 
                   pathEndOrSingleSlash {
-                    (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
-                      traceName("listInstancesOfSchema") {
-                        val filter = Filter(deprecatedOrNoop(deprecated))
-                        buildResponse(instanceQueries.list(schemaId, filter, Pagination(from, size)), Pagination(from, size))
+                    (get & paginatedAndFiltered) { (pagination, filterOpt) =>
+                      parameter('deprecated.as[Boolean].?) { deprecated =>
+                        traceName("listInstancesOfSchema") {
+                          val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
+                          buildResponse(instanceQueries.list(schemaId, filter, pagination), pagination)
+                        }
                       }
                     }
                   } ~

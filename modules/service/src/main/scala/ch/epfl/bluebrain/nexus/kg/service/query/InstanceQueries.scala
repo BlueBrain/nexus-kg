@@ -147,6 +147,16 @@ object InstanceQueries {
       case LogicalExpr(And, exprs) => Filter(LogicalExpr(And, expr +: exprs))
       case other                   => Filter(LogicalExpr(And, List(expr, other)))
     }
+
+    /**
+      * Constructs a new filter based on ''this'' filter by adding the argument filter expression (if defined) to the expressions
+      * defined in ''this'' filter using the [[And]] logical operator.
+      *
+      * @param exprOpt the optional expression to add to ''this'' filter.
+      */
+    def and(exprOpt: Option[Expr]): Filter =
+      exprOpt.map(and).getOrElse(filter)
+
   }
 
   private def orgExpr(org: OrgId)(implicit qual: ConfiguredQualifier[String]): Expr =
