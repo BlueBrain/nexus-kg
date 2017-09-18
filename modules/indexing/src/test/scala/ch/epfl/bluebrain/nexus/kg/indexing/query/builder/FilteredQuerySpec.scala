@@ -245,7 +245,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |    OFFSET 13
              |  }
              |}""".stripMargin
-        val result = FilteredQuery.outgoing(thisFilter, targetFilter, pagination)
+        val result = FilteredQuery.incoming(thisFilter, targetFilter, pagination)
         result shouldEqual expected
       }
     }

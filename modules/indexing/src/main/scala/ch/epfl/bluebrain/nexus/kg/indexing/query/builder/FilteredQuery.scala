@@ -97,7 +97,7 @@ object FilteredQuery {
        |  SELECT ?s
        |  WHERE {
        |
-       |?s ?p ?ss.
+       |?s ?p ?ss .
        |${buildWhere(thisFilter.expr, "?ss", "this")}
        |${buildWhere(sourceFilter.expr, "?s", "var")}
        |  }
