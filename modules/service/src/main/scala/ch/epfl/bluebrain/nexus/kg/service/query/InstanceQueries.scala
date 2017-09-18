@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, Eq}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilteredQuery
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SparqlQuery}
@@ -103,6 +103,19 @@ class InstanceQueries(queryClient: SparqlQuery[Future], querySettings: QuerySett
         and schemaNameExpr(schema.name)
         and schemaVerExpr(schema.version),
       pagination)
+
+  /**
+    * Lists all outgoing instances linked to the instance identified by ''id'' that match the given filter.
+    *
+    * @param id         the selected instance id (this)
+    * @param filter     the filter to apply to outgoing instances
+    * @param pagination the pagination values
+    */
+  def outgoing(id: InstanceId, filter: Filter, pagination: Pagination): Future[QueryResults[InstanceId]] = {
+    val thisFilter = Filter(ComparisonExpr(Op.Eq, UriTerm("uuid".qualify), LiteralTerm(s""""${id.id}"""")))
+    val query = FilteredQuery.outgoing(thisFilter, filter, pagination)
+    queryClient[InstanceId](querySettings.index, query, scored = false)
+  }
 }
 
 object InstanceQueries {

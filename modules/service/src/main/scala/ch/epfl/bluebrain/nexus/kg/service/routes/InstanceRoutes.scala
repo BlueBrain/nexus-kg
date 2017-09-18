@@ -17,8 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, Instance
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRejection}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, NoopExpr}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, FilteringSettings, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
@@ -28,8 +28,10 @@ import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.query.{InstanceQueries, LinksQueryResults}
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalFilterFormat, WrongOrInvalidJson}
 import io.circe.generic.auto._
-import io.circe.{Encoder, Json}
+import io.circe.{DecodingFailure, Encoder, Json, ParsingFailure}
+import io.circe.parser._
 import kamon.akka.http.KamonTraceDirectives.traceName
 import io.circe.syntax._
 
@@ -48,7 +50,7 @@ class InstanceRoutes(
   instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
   querySettings: QuerySettings,
   instanceQueries: InstanceQueries,
-  base: Uri) {
+  base: Uri)(implicit filteringSettings: FilteringSettings) {
 
   private val encoders = new InstanceCustomEncoders(base)
 
@@ -114,7 +116,29 @@ class InstanceRoutes(
                   } ~
                   pathPrefix(Segment) { id =>
                     val instanceId = InstanceId(schemaId, id)
-                    pathEnd {
+                    (pathPrefix("outgoing") & pathEndOrSingleSlash & get) {
+                      (parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size)) { (from, size) =>
+                        val pagination = Pagination(from, size)
+                        parameter('deprecated.as[Boolean].?) { deprecated =>
+                          parameter('filter.?) {
+                            case Some(filterString) =>
+                              decode[Filter](filterString) match {
+                                case Left(_: ParsingFailure)   =>
+                                  complete(StatusCodes.BadRequest -> WrongOrInvalidJson(Some("The filter format is invalid")))
+                                case Left(df: DecodingFailure) =>
+                                  complete(StatusCodes.BadRequest -> IllegalFilterFormat(df.message, df.history.reverse.mkString("/")))
+                                case Right(clientFilter)       =>
+                                  val filter = Filter(LogicalExpr(Op.And, List(deprecatedAndRev(deprecated), clientFilter.expr)))
+                                  buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
+                              }
+                            case None               =>
+                              val filter = Filter(deprecatedAndRev(deprecated))
+                              buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
+                          }
+                        }
+                      }
+                    } ~
+                    pathEndOrSingleSlash {
                       (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
                         traceName("updateInstance") {
                           onSuccess(instances.update(instanceId, rev, json)) { ref =>
@@ -195,10 +219,20 @@ class InstanceRoutes(
 
   private def deprecatedOrNoop(deprecated: Option[Boolean]): Expr = {
     deprecated.map { value =>
-      val depr = value.toString.qualifyWith(querySettings.nexusVocBase)
+      val depr = "deprecated".qualifyWith(querySettings.nexusVocBase)
       ComparisonExpr(Op.Eq, UriTerm(depr), LiteralTerm(value.toString))
     }.getOrElse(NoopExpr)
   }
+
+  private def deprecatedAndRev(deprecated: Option[Boolean]): Expr = {
+    LogicalExpr(Op.And, List(deprecatedOrNoop(deprecated), revExpr))
+  }
+
+  private def revExpr: Expr = {
+    val rev = "rev".qualifyWith(querySettings.nexusVocBase)
+    ComparisonExpr(Op.Gt, UriTerm(rev), LiteralTerm("0"))
+  }
+
 
   private def buildResponse[A](qr: Future[QueryResults[A]], pagination: Pagination)(implicit
     R: Encoder[UnscoredQueryResult[A]],
@@ -227,7 +261,8 @@ object InstanceRoutes {
     client: SparqlClient[Future],
     querySettings: QuerySettings,
     base: Uri)(implicit
-    ec: ExecutionContext): InstanceRoutes = {
+    ec: ExecutionContext,
+    filteringSettings: FilteringSettings): InstanceRoutes = {
     val instanceQueries = new InstanceQueries(SparqlQuery[Future](client), querySettings, base)
     new InstanceRoutes(instances, querySettings, instanceQueries, base)
   }

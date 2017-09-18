@@ -17,7 +17,7 @@ object FilteredQuery {
 
   /**
     * Constructs a SPARQL query based on the provided filter and pagination settings that also computes the total
-    * number of results.
+    * number of results.  The filter is applied on the subjects.
     *
     * @param filter     the filter on which the query is based on
     * @param pagination the pagination settings for the generated query
@@ -29,7 +29,7 @@ object FilteredQuery {
       |WITH {
       |  SELECT ?s
       |  WHERE {
-      |${buildWhere(filter.expr)}
+      |${buildWhere(filter.expr, "?s", "var")}
       |  }
       |} AS %resultSet
       |WHERE {
@@ -47,9 +47,44 @@ object FilteredQuery {
       |}""".stripMargin
   }
 
+  /**
+    * Constructs a SPARQL query based on the provided filters and pagination settings that also computes the total
+    * number of results.
+    *
+    * @param thisFilter   the filter to be applied to select the subjects
+    * @param targetFilter the filter to be applied to filter the objects
+    * @param pagination   the pagination settings for the generated query
+    */
+  def outgoing(thisFilter: Filter, targetFilter: Filter, pagination: Pagination): String = {
+    s"""
+       |SELECT ?total ?s
+       |WITH {
+       |  SELECT ?s
+       |  WHERE {
+       |
+       |?ss ?p ?s .
+       |${buildWhere(thisFilter.expr, "?ss", "this")}
+       |${buildWhere(targetFilter.expr, "?s", "var")}
+       |  }
+       |} AS %resultSet
+       |WHERE {
+       |  {
+       |    SELECT (COUNT(DISTINCT ?s) AS ?total)
+       |    WHERE { INCLUDE %resultSet }
+       |  }
+       |  UNION
+       |  {
+       |    SELECT *
+       |    WHERE { INCLUDE %resultSet }
+       |    LIMIT ${pagination.size}
+       |    OFFSET ${pagination.from}
+       |  }
+       |}""".stripMargin
+  }
+
   private final case class Stmt(stmt: String, filter: String, variable: String)
 
-  private def buildWhere(expr: Expr): String = {
+  private def buildWhere(expr: Expr, subjectVar: String, varPrefix: String): String = {
     val atomicIdx = new AtomicInteger(0)
     def nextIdx(): Int =
       atomicIdx.incrementAndGet()
@@ -58,9 +93,9 @@ object FilteredQuery {
     // FILTER (?var IN (term1, term2))
     def inExpr(expr: InExpr): Stmt = {
       val idx = nextIdx()
-      val variable = s"?var_$idx"
+      val variable = s"?${varPrefix}_$idx"
       val InExpr(path, TermCollection(terms)) = expr
-      val stmt = s"?s ${path.show} $variable ."
+      val stmt = s"$subjectVar ${path.show} $variable ."
       val filter = terms.map(_.show).mkString(s"$variable IN (", ", ", ")")
       Stmt(stmt, filter, variable)
     }
@@ -69,9 +104,9 @@ object FilteredQuery {
     // FILTER ( ?var op term )
     def compExpr(expr: ComparisonExpr): Stmt = {
       val idx = nextIdx()
-      val variable = s"?var_$idx"
+      val variable = s"?${varPrefix}_$idx"
       val ComparisonExpr(op, path, term) = expr
-      Stmt(s"?s ${path.show} $variable .", s"$variable ${op.show} ${term.show}", variable)
+      Stmt(s"$subjectVar ${path.show} $variable .", s"$variable ${op.show} ${term.show}", variable)
     }
 
     def fromStmts(op: LogicalOp, stmts: Vector[Stmt]): String = op match {
@@ -115,7 +150,7 @@ object FilteredQuery {
     }
 
     def fromExpr(expr: Expr): String = expr match {
-      case NoopExpr                => "?s ?p ?o"
+      case NoopExpr                => s"$subjectVar ?p ?o ."
       case e: ComparisonExpr       => compExpr(e).show
       case e: InExpr               => inExpr(e).show
       case LogicalExpr(And, exprs) =>

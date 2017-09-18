@@ -9,18 +9,26 @@ sealed trait CommonRejections extends Rejection
 
 object CommonRejections {
   /**
-    * Signals the incapability to find a resource associated to a particular HTTP verb
+    * Signals the inability to find a resource associated to a particular HTTP verb
     *
     * @param supported the collections of supported HTTP verbs for a particular resource
     */
   final case class MethodNotSupported(supported: Seq[String]) extends CommonRejections
 
   /**
-    * Signals the incapability to convert the Payload into JSON. It can be due to invalid JSON
+    * Signals the inability to convert the Payload into JSON. It can be due to invalid JSON
     * syntax or due to constrains in the implemented JSON Decoder
     *
     * @param details optional explanation about what went wrong while parsing the Json payload
     */
   final case class WrongOrInvalidJson(details: Option[String]) extends CommonRejections
+
+  /**
+    * Signals the inability to parse a json structure into a [[ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter]]
+    * instance.
+    *
+    * @param field the offending field
+    */
+  final case class IllegalFilterFormat(message: String, field: String) extends CommonRejections
 
 }

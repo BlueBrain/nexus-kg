@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection
 import ch.epfl.bluebrain.nexus.kg.service.directives.ErrorDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.StatusFrom
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import journal.Logger
@@ -30,11 +31,12 @@ object ExceptionHandling {
     *         message is returned to the caller
     */
   final def exceptionHandler: ExceptionHandler = ExceptionHandler {
-    case CommandRejected(r: InstanceRejection) => complete(r)
-    case CommandRejected(r: SchemaRejection)   => complete(r)
-    case CommandRejected(r: DomainRejection)   => complete(r)
-    case CommandRejected(r: OrgRejection)      => complete(r)
-    case ex: EntityStreamSizeException         =>
+    case CommandRejected(r: InstanceRejection)   => complete(r)
+    case CommandRejected(r: SchemaRejection)     => complete(r)
+    case CommandRejected(r: DomainRejection)     => complete(r)
+    case CommandRejected(r: OrgRejection)        => complete(r)
+    case CommandRejected(r: IllegalFilterFormat) => complete(r)
+    case ex: EntityStreamSizeException           =>
       logger.warn(s"An attachment with size '${ex.actualSize}' has been rejected because actual limit is '${ex.limit}'")
       complete(toRejection(ex))
     // $COVERAGE-OFF$
@@ -105,6 +107,9 @@ object ExceptionHandling {
       case _: InvalidOrganizationId  => BadRequest
     }
   }
+
+  private implicit val filterStatusFrom: StatusFrom[IllegalFilterFormat] =
+    StatusFrom(_ => BadRequest)
 
   private implicit val internalErrorStatusFrom: StatusFrom[InternalError] =
     StatusFrom(_ => InternalServerError)
