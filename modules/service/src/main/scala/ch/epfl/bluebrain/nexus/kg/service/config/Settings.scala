@@ -128,6 +128,10 @@ class Settings(config: Config) extends Extension {
       * The nexus core vocabulary prefix.
       */
     val CoreVocabulary = Uri(ns.getString("prefixes.core-vocabulary"))
+    /**
+      * The nexus search vocabulary prefix.
+      */
+    val SearchVocabulary = Uri(ns.getString("prefixes.search-vocabulary"))
   }
 
   object Sparql {

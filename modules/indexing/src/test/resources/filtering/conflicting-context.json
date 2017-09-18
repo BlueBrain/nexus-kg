@@ -1,0 +1,11 @@
+{
+  "@context": {
+    "nxv": "{{base}}/voc/nexus/wrong-core/",
+    "nxs": "{{base}}/voc/nexus/wrong-search/"
+  },
+  "filter": {
+    "path": "nxv:deprecated",
+    "op": "eq",
+    "value": false
+  }
+}

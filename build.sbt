@@ -68,6 +68,9 @@ lazy val indexing = project.in(file("modules/indexing"))
       "com.typesafe.akka"          %% "akka-testkit"        % akkaVersion.value           % Test,
       "org.scalatest"              %% "scalatest"           % scalaTestVersion.value      % Test
     ))
+  // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
+  // tests reduces false negatives.
+  .settings(parallelExecution in Test := false)
 
 lazy val service = project.in(file("modules/service"))
   .dependsOn(core % "test->test;compile->compile", indexing, docs)

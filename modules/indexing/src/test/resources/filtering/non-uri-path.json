@@ -1,0 +1,7 @@
+{
+  "filter": {
+    "path": "false",
+    "op": "eq",
+    "value": false
+  }
+}

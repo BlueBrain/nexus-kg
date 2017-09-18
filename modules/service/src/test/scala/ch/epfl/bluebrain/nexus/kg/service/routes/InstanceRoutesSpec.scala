@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.net.URLEncoder
 import java.nio.file.{Files, Paths}
 import java.security.MessageDigest
 import java.util.{Comparator, UUID}
@@ -41,6 +42,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutesSpec.{Result, Results}
 import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures.{Source, fixedHttpClient, fixedResponse}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 
 import scala.concurrent.Future
@@ -93,6 +95,7 @@ class InstanceRoutesSpec
 
     val vocab = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), "some-index", vocab)
+    implicit val filteringSettings = FilteringSettings(vocab, vocab)
     val instanceIdQuery1 = UUID.randomUUID().toString
     val instanceIdQuery2 = UUID.randomUUID().toString
 
@@ -239,6 +242,44 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Results] shouldEqual
           staticQueryResponse(Uri(s"http://localhost$path"), instanceIdQuery1, instanceIdQuery2)
+      }
+    }
+
+    "return the instances that the selected instance is linked with as an outgoing link" in new Context  {
+      private val path = s"/data/${instanceRef.id.show}/outgoing"
+      Get(path) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Results] shouldEqual
+          staticQueryResponse(Uri(s"http://localhost$path"), instanceIdQuery1, instanceIdQuery2)
+      }
+    }
+
+    "reject the request with 400 for outgoing links incorrect filter format" in new Context {
+      private val filter = URLEncoder.encode("""{"filter": {}}""", "UTF-8")
+      private val path = s"""/data/${instanceRef.id.show}/outgoing?filter=$filter"""
+      Get(path) ~> route ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        val json: Json = responseAs[Json]
+        json.hcursor.get[String]("field") shouldEqual Right("DownField(filter)/DownField(op)")
+      }
+    }
+
+    "return the instances that the selected instance is linked with as an incoming link" in new Context  {
+      private val path = s"/data/${instanceRef.id.show}/incoming"
+      Get(path) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Results] shouldEqual
+          staticQueryResponse(Uri(s"http://localhost$path"), instanceIdQuery1, instanceIdQuery2)
+      }
+    }
+
+    "reject the request with 400 for incoming links with incorrect filter format" in new Context {
+      private val filter = URLEncoder.encode("""{"filter": {}}""", "UTF-8")
+      private val path = s"""/data/${instanceRef.id.show}/incoming?filter=$filter"""
+      Get(path) ~> route ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        val json: Json = responseAs[Json]
+        json.hcursor.get[String]("field") shouldEqual Right("DownField(filter)/DownField(op)")
       }
     }
 

@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceEvent, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaEvent, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainIndexer, DomainIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationIndexer, OrganizationIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
@@ -116,6 +117,10 @@ object Main {
       val orgQuerySettings = QuerySettings(
         Pagination(settings.Sparql.From, settings.Sparql.Size),
         settings.Sparql.Organizations.Index,settings.Prefixes.CoreVocabulary)
+
+      implicit val filteringSettings = FilteringSettings(
+        settings.Prefixes.CoreVocabulary,
+        settings.Prefixes.SearchVocabulary)
 
       val httpBinding = {
         val static   = uriPrefix(baseUri)(StaticRoutes().routes)
