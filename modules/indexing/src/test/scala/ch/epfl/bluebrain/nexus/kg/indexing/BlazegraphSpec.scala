@@ -12,16 +12,9 @@ import com.bigdata.rdf.sail.webapp.NanoSparqlServer
 /**
   * Bundles all suites that depend on a running blazegraph instance.
   */
-class BlazegraphSpec extends Suites with BeforeAndAfterAll {
+trait BlazegraphSpec extends Suites with BeforeAndAfterAll {
 
-  private val port = freePort()
-
-  override val nestedSuites = Vector(
-    new InstanceIndexerSpec(port),
-    new SchemaIndexerSpec(port),
-    new DomainIndexerSpec(port),
-    new OrganizationIndexerSpec(port),
-    new SparqlQuerySpec(port))
+  val port = freePort()
 
   private val server = {
     System.setProperty("jetty.home", getClass.getResource("/war").toExternalForm)
@@ -37,4 +30,13 @@ class BlazegraphSpec extends Suites with BeforeAndAfterAll {
     server.stop()
     super.afterAll()
   }
+}
+
+class BlazeGraphIndexingSpec extends BlazegraphSpec {
+  override val nestedSuites = Vector(
+    new InstanceIndexerSpec(port),
+    new SchemaIndexerSpec(port),
+    new DomainIndexerSpec(port),
+    new OrganizationIndexerSpec(port),
+    new SparqlQuerySpec(port))
 }

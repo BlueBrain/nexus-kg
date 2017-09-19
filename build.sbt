@@ -73,7 +73,7 @@ lazy val indexing = project.in(file("modules/indexing"))
   .settings(parallelExecution in Test := false)
 
 lazy val service = project.in(file("modules/service"))
-  .dependsOn(core % "test->test;compile->compile", indexing, docs)
+  .dependsOn(core % "test->test;compile->compile", indexing % "test->test;compile->compile", docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(common, buildInfoSettings, packagingSettings, noCoverage)
   .settings(
@@ -82,25 +82,29 @@ lazy val service = project.in(file("modules/service"))
     libraryDependencies ++= kamonDeps ++ Seq(
       serviceCommon,
       sourcingAkka,
-      "ch.megard"             %% "akka-http-cors"               % akkaHttpCorsVersion.value,
-      "ch.qos.logback"         % "logback-classic"              % logbackVersion.value,
-      "com.typesafe.akka"     %% "akka-slf4j"                   % akkaVersion.value,
-      "com.typesafe.akka"     %% "akka-http"                    % akkaHttpVersion.value,
-      "com.typesafe.akka"     %% "akka-distributed-data"        % akkaVersion.value,
-      "com.typesafe.akka"     %% "akka-persistence-cassandra"   % akkaPersistenceCassandraVersion.value,
-      "io.dropwizard.metrics"  % "metrics-core"                 % metricsCoreVersion, // for cassandra client, or fails at runtime
-      "de.heikoseeberger"     %% "akka-http-circe"              % akkaHttpCirceVersion.value,
-      "de.heikoseeberger"     %% "constructr"                   % constructrVersion.value,
-      "de.heikoseeberger"     %% "constructr-coordination-etcd" % constructrVersion.value,
-      "io.circe"              %% "circe-core"                   % circeVersion.value,
-      "io.circe"              %% "circe-parser"                 % circeVersion.value,
-      "io.circe"              %% "circe-generic-extras"         % circeVersion.value,
-      "io.circe"              %% "circe-java8"                  % circeVersion.value,
-      sourcingMem                                                                                   % Test,
-      "com.github.dnvriend"   %% "akka-persistence-inmemory"    % akkaPersistenceInMemVersion.value % Test,
-      "com.typesafe.akka"     %% "akka-http-testkit"            % akkaHttpVersion.value             % Test,
-      "com.typesafe.akka"     %% "akka-testkit"                 % akkaVersion.value                 % Test,
-      "org.scalatest"         %% "scalatest"                    % scalaTestVersion.value            % Test
+      "ch.megard"                   %% "akka-http-cors"               % akkaHttpCorsVersion.value,
+      "ch.qos.logback"               % "logback-classic"              % logbackVersion.value,
+      "com.typesafe.akka"           %% "akka-slf4j"                   % akkaVersion.value,
+      "com.typesafe.akka"           %% "akka-http"                    % akkaHttpVersion.value,
+      "com.typesafe.akka"           %% "akka-distributed-data"        % akkaVersion.value,
+      "com.typesafe.akka"           %% "akka-persistence-cassandra"   % akkaPersistenceCassandraVersion.value,
+      "io.dropwizard.metrics"        % "metrics-core"                 % metricsCoreVersion, // for cassandra client, or fails at runtime
+      "de.heikoseeberger"           %% "akka-http-circe"              % akkaHttpCirceVersion.value,
+      "de.heikoseeberger"           %% "constructr"                   % constructrVersion.value,
+      "de.heikoseeberger"           %% "constructr-coordination-etcd" % constructrVersion.value,
+      "io.circe"                    %% "circe-core"                   % circeVersion.value,
+      "io.circe"                    %% "circe-parser"                 % circeVersion.value,
+      "io.circe"                    %% "circe-generic-extras"         % circeVersion.value,
+      "io.circe"                    %% "circe-java8"                  % circeVersion.value,
+      sourcingMem                                                                                         % Test,
+      "com.fasterxml.jackson.core"  % "jackson-annotations"           % jacksonVersion                    % Test,
+      "com.fasterxml.jackson.core"  % "jackson-core"                  % jacksonVersion                    % Test,
+      "com.fasterxml.jackson.core"  % "jackson-databind"              % jacksonVersion                    % Test,
+      "com.blazegraph"              % "blazegraph-jar"                % blazegraphVersion                 % Test,
+      "com.github.dnvriend"         %% "akka-persistence-inmemory"    % akkaPersistenceInMemVersion.value % Test,
+      "com.typesafe.akka"           %% "akka-http-testkit"            % akkaHttpVersion.value             % Test,
+      "com.typesafe.akka"           %% "akka-testkit"                 % akkaVersion.value                 % Test,
+      "org.scalatest"               %% "scalatest"                    % scalaTestVersion.value            % Test
     ))
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
   // tests reduces false negatives.
