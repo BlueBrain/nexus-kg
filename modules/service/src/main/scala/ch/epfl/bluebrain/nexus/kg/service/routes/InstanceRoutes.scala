@@ -123,28 +123,16 @@ class InstanceRoutes(
                     (pathPrefix("outgoing") & pathEndOrSingleSlash & get) {
                       parameter('deprecated.as[Boolean].?) { deprecated =>
                         paginatedAndFiltered.apply { (pagination, filterOpt) =>
-                          filterOpt match {
-                            case Some(clientFilter) =>
-                              val filter = Filter(LogicalExpr(Op.And, List(deprecatedAndRev(deprecated), clientFilter.expr)))
-                              buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
-                            case None =>
-                              val filter = Filter(deprecatedAndRev(deprecated))
-                              buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
-                          }
+                          val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
+                          buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
                         }
                       }
                     } ~
                     (pathPrefix("incoming") & pathEndOrSingleSlash & get) {
                       parameter('deprecated.as[Boolean].?) { deprecated =>
                         paginatedAndFiltered.apply { (pagination, filterOpt) =>
-                          filterOpt match {
-                            case Some(clientFilter) =>
-                              val filter = Filter(LogicalExpr(Op.And, List(deprecatedAndRev(deprecated), clientFilter.expr)))
-                              buildResponse(instanceQueries.incoming(instanceId, filter, pagination), pagination)
-                            case None =>
-                              val filter = Filter(deprecatedAndRev(deprecated))
-                              buildResponse(instanceQueries.incoming(instanceId, filter, pagination), pagination)
-                          }
+                          val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
+                          buildResponse(instanceQueries.incoming(instanceId, filter, pagination), pagination)
                         }
                       }
                     } ~
