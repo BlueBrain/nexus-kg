@@ -1,0 +1,7 @@
+{
+  "@context": {
+    "@vocab": "http(s)://nexus.example.com/v0/voc/nexus/core"
+  },
+  "code": "<a machine readable unique code>",
+  "message": "<a human readable description of the error>"
+}
