@@ -25,9 +25,11 @@ object RejectionHandling {
       complete(MethodNotAllowed -> (MethodNotSupported(names): CommonRejections))
     }
     .handle {
-      case MalformedQueryParamRejection(_, _, Some(e: WrongOrInvalidJson)) =>
+      case MalformedQueryParamRejection(_, _, Some(e: WrongOrInvalidJson))  =>
         complete(BadRequest -> (e: CommonRejections))
       case MalformedQueryParamRejection(_, _, Some(e: IllegalFilterFormat)) =>
+        complete(BadRequest -> (e: CommonRejections))
+      case ValidationRejection(_, Some(e: IllegalVersionFormat))            =>
         complete(BadRequest -> (e: CommonRejections))
     }
     .result()

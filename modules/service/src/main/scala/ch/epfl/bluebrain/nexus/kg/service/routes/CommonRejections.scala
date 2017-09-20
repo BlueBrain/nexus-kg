@@ -37,4 +37,11 @@ object CommonRejections {
   final case class IllegalFilterFormat(override val message: String, field: String)
     extends Err(message) with CommonRejections
 
+  /**
+    * Signals the inability to convert a path segment into a [[ch.epfl.bluebrain.nexus.common.types.Version]]
+    *
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case class IllegalVersionFormat(override val message: String) extends Err(message) with CommonRejections
+
 }

@@ -29,7 +29,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
-
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections._
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 

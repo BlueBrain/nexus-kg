@@ -33,7 +33,10 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param querySettings     query parameters from settings
   * @param filteringSettings filtering parameters from settings
   */
-final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[Future, DomainId], base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
+final class DomainRoutes(
+  domains: Domains[Future],
+  domainQueries: FilterQueries[Future, DomainId],
+  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
 
   private val encoders = new DomainCustomEncoders(base)
   import encoders._
@@ -43,9 +46,9 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
       pathPrefix("organizations" / Segment / "domains") { orgIdString =>
         val orgId = OrgId(orgIdString)
         (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-          traceName("listDomains") {
+          traceName("searchDomains") {
             val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-            domainQueries.list(orgId, filter, pagination, termOpt) buildResponse(base, pagination)
+            domainQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
           }
         } ~
         pathPrefix(Segment) { id =>

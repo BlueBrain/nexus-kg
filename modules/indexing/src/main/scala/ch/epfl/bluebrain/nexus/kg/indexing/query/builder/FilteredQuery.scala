@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
 import java.util.concurrent.atomic.AtomicInteger
 
+import akka.http.scaladsl.model.Uri
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
@@ -28,7 +29,7 @@ object FilteredQuery {
     * @return a Blazegraph query based on the provided filter and pagination settings
     */
   def apply(filter: Filter, pagination: Pagination, term: Option[String] = None): String = {
-    applyWithWhere(buildWhereFrom(filter.expr, "?s", "var"), pagination, term)
+    applyWithWhere(buildWhereFrom(filter.expr), pagination, term)
   }
 
   private def applyWithWhere(where: String, pagination: Pagination, term: Option[String]): String = {
@@ -64,16 +65,15 @@ object FilteredQuery {
     * Constructs a Blazegraph query based on the provided filters and pagination settings that also computes the total
     * number of results.
     *
-    * @param thisFilter   the filter to be applied to select the subjects
+    * @param thisSubject  the qualified uri of the subject to be selected
     * @param targetFilter the filter to be applied to filter the objects
     * @param pagination   the pagination settings for the generated query
     */
-  def outgoing(thisFilter: Filter, targetFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
+  def outgoing(thisSubject: Uri, targetFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
     val where =
       s"""
-         |?ss ?p ?s .
-         |${buildWhereFrom(thisFilter.expr, "?ss", "this")}
-         |${buildWhereFrom(targetFilter.expr, "?s", "var")}
+         |FILTER ( ?$subject = <$thisSubject> )
+         |${buildWhereFrom(targetFilter.expr)}
        """.stripMargin.trim
     applyWithWhere(where, pagination, term)
   }
@@ -83,16 +83,16 @@ object FilteredQuery {
     * Constructs a Blazegraph query based on the provided filters and pagination settings that also computes the total
     * number of results.
     *
-    * @param thisFilter   the filter to be applied to select the objects
+    * @param thisObject   the qualified uri of the object to be selected
     * @param sourceFilter the filter to be applied to filter the subjects
     * @param pagination   the pagination settings for the generated query
     */
-  def incoming(thisFilter: Filter, sourceFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
+  def incoming(thisObject: Uri, sourceFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
     val where =
       s"""
-         |?s ?p ?ss .
-         |${buildWhereFrom(thisFilter.expr, "?ss", "this")}
-         |${buildWhereFrom(sourceFilter.expr, "?s", "var")}
+         |?$subject ?p ?o .
+         |FILTER ( ?o = <$thisObject> )
+         |${buildWhereFrom(sourceFilter.expr)}
        """.stripMargin.trim
     applyWithWhere(where, pagination, term)
   }
@@ -131,7 +131,8 @@ object FilteredQuery {
      """.stripMargin.trim
     ).getOrElse("")
 
-  private def buildWhereFrom(expr: Expr, subjectVar: String, varPrefix: String): String = {
+  private def buildWhereFrom(expr: Expr): String = {
+    val varPrefix = "var"
     val atomicIdx = new AtomicInteger(0)
 
     def nextIdx(): Int =
@@ -143,7 +144,7 @@ object FilteredQuery {
       val idx = nextIdx()
       val variable = s"?${varPrefix}_$idx"
       val InExpr(path, TermCollection(terms)) = expr
-      val stmt = s"$subjectVar ${path.show} $variable ."
+      val stmt = s"?$subject ${path.show} $variable ."
       val filter = terms.map(_.show).mkString(s"$variable IN (", ", ", ")")
       Stmt(stmt, filter, variable)
     }
@@ -154,7 +155,7 @@ object FilteredQuery {
       val idx = nextIdx()
       val variable = s"?${varPrefix}_$idx"
       val ComparisonExpr(op, path, term) = expr
-      Stmt(s"$subjectVar ${path.show} $variable .", s"$variable ${op.show} ${term.show}", variable)
+      Stmt(s"?$subject ${path.show} $variable .", s"$variable ${op.show} ${term.show}", variable)
     }
 
     def fromStmts(op: LogicalOp, stmts: Vector[Stmt]): String = op match {
@@ -198,7 +199,7 @@ object FilteredQuery {
     }
 
     def fromExpr(expr: Expr): String = expr match {
-      case NoopExpr                => s"$subjectVar ?p ?o ."
+      case NoopExpr                => s"?$subject ?p ?o ."
       case e: ComparisonExpr       => compExpr(e).show
       case e: InExpr               => inExpr(e).show
       case LogicalExpr(And, exprs) =>

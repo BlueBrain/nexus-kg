@@ -31,7 +31,9 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param querySettings     query parameters from settings
   * @param filteringSettings filtering parameters from settings
   */
-final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQueries[Future, OrgId], base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
+final class OrganizationRoutes(orgs: Organizations[Future],
+  orgQueries: FilterQueries[Future, OrgId],
+  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
 
   private val encoders = new OrgCustomEncoders(base)
 
@@ -41,9 +43,9 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
     handleRejections(RejectionHandling.rejectionHandler) {
       pathPrefix("organizations") {
         (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-          traceName("listOrganizations") {
+          traceName("searchOrganizations") {
             val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-            orgQueries.list(filter, pagination, termOpt) buildResponse(base, pagination)
+            orgQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
           }
         } ~
         pathPrefix(Segment) { id =>
@@ -101,6 +103,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
       */
     final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(implicit
       ec: ExecutionContext, filteringSettings: FilteringSettings): OrganizationRoutes = {
+
       implicit val qs: QuerySettings = querySettings
       val orgQueries = FilterQueries[Future, OrgId](SparqlQuery[Future](client), querySettings)
       new OrganizationRoutes(orgs, orgQueries, base)

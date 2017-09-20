@@ -114,9 +114,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def outgoing(id: String, filter: Filter, pagination: Pagination, term: Option[String] = None)(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
-    val thisFilter = Filter(ComparisonExpr(Op.Eq, UriTerm("uuid".qualify), LiteralTerm(s""""$id"""")))
-    val query = FilteredQuery.outgoing(thisFilter, filter, pagination, term)
+  def outgoing(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
+    val query = FilteredQuery.outgoing(id.qualify, filter, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -128,9 +127,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def incoming(id: String, filter: Filter, pagination: Pagination, term: Option[String] = None)(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
-    val thisFilter = Filter(ComparisonExpr(Op.Eq, UriTerm("uuid".qualify), LiteralTerm(s""""$id"""")))
-    val query = FilteredQuery.incoming(thisFilter, filter, pagination, term)
+  def incoming(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
+    val query = FilteredQuery.incoming(id.qualify, filter, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -178,12 +176,12 @@ object FilterQueries {
   /**
     * Constructs a new filter based on an optional filter and optional deprecation parameter.
     *
-    * @param deprecatedOps the optional deprecated field
+    * @param deprecatedOpt the optional deprecated field
     * @param filterOps     the optional filter
     * @param baseVoc       the nexus core vocabulary base
     */
-  def filterFrom(deprecatedOps: Option[Boolean], filterOps: Option[Filter], baseVoc: Uri): Filter =
-    deprecatedAndRev(deprecatedOps, baseVoc) and filterOps.map(_.expr)
+  def filterFrom(deprecatedOpt: Option[Boolean], filterOps: Option[Filter], baseVoc: Uri): Filter =
+    deprecatedAndRev(deprecatedOpt, baseVoc) and filterOps.map(_.expr)
 
   /**
     * Constructs a new filter based on an optional deprecation parameter.

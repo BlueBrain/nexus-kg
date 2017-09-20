@@ -1,13 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
 import java.util.regex.Pattern
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
+
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.kg.core.Resources
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, NoopExpr}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings, Op}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.NoopExpr
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
 class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with EitherValues {
@@ -197,15 +197,11 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
 
       "selecting the outgoing links" in {
         val json = jsonContentOf("/query/builder/filter-only.json", replacements)
-        val thisFilter = Filter(ComparisonExpr(Op.Eq, UriTerm(s"${nxv}uuid"), LiteralTerm(""""theid"""")))
+        val thisId = Uri(s"http://localhost/v0/bbp/experiment/subject/v0.1.0/theid")
         val targetFilter = json.as[Filter].right.value
         val expectedWhere =
           s"""
-             |?ss ?p ?s .
-             |
-             |?ss <${nxv}uuid> ?this_1 .
-             |FILTER ( ?this_1 = "theid" )
-             |
+             |FILTER ( ?s = <${thisId.toString}> )
              |
              |?s <${prov}wasDerivedFrom> ?var_1 .
              |?s <${nxv}rev> ?var_2 .
@@ -262,21 +258,18 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery.outgoing(thisFilter, targetFilter, pagination)
+        val result = FilteredQuery.outgoing(thisId, targetFilter, pagination)
         result shouldEqual expected
       }
 
       "selecting the incoming links" in {
         val json = jsonContentOf("/query/builder/filter-only.json", replacements)
-        val thisFilter = Filter(ComparisonExpr(Op.Eq, UriTerm(s"${nxv}uuid"), LiteralTerm(""""theid"""")))
+        val thisId = Uri(s"http://localhost/v0/bbp/experiment/subject/v0.1.0/theid")
         val targetFilter = json.as[Filter].right.value
         val expectedWhere =
           s"""
-             |?s ?p ?ss .
-             |
-             |?ss <${nxv}uuid> ?this_1 .
-             |FILTER ( ?this_1 = "theid" )
-             |
+             |?s ?p ?o .
+             |FILTER ( ?o = <$thisId> )
              |
              |?s <${prov}wasDerivedFrom> ?var_1 .
              |?s <${nxv}rev> ?var_2 .
@@ -333,7 +326,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery.incoming(thisFilter, targetFilter, pagination)
+        val result = FilteredQuery.incoming(thisId, targetFilter, pagination)
         result shouldEqual expected
       }
     }

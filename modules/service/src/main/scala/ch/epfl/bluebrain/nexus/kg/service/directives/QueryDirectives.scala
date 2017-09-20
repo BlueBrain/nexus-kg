@@ -47,16 +47,16 @@ trait QueryDirectives {
     }
 
   /**
-    * Extracts the ''term'' query param from the request.
+    * Extracts the ''q'' query param from the request. This param will be used as a full text search
     */
-  def term: Directive1[Option[String]] =
-    parameter('term.?).flatMap(provide(_))
+  def q: Directive1[Option[String]] =
+    parameter('q.?).flatMap(opt => provide(opt))
 
   /**
     * Extracts the ''deprecated'' query param from the request.
     */
   def deprecated: Directive1[Option[Boolean]] =
-    parameter('deprecated.as[Boolean].?).flatMap(provide(_))
+    parameter('deprecated.as[Boolean].?).flatMap(opt => provide(opt))
 
   /**
     * Extracts the query parameters defined for search requests or set them to preconfigured values
@@ -66,7 +66,7 @@ trait QueryDirectives {
     * @param fs the preconfigured filtering settings
     */
   def searchQueryParams(implicit qs: QuerySettings, fs: FilteringSettings): Directive[(Pagination, Option[Filter], Option[String], Option[Boolean])] =
-    paginated & filtered & term & deprecated
+    paginated & filtered & q & deprecated
 
 }
 

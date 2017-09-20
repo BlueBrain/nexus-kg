@@ -298,10 +298,10 @@ class InstanceRoutesSpec(blazegraphPort: Int)
       }
     }
 
-    "return list of instances from schema name with deprecated and term" in new Context  {
+    "return list of instances from schema name with deprecated and full text search query" in new Context  {
       indexInstances()
       val specificPagination = Pagination(0L, 3)
-      private val path = s"/data/${orgRef.id.id}/${domRef.id.id}/${schemaId.name}?from=${specificPagination.from}&size=${specificPagination.size}&deprecated=false&term=random"
+      private val path = s"/data/${orgRef.id.id}/${domRef.id.id}/${schemaId.name}?from=${specificPagination.from}&size=${specificPagination.size}&deprecated=false&q=random"
       Get(path) ~> route ~> check {
         status shouldEqual StatusCodes.OK
         val results = responseAs[ResultsScored]

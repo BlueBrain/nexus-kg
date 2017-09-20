@@ -75,7 +75,6 @@ object ExceptionHandling {
       case SchemaDoesNotExist           => NotFound
       case CannotUnpublishSchema        => BadRequest
       case CannotUpdatePublished        => BadRequest
-      case IllegalVersionFormat         => BadRequest
       case SchemaIsDeprecated           => BadRequest
       case SchemaIsNotPublished         => BadRequest
       case _: ShapeConstraintViolations => BadRequest
