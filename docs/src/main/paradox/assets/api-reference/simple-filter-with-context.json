@@ -1,0 +1,10 @@
+{
+  "@context": {
+    "schema": "http://schema.org/"
+  },
+  "filter": {
+    "op": "ne",
+    "path": "schema:name",
+    "value": "anonymous"
+  }
+}

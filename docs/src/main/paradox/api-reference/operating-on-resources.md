@@ -113,9 +113,111 @@ DELETE /v0/{address}?rev={previous_rev}
 
 ## Search and filtering
 
-TBD.
+All collection resources support full text search with filtering and pagination and present a consistent data model
+as the result envelope.
 
-[//]: # (TODO: describe search and filtering)
+General form:
+```
+GET /v0/{collection_address}
+      ?q={full_text_search_query}
+      &filter={filter}
+      &from={from}
+      &size={size}
+      &deprecated={deprecated}
+```
+... where all of the query parameters are individually optional.
+
+- `{collection_address}` is the selected collection to list, filter or search; for example: `/v0/data`, `/v0/schemas`,
+`/v0/data/myorg/mydomain`
+- `{full_text_search_query}`: String - can be provided to select only the resources in the collection that have
+attribute values matching (containing) the provided token; when this field is provided the results will also include
+score values for each result
+- `{filter}`: JsonLd - a filtering expression in JSON-LD format (the structure of the filter is explained below)
+- `{from}`: Number - is the parameter that describes the offset for the current query; defaults to `0`
+- `{size}`: Number - is the parameter that limits the number of results; defaults to `20`
+- `{deprecated}`: Boolean - can be used to filter the resulting resources based on their deprecation status
+
+Filtering example while listing:
+
+List Instances
+: @@snip [list-instances.txt](../assets/api-reference/list-instances.txt) { type=shell }
+
+List Instances Response
+:   @@snip [instance-list.json](../assets/api-reference/instance-list.json)
+
+Filtering example while searching (notice the additional score related fields):
+
+Search and Filter Instances
+: @@snip [search-list-instances.txt](../assets/api-reference/search-list-instances.txt) { type=shell }
+
+Search and Filter Instances Response
+:   @@snip [instance-list.json](../assets/api-reference/instance-search-list.json)
+
+### Filter expressions
+
+Filters follow the general form:
+
+```
+comparisonOp    ::= 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte'
+logicalOp       ::= 'and' | 'or' | 'not' | 'xor'
+op              ::= comparisonOp | logicalOp
+
+path            ::= uri
+comparisonValue ::= literal | uri | {comparisonValue}
+
+comparisonExpr  ::= json {
+                      "op": comparisonOp,
+                      "path": path,
+                      "value": comparisonValue
+                    }
+
+logicalExpr     ::= json {
+                      "op": logicalOp,
+                      "value": {filterExpr}
+                    }
+
+filterExpr      ::= logicalExpr | comparisonExpr
+
+filter          ::= json {
+                      "@context": {...},
+                      "filter": filterExpr
+                    }
+```
+... which roughly means:
+
+- a filter is a json-ld document
+- with a user defined context
+- that describes a filter value as a filter expression
+- a filter expression is either a comparison expression or a logical expression
+- a comparison expression contains a path property (currently restricted to an uri), the value to compare and an
+  operator which describes how to compare that value
+- a logical expression contains a collection of filter expressions joined together through a logical operator
+
+Before evaluating the filter, the json-ld document is provided with an additional default context that overrides any
+user defined values in case of collisions:
+```
+{
+  "@context": {
+    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
+    "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
+    "path": "nxs:path",
+    "op": "nxs:operator",
+    "value": "nxs:value",
+    "filter": "nxs:filter"
+  }
+}
+```
+
+Example filters:
+
+Comparison
+:   @@snip [simple-filter.json](../assets/api-reference/simple-filter.json)
+
+With context
+:   @@snip [simple-filter-with-context.json](../assets/api-reference/simple-filter-with-context.json)
+
+Nested filter
+:   @@snip [nested-filter.json](../assets/api-reference/nested-filter.json)
 
 ## Error Signaling
 
