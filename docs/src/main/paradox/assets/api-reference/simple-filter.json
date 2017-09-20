@@ -1,0 +1,7 @@
+{
+  "filter": {
+    "op": "gt",
+    "path": "nxv:rev",
+    "value": 5
+  }
+}

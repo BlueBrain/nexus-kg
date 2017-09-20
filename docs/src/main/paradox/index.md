@@ -1,27 +1,16 @@
-# KG API Reference
-
-@@@ note { title="Base Uri: https://bbp-nexus.epfl.ch/{environment}/{version}/" }
-* Environments: dev, staging, prod
-* Versions: v0
-@@@
-
-
 @@@ index
 
-* [basics](basics.md)
-* [organizations](organizations.md)
-* [domains](domains.md)
-* [schemas](schemas.md)
-* [instances](instances.md)
+* [API Reference](api-reference/index.md)
+* [Bootstrapping](bootstrap/index.md)
+* [Service Internals](internals/index.md)
 
 @@@
 
+# KnowledgeGraph
 
-The KG API expose a series of resources grouped into different categories:
+The service is the heart of the BlueBrain Nexus platform. It allows users to define their domain, populate the
+knowledge graph with data, attach files to data.  It also provides semantic search facilities to discover similar and
+relevant data in the platform.
 
-* **@ref:[Organizations](organizations.md)**: Resources related to the top level structure on the system.
-* **@ref:[Domains](domains.md)**: Resources related to the next level structure on the system. This level can be understood as groups inside an organization.
-* **@ref:[Schemas](schemas.md)**: Resources related to managing schemas which are a set of rules and constrains that apply to instances.
-* **@ref:[Instances](instances.md)**: Resources related to managing instances. An instance contains a payload which is validated against it's schema.
-
-
+The @ref:[API Reference](api-reference/index.md) describes the exposed interface, while the
+@ref:[Service Internals](internals/index.md) describes the general design of the service.
