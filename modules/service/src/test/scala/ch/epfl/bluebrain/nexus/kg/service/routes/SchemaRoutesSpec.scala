@@ -27,6 +27,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 
 import scala.concurrent.{Await, Future}
@@ -65,6 +66,7 @@ class SchemaRoutesSpec
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
     val querySettings = QuerySettings(Pagination(0L, 20), "some-index", vocab)
+    implicit val filteringSettings = FilteringSettings(vocab, vocab)
 
     val route = SchemaRoutes(schemas, sparqlClient, querySettings, baseUri).routes
 
@@ -234,10 +236,6 @@ object SchemaRoutesSpec {
   private def schemaRefAsJson(ref: SchemaRef) = Json.obj(
     "@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"),
     "rev" -> Json.fromLong(ref.rev))
-
-  final case class Result(resultId: String, source: Source)
-
-  final case class Results(total: Long, results: List[Result], links: List[Link])
 
   private def fixedListSchemas(uri: Uri) =
     Results(2L, List(

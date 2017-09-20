@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections._
@@ -33,6 +34,9 @@ class RejectionHandlingSpec
     val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs = Organizations(orgAgg)
     val id = genString(length = 5)
+
+    val nexusVocab = s"$baseUri/voc/nexus/core"
+    implicit val filteringSettings = FilteringSettings(nexusVocab, nexusVocab)
 
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
     val vocab = baseUri.copy(path = baseUri.path / "core")

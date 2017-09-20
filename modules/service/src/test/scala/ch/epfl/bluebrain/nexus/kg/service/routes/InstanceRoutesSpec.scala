@@ -42,8 +42,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutesSpec.{Result, Results}
-import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures.Source
+import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent.{InstanceCreated, InstanceDeprecated}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
@@ -273,7 +272,7 @@ class InstanceRoutesSpec(blazegraphPort: Int)
             Source(id,List(Link("self", id),Link("schema", schema))))
         }
         results.links should contain allElementsOf
-          List(Link("next", s"$base/data/${orgRef.id.id}/${domRef.id.id}?from=5&size=5"), Link("self", s"$base/data/${orgRef.id.id}/${domRef.id.id}?from=0&size=5"))
+          List(Link("self", s"$base/data/${orgRef.id.id}/${domRef.id.id}?from=0&size=5"), Link("next", s"$base/data/${orgRef.id.id}/${domRef.id.id}?from=5&size=5"))
       }
     }
 
@@ -295,7 +294,28 @@ class InstanceRoutesSpec(blazegraphPort: Int)
         }
         val nextUri = Uri(s"$base$path")
         results.links should contain allElementsOf
-          List(Link("next", nextUri.withQuery(Query(nextUri.query().toMap + ("from" -> "3")))), Link("self", s"$base$path"))
+          List(Link("self", s"$base$path"), Link("next", nextUri.withQuery(Query(nextUri.query().toMap + ("from" -> "3")))))
+      }
+    }
+
+    "return list of instances from schema name with deprecated and term" in new Context  {
+      indexInstances()
+      val specificPagination = Pagination(0L, 3)
+      private val path = s"/data/${orgRef.id.id}/${domRef.id.id}/${schemaId.name}?from=${specificPagination.from}&size=${specificPagination.size}&deprecated=false&term=random"
+      Get(path) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        val results = responseAs[ResultsScored]
+        results.total shouldEqual 5L
+        results.maxScore shouldEqual 1F
+        results.results.size shouldEqual 3
+        forAll(results.results.zipWithIndex) { case(result, idx) =>
+          val schema = s"$baseUri/schemas/${schemaId.copy(version = Version(idx,0,0)).show}"
+          val id = s"$schema/${baseUUID}0$idx".replace("/schemas/", "/data/")
+          result shouldEqual ResultScored(id,
+            Source(id,List(Link("self", id),Link("schema", schema))), 1F)
+        }
+        results.links should contain allElementsOf
+          List(Link("self", s"$base$path"), Link("next", s"$base$path".replace("from=0", "from=3")))
       }
     }
 

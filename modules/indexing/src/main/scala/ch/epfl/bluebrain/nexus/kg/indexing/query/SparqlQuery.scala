@@ -5,12 +5,11 @@ import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.Query
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder.Field.Var
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms
 import journal.Logger
 import org.apache.jena.query.{QuerySolution, ResultSet}
+
 import scala.collection.JavaConverters._
 import scala.util.Try
 
@@ -69,19 +68,6 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
       buildQueryResults(scored, listWithTotal)
     }
   }
-
-  /**
-    * Performs a full text search query against the SPARQL endpoint producing a collection of results in the ''F[_]''
-    * context.
-    *
-    * @param index the target namespace
-    * @param query the SPAQRL/Blazegraph query
-    * @param Q     the qualifier to map ''uri''s to ''id''s
-    * @tparam A the generic type of the response
-    * @return a [[QueryResults]] instance wrapped in the abstract ''F[_]'' type
-    */
-  def apply[A](index: String, query: Query)(implicit Q: ConfiguredQualifier[A]): F[QueryResults[A]] =
-    apply(index, query.pretty, query.containsResult(Var(SelectTerms.score)))
 
   private def subjectScoreFrom(qs: QuerySolution): Option[(String, Float)] = for {
     score   <- scoreFrom(qs)

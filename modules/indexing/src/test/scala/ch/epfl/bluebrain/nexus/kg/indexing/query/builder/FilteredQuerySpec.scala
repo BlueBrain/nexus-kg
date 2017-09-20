@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
 import java.util.regex.Pattern
-
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.kg.core.Resources
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, NoopExpr}
@@ -31,12 +31,15 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       "using a noop filter expression" in {
         val expected =
           s"""
-             |SELECT ?total ?s
+             |PREFIX bds: <${bdsUri.toString()}>
+             |SELECT DISTINCT ?total ?s
              |WITH {
-             |  SELECT ?s
+             |  SELECT DISTINCT ?s
              |  WHERE {
+             |
              |?s ?p ?o .
              |  }
+             |
              |} AS %resultSet
              |WHERE {
              |  {
@@ -50,7 +53,8 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |    LIMIT 17
              |    OFFSET 13
              |  }
-             |}""".stripMargin
+             |}
+             |""".stripMargin
         val result = FilteredQuery(Filter(NoopExpr), pagination)
         result shouldEqual expected
       }
@@ -91,12 +95,15 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |""".stripMargin
         val expected =
           s"""
-             |SELECT ?total ?s
+             |PREFIX bds: <${bdsUri.toString()}>
+             |SELECT DISTINCT ?total ?s
              |WITH {
-             |  SELECT ?s
+             |  SELECT DISTINCT ?s
              |  WHERE {
+             |
              |$expectedWhere
              |  }
+             |
              |} AS %resultSet
              |WHERE {
              |  {
@@ -110,8 +117,81 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |    LIMIT 17
              |    OFFSET 13
              |  }
-             |}""".stripMargin
+             |}
+             |""".stripMargin
         val result = FilteredQuery(filter, pagination)
+        result shouldEqual expected
+      }
+
+      "using a filter with a term" in {
+        val json = jsonContentOf("/query/builder/filter-only.json", replacements)
+        val filter = json.as[Filter].right.value
+        val term = "subject"
+
+        val expectedWhere =
+          s"""
+             |?s ?matchedProperty ?matchedValue .
+             |?matchedValue bds:search "$term" .
+             |?matchedValue bds:relevance ?rsv .
+             |?matchedValue bds:rank ?pos .
+             |FILTER ( !isBlank(?s) )
+             |
+             |?s <${prov}wasDerivedFrom> ?var_1 .
+             |?s <${nxv}rev> ?var_2 .
+             |FILTER ( ?var_1 = <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> && ?var_2 <= 5 )
+             |
+             |OPTIONAL { ?s <${nxv}version> ?var_3 . }
+             |OPTIONAL { ?s <${nxv}version> ?var_4 . }
+             |FILTER ( ?var_3 = "v1.0.0" || ?var_4 = "v1.0.1" )
+             |
+             |?s <${nxv}deprecated> ?var_5 .
+             |?s <${rdf}type> ?var_6 .
+             |FILTER ( ?var_5 != false && ?var_6 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
+             |
+             |?s <${nxv}version> ?var_7 .
+             |?s <${nxv}rev> ?var_8 .
+             |FILTER NOT EXISTS {
+             |?s <${nxv}version> ?var_7 .
+             |?s <${nxv}rev> ?var_8 .
+             |FILTER ( ?var_7 = "v1.0.2" || ?var_8 <= 2 )
+             |}
+             |
+             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_9 . }
+             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_10 . }
+             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER NOT EXISTS {
+             |?s <${prov}wasAttributedTo> ?var_9 .
+             |?s <${prov}wasAttributedTo> ?var_10 .
+             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |}
+             |""".stripMargin.trim
+        val expected =
+          s"""
+             |PREFIX bds: <${bdsUri.toString()}>
+             |SELECT DISTINCT ?total ?s ?maxscore ?score ?rank
+             |WITH {
+             |  SELECT DISTINCT ?s (max(?rsv) AS ?score) (max(?pos) AS ?rank)
+             |  WHERE {
+             |$expectedWhere
+             |
+             |  }
+             |GROUP BY ?s
+             |} AS %resultSet
+             |WHERE {
+             |  {
+             |    SELECT (COUNT(DISTINCT ?s) AS ?total) (max(?score) AS ?maxscore)
+             |    WHERE { INCLUDE %resultSet }
+             |  }
+             |  UNION
+             |  {
+             |    SELECT *
+             |    WHERE { INCLUDE %resultSet }
+             |    LIMIT 17
+             |    OFFSET 13
+             |  }
+             |}
+             |ORDER BY DESC(?score)""".stripMargin
+        val result = FilteredQuery(filter, pagination, Some("subject"))
         result shouldEqual expected
       }
 
@@ -155,15 +235,18 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_10 .
              |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
              |}
-             |""".stripMargin
+             |""".stripMargin.trim
         val expected =
           s"""
-             |SELECT ?total ?s
+             |PREFIX bds: <${bdsUri.toString()}>
+             |SELECT DISTINCT ?total ?s
              |WITH {
-             |  SELECT ?s
+             |  SELECT DISTINCT ?s
              |  WHERE {
+             |
              |$expectedWhere
              |  }
+             |
              |} AS %resultSet
              |WHERE {
              |  {
@@ -177,7 +260,8 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |    LIMIT 17
              |    OFFSET 13
              |  }
-             |}""".stripMargin
+             |}
+             |""".stripMargin
         val result = FilteredQuery.outgoing(thisFilter, targetFilter, pagination)
         result shouldEqual expected
       }
@@ -222,15 +306,18 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_10 .
              |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
              |}
-             |""".stripMargin
+             |""".stripMargin.trim
         val expected =
           s"""
-             |SELECT ?total ?s
+             |PREFIX bds: <${bdsUri.toString()}>
+             |SELECT DISTINCT ?total ?s
              |WITH {
-             |  SELECT ?s
+             |  SELECT DISTINCT ?s
              |  WHERE {
+             |
              |$expectedWhere
              |  }
+             |
              |} AS %resultSet
              |WHERE {
              |  {
@@ -244,7 +331,8 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |    LIMIT 17
              |    OFFSET 13
              |  }
-             |}""".stripMargin
+             |}
+             |""".stripMargin
         val result = FilteredQuery.incoming(thisFilter, targetFilter, pagination)
         result shouldEqual expected
       }

@@ -8,7 +8,6 @@ import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
-import cats.instances.string._
 import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
@@ -25,6 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainIndexer, DomainIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationIndexer, OrganizationIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
@@ -35,11 +35,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture,
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.QueryBuilder
-
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 
 @DoNotDiscover
 class SparqlQuerySpec(blazegraphPort: Int)
@@ -58,7 +57,6 @@ class SparqlQuerySpec(blazegraphPort: Int)
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
-
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 milliseconds)
 
@@ -100,7 +98,6 @@ class SparqlQuerySpec(blazegraphPort: Int)
       s"$base/voc/nexus/core")
 
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
-  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBaseSchemas)
   private implicit val instanceQualifier: ConfiguredQualifier[InstanceId] = Qualifier.configured[InstanceId](base)
   private implicit val schemasQualifier: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
   private implicit val domainsQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
@@ -109,42 +106,46 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
   "A SparqlQuery" should {
     val client = SparqlClient[Future](baseUri)
+    val queryClient = new SparqlQuery[Future](client)
     val instanceIndexer = InstanceIndexer(client, settings)
     val schemaIndexer = SchemaIndexer(client, settingsSchemas)
     val domainIndexer = DomainIndexer(client, settingsDomains)
     val orgIndexer = OrganizationIndexer(client, settingsOrgs)
-    val query = SparqlQuery[Future](client)
 
     val rev = 1L
     val data = jsonContentOf("/instances/minimal.json", replacements)
     val unmatched = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "different"))
+    val filterNoDepr: Filter = deprecatedAndRev(Some(false), nexusVocBase)
 
     "perform a data full text search" in {
       client.createIndex(index, properties).futureValue
 
-      // index 20 matching instances
-      (0 until 20).foreach { idx =>
+      // index 5 matching instances
+      (0 until 5).foreach { idx =>
         val id = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, data)).futureValue
       }
 
-      // index 10 not matching instances
-      (20 until 30).foreach { idx =>
+      // index 5 not matching instances
+      (5 until 10).foreach { idx =>
         val id = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, unmatched)).futureValue
       }
 
       // run the query
       val pagination = Pagination(0L, 100)
-      val result = query.apply[InstanceId](index, FullTextSearchQuery("random", pagination).build()).futureValue
+      val querySettings = QuerySettings(pagination, index, nexusVocBase)
+      val q = FilterQueries[Future, InstanceId](queryClient, querySettings)
+
+      val result = q.list(filterNoDepr, pagination, Some("random")).futureValue
       result.asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]].maxScore shouldEqual 1F
-      result.total shouldEqual 20L
-      result.results.size shouldEqual 20
+      result.total shouldEqual 5L
+      result.results.size shouldEqual 5
 
       val pagination2 = Pagination(100L, 100)
-      val result2 = query.apply[InstanceId](index, FullTextSearchQuery("random", pagination2).build()).futureValue
+      val result2 = q.list(filterNoDepr, pagination2, Some("random")).futureValue
       result2.asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]].maxScore shouldEqual 1F
-      result2.total shouldEqual 20L
+      result2.total shouldEqual 5L
       result2.results.size shouldEqual 0
     }
 
@@ -152,40 +153,31 @@ class SparqlQuerySpec(blazegraphPort: Int)
     "perform organizations listing search" in {
       client.createIndex(indexOrgs, properties).futureValue
 
-      // index 10 matching organizations
-      (0 until 10).foreach { idx =>
+      // index 5 matching organizations
+      (0 until 5).foreach { idx =>
         val id = OrgId(s"org-$idx")
         orgIndexer(OrgCreated(id, rev, data)).futureValue
       }
 
       // index 5 not matching organizations
-      (10 until 15).foreach { idx =>
+      (5 until 10).foreach { idx =>
         val id = OrgId(s"org-$idx")
         orgIndexer(OrgCreated(id, rev, data)).futureValue
         orgIndexer(OrgDeprecated(id, rev)).futureValue
       }
 
-      // run the query
       val pagination = Pagination(0L, 100)
-      val q = QueryBuilder.select(subject)
-        .where("deprecated".qualify -> "deprecated")
-        .filter(s"""?deprecated = false""")
-        .pagination(pagination)
-        .buildCount()
-      val result = query.apply[OrgId](indexOrgs, q).futureValue
-      result.total shouldEqual 10L
-      result.results.size shouldEqual 10
+      val querySettings = QuerySettings(pagination, indexOrgs, nexusVocBaseOrgs)
+      val q = FilterQueries[Future, OrgId](queryClient, querySettings)
+
+      val result = q.list(filterNoDepr, pagination, None).futureValue
+      result.total shouldEqual 5L
+      result.results.size shouldEqual 5
       result.results.foreach(r => {
         r.source.id should startWith("org-")
       })
 
-      val q2 = QueryBuilder.select(subject)
-        .where("organization".qualify -> "org")
-        .where("deprecated".qualify -> "deprecated")
-        .filter(s"""?org = "org-0" && ?deprecated = false""")
-        .pagination(pagination)
-        .buildCount()
-      val result2 = query.apply[OrgId](indexOrgs, q2).futureValue
+      val result2 = q.list(OrgId("org-0"), filterNoDepr, pagination, None).futureValue
       result2.total shouldEqual 1L
       result2.results.size shouldEqual 1
       result2.results.foreach(r => {
@@ -197,35 +189,32 @@ class SparqlQuerySpec(blazegraphPort: Int)
       client.createIndex(indexDomains, properties).futureValue
 
       val description = genString()
-      // index 10 matching domains
-      (0 until 10).foreach { idx =>
+      // index 5 matching domains
+      (0 until 5).foreach { idx =>
         val id = DomainId(OrgId("org"), s"domain-$idx")
         domainIndexer(DomainCreated(id, rev, description)).futureValue
       }
 
       // index 5 not matching domains
-      (10 until 15).foreach { idx =>
+      (5 until 10).foreach { idx =>
         val id = DomainId(OrgId("org"), s"domain-$idx")
         domainIndexer(DomainCreated(id, rev, description)).futureValue
         domainIndexer(DomainDeprecated(id, rev)).futureValue
       }
 
       // index other 5 not matching domains
-      (15 until 20).foreach { idx =>
+      (10 until 15).foreach { idx =>
         val id = DomainId(OrgId(s"org-$idx"), s"domain-$idx")
         domainIndexer(DomainCreated(id, rev, description)).futureValue
       }
       // run the query
       val pagination = Pagination(0L, 100)
-      val q = QueryBuilder.select(subject)
-        .where("organization".qualify -> "org")
-        .where("deprecated".qualify -> "deprecated")
-        .filter(s"""?org = "org" && ?deprecated = false""")
-        .pagination(pagination)
-        .buildCount()
-      val result = query.apply[DomainId](indexDomains, q).futureValue
-      result.total shouldEqual 10L
-      result.results.size shouldEqual 10
+      val querySettings = QuerySettings(pagination, indexDomains, nexusVocBaseDomains)
+      val q = FilterQueries[Future, DomainId](queryClient, querySettings)
+
+      val result = q.list(OrgId("org"), filterNoDepr, pagination, None).futureValue
+      result.total shouldEqual 5L
+      result.results.size shouldEqual 5
       result.results.foreach(r => {
         r.source.id should startWith("domain-")
         r.source.orgId shouldEqual OrgId("org")
@@ -235,39 +224,36 @@ class SparqlQuerySpec(blazegraphPort: Int)
     "perform schemas listing search" in {
       client.createIndex(indexSchemas, properties).futureValue
 
-      // index 10 matching schemas
-      (0 until 10).foreach { idx =>
+      // index 5 matching schemas
+      (0 until 5).foreach { idx =>
         val id = SchemaId(DomainId(OrgId("org"), "dom"), genString(), Version(1, 0, idx))
         schemaIndexer(SchemaCreated(id, rev, data)).futureValue
       }
 
       // index 5 not matching schemas
-      (10 until 15).foreach { idx =>
+      (5 until 10).foreach { idx =>
         val id = SchemaId(DomainId(OrgId("org"), "dom"), genString(), Version(1, 0, idx))
         schemaIndexer(SchemaCreated(id, rev, data)).futureValue
         schemaIndexer(SchemaDeprecated(id, rev)).futureValue
       }
 
       // index other 5 not matching schemas
-      (15 until 20).foreach { idx =>
+      (10 until 15).foreach { idx =>
         val id = SchemaId(DomainId(OrgId("org"), "core"), "name", Version(1, 0, idx))
         schemaIndexer(SchemaCreated(id, rev, unmatched)).futureValue
       }
-      // run the query
+
       val pagination = Pagination(0L, 100)
-      val q = QueryBuilder.select(subject)
-        .where("organization".qualify -> "org")
-        .where("domain".qualify -> "domain")
-        .where("deprecated".qualify -> "deprecated")
-        .filter(s"""?org = "org" && ?domain = "dom" && ?deprecated = false""")
-        .pagination(pagination)
-        .buildCount()
-      val result = query.apply[SchemaId](indexSchemas, q).futureValue
-      result.total shouldEqual 10L
-      result.results.size shouldEqual 10
+      val querySettings = QuerySettings(pagination, indexSchemas, nexusVocBaseSchemas)
+      val q = FilterQueries[Future, SchemaId](queryClient, querySettings)
+
+      val result = q.list(DomainId(OrgId("org"),"dom"), filterNoDepr, pagination, None).futureValue
+
+      result.total shouldEqual 5L
+      result.results.size shouldEqual 5
 
       result.results.foreach(r => {
-        r.source.version.patch shouldEqual 5 +- 5
+        r.source.version.patch.toDouble shouldEqual 2.5 +- 2.5
         r.source.domainId shouldEqual DomainId(OrgId("org"), "dom")
       })
     }
@@ -275,60 +261,48 @@ class SparqlQuerySpec(blazegraphPort: Int)
     "perform instances listing search" in {
       val name = genString()
       val domainId = DomainId(OrgId("test"), "dom")
-      // index 10 matching instances
-      (0 until 10).foreach { idx =>
+      // index 5 matching instances
+      (0 until 5).foreach { idx =>
         val id = InstanceId(SchemaId(domainId, name, Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, data)).futureValue
       }
 
       // index 5 not matching instances
-      (10 until 15).foreach { idx =>
+      (5 until 10).foreach { idx =>
         val id = InstanceId(SchemaId(domainId, name, Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, data)).futureValue
         instanceIndexer(InstanceDeprecated(id, rev + 1)).futureValue
       }
 
       // index other 5 not matching instances
-      (15 until 20).foreach { idx =>
+      (10 until 15).foreach { idx =>
         val id = InstanceId(SchemaId(DomainId(OrgId("other"), "dom"), name, Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, unmatched)).futureValue
       }
       // index other 5 not matching instances
-      (20 until 25).foreach { idx =>
+      (15 until 20).foreach { idx =>
         val id = InstanceId(SchemaId(domainId, genString(), Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, data)).futureValue
       }
-      // run the query
-      val pagination = Pagination(8L, 8)
-      val q = QueryBuilder.select(subject)
-        .where("organization".qualify -> "org")
-        .where("domain".qualify -> "domain")
-        .where("deprecated".qualify -> "deprecated")
-        .where("schema".qualify -> "name")
-        .filter(s"""?org = "test" && ?domain = "dom" && ?name = "$name" && ?deprecated = false""")
-        .pagination(pagination)
-        .buildCount()
-      val result = query.apply[InstanceId](index, q).futureValue
-      result.total shouldEqual 10L
+
+      val pagination = Pagination(3L, 3)
+      val querySettings = QuerySettings(pagination, index, nexusVocBase)
+      val q = FilterQueries[Future, InstanceId](queryClient, querySettings)
+
+      val result = q.list(DomainId(OrgId("test"),"dom"), name, filterNoDepr, pagination, None).futureValue
+
+      result.total shouldEqual 5L
       result.results.size shouldEqual 2
       result.results.foreach(r => {
-        r.source.schemaId.version.patch.toDouble shouldEqual 8.5 +- 0.5
+        r.source.schemaId.version.patch.toDouble shouldEqual 3.5 +- 0.5
         r.source.schemaId.name shouldEqual name
         r.source.schemaId.domainId shouldEqual domainId
       })
 
 
       val pagination2 = Pagination(10L, 8)
-      val q2 = QueryBuilder.select(subject)
-        .where("organization".qualify -> "org")
-        .where("domain".qualify -> "domain")
-        .where("deprecated".qualify -> "deprecated")
-        .where("schema".qualify -> "name")
-        .filter(s"""?org = "test" && ?domain = "dom" && ?name = "$name" && ?deprecated = false""")
-        .pagination(pagination2)
-        .buildCount()
-      val result2 = query.apply[InstanceId](index, q2).futureValue
-      result2.total shouldEqual 10L
+      val result2 = q.list(DomainId(OrgId("test"),"dom"), name, filterNoDepr, pagination2, None).futureValue
+      result2.total shouldEqual 5L
       result2.results.size shouldEqual 0
     }
   }
