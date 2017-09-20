@@ -69,11 +69,6 @@ object SchemaRejection {
   final case object IncorrectRevisionProvided extends SchemaRejection
 
   /**
-    * Signals that the provided schema version format is not compliant with the semantic version specification.
-    */
-  final case object IllegalVersionFormat extends SchemaRejection
-
-  /**
     * Signals that a schema cannot be un-published.
     */
   final case object CannotUnpublishSchema extends SchemaRejection

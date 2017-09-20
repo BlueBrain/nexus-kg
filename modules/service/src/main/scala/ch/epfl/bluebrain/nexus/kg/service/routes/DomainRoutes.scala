@@ -9,12 +9,15 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.query.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutes.DomainDescription
+import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives._
@@ -24,27 +27,28 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Http route definitions for domain specific functionality.
   *
-  * @param domains       the domain operation bundle
-  * @param querySettings query parameters form settings
-  * @param queryBuilder  query builder for domains
-  * @param base          the service public uri + prefix
+  * @param domains           the domain operation bundle
+  * @param domainQueries     query builder for domains
+  * @param base              the service public uri + prefix
+  * @param querySettings     query parameters from settings
+  * @param filteringSettings filtering parameters from settings
   */
-final class DomainRoutes(domains: Domains[Future], querySettings: QuerySettings, queryBuilder: FilterQueries[DomainId], base: Uri) {
+final class DomainRoutes(
+  domains: Domains[Future],
+  domainQueries: FilterQueries[Future, DomainId],
+  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
 
   private val encoders = new DomainCustomEncoders(base)
-  import encoders._, queryBuilder._
-
-  private val pagination = querySettings.pagination
+  import encoders._
 
   def routes: Route = handleExceptions(ExceptionHandling.exceptionHandler) {
     handleRejections(RejectionHandling.rejectionHandler) {
       pathPrefix("organizations" / Segment / "domains") { orgIdString =>
         val orgId = OrgId(orgIdString)
-        pathEndOrSingleSlash {
-          (get & parameter('from.as[Int] ? pagination.from) & parameter('size.as[Int] ? pagination.size) & parameter('deprecated.as[Boolean].?)) { (from, size, deprecated) =>
-            traceName("listDomains") {
-              queryBuilder.listingQuery(orgId, deprecated, None, Pagination(from, size)).response
-            }
+        (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+          traceName("searchDomains") {
+            val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+            domainQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
           }
         } ~
         pathPrefix(Segment) { id =>
@@ -100,9 +104,10 @@ object DomainRoutes {
     * @return a new ''DomainRoutes'' instance
     */
   final def apply(domains: Domains[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(implicit
-    ec: ExecutionContext): DomainRoutes = {
-    val filterQueries = new FilterQueries[DomainId](SparqlQuery[Future](client), querySettings, base)
-    new DomainRoutes(domains, querySettings, filterQueries, base)
+    ec: ExecutionContext, filteringSettings: FilteringSettings): DomainRoutes = {
+    implicit val qs: QuerySettings = querySettings
+    val domainQueries = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
+    new DomainRoutes(domains, domainQueries, base)
   }
 }
 

@@ -7,33 +7,29 @@ import akka.stream.IOResult
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
-import cats.instances.string._
-import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRejection}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, FilteringSettings, Op}
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.query.{InstanceQueries, LinksQueryResults}
+import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives.traceName
-import ch.epfl.bluebrain.nexus.kg.service.query.InstanceQueries._
+
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -47,166 +43,147 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class InstanceRoutes(
   instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
-  instanceQueries: InstanceQueries,
+  instanceQueries: FilterQueries[Future, InstanceId],
   base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
 
   private val encoders = new InstanceCustomEncoders(base)
   import encoders._
 
-  private val exceptionHandler = ExceptionHandling.exceptionHandler
-
-  def routes: Route = handleExceptions(exceptionHandler) {
+  def routes: Route = handleExceptions(ExceptionHandling.exceptionHandler) {
     handleRejections(RejectionHandling.rejectionHandler) {
-      pathPrefix("data" / Segment) { orgIdString =>
-        val orgId = OrgId(orgIdString)
-        pathEndOrSingleSlash {
-          (get & paginatedAndFiltered) { (pagination, filterOpt) =>
-            traceName("listInstancesOfOrg") {
-              parameter('deprecated.as[Boolean].?) { deprecated =>
-                val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
-                buildResponse(instanceQueries.list(orgId, filter, pagination), pagination)
-              }
-            }
+      pathPrefix("data") {
+        (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+          traceName("searchInstances") {
+            val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+            instanceQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
           }
         } ~
-        pathPrefix(Segment) { domain =>
-          val domainId = DomainId(orgId, domain)
-          pathEndOrSingleSlash {
-            (get & paginatedAndFiltered) { (pagination, filterOpt) =>
-              parameter('deprecated.as[Boolean].?) { deprecated =>
-                traceName("listInstancesOfDomain") {
-                  val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
-                  buildResponse(instanceQueries.list(domainId, filter, pagination), pagination)
-                }
-              }
+        pathPrefix(Segment) { orgIdString =>
+          val orgId = OrgId(orgIdString)
+          (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+            traceName("searchInstancesOfOrg") {
+              val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+              instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
             }
+
           } ~
-          pathPrefix(Segment) { name =>
-            pathEndOrSingleSlash {
-              (get & paginatedAndFiltered) { (pagination, filterOpt) =>
-                parameter('deprecated.as[Boolean].?) { deprecated =>
-                  traceName("listInstancesOfSchemaName") {
-                    val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
-                    buildResponse(instanceQueries.list(domainId, name, filter, pagination), pagination)
+          pathPrefix(Segment) { domain =>
+            val domainId = DomainId(orgId, domain)
+            (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+                traceName("searchInstancesOfDomain") {
+                  val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+                  instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+                }
+            } ~
+            pathPrefix(Segment) { name =>
+              (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+                traceName("searchInstancesOfSchemaName") {
+                  val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+                  instanceQueries.list(domainId, name, filter, pagination, termOpt).buildResponse(base, pagination)
+                }
+              } ~
+              versioned.apply { version =>
+                val schemaId = SchemaId(DomainId(orgId, domain), name, version)
+                (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+                  traceName("searchInstancesOfSchema") {
+                    val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+                    instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)
+                  }
+                } ~
+                (pathEndOrSingleSlash & post) {
+                  entity(as[Json]) { json =>
+                    traceName("createInstance") {
+                      onSuccess(instances.create(schemaId, json)) { ref =>
+                        complete(StatusCodes.Created -> ref)
+                      }
+                    }
+                  }
+                } ~
+                pathPrefix(Segment) { id =>
+                  val instanceId = InstanceId(schemaId, id)
+                  (pathPrefix("outgoing") & pathEndOrSingleSlash & get) {
+                    searchQueryParams.apply { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+                      val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+                      instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+                    }
+                  } ~
+                  (pathPrefix("incoming") & pathEndOrSingleSlash & get) {
+                    searchQueryParams.apply { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+                      val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+                      instanceQueries.incoming(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+                    }
+                  } ~
+                  pathEndOrSingleSlash {
+                    (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
+                      traceName("updateInstance") {
+                        onSuccess(instances.update(instanceId, rev, json)) { ref =>
+                          complete(StatusCodes.OK -> ref)
+                        }
+                      }
+                    } ~
+                    get {
+                      parameter('rev.as[Long].?) {
+                        case Some(rev) =>
+                          traceName("getInstanceRevision") {
+                            onSuccess(instances.fetch(instanceId, rev)) {
+                              case Some(instance) => complete(StatusCodes.OK -> instance)
+                              case None           => complete(StatusCodes.NotFound)
+                            }
+                          }
+                        case None      =>
+                          traceName("getInstance") {
+                            onSuccess(instances.fetch(instanceId)) {
+                              case Some(instance) => complete(StatusCodes.OK -> instance)
+                              case None           => complete(StatusCodes.NotFound)
+                            }
+                          }
+                      }
+                    } ~
+                    (delete & parameter('rev.as[Long])) { rev =>
+                      traceName("deprecateInstance") {
+                        onSuccess(instances.deprecate(instanceId, rev)) { ref =>
+                          complete(StatusCodes.OK -> ref)
+                        }
+                      }
+                    }
+                  } ~
+                  path("attachment") {
+                    (put & parameter('rev.as[Long])) { rev =>
+                      fileUpload("file") {
+                        case (metadata, byteSource) =>
+                          traceName("createInstanceAttachment") {
+                            onSuccess(instances.createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) { info =>
+                              complete(StatusCodes.Created -> info)
+                            }
+                          }
+                      }
+                    } ~
+                    (delete & parameter('rev.as[Long])) { rev =>
+                      traceName("removeInstanceAttachment") {
+                        onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
+                          complete(StatusCodes.OK -> ref)
+                        }
+                      }
+                    } ~
+                    get {
+                      parameter('rev.as[Long].?) { maybeRev =>
+                        traceName("getInstanceAttachment") {
+                          val result = maybeRev match {
+                            case Some(rev) => instances.fetchAttachment(instanceId, rev)
+                            case None      => instances.fetchAttachment(instanceId)
+                          }
+                          onSuccess(result) {
+                            case Some((info, source)) =>
+                              val ct = ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
+                              complete(HttpEntity(ct, info.size.value, source))
+                            case None                 =>
+                              complete(StatusCodes.NotFound)
+                          }
+                        }
+                      }
+                    }
                   }
                 }
-              }
-            } ~
-            pathPrefix(Segment) { versionString =>
-              Version(versionString) match {
-                case None          =>
-                  exceptionHandler(CommandRejected(SchemaRejection.IllegalVersionFormat))
-                case Some(version) =>
-                  val schemaId = SchemaId(DomainId(orgId, domain), name, version)
-
-                  pathEndOrSingleSlash {
-                    (get & paginatedAndFiltered) { (pagination, filterOpt) =>
-                      parameter('deprecated.as[Boolean].?) { deprecated =>
-                        traceName("listInstancesOfSchema") {
-                          val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
-                          buildResponse(instanceQueries.list(schemaId, filter, pagination), pagination)
-                        }
-                      }
-                    }
-                  } ~
-                  (pathEndOrSingleSlash & post) {
-                    entity(as[Json]) { json =>
-                      traceName("createInstance") {
-                        onSuccess(instances.create(schemaId, json)) { ref =>
-                          complete(StatusCodes.Created -> ref)
-                        }
-                      }
-                    }
-                  } ~
-                  pathPrefix(Segment) { id =>
-                    val instanceId = InstanceId(schemaId, id)
-                    (pathPrefix("outgoing") & pathEndOrSingleSlash & get) {
-                      parameter('deprecated.as[Boolean].?) { deprecated =>
-                        paginatedAndFiltered.apply { (pagination, filterOpt) =>
-                          val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
-                          buildResponse(instanceQueries.outgoing(instanceId, filter, pagination), pagination)
-                        }
-                      }
-                    } ~
-                    (pathPrefix("incoming") & pathEndOrSingleSlash & get) {
-                      parameter('deprecated.as[Boolean].?) { deprecated =>
-                        paginatedAndFiltered.apply { (pagination, filterOpt) =>
-                          val filter = Filter(deprecatedAndRev(deprecated)) and filterOpt.map(_.expr)
-                          buildResponse(instanceQueries.incoming(instanceId, filter, pagination), pagination)
-                        }
-                      }
-                    } ~
-                    pathEndOrSingleSlash {
-                      (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
-                        traceName("updateInstance") {
-                          onSuccess(instances.update(instanceId, rev, json)) { ref =>
-                            complete(StatusCodes.OK -> ref)
-                          }
-                        }
-                      } ~
-                      get {
-                        parameter('rev.as[Long].?) {
-                          case Some(rev) =>
-                            traceName("getInstanceRevision") {
-                              onSuccess(instances.fetch(instanceId, rev)) {
-                                case Some(instance) => complete(StatusCodes.OK -> instance)
-                                case None           => complete(StatusCodes.NotFound)
-                              }
-                            }
-                          case None      =>
-                            traceName("getInstance") {
-                              onSuccess(instances.fetch(instanceId)) {
-                                case Some(instance) => complete(StatusCodes.OK -> instance)
-                                case None           => complete(StatusCodes.NotFound)
-                              }
-                            }
-                        }
-                      } ~
-                      (delete & parameter('rev.as[Long])) { rev =>
-                        traceName("deprecateInstance") {
-                          onSuccess(instances.deprecate(instanceId, rev)) { ref =>
-                            complete(StatusCodes.OK -> ref)
-                          }
-                        }
-                      }
-                    } ~
-                    path("attachment") {
-                      (put & parameter('rev.as[Long])) { rev =>
-                        fileUpload("file") {
-                          case (metadata, byteSource) =>
-                            traceName("createInstanceAttachment") {
-                              onSuccess(instances.createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) { info =>
-                                complete(StatusCodes.Created -> info)
-                              }
-                            }
-                        }
-                      } ~
-                      (delete & parameter('rev.as[Long])) { rev =>
-                        traceName("removeInstanceAttachment") {
-                          onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
-                            complete(StatusCodes.OK -> ref)
-                          }
-                        }
-                      } ~
-                      get {
-                        parameter('rev.as[Long].?) { maybeRev =>
-                          traceName("getInstanceAttachment") {
-                            val result = maybeRev match {
-                              case Some(rev) => instances.fetchAttachment(instanceId, rev)
-                              case None      => instances.fetchAttachment(instanceId)
-                            }
-                            onSuccess(result) {
-                              case Some((info, source)) =>
-                                val ct = ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
-                                complete(HttpEntity(ct, info.size.value, source))
-                              case None                 =>
-                                complete(StatusCodes.NotFound)
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
               }
             }
           }
@@ -214,34 +191,6 @@ class InstanceRoutes(
       }
     }
   }
-
-  private def deprecatedOrNoop(deprecated: Option[Boolean]): Expr = {
-    deprecated.map { value =>
-      val depr = "deprecated".qualifyWith(querySettings.nexusVocBase)
-      ComparisonExpr(Op.Eq, UriTerm(depr), LiteralTerm(value.toString))
-    }.getOrElse(NoopExpr)
-  }
-
-  private def deprecatedAndRev(deprecated: Option[Boolean]): Expr = {
-    LogicalExpr(Op.And, List(deprecatedOrNoop(deprecated), revExpr))
-  }
-
-  private def revExpr: Expr = {
-    val rev = "rev".qualifyWith(querySettings.nexusVocBase)
-    ComparisonExpr(Op.Gt, UriTerm(rev), LiteralTerm("0"))
-  }
-
-
-  private def buildResponse[A](qr: Future[QueryResults[A]], pagination: Pagination)(implicit
-    R: Encoder[UnscoredQueryResult[A]],
-    S: Encoder[ScoredQueryResult[A]]): Route =
-    extract(_.request.uri) { uri =>
-      onSuccess(qr) { result =>
-        val lqu = base.copy(path = uri.path, fragment = uri.fragment, rawQueryString = uri.rawQueryString)
-        val lqrs = LinksQueryResults(result, pagination, lqu)
-        complete(StatusCodes.OK -> lqrs)
-      }
-    }
 }
 
 object InstanceRoutes {
@@ -262,7 +211,7 @@ object InstanceRoutes {
     ec: ExecutionContext,
     filteringSettings: FilteringSettings): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
-    val instanceQueries = new InstanceQueries(SparqlQuery[Future](client), querySettings, base)
+    val instanceQueries = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
     new InstanceRoutes(instances, instanceQueries, base)
   }
 }

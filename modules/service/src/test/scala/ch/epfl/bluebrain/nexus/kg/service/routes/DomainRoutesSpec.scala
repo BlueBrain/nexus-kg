@@ -23,8 +23,9 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures.{Source, fixedHttpClient, fixedResponse}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
-import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutesSpec.{Result, Results}
+import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 
 import scala.concurrent.Future
 
@@ -51,6 +52,7 @@ class DomainRoutesSpec
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
     val vocab = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), "domain-index", vocab)
+    implicit val filteringSettings = FilteringSettings(vocab, vocab)
 
     implicit val client: UntypedHttpClient[Future] = fixedHttpClient(fixedResponse("/list_domains_sparql_result.json"))
     val sparqlClient = SparqlClient[Future](sparqlUri)

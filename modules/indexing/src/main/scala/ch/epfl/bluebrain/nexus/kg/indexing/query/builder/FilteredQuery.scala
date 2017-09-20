@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
 import java.util.concurrent.atomic.AtomicInteger
 
+import akka.http.scaladsl.model.Uri
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
@@ -9,6 +10,9 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Term}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixMapping._
 
 /**
   * Describes paginated queries based on filters.
@@ -16,111 +20,122 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 object FilteredQuery {
 
   /**
-    * Constructs a SPARQL query based on the provided filter and pagination settings that also computes the total
+    * Constructs a Blazegraph query based on the provided filter and pagination settings that also computes the total
     * number of results.  The filter is applied on the subjects.
     *
     * @param filter     the filter on which the query is based on
     * @param pagination the pagination settings for the generated query
-    * @return a SPARQL query based on the provided filter and pagination settings
+    * @param term       the optional full text search term
+    * @return a Blazegraph query based on the provided filter and pagination settings
     */
-  def apply(filter: Filter, pagination: Pagination): String = {
+  def apply(filter: Filter, pagination: Pagination, term: Option[String] = None): String = {
+    applyWithWhere(buildWhereFrom(filter.expr), pagination, term)
+  }
+
+  private def applyWithWhere(where: String, pagination: Pagination, term: Option[String]): String = {
+    val (selectTotal, selectWith, selectSubQuery) = buildSelectsFrom(term)
     s"""
-      |SELECT ?total ?s
-      |WITH {
-      |  SELECT ?s
-      |  WHERE {
-      |${buildWhere(filter.expr, "?s", "var")}
-      |  }
-      |} AS %resultSet
-      |WHERE {
-      |  {
-      |    SELECT (COUNT(DISTINCT ?s) AS ?total)
-      |    WHERE { INCLUDE %resultSet }
-      |  }
-      |  UNION
-      |  {
-      |    SELECT *
-      |    WHERE { INCLUDE %resultSet }
-      |    LIMIT ${pagination.size}
-      |    OFFSET ${pagination.from}
-      |  }
-      |}""".stripMargin
+       |PREFIX bds: <${bdsUri.toString()}>
+       |$selectTotal
+       |WITH {
+       |  $selectWith
+       |  WHERE {
+       |${buildWhereFrom(term)}
+       |$where
+       |  }
+       |${buildGroupByFrom(term)}
+       |} AS %resultSet
+       |WHERE {
+       |  {
+       |    $selectSubQuery
+       |    WHERE { INCLUDE %resultSet }
+       |  }
+       |  UNION
+       |  {
+       |    SELECT *
+       |    WHERE { INCLUDE %resultSet }
+       |    LIMIT ${pagination.size}
+       |    OFFSET ${pagination.from}
+       |  }
+       |}
+       |${buildOrderByFrom(term)}""".stripMargin
   }
 
   /**
-    * Constructs a SPARQL query based on the provided filters and pagination settings that also computes the total
+    * Constructs a Blazegraph query based on the provided filters and pagination settings that also computes the total
     * number of results.
     *
-    * @param thisFilter   the filter to be applied to select the subjects
+    * @param thisSubject  the qualified uri of the subject to be selected
     * @param targetFilter the filter to be applied to filter the objects
     * @param pagination   the pagination settings for the generated query
     */
-  def outgoing(thisFilter: Filter, targetFilter: Filter, pagination: Pagination): String = {
-    s"""
-       |SELECT ?total ?s
-       |WITH {
-       |  SELECT ?s
-       |  WHERE {
-       |
-       |?ss ?p ?s .
-       |${buildWhere(thisFilter.expr, "?ss", "this")}
-       |${buildWhere(targetFilter.expr, "?s", "var")}
-       |  }
-       |} AS %resultSet
-       |WHERE {
-       |  {
-       |    SELECT (COUNT(DISTINCT ?s) AS ?total)
-       |    WHERE { INCLUDE %resultSet }
-       |  }
-       |  UNION
-       |  {
-       |    SELECT *
-       |    WHERE { INCLUDE %resultSet }
-       |    LIMIT ${pagination.size}
-       |    OFFSET ${pagination.from}
-       |  }
-       |}""".stripMargin
+  def outgoing(thisSubject: Uri, targetFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
+    val where =
+      s"""
+         |?ss ?p ?$subject .
+         |FILTER ( ?ss = <$thisSubject> )
+         |${buildWhereFrom(targetFilter.expr)}
+       """.stripMargin.trim
+    applyWithWhere(where, pagination, term)
   }
 
+
   /**
-    * Constructs a SPARQL query based on the provided filters and pagination settings that also computes the total
+    * Constructs a Blazegraph query based on the provided filters and pagination settings that also computes the total
     * number of results.
     *
-    * @param thisFilter   the filter to be applied to select the objects
+    * @param thisObject   the qualified uri of the object to be selected
     * @param sourceFilter the filter to be applied to filter the subjects
     * @param pagination   the pagination settings for the generated query
     */
-  def incoming(thisFilter: Filter, sourceFilter: Filter, pagination: Pagination): String = {
-    s"""
-       |SELECT ?total ?s
-       |WITH {
-       |  SELECT ?s
-       |  WHERE {
-       |
-       |?s ?p ?ss .
-       |${buildWhere(thisFilter.expr, "?ss", "this")}
-       |${buildWhere(sourceFilter.expr, "?s", "var")}
-       |  }
-       |} AS %resultSet
-       |WHERE {
-       |  {
-       |    SELECT (COUNT(DISTINCT ?s) AS ?total)
-       |    WHERE { INCLUDE %resultSet }
-       |  }
-       |  UNION
-       |  {
-       |    SELECT *
-       |    WHERE { INCLUDE %resultSet }
-       |    LIMIT ${pagination.size}
-       |    OFFSET ${pagination.from}
-       |  }
-       |}""".stripMargin
+  def incoming(thisObject: Uri, sourceFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
+    val where =
+      s"""
+         |?$subject ?p ?o .
+         |FILTER ( ?o = <$thisObject> )
+         |${buildWhereFrom(sourceFilter.expr)}
+       """.stripMargin.trim
+    applyWithWhere(where, pagination, term)
   }
 
   private final case class Stmt(stmt: String, filter: String, variable: String)
 
-  private def buildWhere(expr: Expr, subjectVar: String, varPrefix: String): String = {
+  private def buildSelectsFrom(term: Option[String]): (String, String, String) = {
+    term.map(_ =>
+      (
+        s"SELECT DISTINCT ?$total ?$subject ?$maxScore ?$score ?$rank",
+        s"SELECT DISTINCT ?$subject (max(?rsv) AS ?$score) (max(?pos) AS ?$rank)",
+        s"SELECT (COUNT(DISTINCT ?$subject) AS ?$total) (max(?$score) AS ?$maxScore)"
+      )).getOrElse(
+      (
+        s"SELECT DISTINCT ?$total ?$subject",
+        s"SELECT DISTINCT ?$subject",
+        s"SELECT (COUNT(DISTINCT ?$subject) AS ?$total)"
+      )
+    )
+  }
+
+  private def buildOrderByFrom(term: Option[String]): String =
+    term.map(_ => s"ORDER BY DESC(?$score)").getOrElse("")
+
+  private def buildGroupByFrom(term: Option[String]): String =
+    term.map(_ => s"GROUP BY ?$subject").getOrElse("")
+
+  private def buildWhereFrom(term: Option[String]): String =
+    term.map(term =>
+    s"""
+       |?$subject ?matchedProperty ?matchedValue .
+       |?matchedValue $bdsSearch "$term" .
+       |?matchedValue $bdsRelevance ?rsv .
+       |?matchedValue $bdsRank ?pos .
+       |FILTER ( !isBlank(?s) )
+     """.stripMargin.trim
+    ).getOrElse("")
+
+  private def buildWhereFrom(expr: Expr): String = {
+    val varPrefix = "var"
     val atomicIdx = new AtomicInteger(0)
+
     def nextIdx(): Int =
       atomicIdx.incrementAndGet()
 
@@ -130,7 +145,7 @@ object FilteredQuery {
       val idx = nextIdx()
       val variable = s"?${varPrefix}_$idx"
       val InExpr(path, TermCollection(terms)) = expr
-      val stmt = s"$subjectVar ${path.show} $variable ."
+      val stmt = s"?$subject ${path.show} $variable ."
       val filter = terms.map(_.show).mkString(s"$variable IN (", ", ", ")")
       Stmt(stmt, filter, variable)
     }
@@ -141,7 +156,7 @@ object FilteredQuery {
       val idx = nextIdx()
       val variable = s"?${varPrefix}_$idx"
       val ComparisonExpr(op, path, term) = expr
-      Stmt(s"$subjectVar ${path.show} $variable .", s"$variable ${op.show} ${term.show}", variable)
+      Stmt(s"?$subject ${path.show} $variable .", s"$variable ${op.show} ${term.show}", variable)
     }
 
     def fromStmts(op: LogicalOp, stmts: Vector[Stmt]): String = op match {
@@ -152,7 +167,7 @@ object FilteredQuery {
            |$select
            |FILTER ( $filter )
            |""".stripMargin
-      case Or =>
+      case Or  =>
         val select = stmts.map(v => s"OPTIONAL { ${v.stmt} }").mkString("\n")
         val filter = stmts.map(_.filter).mkString(" || ")
         s"""
@@ -185,7 +200,7 @@ object FilteredQuery {
     }
 
     def fromExpr(expr: Expr): String = expr match {
-      case NoopExpr                => s"$subjectVar ?p ?o ."
+      case NoopExpr                => s"?$subject ?p ?o ."
       case e: ComparisonExpr       => compExpr(e).show
       case e: InExpr               => inExpr(e).show
       case LogicalExpr(And, exprs) =>

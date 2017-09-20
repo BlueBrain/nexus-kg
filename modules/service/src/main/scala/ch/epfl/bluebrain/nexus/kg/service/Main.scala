@@ -128,8 +128,7 @@ object Main {
           OrganizationRoutes(orgs, sparqlClient, orgQuerySettings, apiUri).routes ~
             DomainRoutes(doms, sparqlClient, domainQuerySettings, apiUri).routes ~
             SchemaRoutes(schemas, sparqlClient, schemaQuerySettings, apiUri).routes ~
-            InstanceRoutes(instances, sparqlClient, instanceQuerySettings, apiUri).routes ~
-            SearchRoutes(sparqlClient, apiUri, instanceQuerySettings).routes
+            InstanceRoutes(instances, sparqlClient, instanceQuerySettings, apiUri).routes
         }
         val routes   = handleRejections(corsRejectionHandler) { cors(corsSettings)(static ~ apis) }
         Http().bindAndHandle(routes, settings.Http.Interface, settings.Http.Port)

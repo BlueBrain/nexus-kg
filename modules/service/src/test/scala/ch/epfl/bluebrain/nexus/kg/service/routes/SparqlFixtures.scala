@@ -21,7 +21,17 @@ class SparqlFixtures extends Resources {
 
 object SparqlFixtures extends SparqlFixtures {
 
+
+  final case class ResultScored(resultId: String, source: Source, score: Float)
+
+  final case class ResultsScored(maxScore: Float, total: Long, results: List[ResultScored], links: List[Link])
+
   final case class Source(`@id`: String, links: List[Link])
+
+  final case class Result(resultId: String, source: Source)
+
+  final case class Results(total: Long, results: List[Result], links: List[Link])
+
 
   def fixedHttpClient(resp: HttpResponse)(implicit mt: Materializer, ec: ExecutionContext) =
     new UntypedHttpClient[Future] {

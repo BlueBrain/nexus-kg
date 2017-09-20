@@ -11,12 +11,13 @@ import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
-import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutesSpec.{Result, Results}
+import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures.{Source, fixedHttpClient, fixedResponse}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
@@ -41,6 +42,7 @@ class OrganizationRoutesSpec
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
     val vocab = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), "org-index", vocab)
+    implicit val filteringSettings = FilteringSettings(vocab, vocab)
 
     implicit val client: UntypedHttpClient[Future] = fixedHttpClient(fixedResponse("/list_orgs_sparql_result.json"))
     val sparqlClient = SparqlClient[Future](sparqlUri)

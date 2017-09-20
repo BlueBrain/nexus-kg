@@ -47,13 +47,26 @@ trait QueryDirectives {
     }
 
   /**
-    * Extracts the pagination and filter query params from the request or defaults to preconfigured values.
+    * Extracts the ''q'' query param from the request. This param will be used as a full text search
+    */
+  def q: Directive1[Option[String]] =
+    parameter('q.?).flatMap(opt => provide(opt))
+
+  /**
+    * Extracts the ''deprecated'' query param from the request.
+    */
+  def deprecated: Directive1[Option[Boolean]] =
+    parameter('deprecated.as[Boolean].?).flatMap(opt => provide(opt))
+
+  /**
+    * Extracts the query parameters defined for search requests or set them to preconfigured values
+    * if present.
     *
     * @param qs the preconfigured query settings
     * @param fs the preconfigured filtering settings
     */
-  def paginatedAndFiltered(implicit qs: QuerySettings, fs: FilteringSettings): Directive[(Pagination, Option[Filter])] =
-    paginated & filtered
+  def searchQueryParams(implicit qs: QuerySettings, fs: FilteringSettings): Directive[(Pagination, Option[Filter], Option[String], Option[Boolean])] =
+    paginated & filtered & q & deprecated
 
 }
 
