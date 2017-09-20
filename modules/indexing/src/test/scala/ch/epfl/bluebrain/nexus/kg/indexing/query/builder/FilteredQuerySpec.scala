@@ -201,7 +201,8 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
         val targetFilter = json.as[Filter].right.value
         val expectedWhere =
           s"""
-             |FILTER ( ?s = <${thisId.toString}> )
+             |?ss ?p ?s .
+             |FILTER ( ?ss = <${thisId.toString}> )
              |
              |?s <${prov}wasDerivedFrom> ?var_1 .
              |?s <${nxv}rev> ?var_2 .

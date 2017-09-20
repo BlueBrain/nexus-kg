@@ -72,7 +72,8 @@ object FilteredQuery {
   def outgoing(thisSubject: Uri, targetFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
     val where =
       s"""
-         |FILTER ( ?$subject = <$thisSubject> )
+         |?ss ?p ?$subject .
+         |FILTER ( ?ss = <$thisSubject> )
          |${buildWhereFrom(targetFilter.expr)}
        """.stripMargin.trim
     applyWithWhere(where, pagination, term)
