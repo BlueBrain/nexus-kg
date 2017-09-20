@@ -1,145 +1,89 @@
 # Organizations
 
-**`/organizations`** path which describes organizations. The following resources are allowed:
+Organization resources are rooted in the `/v0/organizations` collection.  As described in the
+@ref:[API Reference](index.md), these represent the top level resources.  All configuration and policies apply to their
+sub-resources.
 
-## Get
-###**`GET /organizations/{id}`**
+### Create an organization
 
-**Retrieves** the organization specified in **id**.
+Organization names are local ids for these resources, which means the consumer has the necessary information to perform
+a direct `PUT` request with the resource address.  Omitting the last revision implies a resource creation attempt.
 
-### Request path and query parameters
-| Field         | Type          | Description                                                                                           |
-| ------------- |-------------  | ---------------------------------------------                                                         |
-| id            | String        | The unique identifier for the organization. It has to match the following regex: [a-z0-9]{3,5}        |
-
-### Response JSON-LD Object
-| Field         | Type          | Description                                   |
-| ------------- |-------------  | --------------------------------------------- |
-| @id           | String        | The unique identifier for the organization.   |
-| rev           | Long          | The current revision of the organization.     |
-| deprecated    | Boolean       | whether the organization is deprecated or not.|
-| *             | *             | The payload of the organization.              |
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **404 Not Found** - The requested organization does not exist.
-
-### Example request
-```bash
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus"
+```
+PUT /v0/organizations/{name}
+{...}
 ```
 
-## List
-###**`GET /organizations?deprecated={deprecated}`**
-**Retrieves a list** of organizations.
+The `{name}` is constrained to `[a-z0-9]{3,5}`.
 
-### Request path and query parameters
-| Field         | Type                  | Description                                                                                                                   |
-| ------------- |-------------          | ---------------------------------------------                                                                                 |
-| deprecated    | Option[Boolean]       | A deprecated filter for the organization you want to list. If not set, it will return both deprecated and not deprecated organizations.   |
-| *             |                       | [Pagination fields](basics.html#pagination-response).                                                                         |
+The json value must be compliant with the [schema.org definition](http://schema.org/Organization) for organizations.
+The nexus shacl schema for organization constrains the accepted values.
 
-### Status Codes
-* **200 OK** - Request completed successfully.
+[//]: # (TODO: embed the nexus shacl schema for organization)
 
-### Response JSON-LD Object
+Example organization
+:   @@snip [organization.json](../assets/api-reference/organizations/organization.json)
 
-The response format is the one defined in [Listing and querying response format](basics.html#listing-and-querying-response-format)
+Example response
+:   @@snip [org-ref-new.json](../assets/api-reference/organizations/org-ref-new.json)
 
-### Status Codes
-* **200 OK** - Request completed successfully.
+### Update an organization
 
-### Examples request
-```bash
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations"
+```
+PUT /v0/organizations/{name}?rev={previous_rev}
+{...}
+```
+... where `{previous_rev}` is the last known revision number for the organization.
+
+The json value must be compliant with the [schema.org definition](http://schema.org/Organization) for organizations.
+The nexus shacl schema for organization constrains the accepted values.
+
+[//]: # (TODO: link to embedded organization shacl schema)
+
+Example organization
+:   @@snip [organization.json](../assets/api-reference/organizations/organization.json)
+
+Example response
+:   @@snip [org-ref-new.json](../assets/api-reference/organizations/org-ref.json)
+
+### Fetch an organization
+
+```
+GET /v0/organizations/{name}
 ```
 
-## Create
-###**`PUT /organizations/{id}`**
+Example reponse
+:   @@snip [existing-organization.json](../assets/api-reference/organizations/existing-organization.json)
 
-**Creates** the organization specified in **id** with the provided payload.
+### Fetch an organization revision
 
-### Request path and query parameters
-| Field         | Type          | Description                                                                                           |
-| ------------- |-------------  | ---------------------------------------------                                                         |
-| id            | String        | The unique identifier for the organization. It has to match the following regex: [a-z0-9]{3,5}        |
-
-### Request JSON-LD Object
-A valid JSON-LD object
-
-### Response JSON-LD Object
-| Field         | Type          | Description                                                           |
-| ------------- |-------------  | ---------------------------------------------                         |
-| @id           | String        | The unique identifier for the organization.                           |
-| rev           | Long          | The current revision of the organization.                             |
-
-### Status Codes
-* **201 Created** - Request completed successfully.
-* **400 Bad Request** - The provided id path parameter does not match the regex [a-z0-9]{3,5}
-* **409 Conflict** - The requested organization already exists.
-
-### Example request
-```bash
-curl -v -X PUT -H "Content-Type: application/json" -d '{"description": "Nexus Organization"}' "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus"
+```
+GET /v0/organizations/{name}?rev={rev}
 ```
 
+Example reponse
+:   @@snip [existing-organization.json](../assets/api-reference/organizations/existing-organization.json)
 
-## Update
-###**`PUT /organizations/{id}?rev={rev}`**
-**Updates** the organization specified in **id** overriding the existing payload with the provided one.
 
-### Request path and query parameters
-| Field         | Type          | Description                                   |
-| ------------- |-------------  | --------------------------------------------- |
-| id            | String        | The unique identifier for the organization. It has to match the following regex: [a-z0-9]{3,5}        |
-| rev           | Long          | The current revision of the organization.     |
+### Deprecate an organization
 
-### Request JSON-LD Object
-A valid JSON-LD object
-
-### Response JSON-LD Object
-| Field         | Type          | Description                                                           |
-| ------------- |-------------  | ---------------------------------------------                         |
-| @id           | String        | The unique identifier for the organization.                           |
-| rev           | Long          | The current revision of the organization.                             |
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **404 Not Found** - The requested organization does not exist.
-* **409 Conflict** - The provided rev query parameter does not match the current revision.
-
-### Example request
-```bash
-curl -v -X PUT -H "Content-Type: application/json" -d '{"description": "Nexus Organization", "label": "Updated"}' "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus?rev=1"
+```
+DELETE /v0/organizations/{name}?rev={rev}
 ```
 
+Example response
+:   @@snip [org-ref-new.json](../assets/api-reference/organizations/org-ref.json)
 
-## Deprecate
-###**`DELETE /organizations/{id}?rev={rev}`**
+### List organizations
 
-**Deprecates** the organization specified in **id**.
-
-### Request path and query parameters
-| Field         | Type          | Description                                   |
-| ------------- |-------------  | --------------------------------------------- |
-| id            | String        | The unique identifier for the organization. It has to match the following regex: [a-z0-9]{3,5}        |
-| rev           | Long          | The current revision of the organization.     |
-
-### Response JSON-LD Object
-| Field         | Type          | Description                                   |
-| ------------- |-------------  | --------------------------------------------- |
-| @id           | String        | The unique identifier for the organization.   |
-| rev           | Long          | The current revision of the organization.     |
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **404 Not Found**
-    * The requested organization does not exist.
-    * The request query parameter rev is missing.
-* **409 Conflict** - The provided rev query parameter does not match the current revision.
-* **400 Bad Request** - The organization is deprecated.
-
-### Example request
-```bash
-curl -v -X DELETE "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus?rev=2"
 ```
+GET /v0/organizations?filter={filter}&from={from}&size={size}
+```
+... where `{filter}` is a filtering expression as described in the
+@ref:[Search and filtering](operating-on-resources.md#search-and-filtering) section.  The `{from}` and `size` are
+the listing pagination parameters.
+
+All query parameters described (`{filter}`, `{from}` and `{size}`) are optional.
+
+Example reponse
+:   @@snip [organization-list.json](../assets/api-reference/organizations/organization-list.json)

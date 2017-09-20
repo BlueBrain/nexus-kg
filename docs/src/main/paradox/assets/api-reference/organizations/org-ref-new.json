@@ -1,0 +1,7 @@
+{
+  "@context": {
+    "nxv": "https://nexus.example.com/v0/voc/nexus/core/"
+  },
+  "@id": "https://nexus.example.com/v0/organizations/myorg",
+  "nxv:rev": 1
+}
