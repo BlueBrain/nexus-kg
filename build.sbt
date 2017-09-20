@@ -122,8 +122,12 @@ lazy val service = project.in(file("modules/service"))
 lazy val root = project.in(file("."))
   .settings(common, noPublish)
   .settings(
-    name       := "kg",
-    moduleName := "kg")
+    name        := "kg",
+    moduleName  := "kg",
+    homepage    := Some (new URL("https://github.com/BlueBrain/nexus-kg")),
+    description := "Nexus Knowledge graph",
+    licenses    := Seq(
+      ("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE"))))
   .aggregate(docs, core, indexing, service)
 
 lazy val noPublish = Seq(
