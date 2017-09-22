@@ -15,15 +15,12 @@ import io.circe.generic.extras.auto._
   */
 object RejectionHandling {
 
+  /**
+    * Defines the custom handling of rejections. When multiple rejections are generated
+    * in the routes evaluation process, the priority order to handle them is defined
+    * by the order of appearance in this method.
+    */
   final def rejectionHandler: RejectionHandler = RejectionHandler.newBuilder()
-    .handleAll[MalformedRequestContentRejection] { rejection =>
-      val aggregate = rejection.map(_.message).mkString(", ")
-      complete(BadRequest -> (WrongOrInvalidJson(Some(aggregate)): CommonRejections))
-    }
-    .handleAll[MethodRejection] { methodRejections =>
-      val names = methodRejections.map(_.supported.name)
-      complete(MethodNotAllowed -> (MethodNotSupported(names): CommonRejections))
-    }
     .handle {
       case MalformedQueryParamRejection(_, _, Some(e: WrongOrInvalidJson))  =>
         complete(BadRequest -> (e: CommonRejections))
@@ -31,6 +28,14 @@ object RejectionHandling {
         complete(BadRequest -> (e: CommonRejections))
       case ValidationRejection(_, Some(e: IllegalVersionFormat))            =>
         complete(BadRequest -> (e: CommonRejections))
+    }
+    .handleAll[MalformedRequestContentRejection] { rejection =>
+      val aggregate = rejection.map(_.message).mkString(", ")
+      complete(BadRequest -> (WrongOrInvalidJson(Some(aggregate)): CommonRejections))
+    }
+    .handleAll[MethodRejection] { methodRejections =>
+      val names = methodRejections.map(_.supported.name)
+      complete(MethodNotAllowed -> (MethodNotSupported(names): CommonRejections))
     }
     .result()
 

@@ -8,7 +8,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.ShapeId
 
 import scala.util.Try
@@ -169,6 +169,11 @@ trait QualifierInstances {
 
     override def unapply(uri: Uri, base: Uri): Option[OrgId] =
       Try { OrgId(removeBaseUri(uri, base, Some("organizations"))) }.toOption
+  }
+
+  implicit val schemaNameQualifier: Qualifier[SchemaName] = new Qualifier[SchemaName] {
+    override def apply(value: SchemaName, base: Uri) = Uri(s"$base/schemas/${value.show}")
+    override def unapply(uri: Uri, base: Uri) = SchemaName(removeBaseUri(uri, base, Some("schemas")))
   }
 
   implicit val schemaIdQualifier: Qualifier[SchemaId] = new Qualifier[SchemaId] {

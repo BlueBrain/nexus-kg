@@ -33,62 +33,60 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 final class OrganizationRoutes(orgs: Organizations[Future],
   orgQueries: FilterQueries[Future, OrgId],
-  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
+  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
+  extends DefaultRouteHandling {
 
   private val encoders = new OrgCustomEncoders(base)
 
   import encoders._
 
-  def routes: Route = handleExceptions(ExceptionHandling.exceptionHandler) {
-    handleRejections(RejectionHandling.rejectionHandler) {
-      pathPrefix("organizations") {
-        (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-          traceName("searchOrganizations") {
-            val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-            orgQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
+  protected def searchRoutes: Route =
+    (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+      traceName("searchOrganizations") {
+        val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+        orgQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
+      }
+    }
+
+  protected def resourceRoutes: Route =
+    (pathPrefix(Segment) & pathEndOrSingleSlash) { id =>
+      val orgId = OrgId(id)
+      (put & entity(as[Json])) { json =>
+        parameter('rev.as[Long].?) {
+          case Some(rev) =>
+            traceName("updateOrganization") {
+              onSuccess(orgs.update(orgId, rev, json)) { ref =>
+                complete(StatusCodes.OK -> ref)
+              }
+            }
+          case None      =>
+            traceName("createOrganization") {
+              onSuccess(orgs.create(orgId, json)) { ref =>
+                complete(StatusCodes.Created -> ref)
+              }
+            }
+        }
+      } ~
+      get {
+        traceName("getOrganization") {
+          onSuccess(orgs.fetch(orgId)) {
+            case Some(org) => complete(org)
+            case None      => complete(StatusCodes.NotFound)
           }
-        } ~
-        pathPrefix(Segment) { id =>
-          val orgId = OrgId(id)
-          pathEnd {
-            (put & entity(as[Json])) { json =>
-              parameter('rev.as[Long].?) {
-                case Some(rev) =>
-                  traceName("updateOrganization") {
-                    onSuccess(orgs.update(orgId, rev, json)) { ref =>
-                      complete(StatusCodes.OK -> ref)
-                    }
-                  }
-                case None      =>
-                  traceName("createOrganization") {
-                    onSuccess(orgs.create(orgId, json)) { ref =>
-                      complete(StatusCodes.Created -> ref)
-                    }
-                  }
-              }
-            } ~
-            get {
-              traceName("getOrganization") {
-                onSuccess(orgs.fetch(orgId)) {
-                  case Some(org) => complete(org)
-                  case None      => complete(StatusCodes.NotFound)
-                }
-              }
-            } ~
-            delete {
-              parameter('rev.as[Long]) { rev =>
-                traceName("deprecateOrganization") {
-                  onSuccess(orgs.deprecate(orgId, rev)) { ref =>
-                    complete(StatusCodes.OK -> ref)
-                  }
-                }
-              }
+        }
+      } ~
+      delete {
+        parameter('rev.as[Long]) { rev =>
+          traceName("deprecateOrganization") {
+            onSuccess(orgs.deprecate(orgId, rev)) { ref =>
+              complete(StatusCodes.OK -> ref)
             }
           }
         }
       }
     }
-  }
+
+  def routes: Route = combinedRoutesFor("organizations")
 }
 
   object OrganizationRoutes {
