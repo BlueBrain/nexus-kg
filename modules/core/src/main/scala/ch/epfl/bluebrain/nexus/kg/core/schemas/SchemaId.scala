@@ -18,6 +18,9 @@ import scala.util.{Failure, Try}
   * @param version  the version of the schema
   */
 final case class SchemaId(domainId: DomainId, name: String, version: Version) {
+  /**
+    * Extracts the [[SchemaName]] from the current [[SchemaId]].
+    */
   def schemaName: SchemaName = SchemaName(domainId, name)
 }
 

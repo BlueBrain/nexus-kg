@@ -101,17 +101,21 @@ class InstanceRoutes(
               }
             }
           } ~
-          (get & traceName("getInstance")) {
+          get {
             parameter('rev.as[Long].?) {
               case Some(rev) =>
-                onSuccess(instances.fetch(instanceId, rev)) {
-                  case Some(instance) => complete(StatusCodes.OK -> instance)
-                  case None           => complete(StatusCodes.NotFound)
+                traceName("getInstanceRevision") {
+                  onSuccess(instances.fetch(instanceId, rev)) {
+                    case Some(instance) => complete(StatusCodes.OK -> instance)
+                    case None           => complete(StatusCodes.NotFound)
+                  }
                 }
               case None      =>
-                onSuccess(instances.fetch(instanceId)) {
-                  case Some(instance) => complete(StatusCodes.OK -> instance)
-                  case None           => complete(StatusCodes.NotFound)
+                traceName("getInstance") {
+                  onSuccess(instances.fetch(instanceId)) {
+                    case Some(instance) => complete(StatusCodes.OK -> instance)
+                    case None           => complete(StatusCodes.NotFound)
+                  }
                 }
             }
           } ~
