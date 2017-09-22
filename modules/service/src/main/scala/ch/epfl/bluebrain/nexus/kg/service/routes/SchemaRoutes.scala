@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId, ShapeRef}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
+import ch.epfl.bluebrain.nexus.kg.core.schemas._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
@@ -21,7 +21,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives.versioned
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
@@ -30,21 +29,23 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
 
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Http route definitions for schema specific functionality.
   *
-  * @param schemas       the schemas operation bundle
-  * @param schemaQueries query builder for schemas
-  * @param base          the service public uri + prefix
+  * @param schemas           the schemas operation bundle
+  * @param schemaQueries     query builder for schemas
+  * @param base              the service public uri + prefix
   * @param querySettings     query parameters from settings
   * @param filteringSettings filtering parameters from settings
   */
 class SchemaRoutes(schemas: Schemas[Future],
   schemaQueries: FilterQueries[Future, SchemaId],
-  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
+  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
+  extends DefaultRouteHandling {
 
   private val schemaEncoders = new SchemaCustomEncoders(base)
   private val shapeEncoders = new ShapeCustomEncoders(base)
@@ -57,113 +58,95 @@ class SchemaRoutes(schemas: Schemas[Future],
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler
 
-  def routes: Route = handleExceptions(exceptionHandler) {
-    handleRejections(RejectionHandling.rejectionHandler) {
-      pathPrefix("schemas") {
-        (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-          parameter('published.as[Boolean].?) { publishedOpt =>
-            traceName("searchSchemas") {
-              val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
-              schemaQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
-            }
-          }
-        } ~
-        pathPrefix(Segment) { orgIdString =>
-          val orgId = OrgId(orgIdString)
-          (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-            parameter('published.as[Boolean].?) { publishedOpt =>
-              traceName("searchSchemasOfOrg") {
-                val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
-                schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
-              }
-            }
+  protected def searchRoutes: Route =
+    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+      parameter('published.as[Boolean].?) { publishedOpt =>
+        val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
+        traceName("searchSchemas") {
+          pathEndOrSingleSlash {
+            schemaQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
           } ~
-          pathPrefix(Segment) { domain =>
-            val domainId = DomainId(orgId, domain)
-            (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-              parameter('published.as[Boolean].?) { publishedOpt =>
-                traceName("searchSchemasOfDomain") {
-                  val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
-                  schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
-                }
-              }
+          (extractAnyResourceId(3) & pathEndOrSingleSlash) { id =>
+            schemaQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
+
+            resourceId(id, of[OrgId]) { orgId =>
+              schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
             } ~
-            pathPrefix(Segment) { name =>
-              (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-                parameter('published.as[Boolean].?) { publishedOpt =>
-                  traceName("searchSchemasOfSchemaName") {
-                    val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
-                    schemaQueries.list(domainId, name, filter, pagination, termOpt).buildResponse(base, pagination)
-                  }
-                }
-              } ~
-              versioned.apply { version =>
-                val schemaId = SchemaId(domainId, name, version)
-                pathEnd {
-                  (put & entity(as[Json])) { json =>
-                    parameter('rev.as[Long].?) {
-                      case Some(rev) =>
-                        traceName("updateSchema") {
-                          onSuccess(schemas.update(schemaId, rev, json)) { ref =>
-                            complete(StatusCodes.OK -> ref)
-                          }
-                        }
-                      case None      =>
-                        traceName("createSchema") {
-                          onSuccess(schemas.create(schemaId, json)) { ref =>
-                            complete(StatusCodes.Created -> ref)
-                          }
-                        }
-                    }
-                  } ~
-                  get {
-                    traceName("getSchema") {
-                      onSuccess(schemas.fetch(schemaId)) {
-                        case Some(schema) => complete(StatusCodes.OK -> schema)
-                        case None         => complete(StatusCodes.NotFound)
-                      }
-                    }
-                  } ~
-                  delete {
-                    parameter('rev.as[Long]) { rev =>
-                      traceName("deprecateSchema") {
-                        onSuccess(schemas.deprecate(schemaId, rev)) { ref =>
-                          complete(StatusCodes.OK -> ref)
-                        }
-                      }
-                    }
-                  }
-                } ~
-                pathPrefix("shapes" / Segment) { fragment =>
-                  get {
-                    traceName("getSchemaShape") {
-                      onSuccess(schemas.fetchShape(schemaId, fragment)) {
-                        case Some(shapes) => complete(StatusCodes.OK -> shapes)
-                        case None         => complete(StatusCodes.NotFound)
-                      }
-                    }
-                  }
-                } ~
-                path("config") {
-                  (patch & entity(as[SchemaConfig])) { cfg =>
-                    parameter('rev.as[Long]) { rev =>
-                      if (cfg.published) {
-                        traceName("publishSchema") {
-                          onSuccess(schemas.publish(schemaId, rev)) { ref =>
-                            complete(StatusCodes.OK -> ref)
-                          }
-                        }
-                      } else exceptionHandler(CommandRejected(CannotUnpublishSchema))
-                    }
-                  }
-                }
-              }
+            resourceId(id, of[DomainId]) { domainId =>
+              schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+            } ~
+            resourceId(id, of[SchemaName]) { case SchemaName(domainId, name) =>
+              schemaQueries.list(domainId, name, filter, pagination, termOpt).buildResponse(base, pagination)
             }
           }
         }
       }
     }
-  }
+
+
+  protected def resourceRoutes: Route =
+    extractResourceId(4, of[SchemaId]) { schemaId =>
+      pathEndOrSingleSlash {
+        get {
+          traceName("getSchema") {
+            onSuccess(schemas.fetch(schemaId)) {
+              case Some(schema) => complete(StatusCodes.OK -> schema)
+              case None         => complete(StatusCodes.NotFound)
+            }
+          }
+        } ~
+        (put & entity(as[Json])) { json =>
+          parameter('rev.as[Long].?) {
+            case Some(rev) =>
+              traceName("updateSchema") {
+                onSuccess(schemas.update(schemaId, rev, json)) { ref =>
+                  complete(StatusCodes.OK -> ref)
+                }
+              }
+            case None      =>
+              traceName("createSchema") {
+                onSuccess(schemas.create(schemaId, json)) { ref =>
+                  complete(StatusCodes.Created -> ref)
+                }
+              }
+          }
+        } ~
+        delete {
+          parameter('rev.as[Long]) { rev =>
+            traceName("deprecateSchema") {
+              onSuccess(schemas.deprecate(schemaId, rev)) { ref =>
+                complete(StatusCodes.OK -> ref)
+              }
+            }
+          }
+        }
+      } ~
+      pathPrefix("shapes" / Segment) { fragment =>
+        (pathEndOrSingleSlash & get) {
+          traceName("getSchemaShape") {
+            onSuccess(schemas.fetchShape(schemaId, fragment)) {
+              case Some(shapes) => complete(StatusCodes.OK -> shapes)
+              case None         => complete(StatusCodes.NotFound)
+            }
+          }
+        }
+      } ~
+      path("config") {
+        (pathEndOrSingleSlash & patch & entity(as[SchemaConfig])) { cfg =>
+          parameter('rev.as[Long]) { rev =>
+            if (cfg.published) {
+              traceName("publishSchema") {
+                onSuccess(schemas.publish(schemaId, rev)) { ref =>
+                  complete(StatusCodes.OK -> ref)
+                }
+              }
+            } else exceptionHandler(CommandRejected(CannotUnpublishSchema))
+          }
+        }
+      }
+    }
+
+  def routes: Route = combinedRoutesFor("schemas")
 
   private def publishedExpr(published: Option[Boolean]): Option[Expr] =
     published.map { value =>
@@ -211,7 +194,7 @@ private class ShapeCustomEncoders(base: Uri) extends RoutesEncoder[ShapeId, Shap
   }
 }
 
-private class SchemaCustomEncoders(base: Uri) extends RoutesEncoder[SchemaId, SchemaRef](base) {
+class SchemaCustomEncoders(base: Uri) extends RoutesEncoder[SchemaId, SchemaRef](base) {
 
   implicit def schemaEncoder: Encoder[Schema] = Encoder.encodeJson.contramap { schema =>
     val meta = refEncoder.apply(SchemaRef(schema.id, schema.rev)).deepMerge(Json.obj(

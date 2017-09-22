@@ -36,53 +36,54 @@ import scala.concurrent.{ExecutionContext, Future}
 final class DomainRoutes(
   domains: Domains[Future],
   domainQueries: FilterQueries[Future, DomainId],
-  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
+  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
+  extends DefaultRouteHandling {
 
   private val encoders = new DomainCustomEncoders(base)
   import encoders._
 
-  def routes: Route = handleExceptions(ExceptionHandling.exceptionHandler) {
-    handleRejections(RejectionHandling.rejectionHandler) {
-      pathPrefix("organizations" / Segment / "domains") { orgIdString =>
-        val orgId = OrgId(orgIdString)
-        (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-          traceName("searchDomains") {
-            val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-            domainQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+  protected def searchRoutes: Route =
+    pathPrefix(Segment / "domains") { orgIdString =>
+      val orgId = OrgId(orgIdString)
+      (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+        traceName("searchDomains") {
+          val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+          domainQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+        }
+      }
+    }
+
+  protected def resourceRoutes: Route =
+    (pathPrefix(Segment / "domains" / Segment) & pathEndOrSingleSlash) { (orgId, id) =>
+      val domainId = DomainId(OrgId(orgId), id)
+      (put & entity(as[DomainDescription])) { desc =>
+        traceName("createDomain") {
+          onSuccess(domains.create(domainId, desc.description)) { ref =>
+            complete(StatusCodes.Created -> ref)
           }
-        } ~
-        pathPrefix(Segment) { id =>
-          val domainId = DomainId(orgId, id)
-          pathEnd {
-            (put & entity(as[DomainDescription])) { desc =>
-              traceName("createDomain") {
-                onSuccess(domains.create(domainId, desc.description)) { ref =>
-                  complete(StatusCodes.Created -> ref)
-                }
-              }
-            } ~
-            get {
-              traceName("getDomain") {
-                onSuccess(domains.fetch(domainId)) {
-                  case Some(domain) => complete(domain)
-                  case None         => complete(StatusCodes.NotFound)
-                }
-              }
-            } ~
-            delete {
-              parameter('rev.as[Long]) { rev =>
-                traceName("deprecateDomain") {
-                  onSuccess(domains.deprecate(domainId, rev)) { ref =>
-                    complete(StatusCodes.OK -> ref)
-                  }
-                }
-              }
+        }
+      } ~
+      get {
+        traceName("getDomain") {
+          onSuccess(domains.fetch(domainId)) {
+            case Some(domain) => complete(domain)
+            case None         => complete(StatusCodes.NotFound)
+          }
+        }
+      } ~
+      delete {
+        parameter('rev.as[Long]) { rev =>
+          traceName("deprecateDomain") {
+            onSuccess(domains.deprecate(domainId, rev)) { ref =>
+              complete(StatusCodes.OK -> ref)
             }
           }
         }
       }
     }
-  }
+
+  def routes: Route = combinedRoutesFor("organizations")
+
 }
 
 object DomainRoutes {

@@ -17,10 +17,15 @@ import scala.util.{Failure, Try}
   * @param name     the name of the schema
   * @param version  the version of the schema
   */
-final case class SchemaId(domainId: DomainId, name: String, version: Version)
+final case class SchemaId(domainId: DomainId, name: String, version: Version) {
+  /**
+    * Extracts the [[SchemaName]] from the current [[SchemaId]].
+    */
+  def schemaName: SchemaName = SchemaName(domainId, name)
+}
 
 object SchemaId {
-  final val regex: Regex = s"""${DomainId.regex.regex}/([a-zA-Z0-9]+)/v([0-9]+)\\.([0-9]+)\\.([0-9]+)""".r
+  final val regex: Regex = s"""${SchemaName.regex.regex}/v([0-9]+)\\.([0-9]+)\\.([0-9]+)""".r
 
   /**
     * Attempts to parse the argument string into a ''SchemaId''.
@@ -37,8 +42,8 @@ object SchemaId {
       Failure(new IllegalArgumentException("Unable to decode value into a SchemaId"))
   }
 
-  final implicit def schemaIdShow(implicit D: Show[DomainId], V: Show[Version]): Show[SchemaId] = Show.show { id =>
-    s"${id.domainId.show}/${id.name}/${id.version.show}"
+  final implicit def schemaIdShow(implicit D: Show[SchemaName], V: Show[Version]): Show[SchemaId] = Show.show { id =>
+    s"${id.schemaName.show}/${id.version.show}"
   }
 
   final implicit def schemaIdEncoder(implicit S: Show[SchemaId]): Encoder[SchemaId] =

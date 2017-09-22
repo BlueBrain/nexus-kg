@@ -113,6 +113,13 @@ class SchemaRoutesSpec
       }
     }
 
+    "return list of schemas" in {
+      Get(s"/schemas") ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Results] shouldEqual fixedListSchemas(Uri("http://localhost/schemas"))
+      }
+    }
+
     "return list of schemas from organization" in {
       Get(s"/schemas/org") ~> route ~> check {
         status shouldEqual StatusCodes.OK

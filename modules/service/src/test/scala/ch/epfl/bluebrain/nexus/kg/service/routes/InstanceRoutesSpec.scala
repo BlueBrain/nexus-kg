@@ -257,6 +257,24 @@ class InstanceRoutesSpec(blazegraphPort: Int)
         }
       }
 
+    "return list of instances" in new Context  {
+      indexInstances()
+      Get(s"/data?deprecated=false") ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        val results = responseAs[Results]
+        results.total shouldEqual 5L
+        results.results.size shouldEqual 5
+        forAll(results.results.zipWithIndex) { case(result, idx) =>
+          val schema = s"$baseUri/schemas/${schemaId.copy(version = Version(idx,0,0)).show}"
+          val id = s"$schema/${baseUUID}0$idx".replace("/schemas/", "/data/")
+          result shouldEqual Result(id,
+            Source(id,List(Link("self", id),Link("schema", schema))))
+        }
+        results.links should contain allElementsOf
+          List(Link("self", s"$base/data?deprecated=false"))
+      }
+    }
+
     "return list of instances from domain id with specific pagination" in new Context  {
       indexInstances()
       val specificPagination = Pagination(0L, 5)

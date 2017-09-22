@@ -16,6 +16,10 @@ class SchemaIdSpec extends WordSpecLike with Matchers with Inspectors {
     val schemaId = SchemaId(domId, "name", Version(1, 2, 3))
     val schemaIdString = """"org/dom/name/v1.2.3""""
 
+    "extract an schemaName properly" in {
+      schemaId.schemaName shouldEqual SchemaName(domId, "name")
+    }
+
     "be encoded properly into json" in {
       schemaId.asJson.noSpaces shouldEqual schemaIdString
     }

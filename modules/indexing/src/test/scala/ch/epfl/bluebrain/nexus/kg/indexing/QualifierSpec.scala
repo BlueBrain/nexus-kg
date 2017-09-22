@@ -7,7 +7,7 @@ import cats.Show
 import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import org.scalatest.{Matchers, WordSpecLike}
 import cats.syntax.show._
@@ -61,6 +61,28 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
     "be mapped into a qualified uri in string format" in {
       id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/organizations/org/domains/dom"
+    }
+  }
+
+  "A SchemaName" should {
+    val id = SchemaName(DomainId(OrgId("org"), "dom"),"name")
+
+    "be mapped into a qualified uri using a configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
+      id.qualify shouldEqual Uri("http://localhost/base/schemas/org/dom/name")
+    }
+
+    "be mapped into a qualified uri in string format using a configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
+      id.qualifyAsString shouldEqual "http://localhost/base/schemas/org/dom/name"
+    }
+
+    "be mapped into a qualified uri using an explicit base uri" in {
+      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/schemas/org/dom/name")
+    }
+
+    "be mapped into a qualified uri in string format" in {
+      id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/schemas/org/dom/name"
     }
   }
 
@@ -133,7 +155,8 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
   "A qualifier uri" should {
     val orgId = OrgId(genString(length = 4))
     val domainId = DomainId(orgId, genString(length = 8))
-    val schemaId = SchemaId(domainId, genString(length = 4), genVersion())
+    val schemaName = SchemaName(domainId, genString(length = 4))
+    val schemaId = schemaName.versioned(genVersion())
 
     "unqualify the uri into an InstanceId using an explicit base uri" in {
       val id = InstanceId(schemaId, genUUID())
@@ -153,6 +176,15 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     "unqualify the uri into an SchemaId using an configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
       s"$base/schemas/${schemaId.show}".unqualify[SchemaId] shouldEqual Some(schemaId)
+    }
+
+    "unqualify the uri into an SchemaName using an explicit base uri" in {
+      s"$base/schemas/${schemaName.show}".unqualifyWith[SchemaName](base) shouldEqual Some(schemaName)
+    }
+
+    "unqualify the uri into an SchemaName using an configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
+      s"$base/schemas/${schemaName.show}".unqualify[SchemaName] shouldEqual Some(schemaName)
     }
 
     "unqualify the uri into an ShapeId using an explicit base uri" in {

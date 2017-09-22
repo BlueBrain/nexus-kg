@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
@@ -44,145 +44,120 @@ import scala.concurrent.{ExecutionContext, Future}
 class InstanceRoutes(
   instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
   instanceQueries: FilterQueries[Future, InstanceId],
-  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings) {
+  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
+  extends DefaultRouteHandling {
 
   private val encoders = new InstanceCustomEncoders(base)
+
   import encoders._
 
-  def routes: Route = handleExceptions(ExceptionHandling.exceptionHandler) {
-    handleRejections(RejectionHandling.rejectionHandler) {
-      pathPrefix("data") {
-        (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-          traceName("searchInstances") {
-            val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-            instanceQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
+  protected def searchRoutes: Route =
+    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+      val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+      traceName("searchInstances") {
+        pathEndOrSingleSlash {
+          instanceQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
+        } ~
+        extractAnyResourceId() { id =>
+          (pathEndOrSingleSlash & resourceId(id, of[OrgId])) { orgId =>
+            instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+            (pathEndOrSingleSlash & resourceId(id, of[DomainId])) { domainId =>
+            instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+          (pathEndOrSingleSlash & resourceId(id, of[SchemaName])) { case SchemaName(domainId, name) =>
+            instanceQueries.list(domainId, name, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+          (pathEndOrSingleSlash & resourceId(id, of[SchemaId])) { schemaId =>
+            instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+          (resourceId(id, of[InstanceId]) & pathPrefix("outgoing") & pathEndOrSingleSlash) { instanceId =>
+            instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+          (resourceId(id, of[InstanceId]) & pathPrefix("incoming") & pathEndOrSingleSlash) { instanceId =>
+            instanceQueries.incoming(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+          }
+        }
+      }
+    }
+
+  protected def resourceRoutes: Route =
+    extractAnyResourceId() { id =>
+      (pathEndOrSingleSlash & post & resourceId(id, of[SchemaId])) { schemaId =>
+        entity(as[Json]) { json =>
+          traceName("createInstance") {
+            onSuccess(instances.create(schemaId, json)) { ref =>
+              complete(StatusCodes.Created -> ref)
+            }
+          }
+        }
+      } ~
+      resourceId(id, of[InstanceId]) { instanceId =>
+        pathEndOrSingleSlash {
+          (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
+            traceName("updateInstance") {
+              onSuccess(instances.update(instanceId, rev, json)) { ref =>
+                complete(StatusCodes.OK -> ref)
+              }
+            }
+          } ~
+          get {
+            parameter('rev.as[Long].?) {
+              case Some(rev) =>
+                traceName("getInstanceRevision") {
+                  onSuccess(instances.fetch(instanceId, rev)) {
+                    case Some(instance) => complete(StatusCodes.OK -> instance)
+                    case None           => complete(StatusCodes.NotFound)
+                  }
+                }
+              case None      =>
+                traceName("getInstance") {
+                  onSuccess(instances.fetch(instanceId)) {
+                    case Some(instance) => complete(StatusCodes.OK -> instance)
+                    case None           => complete(StatusCodes.NotFound)
+                  }
+                }
+            }
+          } ~
+          (delete & parameter('rev.as[Long])) { rev =>
+            traceName("deprecateInstance") {
+              onSuccess(instances.deprecate(instanceId, rev)) { ref =>
+                complete(StatusCodes.OK -> ref)
+              }
+            }
           }
         } ~
-        pathPrefix(Segment) { orgIdString =>
-          val orgId = OrgId(orgIdString)
-          (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-            traceName("searchInstancesOfOrg") {
-              val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-              instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+        path("attachment") {
+          (put & parameter('rev.as[Long])) { rev =>
+            fileUpload("file") {
+              case (metadata, byteSource) =>
+                traceName("createInstanceAttachment") {
+                  onSuccess(instances.createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) { info =>
+                    complete(StatusCodes.Created -> info)
+                  }
+                }
             }
-
           } ~
-          pathPrefix(Segment) { domain =>
-            val domainId = DomainId(orgId, domain)
-            (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-                traceName("searchInstancesOfDomain") {
-                  val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-                  instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+          (delete & parameter('rev.as[Long])) { rev =>
+            traceName("removeInstanceAttachment") {
+              onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
+                complete(StatusCodes.OK -> ref)
+              }
+            }
+          } ~
+          get {
+            parameter('rev.as[Long].?) { revOpt =>
+              traceName("getInstanceAttachment") {
+                val result = revOpt match {
+                  case Some(rev) => instances.fetchAttachment(instanceId, rev)
+                  case None      => instances.fetchAttachment(instanceId)
                 }
-            } ~
-            pathPrefix(Segment) { name =>
-              (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-                traceName("searchInstancesOfSchemaName") {
-                  val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-                  instanceQueries.list(domainId, name, filter, pagination, termOpt).buildResponse(base, pagination)
-                }
-              } ~
-              versioned.apply { version =>
-                val schemaId = SchemaId(DomainId(orgId, domain), name, version)
-                (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-                  traceName("searchInstancesOfSchema") {
-                    val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-                    instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)
-                  }
-                } ~
-                (pathEndOrSingleSlash & post) {
-                  entity(as[Json]) { json =>
-                    traceName("createInstance") {
-                      onSuccess(instances.create(schemaId, json)) { ref =>
-                        complete(StatusCodes.Created -> ref)
-                      }
-                    }
-                  }
-                } ~
-                pathPrefix(Segment) { id =>
-                  val instanceId = InstanceId(schemaId, id)
-                  (pathPrefix("outgoing") & pathEndOrSingleSlash & get) {
-                    searchQueryParams.apply { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-                      val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-                      instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
-                    }
-                  } ~
-                  (pathPrefix("incoming") & pathEndOrSingleSlash & get) {
-                    searchQueryParams.apply { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-                      val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-                      instanceQueries.incoming(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
-                    }
-                  } ~
-                  pathEndOrSingleSlash {
-                    (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
-                      traceName("updateInstance") {
-                        onSuccess(instances.update(instanceId, rev, json)) { ref =>
-                          complete(StatusCodes.OK -> ref)
-                        }
-                      }
-                    } ~
-                    get {
-                      parameter('rev.as[Long].?) {
-                        case Some(rev) =>
-                          traceName("getInstanceRevision") {
-                            onSuccess(instances.fetch(instanceId, rev)) {
-                              case Some(instance) => complete(StatusCodes.OK -> instance)
-                              case None           => complete(StatusCodes.NotFound)
-                            }
-                          }
-                        case None      =>
-                          traceName("getInstance") {
-                            onSuccess(instances.fetch(instanceId)) {
-                              case Some(instance) => complete(StatusCodes.OK -> instance)
-                              case None           => complete(StatusCodes.NotFound)
-                            }
-                          }
-                      }
-                    } ~
-                    (delete & parameter('rev.as[Long])) { rev =>
-                      traceName("deprecateInstance") {
-                        onSuccess(instances.deprecate(instanceId, rev)) { ref =>
-                          complete(StatusCodes.OK -> ref)
-                        }
-                      }
-                    }
-                  } ~
-                  path("attachment") {
-                    (put & parameter('rev.as[Long])) { rev =>
-                      fileUpload("file") {
-                        case (metadata, byteSource) =>
-                          traceName("createInstanceAttachment") {
-                            onSuccess(instances.createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) { info =>
-                              complete(StatusCodes.Created -> info)
-                            }
-                          }
-                      }
-                    } ~
-                    (delete & parameter('rev.as[Long])) { rev =>
-                      traceName("removeInstanceAttachment") {
-                        onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
-                          complete(StatusCodes.OK -> ref)
-                        }
-                      }
-                    } ~
-                    get {
-                      parameter('rev.as[Long].?) { maybeRev =>
-                        traceName("getInstanceAttachment") {
-                          val result = maybeRev match {
-                            case Some(rev) => instances.fetchAttachment(instanceId, rev)
-                            case None      => instances.fetchAttachment(instanceId)
-                          }
-                          onSuccess(result) {
-                            case Some((info, source)) =>
-                              val ct = ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
-                              complete(HttpEntity(ct, info.size.value, source))
-                            case None                 =>
-                              complete(StatusCodes.NotFound)
-                          }
-                        }
-                      }
-                    }
-                  }
+                onSuccess(result) {
+                  case Some((info, source)) =>
+                    val ct = ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
+                    complete(HttpEntity(ct, info.size.value, source))
+                  case None                 =>
+                    complete(StatusCodes.NotFound)
                 }
               }
             }
@@ -190,9 +165,9 @@ class InstanceRoutes(
         }
       }
     }
-  }
-}
 
+  def routes: Route = combinedRoutesFor("data")
+}
 object InstanceRoutes {
 
   /**
@@ -239,5 +214,4 @@ private class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link]) exte
         le(Link(rel = "schema", href = instanceId.schemaId.qualifyAsString))
       ))
   }
-
 }
