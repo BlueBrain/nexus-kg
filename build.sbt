@@ -1,6 +1,3 @@
-import com.typesafe.sbt.packager.Keys.dockerCommands
-import com.typesafe.sbt.packager.docker.Cmd
-
 val commonsVersion     = "0.4.3"
 val metricsCoreVersion = "3.2.2"
 val jenaVersion        = "3.4.0"
@@ -34,13 +31,11 @@ lazy val core = project.in(file("modules/core"))
     name                 := "kg-core",
     moduleName           := "kg-core",
     libraryDependencies ++= Seq(
-      sourcingCore,
-      shaclValidator,
+      sourcingCore, shaclValidator, sourcingMem % Test,
       "io.circe"           %% "circe-core"   % circeVersion.value,
       "io.circe"           %% "circe-optics" % circeVersion.value,
       "io.circe"           %% "circe-parser" % circeVersion.value,
       "io.verizon.journal" %% "core"         % journalVersion.value,
-      sourcingMem                                                     % Test,
       "org.scalatest"      %% "scalatest"    % scalaTestVersion.value % Test
     ))
 
@@ -80,31 +75,27 @@ lazy val service = project.in(file("modules/service"))
     name                 := "kg-service",
     moduleName           := "kg-service",
     libraryDependencies ++= kamonDeps ++ Seq(
-      serviceCommon,
-      sourcingAkka,
-      "ch.megard"                   %% "akka-http-cors"               % akkaHttpCorsVersion.value,
-      "ch.qos.logback"               % "logback-classic"              % logbackVersion.value,
-      "com.typesafe.akka"           %% "akka-slf4j"                   % akkaVersion.value,
-      "com.typesafe.akka"           %% "akka-http"                    % akkaHttpVersion.value,
-      "com.typesafe.akka"           %% "akka-distributed-data"        % akkaVersion.value,
-      "com.typesafe.akka"           %% "akka-persistence-cassandra"   % akkaPersistenceCassandraVersion.value,
-      "io.dropwizard.metrics"        % "metrics-core"                 % metricsCoreVersion, // for cassandra client, or fails at runtime
-      "de.heikoseeberger"           %% "akka-http-circe"              % akkaHttpCirceVersion.value,
-      "de.heikoseeberger"           %% "constructr"                   % constructrVersion.value,
-      "de.heikoseeberger"           %% "constructr-coordination-etcd" % constructrVersion.value,
-      "io.circe"                    %% "circe-core"                   % circeVersion.value,
-      "io.circe"                    %% "circe-parser"                 % circeVersion.value,
-      "io.circe"                    %% "circe-generic-extras"         % circeVersion.value,
-      "io.circe"                    %% "circe-java8"                  % circeVersion.value,
-      sourcingMem                                                                                         % Test,
-      "com.fasterxml.jackson.core"  % "jackson-annotations"           % jacksonVersion                    % Test,
-      "com.fasterxml.jackson.core"  % "jackson-core"                  % jacksonVersion                    % Test,
-      "com.fasterxml.jackson.core"  % "jackson-databind"              % jacksonVersion                    % Test,
-      "com.blazegraph"              % "blazegraph-jar"                % blazegraphVersion                 % Test,
-      "com.github.dnvriend"         %% "akka-persistence-inmemory"    % akkaPersistenceInMemVersion.value % Test,
-      "com.typesafe.akka"           %% "akka-http-testkit"            % akkaHttpVersion.value             % Test,
-      "com.typesafe.akka"           %% "akka-testkit"                 % akkaVersion.value                 % Test,
-      "org.scalatest"               %% "scalatest"                    % scalaTestVersion.value            % Test
+      serviceCommon, sourcingAkka, sourcingMem % Test,
+      "ch.megard"                  %% "akka-http-cors"             % akkaHttpCorsVersion.value,
+      "ch.qos.logback"              % "logback-classic"            % logbackVersion.value,
+      "com.typesafe.akka"          %% "akka-slf4j"                 % akkaVersion.value,
+      "com.typesafe.akka"          %% "akka-http"                  % akkaHttpVersion.value,
+      "com.typesafe.akka"          %% "akka-distributed-data"      % akkaVersion.value,
+      "com.typesafe.akka"          %% "akka-persistence-cassandra" % akkaPersistenceCassandraVersion.value,
+      "io.dropwizard.metrics"       % "metrics-core"               % metricsCoreVersion, // for cassandra client, or fails at runtime
+      "de.heikoseeberger"          %% "akka-http-circe"            % akkaHttpCirceVersion.value,
+      "io.circe"                   %% "circe-core"                 % circeVersion.value,
+      "io.circe"                   %% "circe-parser"               % circeVersion.value,
+      "io.circe"                   %% "circe-generic-extras"       % circeVersion.value,
+      "io.circe"                   %% "circe-java8"                % circeVersion.value,
+      "com.fasterxml.jackson.core"  % "jackson-annotations"        % jacksonVersion                    % Test,
+      "com.fasterxml.jackson.core"  % "jackson-core"               % jacksonVersion                    % Test,
+      "com.fasterxml.jackson.core"  % "jackson-databind"           % jacksonVersion                    % Test,
+      "com.blazegraph"              % "blazegraph-jar"             % blazegraphVersion                 % Test,
+      "com.github.dnvriend"        %% "akka-persistence-inmemory"  % akkaPersistenceInMemVersion.value % Test,
+      "com.typesafe.akka"          %% "akka-http-testkit"          % akkaHttpVersion.value             % Test,
+      "com.typesafe.akka"          %% "akka-testkit"               % akkaVersion.value                 % Test,
+      "org.scalatest"              %% "scalatest"                  % scalaTestVersion.value            % Test
     ))
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
   // tests reduces false negatives.
@@ -113,9 +104,6 @@ lazy val service = project.in(file("modules/service"))
     bashScriptExtraDefines ++= Seq(
       """addJava "-javaagent:$lib_dir/org.aspectj.aspectjweaver-1.8.10.jar"""",
       """addJava "-javaagent:$lib_dir/io.kamon.sigar-loader-1.6.6-rev002.jar""""
-    ),
-    dockerCommands ++= Seq(
-      Cmd("RUN", "chown -R root:0 /opt/docker && chmod -R g+w /opt/docker")
     )
   )
 
@@ -125,7 +113,7 @@ lazy val root = project.in(file("."))
     name        := "kg",
     moduleName  := "kg",
     homepage    := Some (new URL("https://github.com/BlueBrain/nexus-kg")),
-    description := "Nexus Knowledge graph",
+    description := "Nexus KnowledgeGraph",
     licenses    := Seq(
       ("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE"))))
   .aggregate(docs, core, indexing, service)
@@ -152,10 +140,10 @@ def nexusDep(name: String, version: String): ModuleID =
 
 lazy val kamonDeps = Seq(
   "io.kamon"    %% "kamon-core"            % "0.6.7",
-  "io.kamon"    %% "kamon-akka-http"       % "0.6.7",
+  "io.kamon"    %% "kamon-akka-http"       % "0.6.8",
   "io.kamon"    %% "kamon-statsd"          % "0.6.7"        % Runtime,
   "io.kamon"    %% "kamon-system-metrics"  % "0.6.7"        % Runtime,
-  "io.kamon"    %% "kamon-akka-2.5"        % "0.6.7"        % Runtime,
+  "io.kamon"    %% "kamon-akka-2.5"        % "0.6.8"        % Runtime,
   "io.kamon"    %% "kamon-akka-remote-2.4" % "0.6.7"        % Runtime,
   "io.kamon"    %% "kamon-autoweave"       % "0.6.5"        % Runtime,
   "io.kamon"     % "sigar-loader"          % "1.6.6-rev002" % Runtime,
@@ -163,4 +151,4 @@ lazy val kamonDeps = Seq(
 )
 
 addCommandAlias("review", ";clean;coverage;scapegoat;test;coverageReport;coverageAggregate")
-addCommandAlias("rel",    ";release with-defaults")
+addCommandAlias("rel",    ";release with-defaults skip-tests")
