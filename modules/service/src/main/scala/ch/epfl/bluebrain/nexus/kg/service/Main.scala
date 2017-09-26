@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, AddressFromURIString}
 import akka.cluster.Cluster
 import akka.event.Logging
 import akka.http.scaladsl.Http
@@ -195,9 +195,15 @@ object Main {
         "sequential-organization-indexer")
     }
 
+    val provided = settings.Cluster.Seeds
+      .map(addr => AddressFromURIString(s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
+    val seeds = if (provided.isEmpty) Set(cluster.selfAddress) else provided
+
+    cluster.joinSeedNodes(seeds.toList)
+
     as.registerOnTermination {
-      Kamon.shutdown()
       cluster.leave(cluster.selfAddress)
+      Kamon.shutdown()
     }
 
     // attempt to leave the cluster before shutting down
