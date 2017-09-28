@@ -74,7 +74,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: Executi
     .map(addr => AddressFromURIString(s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
   val seeds = if (provided.isEmpty) Set(cluster.selfAddress) else provided
   // $COVERAGE-ON$
-  
+
   def operations() = {
     implicit val al: AttachmentLocation[Future] = RelativeAttachmentLocation(settings.Attachment.VolumePath)
 
