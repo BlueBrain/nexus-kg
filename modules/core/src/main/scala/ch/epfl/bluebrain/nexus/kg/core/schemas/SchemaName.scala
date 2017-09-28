@@ -13,7 +13,7 @@ import scala.util.matching.Regex
   *
   * @param domainId the domain identifier for this schema
   * @param name     the name of the schema
-  *                 =*/
+  */
 final case class SchemaName(domainId: DomainId, name: String) {
   /**
     * Constructs a [[SchemaId]] from a the current [[SchemaName]] with a provided ''version''.
