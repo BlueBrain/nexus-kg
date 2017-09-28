@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service
 
 import akka.actor.ActorSystem
-import akka.cluster.Cluster
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
@@ -9,8 +8,8 @@ import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import com.typesafe.config.ConfigFactory
 import kamon.Kamon
 
-import scala.concurrent.duration._
 import scala.concurrent.Await
+import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 //noinspection TypeAnnotation
@@ -29,9 +28,8 @@ object Main {
 
     val logger = Logging(as, getClass)
 
-    val cluster = Cluster(as)
-    val bootstrap = BootstrapRoutes(settings)
-    cluster.registerOnMemberUp {
+    val bootstrap = BootstrapService(settings)
+    bootstrap.cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
 
       val httpBinding = {
@@ -48,10 +46,13 @@ object Main {
 
       BootstrapIndexing.startIndexing(settings, bootstrap.sparqlClient, bootstrap.apiUri)
     }
+
+    bootstrap.cluster.joinSeedNodes(bootstrap.seeds.toList)
     as.registerOnTermination {
+      bootstrap.cluster.leave(bootstrap.cluster.selfAddress)
       Kamon.shutdown()
-      cluster.leave(cluster.selfAddress)
     }
+
 
     // attempt to leave the cluster before shutting down
     val _ = sys.addShutdownHook {

@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.config
 
 import java.io.File
-import java.util.UUID
 import java.util.concurrent.TimeUnit._
 
 import akka.actor._
@@ -32,12 +31,7 @@ class Settings(config: Config) extends Extension {
     /**
       * The current environment.
       */
-    val Environment = Try {
-      ns.getString("description.environment")
-    } getOrElse {
-      val unique = UUID.randomUUID().toString.toLowerCase.replaceAll("-", "")
-      s"local-$unique"
-    }
+    val Environment = ns.getString("description.environment")
     /**
       * The ActorSystem name.
       */
@@ -95,6 +89,10 @@ class Settings(config: Config) extends Extension {
       * Total number of shards in the cluster.
       */
     val Shards = ns.getInt("cluster.shards")
+    /**
+      * The seeds to use to join a cluster.
+      */
+    val Seeds = Try(ns.getString("cluster.seeds")).toOption.map(_.split(",").toSet).getOrElse(Set.empty[String])
   }
 
   object Persistence {

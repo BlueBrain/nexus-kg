@@ -3,14 +3,13 @@ package ch.epfl.bluebrain.nexus.kg.test
 import java.io.File
 
 import akka.actor.ActorSystem
-import akka.cluster.Cluster
 import akka.event.Logging
 import akka.persistence.cassandra.testkit.CassandraLauncher
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.kg.core.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.kg.service.{BootstrapIndexing, BootstrapRoutes}
+import ch.epfl.bluebrain.nexus.kg.service.{BootstrapIndexing, BootstrapService}
 import ch.epfl.bluebrain.nexus.service.commons.persistence.ProjectionStorage
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingAkkaSettings
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
@@ -33,14 +32,13 @@ class BootstrapServices extends Suites with BeforeAndAfterAll with CassandraBoot
   val pluginId = "cassandra-query-journal"
   val sourcingSettings = SourcingAkkaSettings(journalPluginId = pluginId)
 
-  private val cluster = Cluster(system)
+  val bootstrap = BootstrapService(settings)
 
-  val bootstrap = BootstrapRoutes(settings)
-
-  cluster.registerOnMemberUp {
+  bootstrap.cluster.registerOnMemberUp {
     logger.info("==== Cluster is Live ====")
     BootstrapIndexing.startIndexing(settings, bootstrap.sparqlClient, bootstrap.apiUri)
   }
+
 
   override val nestedSuites = Vector(
     new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary, bootstrap.sparqlClient, bootstrap),
@@ -55,7 +53,7 @@ class BootstrapServices extends Suites with BeforeAndAfterAll with CassandraBoot
     blazegraphStart()
     // ensures the keyspace and tables are created before the tests
     val _ = Await.result(ProjectionStorage(system).fetchLatestOffset("random"), 10 seconds)
-    cluster.join(cluster.selfAddress)
+    bootstrap.cluster.joinSeedNodes(bootstrap.seeds.toList)
   }
 
   override protected def afterAll(): Unit = {

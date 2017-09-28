@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, AddressFromURIString}
+import akka.cluster.Cluster
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.Location
@@ -21,7 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.BootstrapRoutes._
+import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
@@ -33,14 +34,14 @@ import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
 /**
-  * Construct the service routes
+  * Construct the service routes, operations and cluster.
   *
   * @param settings the application settings
   * @param as       the implicitly available [[ActorSystem]]
   * @param ec       the implicitly available [[ExecutionContextExecutor]]
   * @param mt       the implicitly available [[ActorMaterializer]]
   */
-class BootstrapRoutes(settings: Settings)(implicit as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer) extends BootstrapQuerySettings(settings) {
+class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer) extends BootstrapQuerySettings(settings) {
 
   private val baseUri = settings.Http.PublicUri
 
@@ -67,6 +68,11 @@ class BootstrapRoutes(settings: Settings)(implicit as: ActorSystem, ec: Executio
   val routes: Route = handleRejections(corsRejectionHandler) {
     cors(corsSettings)(static ~ apis)
   }
+
+  val cluster = Cluster(as)
+  private val provided = settings.Cluster.Seeds
+    .map(addr => AddressFromURIString(s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
+  val seeds = if (provided.isEmpty) Set(cluster.selfAddress) else provided
 
   def operations() = {
     implicit val al: AttachmentLocation[Future] = RelativeAttachmentLocation(settings.Attachment.VolumePath)
@@ -104,14 +110,14 @@ class BootstrapRoutes(settings: Settings)(implicit as: ActorSystem, ec: Executio
   }
 }
 
-object BootstrapRoutes {
+object BootstrapService {
 
   /**
     * Constructs all the needed query settings for the service to start.
     *
     * @param settings the application settings
     */
-  final def apply(settings: Settings)(implicit as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer): BootstrapRoutes = new BootstrapRoutes(settings)
+  final def apply(settings: Settings)(implicit as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer): BootstrapService = new BootstrapService(settings)
 
   abstract class BootstrapQuerySettings(settings: Settings) {
 

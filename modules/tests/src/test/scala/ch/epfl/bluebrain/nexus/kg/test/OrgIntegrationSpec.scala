@@ -22,7 +22,7 @@ import org.scalatest.time.{Seconds, Span}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.kg.service.BootstrapRoutes.BootstrapQuerySettings
+import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.BootstrapQuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
