@@ -3,8 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, _}
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.Randomness
@@ -14,11 +15,8 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organizatio
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
-import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures._
-import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures.{Source, fixedHttpClient, fixedResponse}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.Json
@@ -43,8 +41,8 @@ class OrganizationRoutesSpec
     val vocab = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), "org-index", vocab)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
+    implicit val cl = HttpClient.akkaHttpClient
 
-    implicit val client: UntypedHttpClient[Future] = fixedHttpClient(fixedResponse("/list_orgs_sparql_result.json"))
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route = OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
 
@@ -107,21 +105,6 @@ class OrganizationRoutesSpec
       }
     }
 
-    "return list of organizations" in {
-      Get(s"/organizations") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListOrgs(Uri("http://localhost/organizations"))
-      }
-    }
-
-    "return list of organizations with specific pagination" in {
-      val pagination = Pagination(1,200)
-      Get(s"/organizations?from=${pagination.from}&size=${pagination.size}") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListOrgs(Uri(s"http://localhost/organizations?from=${pagination.from}&size=${pagination.size}"))
-      }
-    }
-
     "return not found for unknown organizations" in {
       Get(s"/organizations/${genString(length = 3)}") ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
@@ -152,18 +135,4 @@ object OrganizationRoutesSpec {
     "@id" -> Json.fromString(s"$baseUri/organizations/${ref.id.id}"),
     "rev" -> Json.fromLong(ref.rev)
   )
-
-  private def fixedListOrgs(uri: Uri) =
-    Results(2L, List(
-      Result(
-        s"$baseUri/organizations/org",
-        Source(
-          s"$baseUri/organizations/org",
-          List(Link("self", s"$baseUri/organizations/org")))),
-      Result(
-        s"$baseUri/organizations/org2",
-        Source(
-          s"$baseUri/organizations/org2",
-          List(Link("self", s"$baseUri/organizations/org2")))),
-    ), List(Link("self", uri)))
 }

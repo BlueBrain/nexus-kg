@@ -34,6 +34,7 @@ object FilteredQuery {
 
   private def applyWithWhere(where: String, pagination: Pagination, term: Option[String]): String = {
     val (selectTotal, selectWith, selectSubQuery) = buildSelectsFrom(term)
+    val (orderByUnion, orderByTotal) = buildOrderByFrom(term)
     s"""
        |PREFIX bds: <${bdsUri.toString()}>
        |$selectTotal
@@ -54,11 +55,12 @@ object FilteredQuery {
        |  {
        |    SELECT *
        |    WHERE { INCLUDE %resultSet }
+       |    $orderByUnion
        |    LIMIT ${pagination.size}
        |    OFFSET ${pagination.from}
        |  }
        |}
-       |${buildOrderByFrom(term)}""".stripMargin
+       |$orderByTotal""".stripMargin
   }
 
   /**
@@ -115,8 +117,8 @@ object FilteredQuery {
     )
   }
 
-  private def buildOrderByFrom(term: Option[String]): String =
-    term.map(_ => s"ORDER BY DESC(?$score)").getOrElse("")
+  private def buildOrderByFrom(term: Option[String]): (String,String) =
+    term.map(_ => (s"ORDER BY ?$subject", s"ORDER BY DESC(?$score)")).getOrElse((s"ORDER BY ?$subject", ""))
 
   private def buildGroupByFrom(term: Option[String]): String =
     term.map(_ => s"GROUP BY ?$subject").getOrElse("")

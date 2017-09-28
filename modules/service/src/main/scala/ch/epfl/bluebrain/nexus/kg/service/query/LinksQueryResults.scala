@@ -38,7 +38,7 @@ object LinksQueryResults {
     def prevLink: Option[Link] = {
       if (response.total > responseCount && pagination.from > 0) {
         val size = Math.min(pagination.from, pagination.size.toLong)
-        val from = Math.min(Math.max(0, pagination.from - pagination.size), response.total - size)
+        val from = Math.max(0, Math.min(pagination.from - pagination.size, response.total - size))
         val prev = uri.withQuery(addQuery(uri, from, size.toInt))
         Some(Link("previous", prev))
       } else None

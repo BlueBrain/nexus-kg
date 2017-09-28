@@ -118,6 +118,27 @@ lazy val service = project.in(file("modules/service"))
       Cmd("RUN", "chown -R root:0 /opt/docker && chmod -R g+w /opt/docker")
     )
   )
+lazy val tests = project.in(file("modules/tests"))
+  .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
+  .settings(common)
+  .settings(
+    name                 := "kg-tests",
+    moduleName           := "kg-tests",
+    libraryDependencies ++= Seq(
+      sourcingAkka, sourcingMem,sparqlClient                                                                        % Test,
+      "com.blazegraph"              % "blazegraph-jar"                      % blazegraphVersion                     % Test,
+      "com.fasterxml.jackson.core"  % "jackson-annotations"                 % jacksonVersion                        % Test,
+      "com.fasterxml.jackson.core"  % "jackson-core"                        % jacksonVersion                        % Test,
+      "com.fasterxml.jackson.core"  % "jackson-databind"                    % jacksonVersion                        % Test,
+      "com.typesafe.akka"          %% "akka-cluster-sharding"               % akkaVersion.value                     % Test,
+      "com.typesafe.akka"          %% "akka-http-testkit"                   % akkaHttpVersion.value                 % Test,
+      "com.typesafe.akka"          %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion.value % Test,
+      "com.typesafe.akka"          %% "akka-testkit"                        % akkaVersion.value                     % Test,
+      "org.scalatest"              %% "scalatest"                           % scalaTestVersion.value                % Test
+    ))
+  // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
+  // tests reduces false negatives.
+  .settings(parallelExecution in Test := false)
 
 lazy val root = project.in(file("."))
   .settings(common, noPublish)
@@ -128,7 +149,7 @@ lazy val root = project.in(file("."))
     description := "Nexus Knowledge graph",
     licenses    := Seq(
       ("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE"))))
-  .aggregate(docs, core, indexing, service)
+  .aggregate(docs, core, indexing, service, tests)
 
 lazy val noPublish = Seq(
   publishLocal := {},

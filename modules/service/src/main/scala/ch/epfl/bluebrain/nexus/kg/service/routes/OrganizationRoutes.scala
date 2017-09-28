@@ -108,7 +108,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
     }
   }
 
-  private class OrgCustomEncoders(base: Uri) extends RoutesEncoder[OrgId, OrgRef](base) {
+  class OrgCustomEncoders(base: Uri) extends RoutesEncoder[OrgId, OrgRef](base) {
 
     implicit val orgEncoder: Encoder[Organization] = Encoder.encodeJson.contramap { org =>
       val meta = refEncoder.apply(OrgRef(org.id, org.rev)).deepMerge(Json.obj(

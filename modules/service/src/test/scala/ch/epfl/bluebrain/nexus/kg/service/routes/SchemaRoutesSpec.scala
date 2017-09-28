@@ -20,16 +20,15 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 import SchemaRoutesSpec._
 import akka.stream.ActorMaterializer
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections._
+
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
@@ -61,8 +60,8 @@ class SchemaRoutesSpec
 
     val orgRef = Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj()), 2 seconds)
     val domRef = Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8)), 2 seconds)
+    implicit val cl = HttpClient.akkaHttpClient
 
-    implicit val client: UntypedHttpClient[Future] = fixedHttpClient(fixedResponse("/list_schemas_sparql_result.json"))
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
     val querySettings = QuerySettings(Pagination(0L, 20), "some-index", vocab)
@@ -110,35 +109,6 @@ class SchemaRoutesSpec
           "deprecated" -> Json.fromBoolean(false),
           "published" -> Json.fromBoolean(false)
         ).deepMerge(schemaJson)
-      }
-    }
-
-    "return list of schemas" in {
-      Get(s"/schemas") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListSchemas(Uri("http://localhost/schemas"))
-      }
-    }
-
-    "return list of schemas from organization" in {
-      Get(s"/schemas/org") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListSchemas(Uri("http://localhost/schemas/org"))
-      }
-    }
-
-    "return list of schemas from domain id with specific pagination" in {
-      val specificPagination = Pagination(0L, 10)
-      Get(s"/schemas/org/domain?from=${specificPagination.from}&size=${specificPagination.size}") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListSchemas(Uri(s"http://localhost/schemas/org/domain?from=${specificPagination.from}&size=${specificPagination.size}"))
-      }
-    }
-
-    "return a list of schemas from schema name with deprecated results" in {
-      Get(s"/schemas/org/domain/subject?deprecated=true") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListSchemas(Uri(s"http://localhost/schemas/org/domain/subject?deprecated=true"))
       }
     }
 
@@ -243,18 +213,4 @@ object SchemaRoutesSpec {
   private def schemaRefAsJson(ref: SchemaRef) = Json.obj(
     "@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"),
     "rev" -> Json.fromLong(ref.rev))
-
-  private def fixedListSchemas(uri: Uri) =
-    Results(2L, List(
-      Result(
-        s"$baseUri/schemas/org/domain/subject/v1.0.0",
-        Source(
-          s"$baseUri/schemas/org/domain/subject/v1.0.0",
-          List(Link("self", s"$baseUri/schemas/org/domain/subject/v1.0.0")))),
-      Result(
-        s"$baseUri/schemas/org/domain/subject2/v1.0.0",
-        Source(
-          s"$baseUri/schemas/org/domain/subject2/v1.0.0",
-          List(Link("self", s"$baseUri/schemas/org/domain/subject2/v1.0.0")))),
-    ), List(Link("self", uri)))
 }

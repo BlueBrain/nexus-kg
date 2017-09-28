@@ -1,9 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.net.URLEncoder
+
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, _}
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.Randomness
@@ -13,7 +16,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
-import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures.{fixedHttpClient, fixedResponse}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.generic.auto._
@@ -37,12 +39,12 @@ class RejectionHandlingSpec
 
     val nexusVocab = s"$baseUri/voc/nexus/core"
     implicit val filteringSettings = FilteringSettings(nexusVocab, nexusVocab)
+    implicit val cl = HttpClient.akkaHttpClient
 
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
     val vocab = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), "org-index", vocab)
 
-    implicit val client: UntypedHttpClient[Future] = fixedHttpClient(fixedResponse("/list_orgs_sparql_result.json"))
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route = OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
 
@@ -59,6 +61,15 @@ class RejectionHandlingSpec
         status shouldEqual StatusCodes.MethodNotAllowed
         responseAs[Error].code shouldEqual classNameOf[MethodNotSupported.type]
         responseAs[MethodNotSupported].supported should contain theSameElementsAs Vector("GET", "DELETE", "PUT")
+
+      }
+    }
+
+    "reject the request with a filter which has the wrong format" in {
+      val filter = URLEncoder.encode(s"""{"a": "b"}""", "UTF-8")
+      Get(s"/organizations?filter=$filter") ~> route ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Error].code shouldEqual classNameOf[IllegalFilterFormat.type]
 
       }
     }
