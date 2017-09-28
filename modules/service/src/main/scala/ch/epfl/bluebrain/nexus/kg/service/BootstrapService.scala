@@ -44,9 +44,9 @@ import scala.concurrent.{ExecutionContextExecutor, Future}
 class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer) extends BootstrapQuerySettings(settings) {
 
   private val baseUri = settings.Http.PublicUri
-
+  // $COVERAGE-OFF$
   val apiUri: Uri = if (settings.Http.Prefix.trim.isEmpty) baseUri else baseUri.copy(path = baseUri.path / settings.Http.Prefix)
-
+  // $COVERAGE-ON$
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
 
   val sparqlClient = SparqlClient[Future](settings.Sparql.BaseUri)
@@ -68,12 +68,13 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: Executi
   val routes: Route = handleRejections(corsRejectionHandler) {
     cors(corsSettings)(static ~ apis)
   }
-
+  // $COVERAGE-OFF$
   val cluster = Cluster(as)
   private val provided = settings.Cluster.Seeds
     .map(addr => AddressFromURIString(s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
   val seeds = if (provided.isEmpty) Set(cluster.selfAddress) else provided
-
+  // $COVERAGE-ON$
+  
   def operations() = {
     implicit val al: AttachmentLocation[Future] = RelativeAttachmentLocation(settings.Attachment.VolumePath)
 

@@ -70,7 +70,13 @@ class RejectionHandlingSpec
       Get(s"/organizations?filter=$filter") ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[IllegalFilterFormat.type]
+      }
+    }
 
+    "reject the request with a filter which is not JSON format" in {
+      Get(s"/organizations?filter=wrong") ~> route ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Error].code shouldEqual classNameOf[WrongOrInvalidJson.type]
       }
     }
   }
