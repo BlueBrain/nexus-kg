@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.service.commons.persistence.SequentialIndexer
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
-trait BootstrapIndexing {
+object StartIndexers {
   /**
     * Triggers the start of the indexing process from the resumable projection for all the tags avaialable on the service:
     * instance, schema, domain, organization.
@@ -28,7 +28,7 @@ trait BootstrapIndexing {
     * @param as           the implicitly available [[ActorSystem]]
     * @param ec           the implicitly available [[ExecutionContextExecutor]]
     */
-  def startIndexing(settings: Settings, sparqlClient: SparqlClient[Future], apiUri: Uri)(implicit as: ActorSystem, ec: ExecutionContextExecutor) = {
+  final def apply(settings: Settings, sparqlClient: SparqlClient[Future], apiUri: Uri)(implicit as: ActorSystem, ec: ExecutionContextExecutor) = {
     val instanceIndexingSettings = InstanceIndexingSettings(
       settings.Sparql.Instances.Index,
       apiUri,
@@ -82,5 +82,3 @@ trait BootstrapIndexing {
       "sequential-organization-indexer")
   }
 }
-
-object BootstrapIndexing extends BootstrapIndexing

@@ -44,12 +44,12 @@ object Main {
           Await.result(as.terminate(), 10 seconds)
       }
 
-      BootstrapIndexing.startIndexing(settings, bootstrap.sparqlClient, bootstrap.apiUri)
+      StartIndexers(settings, bootstrap.sparqlClient, bootstrap.apiUri)
     }
 
-    bootstrap.cluster.joinSeedNodes(bootstrap.seeds.toList)
+    bootstrap.joinCluster()
     as.registerOnTermination {
-      bootstrap.cluster.leave(bootstrap.cluster.selfAddress)
+      bootstrap.leaveCluster()
       Kamon.shutdown()
     }
 

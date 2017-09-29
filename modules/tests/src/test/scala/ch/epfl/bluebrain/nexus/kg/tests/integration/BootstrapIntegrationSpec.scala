@@ -1,27 +1,27 @@
-package ch.epfl.bluebrain.nexus.kg.test
+package ch.epfl.bluebrain.nexus.kg.tests.integration
 
-import java.util.{Properties, UUID}
 import java.util.regex.Pattern
+import java.util.{Properties, UUID}
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
-import ch.epfl.bluebrain.nexus.kg.service.routes.{DomainCustomEncoders, InstanceCustomEncoders, OrgCustomEncoders, SchemaCustomEncoders}
-import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import cats.instances.string._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import io.circe.generic.semiauto._
-import io.circe._
-import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
-import org.scalatest.{Inspectors, Matchers, WordSpecLike}
+import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
+import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
+import ch.epfl.bluebrain.nexus.kg.service.routes.{DomainCustomEncoders, InstanceCustomEncoders, OrgCustomEncoders, SchemaCustomEncoders}
+import io.circe._
+import io.circe.generic.semiauto._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

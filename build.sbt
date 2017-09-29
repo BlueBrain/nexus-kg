@@ -110,19 +110,10 @@ lazy val tests = project.in(file("modules/tests"))
   .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
   .settings(common)
   .settings(
-    name                 := "kg-tests",
-    moduleName           := "kg-tests",
-    libraryDependencies ++= Seq(
-      sourcingAkka, sourcingMem,sparqlClient                                                                        % Test,
-      "com.blazegraph"              % "blazegraph-jar"                      % blazegraphVersion                     % Test,
-      "com.fasterxml.jackson.core"  % "jackson-annotations"                 % jacksonVersion                        % Test,
-      "com.fasterxml.jackson.core"  % "jackson-core"                        % jacksonVersion                        % Test,
-      "com.fasterxml.jackson.core"  % "jackson-databind"                    % jacksonVersion                        % Test,
-      "com.typesafe.akka"          %% "akka-cluster-sharding"               % akkaVersion.value                     % Test,
-      "com.typesafe.akka"          %% "akka-http-testkit"                   % akkaHttpVersion.value                 % Test,
-      "com.typesafe.akka"          %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion.value % Test,
-      "com.typesafe.akka"          %% "akka-testkit"                        % akkaVersion.value                     % Test,
-      "org.scalatest"              %% "scalatest"                           % scalaTestVersion.value                % Test
+    name                  := "kg-tests",
+    moduleName            := "kg-tests",
+    libraryDependencies  ++= Seq(
+      "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion.value % Test
     ))
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
   // tests reduces false negatives.

@@ -1,29 +1,27 @@
-package ch.epfl.bluebrain.nexus.kg.test
+package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import java.net.URLEncoder
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.model.{StatusCodes, Uri}
+import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
+import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.BootstrapQuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
+import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Json
-import io.circe.generic.auto._
 import io.circe.syntax._
 import org.scalatest._
 import org.scalatest.time.{Seconds, Span}
-import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.BootstrapQuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
@@ -32,7 +30,8 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, sparqlClient: Sp
   as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer)
   extends BootstrapIntegrationSpec(apiUri, vocab) {
 
-  import BootstrapIntegrationSpec._, orgsEncoder._
+  import BootstrapIntegrationSpec._
+  import orgsEncoder._
 
   "A OrganizationRoutes" when {
 

@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.test
+package ch.epfl.bluebrain.nexus.kg.tests
 
 import java.io.File
 
@@ -9,7 +9,8 @@ import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.kg.core.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.kg.service.{BootstrapIndexing, BootstrapService}
+import ch.epfl.bluebrain.nexus.kg.service.{BootstrapService, StartIndexers}
+import ch.epfl.bluebrain.nexus.kg.tests.integration.{DomainIntegrationSpec, InstanceIntegrationSpec, OrgIntegrationSpec, SchemasIntegrationSpec}
 import ch.epfl.bluebrain.nexus.service.commons.persistence.ProjectionStorage
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingAkkaSettings
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
@@ -18,7 +19,7 @@ import org.scalatest._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
-class BootstrapServices extends Suites with BeforeAndAfterAll with CassandraBoot with BlazegraphBoot  {
+class ServiceSpecSuite extends Suites with BeforeAndAfterAll with CassandraBoot with BlazegraphBoot  {
 
   implicit lazy val system: ActorSystem = SystemBuilder.initConfig("BootstrapServices", cassandraPort, blazegraphPort)
 
@@ -36,7 +37,7 @@ class BootstrapServices extends Suites with BeforeAndAfterAll with CassandraBoot
 
   bootstrap.cluster.registerOnMemberUp {
     logger.info("==== Cluster is Live ====")
-    BootstrapIndexing.startIndexing(settings, bootstrap.sparqlClient, bootstrap.apiUri)
+    StartIndexers(settings, bootstrap.sparqlClient, bootstrap.apiUri)
   }
 
 
@@ -53,7 +54,7 @@ class BootstrapServices extends Suites with BeforeAndAfterAll with CassandraBoot
     blazegraphStart()
     // ensures the keyspace and tables are created before the tests
     val _ = Await.result(ProjectionStorage(system).fetchLatestOffset("random"), 10 seconds)
-    bootstrap.cluster.joinSeedNodes(bootstrap.seeds.toList)
+    bootstrap.joinCluster()
   }
 
   override protected def afterAll(): Unit = {

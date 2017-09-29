@@ -5,7 +5,7 @@ import akka.cluster.Cluster
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.Location
-import akka.http.scaladsl.server.Directives.{handleRejections, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.instances.future._
@@ -72,7 +72,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: Executi
   val cluster = Cluster(as)
   private val provided = settings.Cluster.Seeds
     .map(addr => AddressFromURIString(s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
-  val seeds = if (provided.isEmpty) Set(cluster.selfAddress) else provided
+  private val seeds = if (provided.isEmpty) Set(cluster.selfAddress) else provided
   // $COVERAGE-ON$
 
   def operations() = {
@@ -109,6 +109,9 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: Executi
     implicit val instances = Instances(instancesAgg, schemas, validator, inFileProcessor)
     (orgs, doms, schemas, instances)
   }
+
+  def joinCluster() = cluster.joinSeedNodes(seeds.toList)
+  def leaveCluster() = cluster.leave(cluster.selfAddress)
 }
 
 object BootstrapService {

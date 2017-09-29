@@ -1,17 +1,20 @@
-package ch.epfl.bluebrain.nexus.kg.test
+package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import java.net.URLEncoder
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
-import akka.stream.{ActorMaterializer, IOResult}
 import akka.stream.scaladsl.Source
+import akka.stream.{ActorMaterializer, IOResult}
 import akka.util.ByteString
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceId, InstanceRef, Instances}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
@@ -22,19 +25,17 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import org.scalatest.DoNotDiscover
 import org.scalatest.time._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import scala.concurrent.{Await, ExecutionContextExecutor, Future}
+
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
 @DoNotDiscover
 class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesService: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]])(implicit
   as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer)
   extends BootstrapIntegrationSpec(apiUri, vocab) {
 
-  import BootstrapIntegrationSpec._, instanceEncoder._
+  import BootstrapIntegrationSpec._
+  import instanceEncoder._
 
   "A InstanceRoutes" when {
 

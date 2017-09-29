@@ -1,12 +1,13 @@
-package ch.epfl.bluebrain.nexus.kg.test
+package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import java.net.URLEncoder
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.model.Uri.Query
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRef}
@@ -14,16 +15,13 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
-import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
-import io.circe.Json
-import io.circe.generic.auto._
-import io.circe.syntax._
-import org.scalatest.{DoNotDiscover}
-import org.scalatest.time.{Seconds, Span}
-import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
+import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
+import io.circe.Json
+import io.circe.syntax._
+import org.scalatest.DoNotDiscover
+import org.scalatest.time.{Seconds, Span}
 
 import scala.concurrent.ExecutionContextExecutor
 
@@ -32,7 +30,8 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
   as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer)
   extends BootstrapIntegrationSpec(apiUri, vocab) {
 
-  import BootstrapIntegrationSpec._, schemaEncoder._
+  import BootstrapIntegrationSpec._
+  import schemaEncoder._
 
   "A SchemaRoutes" when {
 

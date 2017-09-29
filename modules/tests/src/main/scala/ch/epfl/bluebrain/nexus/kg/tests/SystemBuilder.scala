@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.test
+package ch.epfl.bluebrain.nexus.kg.tests
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
@@ -18,13 +18,6 @@ object SystemBuilder {
     * @return an actor system with akka persistence configured to cassandra and clustering enabled
     */
   final def initConfig(name: String, cassandraPort: Int, blazegraphPort: Int): ActorSystem = {
-    println(
-      s"""
-         |Live ports
-         |cassandra local $cassandraPort
-         |blazegraph local port $blazegraphPort
-       """.stripMargin)
-
     val config = ConfigFactory.parseString(
       s"""
          |test.cassandra-port = $cassandraPort
