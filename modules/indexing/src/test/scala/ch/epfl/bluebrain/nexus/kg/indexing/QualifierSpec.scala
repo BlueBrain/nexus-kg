@@ -235,5 +235,15 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
       implicit val qualifier: ConfiguredQualifier[String] = Qualifier.configured[String](base)
       s"$base/something".unqualify[String] shouldEqual None
     }
+
+    "attempt to unqualify an invalid uri into an SchemaId using an configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
+      s"invalid:;uri^http//something?http://ō".unqualify[SchemaId] shouldEqual None
+    }
+
+    "attempt to unqualify an invalid uri into an SchemaId the uri into an ShapeId using an explicit base uri" in {
+      val uri = s"invalid:;uri^http//something?http://ō"
+      uri.unqualifyWith[ShapeId](base) shouldEqual None
+    }
   }
 }
