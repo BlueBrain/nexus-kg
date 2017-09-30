@@ -65,6 +65,16 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
         List(Link("self", uri), Link("previous", uri.withQuery(Query("from" -> "12", "size" -> "5"))))
     }
 
+    "return the correct previous links when offset is out of scope and list has one element" in {
+      val pagination = Pagination(200L, 3)
+      val response: QueryResults[String] = UnscoredQueryResults[String](1, List())
+
+      val uri = Uri("http://localhost/v0/schemas/nexus/core")
+      LinksQueryResults(response, pagination, uri).links should contain theSameElementsAs
+        List(Link("self", uri), Link("previous", uri.withQuery(Query("from" -> "0", "size" -> "3"))))
+    }
+
+
     "return a correct Json representation from an unscored response" in {
       val uri = Uri("http://localhost/v0/schemas/nexus/core")
       val links = List(Link("self", uri), Link("previous", uri.withQuery(Query("from" -> "0", "size" -> "5"))), Link("next", uri.withQuery(Query("from" -> "10", "size" -> "5"))))

@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import org.scalatest.{Matchers, WordSpecLike}
 import cats.syntax.show._
+import cats.instances.string._
 import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.ShapeId
@@ -179,7 +180,10 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     }
 
     "unqualify the uri into an SchemaName using an explicit base uri" in {
-      s"$base/schemas/${schemaName.show}".unqualifyWith[SchemaName](base) shouldEqual Some(schemaName)
+      val uriString = s"$base/schemas/${schemaName.show}"
+      uriString.unqualifyWith[SchemaName](base) shouldEqual Some(schemaName)
+      Uri(uriString).unqualifyWith[SchemaName](base) shouldEqual Some(schemaName)
+
     }
 
     "unqualify the uri into an SchemaName using an configured base uri" in {
@@ -189,7 +193,9 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
     "unqualify the uri into an ShapeId using an explicit base uri" in {
       val shapeId = ShapeId(schemaId, "fragment")
-      s"$base/schemas/${shapeId.show}".unqualifyWith[ShapeId](base) shouldEqual Some(shapeId)
+      val uri = s"$base/schemas/${shapeId.show}"
+      uri.unqualifyWith[ShapeId](base) shouldEqual Some(shapeId)
+      Uri(uri).unqualifyWith[ShapeId](base) shouldEqual Some(shapeId)
     }
 
     "unqualify the uri into an ShapeId using an configured base uri" in {
@@ -201,7 +207,9 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
     "unqualify the uri into an DomainId using an explicit base uri" in {
       implicit val showDomainId: Show[DomainId] = Show.show(domain => s"organizations/${orgId.id}/domains/${domainId.id}")
-      s"$base/${domainId.show}".unqualifyWith[DomainId](base) shouldEqual Some(domainId)
+      val uriString = s"$base/${domainId.show}"
+      uriString.unqualifyWith[DomainId](base) shouldEqual Some(domainId)
+      Uri(uriString).unqualifyWith[DomainId](base) shouldEqual Some(domainId)
     }
 
     "unqualify the uri into an DomainId using an configured base uri" in {
@@ -212,7 +220,9 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
     "unqualify the uri into an OrgId using an explicit base uri" in {
       implicit val showDomainId: Show[OrgId] = Show.show(org => s"organizations/${org.id}")
-      s"$base/${orgId.show}".unqualifyWith[OrgId](base) shouldEqual Some(orgId)
+      val uriString = s"$base/${orgId.show}"
+      uriString.unqualifyWith[OrgId](base) shouldEqual Some(orgId)
+      Uri(uriString).unqualifyWith[OrgId](base) shouldEqual Some(orgId)
     }
 
     "unqualify the uri into an OrgId using an configured base uri" in {
@@ -221,6 +231,9 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
       s"$base/${orgId.show}".unqualify[OrgId] shouldEqual Some(orgId)
     }
 
-
+    "attempt to unqualify a string" in {
+      implicit val qualifier: ConfiguredQualifier[String] = Qualifier.configured[String](base)
+      s"$base/something".unqualify[String] shouldEqual None
+    }
   }
 }

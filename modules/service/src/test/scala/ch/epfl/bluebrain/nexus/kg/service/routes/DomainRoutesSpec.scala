@@ -16,15 +16,12 @@ import io.circe.generic.auto._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 import DomainRoutesSpec._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures.{Source, fixedHttpClient, fixedResponse}
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
-import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 
 import scala.concurrent.Future
@@ -53,8 +50,8 @@ class DomainRoutesSpec
     val vocab = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), "domain-index", vocab)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
+    implicit val cl = HttpClient.akkaHttpClient
 
-    implicit val client: UntypedHttpClient[Future] = fixedHttpClient(fixedResponse("/list_domains_sparql_result.json"))
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
 
@@ -89,21 +86,6 @@ class DomainRoutesSpec
           "deprecated" -> Json.fromBoolean(false),
           "description" -> Json.fromString(description)
         )
-      }
-    }
-
-    "return list of domains from organization" in {
-      Get(s"/organizations/org/domains") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListDomains(Uri("http://localhost/organizations/org/domains"))
-      }
-    }
-
-    "return list of domains from organization with specific pagination" in {
-      val pagination = Pagination(1,200)
-      Get(s"/organizations/org/domains?from=${pagination.from}&size=${pagination.size}") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Results] shouldEqual fixedListDomains(Uri(s"http://localhost/organizations/org/domains?from=${pagination.from}&size=${pagination.size}"))
       }
     }
 
@@ -157,18 +139,4 @@ object DomainRoutesSpec {
     "@id" -> Json.fromString(s"$baseUri/organizations/${ref.id.orgId.id}/domains/${ref.id.id}"),
     "rev" -> Json.fromLong(ref.rev)
   )
-
-  private def fixedListDomains(uri: Uri) =
-    Results(2L, List(
-      Result(
-        s"$baseUri/organizations/org/domains/domain",
-        Source(
-          s"$baseUri/organizations/org/domains/domain",
-          List(Link("self", s"$baseUri/organizations/org/domains/domain")))),
-      Result(
-        s"$baseUri/organizations/org/domains/other",
-        Source(
-          s"$baseUri/organizations/org/domains/other",
-          List(Link("self", s"$baseUri/organizations/org/domains/other")))),
-    ), List(Link("self", uri)))
 }

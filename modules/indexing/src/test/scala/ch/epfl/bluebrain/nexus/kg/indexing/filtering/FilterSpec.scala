@@ -53,6 +53,16 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
         val expected = Filter(ComparisonExpr(Eq, UriTerm(s"${nxv}deprecated"), LiteralTerm("false")))
         json.as[Filter] shouldEqual Right(expected)
       }
+
+      "filtering on revisions which are greater than 0 and lower than 10 and other field greater or equal than 10" in {
+        val json = jsonContentOf("/filtering/rev-boundaries.json", replacements)
+        val expected = Filter(LogicalExpr(And, List(
+          ComparisonExpr(Gt, UriTerm(s"${nxv}rev"), LiteralTerm("0")),
+          ComparisonExpr(Lt, UriTerm(s"${nxv}rev"), LiteralTerm("10")),
+          ComparisonExpr(Gte, UriTerm(s"${nxv}other"), LiteralTerm("10")),
+        )))
+        json.as[Filter] shouldEqual Right(expected)
+      }
     }
 
     "fail to parse from a json" when {

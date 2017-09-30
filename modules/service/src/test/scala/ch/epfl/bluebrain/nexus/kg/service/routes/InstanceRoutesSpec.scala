@@ -35,22 +35,14 @@ import io.circe.syntax._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{DoNotDiscover, Inspectors, Matchers, WordSpecLike}
 import InstanceRoutesSpec._
-import akka.http.scaladsl.model.Uri.Query
-import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.routes.SparqlFixtures._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
-import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent.{InstanceCreated, InstanceDeprecated}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
-import org.apache.jena.query.ResultSet
-
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
@@ -71,7 +63,6 @@ class InstanceRoutesSpec(blazegraphPort: Int)
 
     def genSchema(): Json =
       Json.obj()
-
 
     def genJson(): Json =
       jsonContentOf("/int-value.json").deepMerge(Json.obj("value" -> Json.fromInt(genInt(Int.MaxValue))))
@@ -111,8 +102,8 @@ class InstanceRoutesSpec(blazegraphPort: Int)
     implicit val filteringSettings = FilteringSettings(nexusVocBase, nexusVocBase)
     val baseUUID = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 
-    private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
-    private implicit val rs: HttpClient[Future, ResultSet] = HttpClient.withAkkaUnmarshaller[ResultSet]
+    implicit val cl = HttpClient.akkaHttpClient
+
     val client = SparqlClient[Future](s"http://$localhost:$blazegraphPort/blazegraph")
     val instanceIndexer = InstanceIndexer(client, indexSettings)
 
@@ -151,29 +142,6 @@ class InstanceRoutesSpec(blazegraphPort: Int)
       Files.walk(settings.Attachment.VolumePath)
         .sorted(Comparator.reverseOrder())
         .forEach(p => Files.delete(p))
-
-    def indexInstances(): Unit = {
-      client.createIndex(index, properties).futureValue
-
-      // index 5 instances with same schemaId
-      (0 until 5).foreach { idx =>
-        val id = InstanceId(schemaId.copy(version = Version(idx, 0, 0)), s"${baseUUID}0$idx")
-        instanceIndexer(InstanceCreated(id, 1L, value)).futureValue
-      }
-
-      // index 5 instances with same schemaId but deprecated
-      (5 until 10).foreach { idx =>
-        val id = InstanceId(schemaId.copy(version = Version(idx, 0, 0)), s"${baseUUID}0$idx")
-        instanceIndexer(InstanceCreated(id, 1L, value)).futureValue
-        instanceIndexer(InstanceDeprecated(id, 2L)).futureValue
-      }
-      /// index 5 instances with different orgId
-      (10 until 15).foreach { idx =>
-        val id = InstanceId(schemaId.copy(version = Version(idx, 0, 0), domainId = schemaId.domainId.copy(orgId = OrgId("other"))), s"${baseUUID}$idx")
-        instanceIndexer(InstanceCreated(id, 1L, value)).futureValue
-        instanceIndexer(InstanceDeprecated(id, 2L)).futureValue
-      }
-    }
   }
 
   "An InstanceRoutes" should {
@@ -257,96 +225,6 @@ class InstanceRoutesSpec(blazegraphPort: Int)
         }
       }
 
-    "return list of instances" in new Context  {
-      indexInstances()
-      Get(s"/data?deprecated=false") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        val results = responseAs[Results]
-        results.total shouldEqual 5L
-        results.results.size shouldEqual 5
-        forAll(results.results.zipWithIndex) { case(result, idx) =>
-          val schema = s"$baseUri/schemas/${schemaId.copy(version = Version(idx,0,0)).show}"
-          val id = s"$schema/${baseUUID}0$idx".replace("/schemas/", "/data/")
-          result shouldEqual Result(id,
-            Source(id,List(Link("self", id),Link("schema", schema))))
-        }
-        results.links should contain allElementsOf
-          List(Link("self", s"$base/data?deprecated=false"))
-      }
-    }
-
-    "return list of instances from domain id with specific pagination" in new Context  {
-      indexInstances()
-      val specificPagination = Pagination(0L, 5)
-      Get(s"/data/${orgRef.id.id}/${domRef.id.id}?from=${specificPagination.from}&size=${specificPagination.size}") ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        val results = responseAs[Results]
-        results.total shouldEqual 10L
-        results.results.size shouldEqual 5
-        forAll(results.results.zipWithIndex) { case(result, idx) =>
-          val schema = s"$baseUri/schemas/${schemaId.copy(version = Version(idx,0,0)).show}"
-          val id = s"$schema/${baseUUID}0$idx".replace("/schemas/", "/data/")
-          result shouldEqual Result(id,
-            Source(id,List(Link("self", id),Link("schema", schema))))
-        }
-        results.links should contain allElementsOf
-          List(Link("self", s"$base/data/${orgRef.id.id}/${domRef.id.id}?from=0&size=5"), Link("next", s"$base/data/${orgRef.id.id}/${domRef.id.id}?from=5&size=5"))
-      }
-    }
-
-    "return list of instances from schema name with deprecated and filter" in new Context  {
-      indexInstances()
-      val specificPagination = Pagination(0L, 3)
-      val uriFilter = URLEncoder.encode("""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}, "filter": {"op": "and", "value": [{"path": "rdf:type", "op": "eq", "value": "http://schema.org/QuantitativeValue"} ] } }""", "UTF-8")
-      private val path = s"/data/${orgRef.id.id}/${domRef.id.id}/${schemaId.name}?from=${specificPagination.from}&size=${specificPagination.size}&deprecated=true&filter=$uriFilter"
-      Get(path) ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        val results = responseAs[Results]
-        results.total shouldEqual 5L
-        results.results.size shouldEqual 3
-        forAll(results.results.zipWithIndex) { case(result, idx) =>
-          val schema = s"$baseUri/schemas/${schemaId.copy(version = Version(idx+5,0,0)).show}"
-          val id = s"$schema/${baseUUID}0${idx+5}".replace("/schemas/", "/data/")
-          result shouldEqual Result(id,
-            Source(id,List(Link("self", id),Link("schema", schema))))
-        }
-        val nextUri = Uri(s"$base$path")
-        results.links should contain allElementsOf
-          List(Link("self", s"$base$path"), Link("next", nextUri.withQuery(Query(nextUri.query().toMap + ("from" -> "3")))))
-      }
-    }
-
-    "return list of instances from schema name with deprecated and full text search query" in new Context  {
-      indexInstances()
-      val specificPagination = Pagination(0L, 3)
-      private val path = s"/data/${orgRef.id.id}/${domRef.id.id}/${schemaId.name}?from=${specificPagination.from}&size=${specificPagination.size}&deprecated=false&q=random"
-      Get(path) ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        val results = responseAs[ResultsScored]
-        results.total shouldEqual 5L
-        results.maxScore shouldEqual 1F
-        results.results.size shouldEqual 3
-        forAll(results.results.zipWithIndex) { case(result, idx) =>
-          val schema = s"$baseUri/schemas/${schemaId.copy(version = Version(idx,0,0)).show}"
-          val id = s"$schema/${baseUUID}0$idx".replace("/schemas/", "/data/")
-          result shouldEqual ResultScored(id,
-            Source(id,List(Link("self", id),Link("schema", schema))), 1F)
-        }
-        results.links should contain allElementsOf
-          List(Link("self", s"$base$path"), Link("next", s"$base$path".replace("from=0", "from=3")))
-      }
-    }
-
-    "return the instances that the selected instance is linked with as an outgoing link" in new Context  {
-      indexInstances()
-      private val path = s"/data/${instanceRef.id.show}/outgoing"
-      Get(path) ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        val results = responseAs[Results]
-        results.total shouldEqual 0L
-        results.results.size shouldEqual 0
-      }
-    }
 
     "reject the request with 400 for outgoing links incorrect filter format" in new Context {
       private val filter = URLEncoder.encode("""{"filter": {}}""", "UTF-8")
@@ -355,17 +233,6 @@ class InstanceRoutesSpec(blazegraphPort: Int)
         status shouldEqual StatusCodes.BadRequest
         val json: Json = responseAs[Json]
         json.hcursor.get[String]("field") shouldEqual Right("DownField(filter)/DownField(op)")
-      }
-    }
-
-    "return the instances that the selected instance is linked with as an incoming link" in new Context  {
-      indexInstances()
-      private val path = s"/data/${instanceRef.id.show}/incoming"
-      Get(path) ~> route ~> check {
-        status shouldEqual StatusCodes.OK
-        val results = responseAs[Results]
-        results.total shouldEqual 0L
-        results.results.size shouldEqual 0
       }
     }
 
@@ -557,7 +424,6 @@ class InstanceRoutesSpec(blazegraphPort: Int)
       Get(s"/data/${instanceRef.id.show}/attachment") ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
-
       deleteAttachments()
     }
   }

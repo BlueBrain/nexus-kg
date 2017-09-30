@@ -116,14 +116,14 @@ object Qualifier extends QualifierInstances {
       qualify.toString()
   }
 
-  implicit class UnqualifierOps[A](uri: Uri)(implicit Q: Qualifier[A]) {
+  implicit class UnqualifierOps(uri: Uri) {
     /**
       * Unqualifies the value against the argument ''base'' Uri.
       *
       * @param base the base uri against which the fully qualified uri is attempted to be unqualified
       * @return an option of the id of type A
       */
-    def unqualifyWith(base: Uri): Option[A] =
+    def unqualifyWith[A](base: Uri)(implicit Q: Qualifier[A]): Option[A] =
       Q.unapply(uri, base)
   }
 
@@ -147,7 +147,6 @@ object Qualifier extends QualifierInstances {
     def unqualify[A](implicit Q: ConfiguredQualifier[A]): Option[A] =
       Q.unapply(uri)
   }
-
 }
 
 trait QualifierInstances {

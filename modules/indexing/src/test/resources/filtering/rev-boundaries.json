@@ -1,0 +1,26 @@
+{
+  "@context": {
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "nxs": "{{base}}/voc/nexus/wrong-search/"
+  },
+  "filter": {
+    "op": "and",
+    "value": [
+      {
+        "path": "nxv:rev",
+        "op": "gt",
+        "value": 0
+      },
+      {
+        "path": "nxv:rev",
+        "op": "lt",
+        "value": 10
+      },
+      {
+        "path": "nxv:other",
+        "op": "gte",
+        "value": 10
+      }
+    ]
+  }
+}

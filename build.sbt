@@ -106,6 +106,18 @@ lazy val service = project.in(file("modules/service"))
       """addJava "-javaagent:$lib_dir/io.kamon.sigar-loader-1.6.6-rev002.jar""""
     )
   )
+lazy val tests = project.in(file("modules/tests"))
+  .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
+  .settings(common)
+  .settings(
+    name                  := "kg-tests",
+    moduleName            := "kg-tests",
+    libraryDependencies  ++= Seq(
+      "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion.value % Test
+    ))
+  // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
+  // tests reduces false negatives.
+  .settings(parallelExecution in Test := false)
 
 lazy val root = project.in(file("."))
   .settings(common, noPublish)
@@ -116,7 +128,7 @@ lazy val root = project.in(file("."))
     description := "Nexus KnowledgeGraph",
     licenses    := Seq(
       ("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE"))))
-  .aggregate(docs, core, indexing, service)
+  .aggregate(docs, core, indexing, service, tests)
 
 lazy val noPublish = Seq(
   publishLocal := {},

@@ -1,0 +1,85 @@
+{
+  "shapes": [
+    {
+      "@id": "bbp:IdNodeShape",
+      "@type": "sh:NodeShape",
+      "property": [
+        {
+          "datatype": "xsd:integer",
+          "maxCount": "{{max_count}}",
+          "minCount": "1",
+          "path": "schema:value"
+        }
+      ],
+      "targetClass": "schema:QuantitativeValue"
+    },
+    {
+      "@id": "bbp:IdSomething",
+      "@type": "sh:Something",
+      "property": [
+        {
+          "datatype": "xsd:integer",
+          "maxCount": "1",
+          "minCount": "1",
+          "path": "schema:value"
+        }
+      ],
+      "targetClass": "schema:QuantitativeValue"
+    },
+    {
+      "@id": "http://bbp-nexus.epfl.ch/staging/v0/schemas/nexus/core/organization/v1.0.0/shape/IdNodeShape2",
+      "@type": "sh:NodeShape2",
+      "property": [
+        {
+          "datatype": "xsd:integer",
+          "maxCount": "1",
+          "minCount": "1",
+          "path": "schema:value"
+        }
+      ],
+      "targetClass": "schema:QuantitativeValue"
+    }
+  ],
+  "@type": "owl:Ontology{{number}}",
+  "@context": {
+    "bbp": "http://bbp-nexus.epfl.ch/staging/v0/schemas/nexus/core/organization/v1.0.0/shape/",
+    "maxCount": {
+      "@id": "sh:maxCount",
+      "@type": "xsd:integer"
+    },
+    "minCount": {
+      "@id": "sh:minCount",
+      "@type": "xsd:integer"
+    },
+    "datatype": {
+      "@id": "sh:datatype",
+      "@type": "@id"
+    },
+    "path": {
+      "@id": "sh:path",
+      "@type": "@id"
+    },
+    "sh": "http://www.w3.org/ns/shacl#",
+    "property": {
+      "@id": "sh:property",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "isDefinedBy": {
+      "@id": "http://www.w3.org/2000/01/rdf-schema#isDefinedBy",
+      "@type": "@id"
+    },
+    "targetClass": {
+      "@id": "sh:targetClass",
+      "@type": "@id"
+    },
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "schema": "http://schema.org/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "shapes": {
+      "@reverse": "http://www.w3.org/2000/01/rdf-schema#isDefinedBy",
+      "@type": "@id",
+      "@container": "@set"
+    }
+  }
+}

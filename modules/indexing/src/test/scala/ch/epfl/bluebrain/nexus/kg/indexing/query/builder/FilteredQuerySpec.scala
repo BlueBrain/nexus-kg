@@ -50,6 +50,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  {
              |    SELECT *
              |    WHERE { INCLUDE %resultSet }
+             |    ORDER BY ?s
              |    LIMIT 17
              |    OFFSET 13
              |  }
@@ -114,6 +115,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  {
              |    SELECT *
              |    WHERE { INCLUDE %resultSet }
+             |    ORDER BY ?s
              |    LIMIT 17
              |    OFFSET 13
              |  }
@@ -186,6 +188,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  {
              |    SELECT *
              |    WHERE { INCLUDE %resultSet }
+             |    ORDER BY ?s
              |    LIMIT 17
              |    OFFSET 13
              |  }
@@ -254,6 +257,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  {
              |    SELECT *
              |    WHERE { INCLUDE %resultSet }
+             |    ORDER BY ?s
              |    LIMIT 17
              |    OFFSET 13
              |  }
@@ -322,6 +326,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  {
              |    SELECT *
              |    WHERE { INCLUDE %resultSet }
+             |    ORDER BY ?s
              |    LIMIT 17
              |    OFFSET 13
              |  }

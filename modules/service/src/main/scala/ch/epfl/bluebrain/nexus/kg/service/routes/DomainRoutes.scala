@@ -112,7 +112,7 @@ object DomainRoutes {
   }
 }
 
-private class DomainCustomEncoders(base: Uri) extends RoutesEncoder[DomainId, DomainRef](base){
+class DomainCustomEncoders(base: Uri) extends RoutesEncoder[DomainId, DomainRef](base) {
 
   implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap { domain =>
     refEncoder.apply(DomainRef(domain.id, domain.rev)).deepMerge(Json.obj(
