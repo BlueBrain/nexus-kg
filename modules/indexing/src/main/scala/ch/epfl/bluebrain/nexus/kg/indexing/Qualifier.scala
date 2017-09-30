@@ -127,7 +127,7 @@ object Qualifier extends QualifierInstances {
       Q.unapply(uri, base)
   }
 
-  implicit class ToUnqualifiedStringOps(uri: String) {
+  implicit class ToUnqualifiedStringOps(uriString: String) {
     /**
       * Unqualifies the value against the argument ''base'' Uri.
       *
@@ -135,17 +135,18 @@ object Qualifier extends QualifierInstances {
       * @return an option of the id of type A
       */
     def unqualifyWith[A](base: Uri)(implicit Q: Qualifier[A]): Option[A] =
-      Q.unapply(uri, base)
+      Try(Uri(uriString)).toOption.flatMap(Q.unapply(_, base))
   }
 
-  implicit class ToConfiguredUnqualifiedStringOps(uri: String) {
+  implicit class ToConfiguredUnqualifiedStringOps(uriString: String) {
     /**
       * Unqualifies the fully qualified string uri using a preconfigured ''base'' uri.
       *
       * @return a fully qualified ''Uri''
       */
-    def unqualify[A](implicit Q: ConfiguredQualifier[A]): Option[A] =
-      Q.unapply(uri)
+    def unqualify[A](implicit Q: ConfiguredQualifier[A]): Option[A] = {
+      Try(Uri(uriString)).toOption.flatMap(Q.unapply)
+    }
   }
 }
 
