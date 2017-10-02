@@ -127,7 +127,7 @@ object Qualifier extends QualifierInstances {
       Q.unapply(uri, base)
   }
 
-  implicit class ToUnqualifiedStringOps(uri: String) {
+  implicit class ToUnqualifiedStringOps(uriString: String) {
     /**
       * Unqualifies the value against the argument ''base'' Uri.
       *
@@ -135,17 +135,18 @@ object Qualifier extends QualifierInstances {
       * @return an option of the id of type A
       */
     def unqualifyWith[A](base: Uri)(implicit Q: Qualifier[A]): Option[A] =
-      Q.unapply(uri, base)
+      Try(Uri(uriString)).toOption.flatMap(Q.unapply(_, base))
   }
 
-  implicit class ToConfiguredUnqualifiedStringOps(uri: String) {
+  implicit class ToConfiguredUnqualifiedStringOps(uriString: String) {
     /**
       * Unqualifies the fully qualified string uri using a preconfigured ''base'' uri.
       *
       * @return a fully qualified ''Uri''
       */
-    def unqualify[A](implicit Q: ConfiguredQualifier[A]): Option[A] =
-      Q.unapply(uri)
+    def unqualify[A](implicit Q: ConfiguredQualifier[A]): Option[A] = {
+      Try(Uri(uriString)).toOption.flatMap(Q.unapply)
+    }
   }
 }
 
@@ -155,7 +156,7 @@ trait QualifierInstances {
     uri.toString().replaceAll(Pattern.quote(s"${base}/${path.map(p => s"$p/").getOrElse("")}"), "")
 
   implicit val domainIdQualifier: Qualifier[DomainId] = new Qualifier[DomainId] {
-  override def apply(value: DomainId, base: Uri): Uri = Uri(s"$base/organizations/${value.orgId.id}/domains/${value.id}")
+    override def apply(value: DomainId, base: Uri): Uri = Uri(s"$base/organizations/${value.orgId.id}/domains/${value.id}")
 
     override def unapply(uri: Uri, base: Uri): Option[DomainId] = Try {
       val parts = removeBaseUri(uri, base).split('/')
@@ -182,7 +183,7 @@ trait QualifierInstances {
   }
 
   implicit val shapeIdQualifier: Qualifier[ShapeId] = new Qualifier[ShapeId] {
-  override def apply(value: ShapeId, base: Uri): Uri = Uri(s"$base/schemas/${value.show}")
+    override def apply(value: ShapeId, base: Uri): Uri = Uri(s"$base/schemas/${value.show}")
 
     override def unapply(uri: Uri, base: Uri): Option[ShapeId] = {
       val schemaIdUri = Uri(s"$uri".substring(0, s"$uri".indexOf("/shapes")))
@@ -192,7 +193,7 @@ trait QualifierInstances {
 
   implicit val instanceIdQualifier: Qualifier[InstanceId] = new Qualifier[InstanceId] {
     override def apply(value: InstanceId, base: Uri) = Uri(s"$base/data/${value.show}")
-    
+
     override def unapply(uri: Uri, base: Uri) = InstanceId(removeBaseUri(uri, base, Some("data"))).toOption
   }
 
