@@ -33,23 +33,19 @@ import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.syntax._
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{DoNotDiscover, Inspectors, Matchers, WordSpecLike}
+import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import InstanceRoutesSpec._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-@DoNotDiscover
-class InstanceRoutesSpec(blazegraphPort: Int)
-    extends IndexerFixture
-    with WordSpecLike
+class InstanceRoutesSpec extends WordSpecLike
     with Matchers
     with ScalatestRouteTest
     with Randomness
@@ -103,8 +99,9 @@ class InstanceRoutesSpec(blazegraphPort: Int)
     val baseUUID = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 
     implicit val cl = HttpClient.akkaHttpClient
+    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
 
-    val client = SparqlClient[Future](s"http://$localhost:$blazegraphPort/blazegraph")
+    val client = SparqlClient[Future](sparqlUri)
     val instanceIndexer = InstanceIndexer(client, indexSettings)
 
     val route = InstanceRoutes(instances, client, querySettings, baseUri).routes
