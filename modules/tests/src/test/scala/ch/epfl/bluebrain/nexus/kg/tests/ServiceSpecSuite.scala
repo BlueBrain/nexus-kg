@@ -42,7 +42,7 @@ class ServiceSpecSuite extends Suites with BeforeAndAfterAll with CassandraBoot 
 
 
   override val nestedSuites = Vector(
-    new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary, bootstrap.sparqlClient, bootstrap),
+    new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new DomainIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new SchemasIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new InstanceIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary, bootstrap.instances)
