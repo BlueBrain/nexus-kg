@@ -1,2 +1,10 @@
+-Dfile.encoding=UTF8
 -Xms2G
 -Xmx6G
+-XX:ReservedCodeCacheSize=250M
+-XX:+TieredCompilation
+-XX:-UseGCOverheadLimit
+# effectively adds GC to Perm space
+-XX:+CMSClassUnloadingEnabled
+# must be enabled for CMSClassUnloadingEnabled to work
+-XX:+UseConcMarkSweepGC
