@@ -8,13 +8,11 @@ import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.BootstrapQuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
@@ -23,10 +21,10 @@ import io.circe.syntax._
 import org.scalatest._
 import org.scalatest.time.{Seconds, Span}
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
-class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, sparqlClient: SparqlClient[Future], querySettings: BootstrapQuerySettings)(implicit
+class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
   as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer)
   extends BootstrapIntegrationSpec(apiUri, vocab) {
 
@@ -36,15 +34,6 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, sparqlClient: Sp
   "A OrganizationRoutes" when {
 
     "performing integration tests" should {
-
-      "create Blazegraph namespaces" in {
-        for {
-          _ <- sparqlClient.createIndex(querySettings.orgSettings.index, blazegraphProps)
-          _ <- sparqlClient.createIndex(querySettings.domainSettings.index, blazegraphProps)
-          _ <- sparqlClient.createIndex(querySettings.schemaSettings.index, blazegraphProps)
-          instanceIndex <- sparqlClient.createIndex(querySettings.instanceSettings.index, blazegraphProps)
-        } yield (instanceIndex)
-      }
 
       "create organizations successfully" in {
         forAll(orgs) { orgId =>
