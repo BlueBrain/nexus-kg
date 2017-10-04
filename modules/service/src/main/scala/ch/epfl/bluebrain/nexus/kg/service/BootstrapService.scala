@@ -55,6 +55,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: Executi
 
   private val apis = uriPrefix(apiUri) {
     OrganizationRoutes(orgs, sparqlClient, orgSettings, apiUri).routes ~
+      DomainRoutesDeprecated(doms, sparqlClient, domainSettings, apiUri).routes ~
       DomainRoutes(doms, sparqlClient, domainSettings, apiUri).routes ~
       SchemaRoutes(schemas, sparqlClient, schemaSettings, apiUri).routes ~
       InstanceRoutes(instances, sparqlClient, instanceSettings, apiUri).routes

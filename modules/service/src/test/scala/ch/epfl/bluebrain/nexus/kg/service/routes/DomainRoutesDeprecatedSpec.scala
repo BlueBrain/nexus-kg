@@ -15,7 +15,7 @@ import io.circe.Json
 import io.circe.generic.auto._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
-import DomainRoutesSpec._
+import DomainRoutesDeprecatedSpec._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
@@ -26,15 +26,16 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import io.circe.syntax._
 import scala.concurrent.Future
 
-class DomainRoutesSpec
+class DomainRoutesDeprecatedSpec
   extends WordSpecLike
     with Matchers
     with ScalatestRouteTest
     with Randomness
     with ScalaFutures {
 
-  "A DomainRoutes" should {
+  "A DomainRoutesDeprecated" should {
     import domsEncoder._
+
     val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs = Organizations(orgAgg)
     val domAgg = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
@@ -54,10 +55,10 @@ class DomainRoutesSpec
     implicit val cl = HttpClient.akkaHttpClient
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
+    val route = DomainRoutesDeprecated(doms, sparqlClient, querySettings, baseUri).routes
 
     "create a domain" in {
-      Put(s"/domains/${orgId.show}/${id.id}", json) ~> route ~> check {
+      Put(s"/organizations/${orgId.show}/domains/${id.id}", json) ~> route ~> check {
         status shouldEqual StatusCodes.Created
         responseAs[Json] shouldEqual DomainRef(id, 1L).asJson
       }
@@ -65,47 +66,47 @@ class DomainRoutesSpec
     }
 
     "reject the creation of a domain which already exists" in {
-      Put(s"/domains/${orgId.show}/${id.id}", json) ~> route ~> check {
+      Put(s"/organizations/${orgId.show}/domains/${id.id}", json) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
         responseAs[Error].code shouldEqual classNameOf[DomainAlreadyExists.type]
       }
     }
 
     "reject the creation of a domain with wrong id" in {
-      Put(s"/domains/${orgId.show}/${id.copy(id = "NotValid").id}", json) ~> route ~> check {
+      Put(s"/organizations/${orgId.show}/domains/${id.copy(id = "NotValid").id}", json) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[InvalidDomainId.type]
       }
     }
 
     "return the current domain" in {
-      Get(s"/domains/${orgId.show}/${id.id}") ~> route ~> check {
+      Get(s"/organizations/${orgId.show}/domains/${id.id}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Domain(id, 1L, false, description).asJson
       }
     }
 
     "return not found for missing domain" in {
-      Get(s"/domains/${orgId.show}/${id.id}-missing") ~> route ~> check {
+      Get(s"/organizations/${orgId.show}/domains/${id.id}-missing") ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     "return not found for missing organization" in {
-      Get(s"/domains/${orgId.show}-missing/${id.id}") ~> route ~> check {
+      Get(s"/organizations/${orgId.show}-missing/domains/${id.id}") ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     "reject the deprecation of a domain with incorrect rev" in {
-      Delete(s"/domains/${orgId.show}/${id.id}?rev=10", json) ~> route ~> check {
+      Delete(s"/organizations/${orgId.show}/domains/${id.id}?rev=10", json) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
         responseAs[Error].code shouldEqual classNameOf[IncorrectRevisionProvided.type]
       }
     }
 
     "deprecate a domain" in {
-      Delete(s"/domains/${orgId.show}/${id.id}?rev=1") ~> route ~> check {
+      Delete(s"/organizations/${orgId.show}/domains/${id.id}?rev=1") ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual DomainRef(id, 2L).asJson
       }
@@ -113,14 +114,14 @@ class DomainRoutesSpec
     }
 
     "reject the deprecation of a domain already deprecated" in {
-      Delete(s"/domains/${orgId.show}/${id.id}?rev=2", json) ~> route ~> check {
+      Delete(s"/organizations/${orgId.show}/domains/${id.id}?rev=2", json) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[DomainAlreadyDeprecated.type]
       }
     }
 
     "reject the deprecation of a domain which does not exists" in {
-      Delete(s"/domains/${orgId.show}/${id.copy(id = "something").id}?rev=1", json) ~> route ~> check {
+      Delete(s"/organizations/${orgId.show}/domains/${id.copy(id = "something").id}?rev=1", json) ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].code shouldEqual classNameOf[DomainDoesNotExist.type]
       }
@@ -128,7 +129,7 @@ class DomainRoutesSpec
   }
 }
 
-object DomainRoutesSpec {
+object DomainRoutesDeprecatedSpec {
   private val baseUri = Uri("http://localhost/v0")
   implicit val domsEncoder = new DomainCustomEncoders(baseUri)
 }
