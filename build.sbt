@@ -69,7 +69,7 @@ lazy val indexing = project.in(file("modules/indexing"))
   .settings(parallelExecution in Test := false)
 
 lazy val service = project.in(file("modules/service"))
-  .dependsOn(core, indexing, docs)
+  .dependsOn(core % "test->test;compile->compile", indexing, docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(common, buildInfoSettings, packagingSettings, noCoverage)
   .settings(
