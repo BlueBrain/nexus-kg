@@ -1,4 +1,4 @@
-val commonsVersion     = "0.4.5"
+val commonsVersion     = "0.4.6"
 val metricsCoreVersion = "3.2.2"
 val jenaVersion        = "3.4.0"
 val blazegraphVersion  = "2.1.4"
@@ -8,6 +8,7 @@ lazy val sourcingCore   = nexusDep("sourcing-core",   commonsVersion)
 lazy val sourcingAkka   = nexusDep("sourcing-akka",   commonsVersion)
 lazy val sourcingMem    = nexusDep("sourcing-mem",    commonsVersion)
 lazy val serviceCommon  = nexusDep("service-commons", commonsVersion)
+lazy val commonsTest    = nexusDep("commons-test",    commonsVersion)
 lazy val shaclValidator = nexusDep("shacl-validator", commonsVersion)
 lazy val sparqlClient   = nexusDep("sparql-client",   commonsVersion)
 
@@ -31,7 +32,7 @@ lazy val core = project.in(file("modules/core"))
     name                 := "kg-core",
     moduleName           := "kg-core",
     libraryDependencies ++= Seq(
-      sourcingCore, shaclValidator, sourcingMem % Test,
+      sourcingCore, shaclValidator, sourcingMem % Test, commonsTest % Test,
       "io.circe"           %% "circe-core"   % circeVersion.value,
       "io.circe"           %% "circe-optics" % circeVersion.value,
       "io.circe"           %% "circe-parser" % circeVersion.value,
@@ -40,13 +41,13 @@ lazy val core = project.in(file("modules/core"))
     ))
 
 lazy val indexing = project.in(file("modules/indexing"))
-  .dependsOn(core % "test->test;compile->compile")
+  .dependsOn(core)
   .settings(common)
   .settings(
     name                 := "kg-indexing",
     moduleName           := "kg-indexing",
     libraryDependencies ++= Seq(
-      sourcingCore, sourcingMem % Test,
+      sourcingCore, sourcingMem % Test, commonsTest % Test,
       sparqlClient,
       "com.typesafe.akka"          %% "akka-stream"         % akkaVersion.value,
       "com.typesafe.akka"          %% "akka-http"           % akkaHttpVersion.value,
@@ -68,14 +69,14 @@ lazy val indexing = project.in(file("modules/indexing"))
   .settings(parallelExecution in Test := false)
 
 lazy val service = project.in(file("modules/service"))
-  .dependsOn(core % "test->test;compile->compile", indexing % "test->test;compile->compile", docs)
+  .dependsOn(core, indexing, docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(common, buildInfoSettings, packagingSettings, noCoverage)
   .settings(
     name                 := "kg-service",
     moduleName           := "kg-service",
     libraryDependencies ++= kamonDeps ++ Seq(
-      serviceCommon, sourcingAkka, sourcingMem % Test,
+      serviceCommon, sourcingAkka, sourcingMem % Test, commonsTest % Test,
       "ch.megard"                  %% "akka-http-cors"             % akkaHttpCorsVersion.value,
       "ch.qos.logback"              % "logback-classic"            % logbackVersion.value,
       "com.typesafe.akka"          %% "akka-slf4j"                 % akkaVersion.value,
@@ -113,6 +114,7 @@ lazy val tests = project.in(file("modules/tests"))
     name                  := "kg-tests",
     moduleName            := "kg-tests",
     libraryDependencies  ++= Seq(
+      commonsTest % Test,
       "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion.value % Test
     ))
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for

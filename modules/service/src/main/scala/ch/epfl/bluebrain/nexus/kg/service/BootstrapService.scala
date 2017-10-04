@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.kg.service.directives.PrefixDirectives.uriPrefix
+import ch.epfl.bluebrain.nexus.service.commons.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}

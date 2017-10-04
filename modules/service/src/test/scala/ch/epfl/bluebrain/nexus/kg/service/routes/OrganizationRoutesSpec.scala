@@ -3,12 +3,12 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.common.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}

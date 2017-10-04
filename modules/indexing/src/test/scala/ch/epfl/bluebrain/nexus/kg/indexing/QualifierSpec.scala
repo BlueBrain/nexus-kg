@@ -4,7 +4,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
 import cats.Show
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
+import ch.epfl.bluebrain.nexus.common.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}

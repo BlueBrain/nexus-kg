@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 import java.util.regex.Pattern
 
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.kg.core.Resources
+import ch.epfl.bluebrain.nexus.common.test.Resources
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.NoopExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination

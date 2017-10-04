@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.common.test._
 import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
@@ -21,7 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDe
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, SchemaDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainIndexer, DomainIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter

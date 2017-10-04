@@ -7,7 +7,7 @@ import akka.event.Logging
 import akka.persistence.cassandra.testkit.CassandraLauncher
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
-import ch.epfl.bluebrain.nexus.kg.core.Randomness.freePort
+import ch.epfl.bluebrain.nexus.common.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.{BootstrapService, StartIndexers}
 import ch.epfl.bluebrain.nexus.kg.tests.integration.{DomainIntegrationSpec, InstanceIntegrationSpec, OrgIntegrationSpec, SchemasIntegrationSpec}

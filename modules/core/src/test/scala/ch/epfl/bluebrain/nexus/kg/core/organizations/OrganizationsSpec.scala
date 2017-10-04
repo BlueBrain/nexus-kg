@@ -1,8 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.core.organizations
 
 import cats.instances.try_._
+import ch.epfl.bluebrain.nexus.common.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate

@@ -9,6 +9,7 @@ import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.common.test._
 import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
@@ -18,7 +19,6 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import org.apache.jena.query.ResultSet

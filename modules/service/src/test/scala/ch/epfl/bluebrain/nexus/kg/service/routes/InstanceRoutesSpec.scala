@@ -12,6 +12,7 @@ import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.common.test._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.{IncorrectRevisionProvided, InstanceDoesNotExist, InstanceIsDeprecated, ShapeConstraintViolations}
@@ -21,7 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, Instance
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{SchemaDoesNotExist, SchemaIsDeprecated, SchemaIsNotPublished}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error._

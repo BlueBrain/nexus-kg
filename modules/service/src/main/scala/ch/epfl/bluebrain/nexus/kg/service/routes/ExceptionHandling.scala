@@ -10,8 +10,8 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.AttachmentLimitExceeded
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection
-import ch.epfl.bluebrain.nexus.kg.service.directives.ErrorDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.StatusFrom
+import ch.epfl.bluebrain.nexus.service.commons.directives.ErrorDirectives._
+import ch.epfl.bluebrain.nexus.service.commons.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._

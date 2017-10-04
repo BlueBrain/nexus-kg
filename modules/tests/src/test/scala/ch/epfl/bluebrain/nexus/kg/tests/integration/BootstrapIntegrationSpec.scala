@@ -8,12 +8,12 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.string._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.common.test._
 import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig

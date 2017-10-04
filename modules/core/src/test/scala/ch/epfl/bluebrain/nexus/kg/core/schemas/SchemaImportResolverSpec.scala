@@ -2,10 +2,10 @@ package ch.epfl.bluebrain.nexus.kg.core.schemas
 
 import cats.instances.try_._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.common.test.Randomness
 import ch.epfl.bluebrain.nexus.common.types.Version
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclSchema
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidatorErr.{CouldNotFindImports, IllegalImportDefinition}
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaImportResolverSpec._

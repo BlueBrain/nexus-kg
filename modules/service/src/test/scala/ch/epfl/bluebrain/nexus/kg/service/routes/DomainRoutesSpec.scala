@@ -3,10 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.common.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._

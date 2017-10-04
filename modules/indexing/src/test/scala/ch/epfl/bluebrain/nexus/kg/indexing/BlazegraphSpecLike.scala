@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import org.scalatest.{BeforeAndAfterAll, Suites}
-import ch.epfl.bluebrain.nexus.kg.core.Randomness._
+import ch.epfl.bluebrain.nexus.common.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.DomainIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.OrganizationIndexerSpec

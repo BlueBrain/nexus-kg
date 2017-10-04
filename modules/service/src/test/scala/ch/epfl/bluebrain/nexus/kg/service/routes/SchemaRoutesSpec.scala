@@ -4,12 +4,12 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.common.test._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate

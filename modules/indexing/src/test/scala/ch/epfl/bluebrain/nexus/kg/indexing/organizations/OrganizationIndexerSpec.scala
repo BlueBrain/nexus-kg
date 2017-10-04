@@ -8,13 +8,13 @@ import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
+import ch.epfl.bluebrain.nexus.common.test._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import org.apache.jena.query.ResultSet

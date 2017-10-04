@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.filtering
 import java.util.regex.Pattern
 
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.kg.core.Resources
+import ch.epfl.bluebrain.nexus.common.test.Resources
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}

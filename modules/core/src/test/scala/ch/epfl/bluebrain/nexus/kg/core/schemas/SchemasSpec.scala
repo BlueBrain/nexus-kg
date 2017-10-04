@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.core.schemas
 
 import cats.instances.try_._
+import ch.epfl.bluebrain.nexus.common.test._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
@@ -8,7 +9,6 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection.OrgIsDeprecate
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId}
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.Json

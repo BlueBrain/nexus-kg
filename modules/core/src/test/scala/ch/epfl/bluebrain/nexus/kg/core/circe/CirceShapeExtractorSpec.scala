@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core.circe
 
-import ch.epfl.bluebrain.nexus.kg.core.Resources
+import ch.epfl.bluebrain.nexus.common.test.Resources
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import ch.epfl.bluebrain.nexus.kg.core.circe.CirceShapeExtractorInstances._
 import io.circe.Json
