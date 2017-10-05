@@ -1,8 +1,11 @@
 # Domains
-**`/organizations/{orgId}/domains`** path describes domains inside an specific organization. The following resources are allowed:
+**`/domains/{orgId}`** path describes domains inside an specific organization. The following resources are allowed:
 
+@@@ note
+Old endpoint **`/organizations/{orgId}/domains`** is now deprecated and will be removed in a future release. Please switch to using new endpoints described below. 
+@@@
 ## Get
-###**`GET /organizations/{orgId}/domains/{id}`**
+###**`GET /domains/{orgId}/{id}`**
 **Retrieves** the domain specified in **id** from the organization **orgId**.
 
 ### Request path and query parameters
@@ -25,11 +28,11 @@
 
 ### Example request
 ```bash
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus/domains/core"
+curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus/core"
 ```
 
 ## List
-###**`GET /organizations/{orgId}/domains?deprecated={deprecated}`**
+###**`GET /domains/{orgId}?deprecated={deprecated}`**
 **Retrieves a list** of domains from a given organization.
 
 ### Request path and query parameters
@@ -52,11 +55,11 @@ The response format is the one defined in [Listing and querying response format]
 ### Examples request
 ```bash
 # Filtering by organization nexus
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus/domains"
+curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus"
 ```
 
 ## Create
-###**`PUT /organizations/{orgId}/domains/{id}`**
+###**`PUT /domains/{orgId}/{id}`**
 **Creates** the domain specified in **id** from the organization **orgId** with the provided payload.
 
 ### Request path and query parameters
@@ -83,11 +86,11 @@ curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus/d
 
 ### Example request
 ```bash
-curl -v -X PUT -H "Content-Type: application/json" -d '{"description": "Core Domain"}' "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus/domains/core"
+curl -v -X PUT -H "Content-Type: application/json" -d '{"description": "Core Domain"}' "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus/core"
 ```
 
 ## Deprecate
-###**`DELETE /organizations/{orgId}/domains/{id}?rev={rev}`**
+###**`DELETE /domains/{orgId}/{id}?rev={rev}`**
 **Deprecates** the domain specified in **id** from the organization **orgId**.
 
 ### Request path and query parameters
@@ -114,5 +117,5 @@ curl -v -X PUT -H "Content-Type: application/json" -d '{"description": "Core Dom
 
 ### Example request
 ```bash
-curl -v -X DELETE "https://bbp-nexus.epfl.ch/{environment}/{version}/organizations/nexus/domains/core?rev=1"
+curl -v -X DELETE "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus/core?rev=1"
 ```
