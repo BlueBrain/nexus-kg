@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives.{extractResourceId, of}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
@@ -49,8 +50,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
     }
 
   protected def resourceRoutes: Route =
-    (pathPrefix(Segment) & pathEndOrSingleSlash) { id =>
-      val orgId = OrgId(id)
+    (extractResourceId[OrgId](2, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
       (put & entity(as[Json])) { json =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>

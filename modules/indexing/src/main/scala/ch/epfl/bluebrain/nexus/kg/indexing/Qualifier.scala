@@ -156,16 +156,16 @@ trait QualifierInstances {
     uri.toString().replaceAll(Pattern.quote(s"${base}/${path.map(p => s"$p/").getOrElse("")}"), "")
 
   implicit val domainIdQualifier: Qualifier[DomainId] = new Qualifier[DomainId] {
-    override def apply(value: DomainId, base: Uri): Uri = Uri(s"$base/organizations/${value.orgId.id}/domains/${value.id}")
+    override def apply(value: DomainId, base: Uri): Uri = Uri(s"$base/domains/${value.show}")
 
     override def unapply(uri: Uri, base: Uri): Option[DomainId] = Try {
       val parts = removeBaseUri(uri, base).split('/')
-      DomainId(OrgId(parts(1)), parts(3))
+      DomainId(OrgId(parts(1)), parts(2))
     }.toOption
   }
 
   implicit val orgIdQualifier: Qualifier[OrgId] = new Qualifier[OrgId] {
-    override def apply(value: OrgId, base: Uri): Uri = Uri(s"$base/organizations/${value.id}")
+    override def apply(value: OrgId, base: Uri): Uri = Uri(s"$base/organizations/${value.show}")
 
     override def unapply(uri: Uri, base: Uri): Option[OrgId] =
       Try { OrgId(removeBaseUri(uri, base, Some("organizations"))) }.toOption

@@ -48,20 +48,20 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
     "be mapped into a qualified uri using a configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
-      id.qualify shouldEqual Uri("http://localhost/base/organizations/org/domains/dom")
+      id.qualify shouldEqual Uri("http://localhost/base/domains/org/dom")
     }
 
     "be mapped into a qualified uri in string format using a configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
-      id.qualifyAsString shouldEqual "http://localhost/base/organizations/org/domains/dom"
+      id.qualifyAsString shouldEqual "http://localhost/base/domains/org/dom"
     }
 
     "be mapped into a qualified uri using an explicit base uri" in {
-      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/organizations/org/domains/dom")
+      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/domains/org/dom")
     }
 
     "be mapped into a qualified uri in string format" in {
-      id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/organizations/org/domains/dom"
+      id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/domains/org/dom"
     }
   }
 
@@ -206,16 +206,14 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     }
 
     "unqualify the uri into an DomainId using an explicit base uri" in {
-      implicit val showDomainId: Show[DomainId] = Show.show(domain => s"organizations/${orgId.id}/domains/${domainId.id}")
-      val uriString = s"$base/${domainId.show}"
+      val uriString = s"$base/domains/${domainId.show}"
       uriString.unqualifyWith[DomainId](base) shouldEqual Some(domainId)
       Uri(uriString).unqualifyWith[DomainId](base) shouldEqual Some(domainId)
     }
 
     "unqualify the uri into an DomainId using an configured base uri" in {
-      implicit val showDomainId: Show[DomainId] = Show.show(domain => s"organizations/${orgId.id}/domains/${domainId.id}")
       implicit val qualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
-      s"$base/${domainId.show}".unqualify[DomainId] shouldEqual Some(domainId)
+      s"$base/domains/${domainId.show}".unqualify[DomainId] shouldEqual Some(domainId)
     }
 
     "unqualify the uri into an OrgId using an explicit base uri" in {

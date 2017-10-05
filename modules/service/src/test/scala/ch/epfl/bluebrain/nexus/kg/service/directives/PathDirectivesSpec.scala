@@ -47,7 +47,7 @@ class PathDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Match
     }
     "match with DomainId" in {
       Get("/org/dom") ~> route ~> check {
-        responseAs[String] shouldEqual "/organizations/org/domains/dom"
+        responseAs[String] shouldEqual "/domains/org/dom"
       }
     }
     "match with SchemaName" in {
