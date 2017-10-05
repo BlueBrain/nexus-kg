@@ -45,9 +45,12 @@ final class DomainRoutes(
 
   protected def searchRoutes: Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-      (extractResourceId[OrgId](1, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
-        traceName("searchDomains") {
-          val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+      val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+      traceName("searchDomains") {
+        pathEndOrSingleSlash {
+          domainQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
+        } ~
+        (extractResourceId[OrgId](1, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
           domainQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
         }
       }
