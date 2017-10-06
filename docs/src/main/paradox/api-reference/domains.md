@@ -32,13 +32,14 @@ curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus/core"
 ```
 
 ## List
+###**`GET /domains?deprecated={deprecated}`**
 ###**`GET /domains/{orgId}?deprecated={deprecated}`**
-**Retrieves a list** of domains from a given organization.
+**Retrieves a list** of domains
 
 ### Request path and query parameters
 | Field         | Type                  | Description                                                                                                                   |
 | ------------- |-------------          | ---------------------------------------------                                                                                 |
-| orgId         | String                | The organization identifier to which the listing domain belong.                                                               | 
+| orgId         | Option[String]        | The organization identifier to which the listing domain belong.                                                               | 
 | deprecated    | Option[Boolean]       | A deprecated filter for the domain you want to list. If not set, it will return both deprecated and not deprecated domains.   |
 | *             |                       | [Pagination fields](basics.html#pagination-response).                                                                         |
 

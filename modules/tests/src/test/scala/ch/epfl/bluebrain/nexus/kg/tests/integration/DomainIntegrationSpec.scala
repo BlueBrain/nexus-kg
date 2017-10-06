@@ -44,6 +44,17 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         }
       }
 
+      "list all domains" in {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
+          Get(s"/domains") ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            val expectedResults = UnscoredQueryResults(domains.size.toLong, domains.take(20).map(UnscoredQueryResult(_)))
+            val expectedLinks = List(Link("self", s"$apiUri/domains"), Link("next", s"$apiUri/domains?from=20&size=20"))
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          }
+        }
+      }
+
       "list domains on organization nexus" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/domains/nexus") ~> route ~> check {
