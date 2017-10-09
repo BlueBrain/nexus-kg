@@ -1,0 +1,1 @@
+curl "https://nexus.example.com/v0/organizations?from=0&size=20&deprecated=true"

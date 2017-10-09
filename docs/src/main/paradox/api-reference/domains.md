@@ -1,122 +1,125 @@
 # Domains
-**`/domains/{orgId}`** path describes domains inside an specific organization. The following resources are allowed:
 
-@@@ note
-Old endpoint **`/organizations/{orgId}/domains`** is now deprecated and will be removed in a future release. Please switch to using new endpoints described below. 
-@@@
-## Get
-###**`GET /domains/{orgId}/{id}`**
-**Retrieves** the domain specified in **id** from the organization **orgId**.
+Domain resources are rooted in the `/v0/domains` collection.  As described in the
+@ref:[API Reference](index.md), these represent the second level resources.  All configuration and policies apply to their
+sub-resources.
 
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                   |
-| ------------- |-------------  | ---------------------------------------------                                                                                 |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| id            | String        | The unique identifier for the domain for this particular organization. It has to match the following regex: ([a-zA-Z0-9]+) |
+### Create a domain
 
-### Response JSON-LD Object
-| Field         | Type          | Description                                                               |
-| ------------- |-------------  | ---------------------------------------------                             |
-| @id           | String        | The unique identifier for the domain for this particular organization. |
-| rev           | Long          | The current revision of the domain.                                       |
-| deprecated    | Boolean       | whether the domain is deprecated or not.                                  |
-| description   | String        | A description for the domain.                                             |
+Domain `domId` along with organization `orgId` create local ids for these resources, which means the consumer has the necessary information to perform
+a direct `PUT` request with the resource address.  Omitting the last revision implies a resource creation attempt.
 
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **404 Not Found** - The requested domain does not exist.
-
-### Example request
-```bash
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus/core"
+```
+ PUT /v0/domains/{orgId}/{domId} 
+{...}
 ```
 
-## List
-###**`GET /domains?deprecated={deprecated}`**
-###**`GET /domains/{orgId}?deprecated={deprecated}`**
-**Retrieves a list** of domains
+The `{domId}` is constrained to `[a-zA-Z0-9]+` and it defines the name of the domain.
 
-### Request path and query parameters
-| Field         | Type                  | Description                                                                                                                   |
-| ------------- |-------------          | ---------------------------------------------                                                                                 |
-| orgId         | Option[String]        | The organization identifier to which the listing domain belong.                                                               | 
-| deprecated    | Option[Boolean]       | A deprecated filter for the domain you want to list. If not set, it will return both deprecated and not deprecated domains.   |
-| *             |                       | [Pagination fields](basics.html#pagination-response).                                                                         |
+The `{orgId}` is the name for the organization.
 
-### Status Codes
-* **200 OK** - Request completed successfully.
+The json payload contains the key `description` with it's value.
 
-### Response JSON-LD Object
+#### Example
+Request
+:   @@snip [domain.sh](../assets/api-reference/domains/domain.sh)
 
-The response format is the one defined in [Listing and querying response format](basics.html#listing-and-querying-response-format)
+Payload
+:   @@snip [domain.json](../assets/api-reference/domains/domain.json)
 
-### Status Codes
-* **200 OK** - Request completed successfully.
+Response
+:   @@snip [domain-ref-new.json](../assets/api-reference/domains/domain-ref-new.json)
 
-### Examples request
-```bash
-# Filtering by organization nexus
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus"
+### Update a domain
+
+```
+PUT /v0/domains/{orgId}/{domId}?rev={previous_rev}
+{...}
+```
+... where `{previous_rev}` is the last known revision number for the domain.
+
+The json value contains the key `description` with it's value.
+
+#### Example
+
+Request
+:   @@snip [domain-update.sh](../assets/api-reference/domains/domain-update.sh)
+
+Payload
+:   @@snip [domain.json](../assets/api-reference/domains/domain-update.json)
+
+Response
+:   @@snip [domain-ref-new.json](../assets/api-reference/domains/domain-ref.json)
+
+### Fetch a domain
+
+```
+GET /v0/domains/{orgId}/{domId}
+```
+#### Example
+
+Request
+:   @@snip [domain-get.sh](../assets/api-reference/domains/domain-get.sh)
+
+Response
+:   @@snip [existing-domain.json](../assets/api-reference/domains/existing-domain.json)
+
+### Fetch a domain revision
+
+```
+GET /v0/domains/{orgId}/{domId}?rev={rev}
+```
+#### Example
+
+Request
+:   @@snip [domain-get-rev.sh](../assets/api-reference/domains/domain-get-rev.sh)
+
+Response
+:   @@snip [existing-domain.json](../assets/api-reference/domains/existing-domain.json)
+
+
+### Deprecate a domain
+
+```
+DELETE /v0/domains/{orgId}/{domId}?rev={rev}
 ```
 
-## Create
-###**`PUT /domains/{orgId}/{id}`**
-**Creates** the domain specified in **id** from the organization **orgId** with the provided payload.
+#### Example
 
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                |
-| ------------- |-------------  | ---------------------------------------------                                                                              |
-| orgId         | String        | The unique identifier for the organization                                                                                 | 
-| id            | String        | The unique identifier for the domain for this particular organization. It has to match the following regex: ([a-zA-Z0-9]+) |
+Request
+:   @@snip [domain-delete.sh](../assets/api-reference/domains/domain-delete.sh)
 
-### Request JSON-LD Object
-| Field         | Type          | Description                                   |
-| ------------- |-------------  | --------------------------------------------- |
-| description   | String        | A description for the domain.                 |
+Response
+:   @@snip [domain-ref-delete.json](../assets/api-reference/domains/domain-ref-delete.json)
 
-### Response JSON-LD Object
-| Field         | Type          | Description                                   |
-| ------------- |-------------  | --------------------------------------------- |
-| @id           | String        | The unique identifier for the domain.         |
-| rev           | Long          | The current revision of the domain.           |
+### Search domains
 
-### Status Codes
-* **201 Created** - Request completed successfully.
-* **400 Bad Request** - The provided id path parameter does not match the regex ([a-zA-Z0-9]+)
-* **409 Conflict** - The requested domain already exists.
+Follows the general definition of searching in a collection of resources.
 
-### Example request
-```bash
-curl -v -X PUT -H "Content-Type: application/json" -d '{"description": "Core Domain"}' "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus/core"
 ```
-
-## Deprecate
-###**`DELETE /domains/{orgId}/{id}?rev={rev}`**
-**Deprecates** the domain specified in **id** from the organization **orgId**.
-
-### Request path and query parameters
-| Field         | Type          | Description                                                                                           |
-| ------------- |-------------  | ---------------------------------------------                                                         |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| id            | String        | The unique identifier for the domain for this particular organization. It has to match the following regex: ([a-zA-Z0-9]+) |
-| rev           | Long          | The current revision of the domain.           |
-
-### Response JSON-LD Object
-| Field         | Type          | Description                                   |
-| ------------- |-------------  | --------------------------------------------- |
-| @id           | String        | The unique identifier for the domain.         |
-| rev           | Long          | The current revision of the domain.           |
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **404 Not Found**
-    * The requested organization does not exist.
-    * The requested domain does not exist.
-    * The request query parameter rev is missing.
-* **400 Bad Request** - The domain is deprecated.
-* **409 Conflict** - The provided rev query parameter does not match the current revision.
-
-### Example request
-```bash
-curl -v -X DELETE "https://bbp-nexus.epfl.ch/{environment}/{version}/domains/nexus/core?rev=1"
+GET /v0/domains/{orgId}/
+      ?q={full_text_search_query}
+      &filter={filter}
+      &from={from}
+      &size={size}
+      &deprecated={deprecated}
 ```
+... where 
+
+* `{orgId}` filters the resulting domains to belong to a specific organization.
+* `{full_text_search_query}` is an arbitrary string that is looked up in the attribute values of the selected domains.
+* `{filter}` is a filtering expression as described in the @ref:[Search and filtering](operating-on-resources.md#search-and-filtering) section.  
+* `{from}` and `{size}` are the listing pagination parameters.  
+* `{deprecated}` selects only domains that have the specified deprecation status.
+
+All query parameters described (`q`, `filter`, `from`, `size` and `deprecated`) are optional.
+
+The path parameter `/{orgId}/` is optional.
+
+#### Example
+
+Request
+:   @@snip [domains-list.sh](../assets/api-reference/domains/domain-list.sh)
+
+Response
+:   @@snip [domains-list.json](../assets/api-reference/domains/domain-list.json)

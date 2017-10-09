@@ -13,13 +13,13 @@
   "total": 1,
   "results": [
     {
-      "resultId": "https://nexus.example.com/v0/organizations/myorg",
+      "resultId": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
       "source": {
-        "@id": "https://nexus.example.com/v0/organizations/myorg",
+        "@id": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
         "links": [
           {
             "rel": "self",
-            "href": "https://nexus.example.com/v0/organizations/myorg"
+            "href": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0"
           }
         ]
       }
@@ -28,7 +28,7 @@
   "links": [
     {
       "rel": "self",
-      "href": "https://nexus.example.com/v0/organizations?from=0&size=20&deprecated=true"
+      "href": "https://nexus.example.com/v0/schemas?from=0&size=100&published=true"
     }
   ]
 }

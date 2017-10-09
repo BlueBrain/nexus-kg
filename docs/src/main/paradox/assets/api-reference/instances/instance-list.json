@@ -1,0 +1,38 @@
+{
+  "@context": {
+    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
+    "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
+    "total": "nxs:total",
+    "results": "nxs:results",
+    "resultId": "nxs:results",
+    "source": "nxs:results",
+    "links": "nxv:links",
+    "rel": "nxv:rel",
+    "href": "nxv:href"
+  },
+  "total": 1,
+  "results": [
+    {
+      "resultId": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0/42ae55e3-7746-45ed-a9fd-a7ccdd1d736f",
+      "source": {
+        "@id": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0/42ae55e3-7746-45ed-a9fd-a7ccdd1d736f",
+        "links": [
+          {
+            "ref": "self",
+            "href": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0/42ae55e3-7746-45ed-a9fd-a7ccdd1d736f"
+          },
+          {
+            "rel": "schema",
+            "href": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0"
+          }
+        ]
+      }
+    }
+  ],
+  "links": [
+    {
+      "rel": "self",
+      "href": "https://nexus.example.com/v0/data?from=0&size=100"
+    }
+  ]
+}
