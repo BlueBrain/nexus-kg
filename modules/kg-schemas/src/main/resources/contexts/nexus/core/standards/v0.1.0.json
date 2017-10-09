@@ -1,0 +1,17 @@
+{
+  "skos": "http://www.w3.org/2004/02/skos/core#",
+  "label": {
+    "@id": "rdfs:label",
+    "@type": "xsd:string"
+  },
+  "comment": {
+    "@id": "rdfs:comment",
+    "@type": "xsd:string"
+  },
+  "editorialNote": {
+    "@id": "skos:editorialNote",
+    "@type": "xsd:string"
+  },
+  "schema": "http://schema.org/",
+  "prov": "http://www.w3.org/ns/prov#"
+}
