@@ -1,0 +1,47 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/core/standards/v0.1.0",
+    {
+      "@vocab": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/v0.0.1/",
+      "value": "schema:value",
+      "unitCode": "schema:unitCode"
+    }
+  ],
+  "@type": "Instance",
+  "@id": "{{base}}/data/orgId/domainId/domainId/v0.0.1/d76df1e4-d57f-4614-b18c-a378087e524f",
+  "description": "A nexus instance.",
+  "rev": 1,
+  "deprecated": false,
+  "distribution": [
+    {
+      "@type": "DataDownload",
+      "downloadURL": "{{base}}/data/orgId/domainId/domainId/v0.1.0/d76df1e4-d57f-4614-b18c-a378087e524f/attachment?rev=1",
+      "mediaType": "application/json",
+      "storage": {
+        "@type": "WebStorage",
+        "@id": "https://bbp-nexus.epfl.ch/vocabs/storage/nexus/v0.0.1"
+      },
+      "contentSize": {
+        "value": 50,
+        "unitCode": "mb"
+      },
+      "digest": [
+        {
+          "alg": "MD5",
+          "value": "c02aa11a4c6"
+        },
+        {
+          "alg": "SHA-256",
+          "value": "639e...60cba"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "rel": "self",
+      "href": "{{base}}/data/orgId/domainId/domainId/v0.0.1/d76df1e4-d57f-4614-b18c-a378087e524f",
+      "description": "a description"
+    }
+  ]
+}

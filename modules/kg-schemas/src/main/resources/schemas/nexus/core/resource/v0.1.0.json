@@ -1,0 +1,111 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/shacl/rec-shacl-20170720/v0.1.0",
+    "{{base}}/contexts/nexus/core/standards/v0.1.0",
+    {
+      "nxcv": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/v0.0.1/",
+      "this": "{{base}}/schemas/nexus/core/resource/v0.0.1/shapes/"
+    }
+  ],
+  "shapes": [
+    {
+      "@id": "this:ResourceShape",
+      "@type": "sh:NodeShape",
+      "and": [
+        {
+          "@id": "this:RevisionShape",
+          "@type": "sh:NodeShape",
+          "targetObjectsOf": "nxcv:rev",
+          "description": "The revision number of the instance",
+          "datatype": "xsd:integer",
+          "minInclusive": 1
+        },
+        {
+          "@id": "this:DeprecatedShape",
+          "@type": "sh:NodeShape",
+          "targetObjectsOf": "nxcv:deprecated",
+          "description": "A boolean tag indicating whether the resource is deprecated or not.",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "@id": "this:PublishShape",
+          "@type": "sh:NodeShape",
+          "targetObjectsOf": "nxcv:published",
+          "description": "A boolean tag indicating whether the resource has been published or not.",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "@id": "this:LinkShape",
+          "@type": "sh:NodeShape",
+          "targetObjectsOf": "nxcv:links",
+          "nodeKind": "sh:BlankNode",
+          "property": [
+            {
+              "path": "nxcv:rel",
+              "name": "Relation",
+              "description": "The relation name.",
+              "datatype": "xsd:string",
+              "minCount": 1,
+              "maxCount": 1
+            },
+            {
+              "path": "nxcv:href",
+              "name": "Link",
+              "description": "The link to follow to resolve the related resource (s).",
+              "datatype": "xsd:anyURI",
+              "minCount": 1,
+              "maxCount": 1
+            },
+            {
+              "path": "nxcv:description",
+              "name": "Description",
+              "description": "A human readable description of the related resource(s).",
+              "datatype": "xsd:string",
+              "maxCount": 1
+            }
+          ]
+        },
+        {
+          "@type": "sh:NodeShape",
+          "targetSubjectsOf": "nxcv:links",
+          "property": [
+            {
+              "path": "nxcv:links",
+              "maxCount": 1
+            }
+          ]
+        },
+        {
+          "@type": "sh:NodeShape",
+          "targetSubjectsOf": [
+            "nxcv:rev",
+            "nxcv:deprecated",
+            "nxcv:published"
+          ],
+          "property": [
+            {
+              "path": "nxcv:rev",
+              "minCount": 1,
+              "maxCount": 1
+            },
+            {
+              "path": "nxcv:deprecated",
+              "minCount": 1,
+              "maxCount": 1
+            },
+            {
+              "path": "nxcv:published",
+              "minCount": 1,
+              "maxCount": 1
+            },
+            {
+              "path": "nxcv:links",
+              "minCount": 1,
+              "maxCount": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

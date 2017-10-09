@@ -1,0 +1,47 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/shacl/rec-shacl-20170720/v0.1.0",
+    "{{base}}/contexts/nexus/core/standards/v0.1.0",
+    {
+      "nxcv": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/v0.0.1/",
+      "ressh": "{{base}}/schemas/nexus/core/resource/v0.1.0/shapes/",
+      "filesh": "{{base}}/schemas/nexus/core/file/v0.1.0/shapes/",
+      "this": "{{base}}}}/schemas/nexus/core/instance/v0.1.0/shapes/"
+    }
+  ],
+  "@type": "owl:Ontology",
+  "imports": [
+    "{{base}}/schemas/nexus/core/resource/v0.1.0",
+    "{{base}}/schemas/nexus/core/file/v0.1.0"
+  ],
+  "shapes": [
+    {
+      "@id": "this:InstanceShape",
+      "@type": "sh:NodeShape",
+      "label": "Nexus instance shape",
+      "comment": "A nexus instance is a REST resource (with rev, deprecated and links properties) and have distributions information to download the data it describes."
+      "and": [
+        {
+          "node": "ressh:ResourceShape"
+        },
+        {
+          "@id": "this:DistributionShape",
+          "@type": "sh:NodeShape",
+          "targetObjectsOf": "nxcv:distribution",
+          "node": "filesh:DataDownloadShape"
+        },
+        {
+          "not": [
+            {
+              "property": [
+                {
+                  "path": "nxcv:published"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

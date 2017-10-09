@@ -1,0 +1,146 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/shacl/rec-shacl-20170720/v0.1.0",
+    "{{base}}/contexts/nexus/core/standards/v0.1.0",
+    {
+      "nxcv": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/v0.0.1/",
+      "sqvsh": "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0/shapes/",
+      "this": "{{base}}/schemas/nexus/core/datadownload/v0.1.0/shapes/"
+    }
+  ],
+  "@type": "owl:Ontology",
+  "imports": [
+    "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0"
+  ],
+  "shapes": [
+    {
+      "@id": "this:DataDownloadShape",
+      "@type": "sh:NodeShape",
+      "label": "",
+      "targetClass": "nxcv:DataDownload",
+      "property": [
+        {
+          "path": "nxcv:contentSize",
+          "node": "this:ContentSizeQuantitativeValueShape",
+          "maxCount": 1
+        },
+        {
+          "path": "nxcv:digest",
+          "node": "this:DigestShape",
+          "maxCount": 1
+        },
+        {
+          "or": [
+            {
+              "path": "nxcv:downloadURL",
+              "datatype": "xsd:anyURI",
+              "maxCount": 1
+            },
+            {
+              "path": "nxcv:accessURL",
+              "datatype": "xsd:anyURI",
+              "maxCount": 1
+            }
+          ]
+        },
+        {
+          "path": "nxcv:mediaType",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxcv:storage",
+          "name": "Storage",
+          "description": "Storage",
+          "node": "this:StorageShape",
+          "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:MediaTypeShape",
+      "@type": "sh:NodeShape",
+      "targetObjectsOf": "nxcv:mediaType",
+      "datatype": "xsd:string"
+    },
+    {
+      "@id": "this:DownloadURLShape",
+      "@type": "sh:NodeShape",
+      "targetObjectsOf": "nxcv:downloadURL",
+      "datatype": "xsd:anyURI"
+    },
+    {
+      "@id": "this:AccessURLShape",
+      "@type": "sh:NodeShape",
+      "targetObjectsOf": "nxcv:accessURL",
+      "datatype": "xsd:anyURI"
+    },
+    {
+      "@id": "this:ContentSizeQuantitativeValueShape",
+      "@type": "sh:NodeShape",
+      "targetObjectsOf": "nxcv:contentSize",
+      "and": [
+        {
+          "node": "sqvsh:QuantitativeValueShape"
+        },
+        {
+          "property": [
+            {
+              "path": "schema:value",
+              "minInclusive": 0
+            },
+            {
+              "xone": [
+                {
+                  "path": "schema:unitText",
+                  "minCount": 1,
+                  "maxCount": 1
+                },
+                {
+                  "path": "schema:unitCode",
+                  "minCount": 1,
+                  "maxCount": 1
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "@id": "this:DigestShape",
+      "@type": "sh:NodeShape",
+      "targetObjectsOf": "nxcv:digest",
+      "property": [
+        {
+          "path": "schema:value",
+          "name": "Digest",
+          "description": "The digest value.",
+          "datatype": "xsd:string",
+          "maxCount": 1,
+          "minCount": 1
+        },
+        {
+          "path": "nexusvoc:alg",
+          "name": "Algorithm",
+          "description": "The digest algorithm.",
+          "datatype": "xsd:string",
+          "in": [
+            "SHA-256",
+            "MD5"
+          ],
+          "maxCount": 1,
+          "minCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:StorageShape",
+      "@type": "sh:NodeShape",
+      "targetObjectsOf": "nxcv:storage",
+      "class": "nxcv:Storage",
+      "nodeKind": "sh:IRI"
+    }
+  ]
+}

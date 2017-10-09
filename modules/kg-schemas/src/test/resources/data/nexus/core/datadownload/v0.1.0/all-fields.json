@@ -1,0 +1,31 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/core/standards/v0.1.0",
+    {
+      "@vocab": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/v0.0.1/",
+      "value": "schema:value",
+      "unitCode": "schema:unitCode"
+    }
+  ],
+  "@type": "DataDownload",
+  "downloadURL": "{{base}}/data/orgId/domainId/schema/v0.1.0/aab2fb8f-2c77-4dfa-84aa-383768832f3e/attachment?rev=1",
+  "mediaType": "application/json",
+  "storage": {
+    "@type": "WebStorage",
+    "@id": "https://bbp-nexus.epfl.ch/vocabs/storage/nexus/v0.0.1"
+  },
+  "contentSize": {
+    "value": 50,
+    "unitCode": "mb"
+  },
+  "digest": [
+    {
+      "alg": "MD5",
+      "value": "c02aa11a4c6"
+    },
+    {
+      "alg": "SHA-256",
+      "value": "639e...60cba"
+    }
+  ]
+}
