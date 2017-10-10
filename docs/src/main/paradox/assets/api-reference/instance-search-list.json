@@ -4,10 +4,10 @@
     "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
     "total": "nxs:total",
     "results": "nxs:results",
-    "resultId": "nxs:results",
+    "resultId": "nxs:resultId",
+    "source": "nxs:source",
     "maxScore": "nxs:maxScore",
     "score": "nxs:score",
-    "source": "nxs:results",
     "links": "nxv:links",
     "rel": "nxv:rel",
     "href": "nxv:href"

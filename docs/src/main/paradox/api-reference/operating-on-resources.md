@@ -300,7 +300,7 @@ Each of those objects can be translated as *'the current resource has a relation
 
 ### Examples
 Instance resource example
-:   @@snip [instance-resource.json](../assets/api-reference/instance-links.json)
+:   @@snip [instance-links.json](../assets/api-reference/instance-links.json)
 
 Search links example
 :   @@snip [pagination-links.json](../assets/api-reference/pagination-links.json)

@@ -12,13 +12,13 @@ An instance is created to be valid against an specific schema (`name` and `versi
 {...}
 ```
 
-The `{name}/{version}` defines the schema.
+The `{name}/{version}` defines the schema that the instance belongs to.
 
-The `{domId}` defines the name of the domain.
+The `{domId}` defines the id of the domain that the instance belongs to.
 
-The `{orgId}` is the name for the organization.
+The `{orgId}` defines the id for the organization that the instance belongs to.
 
-The json value must be compliant with the [SHACL definition](https://www.w3.org/TR/shacl/) and should valid against the schema defined in `/v0/schemas/{orgId}/{domId}/{name}/{version}`.
+The json payload must be valid with the schema defined at `/v0/schemas/{orgId}/{domId}/{name}/{version}`.
 
 #### Example
 Request
@@ -39,22 +39,22 @@ PUT /v0/data/{orgId}/{domId}/{name}/{version}/{id}?rev={previous_rev}
 ```
 ... where `{previous_rev}` is the last known revision number for the instance and `{id}` is the UUID of the instance.
 
-The json value must be compliant with the [SHACL definition](https://www.w3.org/TR/shacl/) and should valid against the schema defined in `/v0/schemas/{orgId}/{domId}/{name}/{version}`.
+The json payload must be valid with the schema defined at `/v0/schemas/{orgId}/{domId}/{name}/{version}`.
 
 #### Example
 
 Request
-:   @@snip [schema-update.sh](../assets/api-reference/instances/instance-update.sh)
+:   @@snip [instance-update.sh](../assets/api-reference/instances/instance-update.sh)
 
 Payload
-:   @@snip [schema.json](../assets/api-reference/instances/instance.json)
+:   @@snip [instance.json](../assets/api-reference/instances/instance.json)
 
 Response
-:   @@snip [schema-ref-new.json](../assets/api-reference/instances/instance-ref.json)
+:   @@snip [instance-ref.json](../assets/api-reference/instances/instance-ref.json)
 
-### Create an instance's attachment
+### Attach a binary to an instance
 
-Every instance has a subresource `attachment` which is a representation of the instance binary data or attachment.
+Every instance may have a sub-resource (`/attachment`) which is a binary representation of the instance.
 
 ```
  PUT /v0/data/{orgId}/{domId}/{name}/{version}/{id}/attachment?rev={rev}
@@ -62,13 +62,9 @@ Every instance has a subresource `attachment` which is a representation of the i
 ```
 #### Multipart request
 
-*Content-Type*: application/json
+The values provided for `filename` and `Content-Type` will be recorded by the system and presented as part of the instance json value.
 
-It should contain one of the multipart types as:
-```
-Content-Disposition: form-data; name="file"; filename="{FILENAME}"
-Content-Type: {VALID_MIME_TYPE}
-```
+The binary must be sent as part of the form field `file`.
 
 #### Example
 
@@ -76,7 +72,7 @@ Request
 :   @@snip [instance-attachment-add.sh](../assets/api-reference/instances/instance-attachment-add.sh)
 
 Response
-:   @@snip [instance-attachment-add-ref.json](../assets/api-reference/instances/instance-attachment-ref.json)
+:   @@snip [instance-attachment-ref.json](../assets/api-reference/instances/instance-attachment-ref.json)
 
 ### Fetch an instance
 
@@ -106,7 +102,7 @@ Response
 
 ### Fetch an instance's attachment
 
-Retrieves the attachment content of an instance.
+Retrieves the binary attachment of an instance at a specific revision.
 
 ```
 GET /v0/data/{orgId}/{domId}/{name}/{version}/{id}/attachment
@@ -126,9 +122,11 @@ GET /v0/data/{orgId}/{domId}/{name}/{version}/{id}/attachment?rev={rev}
 #### Example
 
 Request
-:   @@snip [instance-get.sh](../assets/api-reference/instances/instance-get-attachment-rev.sh)
+:   @@snip [instance-get-attachment-rev.sh](../assets/api-reference/instances/instance-get-attachment-rev.sh)
 
 ### Deprecate an instance
+
+Deprecating an instance prevents further updates or changes to its attachment.
 
 ```
 DELETE /v0/data/{orgId}/{domId}/{name}/{version}/{id}?rev={rev}
@@ -152,10 +150,10 @@ This does not delete the binary attached to an instance, although it prevents fr
 #### Example
 
 Request
-:   @@snip [instance-delete.sh](../assets/api-reference/instances/instance-delete-attachment.sh)
+:   @@snip [instance-delete-attachment.sh](../assets/api-reference/instances/instance-delete-attachment.sh)
 
 Response
-:   @@snip [instance-ref-delete.json](../assets/api-reference/instances/instance-ref-delete-attachment.json)
+:   @@snip [instance-ref-delete-attachment.json](../assets/api-reference/instances/instance-ref-delete-attachment.json)
 
 ### Search instances
 
@@ -172,10 +170,10 @@ GET /v0/data/{orgId}/{domId}/{name}/{version}
 ```
 ... where 
 
-* `{orgId}` filters the resulting instances to belong to a specific organization.
-* `{domId}` filters the resulting instances to belong to a specific domain.
-* `{name}` filters the resulting instances to have a specific name.
-* `{version}` filters the resulting instances to have a specific version.
+* `{orgId}` the organization the instance belongs to.
+* `{domId}` the domain the instance belongs to.
+* `{name}` the schema name that the instance conforms to.
+* `{version}` the schema version that the instance conforms to.
 * `{full_text_search_query}` is an arbitrary string that is looked up in the attribute values of the selected instances.
 * `{filter}` is a filtering expression as described in the @ref:[Search and filtering](operating-on-resources.md#search-and-filtering) section.  
 * `{from}` and `{size}` are the listing pagination parameters.  
@@ -183,7 +181,8 @@ GET /v0/data/{orgId}/{domId}/{name}/{version}
 
 All query parameters described (`q`, `filter`, `from`, `size`, `deprecated` and `published`) are optional.
 
-The path parameters `/{orgId}/`, `/{domId}/` and `/{name}/` `/{version}/` are optional.
+The path segments (`{orgId}/{domId}/{name}/{version}`) are optional; when used, they constrain the resulting listing to contain only instances that share the same organization, domain ids and schema name and version. 
+Any of the segments can be omitted but since they are positional it's required that depended segments (to the left) are specified. For example, one can list all the instances within a domain using a simple GET request on `/v0/data/{orgId}/{domId}`.
 
 #### Example
 

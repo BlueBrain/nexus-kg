@@ -14,9 +14,9 @@ a direct `PUT` request with the resource address.  Omitting the last revision im
 {...}
 ```
 
-The `{domId}` is constrained to `[a-zA-Z0-9]+` and it defines the name of the domain.
+The `{domId}` is constrained to `[a-zA-Z0-9]+` and it defines the id of the domain.
 
-The `{orgId}` is the name for the organization.
+The `{orgId}` defines the id of the organization that the schema belongs to.
 
 The json payload contains the key `description` with it's value.
 
@@ -46,10 +46,10 @@ Request
 :   @@snip [domain-update.sh](../assets/api-reference/domains/domain-update.sh)
 
 Payload
-:   @@snip [domain.json](../assets/api-reference/domains/domain-update.json)
+:   @@snip [domain-update.json](../assets/api-reference/domains/domain-update.json)
 
 Response
-:   @@snip [domain-ref-new.json](../assets/api-reference/domains/domain-ref.json)
+:   @@snip [domain-ref.json](../assets/api-reference/domains/domain-ref.json)
 
 ### Fetch a domain
 
@@ -80,6 +80,8 @@ Response
 
 ### Deprecate a domain
 
+Deprecating a domain disables schema or instance creation in that domain.
+
 ```
 DELETE /v0/domains/{orgId}/{domId}?rev={rev}
 ```
@@ -106,7 +108,7 @@ GET /v0/domains/{orgId}/
 ```
 ... where 
 
-* `{orgId}` filters the resulting domains to belong to a specific organization.
+* `{orgId}` the organization the domain belongs to.
 * `{full_text_search_query}` is an arbitrary string that is looked up in the attribute values of the selected domains.
 * `{filter}` is a filtering expression as described in the @ref:[Search and filtering](operating-on-resources.md#search-and-filtering) section.  
 * `{from}` and `{size}` are the listing pagination parameters.  
@@ -114,7 +116,7 @@ GET /v0/domains/{orgId}/
 
 All query parameters described (`q`, `filter`, `from`, `size` and `deprecated`) are optional.
 
-The path parameter `/{orgId}/` is optional.
+The path segment (`{orgId}`) is optional; when used, they constrain the resulting listing to contain only domains that share the same organization
 
 #### Example
 

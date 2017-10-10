@@ -18,9 +18,9 @@ The version is constrained by the [semantic format](http://semver.org/) and it a
 
 The `{name}` defines the name of the schema.
 
-The `{domId}` defines the name of the domain.
+The `{domId}` defines the id of the domain that the schema belongs to.
 
-The `{orgId}` is the name for the organization.
+The `{orgId}` defines the id of the organization that the schema belongs to.
 
 The json payload must be compliant with the [SHACL definition](https://www.w3.org/TR/shacl/).
 
@@ -34,7 +34,7 @@ Payload
 Response
 :   @@snip [schema-ref-new.json](../assets/api-reference/schemas/schema-ref-new.json)
 
-### Update a domain
+### Update a schema
 
 ```
 PUT /v0/schemas/{orgId}/{domId}/{name}/{version}?rev={previous_rev}
@@ -76,10 +76,10 @@ GET /v0/schemas/{orgId}/{domId}/{name}/{version}?rev={rev}
 #### Example
 
 Request
-:   @@snip [domain-get-rev.sh](../assets/api-reference/schemas/schema-get-rev.sh)
+:   @@snip [schema-get-rev.sh](../assets/api-reference/schemas/schema-get-rev.sh)
 
 Response
-:   @@snip [existing-domain.json](../assets/api-reference/schemas/existing-schema.json)
+:   @@snip [existing-schema.json](../assets/api-reference/schemas/existing-schema.json)
 
 
 ### Publish a schema
@@ -99,10 +99,12 @@ Payload
 :   @@snip [schema-patch.json](../assets/api-reference/schemas/schema-patch.json)
 
 Response
-:   @@snip [schema-ref-new.json](../assets/api-reference/schemas/schema-ref-patch.json)
+:   @@snip [schema-ref-patch.json](../assets/api-reference/schemas/schema-ref-patch.json)
 
 
 ### Deprecate a schema
+
+Deprecating a schema prevents the creation of new instances that conform to it.
 
 ```
 DELETE /v0/schemas/{orgId}/{domId}/{name}/{version}?rev={rev}
@@ -114,7 +116,7 @@ Request
 :   @@snip [schema-delete.sh](../assets/api-reference/schemas/schema-delete.sh)
 
 Response
-:   @@snip [schema-ref-new.json](../assets/api-reference/schemas/schema-ref-delete.json)
+:   @@snip [schema-ref-delete.json](../assets/api-reference/schemas/schema-ref-delete.json)
 
 ### Search schemas
 
@@ -131,9 +133,9 @@ GET /v0/schemas/{orgId}/{domId}/{name}
 ```
 ... where 
 
-* `{orgId}` filters the resulting schemas to belong to a specific organization.
-* `{domId}` filters the resulting schemas to belong to a specific domain.
-* `{name}` filters the resulting schemas to have a specific name.
+* `{orgId}` the organization the schema belongs to.
+* `{domId}` the domain the schema belongs to.
+* `{name}` the schema name.
 * `{full_text_search_query}` is an arbitrary string that is looked up in the attribute values of the selected schemas.
 * `{filter}` is a filtering expression as described in the @ref:[Search and filtering](operating-on-resources.md#search-and-filtering) section.  
 * `{from}` and `{size}` are the listing pagination parameters.  
@@ -142,12 +144,15 @@ GET /v0/schemas/{orgId}/{domId}/{name}
 
 All query parameters described (`q`, `filter`, `from`, `size`, `deprecated` and `published`) are optional.
 
+The path segments (`{orgId}/{domId}/{name}`) are optional; when used, they constrain the resulting listing to contain only schemas that share the same organization, domain ids and name. 
+Any of the segments can be omitted but since they are positional it's required that depended segments (to the left) are specified. For example, one can list all the schemas within a domain using a simple GET request on `/v0/schemas/{orgId}/{domId}`.
+
 The path parameters `/{orgId}/`, `/{domId}/` and `/{name}/` are optional.
 
 #### Example
 
 Request
-:   @@snip [schemas-list.sh](../assets/api-reference/schemas/schema-list.sh)
+:   @@snip [schema-list.sh](../assets/api-reference/schemas/schema-list.sh)
 
 Response
-:   @@snip [schemas-list.json](../assets/api-reference/schemas/schema-list.json)
+:   @@snip [schema-list.json](../assets/api-reference/schemas/schema-list.json)

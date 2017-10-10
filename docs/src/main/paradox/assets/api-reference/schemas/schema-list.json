@@ -4,8 +4,8 @@
     "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
     "total": "nxs:total",
     "results": "nxs:results",
-    "resultId": "nxs:results",
-    "source": "nxs:results",
+    "resultId": "nxs:resultId",
+    "source": "nxs:source",
     "links": "nxv:links",
     "rel": "nxv:rel",
     "href": "nxv:href"
