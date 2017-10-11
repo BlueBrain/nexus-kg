@@ -9,12 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecate
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{
-  Schema,
-  SchemaId,
-  SchemaRef,
-  Schemas
-}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -52,14 +47,12 @@ class SchemaRoutesSpec
 
   "A SchemaRoutes" should {
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab = baseUri.copy(path = baseUri.path / "core")
+    val vocab     = baseUri.copy(path = baseUri.path / "core")
 
-    val schemaJson = jsonContentOf("/int-value-schema.json")
+    val schemaJson     = jsonContentOf("/int-value-schema.json")
     val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial,
-                                         Organizations.next,
-                                         Organizations.eval).toF[Future]
-    val orgs = Organizations(orgAgg)
+    val orgAgg         = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs           = Organizations(orgAgg)
     val domAgg =
       MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
         .toF[Future]
@@ -70,17 +63,14 @@ class SchemaRoutesSpec
     val schemas = Schemas(schAgg, doms, baseUri.toString)
 
     val orgRef =
-      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj()),
-                   2 seconds)
+      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj()), 2 seconds)
     val domRef =
-      Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)),
-                               genString(length = 8)),
-                   2 seconds)
+      Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8)), 2 seconds)
     implicit val cl = HttpClient.akkaHttpClient
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
-    val querySettings = QuerySettings(Pagination(0L, 20), "some-index", vocab)
+    val querySettings              = QuerySettings(Pagination(0L, 20), "some-index", vocab)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
 
     val route =
@@ -106,8 +96,7 @@ class SchemaRoutesSpec
       val id = schemaId.show.replace(schemaId.version.show, "v1.0")
       Put(s"/schemas/$id", schemaJson) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          IllegalVersionFormat.type]
+        responseAs[Error].code shouldEqual classNameOf[IllegalVersionFormat.type]
       }
     }
 
@@ -123,10 +112,10 @@ class SchemaRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id" -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
-            "rev" -> Json.fromLong(1L),
+            "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
+            "rev"        -> Json.fromLong(1L),
             "deprecated" -> Json.fromBoolean(false),
-            "published" -> Json.fromBoolean(false)
+            "published"  -> Json.fromBoolean(false)
           )
           .deepMerge(schemaJson)
       }
@@ -149,14 +138,12 @@ class SchemaRoutesSpec
     "reject updating a schema with incorrect rev" in {
       Put(s"/schemas/${schemaId.show}?rev=10", schemaJson) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
-        responseAs[Error].code shouldEqual classNameOf[
-          IncorrectRevisionProvided.type]
+        responseAs[Error].code shouldEqual classNameOf[IncorrectRevisionProvided.type]
       }
     }
 
     "publish a schema" in {
-      Patch(s"/schemas/${schemaId.show}/config?rev=2",
-            SchemaConfig(published = true)) ~> route ~> check {
+      Patch(s"/schemas/${schemaId.show}/config?rev=2", SchemaConfig(published = true)) ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual schemaRefAsJson(SchemaRef(schemaId, 3L))
       }
@@ -171,11 +158,10 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
-                "@id" -> Json.fromString(
-                  s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
-                "rev" -> Json.fromLong(3L),
+                "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
+                "rev"        -> Json.fromLong(3L),
                 "deprecated" -> Json.fromBoolean(false),
-                "published" -> Json.fromBoolean(true)
+                "published"  -> Json.fromBoolean(true)
               )
             ))
       }
@@ -188,19 +174,16 @@ class SchemaRoutesSpec
     }
 
     "reject publishing a schema when setting passing a config with published=false" in {
-      Patch(s"/schemas/${schemaId.show}/config?rev=2",
-            SchemaConfig(published = false)) ~> route ~> check {
+      Patch(s"/schemas/${schemaId.show}/config?rev=2", SchemaConfig(published = false)) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          CannotUnpublishSchema.type]
+        responseAs[Error].code shouldEqual classNameOf[CannotUnpublishSchema.type]
       }
     }
 
     "reject updating a schema when it is published" in {
       Put(s"/schemas/${schemaId.show}?rev=3", schemaJson) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          CannotUpdatePublished.type]
+        responseAs[Error].code shouldEqual classNameOf[CannotUpdatePublished.type]
       }
     }
 
@@ -240,6 +223,5 @@ object SchemaRoutesSpec {
   import cats.syntax.show._
 
   private def schemaRefAsJson(ref: SchemaRef) =
-    Json.obj("@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"),
-             "rev" -> Json.fromLong(ref.rev))
+    Json.obj("@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"), "rev" -> Json.fromLong(ref.rev))
 }

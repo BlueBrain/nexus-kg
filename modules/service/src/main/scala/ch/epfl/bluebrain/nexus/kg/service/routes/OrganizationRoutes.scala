@@ -6,21 +6,13 @@ import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.organizations.{
-  OrgId,
-  OrgRef,
-  Organization,
-  Organizations
-}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
-import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives.{
-  extractResourceId,
-  of
-}
+import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives.{extractResourceId, of}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
@@ -40,10 +32,9 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param querySettings     query parameters from settings
   * @param filteringSettings filtering parameters from settings
   */
-final class OrganizationRoutes(orgs: Organizations[Future],
-                               orgQueries: FilterQueries[Future, OrgId],
-                               base: Uri)(implicit querySettings: QuerySettings,
-                                          filteringSettings: FilteringSettings)
+final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQueries[Future, OrgId], base: Uri)(
+    implicit querySettings: QuerySettings,
+    filteringSettings: FilteringSettings)
     extends DefaultRouteHandling {
 
   private val encoders = new OrgCustomEncoders(base)
@@ -51,15 +42,14 @@ final class OrganizationRoutes(orgs: Organizations[Future],
   import encoders._
 
   protected def searchRoutes: Route =
-    (pathEndOrSingleSlash & get & searchQueryParams) {
-      (pagination, filterOpt, termOpt, deprecatedOpt) =>
-        traceName("searchOrganizations") {
-          val filter =
-            filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-          orgQueries
-            .list(filter, pagination, termOpt)
-            .buildResponse(base, pagination)
-        }
+    (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+      traceName("searchOrganizations") {
+        val filter =
+          filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+        orgQueries
+          .list(filter, pagination, termOpt)
+          .buildResponse(base, pagination)
+      }
     }
 
   protected def resourceRoutes: Route =
@@ -113,10 +103,7 @@ object OrganizationRoutes {
     * @param base          the service public uri + prefix
     * @return a new ''OrganizationRoutes'' instance
     */
-  final def apply(orgs: Organizations[Future],
-                  client: SparqlClient[Future],
-                  querySettings: QuerySettings,
-                  base: Uri)(
+  final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
       implicit
       ec: ExecutionContext,
       filteringSettings: FilteringSettings): OrganizationRoutes = {

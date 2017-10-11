@@ -34,17 +34,13 @@ object InstanceId {
         InstanceId(SchemaId(DomainId(OrgId(org), dom), name, ver), id)
       }
     case _ =>
-      Failure(
-        new IllegalArgumentException(
-          "Unable to decode value into an InstanceId"))
+      Failure(new IllegalArgumentException("Unable to decode value into an InstanceId"))
   }
 
-  final implicit def instanceIdShow(
-      implicit S: Show[SchemaId]): Show[InstanceId] =
+  final implicit def instanceIdShow(implicit S: Show[SchemaId]): Show[InstanceId] =
     Show.show(id => s"${S.show(id.schemaId)}/${id.id}")
 
-  final implicit def instanceIdEncoder(
-      implicit S: Show[InstanceId]): Encoder[InstanceId] =
+  final implicit def instanceIdEncoder(implicit S: Show[InstanceId]): Encoder[InstanceId] =
     Encoder.encodeString.contramap(id => S.show(id))
 
   final implicit val instanceIdDecoder: Decoder[InstanceId] =

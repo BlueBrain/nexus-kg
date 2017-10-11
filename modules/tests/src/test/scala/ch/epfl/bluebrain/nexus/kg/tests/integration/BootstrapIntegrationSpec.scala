@@ -38,8 +38,7 @@ import scala.concurrent.duration._
   * @param vocab  the nexus core vocabulary base
   * @param as     the implicitly available Actor System
   */
-abstract class BootstrapIntegrationSpec(apiUri: Uri, vocab: Uri)(
-    implicit as: ActorSystem)
+abstract class BootstrapIntegrationSpec(apiUri: Uri, vocab: Uri)(implicit as: ActorSystem)
     extends WordSpecLike
     with Eventually
     with ScalatestRouteTest
@@ -56,14 +55,14 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, vocab: Uri)(
 
   override protected def afterAll(): Unit = ()
 
-  implicit val linkEncoder: Encoder[Link] = deriveEncoder[Link]
+  implicit val linkEncoder: Encoder[Link]          = deriveEncoder[Link]
   implicit val schemaConfig: Encoder[SchemaConfig] = deriveEncoder[SchemaConfig]
   implicit val qualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](vocab)
 
-  val orgsEncoder = new OrgCustomEncoders(apiUri)
-  val domsEncoder = new DomainCustomEncoders(apiUri)
-  val schemaEncoder = new SchemaCustomEncoders(apiUri)
+  val orgsEncoder     = new OrgCustomEncoders(apiUri)
+  val domsEncoder     = new DomainCustomEncoders(apiUri)
+  val schemaEncoder   = new SchemaCustomEncoders(apiUri)
   val instanceEncoder = new InstanceCustomEncoders(apiUri)
 }
 
@@ -94,11 +93,9 @@ object BootstrapIntegrationSpec extends Randomness with Resources {
       val schemaName = genString(length = 5)
       acc ++ (0 until 3).map(v => {
         val replacements =
-          Map(Pattern.quote("{{max_count}}") -> (genInt() + 1).toString,
-              Pattern.quote("{{number}}") -> v.toString)
-        SchemaId(c, schemaName, Version(1, 0, v)) -> jsonContentOf(
-          "/schemas/int-value-schema-variable-max.json",
-          replacements)
+          Map(Pattern.quote("{{max_count}}") -> (genInt() + 1).toString, Pattern.quote("{{number}}") -> v.toString)
+        SchemaId(c, schemaName, Version(1, 0, v)) -> jsonContentOf("/schemas/int-value-schema-variable-max.json",
+                                                                   replacements)
       })
     })
     .toList
@@ -109,8 +106,7 @@ object BootstrapIntegrationSpec extends Randomness with Resources {
     .drop(1)
     .foldLeft(Vector.empty[(InstanceId, Json)]) {
       case (acc, (schemaId, _)) =>
-        acc ++ (0 until 5).map(_ =>
-          InstanceId(schemaId, genUUID()) -> genJson())
+        acc ++ (0 until 5).map(_ => InstanceId(schemaId, genUUID()) -> genJson())
     }
     .toList
     .sortWith(_._1.show < _._1.show)
@@ -124,7 +120,6 @@ object BootstrapIntegrationSpec extends Randomness with Resources {
   private def genUUID(): String = UUID.randomUUID().toString.toLowerCase
 
   private def genJson(): Json =
-    jsonContentOf("/data/int-value-has-part.json",
-                  Map("random" -> genString(length = 4)))
+    jsonContentOf("/data/int-value-has-part.json", Map("random" -> genString(length = 4)))
       .deepMerge(Json.obj("value" -> Json.fromInt(genInt(Int.MaxValue))))
 }

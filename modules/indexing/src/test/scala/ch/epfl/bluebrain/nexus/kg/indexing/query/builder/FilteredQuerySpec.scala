@@ -10,23 +10,18 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
-class FilteredQuerySpec
-    extends WordSpecLike
-    with Matchers
-    with Resources
-    with EitherValues {
+class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with EitherValues {
 
-  private val base = "http://localhost/v0"
+  private val base         = "http://localhost/v0"
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
-  private implicit val filteringSettings @ FilteringSettings(nexusBaseVoc,
-                                                             nexusSearchVoc) =
+  private implicit val filteringSettings @ FilteringSettings(nexusBaseVoc, nexusSearchVoc) =
     FilteringSettings(s"$base/voc/nexus/core", s"$base/voc/nexus/search")
 
   private val (nxv, nxs) = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
-  private val prov = Uri("http://www.w3.org/ns/prov#")
-  private val rdf = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
-  private val bbpprod = Uri(s"$base/voc/bbp/productionentity/core/")
-  private val bbpagent = Uri(s"$base/voc/bbp/agent/core/")
+  private val prov       = Uri("http://www.w3.org/ns/prov#")
+  private val rdf        = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+  private val bbpprod    = Uri(s"$base/voc/bbp/productionentity/core/")
+  private val bbpagent   = Uri(s"$base/voc/bbp/agent/core/")
 
   "A FilteredQuery" should {
     val pagination = Pagination(13, 17)
@@ -135,7 +130,7 @@ class FilteredQuerySpec
         val json =
           jsonContentOf("/query/builder/filter-only.json", replacements)
         val filter = json.as[Filter].right.value
-        val term = "subject"
+        val term   = "subject"
 
         val expectedWhere =
           s"""

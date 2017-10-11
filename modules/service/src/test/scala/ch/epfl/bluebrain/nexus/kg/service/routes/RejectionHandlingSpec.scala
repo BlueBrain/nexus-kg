@@ -33,18 +33,16 @@ class RejectionHandlingSpec
 
   "A RejectionHandling" should {
     val baseUri = Uri("http://localhost/v0")
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial,
-                                         Organizations.next,
-                                         Organizations.eval).toF[Future]
-    val orgs = Organizations(orgAgg)
-    val id = genString(length = 5)
+    val orgAgg  = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs    = Organizations(orgAgg)
+    val id      = genString(length = 5)
 
-    val nexusVocab = s"$baseUri/voc/nexus/core"
+    val nexusVocab                 = s"$baseUri/voc/nexus/core"
     implicit val filteringSettings = FilteringSettings(nexusVocab, nexusVocab)
-    implicit val cl = HttpClient.akkaHttpClient
+    implicit val cl                = HttpClient.akkaHttpClient
 
-    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab = baseUri.copy(path = baseUri.path / "core")
+    val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
+    val vocab         = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), "org-index", vocab)
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
@@ -64,10 +62,7 @@ class RejectionHandlingSpec
       Head(s"/organizations/$id") ~> route ~> check {
         status shouldEqual StatusCodes.MethodNotAllowed
         responseAs[Error].code shouldEqual classNameOf[MethodNotSupported.type]
-        responseAs[MethodNotSupported].supported should contain theSameElementsAs Vector(
-          "GET",
-          "DELETE",
-          "PUT")
+        responseAs[MethodNotSupported].supported should contain theSameElementsAs Vector("GET", "DELETE", "PUT")
 
       }
     }

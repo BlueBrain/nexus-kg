@@ -12,8 +12,8 @@ import scala.util.Left
 class SchemaIdSpec extends WordSpecLike with Matchers with Inspectors {
 
   "A SchemaId" should {
-    val domId = DomainId(OrgId("org"), "dom")
-    val schemaId = SchemaId(domId, "name", Version(1, 2, 3))
+    val domId          = DomainId(OrgId("org"), "dom")
+    val schemaId       = SchemaId(domId, "name", Version(1, 2, 3))
     val schemaIdString = """"org/dom/name/v1.2.3""""
 
     "extract an schemaName properly" in {

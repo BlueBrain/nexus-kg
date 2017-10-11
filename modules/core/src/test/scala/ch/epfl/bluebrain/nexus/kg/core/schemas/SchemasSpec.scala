@@ -17,13 +17,7 @@ import org.scalatest.{Inspectors, Matchers, TryValues, WordSpecLike}
 import scala.util.Try
 
 //noinspection TypeAnnotation
-class SchemasSpec
-    extends WordSpecLike
-    with Matchers
-    with Inspectors
-    with TryValues
-    with Randomness
-    with Resources {
+class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryValues with Randomness with Resources {
 
   private def genId(): String =
     genString(length = 4, Vector.range('a', 'z') ++ Vector.range('0', '9'))
@@ -34,15 +28,13 @@ class SchemasSpec
   private def genName(): String =
     genString(length = 8, Vector.range('a', 'z') ++ Vector.range('0', '9'))
 
-  val schemaJson = jsonContentOf("/int-value-schema.json")
+  val schemaJson         = jsonContentOf("/int-value-schema.json")
   val optionalSchemaJson = jsonContentOf("/optional-int-value-schema.json")
-  val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
-  val baseUri = "http://localhost:8080/v0"
+  val shapeNodeShape     = jsonContentOf("/int-value-shape-nodeshape.json")
+  val baseUri            = "http://localhost:8080/v0"
 
   trait Context {
-    val orgsAgg = MemoryAggregate("org")(Organizations.initial,
-                                         Organizations.next,
-                                         Organizations.eval).toF[Try]
+    val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Try]
     val domAgg =
       MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
         .toF[Try]
@@ -50,8 +42,8 @@ class SchemasSpec
       MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
         .toF[Try]
 
-    val orgs = Organizations(orgsAgg)
-    val doms = Domains(domAgg, orgs)
+    val orgs    = Organizations(orgsAgg)
+    val doms    = Domains(domAgg, orgs)
     val schemas = Schemas(schemasAgg, doms, baseUri)
 
     val orgRef = orgs.create(OrgId(genId()), genJson()).success.value
@@ -76,27 +68,21 @@ class SchemasSpec
         .success
         .value shouldEqual SchemaRef(id, 2L)
       schemas.fetch(id).success.value shouldEqual Some(
-        Schema(id,
-               2L,
-               optionalSchemaJson,
-               deprecated = false,
-               published = false))
+        Schema(id, 2L, optionalSchemaJson, deprecated = false, published = false))
     }
 
     "publish a schema" in new Context {
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.publish(id, 1L).success.value shouldEqual SchemaRef(id, 2L)
-      schemas.fetch(id).success.value shouldEqual Some(
-        Schema(id, 2L, schemaJson, deprecated = false, published = true))
+      schemas.fetch(id).success.value shouldEqual Some(Schema(id, 2L, schemaJson, deprecated = false, published = true))
     }
 
     "deprecate a schema" in new Context {
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.deprecate(id, 1L).success.value shouldEqual SchemaRef(id, 2L)
-      schemas.fetch(id).success.value shouldEqual Some(
-        Schema(id, 2L, schemaJson, deprecated = true, published = false))
+      schemas.fetch(id).success.value shouldEqual Some(Schema(id, 2L, schemaJson, deprecated = true, published = false))
     }
 
     "deprecate a published schema" in new Context {
@@ -104,16 +90,14 @@ class SchemasSpec
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.publish(id, 1L).success.value shouldEqual SchemaRef(id, 2L)
       schemas.deprecate(id, 2L).success.value shouldEqual SchemaRef(id, 3L)
-      schemas.fetch(id).success.value shouldEqual Some(
-        Schema(id, 3L, schemaJson, deprecated = true, published = true))
+      schemas.fetch(id).success.value shouldEqual Some(Schema(id, 3L, schemaJson, deprecated = true, published = true))
     }
 
     "fetch specific schema shapes" in new Context {
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.fetchShape(id, "IdNodeShape2").success.value shouldEqual
-        Some(
-          Shape(ShapeId(id, "IdNodeShape2"), 1L, shapeNodeShape, false, false))
+        Some(Shape(ShapeId(id, "IdNodeShape2"), 1L, shapeNodeShape, false, false))
     }
 
     "prevent from fetching a non existing shape" in new Context {
@@ -126,24 +110,21 @@ class SchemasSpec
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.deprecate(id, 1L).success.value shouldEqual SchemaRef(id, 2L)
-      schemas.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(
-        SchemaIsDeprecated)
+      schemas.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(SchemaIsDeprecated)
     }
 
     "prevent publishing when deprecated" in new Context {
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.deprecate(id, 1L).success.value shouldEqual SchemaRef(id, 2L)
-      schemas.publish(id, 2L).failure.exception shouldEqual CommandRejected(
-        SchemaIsDeprecated)
+      schemas.publish(id, 2L).failure.exception shouldEqual CommandRejected(SchemaIsDeprecated)
     }
 
     "prevent duplicate publish" in new Context {
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.publish(id, 1L).success.value shouldEqual SchemaRef(id, 2L)
-      schemas.publish(id, 2L).failure.exception shouldEqual CommandRejected(
-        CannotUpdatePublished)
+      schemas.publish(id, 2L).failure.exception shouldEqual CommandRejected(CannotUpdatePublished)
     }
 
     "prevent update when deprecated" in new Context {
@@ -178,15 +159,13 @@ class SchemasSpec
     "prevent deprecate with incorrect rev" in new Context {
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
-      schemas.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(
-        IncorrectRevisionProvided)
+      schemas.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
     }
 
     "prevent publish with incorrect rev" in new Context {
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
-      schemas.publish(id, 2L).failure.exception shouldEqual CommandRejected(
-        IncorrectRevisionProvided)
+      schemas.publish(id, 2L).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
     }
 
     "return None for a schema that doesn't exist" in new Context {
@@ -195,7 +174,7 @@ class SchemasSpec
     }
 
     "prevent creation with invalid schema" in new Context {
-      val id = SchemaId(domRef.id, genName(), genVersion())
+      val id    = SchemaId(domRef.id, genName(), genVersion())
       val value = genJson()
       schemas.create(id, value).failure.exception match {
         case CommandRejected(ShapeConstraintViolations(vs)) =>
@@ -205,7 +184,7 @@ class SchemasSpec
     }
 
     "prevent schema update with invalid schema" in new Context {
-      val id = SchemaId(domRef.id, genName(), genVersion())
+      val id    = SchemaId(domRef.id, genName(), genVersion())
       val value = genJson()
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.update(id, 1L, value).failure.exception match {
@@ -218,14 +197,14 @@ class SchemasSpec
 
   trait DomainDeprecatedContext extends Context {
     val lockedId = SchemaId(domRef.id, genName(), genVersion())
-    val locked = schemas.create(lockedId, schemaJson).success.value
-    val _ = doms.deprecate(domRef.id, domRef.rev).success.value
+    val locked   = schemas.create(lockedId, schemaJson).success.value
+    val _        = doms.deprecate(domRef.id, domRef.rev).success.value
   }
 
   trait OrgDeprecatedContext extends Context {
     val lockedId = SchemaId(domRef.id, genName(), genVersion())
-    val locked = schemas.create(lockedId, schemaJson).success.value
-    val _ = orgs.deprecate(orgRef.id, orgRef.rev).success.value
+    val locked   = schemas.create(lockedId, schemaJson).success.value
+    val _        = orgs.deprecate(orgRef.id, orgRef.rev).success.value
   }
 
   "A Schemas" when {
@@ -247,15 +226,9 @@ class SchemasSpec
       }
 
       "allow deprecation" in new DomainDeprecatedContext {
-        schemas.deprecate(lockedId, 1L).success.value shouldEqual SchemaRef(
-          lockedId,
-          2L)
+        schemas.deprecate(lockedId, 1L).success.value shouldEqual SchemaRef(lockedId, 2L)
         schemas.fetch(lockedId).success.value shouldEqual Some(
-          Schema(lockedId,
-                 2L,
-                 schemaJson,
-                 deprecated = true,
-                 published = false))
+          Schema(lockedId, 2L, schemaJson, deprecated = true, published = false))
       }
 
       "prevent new schema creation" in new DomainDeprecatedContext {
@@ -284,15 +257,9 @@ class SchemasSpec
       }
 
       "allow deprecation" in new OrgDeprecatedContext {
-        schemas.deprecate(lockedId, 1L).success.value shouldEqual SchemaRef(
-          lockedId,
-          2L)
+        schemas.deprecate(lockedId, 1L).success.value shouldEqual SchemaRef(lockedId, 2L)
         schemas.fetch(lockedId).success.value shouldEqual Some(
-          Schema(lockedId,
-                 2L,
-                 schemaJson,
-                 deprecated = true,
-                 published = false))
+          Schema(lockedId, 2L, schemaJson, deprecated = true, published = false))
       }
 
       "prevent new schema creation" in new OrgDeprecatedContext {

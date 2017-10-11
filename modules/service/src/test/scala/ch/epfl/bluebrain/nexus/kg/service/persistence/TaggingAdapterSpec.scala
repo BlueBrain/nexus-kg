@@ -14,17 +14,17 @@ class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors {
 
     val adapter = new TaggingAdapter()
 
-    val id = "id"
-    val orgId = OrgId(id)
-    val domId = DomainId(orgId, id)
+    val id       = "id"
+    val orgId    = OrgId(id)
+    val domId    = DomainId(orgId, id)
     val schemaId = SchemaId(domId, "name", Version(1, 1, 1))
-    val instId = InstanceId(schemaId, id)
-    val rev = 1L
+    val instId   = InstanceId(schemaId, id)
+    val rev      = 1L
 
     val mapping = Map(
-      OrgEvent.OrgDeprecated(orgId, rev) -> "organization",
-      DomainEvent.DomainDeprecated(domId, rev) -> "domain",
-      SchemaEvent.SchemaDeprecated(schemaId, rev) -> "schema",
+      OrgEvent.OrgDeprecated(orgId, rev)            -> "organization",
+      DomainEvent.DomainDeprecated(domId, rev)      -> "domain",
+      SchemaEvent.SchemaDeprecated(schemaId, rev)   -> "schema",
       InstanceEvent.InstanceDeprecated(instId, rev) -> "instance"
     )
 

@@ -18,9 +18,8 @@ import kamon.akka.http.KamonTraceDirectives.traceName
   */
 class StaticRoutes(settings: Settings) {
 
-  private val desc = ServiceDescription(settings.Description.Name,
-                                        settings.Description.Version,
-                                        settings.Description.Environment)
+  private val desc =
+    ServiceDescription(settings.Description.Name, settings.Description.Version, settings.Description.Environment)
 
   private def serviceDescriptionRoute = pathEndOrSingleSlash {
     get {
@@ -34,10 +33,7 @@ class StaticRoutes(settings: Settings) {
     pathPrefix("docs") {
       pathEndOrSingleSlash {
         extractUri { uri =>
-          redirect(
-            uri.copy(
-              path = stripTrailingSlashes(uri.path) / "kg" / "index.html"),
-            StatusCodes.MovedPermanently)
+          redirect(uri.copy(path = stripTrailingSlashes(uri.path) / "kg" / "index.html"), StatusCodes.MovedPermanently)
         }
       } ~
         pathPrefix("kg") {
@@ -71,7 +67,5 @@ object StaticRoutes {
     * @param version the version of the service
     * @param env     the environment in which the service is run
     */
-  final case class ServiceDescription(name: String,
-                                      version: String,
-                                      env: String)
+  final case class ServiceDescription(name: String, version: String, env: String)
 }

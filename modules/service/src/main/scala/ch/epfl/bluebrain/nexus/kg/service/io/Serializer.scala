@@ -19,8 +19,6 @@ object Serializer {
     Configuration.default.withDiscriminator("type")
 
   class EventSerializer
-      extends AkkaCoproductSerializer[
-        InstanceEvent :+: SchemaEvent :+: DomainEvent :+: OrgEvent :+: CNil](
-        1215)
+      extends AkkaCoproductSerializer[InstanceEvent :+: SchemaEvent :+: DomainEvent :+: OrgEvent :+: CNil](1215)
 
 }

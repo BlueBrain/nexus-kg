@@ -10,14 +10,8 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, DomainRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{
-  ScoredQueryResult,
-  UnscoredQueryResult
-}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{
-  ScoredQueryResults,
-  UnscoredQueryResults
-}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
@@ -29,11 +23,10 @@ import org.scalatest.time.{Seconds, Span}
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
-class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(
-    implicit
-    as: ActorSystem,
-    ec: ExecutionContextExecutor,
-    mt: ActorMaterializer)
+class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
+                                                                   as: ActorSystem,
+                                                                   ec: ExecutionContextExecutor,
+                                                                   mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, vocab) {
 
   import BootstrapIntegrationSpec._
@@ -56,84 +49,68 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(
       }
 
       "list all domains" in {
-        eventually(timeout(Span(indexTimeout, Seconds)),
-                   interval(Span(1, Seconds))) {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/domains") ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
-              UnscoredQueryResults(domains.size.toLong,
-                                   domains.take(20).map(UnscoredQueryResult(_)))
+              UnscoredQueryResults(domains.size.toLong, domains.take(20).map(UnscoredQueryResult(_)))
             val expectedLinks =
-              List(Link("self", s"$apiUri/domains"),
-                   Link("next", s"$apiUri/domains?from=20&size=20"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults,
-                                                           expectedLinks).asJson
+              List(Link("self", s"$apiUri/domains"), Link("next", s"$apiUri/domains?from=20&size=20"))
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
       }
 
       "list domains on organization nexus" in {
-        eventually(timeout(Span(indexTimeout, Seconds)),
-                   interval(Span(1, Seconds))) {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/domains/nexus") ~> route ~> check {
             status shouldEqual StatusCodes.OK
-            val expectedResults = UnscoredQueryResults(
-              5L,
-              domains.filter(_.orgId.id == "nexus").map(UnscoredQueryResult(_)))
+            val expectedResults =
+              UnscoredQueryResults(5L, domains.filter(_.orgId.id == "nexus").map(UnscoredQueryResult(_)))
             val expectedLinks = List(Link("self", s"$apiUri/domains/nexus"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults,
-                                                           expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
       }
 
       "list domains on organization rand with pagination" in {
         val pagination = Pagination(0L, 5)
-        val path = s"/domains/rand?size=${pagination.size}"
+        val path       = s"/domains/rand?size=${pagination.size}"
 
-        eventually(timeout(Span(indexTimeout, Seconds)),
-                   interval(Span(1, Seconds))) {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> route ~> check {
             status shouldEqual StatusCodes.OK
-            val expectedResults = UnscoredQueryResults(
-              randDomains.length.toLong,
-              randDomains.map(UnscoredQueryResult(_)).take(pagination.size))
-            val expectedLinks = List(Link("self", s"$apiUri$path"),
-                                     Link("next", s"$apiUri$path&from=5"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults,
-                                                           expectedLinks).asJson
+            val expectedResults = UnscoredQueryResults(randDomains.length.toLong,
+                                                       randDomains.map(UnscoredQueryResult(_)).take(pagination.size))
+            val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=5"))
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
       }
 
       "output the correct total even when the from query parameter is out of scope" in {
         val pagination = Pagination(0L, 5)
-        val path = s"/domains/rand?size=${pagination.size}&from=100"
+        val path       = s"/domains/rand?size=${pagination.size}&from=100"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
-            UnscoredQueryResults(randDomains.length.toLong,
-                                 List.empty[UnscoredQueryResult[DomainId]])
-          val expectedLinks = List(
-            Link("self", s"$apiUri$path"),
-            Link("previous",
-                 s"$apiUri$path".replace("from=100",
-                                         s"from=${randDomains.length - 5}")))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults,
-                                                         expectedLinks).asJson
+            UnscoredQueryResults(randDomains.length.toLong, List.empty[UnscoredQueryResult[DomainId]])
+          val expectedLinks =
+            List(Link("self", s"$apiUri$path"),
+                 Link("previous", s"$apiUri$path".replace("from=100", s"from=${randDomains.length - 5}")))
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
       "list domains on organization rand with full text search" in {
         val domainId = domains(7)
-        val path = s"/domains/rand?q=${domainId.id}"
+        val path     = s"/domains/rand?q=${domainId.id}"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, domainId)))
           val expectedLinks = List(Link("self", s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults,
-                                                         expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
@@ -144,11 +121,8 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(
           val expectedResults =
             ScoredQueryResults(1L, 1F, List.empty[ScoredQueryResult[DomainId]])
           val expectedLinks =
-            List(Link("self", s"$apiUri$path"),
-                 Link("previous",
-                      s"$apiUri$path".replace("from=200", "from=0")))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults,
-                                                         expectedLinks).asJson
+            List(Link("self", s"$apiUri$path"), Link("previous", s"$apiUri$path".replace("from=200", "from=0")))
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
@@ -165,8 +139,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(
           val expectedResults =
             UnscoredQueryResults(1L, List(UnscoredQueryResult(domainId)))
           val expectedLinks = List(Link("self", s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults,
-                                                         expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
@@ -180,17 +153,13 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(
       }
 
       "list domains on organization nexus and deprecated" in {
-        eventually(timeout(Span(indexTimeout, Seconds)),
-                   interval(Span(1, Seconds))) {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/domains/nexus?deprecated=false") ~> route ~> check {
             status shouldEqual StatusCodes.OK
-            val expectedResults = UnscoredQueryResults(
-              3L,
-              domains.slice(2, 5).map(UnscoredQueryResult(_)))
+            val expectedResults = UnscoredQueryResults(3L, domains.slice(2, 5).map(UnscoredQueryResult(_)))
             val expectedLinks =
               List(Link("self", s"$apiUri/domains/nexus?deprecated=false"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults,
-                                                           expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
       }

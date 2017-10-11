@@ -5,12 +5,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
-import ch.epfl.bluebrain.nexus.kg.core.domains.{
-  Domain,
-  DomainId,
-  DomainRef,
-  Domains
-}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -31,49 +26,41 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import io.circe.syntax._
 import scala.concurrent.Future
 
-class DomainRoutesSpec
-    extends WordSpecLike
-    with Matchers
-    with ScalatestRouteTest
-    with Randomness
-    with ScalaFutures {
+class DomainRoutesSpec extends WordSpecLike with Matchers with ScalatestRouteTest with Randomness with ScalaFutures {
 
   "A DomainRoutes" should {
     import domsEncoder._
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial,
-                                         Organizations.next,
-                                         Organizations.eval).toF[Future]
-    val orgs = Organizations(orgAgg)
+    val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs   = Organizations(orgAgg)
     val domAgg =
       MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
         .toF[Future]
     val doms = Domains(domAgg, orgs)
 
-    val orgId = OrgId(genString(length = 5))
-    val id = DomainId(orgId, genString(length = 8))
+    val orgId       = OrgId(genString(length = 5))
+    val id          = DomainId(orgId, genString(length = 8))
     val description = genString(length = 32)
-    val json = Json.obj("description" -> Json.fromString(description))
+    val json        = Json.obj("description" -> Json.fromString(description))
 
     orgs
       .create(orgId, Json.obj("key" -> Json.fromString(genString())))
       .futureValue
 
-    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), "domain-index", vocab)
+    val sparqlUri                  = Uri("http://localhost:9999/bigdata/sparql")
+    val vocab                      = baseUri.copy(path = baseUri.path / "core")
+    val querySettings              = QuerySettings(Pagination(0L, 20), "domain-index", vocab)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl = HttpClient.akkaHttpClient
+    implicit val cl                = HttpClient.akkaHttpClient
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
+    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
 
     "create a domain" in {
       Put(s"/domains/${orgId.show}/${id.id}", json) ~> route ~> check {
         status shouldEqual StatusCodes.Created
         responseAs[Json] shouldEqual DomainRef(id, 1L).asJson
       }
-      doms.fetch(id).futureValue shouldEqual Some(
-        Domain(id, 1L, deprecated = false, description))
+      doms.fetch(id).futureValue shouldEqual Some(Domain(id, 1L, deprecated = false, description))
     }
 
     "reject the creation of a domain which already exists" in {
@@ -112,8 +99,7 @@ class DomainRoutesSpec
     "reject the deprecation of a domain with incorrect rev" in {
       Delete(s"/domains/${orgId.show}/${id.id}?rev=10", json) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
-        responseAs[Error].code shouldEqual classNameOf[
-          IncorrectRevisionProvided.type]
+        responseAs[Error].code shouldEqual classNameOf[IncorrectRevisionProvided.type]
       }
     }
 
@@ -122,21 +108,18 @@ class DomainRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual DomainRef(id, 2L).asJson
       }
-      doms.fetch(id).futureValue shouldEqual Some(
-        Domain(id, 2L, deprecated = true, description))
+      doms.fetch(id).futureValue shouldEqual Some(Domain(id, 2L, deprecated = true, description))
     }
 
     "reject the deprecation of a domain already deprecated" in {
       Delete(s"/domains/${orgId.show}/${id.id}?rev=2", json) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          DomainAlreadyDeprecated.type]
+        responseAs[Error].code shouldEqual classNameOf[DomainAlreadyDeprecated.type]
       }
     }
 
     "reject the deprecation of a domain which does not exists" in {
-      Delete(s"/domains/${orgId.show}/${id.copy(id = "something").id}?rev=1",
-             json) ~> route ~> check {
+      Delete(s"/domains/${orgId.show}/${id.copy(id = "something").id}?rev=1", json) ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].code shouldEqual classNameOf[DomainDoesNotExist.type]
       }
@@ -145,6 +128,6 @@ class DomainRoutesSpec
 }
 
 object DomainRoutesSpec {
-  private val baseUri = Uri("http://localhost/v0")
+  private val baseUri      = Uri("http://localhost/v0")
   implicit val domsEncoder = new DomainCustomEncoders(baseUri)
 }

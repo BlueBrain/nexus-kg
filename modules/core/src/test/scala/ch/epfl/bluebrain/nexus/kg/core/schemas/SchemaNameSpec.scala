@@ -9,7 +9,7 @@ import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 class SchemaNameSpec extends WordSpecLike with Matchers with Inspectors {
 
   "A SchemaName" should {
-    val domId = DomainId(OrgId("org"), "dom")
+    val domId      = DomainId(OrgId("org"), "dom")
     val schemaName = SchemaName(domId, "name")
 
     "have a proper string representation" in {

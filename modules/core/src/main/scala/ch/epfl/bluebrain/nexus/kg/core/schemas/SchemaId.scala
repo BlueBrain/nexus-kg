@@ -41,18 +41,15 @@ object SchemaId {
         SchemaId(DomainId(OrgId(org), dom), name, ver)
       }
     case _ =>
-      Failure(
-        new IllegalArgumentException("Unable to decode value into a SchemaId"))
+      Failure(new IllegalArgumentException("Unable to decode value into a SchemaId"))
   }
 
-  final implicit def schemaIdShow(implicit D: Show[SchemaName],
-                                  V: Show[Version]): Show[SchemaId] =
+  final implicit def schemaIdShow(implicit D: Show[SchemaName], V: Show[Version]): Show[SchemaId] =
     Show.show { id =>
       s"${id.schemaName.show}/${id.version.show}"
     }
 
-  final implicit def schemaIdEncoder(
-      implicit S: Show[SchemaId]): Encoder[SchemaId] =
+  final implicit def schemaIdEncoder(implicit S: Show[SchemaId]): Encoder[SchemaId] =
     Encoder.encodeString.contramap(id => S.show(id))
 
   final implicit val schemaIdDecoder: Decoder[SchemaId] =

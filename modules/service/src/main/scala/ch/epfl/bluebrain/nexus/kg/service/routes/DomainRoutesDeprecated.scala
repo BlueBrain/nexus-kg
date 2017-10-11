@@ -6,12 +6,7 @@ import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.domains.{
-  Domain,
-  DomainId,
-  DomainRef,
-  Domains
-}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
@@ -40,11 +35,9 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param filteringSettings filtering parameters from settings
   */
 @deprecated("Backwards compatible API endpoints", "0.6.2")
-final class DomainRoutesDeprecated(
-    domains: Domains[Future],
-    domainQueries: FilterQueries[Future, DomainId],
-    base: Uri)(implicit querySettings: QuerySettings,
-               filteringSettings: FilteringSettings)
+final class DomainRoutesDeprecated(domains: Domains[Future], domainQueries: FilterQueries[Future, DomainId], base: Uri)(
+    implicit querySettings: QuerySettings,
+    filteringSettings: FilteringSettings)
     extends DefaultRouteHandling {
 
   private val encoders = new DomainCustomEncodersDeprecated(base)
@@ -53,46 +46,44 @@ final class DomainRoutesDeprecated(
   protected def searchRoutes: Route =
     pathPrefix(Segment / "domains") { orgIdString =>
       val orgId = OrgId(orgIdString)
-      (pathEndOrSingleSlash & get & searchQueryParams) {
-        (pagination, filterOpt, termOpt, deprecatedOpt) =>
-          traceName("searchDomains") {
-            val filter =
-              filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-            domainQueries
-              .list(orgId, filter, pagination, termOpt)
-              .buildResponse(base, pagination)
-          }
+      (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+        traceName("searchDomains") {
+          val filter =
+            filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+          domainQueries
+            .list(orgId, filter, pagination, termOpt)
+            .buildResponse(base, pagination)
+        }
       }
     }
 
   protected def resourceRoutes: Route =
-    (pathPrefix(Segment / "domains" / Segment) & pathEndOrSingleSlash) {
-      (orgId, id) =>
-        val domainId = DomainId(OrgId(orgId), id)
-        (put & entity(as[DomainDescriptionDeprecated])) { desc =>
-          traceName("createDomain") {
-            onSuccess(domains.create(domainId, desc.description)) { ref =>
-              complete(StatusCodes.Created -> ref)
+    (pathPrefix(Segment / "domains" / Segment) & pathEndOrSingleSlash) { (orgId, id) =>
+      val domainId = DomainId(OrgId(orgId), id)
+      (put & entity(as[DomainDescriptionDeprecated])) { desc =>
+        traceName("createDomain") {
+          onSuccess(domains.create(domainId, desc.description)) { ref =>
+            complete(StatusCodes.Created -> ref)
+          }
+        }
+      } ~
+        get {
+          traceName("getDomain") {
+            onSuccess(domains.fetch(domainId)) {
+              case Some(domain) => complete(domain)
+              case None         => complete(StatusCodes.NotFound)
             }
           }
         } ~
-          get {
-            traceName("getDomain") {
-              onSuccess(domains.fetch(domainId)) {
-                case Some(domain) => complete(domain)
-                case None         => complete(StatusCodes.NotFound)
-              }
-            }
-          } ~
-          delete {
-            parameter('rev.as[Long]) { rev =>
-              traceName("deprecateDomain") {
-                onSuccess(domains.deprecate(domainId, rev)) { ref =>
-                  complete(StatusCodes.OK -> ref)
-                }
+        delete {
+          parameter('rev.as[Long]) { rev =>
+            traceName("deprecateDomain") {
+              onSuccess(domains.deprecate(domainId, rev)) { ref =>
+                complete(StatusCodes.OK -> ref)
               }
             }
           }
+        }
     }
 
   def routes: Route = combinedRoutesFor("organizations")
@@ -117,32 +108,25 @@ object DomainRoutesDeprecated {
     * @param base          the service public uri + prefix
     * @return a new ''DomainRoutesDeprecated'' instance
     */
-  final def apply(domains: Domains[Future],
-                  client: SparqlClient[Future],
-                  querySettings: QuerySettings,
-                  base: Uri)(
+  final def apply(domains: Domains[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
       implicit
       ec: ExecutionContext,
       filteringSettings: FilteringSettings): DomainRoutesDeprecated = {
     implicit val qs: QuerySettings = querySettings
-    val domainQueries = FilterQueries[Future, DomainId](
-      SparqlQuery[Future](client),
-      querySettings)
+    val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
     new DomainRoutesDeprecated(domains, domainQueries, base)
   }
 }
 
-class DomainCustomEncodersDeprecated(base: Uri)
-    extends RoutesEncoder[DomainId, DomainRef](base) {
+class DomainCustomEncodersDeprecated(base: Uri) extends RoutesEncoder[DomainId, DomainRef](base) {
 
-  implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap {
-    domain =>
-      refEncoder
-        .apply(DomainRef(domain.id, domain.rev))
-        .deepMerge(
-          Json.obj(
-            "deprecated" -> Json.fromBoolean(domain.deprecated),
-            "description" -> Json.fromString(domain.description)
-          ))
+  implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap { domain =>
+    refEncoder
+      .apply(DomainRef(domain.id, domain.rev))
+      .deepMerge(
+        Json.obj(
+          "deprecated"  -> Json.fromBoolean(domain.deprecated),
+          "description" -> Json.fromString(domain.description)
+        ))
   }
 }

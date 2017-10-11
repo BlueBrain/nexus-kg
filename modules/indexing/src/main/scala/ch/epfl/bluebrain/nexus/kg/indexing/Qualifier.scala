@@ -73,8 +73,7 @@ object Qualifier extends QualifierInstances {
     * @param base the base uri to use when qualifying values of type ''A''
     * @return a ''ConfiguredQualifier[A]''
     */
-  final def configured[A](base: Uri)(
-      implicit Q: Qualifier[A]): ConfiguredQualifier[A] =
+  final def configured[A](base: Uri)(implicit Q: Qualifier[A]): ConfiguredQualifier[A] =
     new ConfiguredQualifier[A] {
       override def apply(value: A) = Q(value, base)
 
@@ -102,8 +101,7 @@ object Qualifier extends QualifierInstances {
       qualifyWith(base).toString()
   }
 
-  implicit class ToConfiguredQualifierOps[A](value: A)(
-      implicit Q: ConfiguredQualifier[A]) {
+  implicit class ToConfiguredQualifierOps[A](value: A)(implicit Q: ConfiguredQualifier[A]) {
 
     /**
       * Qualifies the value using a preconfigured ''base'' uri.
@@ -164,9 +162,7 @@ trait QualifierInstances {
   private def removeBaseUri(uri: Uri, base: Uri, path: Option[String] = None) =
     uri
       .toString()
-      .replaceAll(
-        Pattern.quote(s"${base}/${path.map(p => s"$p/").getOrElse("")}"),
-        "")
+      .replaceAll(Pattern.quote(s"${base}/${path.map(p => s"$p/").getOrElse("")}"), "")
 
   implicit val domainIdQualifier: Qualifier[DomainId] =
     new Qualifier[DomainId] {

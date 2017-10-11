@@ -38,8 +38,7 @@ object ExceptionHandling {
     case CommandRejected(r: OrgRejection)        => complete(r)
     case CommandRejected(r: IllegalFilterFormat) => complete(r)
     case ex: EntityStreamSizeException =>
-      logger.warn(
-        s"An attachment with size '${ex.actualSize}' has been rejected because actual limit is '${ex.limit}'")
+      logger.warn(s"An attachment with size '${ex.actualSize}' has been rejected because actual limit is '${ex.limit}'")
       complete(toRejection(ex))
     // $COVERAGE-OFF$
     case Unexpected(reason) =>

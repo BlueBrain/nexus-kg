@@ -23,28 +23,16 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.{
 }
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
-import ch.epfl.bluebrain.nexus.kg.core.instances.{
-  Instance,
-  InstanceId,
-  InstanceRef,
-  Instances
-}
+import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
   SchemaDoesNotExist,
   SchemaIsDeprecated,
   SchemaIsNotPublished
 }
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{
-  SchemaId,
-  SchemaImportResolver,
-  Schemas
-}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{
-  AkkaInOutFileStream,
-  RelativeAttachmentLocation
-}
+import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
@@ -61,10 +49,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
-import ch.epfl.bluebrain.nexus.kg.indexing.instances.{
-  InstanceIndexer,
-  InstanceIndexingSettings
-}
+import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -86,17 +71,14 @@ class InstanceRoutesSpec
       Json.obj()
 
     def genJson(): Json =
-      jsonContentOf("/int-value.json").deepMerge(
-        Json.obj("value" -> Json.fromInt(genInt(Int.MaxValue))))
+      jsonContentOf("/int-value.json").deepMerge(Json.obj("value" -> Json.fromInt(genInt(Int.MaxValue))))
 
-    val settings = new Settings(ConfigFactory.load())
-    val algorithm = settings.Attachment.HashAlgorithm
+    val settings   = new Settings(ConfigFactory.load())
+    val algorithm  = settings.Attachment.HashAlgorithm
     val schemaJson = jsonContentOf("/int-value-schema.json")
 
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial,
-                                         Organizations.next,
-                                         Organizations.eval).toF[Future]
-    val orgs = Organizations(orgAgg)
+    val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs   = Organizations(orgAgg)
     val domAgg =
       MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
         .toF[Future]
@@ -104,15 +86,12 @@ class InstanceRoutesSpec
     val schAgg =
       MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
         .toF[Future]
-    val schemas = Schemas(schAgg, doms, baseUri.toString())
-    val validator = ShaclValidator[Future](
-      SchemaImportResolver(baseUri.toString(), schemas.fetch))
-    val instAgg = MemoryAggregate("instances")(Instances.initial,
-                                               Instances.next,
-                                               Instances.eval).toF[Future]
-    implicit val fa = RelativeAttachmentLocation[Future](settings)
+    val schemas         = Schemas(schAgg, doms, baseUri.toString())
+    val validator       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch))
+    val instAgg         = MemoryAggregate("instances")(Instances.initial, Instances.next, Instances.eval).toF[Future]
+    implicit val fa     = RelativeAttachmentLocation[Future](settings)
     val inFileProcessor = AkkaInOutFileStream(settings)
-    val instances = Instances(instAgg, schemas, validator, inFileProcessor)
+    val instances       = Instances(instAgg, schemas, validator, inFileProcessor)
 
     val orgRef =
       orgs.create(OrgId(genString(length = 3)), Json.obj()).futureValue
@@ -122,16 +101,10 @@ class InstanceRoutesSpec
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 
     val unpublished = schemas.create(schemaId, schemaJson).futureValue
-    val _ = schemas.publish(schemaId, unpublished.rev).futureValue
+    val _           = schemas.publish(schemaId, unpublished.rev).futureValue
 
-    private val indexSettings @ InstanceIndexingSettings(index,
-                                                         instanceBase,
-                                                         instanceBaseNs,
-                                                         nexusVocBase) =
-      InstanceIndexingSettings(genString(length = 6),
-                               baseUri,
-                               s"$baseUri/data/graphs",
-                               s"$baseUri/voc/nexus/core")
+    private val indexSettings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
+      InstanceIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
 
     val querySettings = QuerySettings(Pagination(0L, 20), index, nexusVocBase)
     implicit val filteringSettings =
@@ -139,9 +112,9 @@ class InstanceRoutesSpec
     val baseUUID = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 
     implicit val cl = HttpClient.akkaHttpClient
-    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
+    val sparqlUri   = Uri("http://localhost:9999/bigdata/sparql")
 
-    val client = SparqlClient[Future](sparqlUri)
+    val client          = SparqlClient[Future](sparqlUri)
     val instanceIndexer = InstanceIndexer(client, indexSettings)
 
     val route = InstanceRoutes(instances, client, querySettings, baseUri).routes
@@ -162,21 +135,18 @@ class InstanceRoutesSpec
 
     def digestSink: Sink[ByteString, Future[MessageDigest]] = {
       val initDigest = MessageDigest.getInstance(algorithm)
-      Sink.fold[MessageDigest, ByteString](initDigest)(
-        (digest, currentBytes) => {
-          digest.update(currentBytes.asByteBuffer)
-          digest
-        })
+      Sink.fold[MessageDigest, ByteString](initDigest)((digest, currentBytes) => {
+        digest.update(currentBytes.asByteBuffer)
+        digest
+      })
     }
 
-    def multipartEntityAndFileSize(
-        filename: String): (Multipart.FormData, Long) = {
+    def multipartEntityAndFileSize(filename: String): (Multipart.FormData, Long) = {
       val path = Paths.get(getClass.getResource(s"/$filename").toURI)
       Multipart.FormData(
-        Multipart.FormData.BodyPart(
-          "file",
-          HttpEntity.fromPath(ContentTypes.`text/csv(UTF-8)`, path),
-          Map("filename" -> filename))) -> Files.size(path)
+        Multipart.FormData.BodyPart("file",
+                                    HttpEntity.fromPath(ContentTypes.`text/csv(UTF-8)`, path),
+                                    Map("filename" -> filename))) -> Files.size(path)
     }
 
     def deleteAttachments() =
@@ -202,8 +172,7 @@ class InstanceRoutesSpec
     "reject the creation of an instance when the json data does not conform to the schema" in new Context {
       Post(s"/data/${schemaId.show}", Json.obj()) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          ShapeConstraintViolations.type]
+        responseAs[Error].code shouldEqual classNameOf[ShapeConstraintViolations.type]
       }
     }
 
@@ -213,8 +182,7 @@ class InstanceRoutesSpec
 
       Post(s"/data/${schemaId2.show}", value) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          SchemaIsNotPublished.type]
+        responseAs[Error].code shouldEqual classNameOf[SchemaIsNotPublished.type]
       }
     }
 
@@ -237,8 +205,8 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "rev" -> Json.fromLong(1L),
+            "@id"        -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "rev"        -> Json.fromLong(1L),
             "deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(value)
@@ -249,16 +217,15 @@ class InstanceRoutesSpec
       val value2 = genJson()
       Put(s"/data/${instanceRef.id.show}?rev=${instanceRef.rev}", value2) ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual instanceRefAsJson(
-          InstanceRef(instanceRef.id, 2L))
+        responseAs[Json] shouldEqual instanceRefAsJson(InstanceRef(instanceRef.id, 2L))
       }
 
       Get(s"/data/${instanceRef.id.show}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "rev" -> Json.fromLong(2L),
+            "@id"        -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "rev"        -> Json.fromLong(2L),
             "deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(value2)
@@ -268,8 +235,8 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "rev" -> Json.fromLong(1L),
+            "@id"        -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "rev"        -> Json.fromLong(1L),
             "deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(value)
@@ -283,8 +250,7 @@ class InstanceRoutesSpec
       Get(path) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         val json: Json = responseAs[Json]
-        json.hcursor.get[String]("field") shouldEqual Right(
-          "DownField(filter)/DownField(op)")
+        json.hcursor.get[String]("field") shouldEqual Right("DownField(filter)/DownField(op)")
       }
     }
 
@@ -295,8 +261,7 @@ class InstanceRoutesSpec
       Get(path) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         val json: Json = responseAs[Json]
-        json.hcursor.get[String]("field") shouldEqual Right(
-          "DownField(filter)/DownField(op)")
+        json.hcursor.get[String]("field") shouldEqual Right("DownField(filter)/DownField(op)")
       }
     }
 
@@ -310,8 +275,7 @@ class InstanceRoutesSpec
       val valueJson = genJson()
       Put(s"/data/${instanceRef.id.show}?rev=${instanceRef.rev}", valueJson) ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual instanceRefAsJson(
-          InstanceRef(instanceRef.id, 2L))
+        responseAs[Json] shouldEqual instanceRefAsJson(InstanceRef(instanceRef.id, 2L))
       }
       instances.fetch(instanceRef.id).futureValue shouldEqual Some(
         Instance(instanceRef.id, 2L, valueJson, deprecated = false))
@@ -321,16 +285,14 @@ class InstanceRoutesSpec
       val wrongId = instanceRef.id.copy(id = "NotExist")
       Put(s"/data/${wrongId.show}?rev=${instanceRef.rev}", genJson()) ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[
-          InstanceDoesNotExist.type]
+        responseAs[Error].code shouldEqual classNameOf[InstanceDoesNotExist.type]
       }
     }
 
     "reject updating an instance when the new json data does not conform to the schema" in new Context {
       Put(s"/data/${instanceRef.id.show}?rev=${instanceRef.rev}", Json.obj()) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          ShapeConstraintViolations.type]
+        responseAs[Error].code shouldEqual classNameOf[ShapeConstraintViolations.type]
       }
     }
 
@@ -338,8 +300,7 @@ class InstanceRoutesSpec
       val newRev = instanceRef.rev + 10L
       Put(s"/data/${instanceRef.id.show}?rev=$newRev", genJson()) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
-        responseAs[Error].code shouldEqual classNameOf[
-          IncorrectRevisionProvided.type]
+        responseAs[Error].code shouldEqual classNameOf[IncorrectRevisionProvided.type]
       }
     }
 
@@ -351,8 +312,7 @@ class InstanceRoutesSpec
       private val json = genJson()
       Put(s"/data/${instanceRef.id.show}?rev=${instanceRef.rev}", json) ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual instanceRefAsJson(
-          InstanceRef(instanceRef.id, 2L))
+        responseAs[Json] shouldEqual instanceRefAsJson(InstanceRef(instanceRef.id, 2L))
       }
       instances.fetch(instanceRef.id).futureValue shouldEqual Some(
         Instance(instanceRef.id, 2L, json, deprecated = false))
@@ -369,8 +329,7 @@ class InstanceRoutesSpec
 
       Delete(s"/data/${instanceRef.id.show}?rev=2") ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          InstanceIsDeprecated.type]
+        responseAs[Error].code shouldEqual classNameOf[InstanceIsDeprecated.type]
       }
     }
 
@@ -379,8 +338,7 @@ class InstanceRoutesSpec
 
       Put(s"/data/${instanceRef.id.show}?rev=2", value) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          InstanceIsDeprecated.type]
+        responseAs[Error].code shouldEqual classNameOf[InstanceIsDeprecated.type]
       }
     }
 
@@ -389,35 +347,26 @@ class InstanceRoutesSpec
       val hash =
         "2fabc6464789da99d9fad59d27af24267f815fc1bb054e4520c78056aab285b9"
       val (multiPart, size) = multipartEntityAndFileSize(filename)
-      val digest = Attachment.Digest(algorithm, hash)
+      val digest            = Attachment.Digest(algorithm, hash)
 
-      Put(s"/data/${instanceRef.id.show}/attachment?rev=${instanceRef.rev}",
-          multiPart) ~> route ~> check {
+      Put(s"/data/${instanceRef.id.show}/attachment?rev=${instanceRef.rev}", multiPart) ~> route ~> check {
         status shouldEqual StatusCodes.Created
         responseAs[Json] shouldEqual
           instanceRefAsJson(
             InstanceRef(instanceRef.id,
                         2,
-                        Some(
-                          Info(filename,
-                               ContentTypes.`text/csv(UTF-8)`.toString(),
-                               Size(value = size),
-                               digest))))
+                        Some(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest))))
       }
 
       Get(s"/data/${instanceRef.id.show}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "rev" -> Json.fromLong(2L),
+            "@id"        -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "rev"        -> Json.fromLong(2L),
             "deprecated" -> Json.fromBoolean(false)
           )
-          .deepMerge(
-            Info(filename,
-                 ContentTypes.`text/csv(UTF-8)`.toString(),
-                 Size(value = size),
-                 digest).asJson)
+          .deepMerge(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest).asJson)
           .deepMerge(value)
       }
 
@@ -430,19 +379,14 @@ class InstanceRoutesSpec
         "2fabc6464789da99d9fad59d27af24267f815fc1bb054e4520c78056aab285b9"
       val (multiPart, size) = multipartEntityAndFileSize(filename)
 
-      Put(s"/data/${instanceRef.id.show}/attachment?rev=${instanceRef.rev}",
-          multiPart) ~> route ~> check {
+      Put(s"/data/${instanceRef.id.show}/attachment?rev=${instanceRef.rev}", multiPart) ~> route ~> check {
         status shouldEqual StatusCodes.Created
         val digest = Attachment.Digest(algorithm, hash)
         responseAs[Json] shouldEqual
           instanceRefAsJson(
             InstanceRef(instanceRef.id,
                         2,
-                        Some(
-                          Info(filename,
-                               ContentTypes.`text/csv(UTF-8)`.toString(),
-                               Size(value = size),
-                               digest))))
+                        Some(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest))))
       }
 
       val filename2 = "attachment2.csv"
@@ -457,11 +401,7 @@ class InstanceRoutesSpec
           instanceRefAsJson(
             InstanceRef(instanceRef.id,
                         3,
-                        Some(
-                          Info(filename2,
-                               ContentTypes.`text/csv(UTF-8)`.toString(),
-                               Size(value = size2),
-                               digest))))
+                        Some(Info(filename2, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size2), digest))))
       }
 
       //Fetch latest
@@ -509,25 +449,19 @@ class InstanceRoutesSpec
         "2fabc6464789da99d9fad59d27af24267f815fc1bb054e4520c78056aab285b9"
       val (multiPart, size) = multipartEntityAndFileSize(filename)
 
-      Put(s"/data/${instanceRef.id.show}/attachment?rev=${instanceRef.rev}",
-          multiPart) ~> route ~> check {
+      Put(s"/data/${instanceRef.id.show}/attachment?rev=${instanceRef.rev}", multiPart) ~> route ~> check {
         status shouldEqual StatusCodes.Created
         val digest = Attachment.Digest(algorithm, hash)
         responseAs[Json] shouldEqual
           instanceRefAsJson(
             InstanceRef(instanceRef.id,
                         2,
-                        Some(
-                          Info(filename,
-                               ContentTypes.`text/csv(UTF-8)`.toString(),
-                               Size(value = size),
-                               digest))))
+                        Some(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest))))
       }
 
       Delete(s"/data/${instanceRef.id.show}/attachment?rev=2") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual instanceRefAsJson(
-          InstanceRef(instanceRef.id, 3L, None))
+        responseAs[Json] shouldEqual instanceRefAsJson(InstanceRef(instanceRef.id, 3L, None))
       }
 
       //Fetch specific review
@@ -553,7 +487,7 @@ class InstanceRoutesSpec
 }
 
 object InstanceRoutesSpec {
-  private val base = Uri("http://localhost")
+  private val base    = Uri("http://localhost")
   private val baseUri = base.copy(path = base.path / "v0")
 
   import cats.syntax.show._

@@ -18,8 +18,7 @@ trait BlazegraphSpecLike extends Suites with BeforeAndAfterAll {
   val port = freePort()
 
   private val server = {
-    System.setProperty("jetty.home",
-                       getClass.getResource("/war").toExternalForm)
+    System.setProperty("jetty.home", getClass.getResource("/war").toExternalForm)
     NanoSparqlServer.newInstance(port, null, null)
   }
 

@@ -15,8 +15,7 @@ object CommonRejections {
     *
     * @param supported the collections of supported HTTP verbs for a particular resource
     */
-  final case class MethodNotSupported(supported: Seq[String])
-      extends CommonRejections
+  final case class MethodNotSupported(supported: Seq[String]) extends CommonRejections
 
   /**
     * Signals the inability to convert the Payload into JSON. It can be due to invalid JSON
@@ -25,9 +24,7 @@ object CommonRejections {
     * @param details optional explanation about what went wrong while parsing the Json payload
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class WrongOrInvalidJson(details: Option[String])
-      extends Err("Invalid json")
-      with CommonRejections
+  final case class WrongOrInvalidJson(details: Option[String]) extends Err("Invalid json") with CommonRejections
 
   /**
     * Signals the inability to parse a json structure into a [[ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter]]
@@ -37,8 +34,7 @@ object CommonRejections {
     * @param field   the offending field
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class IllegalFilterFormat(override val message: String,
-                                       field: String)
+  final case class IllegalFilterFormat(override val message: String, field: String)
       extends Err(message)
       with CommonRejections
 
@@ -47,8 +43,6 @@ object CommonRejections {
     *
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class IllegalVersionFormat(override val message: String)
-      extends Err(message)
-      with CommonRejections
+  final case class IllegalVersionFormat(override val message: String) extends Err(message) with CommonRejections
 
 }

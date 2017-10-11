@@ -12,7 +12,7 @@ import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 class RefSpec extends WordSpecLike with Matchers with Inspectors {
   "A Ref" should {
 
-    def anyId[Id](ref: Ref[Id]): Id = ref.id
+    def anyId[Id](ref: Ref[Id]): Id    = ref.id
     def anyRev[Id](ref: Ref[Id]): Long = ref.rev
 
     "be able to convert any ref into it's id and it's revision" in {

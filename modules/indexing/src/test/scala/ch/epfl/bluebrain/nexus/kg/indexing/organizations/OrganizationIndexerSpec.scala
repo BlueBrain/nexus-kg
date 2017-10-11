@@ -46,28 +46,21 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
     PatienceConfig(3 seconds, 100 milliseconds)
 
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
-  private implicit val mt: ActorMaterializer = ActorMaterializer()
+  private implicit val mt: ActorMaterializer        = ActorMaterializer()
 
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
   private implicit val rs: HttpClient[Future, ResultSet] =
     HttpClient.withAkkaUnmarshaller[ResultSet]
 
-  private val base = s"http://$localhost/v0"
+  private val base         = s"http://$localhost/v0"
   private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ OrganizationIndexingSettings(index,
-                                                      orgBase,
-                                                      _,
-                                                      nexusVocBase) =
-    OrganizationIndexingSettings(genString(length = 6),
-                                 base,
-                                 s"$base/organizations/graphs",
-                                 s"$base/voc/nexus/core")
+  private val settings @ OrganizationIndexingSettings(index, orgBase, _, nexusVocBase) =
+    OrganizationIndexingSettings(genString(length = 6), base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
 
-  private def triples(
-      client: SparqlClient[Future]): Future[List[(String, String, String)]] =
+  private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
         val obj = {
@@ -79,53 +72,43 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       }
     }
 
-  private def expectedTriples(
-      id: OrgId,
-      rev: Long,
-      deprecated: Boolean,
-      description: String): List[(String, String, String)] = {
+  private def expectedTriples(id: OrgId,
+                              rev: Long,
+                              deprecated: Boolean,
+                              description: String): List[(String, String, String)] = {
 
     val qualifiedId = id.qualifyAsStringWith(orgBase)
     List(
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
-      (qualifiedId,
-       "deprecated" qualifyAsStringWith nexusVocBase,
-       deprecated.toString),
+      (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
       (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
       (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.id)
     )
   }
 
   "A OrganizationIndexer" should {
-    val client = SparqlClient[Future](baseUri)
+    val client  = SparqlClient[Future](baseUri)
     val indexer = OrganizationIndexer(client, settings)
 
     val id = OrgId(genString(length = 4))
 
     "index a OrgCreated event" in {
       client.createIndex(index, properties).futureValue
-      val rev = 1L
+      val rev  = 1L
       val data = jsonContentOf("/instances/minimal.json", replacements)
       indexer(OrgCreated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 4
-      rs should contain allElementsOf expectedTriples(id,
-                                                      rev,
-                                                      deprecated = false,
-                                                      "random")
+      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "random")
     }
 
     "index a OrgUpdated event" in {
-      val rev = 2L
-      val data = jsonContentOf("/instances/minimal.json",
-                               replacements + ("random" -> "updated"))
+      val rev  = 2L
+      val data = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
       indexer(OrgUpdated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 4
-      rs should contain allElementsOf expectedTriples(id,
-                                                      rev,
-                                                      deprecated = false,
-                                                      "updated")
+      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
     }
 
     "index a OrgDeprecated event" in {
@@ -133,10 +116,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       indexer(OrgDeprecated(id, rev)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 4
-      rs should contain allElementsOf expectedTriples(id,
-                                                      rev,
-                                                      deprecated = true,
-                                                      "updated")
+      rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, "updated")
     }
   }
 }

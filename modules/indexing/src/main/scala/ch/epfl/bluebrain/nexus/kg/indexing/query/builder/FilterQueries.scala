@@ -8,21 +8,13 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{
-  ComparisonExpr,
-  LogicalExpr,
-  NoopExpr
-}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, Eq}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{
-  QueryResults,
-  QuerySettings,
-  SparqlQuery
-}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 
 /**
@@ -33,8 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
   * @tparam F  the monadic effect type
   * @tparam Id the generic type which defines the response's payload
   */
-class FilterQueries[F[_], Id](queryClient: SparqlQuery[F],
-                              querySettings: QuerySettings) {
+class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QuerySettings) {
 
   private implicit val stringQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
@@ -60,10 +51,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F],
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(org: OrgId,
-           filter: Filter,
-           pagination: Pagination,
-           term: Option[String])(
+  def list(org: OrgId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
     list(filter and orgExpr(org), pagination, term)
 
@@ -75,10 +63,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F],
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(dom: DomainId,
-           filter: Filter,
-           pagination: Pagination,
-           term: Option[String])(
+  def list(dom: DomainId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
     list(filter
            and orgExpr(dom.orgId)
@@ -96,11 +81,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F],
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(dom: DomainId,
-           schemaName: String,
-           filter: Filter,
-           pagination: Pagination,
-           term: Option[String])(
+  def list(dom: DomainId, schemaName: String, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
     list(filter
            and orgExpr(dom.orgId)
@@ -117,10 +98,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F],
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(schema: SchemaId,
-           filter: Filter,
-           pagination: Pagination,
-           term: Option[String])(
+  def list(schema: SchemaId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
     list(filter
            and orgExpr(schema.domainId.orgId)
@@ -138,10 +116,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F],
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def outgoing(id: Id,
-               filter: Filter,
-               pagination: Pagination,
-               term: Option[String] = None)(
+  def outgoing(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
     val query = FilteredQuery.outgoing(id.qualify, filter, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
@@ -155,10 +130,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F],
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def incoming(id: Id,
-               filter: Filter,
-               pagination: Pagination,
-               term: Option[String] = None)(
+  def incoming(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
     val query = FilteredQuery.incoming(id.qualify, filter, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
@@ -177,9 +149,7 @@ object FilterQueries {
     * @tparam Id the generic type which defines the response's payload
     * @return an instance of [[FilterQueries]]
     */
-  final def apply[F[_], Id](
-      queryClient: SparqlQuery[F],
-      querySettings: QuerySettings): FilterQueries[F, Id] =
+  final def apply[F[_], Id](queryClient: SparqlQuery[F], querySettings: QuerySettings): FilterQueries[F, Id] =
     new FilterQueries(queryClient, querySettings)
 
   /**
@@ -215,9 +185,7 @@ object FilterQueries {
     * @param filterOps     the optional filter
     * @param baseVoc       the nexus core vocabulary base
     */
-  def filterFrom(deprecatedOpt: Option[Boolean],
-                 filterOps: Option[Filter],
-                 baseVoc: Uri): Filter =
+  def filterFrom(deprecatedOpt: Option[Boolean], filterOps: Option[Filter], baseVoc: Uri): Filter =
     deprecatedAndRev(deprecatedOpt, baseVoc) and filterOps.map(_.expr)
 
   /**
@@ -227,13 +195,9 @@ object FilterQueries {
     * @param baseVoc       the nexus core vocabulary base
     */
   def deprecatedAndRev(deprecatedOps: Option[Boolean], baseVoc: Uri): Filter =
-    Filter(
-      LogicalExpr(
-        Op.And,
-        List(deprecatedOrNoop(deprecatedOps, baseVoc), revExpr(baseVoc))))
+    Filter(LogicalExpr(Op.And, List(deprecatedOrNoop(deprecatedOps, baseVoc), revExpr(baseVoc))))
 
-  private def deprecatedOrNoop(deprecated: Option[Boolean],
-                               baseVoc: Uri): Expr = {
+  private def deprecatedOrNoop(deprecated: Option[Boolean], baseVoc: Uri): Expr = {
     deprecated
       .map { value =>
         val depr = "deprecated".qualifyWith(baseVoc)
@@ -247,20 +211,16 @@ object FilterQueries {
     ComparisonExpr(Op.Gt, UriTerm(rev), LiteralTerm("0"))
   }
 
-  private def orgExpr(org: OrgId)(
-      implicit qual: ConfiguredQualifier[String]): Expr =
+  private def orgExpr(org: OrgId)(implicit qual: ConfiguredQualifier[String]): Expr =
     ComparisonExpr(Eq, UriTerm("organization" qualify), lit(org.id))
 
-  private def domExpr(dom: DomainId)(
-      implicit qual: ConfiguredQualifier[String]): Expr =
+  private def domExpr(dom: DomainId)(implicit qual: ConfiguredQualifier[String]): Expr =
     ComparisonExpr(Eq, UriTerm("domain" qualify), lit(dom.id))
 
-  private def schemaNameExpr(schemaName: String)(
-      implicit qual: ConfiguredQualifier[String]): Expr =
+  private def schemaNameExpr(schemaName: String)(implicit qual: ConfiguredQualifier[String]): Expr =
     ComparisonExpr(Eq, UriTerm("schema" qualify), lit(schemaName))
 
-  private def schemaVerExpr(version: Version)(
-      implicit qual: ConfiguredQualifier[String]): Expr =
+  private def schemaVerExpr(version: Version)(implicit qual: ConfiguredQualifier[String]): Expr =
     ComparisonExpr(Eq, UriTerm("version" qualify), lit(version.show))
 
   private def lit(value: String): LiteralTerm =

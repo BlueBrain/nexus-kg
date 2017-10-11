@@ -34,32 +34,20 @@ trait PathDirectives {
       case org :: dom :: Nil =>
         provide(Coproduct[ResourceId](DomainId(OrgId(org), dom)))
       case org :: dom :: schema :: Nil =>
-        provide(
-          Coproduct[ResourceId](SchemaName(DomainId(OrgId(org), dom), schema)))
+        provide(Coproduct[ResourceId](SchemaName(DomainId(OrgId(org), dom), schema)))
       case org :: dom :: schema :: version :: Nil =>
         Version(version) match {
           case Some(ver) =>
-            provide(
-              Coproduct[ResourceId](
-                SchemaId(DomainId(OrgId(org), dom), schema, ver)))
+            provide(Coproduct[ResourceId](SchemaId(DomainId(OrgId(org), dom), schema, ver)))
           case None =>
-            reject(
-              ValidationRejection(
-                "Illegal version format",
-                Some(IllegalVersionFormat("Illegal version format"))))
+            reject(ValidationRejection("Illegal version format", Some(IllegalVersionFormat("Illegal version format"))))
         }
       case org :: dom :: schema :: version :: uuid :: Nil =>
         Version(version) match {
           case Some(ver) =>
-            provide(
-              Coproduct[ResourceId](
-                InstanceId(SchemaId(DomainId(OrgId(org), dom), schema, ver),
-                           uuid)))
+            provide(Coproduct[ResourceId](InstanceId(SchemaId(DomainId(OrgId(org), dom), schema, ver), uuid)))
           case None =>
-            reject(
-              ValidationRejection(
-                "Illegal version format",
-                Some(IllegalVersionFormat("Illegal version format"))))
+            reject(ValidationRejection("Illegal version format", Some(IllegalVersionFormat("Illegal version format"))))
         }
       case _ => reject
     }
@@ -81,8 +69,7 @@ trait PathDirectives {
     * @param selector   the selector for the type ''A''
     * @tparam A the resourceId to be extracted. It which should be one of the types in [[ResourceId]] Coproduct
     */
-  def resourceId[A](resourceId: ResourceId,
-                    selector: ResourceIdSelector[A]): Directive1[A] =
+  def resourceId[A](resourceId: ResourceId, selector: ResourceIdSelector[A]): Directive1[A] =
     resourceId.select[A](selector) match {
       case Some(a) => provide(a)
       case None    => reject
@@ -94,8 +81,7 @@ trait PathDirectives {
     * @param selector the selector for the type ''A''
     * @tparam A the resourceId to be extracted. It which should be one of the types in [[ResourceId]] Coproduct
     */
-  def extractResourceId[A](depth: Int,
-                           selector: ResourceIdSelector[A]): Directive1[A] = {
+  def extractResourceId[A](depth: Int, selector: ResourceIdSelector[A]): Directive1[A] = {
     extractAnyResourceId(depth).flatMap(id => resourceId(id, selector))
   }
 }

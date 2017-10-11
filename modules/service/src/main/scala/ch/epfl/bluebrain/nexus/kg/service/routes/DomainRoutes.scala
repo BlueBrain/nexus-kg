@@ -6,12 +6,7 @@ import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.domains.{
-  Domain,
-  DomainId,
-  DomainRef,
-  Domains
-}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
@@ -39,62 +34,58 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param querySettings     query parameters from settings
   * @param filteringSettings filtering parameters from settings
   */
-final class DomainRoutes(domains: Domains[Future],
-                         domainQueries: FilterQueries[Future, DomainId],
-                         base: Uri)(implicit querySettings: QuerySettings,
-                                    filteringSettings: FilteringSettings)
+final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[Future, DomainId], base: Uri)(
+    implicit querySettings: QuerySettings,
+    filteringSettings: FilteringSettings)
     extends DefaultRouteHandling {
 
   private val encoders = new DomainCustomEncoders(base)
   import encoders._
 
   protected def searchRoutes: Route =
-    (get & searchQueryParams) {
-      (pagination, filterOpt, termOpt, deprecatedOpt) =>
-        val filter =
-          filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-        traceName("searchDomains") {
-          pathEndOrSingleSlash {
+    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+      val filter =
+        filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+      traceName("searchDomains") {
+        pathEndOrSingleSlash {
+          domainQueries
+            .list(filter, pagination, termOpt)
+            .buildResponse(base, pagination)
+        } ~
+          (extractResourceId[OrgId](1, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
             domainQueries
-              .list(filter, pagination, termOpt)
+              .list(orgId, filter, pagination, termOpt)
               .buildResponse(base, pagination)
-          } ~
-            (extractResourceId[OrgId](1, of[OrgId]) & pathEndOrSingleSlash) {
-              orgId =>
-                domainQueries
-                  .list(orgId, filter, pagination, termOpt)
-                  .buildResponse(base, pagination)
-            }
-        }
+          }
+      }
     }
 
   protected def resourceRoutes: Route =
-    (extractResourceId[DomainId](2, of[DomainId]) & pathEndOrSingleSlash) {
-      domainId =>
-        (put & entity(as[DomainDescription])) { desc =>
-          traceName("createDomain") {
-            onSuccess(domains.create(domainId, desc.description)) { ref =>
-              complete(StatusCodes.Created -> ref)
+    (extractResourceId[DomainId](2, of[DomainId]) & pathEndOrSingleSlash) { domainId =>
+      (put & entity(as[DomainDescription])) { desc =>
+        traceName("createDomain") {
+          onSuccess(domains.create(domainId, desc.description)) { ref =>
+            complete(StatusCodes.Created -> ref)
+          }
+        }
+      } ~
+        get {
+          traceName("getDomain") {
+            onSuccess(domains.fetch(domainId)) {
+              case Some(domain) => complete(domain)
+              case None         => complete(StatusCodes.NotFound)
             }
           }
         } ~
-          get {
-            traceName("getDomain") {
-              onSuccess(domains.fetch(domainId)) {
-                case Some(domain) => complete(domain)
-                case None         => complete(StatusCodes.NotFound)
-              }
-            }
-          } ~
-          delete {
-            parameter('rev.as[Long]) { rev =>
-              traceName("deprecateDomain") {
-                onSuccess(domains.deprecate(domainId, rev)) { ref =>
-                  complete(StatusCodes.OK -> ref)
-                }
+        delete {
+          parameter('rev.as[Long]) { rev =>
+            traceName("deprecateDomain") {
+              onSuccess(domains.deprecate(domainId, rev)) { ref =>
+                complete(StatusCodes.OK -> ref)
               }
             }
           }
+        }
     }
 
   def routes: Route = combinedRoutesFor("domains")
@@ -119,32 +110,25 @@ object DomainRoutes {
     * @param base          the service public uri + prefix
     * @return a new ''DomainRoutes'' instance
     */
-  final def apply(domains: Domains[Future],
-                  client: SparqlClient[Future],
-                  querySettings: QuerySettings,
-                  base: Uri)(
+  final def apply(domains: Domains[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
       implicit
       ec: ExecutionContext,
       filteringSettings: FilteringSettings): DomainRoutes = {
     implicit val qs: QuerySettings = querySettings
-    val domainQueries = FilterQueries[Future, DomainId](
-      SparqlQuery[Future](client),
-      querySettings)
+    val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
     new DomainRoutes(domains, domainQueries, base)
   }
 }
 
-class DomainCustomEncoders(base: Uri)
-    extends RoutesEncoder[DomainId, DomainRef](base) {
+class DomainCustomEncoders(base: Uri) extends RoutesEncoder[DomainId, DomainRef](base) {
 
-  implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap {
-    domain =>
-      refEncoder
-        .apply(DomainRef(domain.id, domain.rev))
-        .deepMerge(
-          Json.obj(
-            "deprecated" -> Json.fromBoolean(domain.deprecated),
-            "description" -> Json.fromString(domain.description)
-          ))
+  implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap { domain =>
+    refEncoder
+      .apply(DomainRef(domain.id, domain.rev))
+      .deepMerge(
+        Json.obj(
+          "deprecated"  -> Json.fromBoolean(domain.deprecated),
+          "description" -> Json.fromString(domain.description)
+        ))
   }
 }

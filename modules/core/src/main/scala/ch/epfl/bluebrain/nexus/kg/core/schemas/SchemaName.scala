@@ -39,8 +39,7 @@ object SchemaName {
     case _ => None
   }
 
-  final implicit def schemaNameShow(
-      implicit D: Show[DomainId]): Show[SchemaName] = Show.show { name =>
+  final implicit def schemaNameShow(implicit D: Show[DomainId]): Show[SchemaName] = Show.show { name =>
     s"${name.domainId.show}/${name.name}"
   }
 }

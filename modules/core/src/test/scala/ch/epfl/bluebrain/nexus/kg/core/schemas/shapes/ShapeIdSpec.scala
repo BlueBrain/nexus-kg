@@ -13,9 +13,9 @@ import scala.util.Left
 class ShapeIdSpec extends WordSpecLike with Matchers with Inspectors {
 
   "A ShapeId" should {
-    val domId = DomainId(OrgId("org"), "dom")
-    val schemaId = SchemaId(domId, "name", Version(1, 2, 3))
-    val shapeId = ShapeId(schemaId, "ShapeFragment")
+    val domId         = DomainId(OrgId("org"), "dom")
+    val schemaId      = SchemaId(domId, "name", Version(1, 2, 3))
+    val shapeId       = ShapeId(schemaId, "ShapeFragment")
     val shapeIdString = """"org/dom/name/v1.2.3/shapes/ShapeFragment""""
 
     "be encoded properly into json" in {

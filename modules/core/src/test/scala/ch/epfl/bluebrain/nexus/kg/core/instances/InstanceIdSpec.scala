@@ -13,9 +13,9 @@ import scala.util.Left
 class InstanceIdSpec extends WordSpecLike with Matchers with Inspectors {
 
   "An InstanceId" should {
-    val domId = DomainId(OrgId("org"), "dom")
+    val domId    = DomainId(OrgId("org"), "dom")
     val schemaId = SchemaId(domId, "name", Version(1, 2, 3))
-    val id = InstanceId(schemaId, "f9a9e240-4763-430e-a25c-0837dd55ffdb")
+    val id       = InstanceId(schemaId, "f9a9e240-4763-430e-a25c-0837dd55ffdb")
     val idString =
       """"org/dom/name/v1.2.3/f9a9e240-4763-430e-a25c-0837dd55ffdb""""
 

@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.ShapeId
 class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
   def genUUID(): String = UUID.randomUUID().toString.toLowerCase
-  val base = Uri("http://localhost/base")
+  val base              = Uri("http://localhost/base")
 
   "A OrgId" should {
     val id = OrgId("org")
@@ -37,8 +37,7 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     }
 
     "be mapped into a qualified uri using an explicit base uri" in {
-      id.qualifyWith("http://localhost/explicit") shouldEqual Uri(
-        "http://localhost/explicit/organizations/org")
+      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/organizations/org")
     }
 
     "be mapped into a qualified uri in string format" in {
@@ -62,8 +61,7 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     }
 
     "be mapped into a qualified uri using an explicit base uri" in {
-      id.qualifyWith("http://localhost/explicit") shouldEqual Uri(
-        "http://localhost/explicit/domains/org/dom")
+      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/domains/org/dom")
     }
 
     "be mapped into a qualified uri in string format" in {
@@ -87,8 +85,7 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     }
 
     "be mapped into a qualified uri using an explicit base uri" in {
-      id.qualifyWith("http://localhost/explicit") shouldEqual Uri(
-        "http://localhost/explicit/schemas/org/dom/name")
+      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/schemas/org/dom/name")
     }
 
     "be mapped into a qualified uri in string format" in {
@@ -102,8 +99,7 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     "be mapped into a qualified uri using a configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[SchemaId] =
         Qualifier.configured[SchemaId](base)
-      id.qualify shouldEqual Uri(
-        "http://localhost/base/schemas/org/dom/name/v1.0.0")
+      id.qualify shouldEqual Uri("http://localhost/base/schemas/org/dom/name/v1.0.0")
     }
 
     "be mapped into a qualified uri in string format using a configured base uri" in {
@@ -124,14 +120,12 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
   "A ShapeId" should {
     val id =
-      ShapeId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)),
-              "fragment")
+      ShapeId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), "fragment")
 
     "be mapped into a qualified uri using a configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[ShapeId] =
         Qualifier.configured[ShapeId](base)
-      id.qualify shouldEqual Uri(
-        "http://localhost/base/schemas/org/dom/name/v1.0.0/shapes/fragment")
+      id.qualify shouldEqual Uri("http://localhost/base/schemas/org/dom/name/v1.0.0/shapes/fragment")
     }
 
     "be mapped into a qualified uri in string format using a configured base uri" in {
@@ -151,15 +145,12 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
   }
 
   "An InstanceId" should {
-    val id = InstanceId(
-      SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)),
-      genUUID())
+    val id = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), genUUID())
 
     "be mapped into a qualified uri using a configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[InstanceId] =
         Qualifier.configured[InstanceId](base)
-      id.qualify shouldEqual Uri(
-        s"http://localhost/base/data/org/dom/name/v1.0.0/${id.id}")
+      id.qualify shouldEqual Uri(s"http://localhost/base/data/org/dom/name/v1.0.0/${id.id}")
     }
 
     "be mapped into a qualified uri in string format using a configured base uri" in {
@@ -179,15 +170,14 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
   }
 
   "A qualifier uri" should {
-    val orgId = OrgId(genString(length = 4))
-    val domainId = DomainId(orgId, genString(length = 8))
+    val orgId      = OrgId(genString(length = 4))
+    val domainId   = DomainId(orgId, genString(length = 8))
     val schemaName = SchemaName(domainId, genString(length = 4))
-    val schemaId = schemaName.versioned(genVersion())
+    val schemaId   = schemaName.versioned(genVersion())
 
     "unqualify the uri into an InstanceId using an explicit base uri" in {
       val id = InstanceId(schemaId, genUUID())
-      s"$base/data/${id.show}".unqualifyWith[InstanceId](base) shouldEqual Some(
-        id)
+      s"$base/data/${id.show}".unqualifyWith[InstanceId](base) shouldEqual Some(id)
     }
 
     "unqualify the uri into an InstanceId using an configured base uri" in {
@@ -205,15 +195,13 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     "unqualify the uri into an SchemaId using an configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[SchemaId] =
         Qualifier.configured[SchemaId](base)
-      s"$base/schemas/${schemaId.show}".unqualify[SchemaId] shouldEqual Some(
-        schemaId)
+      s"$base/schemas/${schemaId.show}".unqualify[SchemaId] shouldEqual Some(schemaId)
     }
 
     "unqualify the uri into an SchemaName using an explicit base uri" in {
       val uriString = s"$base/schemas/${schemaName.show}"
       uriString.unqualifyWith[SchemaName](base) shouldEqual Some(schemaName)
-      Uri(uriString).unqualifyWith[SchemaName](base) shouldEqual Some(
-        schemaName)
+      Uri(uriString).unqualifyWith[SchemaName](base) shouldEqual Some(schemaName)
 
     }
 
@@ -226,7 +214,7 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
     "unqualify the uri into an ShapeId using an explicit base uri" in {
       val shapeId = ShapeId(schemaId, "fragment")
-      val uri = s"$base/schemas/${shapeId.show}"
+      val uri     = s"$base/schemas/${shapeId.show}"
       uri.unqualifyWith[ShapeId](base) shouldEqual Some(shapeId)
       Uri(uri).unqualifyWith[ShapeId](base) shouldEqual Some(shapeId)
     }
@@ -235,8 +223,7 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
       implicit val qualifier: ConfiguredQualifier[ShapeId] =
         Qualifier.configured[ShapeId](base)
       val shapeId = ShapeId(schemaId, "fragment")
-      s"$base/schemas/${shapeId.show}".unqualify[ShapeId] shouldEqual Some(
-        shapeId)
+      s"$base/schemas/${shapeId.show}".unqualify[ShapeId] shouldEqual Some(shapeId)
 
     }
 
@@ -249,8 +236,7 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
     "unqualify the uri into an DomainId using an configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[DomainId] =
         Qualifier.configured[DomainId](base)
-      s"$base/domains/${domainId.show}".unqualify[DomainId] shouldEqual Some(
-        domainId)
+      s"$base/domains/${domainId.show}".unqualify[DomainId] shouldEqual Some(domainId)
     }
 
     "unqualify the uri into an OrgId using an explicit base uri" in {

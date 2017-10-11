@@ -25,19 +25,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
-import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{
-  AkkaInOutFileStream,
-  RelativeAttachmentLocation
-}
+import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes._
-import ch.epfl.bluebrain.nexus.sourcing.akka.{
-  ShardingAggregate,
-  SourcingAkkaSettings
-}
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{
-  cors,
-  corsRejectionHandler
-}
+import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -76,9 +67,8 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)
 
-  private val corsSettings = CorsSettings.defaultSettings.copy(
-    allowedMethods = List(GET, PUT, POST, DELETE, OPTIONS, HEAD),
-    exposedHeaders = List(Location.name))
+  private val corsSettings = CorsSettings.defaultSettings
+    .copy(allowedMethods = List(GET, PUT, POST, DELETE, OPTIONS, HEAD), exposedHeaders = List(Location.name))
 
   val routes: Route = handleRejections(corsRejectionHandler) {
     cors(corsSettings)(static ~ apis)
@@ -86,66 +76,51 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
   // $COVERAGE-OFF$
   val cluster = Cluster(as)
   private val provided = settings.Cluster.Seeds
-    .map(
-      addr =>
-        AddressFromURIString(
-          s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
+    .map(addr => AddressFromURIString(s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
   private val seeds =
     if (provided.isEmpty) Set(cluster.selfAddress) else provided
   // $COVERAGE-ON$
 
   def operations() = {
-    implicit val al: AttachmentLocation[Future] = RelativeAttachmentLocation(
-      settings.Attachment.VolumePath)
+    implicit val al: AttachmentLocation[Future] = RelativeAttachmentLocation(settings.Attachment.VolumePath)
 
-    val sourcingSettings = SourcingAkkaSettings(
-      journalPluginId = settings.Persistence.QueryJournalPlugin)
+    val sourcingSettings = SourcingAkkaSettings(journalPluginId = settings.Persistence.QueryJournalPlugin)
 
-    val orgsAgg = ShardingAggregate(
-      "organization",
-      sourcingSettings.copy(
-        passivationTimeout = settings.Organizations.PassivationTimeout))(
-      Organizations.initial,
-      Organizations.next,
-      Organizations.eval)
+    val orgsAgg =
+      ShardingAggregate("organization",
+                        sourcingSettings.copy(passivationTimeout = settings.Organizations.PassivationTimeout))(
+        Organizations.initial,
+        Organizations.next,
+        Organizations.eval)
 
     val inFileProcessor = AkkaInOutFileStream(settings)
 
     val domsAgg = ShardingAggregate(
       "domain",
-      sourcingSettings.copy(
-        passivationTimeout = settings.Domains.PassivationTimeout))(
-      Domains.initial,
-      Domains.next,
-      Domains.eval)
+      sourcingSettings
+        .copy(passivationTimeout = settings.Domains.PassivationTimeout))(Domains.initial, Domains.next, Domains.eval)
 
     val schemasAgg = ShardingAggregate(
       "schema",
-      sourcingSettings.copy(
-        passivationTimeout = settings.Schemas.PassivationTimeout))(
-      Schemas.initial,
-      Schemas.next,
-      Schemas.eval)
+      sourcingSettings
+        .copy(passivationTimeout = settings.Schemas.PassivationTimeout))(Schemas.initial, Schemas.next, Schemas.eval)
 
-    val instancesAgg = ShardingAggregate(
-      "instance",
-      sourcingSettings.copy(
-        passivationTimeout = settings.Instances.PassivationTimeout))(
-      Instances.initial,
-      Instances.next,
-      Instances.eval)
+    val instancesAgg =
+      ShardingAggregate("instance", sourcingSettings.copy(passivationTimeout = settings.Instances.PassivationTimeout))(
+        Instances.initial,
+        Instances.next,
+        Instances.eval)
 
-    val orgs = Organizations(orgsAgg)
-    val doms = Domains(domsAgg, orgs)
-    val schemas = Schemas(schemasAgg, doms, apiUri.toString())
-    val validator = ShaclValidator[Future](
-      SchemaImportResolver(apiUri.toString(), schemas.fetch))
+    val orgs      = Organizations(orgsAgg)
+    val doms      = Domains(domsAgg, orgs)
+    val schemas   = Schemas(schemasAgg, doms, apiUri.toString())
+    val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch))
     implicit val instances =
       Instances(instancesAgg, schemas, validator, inFileProcessor)
     (orgs, doms, schemas, instances)
   }
 
-  def joinCluster() = cluster.joinSeedNodes(seeds.toList)
+  def joinCluster()  = cluster.joinSeedNodes(seeds.toList)
   def leaveCluster() = cluster.leave(cluster.selfAddress)
 }
 
@@ -163,27 +138,22 @@ object BootstrapService {
 
   abstract class BootstrapQuerySettings(settings: Settings) {
 
-    val domainSettings = QuerySettings(
-      Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.Domains.Index,
-      settings.Prefixes.CoreVocabulary)
+    val domainSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
+                                       settings.Sparql.Domains.Index,
+                                       settings.Prefixes.CoreVocabulary)
 
-    val orgSettings = QuerySettings(
-      Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.Organizations.Index,
-      settings.Prefixes.CoreVocabulary)
-    val schemaSettings = QuerySettings(
-      Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.Schemas.Index,
-      settings.Prefixes.CoreVocabulary)
+    val orgSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
+                                    settings.Sparql.Organizations.Index,
+                                    settings.Prefixes.CoreVocabulary)
+    val schemaSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
+                                       settings.Sparql.Schemas.Index,
+                                       settings.Prefixes.CoreVocabulary)
 
-    val instanceSettings = QuerySettings(
-      Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.Instances.Index,
-      settings.Prefixes.CoreVocabulary)
+    val instanceSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
+                                         settings.Sparql.Instances.Index,
+                                         settings.Prefixes.CoreVocabulary)
 
-    implicit val filteringSettings: FilteringSettings = FilteringSettings(
-      settings.Prefixes.CoreVocabulary,
-      settings.Prefixes.SearchVocabulary)
+    implicit val filteringSettings: FilteringSettings =
+      FilteringSettings(settings.Prefixes.CoreVocabulary, settings.Prefixes.SearchVocabulary)
   }
 }

@@ -24,11 +24,7 @@ import org.scalatest._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
-class ServiceSpecSuite
-    extends Suites
-    with BeforeAndAfterAll
-    with CassandraBoot
-    with BlazegraphBoot {
+class ServiceSpecSuite extends Suites with BeforeAndAfterAll with CassandraBoot with BlazegraphBoot {
 
   implicit lazy val system: ActorSystem =
     SystemBuilder.initConfig("BootstrapServices", cassandraPort, blazegraphPort)
@@ -36,11 +32,11 @@ class ServiceSpecSuite
   val settings: Settings = new Settings(system.settings.config)
 
   implicit val ec: ExecutionContextExecutor = system.dispatcher
-  implicit val mt: ActorMaterializer = ActorMaterializer()
+  implicit val mt: ActorMaterializer        = ActorMaterializer()
 
   val logger = Logging(system, getClass)
 
-  val pluginId = "cassandra-query-journal"
+  val pluginId         = "cassandra-query-journal"
   val sourcingSettings = SourcingAkkaSettings(journalPluginId = pluginId)
 
   val bootstrap = BootstrapService(settings)
@@ -51,15 +47,9 @@ class ServiceSpecSuite
   }
 
   override val nestedSuites = Vector(
-    new OrgIntegrationSpec(bootstrap.apiUri,
-                           bootstrap.routes,
-                           settings.Prefixes.CoreVocabulary),
-    new DomainIntegrationSpec(bootstrap.apiUri,
-                              bootstrap.routes,
-                              settings.Prefixes.CoreVocabulary),
-    new SchemasIntegrationSpec(bootstrap.apiUri,
-                               bootstrap.routes,
-                               settings.Prefixes.CoreVocabulary),
+    new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+    new DomainIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+    new SchemasIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new InstanceIntegrationSpec(bootstrap.apiUri,
                                 bootstrap.routes,
                                 settings.Prefixes.CoreVocabulary,
@@ -71,8 +61,7 @@ class ServiceSpecSuite
     cassandraStart()
     blazegraphStart()
     // ensures the keyspace and tables are created before the tests
-    val _ = Await.result(ProjectionStorage(system).fetchLatestOffset("random"),
-                         10 seconds)
+    val _ = Await.result(ProjectionStorage(system).fetchLatestOffset("random"), 10 seconds)
     bootstrap.joinCluster()
   }
 
@@ -89,8 +78,7 @@ trait BlazegraphBoot {
   val blazegraphPort: Int = freePort()
 
   private val server = {
-    System.setProperty("jetty.home",
-                       getClass.getResource("/war").toExternalForm)
+    System.setProperty("jetty.home", getClass.getResource("/war").toExternalForm)
     NanoSparqlServer.newInstance(blazegraphPort, null, null)
   }
 

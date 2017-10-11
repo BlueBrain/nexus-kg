@@ -28,8 +28,7 @@ object ShapeId {
       s"${id.schemaId.show}/shapes/${id.name}"
     }
 
-  final implicit def shapeIdEnconder(
-      implicit S: Show[ShapeId]): Encoder[ShapeId] =
+  final implicit def shapeIdEnconder(implicit S: Show[ShapeId]): Encoder[ShapeId] =
     Encoder.encodeString.contramap(id => S.show(id))
 
   final implicit val shapeIdDecoder: Decoder[ShapeId] =
@@ -39,7 +38,6 @@ object ShapeId {
           ShapeId(SchemaId(DomainId(OrgId(org), dom), name, ver), fragment)
         }
       case _ =>
-        Failure(
-          new IllegalArgumentException("Unable to decode value into a ShapeId"))
+        Failure(new IllegalArgumentException("Unable to decode value into a ShapeId"))
     }
 }

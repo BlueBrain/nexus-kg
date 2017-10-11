@@ -9,11 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.DomainCreated
 import ch.epfl.bluebrain.nexus.kg.core.domains._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent.InstanceCreated
 import ch.epfl.bluebrain.nexus.kg.core.instances._
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{
-  OrgCreated,
-  OrgDeprecated,
-  OrgUpdated
-}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDeprecated, OrgUpdated}
 import ch.epfl.bluebrain.nexus.kg.core.organizations._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.SchemaCreated
 import ch.epfl.bluebrain.nexus.kg.core.schemas._
@@ -24,53 +20,34 @@ import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import shapeless.Typeable
 
-class SerializerSpec
-    extends WordSpecLike
-    with Matchers
-    with Inspectors
-    with ScalatestRouteTest {
+class SerializerSpec extends WordSpecLike with Matchers with Inspectors with ScalatestRouteTest {
 
   val serialization = SerializationExtension(system)
 
-  def findConcreteSerializer[A <: SerializerWithStringManifest](o: AnyRef)(
-      implicit t: Typeable[A]): A = {
+  def findConcreteSerializer[A <: SerializerWithStringManifest](o: AnyRef)(implicit t: Typeable[A]): A = {
     t.cast(serialization.findSerializerFor(o))
       .getOrElse(fail("Expected a SerializerWithManifest"))
   }
 
   "A Serializer" when {
 
-    val uuid = UUID.randomUUID().toString
+    val uuid     = UUID.randomUUID().toString
     val domainId = DomainId(OrgId("orgid"), "domainid")
     "using EventSerializer" should {
       val results = List(
-        DataAndJson[OrgEvent](
-          OrgCreated(OrgId("orgid"), 1, Json.obj()),
-          """{"id":"orgid","rev":1,"value":{},"type":"OrgCreated"}"""),
-        DataAndJson[OrgEvent](
-          OrgUpdated(OrgId("orgid"),
-                     2,
-                     Json.obj("one" -> Json.fromString("two"))),
-          """{"id":"orgid","rev":2,"value":{"one":"two"},"type":"OrgUpdated"}"""),
-        DataAndJson[OrgEvent](
-          OrgDeprecated(OrgId("orgid"), 3),
-          """{"id":"orgid","rev":3,"type":"OrgDeprecated"}"""),
-        DataAndJson[DomainEvent](
-          DomainCreated(domainId, 1L, "desc"),
-          """{"id":"orgid/domainid","rev":1,"description":"desc","type":"DomainCreated"}"""),
+        DataAndJson[OrgEvent](OrgCreated(OrgId("orgid"), 1, Json.obj()),
+                              """{"id":"orgid","rev":1,"value":{},"type":"OrgCreated"}"""),
+        DataAndJson[OrgEvent](OrgUpdated(OrgId("orgid"), 2, Json.obj("one" -> Json.fromString("two"))),
+                              """{"id":"orgid","rev":2,"value":{"one":"two"},"type":"OrgUpdated"}"""),
+        DataAndJson[OrgEvent](OrgDeprecated(OrgId("orgid"), 3), """{"id":"orgid","rev":3,"type":"OrgDeprecated"}"""),
+        DataAndJson[DomainEvent](DomainCreated(domainId, 1L, "desc"),
+                                 """{"id":"orgid/domainid","rev":1,"description":"desc","type":"DomainCreated"}"""),
         DataAndJson[SchemaEvent](
-          SchemaCreated(SchemaId(domainId, "schemaname", Version(1, 1, 1)),
-                        1,
-                        Json.obj()),
+          SchemaCreated(SchemaId(domainId, "schemaname", Version(1, 1, 1)), 1, Json.obj()),
           """{"id":"orgid/domainid/schemaname/v1.1.1","rev":1,"value":{},"type":"SchemaCreated"}"""
         ),
         DataAndJson[InstanceEvent](
-          InstanceCreated(InstanceId(SchemaId(domainId,
-                                              "schemaname",
-                                              Version(1, 1, 1)),
-                                     uuid),
-                          1,
-                          Json.obj()),
+          InstanceCreated(InstanceId(SchemaId(domainId, "schemaname", Version(1, 1, 1)), uuid), 1, Json.obj()),
           s"""{"id":"orgid/domainid/schemaname/v1.1.1/$uuid","rev":1,"value":{},"type":"InstanceCreated"}"""
         )
       )
@@ -106,8 +83,7 @@ object SerializerSpec {
   case class DataAndJson[A](data: A, json: String, manifest: String)
 
   object DataAndJson {
-    def apply[A](data: A, json: String)(
-        implicit tb: Typeable[A]): DataAndJson[A] =
+    def apply[A](data: A, json: String)(implicit tb: Typeable[A]): DataAndJson[A] =
       DataAndJson[A](data, json, tb.describe)
   }
 

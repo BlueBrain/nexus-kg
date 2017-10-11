@@ -9,20 +9,13 @@ import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalVersionFormat
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
-import ch.epfl.bluebrain.nexus.kg.service.routes.{
-  Error,
-  ExceptionHandling,
-  RejectionHandling
-}
+import ch.epfl.bluebrain.nexus.kg.service.routes.{Error, ExceptionHandling, RejectionHandling}
 import org.scalatest.{Matchers, WordSpecLike}
 import shapeless.Poly1
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 
-class PathDirectivesSpec
-    extends WordSpecLike
-    with ScalatestRouteTest
-    with Matchers {
+class PathDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matchers {
 
   object completeWithType extends Poly1 {
     implicit def caseNone: Case.Aux[None.type, Route] = at[None.type] { _ =>
@@ -34,8 +27,7 @@ class PathDirectivesSpec
   }
 
   private val route = {
-    (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(
-      RejectionHandling.rejectionHandler)) {
+    (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
       extractAnyResourceId() { id =>
         id.fold(completeWithType)
       }
@@ -76,8 +68,7 @@ class PathDirectivesSpec
     "reject the request with an IllegalVersionFormat" in {
       Get("/org/dom/name/v1.0/uuid") ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[
-          IllegalVersionFormat.type]
+        responseAs[Error].code shouldEqual classNameOf[IllegalVersionFormat.type]
       }
     }
   }
