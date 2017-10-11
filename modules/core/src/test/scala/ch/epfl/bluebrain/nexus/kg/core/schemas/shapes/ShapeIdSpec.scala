@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core.schemas.shapes
 
-import ch.epfl.bluebrain.nexus.common.types.Version
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
@@ -27,19 +27,21 @@ class ShapeIdSpec extends WordSpecLike with Matchers with Inspectors {
     }
 
     "fail to decode" in {
-      forAll(List(
-        "asd",
-        "/",
-        "/asd",
-        "asd/",
-        "asd/ads/asd",
-        "asd/asd/asd/v1.1",
-        "asd/asd/asd/v1.1.2.3",
-        "asd/asd/asd/v1.1.a",
-        "asd/asd/a d/v1.1.2",
-        "org/dom/name/v1.2.3/ShapeFragment 123",
-        "org/dom/name/v1.2.3/http://google.com/ShapeFragment",
-        "org/dom/name/v1.2.3/shapes/bbp:ShapeFragment")) { str =>
+      forAll(
+        List(
+          "asd",
+          "/",
+          "/asd",
+          "asd/",
+          "asd/ads/asd",
+          "asd/asd/asd/v1.1",
+          "asd/asd/asd/v1.1.2.3",
+          "asd/asd/asd/v1.1.a",
+          "asd/asd/a d/v1.1.2",
+          "org/dom/name/v1.2.3/ShapeFragment 123",
+          "org/dom/name/v1.2.3/http://google.com/ShapeFragment",
+          "org/dom/name/v1.2.3/shapes/bbp:ShapeFragment"
+        )) { str =>
         decode[ShapeId](s""""$str"""") shouldBe a[Left[_, _]]
       }
     }

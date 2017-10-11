@@ -1,14 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.core.circe
 
-import ch.epfl.bluebrain.nexus.common.test.Resources
+import ch.epfl.bluebrain.nexus.commons.test.Resources
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import ch.epfl.bluebrain.nexus.kg.core.circe.CirceShapeExtractorInstances._
 import io.circe.Json
 
-class CirceShapeExtractorSpec extends WordSpecLike
-  with Matchers
-  with Inspectors
-  with Resources {
+class CirceShapeExtractorSpec
+    extends WordSpecLike
+    with Matchers
+    with Inspectors
+    with Resources {
 
   val schemaJson = jsonContentOf("/int-value-schema.json")
   val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
@@ -25,10 +26,12 @@ class CirceShapeExtractorSpec extends WordSpecLike
         "Something" -> None,
         ":IdSomething" -> None,
         "/IdNodeShape2" -> None,
-        "dNodeShape2" -> None)
+        "dNodeShape2" -> None
+      )
 
-      forAll(values.toList) { case (id, expected) =>
-        schemaJson.fetchShape(id) shouldEqual expected
+      forAll(values.toList) {
+        case (id, expected) =>
+          schemaJson.fetchShape(id) shouldEqual expected
       }
       schemaNoShapes.fetchShape("Something") shouldEqual None
     }

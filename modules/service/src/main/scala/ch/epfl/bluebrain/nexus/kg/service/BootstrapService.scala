@@ -24,11 +24,20 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.service.commons.directives.PrefixDirectives.uriPrefix
-import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
+import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
+import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{
+  AkkaInOutFileStream,
+  RelativeAttachmentLocation
+}
 import ch.epfl.bluebrain.nexus.kg.service.routes._
-import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
+import ch.epfl.bluebrain.nexus.sourcing.akka.{
+  ShardingAggregate,
+  SourcingAkkaSettings
+}
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{
+  cors,
+  corsRejectionHandler
+}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -41,11 +50,16 @@ import scala.concurrent.{ExecutionContextExecutor, Future}
   * @param ec       the implicitly available [[ExecutionContextExecutor]]
   * @param mt       the implicitly available [[ActorMaterializer]]
   */
-class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer) extends BootstrapQuerySettings(settings) {
+class BootstrapService(settings: Settings)(implicit as: ActorSystem,
+                                           ec: ExecutionContextExecutor,
+                                           mt: ActorMaterializer)
+    extends BootstrapQuerySettings(settings) {
 
   private val baseUri = settings.Http.PublicUri
   // $COVERAGE-OFF$
-  val apiUri: Uri = if (settings.Http.Prefix.trim.isEmpty) baseUri else baseUri.copy(path = baseUri.path / settings.Http.Prefix)
+  val apiUri: Uri =
+    if (settings.Http.Prefix.trim.isEmpty) baseUri
+    else baseUri.copy(path = baseUri.path / settings.Http.Prefix)
   // $COVERAGE-ON$
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
 
@@ -72,33 +86,51 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: Executi
   // $COVERAGE-OFF$
   val cluster = Cluster(as)
   private val provided = settings.Cluster.Seeds
-    .map(addr => AddressFromURIString(s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
-  private val seeds = if (provided.isEmpty) Set(cluster.selfAddress) else provided
+    .map(
+      addr =>
+        AddressFromURIString(
+          s"akka.tcp://${settings.Description.ActorSystemName}@$addr"))
+  private val seeds =
+    if (provided.isEmpty) Set(cluster.selfAddress) else provided
   // $COVERAGE-ON$
 
   def operations() = {
-    implicit val al: AttachmentLocation[Future] = RelativeAttachmentLocation(settings.Attachment.VolumePath)
+    implicit val al: AttachmentLocation[Future] = RelativeAttachmentLocation(
+      settings.Attachment.VolumePath)
 
-    val sourcingSettings = SourcingAkkaSettings(journalPluginId = settings.Persistence.QueryJournalPlugin)
+    val sourcingSettings = SourcingAkkaSettings(
+      journalPluginId = settings.Persistence.QueryJournalPlugin)
 
-    val orgsAgg = ShardingAggregate("organization", sourcingSettings.copy(passivationTimeout = settings.Organizations.PassivationTimeout))(
+    val orgsAgg = ShardingAggregate(
+      "organization",
+      sourcingSettings.copy(
+        passivationTimeout = settings.Organizations.PassivationTimeout))(
       Organizations.initial,
       Organizations.next,
       Organizations.eval)
 
     val inFileProcessor = AkkaInOutFileStream(settings)
 
-    val domsAgg = ShardingAggregate("domain", sourcingSettings.copy(passivationTimeout = settings.Domains.PassivationTimeout))(
+    val domsAgg = ShardingAggregate(
+      "domain",
+      sourcingSettings.copy(
+        passivationTimeout = settings.Domains.PassivationTimeout))(
       Domains.initial,
       Domains.next,
       Domains.eval)
 
-    val schemasAgg = ShardingAggregate("schema", sourcingSettings.copy(passivationTimeout = settings.Schemas.PassivationTimeout))(
+    val schemasAgg = ShardingAggregate(
+      "schema",
+      sourcingSettings.copy(
+        passivationTimeout = settings.Schemas.PassivationTimeout))(
       Schemas.initial,
       Schemas.next,
       Schemas.eval)
 
-    val instancesAgg = ShardingAggregate("instance", sourcingSettings.copy(passivationTimeout = settings.Instances.PassivationTimeout))(
+    val instancesAgg = ShardingAggregate(
+      "instance",
+      sourcingSettings.copy(
+        passivationTimeout = settings.Instances.PassivationTimeout))(
       Instances.initial,
       Instances.next,
       Instances.eval)
@@ -106,8 +138,10 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem, ec: Executi
     val orgs = Organizations(orgsAgg)
     val doms = Domains(domsAgg, orgs)
     val schemas = Schemas(schemasAgg, doms, apiUri.toString())
-    val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch))
-    implicit val instances = Instances(instancesAgg, schemas, validator, inFileProcessor)
+    val validator = ShaclValidator[Future](
+      SchemaImportResolver(apiUri.toString(), schemas.fetch))
+    implicit val instances =
+      Instances(instancesAgg, schemas, validator, inFileProcessor)
     (orgs, doms, schemas, instances)
   }
 
@@ -122,24 +156,31 @@ object BootstrapService {
     *
     * @param settings the application settings
     */
-  final def apply(settings: Settings)(implicit as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer): BootstrapService = new BootstrapService(settings)
+  final def apply(settings: Settings)(implicit as: ActorSystem,
+                                      ec: ExecutionContextExecutor,
+                                      mt: ActorMaterializer): BootstrapService =
+    new BootstrapService(settings)
 
   abstract class BootstrapQuerySettings(settings: Settings) {
 
     val domainSettings = QuerySettings(
       Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.Domains.Index, settings.Prefixes.CoreVocabulary)
+      settings.Sparql.Domains.Index,
+      settings.Prefixes.CoreVocabulary)
 
     val orgSettings = QuerySettings(
       Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.Organizations.Index, settings.Prefixes.CoreVocabulary)
+      settings.Sparql.Organizations.Index,
+      settings.Prefixes.CoreVocabulary)
     val schemaSettings = QuerySettings(
       Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.Schemas.Index, settings.Prefixes.CoreVocabulary)
+      settings.Sparql.Schemas.Index,
+      settings.Prefixes.CoreVocabulary)
 
     val instanceSettings = QuerySettings(
       Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.Instances.Index, settings.Prefixes.CoreVocabulary)
+      settings.Sparql.Instances.Index,
+      settings.Prefixes.CoreVocabulary)
 
     implicit val filteringSettings: FilteringSettings = FilteringSettings(
       settings.Prefixes.CoreVocabulary,

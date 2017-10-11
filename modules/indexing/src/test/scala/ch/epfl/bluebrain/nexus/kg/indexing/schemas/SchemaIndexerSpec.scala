@@ -9,8 +9,8 @@ import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.common.test._
-import ch.epfl.bluebrain.nexus.common.types.Version
+import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -31,7 +31,7 @@ import scala.concurrent.{ExecutionContextExecutor, Future}
 
 @DoNotDiscover
 class SchemaIndexerSpec(blazegraphPort: Int)
-  extends TestKit(ActorSystem("SchemaIndexerSpec"))
+    extends TestKit(ActorSystem("SchemaIndexerSpec"))
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -46,27 +46,32 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     super.afterAll()
   }
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 milliseconds)
+  override implicit val patienceConfig: PatienceConfig =
+    PatienceConfig(3 seconds, 100 milliseconds)
 
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
   private implicit val mt: ActorMaterializer = ActorMaterializer()
 
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
-  private implicit val rs: HttpClient[Future, ResultSet] = HttpClient.withAkkaUnmarshaller[ResultSet]
+  private implicit val rs: HttpClient[Future, ResultSet] =
+    HttpClient.withAkkaUnmarshaller[ResultSet]
 
   private val base = s"http://$localhost/v0"
   private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings@SchemaIndexingSettings(index, schemasBase, schemasBaseNs, nexusVocBase) =
-    SchemaIndexingSettings(
-      genString(length = 6),
-      base,
-      s"$base/schemas/graphs",
-      s"$base/voc/nexus/core")
+  private val settings @ SchemaIndexingSettings(index,
+                                                schemasBase,
+                                                schemasBaseNs,
+                                                nexusVocBase) =
+    SchemaIndexingSettings(genString(length = 6),
+                           base,
+                           s"$base/schemas/graphs",
+                           s"$base/voc/nexus/core")
 
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
 
-  private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
+  private def triples(
+      client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
         val obj = {
@@ -79,21 +84,28 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     }
 
   private def expectedTriples(
-    id: SchemaId,
-    rev: Long,
-    deprecated: Boolean,
-    published: Boolean,
-    description: String): List[(String, String, String)] = {
+      id: SchemaId,
+      rev: Long,
+      deprecated: Boolean,
+      published: Boolean,
+      description: String): List[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(schemasBase)
     List(
-      (qualifiedId, "rev"          qualifyAsStringWith nexusVocBase, rev.toString),
-      (qualifiedId, "deprecated"   qualifyAsStringWith nexusVocBase, deprecated.toString),
-      (qualifiedId, "published"    qualifyAsStringWith nexusVocBase, published.toString),
-      (qualifiedId, "desc"         qualifyAsStringWith nexusVocBase, description),
-      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.domainId.orgId.id),
-      (qualifiedId, "domain"       qualifyAsStringWith nexusVocBase, id.domainId.id),
-      (qualifiedId, "schema"       qualifyAsStringWith nexusVocBase, id.name),
-      (qualifiedId, "version"      qualifyAsStringWith nexusVocBase, id.version.show))
+      (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
+      (qualifiedId,
+       "deprecated" qualifyAsStringWith nexusVocBase,
+       deprecated.toString),
+      (qualifiedId,
+       "published" qualifyAsStringWith nexusVocBase,
+       published.toString),
+      (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId,
+       "organization" qualifyAsStringWith nexusVocBase,
+       id.domainId.orgId.id),
+      (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.domainId.id),
+      (qualifiedId, "schema" qualifyAsStringWith nexusVocBase, id.name),
+      (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show)
+    )
   }
 
   "A SchemaIndexer" should {
@@ -109,16 +121,25 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       indexer(SchemaCreated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 14
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = false, "random")
+      rs should contain allElementsOf expectedTriples(id,
+                                                      rev,
+                                                      deprecated = false,
+                                                      published = false,
+                                                      "random")
     }
 
     "index a SchemaUpdated event" in {
       val rev = 2L
-      val data = jsonContentOf("/schemas/minimal.json", replacements + ("random" -> "updated"))
+      val data = jsonContentOf("/schemas/minimal.json",
+                               replacements + ("random" -> "updated"))
       indexer(SchemaUpdated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 14
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = false, "updated")
+      rs should contain allElementsOf expectedTriples(id,
+                                                      rev,
+                                                      deprecated = false,
+                                                      published = false,
+                                                      "updated")
     }
 
     "index a SchemaPublished event" in {
@@ -126,7 +147,11 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       indexer(SchemaPublished(id, rev)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 14
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = true, "updated")
+      rs should contain allElementsOf expectedTriples(id,
+                                                      rev,
+                                                      deprecated = false,
+                                                      published = true,
+                                                      "updated")
     }
 
     "index a SchemaDeprecated event" in {
@@ -134,7 +159,11 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       indexer(SchemaDeprecated(id, rev)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 14
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, published = true, "updated")
+      rs should contain allElementsOf expectedTriples(id,
+                                                      rev,
+                                                      deprecated = true,
+                                                      published = true,
+                                                      "updated")
     }
   }
 }

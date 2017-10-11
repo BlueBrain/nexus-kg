@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.persistence
 
 import akka.persistence.journal.Tagged
-import ch.epfl.bluebrain.nexus.common.types.Version
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainEvent, DomainId}
 import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceEvent, InstanceId}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, OrgId}
@@ -25,11 +25,13 @@ class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors {
       OrgEvent.OrgDeprecated(orgId, rev) -> "organization",
       DomainEvent.DomainDeprecated(domId, rev) -> "domain",
       SchemaEvent.SchemaDeprecated(schemaId, rev) -> "schema",
-      InstanceEvent.InstanceDeprecated(instId, rev) -> "instance")
+      InstanceEvent.InstanceDeprecated(instId, rev) -> "instance"
+    )
 
     "set the appropriate tags" in {
-      forAll(mapping.toList) { case (ev, tag) =>
-        adapter.toJournal(ev) shouldEqual Tagged(ev, Set(tag))
+      forAll(mapping.toList) {
+        case (ev, tag) =>
+          adapter.toJournal(ev) shouldEqual Tagged(ev, Set(tag))
       }
     }
 

@@ -3,9 +3,14 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.common.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
-import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{
+  Domain,
+  DomainId,
+  DomainRef,
+  Domains
+}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -27,7 +32,7 @@ import io.circe.syntax._
 import scala.concurrent.Future
 
 class DomainRoutesSpec
-  extends WordSpecLike
+    extends WordSpecLike
     with Matchers
     with ScalatestRouteTest
     with Randomness
@@ -35,9 +40,13 @@ class DomainRoutesSpec
 
   "A DomainRoutes" should {
     import domsEncoder._
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgAgg = MemoryAggregate("orgs")(Organizations.initial,
+                                         Organizations.next,
+                                         Organizations.eval).toF[Future]
     val orgs = Organizations(orgAgg)
-    val domAgg = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val domAgg =
+      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
+        .toF[Future]
     val doms = Domains(domAgg, orgs)
 
     val orgId = OrgId(genString(length = 5))
@@ -45,7 +54,9 @@ class DomainRoutesSpec
     val description = genString(length = 32)
     val json = Json.obj("description" -> Json.fromString(description))
 
-    orgs.create(orgId, Json.obj("key" -> Json.fromString(genString()))).futureValue
+    orgs
+      .create(orgId, Json.obj("key" -> Json.fromString(genString())))
+      .futureValue
 
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
     val vocab = baseUri.copy(path = baseUri.path / "core")
@@ -61,7 +72,8 @@ class DomainRoutesSpec
         status shouldEqual StatusCodes.Created
         responseAs[Json] shouldEqual DomainRef(id, 1L).asJson
       }
-      doms.fetch(id).futureValue shouldEqual Some(Domain(id, 1L, deprecated = false, description))
+      doms.fetch(id).futureValue shouldEqual Some(
+        Domain(id, 1L, deprecated = false, description))
     }
 
     "reject the creation of a domain which already exists" in {
@@ -100,7 +112,8 @@ class DomainRoutesSpec
     "reject the deprecation of a domain with incorrect rev" in {
       Delete(s"/domains/${orgId.show}/${id.id}?rev=10", json) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
-        responseAs[Error].code shouldEqual classNameOf[IncorrectRevisionProvided.type]
+        responseAs[Error].code shouldEqual classNameOf[
+          IncorrectRevisionProvided.type]
       }
     }
 
@@ -109,18 +122,21 @@ class DomainRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual DomainRef(id, 2L).asJson
       }
-      doms.fetch(id).futureValue shouldEqual Some(Domain(id, 2L, deprecated = true, description))
+      doms.fetch(id).futureValue shouldEqual Some(
+        Domain(id, 2L, deprecated = true, description))
     }
 
     "reject the deprecation of a domain already deprecated" in {
       Delete(s"/domains/${orgId.show}/${id.id}?rev=2", json) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[DomainAlreadyDeprecated.type]
+        responseAs[Error].code shouldEqual classNameOf[
+          DomainAlreadyDeprecated.type]
       }
     }
 
     "reject the deprecation of a domain which does not exists" in {
-      Delete(s"/domains/${orgId.show}/${id.copy(id = "something").id}?rev=1", json) ~> route ~> check {
+      Delete(s"/domains/${orgId.show}/${id.copy(id = "something").id}?rev=1",
+             json) ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].code shouldEqual classNameOf[DomainDoesNotExist.type]
       }

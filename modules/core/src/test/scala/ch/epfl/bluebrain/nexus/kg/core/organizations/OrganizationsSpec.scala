@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.core.organizations
 
 import cats.instances.try_._
-import ch.epfl.bluebrain.nexus.common.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
@@ -12,11 +12,12 @@ import org.scalatest.{Inspectors, Matchers, TryValues, WordSpecLike}
 
 import scala.util.Try
 
-class OrganizationsSpec extends WordSpecLike
-  with Matchers
-  with Inspectors
-  with TryValues
-  with Randomness {
+class OrganizationsSpec
+    extends WordSpecLike
+    with Matchers
+    with Inspectors
+    with TryValues
+    with Randomness {
 
   private def genId(): String =
     genString(length = 4, Vector.range('a', 'z') ++ Vector.range('0', '9'))
@@ -40,7 +41,8 @@ class OrganizationsSpec extends WordSpecLike
       val json2 = genJson()
       org.create(id, json).success.value shouldEqual OrgRef(id, 1L)
       org.update(id, 1, json2).success.value shouldEqual OrgRef(id, 2L)
-      org.fetch(id).success.value shouldEqual Some(Organization(id, 2L, json2, deprecated = false))
+      org.fetch(id).success.value shouldEqual Some(
+        Organization(id, 2L, json2, deprecated = false))
     }
 
     "prevent updates to deprecated organizations" in {
@@ -48,7 +50,10 @@ class OrganizationsSpec extends WordSpecLike
       val json = genJson()
       org.create(id, json).success.value shouldEqual OrgRef(id, 1L)
       org.deprecate(id, 1L).success.value shouldEqual OrgRef(id, 2L)
-      org.update(id, 2L, genJson()).failure.exception shouldEqual CommandRejected(OrgIsDeprecated)
+      org
+        .update(id, 2L, genJson())
+        .failure
+        .exception shouldEqual CommandRejected(OrgIsDeprecated)
     }
 
     "prevent duplicate deprecations" in {
@@ -56,26 +61,32 @@ class OrganizationsSpec extends WordSpecLike
       val json = genJson()
       org.create(id, json).success.value shouldEqual OrgRef(id, 1L)
       org.deprecate(id, 1L).success.value shouldEqual OrgRef(id, 2L)
-      org.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(OrgIsDeprecated)
+      org.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(
+        OrgIsDeprecated)
     }
 
     "prevent duplicate creations" in {
       val id = OrgId(genId())
       val json = genJson()
       org.create(id, json).success.value shouldEqual OrgRef(id, 1L)
-      org.create(id, json).failure.exception shouldEqual CommandRejected(OrgAlreadyExists)
+      org.create(id, json).failure.exception shouldEqual CommandRejected(
+        OrgAlreadyExists)
     }
 
     "prevent update on missing org" in {
       val id = OrgId(genId())
       val json = genJson()
-      org.update(id, 0L, json).failure.exception shouldEqual CommandRejected(OrgDoesNotExist)
+      org.update(id, 0L, json).failure.exception shouldEqual CommandRejected(
+        OrgDoesNotExist)
     }
 
     "prevent creation with illegal id" in {
       forAll(List("", " ", "abv ", "123-", "ab", "abcdef")) { id =>
         val json = genJson()
-        org.create(OrgId(id), json).failure.exception shouldEqual CommandRejected(InvalidOrganizationId(id))
+        org
+          .create(OrgId(id), json)
+          .failure
+          .exception shouldEqual CommandRejected(InvalidOrganizationId(id))
       }
     }
 
@@ -83,14 +94,16 @@ class OrganizationsSpec extends WordSpecLike
       val id = OrgId(genId())
       val json = genJson()
       org.create(id, json).success.value shouldEqual OrgRef(id, 1L)
-      org.update(id, 2L, json).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
+      org.update(id, 2L, json).failure.exception shouldEqual CommandRejected(
+        IncorrectRevisionProvided)
     }
 
     "prevent deprecation with incorrect rev" in {
       val id = OrgId(genId())
       val json = genJson()
       org.create(id, json).success.value shouldEqual OrgRef(id, 1L)
-      org.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
+      org.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(
+        IncorrectRevisionProvided)
     }
 
     "return a None when fetching an org that doesn't exists" in {

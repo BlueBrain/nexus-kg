@@ -4,14 +4,19 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.common.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
-import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{
+  OrgId,
+  OrgRef,
+  Organization,
+  Organizations
+}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
@@ -27,7 +32,7 @@ import org.scalatest.{Matchers, WordSpecLike}
 import scala.concurrent.Future
 
 class OrganizationRoutesSpec
-  extends WordSpecLike
+    extends WordSpecLike
     with Matchers
     with ScalatestRouteTest
     with Randomness
@@ -44,7 +49,8 @@ class OrganizationRoutesSpec
     implicit val cl = HttpClient.akkaHttpClient
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route = OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
+    val route =
+      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
 
     val id = OrgId(genString(length = 3))
     val json = Json.obj("key" -> Json.fromString(genString(length = 8)))
@@ -55,13 +61,15 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.Created
         responseAs[Json] shouldEqual orgRefAsJson(OrgRef(id, 1L))
       }
-      orgs.fetch(id).futureValue shouldEqual Some(Organization(id, 1L, json, deprecated = false))
+      orgs.fetch(id).futureValue shouldEqual Some(
+        Organization(id, 1L, json, deprecated = false))
     }
 
     "reject the creation of an organization with invalid id" in {
       Put(s"/organizations/invalidId!", json) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[InvalidOrganizationId.type]
+        responseAs[Error].code shouldEqual classNameOf[
+          InvalidOrganizationId.type]
       }
     }
 
@@ -77,13 +85,15 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual orgRefAsJson(OrgRef(id, 2L))
       }
-      orgs.fetch(id).futureValue shouldEqual Some(Organization(id, 2L, jsonUpdated, deprecated = false))
+      orgs.fetch(id).futureValue shouldEqual Some(
+        Organization(id, 2L, jsonUpdated, deprecated = false))
     }
 
     "reject updating an organization with incorrect rev" in {
       Put(s"/organizations/${id.show}?rev=10", jsonUpdated) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
-        responseAs[Error].code shouldEqual classNameOf[IncorrectRevisionProvided.type]
+        responseAs[Error].code shouldEqual classNameOf[
+          IncorrectRevisionProvided.type]
       }
     }
 
@@ -97,10 +107,10 @@ class OrganizationRoutesSpec
     "return the current organization" in {
       Get(s"/organizations/${id.show}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual Json.obj(
-          "@id" -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-          "rev" -> Json.fromLong(2L),
-          "deprecated" -> Json.fromBoolean(false))
+        responseAs[Json] shouldEqual Json
+          .obj("@id" -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+               "rev" -> Json.fromLong(2L),
+               "deprecated" -> Json.fromBoolean(false))
           .deepMerge(jsonUpdated)
       }
     }
@@ -116,7 +126,8 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual orgRefAsJson(OrgRef(id, 3L))
       }
-      orgs.fetch(id).futureValue shouldEqual Some(Organization(id, 3L, jsonUpdated, deprecated = true))
+      orgs.fetch(id).futureValue shouldEqual Some(
+        Organization(id, 3L, jsonUpdated, deprecated = true))
     }
 
     "reject the deprecation of an organization already deprecated" in {

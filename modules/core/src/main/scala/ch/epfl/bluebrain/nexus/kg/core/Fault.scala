@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core
 
-import ch.epfl.bluebrain.nexus.common.types.Err
+import ch.epfl.bluebrain.nexus.commons.types.Err
 
 /**
   * Top level exception type for the knowledge graph that describes a failure in the system.
@@ -25,6 +25,7 @@ object Fault {
     *
     * @param rejection the rejection returned for a command evaluation
     */
-  final case class CommandRejected(rejection: Rejection) extends Fault("Command rejected")
+  final case class CommandRejected(rejection: Rejection)
+      extends Fault("Command rejected")
 
 }

@@ -7,11 +7,16 @@ import akka.event.Logging
 import akka.persistence.cassandra.testkit.CassandraLauncher
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
-import ch.epfl.bluebrain.nexus.common.test.Randomness.freePort
+import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.{BootstrapService, StartIndexers}
-import ch.epfl.bluebrain.nexus.kg.tests.integration.{DomainIntegrationSpec, InstanceIntegrationSpec, OrgIntegrationSpec, SchemasIntegrationSpec}
-import ch.epfl.bluebrain.nexus.service.commons.persistence.ProjectionStorage
+import ch.epfl.bluebrain.nexus.kg.tests.integration.{
+  DomainIntegrationSpec,
+  InstanceIntegrationSpec,
+  OrgIntegrationSpec,
+  SchemasIntegrationSpec
+}
+import ch.epfl.bluebrain.nexus.commons.service.persistence.ProjectionStorage
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingAkkaSettings
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
 import org.scalatest._
@@ -19,9 +24,14 @@ import org.scalatest._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
-class ServiceSpecSuite extends Suites with BeforeAndAfterAll with CassandraBoot with BlazegraphBoot  {
+class ServiceSpecSuite
+    extends Suites
+    with BeforeAndAfterAll
+    with CassandraBoot
+    with BlazegraphBoot {
 
-  implicit lazy val system: ActorSystem = SystemBuilder.initConfig("BootstrapServices", cassandraPort, blazegraphPort)
+  implicit lazy val system: ActorSystem =
+    SystemBuilder.initConfig("BootstrapServices", cassandraPort, blazegraphPort)
 
   val settings: Settings = new Settings(system.settings.config)
 
@@ -40,12 +50,20 @@ class ServiceSpecSuite extends Suites with BeforeAndAfterAll with CassandraBoot 
     StartIndexers(settings, bootstrap.sparqlClient, bootstrap.apiUri)
   }
 
-
   override val nestedSuites = Vector(
-    new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
-    new DomainIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
-    new SchemasIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
-    new InstanceIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary, bootstrap.instances)
+    new OrgIntegrationSpec(bootstrap.apiUri,
+                           bootstrap.routes,
+                           settings.Prefixes.CoreVocabulary),
+    new DomainIntegrationSpec(bootstrap.apiUri,
+                              bootstrap.routes,
+                              settings.Prefixes.CoreVocabulary),
+    new SchemasIntegrationSpec(bootstrap.apiUri,
+                               bootstrap.routes,
+                               settings.Prefixes.CoreVocabulary),
+    new InstanceIntegrationSpec(bootstrap.apiUri,
+                                bootstrap.routes,
+                                settings.Prefixes.CoreVocabulary,
+                                bootstrap.instances)
   )
 
   override protected def beforeAll(): Unit = {
@@ -53,7 +71,8 @@ class ServiceSpecSuite extends Suites with BeforeAndAfterAll with CassandraBoot 
     cassandraStart()
     blazegraphStart()
     // ensures the keyspace and tables are created before the tests
-    val _ = Await.result(ProjectionStorage(system).fetchLatestOffset("random"), 10 seconds)
+    val _ = Await.result(ProjectionStorage(system).fetchLatestOffset("random"),
+                         10 seconds)
     bootstrap.joinCluster()
   }
 
@@ -70,7 +89,8 @@ trait BlazegraphBoot {
   val blazegraphPort: Int = freePort()
 
   private val server = {
-    System.setProperty("jetty.home", getClass.getResource("/war").toExternalForm)
+    System.setProperty("jetty.home",
+                       getClass.getResource("/war").toExternalForm)
     NanoSparqlServer.newInstance(blazegraphPort, null, null)
   }
 
@@ -96,7 +116,8 @@ trait CassandraBoot {
       configResource = CassandraLauncher.DefaultTestConfigResource,
       clean = true,
       port = cassandraPort,
-      CassandraLauncher.classpathForResources("logback-test.xml"))
+      CassandraLauncher.classpathForResources("logback-test.xml")
+    )
   }
 
   def cassandraStop(): Unit = CassandraLauncher.stop()
