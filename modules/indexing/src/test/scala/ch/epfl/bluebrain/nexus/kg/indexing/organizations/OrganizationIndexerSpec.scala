@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.organizations
 
 import java.util.regex.Pattern
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
@@ -16,7 +16,9 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -79,11 +81,11 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
 
     val qualifiedId = id.qualifyAsStringWith(orgBase)
     List(
-      (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
-      (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
-      (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
-      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.id)
-    )
+      (qualifiedId, "rev"          qualifyAsStringWith nexusVocBase, rev.toString),
+      (qualifiedId, "deprecated"   qualifyAsStringWith nexusVocBase, deprecated.toString),
+      (qualifiedId, "desc"         qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId, rdfTypeKey,                                      "Organization" qualifyAsStringWith nexusVocBase),
+      (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.id))
   }
 
   "A OrganizationIndexer" should {
@@ -98,7 +100,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/instances/minimal.json", replacements)
       indexer(OrgCreated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 4
+      rs.size shouldEqual 5
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "random")
     }
 
@@ -107,7 +109,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
       indexer(OrgUpdated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 4
+      rs.size shouldEqual 5
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
     }
 
@@ -115,7 +117,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       val rev = 3L
       indexer(OrgDeprecated(id, rev)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 4
+      rs.size shouldEqual 5
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, "updated")
     }
   }

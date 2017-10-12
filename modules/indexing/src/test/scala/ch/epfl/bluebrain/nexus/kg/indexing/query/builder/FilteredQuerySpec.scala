@@ -66,33 +66,33 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
         val filter = json.as[Filter].right.value
         val expectedWhere =
           s"""
-             |?s <${prov}wasDerivedFrom> ?var_1 .
-             |?s <${nxv}rev> ?var_2 .
-             |FILTER ( ?var_1 = <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> && ?var_2 <= 5 )
+             |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
+             |?s <${nxv}rev> ?var_1 .
+             |FILTER ( ?var_1 <= 5 )
              |
+             |OPTIONAL { ?s <${nxv}version> ?var_2 . }
              |OPTIONAL { ?s <${nxv}version> ?var_3 . }
-             |OPTIONAL { ?s <${nxv}version> ?var_4 . }
-             |FILTER ( ?var_3 = "v1.0.0" || ?var_4 = "v1.0.1" )
+             |FILTER ( ?var_2 = "v1.0.0" || ?var_3 = "v1.0.1" )
              |
-             |?s <${nxv}deprecated> ?var_5 .
-             |?s <${rdf}type> ?var_6 .
-             |FILTER ( ?var_5 != false && ?var_6 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
+             |?s <${nxv}deprecated> ?var_4 .
+             |?s <${rdf}type> ?var_5 .
+             |FILTER ( ?var_4 != false && ?var_5 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
              |
-             |?s <${nxv}version> ?var_7 .
-             |?s <${nxv}rev> ?var_8 .
+             |?s <${nxv}version> ?var_6 .
+             |?s <${nxv}rev> ?var_7 .
              |FILTER NOT EXISTS {
-             |?s <${nxv}version> ?var_7 .
-             |?s <${nxv}rev> ?var_8 .
-             |FILTER ( ?var_7 = "v1.0.2" || ?var_8 <= 2 )
+             |?s <${nxv}version> ?var_6 .
+             |?s <${nxv}rev> ?var_7 .
+             |FILTER ( ?var_6 = "v1.0.2" || ?var_7 <= 2 )
              |}
              |
+             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_8 . }
              |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_9 . }
-             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_10 . }
-             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |FILTER NOT EXISTS {
+             |?s <${prov}wasAttributedTo> ?var_8 .
              |?s <${prov}wasAttributedTo> ?var_9 .
-             |?s <${prov}wasAttributedTo> ?var_10 .
-             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |""".stripMargin
         val expected =
@@ -140,33 +140,33 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?matchedValue bds:rank ?pos .
              |FILTER ( !isBlank(?s) )
              |
-             |?s <${prov}wasDerivedFrom> ?var_1 .
-             |?s <${nxv}rev> ?var_2 .
-             |FILTER ( ?var_1 = <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> && ?var_2 <= 5 )
+             |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
+             |?s <${nxv}rev> ?var_1 .
+             |FILTER ( ?var_1 <= 5 )
              |
+             |OPTIONAL { ?s <${nxv}version> ?var_2 . }
              |OPTIONAL { ?s <${nxv}version> ?var_3 . }
-             |OPTIONAL { ?s <${nxv}version> ?var_4 . }
-             |FILTER ( ?var_3 = "v1.0.0" || ?var_4 = "v1.0.1" )
+             |FILTER ( ?var_2 = "v1.0.0" || ?var_3 = "v1.0.1" )
              |
-             |?s <${nxv}deprecated> ?var_5 .
-             |?s <${rdf}type> ?var_6 .
-             |FILTER ( ?var_5 != false && ?var_6 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
+             |?s <${nxv}deprecated> ?var_4 .
+             |?s <${rdf}type> ?var_5 .
+             |FILTER ( ?var_4 != false && ?var_5 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
              |
-             |?s <${nxv}version> ?var_7 .
-             |?s <${nxv}rev> ?var_8 .
+             |?s <${nxv}version> ?var_6 .
+             |?s <${nxv}rev> ?var_7 .
              |FILTER NOT EXISTS {
-             |?s <${nxv}version> ?var_7 .
-             |?s <${nxv}rev> ?var_8 .
-             |FILTER ( ?var_7 = "v1.0.2" || ?var_8 <= 2 )
+             |?s <${nxv}version> ?var_6 .
+             |?s <${nxv}rev> ?var_7 .
+             |FILTER ( ?var_6 = "v1.0.2" || ?var_7 <= 2 )
              |}
              |
+             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_8 . }
              |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_9 . }
-             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_10 . }
-             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |FILTER NOT EXISTS {
+             |?s <${prov}wasAttributedTo> ?var_8 .
              |?s <${prov}wasAttributedTo> ?var_9 .
-             |?s <${prov}wasAttributedTo> ?var_10 .
-             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |""".stripMargin.trim
         val expected =
@@ -211,33 +211,33 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?ss ?p ?s .
              |FILTER ( ?ss = <${thisId.toString}> )
              |
-             |?s <${prov}wasDerivedFrom> ?var_1 .
-             |?s <${nxv}rev> ?var_2 .
-             |FILTER ( ?var_1 = <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> && ?var_2 <= 5 )
+             |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
+             |?s <${nxv}rev> ?var_1 .
+             |FILTER ( ?var_1 <= 5 )
              |
+             |OPTIONAL { ?s <${nxv}version> ?var_2 . }
              |OPTIONAL { ?s <${nxv}version> ?var_3 . }
-             |OPTIONAL { ?s <${nxv}version> ?var_4 . }
-             |FILTER ( ?var_3 = "v1.0.0" || ?var_4 = "v1.0.1" )
+             |FILTER ( ?var_2 = "v1.0.0" || ?var_3 = "v1.0.1" )
              |
-             |?s <${nxv}deprecated> ?var_5 .
-             |?s <${rdf}type> ?var_6 .
-             |FILTER ( ?var_5 != false && ?var_6 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
+             |?s <${nxv}deprecated> ?var_4 .
+             |?s <${rdf}type> ?var_5 .
+             |FILTER ( ?var_4 != false && ?var_5 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
              |
-             |?s <${nxv}version> ?var_7 .
-             |?s <${nxv}rev> ?var_8 .
+             |?s <${nxv}version> ?var_6 .
+             |?s <${nxv}rev> ?var_7 .
              |FILTER NOT EXISTS {
-             |?s <${nxv}version> ?var_7 .
-             |?s <${nxv}rev> ?var_8 .
-             |FILTER ( ?var_7 = "v1.0.2" || ?var_8 <= 2 )
+             |?s <${nxv}version> ?var_6 .
+             |?s <${nxv}rev> ?var_7 .
+             |FILTER ( ?var_6 = "v1.0.2" || ?var_7 <= 2 )
              |}
              |
+             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_8 . }
              |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_9 . }
-             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_10 . }
-             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |FILTER NOT EXISTS {
+             |?s <${prov}wasAttributedTo> ?var_8 .
              |?s <${prov}wasAttributedTo> ?var_9 .
-             |?s <${prov}wasAttributedTo> ?var_10 .
-             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |""".stripMargin.trim
         val expected =
@@ -282,33 +282,33 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s ?p ?o .
              |FILTER ( ?o = <$thisId> )
              |
-             |?s <${prov}wasDerivedFrom> ?var_1 .
-             |?s <${nxv}rev> ?var_2 .
-             |FILTER ( ?var_1 = <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> && ?var_2 <= 5 )
+             |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
+             |?s <${nxv}rev> ?var_1 .
+             |FILTER ( ?var_1 <= 5 )
              |
+             |OPTIONAL { ?s <${nxv}version> ?var_2 . }
              |OPTIONAL { ?s <${nxv}version> ?var_3 . }
-             |OPTIONAL { ?s <${nxv}version> ?var_4 . }
-             |FILTER ( ?var_3 = "v1.0.0" || ?var_4 = "v1.0.1" )
+             |FILTER ( ?var_2 = "v1.0.0" || ?var_3 = "v1.0.1" )
              |
-             |?s <${nxv}deprecated> ?var_5 .
-             |?s <${rdf}type> ?var_6 .
-             |FILTER ( ?var_5 != false && ?var_6 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
+             |?s <${nxv}deprecated> ?var_4 .
+             |?s <${rdf}type> ?var_5 .
+             |FILTER ( ?var_4 != false && ?var_5 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
              |
-             |?s <${nxv}version> ?var_7 .
-             |?s <${nxv}rev> ?var_8 .
+             |?s <${nxv}version> ?var_6 .
+             |?s <${nxv}rev> ?var_7 .
              |FILTER NOT EXISTS {
-             |?s <${nxv}version> ?var_7 .
-             |?s <${nxv}rev> ?var_8 .
-             |FILTER ( ?var_7 = "v1.0.2" || ?var_8 <= 2 )
+             |?s <${nxv}version> ?var_6 .
+             |?s <${nxv}rev> ?var_7 .
+             |FILTER ( ?var_6 = "v1.0.2" || ?var_7 <= 2 )
              |}
              |
+             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_8 . }
              |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_9 . }
-             |OPTIONAL { ?s <${prov}wasAttributedTo> ?var_10 . }
-             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |FILTER NOT EXISTS {
+             |?s <${prov}wasAttributedTo> ?var_8 .
              |?s <${prov}wasAttributedTo> ?var_9 .
-             |?s <${prov}wasAttributedTo> ?var_10 .
-             |FILTER ( ?var_9 = <${bbpagent}sy> || ?var_10 = <${bbpagent}dmontero> )
+             |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |""".stripMargin.trim
         val expected =

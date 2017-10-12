@@ -65,8 +65,8 @@ class InstanceRoutes(
             (pathEndOrSingleSlash & resourceId(id, of[DomainId])) { domainId =>
             instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
           } ~
-          (pathEndOrSingleSlash & resourceId(id, of[SchemaName])) { case SchemaName(domainId, name) =>
-            instanceQueries.list(domainId, name, filter, pagination, termOpt).buildResponse(base, pagination)
+          (pathEndOrSingleSlash & resourceId(id, of[SchemaName])) { schemaName =>
+            instanceQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
           } ~
           (pathEndOrSingleSlash & resourceId(id, of[SchemaId])) { schemaId =>
             instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)

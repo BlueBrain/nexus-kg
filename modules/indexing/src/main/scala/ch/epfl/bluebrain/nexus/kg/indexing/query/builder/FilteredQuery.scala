@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.Uri
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, _}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Term}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
@@ -100,7 +100,7 @@ object FilteredQuery {
     applyWithWhere(where, pagination, term)
   }
 
-  private final case class Stmt(stmt: String, filter: String, variable: String)
+  private final case class Stmt(stmt: String, filter: Option[String])
 
   private def buildSelectsFrom(term: Option[String]): (String, String, String) = {
     term.map(_ =>
@@ -149,36 +149,43 @@ object FilteredQuery {
       val InExpr(path, TermCollection(terms)) = expr
       val stmt = s"?$subject ${path.show} $variable ."
       val filter = terms.map(_.show).mkString(s"$variable IN (", ", ", ")")
-      Stmt(stmt, filter, variable)
+      Stmt(stmt, Some(filter))
     }
 
     // ?s :p ?var .
     // FILTER ( ?var op term )
-    def compExpr(expr: ComparisonExpr): Stmt = {
-      val idx = nextIdx()
-      val variable = s"?${varPrefix}_$idx"
-      val ComparisonExpr(op, path, term) = expr
-      Stmt(s"?$subject ${path.show} $variable .", s"$variable ${op.show} ${term.show}", variable)
+    def compExpr(expr: ComparisonExpr, allowDirectFilter: Boolean = false): Stmt = {
+      expr match{
+        case ComparisonExpr(_: Eq.type, path, term: UriTerm) if allowDirectFilter =>
+          Stmt(s"?$subject ${path.show} ${term.show} .", None)
+        case ComparisonExpr(op, path, term)                 =>
+          val idx = nextIdx()
+          val variable = s"?${varPrefix}_$idx"
+          Stmt(s"?$subject ${path.show} $variable .", Some(s"$variable ${op.show} ${term.show}"))
+      }
     }
 
     def fromStmts(op: LogicalOp, stmts: Vector[Stmt]): String = op match {
       case And =>
         val select = stmts.map(_.stmt).mkString("\n")
-        val filter = stmts.map(_.filter).mkString(" && ")
+        val filter = stmts.collect{case Stmt(_, Some(f)) => f}.mkString(" && ") match {
+          case ""     => None
+          case other  => Some(other)
+        }
         s"""
            |$select
-           |FILTER ( $filter )
+           |${filter.map(f => s"FILTER ( $f )").getOrElse("")}
            |""".stripMargin
       case Or  =>
         val select = stmts.map(v => s"OPTIONAL { ${v.stmt} }").mkString("\n")
-        val filter = stmts.map(_.filter).mkString(" || ")
+        val filter = stmts.collect{case Stmt(_, Some(f)) => f}.mkString(" || ")
         s"""
            |$select
            |FILTER ( $filter )
            |""".stripMargin
       case Not =>
         val select = stmts.map(_.stmt).mkString("\n")
-        val filter = stmts.map(_.filter).mkString(" || ")
+        val filter = stmts.collect{case Stmt(_, Some(f)) => f}.mkString(" || ")
         s"""
            |$select
            |FILTER NOT EXISTS {
@@ -188,7 +195,7 @@ object FilteredQuery {
            |""".stripMargin
       case Xor =>
         val optSelect = stmts.map(v => s"OPTIONAL { ${v.stmt} }").mkString("\n")
-        val filter = stmts.map(_.filter).mkString(" || ")
+        val filter = stmts.collect{case Stmt(_, Some(f)) => f}.mkString(" || ")
         val select = stmts.map(_.stmt).mkString("\n")
         s"""
            |$optSelect
@@ -201,15 +208,16 @@ object FilteredQuery {
 
     }
 
-    def fromExpr(expr: Expr): String = expr match {
+    def fromExpr(expr: Expr, allowDirectFilter: Boolean): String = expr match {
       case NoopExpr                => s"?$subject ?p ?o ."
-      case e: ComparisonExpr       => compExpr(e).show
+      case e: ComparisonExpr       => compExpr(e, allowDirectFilter).show
       case e: InExpr               => inExpr(e).show
       case LogicalExpr(And, exprs) =>
         val (statements, builder) = exprs.foldLeft((Vector.empty[Stmt], StringBuilder.newBuilder)) {
-          case ((stmts, str), e: ComparisonExpr) => (stmts :+ compExpr(e), str)
+          case ((stmts, str), e: ComparisonExpr) => (stmts :+ compExpr(e, allowDirectFilter), str)
           case ((stmts, str), e: InExpr)         => (stmts :+ inExpr(e), str)
-          case ((stmts, str), l: LogicalExpr)    => (stmts, str.append(fromExpr(l)))
+          case ((stmts, str), l@LogicalExpr(And, _))   => (stmts, str.append(fromExpr(l, allowDirectFilter)))
+          case ((stmts, str), l: LogicalExpr)    => (stmts, str.append(fromExpr(l, false)))
           case ((stmts, str), NoopExpr)          => (stmts, str)
         }
         fromStmts(And, statements) + builder.mkString
@@ -227,7 +235,7 @@ object FilteredQuery {
         fromStmts(op, statements)
     }
 
-    fromExpr(expr)
+    fromExpr(expr, allowDirectFilter = true)
   }
 
   private implicit val uriTermShow: Show[UriTerm] =
@@ -254,10 +262,12 @@ object FilteredQuery {
 
   private implicit val stmtShow: Show[Stmt] =
     Show.show {
-      case Stmt(stmt, filter, _) =>
+      case Stmt(stmt, Some(filter)) =>
         s"""
            |$stmt
            |FILTER ( $filter )
            |""".stripMargin
+      case Stmt(stmt, None) =>
+        stmt
     }
 }

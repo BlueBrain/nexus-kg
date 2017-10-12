@@ -5,7 +5,11 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainEvent, DomainId}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.UriJsonLDSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json
@@ -23,15 +27,15 @@ class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSetti
   private val log = Logger[this.type]
   private val DomainIndexingSettings(index, base, baseNs, baseVoc) = settings
 
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
   private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
 
-  private val idKey = "@id"
-  private val revKey = "rev".qualifyAsString
-  private val descriptionKey = "description".qualifyAsString
-  private val deprecatedKey = "deprecated".qualifyAsString
-  private val orgKey = "organization".qualifyAsString
-  private val domainKey = "domain".qualifyAsString
+  private val revKey          = "rev".qualifyAsString
+  private val descriptionKey  = "description".qualifyAsString
+  private val deprecatedKey   = "deprecated".qualifyAsString
+  private val orgKey          = "organization".qualifyAsString
+  private val nameKey         = "name".qualifyAsString
 
   /**
     * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the
@@ -57,8 +61,9 @@ class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSetti
     val sharedObj = Json.obj(
       idKey -> Json.fromString(id.qualifyAsString),
       revKey -> Json.fromLong(rev),
-      orgKey -> Json.fromString(id.orgId.id),
-      domainKey -> Json.fromString(id.id))
+      orgKey -> id.orgId.qualify.jsonLd,
+      nameKey -> Json.fromString(id.id),
+      PrefixMapping.rdfTypeKey -> "Domain".qualify.jsonLd)
 
 
     val deprecatedObj = deprecated

@@ -75,8 +75,8 @@ class SchemaRoutes(schemas: Schemas[Future],
             resourceId(id, of[DomainId]) { domainId =>
               schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
             } ~
-            resourceId(id, of[SchemaName]) { case SchemaName(domainId, name) =>
-              schemaQueries.list(domainId, name, filter, pagination, termOpt).buildResponse(base, pagination)
+            resourceId(id, of[SchemaName]) { schemaName =>
+              schemaQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
             }
           }
         }

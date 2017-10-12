@@ -20,11 +20,15 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture, Qualifier}
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -62,6 +66,11 @@ class SchemaIndexerSpec(blazegraphPort: Int)
   private val settings @ SchemaIndexingSettings(index, schemasBase, schemasBaseNs, nexusVocBase) =
     SchemaIndexingSettings(genString(length = 6), base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
+  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
+  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
+  private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
+
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
 
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
@@ -83,15 +92,16 @@ class SchemaIndexerSpec(blazegraphPort: Int)
                               description: String): List[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(schemasBase)
     List(
-      (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
-      (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
-      (qualifiedId, "published" qualifyAsStringWith nexusVocBase, published.toString),
-      (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
-      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.domainId.orgId.id),
-      (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.domainId.id),
-      (qualifiedId, "schema" qualifyAsStringWith nexusVocBase, id.name),
-      (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show)
-    )
+      (qualifiedId, "rev"          qualifyAsStringWith nexusVocBase, rev.toString),
+      (qualifiedId, "deprecated"   qualifyAsStringWith nexusVocBase, deprecated.toString),
+      (qualifiedId, "published"    qualifyAsStringWith nexusVocBase, published.toString),
+      (qualifiedId, "desc"         qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.domainId.orgId.qualifyAsString),
+      (qualifiedId, "domain"       qualifyAsStringWith nexusVocBase, id.domainId.qualifyAsString),
+      (qualifiedId, "name"        qualifyAsStringWith nexusVocBase,  id.name),
+      (qualifiedId, schemaGroupKey,                                  id.schemaName.qualifyAsString),
+      (qualifiedId, rdfTypeKey,                                      "Schema".qualifyAsString),
+      (qualifiedId, "version"      qualifyAsStringWith nexusVocBase, id.version.show))
   }
 
   "A SchemaIndexer" should {
@@ -106,7 +116,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/schemas/minimal.json", replacements)
       indexer(SchemaCreated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 14
+      rs.size shouldEqual 16
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = false, "random")
     }
 
@@ -115,7 +125,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/schemas/minimal.json", replacements + ("random" -> "updated"))
       indexer(SchemaUpdated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 14
+      rs.size shouldEqual 16
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = false, "updated")
     }
 
@@ -123,7 +133,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       val rev = 3L
       indexer(SchemaPublished(id, rev)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 14
+      rs.size shouldEqual 16
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = true, "updated")
     }
 
@@ -131,7 +141,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       val rev = 4L
       indexer(SchemaDeprecated(id, rev)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 14
+      rs.size shouldEqual 16
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, published = true, "updated")
     }
   }

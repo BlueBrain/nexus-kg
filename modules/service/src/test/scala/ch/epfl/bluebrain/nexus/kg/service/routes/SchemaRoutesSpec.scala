@@ -70,7 +70,7 @@ class SchemaRoutesSpec
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
-    val querySettings              = QuerySettings(Pagination(0L, 20), "some-index", vocab)
+    val querySettings              = QuerySettings(Pagination(0L, 20), "some-index", vocab, baseUri)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
 
     val route =

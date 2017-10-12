@@ -5,7 +5,10 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDeprecated, OrgUpdated}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, OrgId}
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.UriJsonLDSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json
@@ -26,10 +29,9 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], settings: OrganizationI
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
 
-  private val idKey = "@id"
-  private val revKey = "rev".qualifyAsString
+  private val revKey        = "rev".qualifyAsString
   private val deprecatedKey = "deprecated".qualifyAsString
-  private val orgKey = "organization".qualifyAsString
+  private val orgName       = "name".qualifyAsString
 
   /**
     * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the
@@ -62,7 +64,8 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], settings: OrganizationI
     val sharedObj = Json.obj(
       idKey -> Json.fromString(id.qualifyAsString),
       revKey -> Json.fromLong(rev),
-      orgKey -> Json.fromString(id.id))
+      orgName -> Json.fromString(id.id),
+      PrefixMapping.rdfTypeKey -> "Organization".qualify.jsonLd)
 
 
     val deprecatedObj = deprecated
