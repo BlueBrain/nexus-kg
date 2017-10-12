@@ -35,11 +35,10 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param filteringSettings filtering parameters from settings
   */
 @deprecated("Backwards compatible API endpoints", "0.6.2")
-final class DomainRoutesDeprecated(
-  domains: Domains[Future],
-  domainQueries: FilterQueries[Future, DomainId],
-  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
-  extends DefaultRouteHandling {
+final class DomainRoutesDeprecated(domains: Domains[Future], domainQueries: FilterQueries[Future, DomainId], base: Uri)(
+    implicit querySettings: QuerySettings,
+    filteringSettings: FilteringSettings)
+    extends DefaultRouteHandling {
 
   private val encoders = new DomainCustomEncodersDeprecated(base)
   import encoders._
@@ -49,8 +48,11 @@ final class DomainRoutesDeprecated(
       val orgId = OrgId(orgIdString)
       (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
         traceName("searchDomains") {
-          val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-          domainQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+          val filter =
+            filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+          domainQueries
+            .list(orgId, filter, pagination, termOpt)
+            .buildResponse(base, pagination)
         }
       }
     }
@@ -65,23 +67,23 @@ final class DomainRoutesDeprecated(
           }
         }
       } ~
-      get {
-        traceName("getDomain") {
-          onSuccess(domains.fetch(domainId)) {
-            case Some(domain) => complete(domain)
-            case None         => complete(StatusCodes.NotFound)
+        get {
+          traceName("getDomain") {
+            onSuccess(domains.fetch(domainId)) {
+              case Some(domain) => complete(domain)
+              case None         => complete(StatusCodes.NotFound)
+            }
           }
-        }
-      } ~
-      delete {
-        parameter('rev.as[Long]) { rev =>
-          traceName("deprecateDomain") {
-            onSuccess(domains.deprecate(domainId, rev)) { ref =>
-              complete(StatusCodes.OK -> ref)
+        } ~
+        delete {
+          parameter('rev.as[Long]) { rev =>
+            traceName("deprecateDomain") {
+              onSuccess(domains.deprecate(domainId, rev)) { ref =>
+                complete(StatusCodes.OK -> ref)
+              }
             }
           }
         }
-      }
     }
 
   def routes: Route = combinedRoutesFor("organizations")
@@ -106,10 +108,12 @@ object DomainRoutesDeprecated {
     * @param base          the service public uri + prefix
     * @return a new ''DomainRoutesDeprecated'' instance
     */
-  final def apply(domains: Domains[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(implicit
-    ec: ExecutionContext, filteringSettings: FilteringSettings): DomainRoutesDeprecated = {
+  final def apply(domains: Domains[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
+      implicit
+      ec: ExecutionContext,
+      filteringSettings: FilteringSettings): DomainRoutesDeprecated = {
     implicit val qs: QuerySettings = querySettings
-    val domainQueries = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
+    val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
     new DomainRoutesDeprecated(domains, domainQueries, base)
   }
 }
@@ -117,9 +121,12 @@ object DomainRoutesDeprecated {
 class DomainCustomEncodersDeprecated(base: Uri) extends RoutesEncoder[DomainId, DomainRef](base) {
 
   implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap { domain =>
-    refEncoder.apply(DomainRef(domain.id, domain.rev)).deepMerge(Json.obj(
-      "deprecated" -> Json.fromBoolean(domain.deprecated),
-      "description" -> Json.fromString(domain.description)
-    ))
+    refEncoder
+      .apply(DomainRef(domain.id, domain.rev))
+      .deepMerge(
+        Json.obj(
+          "deprecated"  -> Json.fromBoolean(domain.deprecated),
+          "description" -> Json.fromString(domain.description)
+        ))
   }
 }

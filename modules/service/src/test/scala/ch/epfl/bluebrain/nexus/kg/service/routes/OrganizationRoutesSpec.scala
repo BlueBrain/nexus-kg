@@ -3,12 +3,12 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
@@ -27,27 +27,28 @@ import org.scalatest.{Matchers, WordSpecLike}
 import scala.concurrent.Future
 
 class OrganizationRoutesSpec
-  extends WordSpecLike
+    extends WordSpecLike
     with Matchers
     with ScalatestRouteTest
     with Randomness
     with ScalaFutures {
 
   "An OrganizationRoutes" should {
-    val agg = MemoryAggregate("orgs")(initial, next, eval).toF[Future]
+    val agg  = MemoryAggregate("orgs")(initial, next, eval).toF[Future]
     val orgs = Organizations(agg)
 
-    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), "org-index", vocab)
+    val sparqlUri                  = Uri("http://localhost:9999/bigdata/sparql")
+    val vocab                      = baseUri.copy(path = baseUri.path / "core")
+    val querySettings              = QuerySettings(Pagination(0L, 20), "org-index", vocab)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl = HttpClient.akkaHttpClient
+    implicit val cl                = HttpClient.akkaHttpClient
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route = OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
+    val route =
+      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
 
-    val id = OrgId(genString(length = 3))
-    val json = Json.obj("key" -> Json.fromString(genString(length = 8)))
+    val id          = OrgId(genString(length = 3))
+    val json        = Json.obj("key" -> Json.fromString(genString(length = 8)))
     val jsonUpdated = Json.obj("key" -> Json.fromString(genString(length = 8)))
 
     "create an organization" in {
@@ -97,10 +98,10 @@ class OrganizationRoutesSpec
     "return the current organization" in {
       Get(s"/organizations/${id.show}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual Json.obj(
-          "@id" -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-          "rev" -> Json.fromLong(2L),
-          "deprecated" -> Json.fromBoolean(false))
+        responseAs[Json] shouldEqual Json
+          .obj("@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+               "rev"        -> Json.fromLong(2L),
+               "deprecated" -> Json.fromBoolean(false))
           .deepMerge(jsonUpdated)
       }
     }

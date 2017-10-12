@@ -8,7 +8,8 @@ import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.common.types.Version
+import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -21,7 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDe
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, SchemaDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainIndexer, DomainIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter
@@ -42,7 +42,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 
 @DoNotDiscover
 class SparqlQuerySpec(blazegraphPort: Int)
-  extends TestKit(ActorSystem("SparqlQuerySpec"))
+    extends TestKit(ActorSystem("SparqlQuerySpec"))
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -52,69 +52,57 @@ class SparqlQuerySpec(blazegraphPort: Int)
     with Inspectors
     with BeforeAndAfterAll {
 
-
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 milliseconds)
+  override implicit val patienceConfig: PatienceConfig =
+    PatienceConfig(3 seconds, 100 milliseconds)
 
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
-  private implicit val mt: ActorMaterializer = ActorMaterializer()
+  private implicit val mt: ActorMaterializer        = ActorMaterializer()
 
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
-  private implicit val rs: HttpClient[Future, ResultSet] = HttpClient.withAkkaUnmarshaller[ResultSet]
+  private implicit val rs: HttpClient[Future, ResultSet] =
+    HttpClient.withAkkaUnmarshaller[ResultSet]
 
-  private val base = s"http://$localhost/v0"
+  private val base         = s"http://$localhost/v0"
   private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings@InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
-    InstanceIndexingSettings(
-      genString(length = 6),
-      base,
-      s"$base/data/graphs",
-      s"$base/voc/nexus/core")
+  private val settings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
+    InstanceIndexingSettings(genString(length = 6), base, s"$base/data/graphs", s"$base/voc/nexus/core")
 
-  private val settingsSchemas@SchemaIndexingSettings(indexSchemas, schemaBase, schemaBaseNs, nexusVocBaseSchemas) =
-    SchemaIndexingSettings(
-      genString(length = 6),
-      base,
-      s"$base/schemas/graphs",
-      s"$base/voc/nexus/core")
+  private val settingsSchemas @ SchemaIndexingSettings(indexSchemas, schemaBase, schemaBaseNs, nexusVocBaseSchemas) =
+    SchemaIndexingSettings(genString(length = 6), base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
-  private val settingsDomains@DomainIndexingSettings(indexDomains, domainBase, domainBaseNs, nexusVocBaseDomains) =
-    DomainIndexingSettings(
-      genString(length = 6),
-      base,
-      s"$base/domains/graphs",
-      s"$base/voc/nexus/core")
+  private val settingsDomains @ DomainIndexingSettings(indexDomains, domainBase, domainBaseNs, nexusVocBaseDomains) =
+    DomainIndexingSettings(genString(length = 6), base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
-  private val settingsOrgs@OrganizationIndexingSettings(indexOrgs, orgBase, orgBaseNs, nexusVocBaseOrgs) =
-    OrganizationIndexingSettings(
-      genString(length = 6),
-      base,
-      s"$base/organizations/graphs",
-      s"$base/voc/nexus/core")
+  private val settingsOrgs @ OrganizationIndexingSettings(indexOrgs, orgBase, orgBaseNs, nexusVocBaseOrgs) =
+    OrganizationIndexingSettings(genString(length = 6), base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
-  private implicit val instanceQualifier: ConfiguredQualifier[InstanceId] = Qualifier.configured[InstanceId](base)
-  private implicit val schemasQualifier: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
-  private implicit val domainsQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
-  private implicit val orgsQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
-
+  private implicit val instanceQualifier: ConfiguredQualifier[InstanceId] =
+    Qualifier.configured[InstanceId](base)
+  private implicit val schemasQualifier: ConfiguredQualifier[SchemaId] =
+    Qualifier.configured[SchemaId](base)
+  private implicit val domainsQualifier: ConfiguredQualifier[DomainId] =
+    Qualifier.configured[DomainId](base)
+  private implicit val orgsQualifier: ConfiguredQualifier[OrgId] =
+    Qualifier.configured[OrgId](base)
 
   "A SparqlQuery" should {
-    val client = SparqlClient[Future](baseUri)
-    val queryClient = new SparqlQuery[Future](client)
+    val client          = SparqlClient[Future](baseUri)
+    val queryClient     = new SparqlQuery[Future](client)
     val instanceIndexer = InstanceIndexer(client, settings)
-    val schemaIndexer = SchemaIndexer(client, settingsSchemas)
-    val domainIndexer = DomainIndexer(client, settingsDomains)
-    val orgIndexer = OrganizationIndexer(client, settingsOrgs)
+    val schemaIndexer   = SchemaIndexer(client, settingsSchemas)
+    val domainIndexer   = DomainIndexer(client, settingsDomains)
+    val orgIndexer      = OrganizationIndexer(client, settingsOrgs)
 
-    val rev = 1L
-    val data = jsonContentOf("/instances/minimal.json", replacements)
-    val unmatched = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "different"))
+    val rev                  = 1L
+    val data                 = jsonContentOf("/instances/minimal.json", replacements)
+    val unmatched            = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "different"))
     val filterNoDepr: Filter = deprecatedAndRev(Some(false), nexusVocBase)
 
     "perform a data full text search" in {
@@ -122,33 +110,39 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       // index 5 matching instances
       (0 until 5).foreach { idx =>
-        val id = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
+        val id =
+          InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, data)).futureValue
       }
 
       // index 5 not matching instances
       (5 until 10).foreach { idx =>
-        val id = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
+        val id =
+          InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, unmatched)).futureValue
       }
 
       // run the query
-      val pagination = Pagination(0L, 100)
+      val pagination    = Pagination(0L, 100)
       val querySettings = QuerySettings(pagination, index, nexusVocBase)
-      val q = FilterQueries[Future, InstanceId](queryClient, querySettings)
+      val q             = FilterQueries[Future, InstanceId](queryClient, querySettings)
 
       val result = q.list(filterNoDepr, pagination, Some("random")).futureValue
-      result.asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]].maxScore shouldEqual 1F
+      result
+        .asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]]
+        .maxScore shouldEqual 1F
       result.total shouldEqual 5L
       result.results.size shouldEqual 5
 
       val pagination2 = Pagination(100L, 100)
-      val result2 = q.list(filterNoDepr, pagination2, Some("random")).futureValue
-      result2.asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]].maxScore shouldEqual 1F
+      val result2 =
+        q.list(filterNoDepr, pagination2, Some("random")).futureValue
+      result2
+        .asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]]
+        .maxScore shouldEqual 1F
       result2.total shouldEqual 5L
       result2.results.size shouldEqual 0
     }
-
 
     "perform organizations listing search" in {
       client.createIndex(indexOrgs, properties).futureValue
@@ -166,9 +160,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
         orgIndexer(OrgDeprecated(id, rev)).futureValue
       }
 
-      val pagination = Pagination(0L, 100)
+      val pagination    = Pagination(0L, 100)
       val querySettings = QuerySettings(pagination, indexOrgs, nexusVocBaseOrgs)
-      val q = FilterQueries[Future, OrgId](queryClient, querySettings)
+      val q             = FilterQueries[Future, OrgId](queryClient, querySettings)
 
       val result = q.list(filterNoDepr, pagination, None).futureValue
       result.total shouldEqual 5L
@@ -177,7 +171,8 @@ class SparqlQuerySpec(blazegraphPort: Int)
         r.source.id should startWith("org-")
       })
 
-      val result2 = q.list(OrgId("org-0"), filterNoDepr, pagination, None).futureValue
+      val result2 =
+        q.list(OrgId("org-0"), filterNoDepr, pagination, None).futureValue
       result2.total shouldEqual 1L
       result2.results.size shouldEqual 1
       result2.results.foreach(r => {
@@ -209,10 +204,12 @@ class SparqlQuerySpec(blazegraphPort: Int)
       }
       // run the query
       val pagination = Pagination(0L, 100)
-      val querySettings = QuerySettings(pagination, indexDomains, nexusVocBaseDomains)
+      val querySettings =
+        QuerySettings(pagination, indexDomains, nexusVocBaseDomains)
       val q = FilterQueries[Future, DomainId](queryClient, querySettings)
 
-      val result = q.list(OrgId("org"), filterNoDepr, pagination, None).futureValue
+      val result =
+        q.list(OrgId("org"), filterNoDepr, pagination, None).futureValue
       result.total shouldEqual 5L
       result.results.size shouldEqual 5
       result.results.foreach(r => {
@@ -239,15 +236,19 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       // index other 5 not matching schemas
       (10 until 15).foreach { idx =>
-        val id = SchemaId(DomainId(OrgId("org"), "core"), "name", Version(1, 0, idx))
+        val id =
+          SchemaId(DomainId(OrgId("org"), "core"), "name", Version(1, 0, idx))
         schemaIndexer(SchemaCreated(id, rev, unmatched)).futureValue
       }
 
       val pagination = Pagination(0L, 100)
-      val querySettings = QuerySettings(pagination, indexSchemas, nexusVocBaseSchemas)
+      val querySettings =
+        QuerySettings(pagination, indexSchemas, nexusVocBaseSchemas)
       val q = FilterQueries[Future, SchemaId](queryClient, querySettings)
 
-      val result = q.list(DomainId(OrgId("org"),"dom"), filterNoDepr, pagination, None).futureValue
+      val result = q
+        .list(DomainId(OrgId("org"), "dom"), filterNoDepr, pagination, None)
+        .futureValue
 
       result.total shouldEqual 5L
       result.results.size shouldEqual 5
@@ -259,7 +260,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
     }
 
     "perform instances listing search" in {
-      val name = genString()
+      val name     = genString()
       val domainId = DomainId(OrgId("test"), "dom")
       // index 5 matching instances
       (0 until 5).foreach { idx =>
@@ -276,7 +277,8 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       // index other 5 not matching instances
       (10 until 15).foreach { idx =>
-        val id = InstanceId(SchemaId(DomainId(OrgId("other"), "dom"), name, Version(1, 0, idx)), UUID.randomUUID().toString)
+        val id =
+          InstanceId(SchemaId(DomainId(OrgId("other"), "dom"), name, Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, unmatched)).futureValue
       }
       // index other 5 not matching instances
@@ -285,11 +287,13 @@ class SparqlQuerySpec(blazegraphPort: Int)
         instanceIndexer(InstanceCreated(id, rev, data)).futureValue
       }
 
-      val pagination = Pagination(3L, 3)
+      val pagination    = Pagination(3L, 3)
       val querySettings = QuerySettings(pagination, index, nexusVocBase)
-      val q = FilterQueries[Future, InstanceId](queryClient, querySettings)
+      val q             = FilterQueries[Future, InstanceId](queryClient, querySettings)
 
-      val result = q.list(DomainId(OrgId("test"),"dom"), name, filterNoDepr, pagination, None).futureValue
+      val result = q
+        .list(DomainId(OrgId("test"), "dom"), name, filterNoDepr, pagination, None)
+        .futureValue
 
       result.total shouldEqual 5L
       result.results.size shouldEqual 2
@@ -299,9 +303,10 @@ class SparqlQuerySpec(blazegraphPort: Int)
         r.source.schemaId.domainId shouldEqual domainId
       })
 
-
       val pagination2 = Pagination(10L, 8)
-      val result2 = q.list(DomainId(OrgId("test"),"dom"), name, filterNoDepr, pagination2, None).futureValue
+      val result2 = q
+        .list(DomainId(OrgId("test"), "dom"), name, filterNoDepr, pagination2, None)
+        .futureValue
       result2.total shouldEqual 5L
       result2.results.size shouldEqual 0
     }

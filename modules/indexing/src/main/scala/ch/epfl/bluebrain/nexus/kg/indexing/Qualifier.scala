@@ -19,6 +19,7 @@ import scala.util.Try
   * @tparam A the value type
   */
 trait Qualifier[A] {
+
   /**
     * Computes the fully qualified ''Uri'' of the value of type ''A'' using the argument ''base'' uri.
     *
@@ -45,6 +46,7 @@ trait Qualifier[A] {
   * @tparam A the value type
   */
 trait ConfiguredQualifier[A] {
+
   /**
     * Computes the fully qualified ''Uri'' of the value of type ''A'' using a preconfigured ''base'' uri.
     *
@@ -71,14 +73,15 @@ object Qualifier extends QualifierInstances {
     * @param base the base uri to use when qualifying values of type ''A''
     * @return a ''ConfiguredQualifier[A]''
     */
-  final def configured[A](base: Uri)(implicit Q: Qualifier[A]): ConfiguredQualifier[A] = new ConfiguredQualifier[A] {
-    override def apply(value: A) = Q(value, base)
+  final def configured[A](base: Uri)(implicit Q: Qualifier[A]): ConfiguredQualifier[A] =
+    new ConfiguredQualifier[A] {
+      override def apply(value: A) = Q(value, base)
 
-    override def unapply(uri: Uri) = Q.unapply(uri, base)
-  }
-
+      override def unapply(uri: Uri) = Q.unapply(uri, base)
+    }
 
   implicit class ToQualifierOps[A](value: A)(implicit Q: Qualifier[A]) {
+
     /**
       * Qualifies the value against the argument ''base'' Uri.
       *
@@ -99,6 +102,7 @@ object Qualifier extends QualifierInstances {
   }
 
   implicit class ToConfiguredQualifierOps[A](value: A)(implicit Q: ConfiguredQualifier[A]) {
+
     /**
       * Qualifies the value using a preconfigured ''base'' uri.
       *
@@ -117,6 +121,7 @@ object Qualifier extends QualifierInstances {
   }
 
   implicit class UnqualifierOps(uri: Uri) {
+
     /**
       * Unqualifies the value against the argument ''base'' Uri.
       *
@@ -128,6 +133,7 @@ object Qualifier extends QualifierInstances {
   }
 
   implicit class ToUnqualifiedStringOps(uriString: String) {
+
     /**
       * Unqualifies the value against the argument ''base'' Uri.
       *
@@ -139,6 +145,7 @@ object Qualifier extends QualifierInstances {
   }
 
   implicit class ToConfiguredUnqualifiedStringOps(uriString: String) {
+
     /**
       * Unqualifies the fully qualified string uri using a preconfigured ''base'' uri.
       *
@@ -153,53 +160,72 @@ object Qualifier extends QualifierInstances {
 trait QualifierInstances {
 
   private def removeBaseUri(uri: Uri, base: Uri, path: Option[String] = None) =
-    uri.toString().replaceAll(Pattern.quote(s"${base}/${path.map(p => s"$p/").getOrElse("")}"), "")
+    uri
+      .toString()
+      .replaceAll(Pattern.quote(s"${base}/${path.map(p => s"$p/").getOrElse("")}"), "")
 
-  implicit val domainIdQualifier: Qualifier[DomainId] = new Qualifier[DomainId] {
-    override def apply(value: DomainId, base: Uri): Uri = Uri(s"$base/domains/${value.show}")
+  implicit val domainIdQualifier: Qualifier[DomainId] =
+    new Qualifier[DomainId] {
+      override def apply(value: DomainId, base: Uri): Uri =
+        Uri(s"$base/domains/${value.show}")
 
-    override def unapply(uri: Uri, base: Uri): Option[DomainId] = Try {
-      val parts = removeBaseUri(uri, base).split('/')
-      DomainId(OrgId(parts(1)), parts(2))
-    }.toOption
-  }
+      override def unapply(uri: Uri, base: Uri): Option[DomainId] =
+        Try {
+          val parts = removeBaseUri(uri, base).split('/')
+          DomainId(OrgId(parts(1)), parts(2))
+        }.toOption
+    }
 
   implicit val orgIdQualifier: Qualifier[OrgId] = new Qualifier[OrgId] {
-    override def apply(value: OrgId, base: Uri): Uri = Uri(s"$base/organizations/${value.show}")
+    override def apply(value: OrgId, base: Uri): Uri =
+      Uri(s"$base/organizations/${value.show}")
 
     override def unapply(uri: Uri, base: Uri): Option[OrgId] =
       Try { OrgId(removeBaseUri(uri, base, Some("organizations"))) }.toOption
   }
 
-  implicit val schemaNameQualifier: Qualifier[SchemaName] = new Qualifier[SchemaName] {
-    override def apply(value: SchemaName, base: Uri) = Uri(s"$base/schemas/${value.show}")
-    override def unapply(uri: Uri, base: Uri) = SchemaName(removeBaseUri(uri, base, Some("schemas")))
-  }
+  implicit val schemaNameQualifier: Qualifier[SchemaName] =
+    new Qualifier[SchemaName] {
+      override def apply(value: SchemaName, base: Uri) =
+        Uri(s"$base/schemas/${value.show}")
+      override def unapply(uri: Uri, base: Uri) =
+        SchemaName(removeBaseUri(uri, base, Some("schemas")))
+    }
 
-  implicit val schemaIdQualifier: Qualifier[SchemaId] = new Qualifier[SchemaId] {
-    override def apply(value: SchemaId, base: Uri) = Uri(s"$base/schemas/${value.show}")
+  implicit val schemaIdQualifier: Qualifier[SchemaId] =
+    new Qualifier[SchemaId] {
+      override def apply(value: SchemaId, base: Uri) =
+        Uri(s"$base/schemas/${value.show}")
 
-    override def unapply(uri: Uri, base: Uri) = SchemaId(removeBaseUri(uri, base, Some("schemas"))).toOption
-  }
+      override def unapply(uri: Uri, base: Uri) =
+        SchemaId(removeBaseUri(uri, base, Some("schemas"))).toOption
+    }
 
   implicit val shapeIdQualifier: Qualifier[ShapeId] = new Qualifier[ShapeId] {
-    override def apply(value: ShapeId, base: Uri): Uri = Uri(s"$base/schemas/${value.show}")
+    override def apply(value: ShapeId, base: Uri): Uri =
+      Uri(s"$base/schemas/${value.show}")
 
     override def unapply(uri: Uri, base: Uri): Option[ShapeId] = {
       val schemaIdUri = Uri(s"$uri".substring(0, s"$uri".indexOf("/shapes")))
-      schemaIdQualifier.unapply(schemaIdUri, base).map(ShapeId(_, s"$uri".substring(s"$uri".lastIndexOf('/')+1)))
+      schemaIdQualifier
+        .unapply(schemaIdUri, base)
+        .map(ShapeId(_, s"$uri".substring(s"$uri".lastIndexOf('/') + 1)))
     }
   }
 
-  implicit val instanceIdQualifier: Qualifier[InstanceId] = new Qualifier[InstanceId] {
-    override def apply(value: InstanceId, base: Uri) = Uri(s"$base/data/${value.show}")
+  implicit val instanceIdQualifier: Qualifier[InstanceId] =
+    new Qualifier[InstanceId] {
+      override def apply(value: InstanceId, base: Uri) =
+        Uri(s"$base/data/${value.show}")
 
-    override def unapply(uri: Uri, base: Uri) = InstanceId(removeBaseUri(uri, base, Some("data"))).toOption
-  }
+      override def unapply(uri: Uri, base: Uri) =
+        InstanceId(removeBaseUri(uri, base, Some("data"))).toOption
+    }
 
-  implicit def stringIdQualifier(implicit S: Show[String]): Qualifier[String] = new Qualifier[String] {
-    override def apply(value: String, base: Uri) = Uri(s"$base/${value.show}")
+  implicit def stringIdQualifier(implicit S: Show[String]): Qualifier[String] =
+    new Qualifier[String] {
+      override def apply(value: String, base: Uri) = Uri(s"$base/${value.show}")
 
-    override def unapply(uri: Uri, base: Uri) = None
-  }
+      override def unapply(uri: Uri, base: Uri) = None
+    }
 }

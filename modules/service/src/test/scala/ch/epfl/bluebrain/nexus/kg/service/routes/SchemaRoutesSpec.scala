@@ -4,12 +4,12 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -33,7 +33,7 @@ import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
 class SchemaRoutesSpec
-  extends WordSpecLike
+    extends WordSpecLike
     with Matchers
     with ScalatestRouteTest
     with Randomness
@@ -47,27 +47,34 @@ class SchemaRoutesSpec
 
   "A SchemaRoutes" should {
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab = baseUri.copy(path = baseUri.path / "core")
+    val vocab     = baseUri.copy(path = baseUri.path / "core")
 
-    val schemaJson = jsonContentOf("/int-value-schema.json")
+    val schemaJson     = jsonContentOf("/int-value-schema.json")
     val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs = Organizations(orgAgg)
-    val domAgg = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val orgAgg         = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs           = Organizations(orgAgg)
+    val domAgg =
+      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
+        .toF[Future]
     val doms = Domains(domAgg, orgs)
-    val schAgg = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
+    val schAgg =
+      MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
+        .toF[Future]
     val schemas = Schemas(schAgg, doms, baseUri.toString)
 
-    val orgRef = Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj()), 2 seconds)
-    val domRef = Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8)), 2 seconds)
+    val orgRef =
+      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj()), 2 seconds)
+    val domRef =
+      Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8)), 2 seconds)
     implicit val cl = HttpClient.akkaHttpClient
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
-    val querySettings = QuerySettings(Pagination(0L, 20), "some-index", vocab)
+    val querySettings              = QuerySettings(Pagination(0L, 20), "some-index", vocab)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
 
-    val route = SchemaRoutes(schemas, sparqlClient, querySettings, baseUri).routes
+    val route =
+      SchemaRoutes(schemas, sparqlClient, querySettings, baseUri).routes
 
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 
@@ -103,12 +110,14 @@ class SchemaRoutesSpec
     "return the current schema" in {
       Get(s"/schemas/${schemaId.show}") ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual Json.obj(
-          "@id" -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
-          "rev" -> Json.fromLong(1L),
-          "deprecated" -> Json.fromBoolean(false),
-          "published" -> Json.fromBoolean(false)
-        ).deepMerge(schemaJson)
+        responseAs[Json] shouldEqual Json
+          .obj(
+            "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
+            "rev"        -> Json.fromLong(1L),
+            "deprecated" -> Json.fromBoolean(false),
+            "published"  -> Json.fromBoolean(false)
+          )
+          .deepMerge(schemaJson)
       }
     }
 
@@ -138,21 +147,23 @@ class SchemaRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual schemaRefAsJson(SchemaRef(schemaId, 3L))
       }
-      schemas.fetch(schemaId).futureValue shouldEqual Some(Schema(schemaId, 3L, schemaJson, deprecated = false, published = true))
+      schemas.fetch(schemaId).futureValue shouldEqual Some(
+        Schema(schemaId, 3L, schemaJson, deprecated = false, published = true))
     }
 
     "return specific schema shape" in {
       Get(s"/schemas/${schemaId.show}/shapes/IdNodeShape2") ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Some[Json]] shouldEqual
-          Some(shapeNodeShape.deepMerge(
-            Json.obj(
-              "@id" -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
-              "rev" -> Json.fromLong(3L),
-              "deprecated" -> Json.fromBoolean(false),
-              "published" -> Json.fromBoolean(true)
-            )
-          ))
+          Some(
+            shapeNodeShape.deepMerge(
+              Json.obj(
+                "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
+                "rev"        -> Json.fromLong(3L),
+                "deprecated" -> Json.fromBoolean(false),
+                "published"  -> Json.fromBoolean(true)
+              )
+            ))
       }
     }
 
@@ -181,7 +192,8 @@ class SchemaRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual schemaRefAsJson(SchemaRef(schemaId, 4L))
       }
-      schemas.fetch(schemaId).futureValue shouldEqual Some(Schema(schemaId, 4L, schemaJson, deprecated = true, published = true))
+      schemas.fetch(schemaId).futureValue shouldEqual Some(
+        Schema(schemaId, 4L, schemaJson, deprecated = true, published = true))
     }
 
     "reject updating a schema when it is deprecated" in {
@@ -210,7 +222,6 @@ object SchemaRoutesSpec {
 
   import cats.syntax.show._
 
-  private def schemaRefAsJson(ref: SchemaRef) = Json.obj(
-    "@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"),
-    "rev" -> Json.fromLong(ref.rev))
+  private def schemaRefAsJson(ref: SchemaRef) =
+    Json.obj("@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"), "rev" -> Json.fromLong(ref.rev))
 }

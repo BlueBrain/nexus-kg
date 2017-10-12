@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 import akka.http.scaladsl.model.Uri
 import cats.instances.string._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.common.types.Version
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
@@ -37,7 +37,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(filter: Filter, pagination: Pagination, term: Option[String])(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
+  def list(filter: Filter, pagination: Pagination, term: Option[String])(
+      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
     val query = FilteredQuery(filter, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
@@ -50,7 +51,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(org: OrgId, filter: Filter, pagination: Pagination, term: Option[String])(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
+  def list(org: OrgId, filter: Filter, pagination: Pagination, term: Option[String])(
+      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
     list(filter and orgExpr(org), pagination, term)
 
   /**
@@ -61,13 +63,13 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(dom: DomainId, filter: Filter, pagination: Pagination, term: Option[String])(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(
-      filter
-        and orgExpr(dom.orgId)
-        and domExpr(dom),
-      pagination,
-      term)
+  def list(dom: DomainId, filter: Filter, pagination: Pagination, term: Option[String])(
+      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
+    list(filter
+           and orgExpr(dom.orgId)
+           and domExpr(dom),
+         pagination,
+         term)
 
   /**
     * Lists all ids in the system within the specified domain and that have the specified schema name that match
@@ -79,14 +81,14 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(dom: DomainId, schemaName: String, filter: Filter, pagination: Pagination, term: Option[String])(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(
-      filter
-        and orgExpr(dom.orgId)
-        and domExpr(dom)
-        and schemaNameExpr(schemaName),
-      pagination,
-      term)
+  def list(dom: DomainId, schemaName: String, filter: Filter, pagination: Pagination, term: Option[String])(
+      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
+    list(filter
+           and orgExpr(dom.orgId)
+           and domExpr(dom)
+           and schemaNameExpr(schemaName),
+         pagination,
+         term)
 
   /**
     * Lists all ids in the system conformant to the specified schema that match the given filter.
@@ -96,15 +98,15 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(schema: SchemaId, filter: Filter, pagination: Pagination, term: Option[String])(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(
-      filter
-        and orgExpr(schema.domainId.orgId)
-        and domExpr(schema.domainId)
-        and schemaNameExpr(schema.name)
-        and schemaVerExpr(schema.version),
-      pagination,
-      term)
+  def list(schema: SchemaId, filter: Filter, pagination: Pagination, term: Option[String])(
+      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
+    list(filter
+           and orgExpr(schema.domainId.orgId)
+           and domExpr(schema.domainId)
+           and schemaNameExpr(schema.name)
+           and schemaVerExpr(schema.version),
+         pagination,
+         term)
 
   /**
     * Lists all outgoing ids linked to the if identified by ''id'' that match the given filter.
@@ -114,7 +116,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def outgoing(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
+  def outgoing(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(
+      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
     val query = FilteredQuery.outgoing(id.qualify, filter, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
@@ -127,7 +130,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def incoming(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
+  def incoming(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(
+      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
     val query = FilteredQuery.incoming(id.qualify, filter, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
@@ -152,6 +156,7 @@ object FilterQueries {
     * Syntactic sugar for composing filters using the [[And]] logical operator.
     */
   implicit class FilterOps(filter: Filter) {
+
     /**
       * Constructs a new filter based on ''this'' filter by adding the argument filter expression to the expressions
       * defined in ''this'' filter using the [[And]] logical operator.
@@ -193,10 +198,12 @@ object FilterQueries {
     Filter(LogicalExpr(Op.And, List(deprecatedOrNoop(deprecatedOps, baseVoc), revExpr(baseVoc))))
 
   private def deprecatedOrNoop(deprecated: Option[Boolean], baseVoc: Uri): Expr = {
-    deprecated.map { value =>
-      val depr = "deprecated".qualifyWith(baseVoc)
-      ComparisonExpr(Op.Eq, UriTerm(depr), LiteralTerm(value.toString))
-    }.getOrElse(NoopExpr)
+    deprecated
+      .map { value =>
+        val depr = "deprecated".qualifyWith(baseVoc)
+        ComparisonExpr(Op.Eq, UriTerm(depr), LiteralTerm(value.toString))
+      }
+      .getOrElse(NoopExpr)
   }
 
   private def revExpr(baseVoc: Uri): Expr = {

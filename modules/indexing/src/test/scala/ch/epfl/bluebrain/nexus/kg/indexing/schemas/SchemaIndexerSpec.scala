@@ -9,7 +9,8 @@ import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.common.types.Version
+import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -18,7 +19,6 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import ch.epfl.bluebrain.nexus.kg.core.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import org.apache.jena.query.ResultSet
@@ -31,7 +31,7 @@ import scala.concurrent.{ExecutionContextExecutor, Future}
 
 @DoNotDiscover
 class SchemaIndexerSpec(blazegraphPort: Int)
-  extends TestKit(ActorSystem("SchemaIndexerSpec"))
+    extends TestKit(ActorSystem("SchemaIndexerSpec"))
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -46,23 +46,21 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     super.afterAll()
   }
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 milliseconds)
+  override implicit val patienceConfig: PatienceConfig =
+    PatienceConfig(3 seconds, 100 milliseconds)
 
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
-  private implicit val mt: ActorMaterializer = ActorMaterializer()
+  private implicit val mt: ActorMaterializer        = ActorMaterializer()
 
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
-  private implicit val rs: HttpClient[Future, ResultSet] = HttpClient.withAkkaUnmarshaller[ResultSet]
+  private implicit val rs: HttpClient[Future, ResultSet] =
+    HttpClient.withAkkaUnmarshaller[ResultSet]
 
-  private val base = s"http://$localhost/v0"
+  private val base         = s"http://$localhost/v0"
   private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings@SchemaIndexingSettings(index, schemasBase, schemasBaseNs, nexusVocBase) =
-    SchemaIndexingSettings(
-      genString(length = 6),
-      base,
-      s"$base/schemas/graphs",
-      s"$base/voc/nexus/core")
+  private val settings @ SchemaIndexingSettings(index, schemasBase, schemasBaseNs, nexusVocBase) =
+    SchemaIndexingSettings(genString(length = 6), base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
 
@@ -78,33 +76,33 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       }
     }
 
-  private def expectedTriples(
-    id: SchemaId,
-    rev: Long,
-    deprecated: Boolean,
-    published: Boolean,
-    description: String): List[(String, String, String)] = {
+  private def expectedTriples(id: SchemaId,
+                              rev: Long,
+                              deprecated: Boolean,
+                              published: Boolean,
+                              description: String): List[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(schemasBase)
     List(
-      (qualifiedId, "rev"          qualifyAsStringWith nexusVocBase, rev.toString),
-      (qualifiedId, "deprecated"   qualifyAsStringWith nexusVocBase, deprecated.toString),
-      (qualifiedId, "published"    qualifyAsStringWith nexusVocBase, published.toString),
-      (qualifiedId, "desc"         qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
+      (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
+      (qualifiedId, "published" qualifyAsStringWith nexusVocBase, published.toString),
+      (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
       (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.domainId.orgId.id),
-      (qualifiedId, "domain"       qualifyAsStringWith nexusVocBase, id.domainId.id),
-      (qualifiedId, "schema"       qualifyAsStringWith nexusVocBase, id.name),
-      (qualifiedId, "version"      qualifyAsStringWith nexusVocBase, id.version.show))
+      (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.domainId.id),
+      (qualifiedId, "schema" qualifyAsStringWith nexusVocBase, id.name),
+      (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show)
+    )
   }
 
   "A SchemaIndexer" should {
-    val client = SparqlClient[Future](baseUri)
+    val client  = SparqlClient[Future](baseUri)
     val indexer = SchemaIndexer(client, settings)
 
     val id = SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0))
 
     "index a SchemaCreated event" in {
       client.createIndex(index, properties).futureValue
-      val rev = 1L
+      val rev  = 1L
       val data = jsonContentOf("/schemas/minimal.json", replacements)
       indexer(SchemaCreated(id, rev, data)).futureValue
       val rs = triples(client).futureValue
@@ -113,7 +111,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     }
 
     "index a SchemaUpdated event" in {
-      val rev = 2L
+      val rev  = 2L
       val data = jsonContentOf("/schemas/minimal.json", replacements + ("random" -> "updated"))
       indexer(SchemaUpdated(id, rev, data)).futureValue
       val rs = triples(client).futureValue

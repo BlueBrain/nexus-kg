@@ -10,8 +10,8 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.AttachmentLimitExceeded
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection
-import ch.epfl.bluebrain.nexus.kg.service.directives.ErrorDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.StatusFrom
+import ch.epfl.bluebrain.nexus.commons.service.directives.ErrorDirectives._
+import ch.epfl.bluebrain.nexus.commons.service.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
@@ -26,6 +26,7 @@ import journal.Logger
 object ExceptionHandling {
 
   val logger = Logger[this.type]
+
   /**
     * @return an ExceptionHandler for [[ch.epfl.bluebrain.nexus.kg.core.Fault]] subtypes that ensures a descriptive
     *         message is returned to the caller
@@ -36,7 +37,7 @@ object ExceptionHandling {
     case CommandRejected(r: DomainRejection)     => complete(r)
     case CommandRejected(r: OrgRejection)        => complete(r)
     case CommandRejected(r: IllegalFilterFormat) => complete(r)
-    case ex: EntityStreamSizeException           =>
+    case ex: EntityStreamSizeException =>
       logger.warn(s"An attachment with size '${ex.actualSize}' has been rejected because actual limit is '${ex.limit}'")
       complete(toRejection(ex))
     // $COVERAGE-OFF$
@@ -52,7 +53,8 @@ object ExceptionHandling {
   /**
     * The discriminator is enough to give us a Json representation (the name of the class)
     */
-  private implicit val config: Configuration = Configuration.default.withDiscriminator("code")
+  private implicit val config: Configuration =
+    Configuration.default.withDiscriminator("code")
 
   private implicit val instanceStatusFrom: StatusFrom[InstanceRejection] = {
     import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._

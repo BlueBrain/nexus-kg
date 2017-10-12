@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 import java.util.regex.Pattern
 
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.kg.core.Resources
+import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.NoopExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
@@ -12,16 +12,16 @@ import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
 class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with EitherValues {
 
-  private val base = "http://localhost/v0"
+  private val base         = "http://localhost/v0"
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
-  private implicit val filteringSettings@FilteringSettings(nexusBaseVoc, nexusSearchVoc) =
+  private implicit val filteringSettings @ FilteringSettings(nexusBaseVoc, nexusSearchVoc) =
     FilteringSettings(s"$base/voc/nexus/core", s"$base/voc/nexus/search")
 
   private val (nxv, nxs) = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
-  private val prov = Uri("http://www.w3.org/ns/prov#")
-  private val rdf = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
-  private val bbpprod = Uri(s"$base/voc/bbp/productionentity/core/")
-  private val bbpagent = Uri(s"$base/voc/bbp/agent/core/")
+  private val prov       = Uri("http://www.w3.org/ns/prov#")
+  private val rdf        = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+  private val bbpprod    = Uri(s"$base/voc/bbp/productionentity/core/")
+  private val bbpagent   = Uri(s"$base/voc/bbp/agent/core/")
 
   "A FilteredQuery" should {
     val pagination = Pagination(13, 17)
@@ -61,7 +61,8 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       }
 
       "using a filter" in {
-        val json = jsonContentOf("/query/builder/filter-only.json", replacements)
+        val json =
+          jsonContentOf("/query/builder/filter-only.json", replacements)
         val filter = json.as[Filter].right.value
         val expectedWhere =
           s"""
@@ -126,9 +127,10 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       }
 
       "using a filter with a term" in {
-        val json = jsonContentOf("/query/builder/filter-only.json", replacements)
+        val json =
+          jsonContentOf("/query/builder/filter-only.json", replacements)
         val filter = json.as[Filter].right.value
-        val term = "subject"
+        val term   = "subject"
 
         val expectedWhere =
           s"""
@@ -199,8 +201,10 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       }
 
       "selecting the outgoing links" in {
-        val json = jsonContentOf("/query/builder/filter-only.json", replacements)
-        val thisId = Uri(s"http://localhost/v0/bbp/experiment/subject/v0.1.0/theid")
+        val json =
+          jsonContentOf("/query/builder/filter-only.json", replacements)
+        val thisId =
+          Uri(s"http://localhost/v0/bbp/experiment/subject/v0.1.0/theid")
         val targetFilter = json.as[Filter].right.value
         val expectedWhere =
           s"""
@@ -268,8 +272,10 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       }
 
       "selecting the incoming links" in {
-        val json = jsonContentOf("/query/builder/filter-only.json", replacements)
-        val thisId = Uri(s"http://localhost/v0/bbp/experiment/subject/v0.1.0/theid")
+        val json =
+          jsonContentOf("/query/builder/filter-only.json", replacements)
+        val thisId =
+          Uri(s"http://localhost/v0/bbp/experiment/subject/v0.1.0/theid")
         val targetFilter = json.as[Filter].right.value
         val expectedWhere =
           s"""

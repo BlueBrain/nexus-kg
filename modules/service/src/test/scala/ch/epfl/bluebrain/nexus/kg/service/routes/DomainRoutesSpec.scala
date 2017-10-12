@@ -3,10 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
@@ -26,35 +26,34 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import io.circe.syntax._
 import scala.concurrent.Future
 
-class DomainRoutesSpec
-  extends WordSpecLike
-    with Matchers
-    with ScalatestRouteTest
-    with Randomness
-    with ScalaFutures {
+class DomainRoutesSpec extends WordSpecLike with Matchers with ScalatestRouteTest with Randomness with ScalaFutures {
 
   "A DomainRoutes" should {
     import domsEncoder._
     val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs = Organizations(orgAgg)
-    val domAgg = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val orgs   = Organizations(orgAgg)
+    val domAgg =
+      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
+        .toF[Future]
     val doms = Domains(domAgg, orgs)
 
-    val orgId = OrgId(genString(length = 5))
-    val id = DomainId(orgId, genString(length = 8))
+    val orgId       = OrgId(genString(length = 5))
+    val id          = DomainId(orgId, genString(length = 8))
     val description = genString(length = 32)
-    val json = Json.obj("description" -> Json.fromString(description))
+    val json        = Json.obj("description" -> Json.fromString(description))
 
-    orgs.create(orgId, Json.obj("key" -> Json.fromString(genString()))).futureValue
+    orgs
+      .create(orgId, Json.obj("key" -> Json.fromString(genString())))
+      .futureValue
 
-    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), "domain-index", vocab)
+    val sparqlUri                  = Uri("http://localhost:9999/bigdata/sparql")
+    val vocab                      = baseUri.copy(path = baseUri.path / "core")
+    val querySettings              = QuerySettings(Pagination(0L, 20), "domain-index", vocab)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl = HttpClient.akkaHttpClient
+    implicit val cl                = HttpClient.akkaHttpClient
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
+    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
 
     "create a domain" in {
       Put(s"/domains/${orgId.show}/${id.id}", json) ~> route ~> check {
@@ -129,6 +128,6 @@ class DomainRoutesSpec
 }
 
 object DomainRoutesSpec {
-  private val baseUri = Uri("http://localhost/v0")
+  private val baseUri      = Uri("http://localhost/v0")
   implicit val domsEncoder = new DomainCustomEncoders(baseUri)
 }

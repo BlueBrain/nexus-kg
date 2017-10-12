@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.core.schemas
 
 import cats.Show
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.common.types.Version
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import io.circe.{Decoder, Encoder}
@@ -18,6 +18,7 @@ import scala.util.{Failure, Try}
   * @param version  the version of the schema
   */
 final case class SchemaId(domainId: DomainId, name: String, version: Version) {
+
   /**
     * Extracts the [[SchemaName]] from the current [[SchemaId]].
     */
@@ -25,7 +26,8 @@ final case class SchemaId(domainId: DomainId, name: String, version: Version) {
 }
 
 object SchemaId {
-  final val regex: Regex = s"""${SchemaName.regex.regex}/v([0-9]+)\\.([0-9]+)\\.([0-9]+)""".r
+  final val regex: Regex =
+    s"""${SchemaName.regex.regex}/v([0-9]+)\\.([0-9]+)\\.([0-9]+)""".r
 
   /**
     * Attempts to parse the argument string into a ''SchemaId''.
@@ -38,13 +40,14 @@ object SchemaId {
       Try(Version(major.toInt, minor.toInt, patch.toInt)).map { ver =>
         SchemaId(DomainId(OrgId(org), dom), name, ver)
       }
-    case _                                          =>
+    case _ =>
       Failure(new IllegalArgumentException("Unable to decode value into a SchemaId"))
   }
 
-  final implicit def schemaIdShow(implicit D: Show[SchemaName], V: Show[Version]): Show[SchemaId] = Show.show { id =>
-    s"${id.schemaName.show}/${id.version.show}"
-  }
+  final implicit def schemaIdShow(implicit D: Show[SchemaName], V: Show[Version]): Show[SchemaId] =
+    Show.show { id =>
+      s"${id.schemaName.show}/${id.version.show}"
+    }
 
   final implicit def schemaIdEncoder(implicit S: Show[SchemaId]): Encoder[SchemaId] =
     Encoder.encodeString.contramap(id => S.show(id))

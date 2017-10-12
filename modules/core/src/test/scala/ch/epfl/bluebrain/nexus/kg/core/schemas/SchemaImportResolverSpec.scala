@@ -2,10 +2,10 @@ package ch.epfl.bluebrain.nexus.kg.core.schemas
 
 import cats.instances.try_._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.common.types.Version
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclSchema
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidatorErr.{CouldNotFindImports, IllegalImportDefinition}
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaImportResolverSpec._
@@ -18,8 +18,7 @@ import scala.util.{Success, Try}
 class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues with Randomness {
 
   private val baseUri = "http://localhost:8080/v0"
-  private val context = parse(
-    s"""
+  private val context = parse(s"""
        |{
        |  "@context": {
        |    "owl" : "http://www.w3.org/2002/07/owl#",
@@ -36,7 +35,8 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
   private def jsonImportsSchema(id: SchemaId, imports: List[Json], published: Boolean = true): Schema = {
     val importsList = Json.fromValues(imports)
     val justImports = Json.obj("imports" -> importsList)
-    val innerId = Json.obj("@id" -> Json.fromString(s"$baseUri/schemas/${id.show}"))
+    val innerId =
+      Json.obj("@id" -> Json.fromString(s"$baseUri/schemas/${id.show}"))
     val value = context deepMerge justImports deepMerge innerId
     Schema(id, 2L, value, deprecated = false, published = published)
   }
@@ -56,69 +56,75 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
       resolver(schema(genSchemaId()).asShacl).success.value shouldBe empty
     }
 
-    val leaf1 = schema(genSchemaId())
-    val leaf2 = schema(genSchemaId())
-    val mid1 = schema(genSchemaId(), List(leaf1.id, leaf2.id))
-    val mid2 = schema(genSchemaId(), List(leaf1.id))
+    val leaf1        = schema(genSchemaId())
+    val leaf2        = schema(genSchemaId())
+    val mid1         = schema(genSchemaId(), List(leaf1.id, leaf2.id))
+    val mid2         = schema(genSchemaId(), List(leaf1.id))
     val unpublished1 = schema(genSchemaId(), published = false)
     val unpublished2 = schema(genSchemaId(), published = false)
-    val main = schema(genSchemaId(), List(mid1.id, mid2.id))
+    val main         = schema(genSchemaId(), List(mid1.id, mid2.id))
 
     "lookup imports transitively" in {
-      val all = List(leaf1, leaf2, mid1, mid2, main)
-      val loader = (id: SchemaId) => Success(all.find(_.id == id))
+      val all      = List(leaf1, leaf2, mid1, mid2, main)
+      val loader   = (id: SchemaId) => Success(all.find(_.id == id))
       val resolver = SchemaImportResolver[Try](baseUri, loader)
       resolver(main.asShacl).success.value.size shouldEqual 4
     }
 
     "aggregate missing imports" in {
-      val all = List(mid1, mid2, main)
-      val loader = (id: SchemaId) => Success(all.find(_.id == id))
+      val all      = List(mid1, mid2, main)
+      val loader   = (id: SchemaId) => Success(all.find(_.id == id))
       val resolver = SchemaImportResolver[Try](baseUri, loader)
-      resolver(main.asShacl).failure.exception shouldEqual CouldNotFindImports(Set(
-        s"$baseUri/schemas/${leaf1.id.show}",
-        s"$baseUri/schemas/${leaf2.id.show}"
-      ))
+      resolver(main.asShacl).failure.exception shouldEqual CouldNotFindImports(
+        Set(
+          s"$baseUri/schemas/${leaf1.id.show}",
+          s"$baseUri/schemas/${leaf2.id.show}"
+        ))
     }
 
     "aggregate single batch missing imports" in {
-      val all = List(leaf1, mid1, main)
-      val loader = (id: SchemaId) => Success(all.find(_.id == id))
+      val all      = List(leaf1, mid1, main)
+      val loader   = (id: SchemaId) => Success(all.find(_.id == id))
       val resolver = SchemaImportResolver[Try](baseUri, loader)
-      resolver(main.asShacl).failure.exception shouldEqual CouldNotFindImports(Set(
-        s"$baseUri/schemas/${mid2.id.show}"
-      ))
+      resolver(main.asShacl).failure.exception shouldEqual CouldNotFindImports(
+        Set(
+          s"$baseUri/schemas/${mid2.id.show}"
+        ))
     }
 
     "aggregate unknown imports" in {
-      val withUnknown = uncheckedImportsSchema(genSchemaId(), List(
-        "http://localhost/a",
-        "http://localhost/b",
-        s"$baseUri/schemas/${mid1.id.show}"))
-      val all = List(mid1)
-      val loader = (id: SchemaId) => Success(all.find(_.id == id))
+      val withUnknown =
+        uncheckedImportsSchema(genSchemaId(),
+                               List("http://localhost/a", "http://localhost/b", s"$baseUri/schemas/${mid1.id.show}"))
+      val all      = List(mid1)
+      val loader   = (id: SchemaId) => Success(all.find(_.id == id))
       val resolver = SchemaImportResolver[Try](baseUri, loader)
-      resolver(withUnknown.asShacl).failure.exception shouldEqual IllegalImportDefinition(Set(
-        "http://localhost/a", "http://localhost/b"
-      ))
+      resolver(withUnknown.asShacl).failure.exception shouldEqual IllegalImportDefinition(
+        Set(
+          "http://localhost/a",
+          "http://localhost/b"
+        ))
     }
 
     "ignore incorrectly typed imports" in {
-      val withUnknown = jsonImportsSchema(genSchemaId(), List(Json.fromInt(12), Json.fromString("13")))
-      val loader = (_: SchemaId) => Success(None)
+      val withUnknown =
+        jsonImportsSchema(genSchemaId(), List(Json.fromInt(12), Json.fromString("13")))
+      val loader   = (_: SchemaId) => Success(None)
       val resolver = SchemaImportResolver[Try](baseUri, loader)
       resolver(withUnknown.asShacl).success.value.size shouldEqual 0
     }
 
     "treat unpublished schemas as not found" in {
-      val withUnpublished = schema(genSchemaId(), List(unpublished1.id, unpublished2.id, leaf1.id))
-      val all = List(unpublished1, unpublished2, leaf1)
-      val loader = (id: SchemaId) => Success(all.find(_.id == id))
+      val withUnpublished =
+        schema(genSchemaId(), List(unpublished1.id, unpublished2.id, leaf1.id))
+      val all      = List(unpublished1, unpublished2, leaf1)
+      val loader   = (id: SchemaId) => Success(all.find(_.id == id))
       val resolver = SchemaImportResolver[Try](baseUri, loader)
-      resolver(withUnpublished.asShacl).failure.exception shouldEqual CouldNotFindImports(Set(
-        s"$baseUri/schemas/${unpublished1.id.show}",
-        s"$baseUri/schemas/${unpublished2.id.show}"
-      ))
+      resolver(withUnpublished.asShacl).failure.exception shouldEqual CouldNotFindImports(
+        Set(
+          s"$baseUri/schemas/${unpublished1.id.show}",
+          s"$baseUri/schemas/${unpublished2.id.show}"
+        ))
     }
   }
 }

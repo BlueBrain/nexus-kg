@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.instances._
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.service.commons.persistence.SequentialIndexer
+import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialIndexer
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
@@ -31,7 +31,8 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param ec           the implicitly available [[ExecutionContext]]
   */
 class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiUri: Uri)(implicit
-  as: ActorSystem, ec: ExecutionContext) {
+                                                                                         as: ActorSystem,
+                                                                                         ec: ExecutionContext) {
 
   startIndexingOrgs()
   startIndexingDomains()
@@ -44,18 +45,18 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
     props.asScala.toMap
   }
 
-  private def initFunctionOf(index: String): () => Future[Unit] = () =>
-    sparqlClient.exists(index).flatMap {
-      case true  => Future.successful(())
-      case false => sparqlClient.createIndex(index, properties)
+  private def initFunctionOf(index: String): () => Future[Unit] =
+    () =>
+      sparqlClient.exists(index).flatMap {
+        case true  => Future.successful(())
+        case false => sparqlClient.createIndex(index, properties)
     }
 
   private def startIndexingInstances() = {
-    val instanceIndexingSettings = InstanceIndexingSettings(
-      settings.Sparql.Instances.Index,
-      apiUri,
-      settings.Sparql.Instances.GraphBaseNamespace,
-      settings.Prefixes.CoreVocabulary)
+    val instanceIndexingSettings = InstanceIndexingSettings(settings.Sparql.Instances.Index,
+                                                            apiUri,
+                                                            settings.Sparql.Instances.GraphBaseNamespace,
+                                                            settings.Prefixes.CoreVocabulary)
 
     SequentialIndexer.start[InstanceEvent](
       initFunctionOf(settings.Sparql.Instances.Index),
@@ -63,15 +64,15 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
       "instances-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "instance",
-      "sequential-instance-indexer")
+      "sequential-instance-indexer"
+    )
   }
 
   private def startIndexingSchemas() = {
-    val schemaIndexingSettings = SchemaIndexingSettings(
-      settings.Sparql.Schemas.Index,
-      apiUri,
-      settings.Sparql.Schemas.GraphBaseNamespace,
-      settings.Prefixes.CoreVocabulary)
+    val schemaIndexingSettings = SchemaIndexingSettings(settings.Sparql.Schemas.Index,
+                                                        apiUri,
+                                                        settings.Sparql.Schemas.GraphBaseNamespace,
+                                                        settings.Prefixes.CoreVocabulary)
 
     SequentialIndexer.start[SchemaEvent](
       initFunctionOf(settings.Sparql.Schemas.Index),
@@ -79,16 +80,15 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
       "schemas-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "schema",
-      "sequential-schema-indexer")
+      "sequential-schema-indexer"
+    )
   }
 
-
   private def startIndexingDomains() = {
-    val domainIndexingSettings = DomainIndexingSettings(
-      settings.Sparql.Domains.Index,
-      apiUri,
-      settings.Sparql.Domains.GraphBaseNamespace,
-      settings.Prefixes.CoreVocabulary)
+    val domainIndexingSettings = DomainIndexingSettings(settings.Sparql.Domains.Index,
+                                                        apiUri,
+                                                        settings.Sparql.Domains.GraphBaseNamespace,
+                                                        settings.Prefixes.CoreVocabulary)
 
     SequentialIndexer.start[DomainEvent](
       initFunctionOf(settings.Sparql.Domains.Index),
@@ -96,15 +96,15 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
       "domains-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "domain",
-      "sequential-domain-indexer")
+      "sequential-domain-indexer"
+    )
   }
 
   private def startIndexingOrgs() = {
-    val orgIndexingSettings = OrganizationIndexingSettings(
-      settings.Sparql.Organizations.Index,
-      apiUri,
-      settings.Sparql.Organizations.GraphBaseNamespace,
-      settings.Prefixes.CoreVocabulary)
+    val orgIndexingSettings = OrganizationIndexingSettings(settings.Sparql.Organizations.Index,
+                                                           apiUri,
+                                                           settings.Sparql.Organizations.GraphBaseNamespace,
+                                                           settings.Prefixes.CoreVocabulary)
 
     SequentialIndexer.start[OrgEvent](
       initFunctionOf(settings.Sparql.Organizations.Index),
@@ -112,7 +112,8 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
       "organization-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "organization",
-      "sequential-organization-indexer")
+      "sequential-organization-indexer"
+    )
   }
 
 }
@@ -127,8 +128,11 @@ object StartIndexers {
     * @param sparqlClient the SPARQL client implementation
     * @param apiUri       the service public uri + prefix
     */
-  final def apply(settings: Settings, sparqlClient: SparqlClient[Future], apiUri: Uri)(implicit
-    as: ActorSystem, ec: ExecutionContext): StartIndexers = new StartIndexers(settings, sparqlClient, apiUri)
+  final def apply(settings: Settings, sparqlClient: SparqlClient[Future], apiUri: Uri)(
+      implicit
+      as: ActorSystem,
+      ec: ExecutionContext): StartIndexers =
+    new StartIndexers(settings, sparqlClient, apiUri)
 
   // $COVERAGE-ON$
 }

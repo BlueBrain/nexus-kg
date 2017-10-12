@@ -5,11 +5,11 @@ import java.net.URLEncoder
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
@@ -25,7 +25,7 @@ import org.scalatest.{Matchers, WordSpecLike}
 import scala.concurrent.Future
 
 class RejectionHandlingSpec
-  extends WordSpecLike
+    extends WordSpecLike
     with Matchers
     with ScalatestRouteTest
     with Randomness
@@ -33,23 +33,25 @@ class RejectionHandlingSpec
 
   "A RejectionHandling" should {
     val baseUri = Uri("http://localhost/v0")
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs = Organizations(orgAgg)
-    val id = genString(length = 5)
+    val orgAgg  = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs    = Organizations(orgAgg)
+    val id      = genString(length = 5)
 
-    val nexusVocab = s"$baseUri/voc/nexus/core"
+    val nexusVocab                 = s"$baseUri/voc/nexus/core"
     implicit val filteringSettings = FilteringSettings(nexusVocab, nexusVocab)
-    implicit val cl = HttpClient.akkaHttpClient
+    implicit val cl                = HttpClient.akkaHttpClient
 
-    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab = baseUri.copy(path = baseUri.path / "core")
+    val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
+    val vocab         = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), "org-index", vocab)
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route = OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
+    val route =
+      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
 
     "reject the creation of a organization with invalid JSON payload" in {
-      val invalidJson = HttpEntity(ContentTypes.`application/json`, s"""{"key" "value"}""")
+      val invalidJson =
+        HttpEntity(ContentTypes.`application/json`, s"""{"key" "value"}""")
       Put(s"/organizations/$id", invalidJson) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[WrongOrInvalidJson.type]
