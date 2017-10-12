@@ -59,6 +59,22 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
         json.as[Filter] shouldEqual Right(expected)
       }
 
+      "using nested comparisons with property path" in {
+        val json = jsonContentOf("/filtering/nested-comparison-property-path.json", replacements)
+        val expected = Filter(
+          LogicalExpr(And, List(
+            ComparisonExpr(Eq, UriTerm(s"${prov}wasDerivedFrom"), UriTerm(s"$base/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90")),
+            ComparisonExpr(Ne, UriTerm(s"${nxv}deprecated"), LiteralTerm("false")),
+            InExpr(UriTerm(s"${rdf}type"), TermCollection(List(UriTerm(s"${prov}Entity"), UriTerm(s"${bbpprod}Circuit")))),
+            ComparisonExpr(Lte, UriTerm(s"${nxv}rev"), LiteralTerm("5")),
+            LogicalExpr(Xor, List(
+              ComparisonExpr(Eq, UriTerm(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}sy")),
+              ComparisonExpr(Eq, UriTerm(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}dmontero")),
+            ))
+          )))
+        json.as[Filter] shouldEqual Right(expected)
+      }
+
       "defining a context that's conflicting with the expected one" in {
         val json =
           jsonContentOf("/filtering/conflicting-context.json", replacements)

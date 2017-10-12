@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.Eq
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PathProp.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.UriTerm
 
 /**
@@ -29,21 +30,21 @@ object TypeFilterExpr {
 
   implicit val orgFilterExpr = new TypeFilterExpr[OrgId] {
     override def apply(implicit Q: ConfiguredQualifier[String]) =
-      ComparisonExpr(Eq, UriTerm(rdfTypeKey), UriTerm("Organization".qualify))
+      ComparisonExpr(Eq, UriPath(rdfTypeKey), UriTerm("Organization".qualify))
   }
 
   implicit val domainFilterExpr = new TypeFilterExpr[DomainId] {
     override def apply(implicit Q: ConfiguredQualifier[String]) =
-      ComparisonExpr(Eq, UriTerm(rdfTypeKey), UriTerm("Domain".qualify))
+      ComparisonExpr(Eq, UriPath(rdfTypeKey), UriTerm("Domain".qualify))
   }
 
   implicit val schemaFilterExpr = new TypeFilterExpr[SchemaId] {
     override def apply(implicit Q: ConfiguredQualifier[String]) =
-      ComparisonExpr(Eq, UriTerm(rdfTypeKey), UriTerm("Schema".qualify))
+      ComparisonExpr(Eq, UriPath(rdfTypeKey), UriTerm("Schema".qualify))
   }
 
   implicit val instanceFilterExpr = new TypeFilterExpr[InstanceId] {
     override def apply(implicit Q: ConfiguredQualifier[String]) =
-      ComparisonExpr(Eq, UriTerm(rdfTypeKey), UriTerm("Instance".qualify))
+      ComparisonExpr(Eq, UriPath(rdfTypeKey), UriTerm("Instance".qualify))
   }
 }

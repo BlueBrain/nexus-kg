@@ -7,12 +7,14 @@ import cats.Eval
 import cats.syntax.either._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PathProp.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
 import io.circe._
 import org.apache.jena.graph.{Graph, Node}
 import org.apache.jena.rdf.model._
 import org.apache.jena.riot.{Lang, RDFDataMgr}
-
+import org.apache.jena.sparql.path.{Path, PathParser}
+import cats.instances.try_._
 import scala.collection.JavaConverters._
 import scala.util.{Failure, Try}
 
@@ -58,15 +60,24 @@ object Filter {
       Try(Uri(graph.getPrefixMapping.expandPrefix(node.getLiteralLexicalForm)))
         .filter(uri => uri.isAbsolute && uri.toString().indexOf("/") > -1)
 
-    def extractPath(graph: Graph, node: Node, cursor: ACursor): Eval[Decoder.Result[Option[UriTerm]]] = {
+    def asUriPath(graph: Graph, node: Node): Try[PathProp] = asUri(graph, node).map(UriPath)
+
+    def asPath(graph: Graph, node: Node): Try[PathProp] = {
+      val builder = PathPropBuilder[Try, Path]
+      Try(PathParser.parse(node.getLiteralLexicalForm, graph.getPrefixMapping))
+        .flatMap(path => builder(path))
+    }
+
+
+    def extractPath(graph: Graph, node: Node, cursor: ACursor): Eval[Decoder.Result[Option[PathProp]]] = {
       val history = cursor.downField("path").history
       Eval.now {
         objectsOfProperty(graph, node, pathProp) match {
           case Nil         =>
             Right(None)
           case head :: Nil =>
-            asUri(graph, head)
-              .map(uri => Right(Some(UriTerm(uri))))
+            asUriPath(graph, head).orElse(asPath(graph, head))
+              .map(p => Right(Some(p)))
               .getOrElse(Left(DecodingFailure("Unable to parse 'path' as an uri", history)))
           case _ :: _      =>
             Left(DecodingFailure("A filter expression can contain at most a single path", history))

@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, Eq}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PathProp.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
@@ -205,20 +206,20 @@ object FilterQueries {
   private def deprecatedOrNoop(deprecated: Option[Boolean], baseVoc: Uri): Expr = {
     deprecated.map { value =>
       val depr = "deprecated".qualifyWith(baseVoc)
-      ComparisonExpr(Op.Eq, UriTerm(depr), LiteralTerm(value.toString))
+      ComparisonExpr(Op.Eq, UriPath(depr), LiteralTerm(value.toString))
     }.getOrElse(NoopExpr)
   }
 
   private def orgExpr(org: OrgId)(implicit qual: ConfiguredQualifier[String], orgQ: ConfiguredQualifier[OrgId]): Expr =
-    ComparisonExpr(Eq, UriTerm("organization" qualify), UriTerm(org qualify))
+    ComparisonExpr(Eq, UriPath("organization" qualify), UriTerm(org qualify))
 
   private def domExpr(dom: DomainId)(implicit qual: ConfiguredQualifier[String], domQ: ConfiguredQualifier[DomainId]): Expr =
-    ComparisonExpr(Eq, UriTerm("domain" qualify), UriTerm(dom qualify))
+    ComparisonExpr(Eq, UriPath("domain" qualify), UriTerm(dom qualify))
 
   private def schemaNameExpr(schemaName: SchemaName)(implicit qual: ConfiguredQualifier[String], schemaNameQ: ConfiguredQualifier[SchemaName]): Expr =
-    ComparisonExpr(Eq, UriTerm(schemaGroupKey), UriTerm(schemaName qualify))
+    ComparisonExpr(Eq, UriPath(schemaGroupKey), UriTerm(schemaName qualify))
 
   private def schemaExpr(schema: SchemaId)(implicit qual: ConfiguredQualifier[String], schemaQ: ConfiguredQualifier[SchemaId]): Expr =
-    ComparisonExpr(Eq, UriTerm("schema" qualify), UriTerm(schema qualify))
+    ComparisonExpr(Eq, UriPath("schema" qualify), UriTerm(schema qualify))
 
 }
