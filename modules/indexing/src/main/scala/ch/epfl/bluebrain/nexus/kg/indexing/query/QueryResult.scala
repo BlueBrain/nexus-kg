@@ -52,9 +52,10 @@ object QueryResult {
     }
 
   final implicit def queryResultEncoder[A](implicit
-    S: Encoder[ScoredQueryResult[A]],
-    U: Encoder[UnscoredQueryResult[A]]): Encoder[QueryResult[A]] = Encoder.instance {
-    case s: ScoredQueryResult[A]   => S.apply(s)
-    case u: UnscoredQueryResult[A] => U.apply(u)
-  }
+                                           S: Encoder[ScoredQueryResult[A]],
+                                           U: Encoder[UnscoredQueryResult[A]]): Encoder[QueryResult[A]] =
+    Encoder.instance {
+      case s: ScoredQueryResult[A]   => S.apply(s)
+      case u: UnscoredQueryResult[A] => U.apply(u)
+    }
 }

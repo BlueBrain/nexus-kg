@@ -35,16 +35,18 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
     * @tparam A the generic type of the response
     * @return a [[QueryResults]] instance wrapped in the abstract ''F[_]'' type
     */
-  def apply[A](index: String, query: String, scored: Boolean)(implicit Q: ConfiguredQualifier[A]): F[QueryResults[A]] = {
+  def apply[A](index: String, query: String, scored: Boolean)(
+      implicit Q: ConfiguredQualifier[A]): F[QueryResults[A]] = {
     def scoredQueryResult(rs: ResultSet, sol: QuerySolution): (Option[QueryResult[A]], Option[Long], Option[Float]) = {
       val queryResult = for {
         (subj, score) <- subjectScoreFrom(sol)
-        id <- subj.unqualify
+        id            <- subj.unqualify
       } yield ScoredQueryResult(score, id)
       (queryResult, totalFrom(sol), maxScoreFrom(sol))
     }
 
-    def unscoredQueryResult(rs: ResultSet, sol: QuerySolution): (Option[QueryResult[A]], Option[Long], Option[Float]) = {
+    def unscoredQueryResult(rs: ResultSet,
+                            sol: QuerySolution): (Option[QueryResult[A]], Option[Long], Option[Float]) = {
       val queryResult = subjectFrom(sol).flatMap(_.unqualify).map(UnscoredQueryResult(_))
       (queryResult, totalFrom(sol), None)
     }
@@ -63,16 +65,19 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
           val (qr, total, maxScore) =
             if (scored) scoredQueryResult(rs, sol)
             else unscoredQueryResult(rs, sol)
-          (qr.map(queryResults :+ _).getOrElse(queryResults), total.getOrElse(currentTotal), maxScore.getOrElse(currentMaxScore))
+          (qr.map(queryResults :+ _).getOrElse(queryResults),
+           total.getOrElse(currentTotal),
+           maxScore.getOrElse(currentMaxScore))
       }
       buildQueryResults(scored, listWithTotal)
     }
   }
 
-  private def subjectScoreFrom(qs: QuerySolution): Option[(String, Float)] = for {
-    score   <- scoreFrom(qs)
-    subject <- subjectFrom(qs)
-  } yield subject -> score
+  private def subjectScoreFrom(qs: QuerySolution): Option[(String, Float)] =
+    for {
+      score   <- scoreFrom(qs)
+      subject <- subjectFrom(qs)
+    } yield subject -> score
 
   private def scoreFrom(qs: QuerySolution): Option[Float] =
     Try(qs.get(s"?${SelectTerms.score}").asLiteral().getLexicalForm.toFloat).toOption
@@ -89,6 +94,7 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
 }
 
 object SparqlQuery {
+
   /**
     * Constructs a new ''SparqlQuery[F]'' instance that bundles queries that can be executed
     * against a Blazegraph endpoint.

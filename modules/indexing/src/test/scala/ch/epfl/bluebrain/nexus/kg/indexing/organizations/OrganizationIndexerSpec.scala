@@ -81,11 +81,12 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
 
     val qualifiedId = id.qualifyAsStringWith(orgBase)
     List(
-      (qualifiedId, "rev"          qualifyAsStringWith nexusVocBase, rev.toString),
-      (qualifiedId, "deprecated"   qualifyAsStringWith nexusVocBase, deprecated.toString),
-      (qualifiedId, "desc"         qualifyAsStringWith nexusVocBase, description),
-      (qualifiedId, rdfTypeKey,                                      "Organization" qualifyAsStringWith nexusVocBase),
-      (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.id))
+      (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
+      (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
+      (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId, rdfTypeKey, "Organization" qualifyAsStringWith nexusVocBase),
+      (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.id)
+    )
   }
 
   "A OrganizationIndexer" should {

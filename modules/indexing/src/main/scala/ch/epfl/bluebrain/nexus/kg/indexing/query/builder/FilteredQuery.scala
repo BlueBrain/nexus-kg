@@ -34,7 +34,7 @@ object FilteredQuery {
 
   private def applyWithWhere(where: String, pagination: Pagination, term: Option[String]): String = {
     val (selectTotal, selectWith, selectSubQuery) = buildSelectsFrom(term)
-    val (orderByUnion, orderByTotal) = buildOrderByFrom(term)
+    val (orderByUnion, orderByTotal)              = buildOrderByFrom(term)
     s"""
        |PREFIX bds: <${bdsUri.toString()}>
        |$selectTotal
@@ -81,7 +81,6 @@ object FilteredQuery {
     applyWithWhere(where, pagination, term)
   }
 
-
   /**
     * Constructs a Blazegraph query based on the provided filters and pagination settings that also computes the total
     * number of results.
@@ -103,36 +102,37 @@ object FilteredQuery {
   private final case class Stmt(stmt: String, filter: Option[String])
 
   private def buildSelectsFrom(term: Option[String]): (String, String, String) = {
-    term.map(_ =>
-      (
-        s"SELECT DISTINCT ?$total ?$subject ?$maxScore ?$score ?$rank",
-        s"SELECT DISTINCT ?$subject (max(?rsv) AS ?$score) (max(?pos) AS ?$rank)",
-        s"SELECT (COUNT(DISTINCT ?$subject) AS ?$total) (max(?$score) AS ?$maxScore)"
-      )).getOrElse(
-      (
-        s"SELECT DISTINCT ?$total ?$subject",
-        s"SELECT DISTINCT ?$subject",
-        s"SELECT (COUNT(DISTINCT ?$subject) AS ?$total)"
+    term
+      .map(
+        _ =>
+          (
+            s"SELECT DISTINCT ?$total ?$subject ?$maxScore ?$score ?$rank",
+            s"SELECT DISTINCT ?$subject (max(?rsv) AS ?$score) (max(?pos) AS ?$rank)",
+            s"SELECT (COUNT(DISTINCT ?$subject) AS ?$total) (max(?$score) AS ?$maxScore)"
+        ))
+      .getOrElse(
+        (
+          s"SELECT DISTINCT ?$total ?$subject",
+          s"SELECT DISTINCT ?$subject",
+          s"SELECT (COUNT(DISTINCT ?$subject) AS ?$total)"
+        )
       )
-    )
   }
 
-  private def buildOrderByFrom(term: Option[String]): (String,String) =
+  private def buildOrderByFrom(term: Option[String]): (String, String) =
     term.map(_ => (s"ORDER BY ?$subject", s"ORDER BY DESC(?$score)")).getOrElse((s"ORDER BY ?$subject", ""))
 
   private def buildGroupByFrom(term: Option[String]): String =
     term.map(_ => s"GROUP BY ?$subject").getOrElse("")
 
   private def buildWhereFrom(term: Option[String]): String =
-    term.map(term =>
-    s"""
+    term.map(term => s"""
        |?$subject ?matchedProperty ?matchedValue .
        |?matchedValue $bdsSearch "$term" .
        |?matchedValue $bdsRelevance ?rsv .
        |?matchedValue $bdsRank ?pos .
        |FILTER ( !isBlank(?s) )
-     """.stripMargin.trim
-    ).getOrElse("")
+     """.stripMargin.trim).getOrElse("")
 
   private def buildWhereFrom(expr: Expr): String = {
     val varPrefix = "var"
@@ -144,22 +144,22 @@ object FilteredQuery {
     // ?s :p ?var
     // FILTER (?var IN (term1, term2))
     def inExpr(expr: InExpr): Stmt = {
-      val idx = nextIdx()
-      val variable = s"?${varPrefix}_$idx"
+      val idx                                 = nextIdx()
+      val variable                            = s"?${varPrefix}_$idx"
       val InExpr(path, TermCollection(terms)) = expr
-      val stmt = s"?$subject ${path.show} $variable ."
-      val filter = terms.map(_.show).mkString(s"$variable IN (", ", ", ")")
+      val stmt                                = s"?$subject ${path.show} $variable ."
+      val filter                              = terms.map(_.show).mkString(s"$variable IN (", ", ", ")")
       Stmt(stmt, Some(filter))
     }
 
     // ?s :p ?var .
     // FILTER ( ?var op term )
     def compExpr(expr: ComparisonExpr, allowDirectFilter: Boolean = false): Stmt = {
-      expr match{
+      expr match {
         case ComparisonExpr(_: Eq.type, path, term: UriTerm) if allowDirectFilter =>
           Stmt(s"?$subject ${path.show} ${term.show} .", None)
-        case ComparisonExpr(op, path, term)                 =>
-          val idx = nextIdx()
+        case ComparisonExpr(op, path, term) =>
+          val idx      = nextIdx()
           val variable = s"?${varPrefix}_$idx"
           Stmt(s"?$subject ${path.show} $variable .", Some(s"$variable ${op.show} ${term.show}"))
       }
@@ -168,24 +168,24 @@ object FilteredQuery {
     def fromStmts(op: LogicalOp, stmts: Vector[Stmt]): String = op match {
       case And =>
         val select = stmts.map(_.stmt).mkString("\n")
-        val filter = stmts.collect{case Stmt(_, Some(f)) => f}.mkString(" && ") match {
-          case ""     => None
-          case other  => Some(other)
+        val filter = stmts.collect { case Stmt(_, Some(f)) => f }.mkString(" && ") match {
+          case ""    => None
+          case other => Some(other)
         }
         s"""
            |$select
            |${filter.map(f => s"FILTER ( $f )").getOrElse("")}
            |""".stripMargin
-      case Or  =>
+      case Or =>
         val select = stmts.map(v => s"OPTIONAL { ${v.stmt} }").mkString("\n")
-        val filter = stmts.collect{case Stmt(_, Some(f)) => f}.mkString(" || ")
+        val filter = stmts.collect { case Stmt(_, Some(f)) => f }.mkString(" || ")
         s"""
            |$select
            |FILTER ( $filter )
            |""".stripMargin
       case Not =>
         val select = stmts.map(_.stmt).mkString("\n")
-        val filter = stmts.collect{case Stmt(_, Some(f)) => f}.mkString(" || ")
+        val filter = stmts.collect { case Stmt(_, Some(f)) => f }.mkString(" || ")
         s"""
            |$select
            |FILTER NOT EXISTS {
@@ -195,8 +195,8 @@ object FilteredQuery {
            |""".stripMargin
       case Xor =>
         val optSelect = stmts.map(v => s"OPTIONAL { ${v.stmt} }").mkString("\n")
-        val filter = stmts.collect{case Stmt(_, Some(f)) => f}.mkString(" || ")
-        val select = stmts.map(_.stmt).mkString("\n")
+        val filter    = stmts.collect { case Stmt(_, Some(f)) => f }.mkString(" || ")
+        val select    = stmts.map(_.stmt).mkString("\n")
         s"""
            |$optSelect
            |FILTER ( $filter )
@@ -209,25 +209,25 @@ object FilteredQuery {
     }
 
     def fromExpr(expr: Expr, allowDirectFilter: Boolean): String = expr match {
-      case NoopExpr                => s"?$subject ?p ?o ."
-      case e: ComparisonExpr       => compExpr(e, allowDirectFilter).show
-      case e: InExpr               => inExpr(e).show
+      case NoopExpr          => s"?$subject ?p ?o ."
+      case e: ComparisonExpr => compExpr(e, allowDirectFilter).show
+      case e: InExpr         => inExpr(e).show
       case LogicalExpr(And, exprs) =>
         val (statements, builder) = exprs.foldLeft((Vector.empty[Stmt], StringBuilder.newBuilder)) {
-          case ((stmts, str), e: ComparisonExpr) => (stmts :+ compExpr(e, allowDirectFilter), str)
-          case ((stmts, str), e: InExpr)         => (stmts :+ inExpr(e), str)
-          case ((stmts, str), l@LogicalExpr(And, _))   => (stmts, str.append(fromExpr(l, allowDirectFilter)))
-          case ((stmts, str), l: LogicalExpr)    => (stmts, str.append(fromExpr(l, false)))
-          case ((stmts, str), NoopExpr)          => (stmts, str)
+          case ((stmts, str), e: ComparisonExpr)       => (stmts :+ compExpr(e, allowDirectFilter), str)
+          case ((stmts, str), e: InExpr)               => (stmts :+ inExpr(e), str)
+          case ((stmts, str), l @ LogicalExpr(And, _)) => (stmts, str.append(fromExpr(l, allowDirectFilter)))
+          case ((stmts, str), l: LogicalExpr)          => (stmts, str.append(fromExpr(l, false)))
+          case ((stmts, str), NoopExpr)                => (stmts, str)
         }
         fromStmts(And, statements) + builder.mkString
-      case LogicalExpr(op, exprs)  =>
+      case LogicalExpr(op, exprs) =>
         val statements = exprs.foldLeft(Vector.empty[Stmt]) {
           case (acc, e: ComparisonExpr) =>
             acc :+ compExpr(e)
-          case (acc, e: InExpr)         =>
+          case (acc, e: InExpr) =>
             acc :+ inExpr(e)
-          case (acc, _)                 =>
+          case (acc, _) =>
             // discard nested logical expressions that are not joined by 'And'
             // TODO: need better handling of logical expr
             acc

@@ -26,7 +26,7 @@ object QueryResults {
     * @tparam A generic type of the response's payload
     */
   final case class ScoredQueryResults[A](total: Long, maxScore: Float, results: List[QueryResult[A]])
-    extends QueryResults[A]
+      extends QueryResults[A]
 
   /**
     * A collection of query results including pagination.
@@ -35,8 +35,7 @@ object QueryResults {
     * @param results the collection of results
     * @tparam A generic type of the response's payload
     */
-  final case class UnscoredQueryResults[A](total: Long, results: List[QueryResult[A]])
-    extends QueryResults[A]
+  final case class UnscoredQueryResults[A](total: Long, results: List[QueryResult[A]]) extends QueryResults[A]
 
   final implicit def scoredQueryResultsFunctor(implicit F: Functor[QueryResult]): Functor[ScoredQueryResults] =
     new Functor[ScoredQueryResults] {
@@ -63,11 +62,12 @@ object QueryResults {
     }
 
   final implicit def queryResultEncoder[A](implicit
-    S: Encoder[ScoredQueryResults[A]],
-    U: Encoder[UnscoredQueryResults[A]]): Encoder[QueryResults[A]] = Encoder.instance {
-    case s: ScoredQueryResults[A]   => S.apply(s)
-    case u: UnscoredQueryResults[A] => U.apply(u)
-  }
+                                           S: Encoder[ScoredQueryResults[A]],
+                                           U: Encoder[UnscoredQueryResults[A]]): Encoder[QueryResults[A]] =
+    Encoder.instance {
+      case s: ScoredQueryResults[A]   => S.apply(s)
+      case u: UnscoredQueryResults[A] => U.apply(u)
+    }
 
   /**
     * Constructs an [[ScoredQueryResults]]

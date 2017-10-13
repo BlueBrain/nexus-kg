@@ -6,6 +6,7 @@ import io.circe.Json
   * Enumeration type for commands that apply to schemas.
   */
 sealed trait SchemaCommand extends Product with Serializable {
+
   /**
     * @return the unique identifier for the schema for which this command will be evaluated
     */

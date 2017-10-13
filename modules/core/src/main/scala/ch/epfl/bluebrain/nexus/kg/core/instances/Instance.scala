@@ -12,4 +12,8 @@ import io.circe.Json
   * @param attachment the meta information of the attachment
   * @param deprecated the deprecation status of the instance
   */
-final case class Instance(id: InstanceId, rev: Long, value: Json, attachment: Option[Attachment.Info] = None, deprecated: Boolean)
+final case class Instance(id: InstanceId,
+                          rev: Long,
+                          value: Json,
+                          attachment: Option[Attachment.Info] = None,
+                          deprecated: Boolean)

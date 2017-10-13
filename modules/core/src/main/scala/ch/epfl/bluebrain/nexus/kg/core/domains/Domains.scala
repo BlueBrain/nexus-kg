@@ -36,7 +36,7 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
       case idRegex() =>
         logger.debug(s"Id validation for '$id' succeeded")
         F.pure(())
-      case _         =>
+      case _ =>
         logger.debug(s"Id validation for '$id' failed, did not match regex '$idRegex'")
         F.raiseError(CommandRejected(InvalidDomainId(id.id)))
     }
@@ -72,8 +72,8 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
     */
   def create(id: DomainId, description: String): F[DomainRef] =
     for {
-      _ <- validateId(id)
-      _ <- orgs.assertUnlocked(id.orgId)
+      _       <- validateId(id)
+      _       <- orgs.assertUnlocked(id.orgId)
       current <- evaluate(CreateDomain(id, description), "Create domain")
     } yield DomainRef(id, current.rev)
 
@@ -113,7 +113,7 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
         logger.debug(s"$intent: command '$cmd' was rejected due to '$rejection'")
         F.raiseError(CommandRejected(rejection))
       // $COVERAGE-OFF$
-      case Right(s@Initial) =>
+      case Right(s @ Initial) =>
         logger.error(s"$intent: command '$cmd' evaluation failed, received an '$s' state")
         F.raiseError(Unexpected(s"Unexpected Initial state as outcome of evaluating command '$cmd'"))
       // $COVERAGE-ON$
@@ -126,6 +126,7 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
 }
 
 object Domains {
+
   /**
     * Aggregate type definition for Domains.
     *
@@ -133,10 +134,10 @@ object Domains {
     */
   type DomainAggregate[F[_]] = Aggregate[F] {
     type Identifier = String
-    type Event = DomainEvent
-    type State = DomainState
-    type Command = DomainCommand
-    type Rejection = DomainRejection
+    type Event      = DomainEvent
+    type State      = DomainState
+    type Command    = DomainCommand
+    type Rejection  = DomainRejection
   }
 
   /**
@@ -148,8 +149,8 @@ object Domains {
     * @param F    a MonadError typeclass instance for ''F[_]''
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])
-                       (implicit F: MonadError[F, Throwable]): Domains[F] =
+  final def apply[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(
+      implicit F: MonadError[F, Throwable]): Domains[F] =
     new Domains[F](agg, orgs)(F)
 
   /**

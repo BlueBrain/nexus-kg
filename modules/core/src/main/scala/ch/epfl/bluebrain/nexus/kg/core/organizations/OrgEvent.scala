@@ -6,6 +6,7 @@ import io.circe.Json
   * Enumeration type for all events that are emitted for organizations.
   */
 sealed trait OrgEvent extends Product with Serializable {
+
   /**
     * @return the unique identifier of the organization
     */

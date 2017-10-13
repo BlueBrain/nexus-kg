@@ -71,9 +71,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def list(dom: DomainId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(Filter(domExpr(dom)) and filter.expr,
-         pagination,
-         term)
+    list(Filter(domExpr(dom)) and filter.expr, pagination, term)
 
   /**
     * Lists all ids in the system within the specified domain and that have the specified schema name that match
@@ -87,9 +85,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
   def list(schemaName: SchemaName, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id],
       schemaNameFilter: SchemaNameFilterExpr[Id]): F[QueryResults[Id]] =
-    list(Filter(schemaNameFilter(schemaName)) and filter.expr,
-         pagination,
-         term)
+    list(Filter(schemaNameFilter(schemaName)) and filter.expr, pagination, term)
 
   /**
     * Lists all ids in the system conformant to the specified schema that match the given filter.
@@ -101,9 +97,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def list(schema: SchemaId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(Filter(schemaExpr(schema)) and filter.expr,
-         pagination,
-         term)
+    list(Filter(schemaExpr(schema)) and filter.expr, pagination, term)
 
   /**
     * Lists all outgoing ids linked to the if identified by ''id'' that match the given filter.

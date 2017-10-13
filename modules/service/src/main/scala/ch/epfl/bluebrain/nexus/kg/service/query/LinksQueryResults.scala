@@ -32,7 +32,7 @@ object LinksQueryResults {
     * @return an instance of [[LinksQueryResults]]
     */
   final def apply[A](response: QueryResults[A], pagination: Pagination, uri: Uri): LinksQueryResults[A] = {
-    val self = Link("self", uri)
+    val self          = Link("self", uri)
     val responseCount = response.results.length
 
     def prevLink: Option[Link] = {
@@ -54,7 +54,8 @@ object LinksQueryResults {
     LinksQueryResults(response, List(Some(self), prevLink, nextLink).flatten)
   }
 
-  final implicit def encodeLinksQueryResults[A](implicit E: Encoder[QueryResult[A]], le: Encoder[Link]): Encoder[LinksQueryResults[A]] =
+  final implicit def encodeLinksQueryResults[A](implicit E: Encoder[QueryResult[A]],
+                                                le: Encoder[Link]): Encoder[LinksQueryResults[A]] =
     Encoder.encodeJson.contramap { response =>
       val json = Json.obj(
         "total"   -> Json.fromLong(response.response.total),

@@ -7,6 +7,7 @@ import io.circe.Json
   * Enumeration type for commands that apply to instances.
   */
 sealed trait InstanceCommand extends Product with Serializable {
+
   /**
     * @return the unique identifier of the instance for which this command will be evaluated
     */

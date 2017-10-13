@@ -18,11 +18,11 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 final class AkkaInOutFileStream(algorithm: String)(implicit
-  mt: Materializer,
-  ec: ExecutionContext,
-  F: MonadError[Future, Throwable],
-  al: AttachmentLocation[Future])
-  extends InOutFileStream[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]] {
+                                                   mt: Materializer,
+                                                   ec: ExecutionContext,
+                                                   F: MonadError[Future, Throwable],
+                                                   al: AttachmentLocation[Future])
+    extends InOutFileStream[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]] {
 
   /**
     * Generates a Source from a path.
@@ -55,26 +55,34 @@ final class AkkaInOutFileStream(algorithm: String)(implicit
     * @return the metadata information of the source
     *         or the appropriate Fault in the ''F'' context
     */
-  override def toSink(id: InstanceId, rev: Long, filename: String, contentType: String, source: Source[ByteString, Any]): Future[Meta] = {
+  override def toSink(id: InstanceId,
+                      rev: Long,
+                      filename: String,
+                      contentType: String,
+                      source: Source[ByteString, Any]): Future[Meta] = {
     al.apply(id, rev).flatMap { loc =>
       source
         .alsoToMat(digestSink)(Keep.right)
-        .toMat(ioSink(loc.path)) { case (digFuture, ioFuture) =>
-          digFuture.zipWith(ioFuture) { case (dig, io) =>
-            if (io.wasSuccessful && loc.path.toFile.exists()) {
-              val digest = Digest(dig.getAlgorithm, dig.digest().map("%02x".format(_)).mkString)
-              Right(Meta(loc.relative, Info(filename, contentType, Size(value = io.count), digest)))
-            } else {
-              // $COVERAGE-OFF$
-              Left(Unexpected(s"I/O error while writting attachment for id '$id' and contentType '$contentType' and filename '$filename'"))
-              // $COVERAGE-ON$
+        .toMat(ioSink(loc.path)) {
+          case (digFuture, ioFuture) =>
+            digFuture.zipWith(ioFuture) {
+              case (dig, io) =>
+                if (io.wasSuccessful && loc.path.toFile.exists()) {
+                  val digest = Digest(dig.getAlgorithm, dig.digest().map("%02x".format(_)).mkString)
+                  Right(Meta(loc.relative, Info(filename, contentType, Size(value = io.count), digest)))
+                } else {
+                  // $COVERAGE-OFF$
+                  Left(Unexpected(
+                    s"I/O error while writting attachment for id '$id' and contentType '$contentType' and filename '$filename'"))
+                  // $COVERAGE-ON$
+                }
             }
-          }
         }
-        .run().flatMap {
-        case Left(rejection) => F.raiseError(rejection)
-        case Right(meta)     => F.pure(meta)
-      }
+        .run()
+        .flatMap {
+          case Left(rejection) => F.raiseError(rejection)
+          case Right(meta)     => F.pure(meta)
+        }
     }
   }
 
@@ -115,10 +123,10 @@ object AkkaInOutFileStream {
     * @return AkkaInOutFileStream
     */
   def apply(algorithm: String)(implicit
-    mt: Materializer,
-    ec: ExecutionContext,
-    F: MonadError[Future, Throwable],
-    al: AttachmentLocation[Future]): AkkaInOutFileStream = new AkkaInOutFileStream(algorithm)
+                               mt: Materializer,
+                               ec: ExecutionContext,
+                               F: MonadError[Future, Throwable],
+                               al: AttachmentLocation[Future]): AkkaInOutFileStream = new AkkaInOutFileStream(algorithm)
 
   /**
     * Constructs AkkaInOutFileStream.
@@ -131,9 +139,10 @@ object AkkaInOutFileStream {
     * @return AkkaInOutFileStream
     */
   def apply(settings: Settings)(implicit
-    mt: Materializer,
-    ec: ExecutionContext,
-    F: MonadError[Future, Throwable],
-    al: AttachmentLocation[Future]): AkkaInOutFileStream = apply(settings.Attachment.HashAlgorithm)(mt, ec, F, al)
+                                mt: Materializer,
+                                ec: ExecutionContext,
+                                F: MonadError[Future, Throwable],
+                                al: AttachmentLocation[Future]): AkkaInOutFileStream =
+    apply(settings.Attachment.HashAlgorithm)(mt, ec, F, al)
 
 }

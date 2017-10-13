@@ -19,7 +19,7 @@ object Main {
   @SuppressWarnings(Array("UnusedMethodParameter"))
   def main(args: Array[String]): Unit = {
     Kamon.start()
-    val config = ConfigFactory.load()
+    val config   = ConfigFactory.load()
     val settings = new Settings(config)
 
     implicit val as = ActorSystem(settings.Description.ActorSystemName, config)
@@ -39,7 +39,7 @@ object Main {
       httpBinding onComplete {
         case Success(binding) =>
           logger.info(s"Bound to ${binding.localAddress.getHostString}: ${binding.localAddress.getPort}")
-        case Failure(th)      =>
+        case Failure(th) =>
           logger.error(th, "Failed to perform an http binding on {}:{}", settings.Http.Interface, settings.Http.Port)
           Await.result(as.terminate(), 10 seconds)
       }
@@ -52,7 +52,6 @@ object Main {
       bootstrap.leaveCluster()
       Kamon.shutdown()
     }
-
 
     // attempt to leave the cluster before shutting down
     val _ = sys.addShutdownHook {

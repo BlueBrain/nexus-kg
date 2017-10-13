@@ -16,7 +16,7 @@ object OrgId {
 
   final val regex: Regex = "([a-zA-Z0-9]+)".r
 
-  final implicit val orgIdShow: Show[OrgId] = Show.show {_.id}
+  final implicit val orgIdShow: Show[OrgId] = Show.show { _.id }
 
   final implicit val orgIdEncoder: Encoder[OrgId] =
     Encoder.encodeString
@@ -26,7 +26,7 @@ object OrgId {
     Decoder.decodeString.emap {
       case regex(orgId) =>
         Right(OrgId(orgId))
-      case _            =>
+      case _ =>
         Left("Unable to decode value into a OrgId")
     }
 

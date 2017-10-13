@@ -60,7 +60,7 @@ class DomainIndexerSpec(blazegraphPort: Int)
     DomainIndexingSettings(genString(length = 6), base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)
 
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
@@ -80,12 +80,12 @@ class DomainIndexerSpec(blazegraphPort: Int)
                               description: String): List[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(domainsBase)
     List(
-      (qualifiedId, "rev"          qualifyAsStringWith nexusVocBase, rev.toString),
-      (qualifiedId, "deprecated"   qualifyAsStringWith nexusVocBase, deprecated.toString),
-      (qualifiedId, "description"  qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
+      (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
+      (qualifiedId, "description" qualifyAsStringWith nexusVocBase, description),
       (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.orgId.qualifyAsString),
-      (qualifiedId, rdfTypeKey,                                      "Domain".qualifyAsString),
-      (qualifiedId, "name"       qualifyAsStringWith nexusVocBase, id.id)
+      (qualifiedId, rdfTypeKey, "Domain".qualifyAsString),
+      (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.id)
     )
 
   }

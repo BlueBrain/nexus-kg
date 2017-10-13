@@ -10,11 +10,7 @@ import io.circe.generic.auto._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 
-class StaticRoutesSpec
-  extends WordSpecLike
-    with Matchers
-    with ScalatestRouteTest
-    with ScalaFutures {
+class StaticRoutesSpec extends WordSpecLike with Matchers with ScalatestRouteTest with ScalaFutures {
 
   "A StaticRoutes" should {
     "return the correct service description" in {

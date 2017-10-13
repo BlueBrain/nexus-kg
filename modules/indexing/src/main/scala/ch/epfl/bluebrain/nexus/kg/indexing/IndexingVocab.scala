@@ -2,21 +2,24 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+
 /**
   * Defines the vocab used in SPARQL indexing process.
   */
 trait IndexingVocab {
+
   /**
     * Uri vocabulary provided by W3C.
     */
   object PrefixUri {
     val rdf: Uri = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
   }
+
   /**
     * Indexing vocabulary, with prefix.
     */
   object PrefixMapping {
-    val rdfTypeKey = s"${PrefixUri.rdf}type"
+    val rdfTypeKey                                                                = s"${PrefixUri.rdf}type"
     def schemaGroupKey(implicit configuredQualifier: ConfiguredQualifier[String]) = "schemaGroup".qualifyAsString
   }
 
@@ -24,9 +27,9 @@ trait IndexingVocab {
     * JSON-LD keys used while indexing
     */
   object JsonLDKeys {
-    val idKey = "@id"
-    val contextKey ="@context"
-    val graphKey ="@graph"
+    val idKey      = "@id"
+    val contextKey = "@context"
+    val graphKey   = "@graph"
 
   }
 }

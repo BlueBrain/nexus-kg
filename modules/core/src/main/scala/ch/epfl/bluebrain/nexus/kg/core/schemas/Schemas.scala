@@ -28,10 +28,8 @@ import journal.Logger
   * @param F       a MonadError typeclass instance for ''F[_]''
   * @tparam F the monadic effect type
   */
-final class Schemas[F[_]](
-  agg: SchemaAggregate[F],
-  doms: Domains[F],
-  baseUri: String)(implicit F: MonadError[F, Throwable]) { self =>
+final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], baseUri: String)(
+    implicit F: MonadError[F, Throwable]) { self =>
 
   private val logger = Logger[this.type]
 
@@ -47,7 +45,7 @@ final class Schemas[F[_]](
       case nameRegex() =>
         logger.debug(s"Id validation for '$id' succeeded")
         F.pure(())
-      case _           =>
+      case _ =>
         logger.debug(s"Id validation for '$id' failed, 'name' did not match regex '$nameRegex'")
         F.raiseError(CommandRejected(InvalidSchemaId(id)))
     }
@@ -74,13 +72,15 @@ final class Schemas[F[_]](
   }
 
   private def validatePayload(json: Json): F[Unit] =
-    validator(ShaclSchema(json)).flatMap { report =>
-      if (report.conforms) F.pure(())
-      else F.raiseError[Unit](CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
-    }.recoverWith {
-      case CouldNotFindImports(missing)     => F.raiseError(CommandRejected(MissingImportsViolation(missing)))
-      case IllegalImportDefinition(missing) => F.raiseError(CommandRejected(IllegalImportsViolation(missing)))
-    }
+    validator(ShaclSchema(json))
+      .flatMap { report =>
+        if (report.conforms) F.pure(())
+        else F.raiseError[Unit](CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
+      }
+      .recoverWith {
+        case CouldNotFindImports(missing)     => F.raiseError(CommandRejected(MissingImportsViolation(missing)))
+        case IllegalImportDefinition(missing) => F.raiseError(CommandRejected(IllegalImportsViolation(missing)))
+      }
 
   private def evaluate(cmd: SchemaCommand, intent: => String): F[Current] = {
     F.pure {
@@ -92,7 +92,7 @@ final class Schemas[F[_]](
         logger.debug(s"$intent: command '$cmd' was rejected due to '$rejection'")
         F.raiseError(CommandRejected(rejection))
       // $COVERAGE-OFF$
-      case Right(s@Initial) =>
+      case Right(s @ Initial) =>
         logger.error(s"$intent: command '$cmd' evaluation failed, received an '$s' state")
         F.raiseError(Unexpected(s"Unexpected Initial state as outcome of evaluating command '$cmd'"))
       // $COVERAGE-ON$
@@ -144,10 +144,11 @@ final class Schemas[F[_]](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def publish(id: SchemaId, rev: Long): F[SchemaRef] = for {
-    _ <- doms.assertUnlocked(id.domainId)
-    r <- evaluate(PublishSchema(id, rev), "Publish schema")
-  } yield SchemaRef(id, r.rev)
+  def publish(id: SchemaId, rev: Long): F[SchemaRef] =
+    for {
+      _ <- doms.assertUnlocked(id.domainId)
+      r <- evaluate(PublishSchema(id, rev), "Publish schema")
+    } yield SchemaRef(id, r.rev)
 
   /**
     * Deprecates a schema locking it for further changes and blocking any attempts to create instances conforming to its
@@ -190,18 +191,19 @@ final class Schemas[F[_]](
   def fetchShape(id: SchemaId, fragment: String): F[Option[Shape]] = {
     import ch.epfl.bluebrain.nexus.kg.core.circe.CirceShapeExtractorInstances._
     agg.currentState(id.show).map {
-      case Initial                                     =>
+      case Initial =>
         None
       case Current(schemaId, rev, value, published, deprecated) =>
         value.fetchShape(fragment) match {
           case Some(shapeValue) => Some(Shape(ShapeId(schemaId, fragment), rev, shapeValue, deprecated, published))
-          case _          => None
+          case _                => None
         }
     }
   }
 }
 
 object Schemas {
+
   /**
     * Aggregate type definition for Schemas.
     *
@@ -209,10 +211,10 @@ object Schemas {
     */
   type SchemaAggregate[F[_]] = Aggregate[F] {
     type Identifier = String
-    type Event = SchemaEvent
-    type State = SchemaState
-    type Command = SchemaCommand
-    type Rejection = SchemaRejection
+    type Event      = SchemaEvent
+    type State      = SchemaState
+    type Command    = SchemaCommand
+    type Rejection  = SchemaRejection
   }
 
   /**
@@ -225,10 +227,8 @@ object Schemas {
     * @param F       a MonadError typeclass instance for ''F[_]''
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](
-    agg: SchemaAggregate[F],
-    doms: Domains[F],
-    baseUri: String)(implicit F: MonadError[F, Throwable]): Schemas[F] =
+  final def apply[F[_]](agg: SchemaAggregate[F], doms: Domains[F], baseUri: String)(
+      implicit F: MonadError[F, Throwable]): Schemas[F] =
     new Schemas[F](agg, doms, baseUri)
 
   /**
@@ -245,18 +245,16 @@ object Schemas {
     * @return the next state
     */
   final def next(state: SchemaState, event: SchemaEvent): SchemaState = (state, event) match {
-    case (Initial, SchemaCreated(id, rev, value))   => Current(id, rev, value, published = false, deprecated = false)
+    case (Initial, SchemaCreated(id, rev, value)) => Current(id, rev, value, published = false, deprecated = false)
     // $COVERAGE-OFF$
-    case (Initial, _)                               => Initial
+    case (Initial, _) => Initial
     // $COVERAGE-ON$
-    case (c: Current, SchemaDeprecated(_, rev))
-      if c.published                                => c.copy(rev = rev, deprecated = true)
-    case (c: Current, _)
-      if c.deprecated || c.published                => c
-    case (c: Current, _: SchemaCreated)             => c
-    case (c: Current, SchemaUpdated(_, rev, value)) => c.copy(rev = rev, value = value)
-    case (c: Current, SchemaPublished(_, rev))      => c.copy(rev = rev, published = true)
-    case (c: Current, SchemaDeprecated(_, rev))     => c.copy(rev = rev, deprecated = true)
+    case (c: Current, SchemaDeprecated(_, rev)) if c.published => c.copy(rev = rev, deprecated = true)
+    case (c: Current, _) if c.deprecated || c.published        => c
+    case (c: Current, _: SchemaCreated)                        => c
+    case (c: Current, SchemaUpdated(_, rev, value))            => c.copy(rev = rev, value = value)
+    case (c: Current, SchemaPublished(_, rev))                 => c.copy(rev = rev, published = true)
+    case (c: Current, SchemaDeprecated(_, rev))                => c.copy(rev = rev, deprecated = true)
   }
 
   /**

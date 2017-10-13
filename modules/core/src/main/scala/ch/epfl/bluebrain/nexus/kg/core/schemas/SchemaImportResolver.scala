@@ -25,11 +25,12 @@ import scala.collection.JavaConverters._
   * @param F            a MonadError typeclass instance for ''F[_]''
   * @tparam F           the monadic effect type
   */
-class SchemaImportResolver[F[_]](baseUri: String, schemaLoader: SchemaId => F[Option[Schema]])
-                                (implicit F: MonadError[F, Throwable]) extends ImportResolver[F] {
+class SchemaImportResolver[F[_]](baseUri: String, schemaLoader: SchemaId => F[Option[Schema]])(
+    implicit F: MonadError[F, Throwable])
+    extends ImportResolver[F] {
 
-  private val schemaBaseUri = s"$baseUri/schemas"
-  private val schemaBaseUriSlashed = s"$schemaBaseUri/"
+  private val schemaBaseUri              = s"$baseUri/schemas"
+  private val schemaBaseUriSlashed       = s"$schemaBaseUri/"
   private val schemaBaseUriSlashedLength = schemaBaseUriSlashed.length
 
   override def apply(schema: ShaclSchema): F[Set[ShaclSchema]] = {
@@ -43,7 +44,7 @@ class SchemaImportResolver[F[_]](baseUri: String, schemaLoader: SchemaId => F[Op
         val value = batch.sequence[F, (SchemaId, Option[Schema])] // aggregate List[F] into F[List]
         value.flatMap { list =>
           checkImports(list) match {
-            case Left(missing)   => F.raiseError(missing)
+            case Left(missing) => F.raiseError(missing)
             case Right(newBatch) =>
               lookupImports(newBatch.map(_._2.value)) match {
                 case Left(err)  => F.raiseError(err)
@@ -60,29 +61,30 @@ class SchemaImportResolver[F[_]](baseUri: String, schemaLoader: SchemaId => F[Op
     }
   }
 
-  private def checkImports(list: List[(SchemaId, Option[Schema])]): Either[CouldNotFindImports, List[(SchemaId, ShaclSchema)]] = {
+  private def checkImports(
+      list: List[(SchemaId, Option[Schema])]): Either[CouldNotFindImports, List[(SchemaId, ShaclSchema)]] = {
     list.foldLeft[Either[CouldNotFindImports, List[(SchemaId, ShaclSchema)]]](Right(Nil)) {
       case (Left(CouldNotFindImports(missing)), (id, None)) => Left(CouldNotFindImports(missing + qualify(id)))
-      case (Left(CouldNotFindImports(missing)), (id, Some(sch)))
-        if !sch.published                                   => Left(CouldNotFindImports(missing + qualify(id)))
-      case (l@Left(_), _)                                   => l
-      case (Right(_), (id, None))                           => Left(CouldNotFindImports(Set(qualify(id))))
-      case (Right(_), (id, Some(sch))) if !sch.published    => Left(CouldNotFindImports(Set(qualify(id))))
-      case (Right(acc), (id, Some(sch)))                    => Right(id -> toShaclSchema(sch) :: acc)
+      case (Left(CouldNotFindImports(missing)), (id, Some(sch))) if !sch.published =>
+        Left(CouldNotFindImports(missing + qualify(id)))
+      case (l @ Left(_), _)                              => l
+      case (Right(_), (id, None))                        => Left(CouldNotFindImports(Set(qualify(id))))
+      case (Right(_), (id, Some(sch))) if !sch.published => Left(CouldNotFindImports(Set(qualify(id))))
+      case (Right(acc), (id, Some(sch)))                 => Right(id -> toShaclSchema(sch) :: acc)
     }
   }
 
   private def lookupImports(jsons: List[Json]): Either[IllegalImportDefinition, Set[SchemaId]] = {
     jsons.foldLeft[Either[IllegalImportDefinition, Set[SchemaId]]](Right(Set.empty)) {
-      case (l@Left(IllegalImportDefinition(ill)), elem) =>
+      case (l @ Left(IllegalImportDefinition(ill)), elem) =>
         lookupImports(elem) match {
           case Left(IllegalImportDefinition(extra)) => Left(IllegalImportDefinition(ill ++ extra))
           case Right(_)                             => l
         }
-      case (Right(acc), elem)                           =>
+      case (Right(acc), elem) =>
         lookupImports(elem) match {
-          case l@Left(_)  => l
-          case Right(ids) => Right(acc ++ ids)
+          case l @ Left(_) => l
+          case Right(ids)  => Right(acc ++ ids)
         }
     }
   }
@@ -106,7 +108,7 @@ class SchemaImportResolver[F[_]](baseUri: String, schemaLoader: SchemaId => F[Op
           case Left(value) => Left(IllegalImportDefinition(values + value))
           case Right(_)    => Left(IllegalImportDefinition(values))
         }
-      case (Right(schemaIds), elem)                      =>
+      case (Right(schemaIds), elem) =>
         toSchemaId(elem) match {
           case Left(value) => Left(IllegalImportDefinition(Set(value)))
           case Right(id)   => Right(schemaIds + id)
@@ -134,8 +136,7 @@ object SchemaImportResolver {
     * @param F            a MonadError typeclass instance for ''F[_]''
     * @tparam F           the monadic effect type
     */
-  final def apply[F[_]]
-    (baseUri: String, schemaLoader: SchemaId => F[Option[Schema]])
-    (implicit F: MonadError[F, Throwable]): SchemaImportResolver[F] =
-      new SchemaImportResolver[F](baseUri, schemaLoader)
+  final def apply[F[_]](baseUri: String, schemaLoader: SchemaId => F[Option[Schema]])(
+      implicit F: MonadError[F, Throwable]): SchemaImportResolver[F] =
+    new SchemaImportResolver[F](baseUri, schemaLoader)
 }

@@ -24,18 +24,18 @@ import journal.Logger
   */
 class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSettings) {
 
-  private val log = Logger[this.type]
+  private val log                                                  = Logger[this.type]
   private val DomainIndexingSettings(index, base, baseNs, baseVoc) = settings
 
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]       = Qualifier.configured[OrgId](base)
   private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
-  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
+  private implicit val stringQualifier: ConfiguredQualifier[String]     = Qualifier.configured[String](baseVoc)
 
-  private val revKey          = "rev".qualifyAsString
-  private val descriptionKey  = "description".qualifyAsString
-  private val deprecatedKey   = "deprecated".qualifyAsString
-  private val orgKey          = "organization".qualifyAsString
-  private val nameKey         = "name".qualifyAsString
+  private val revKey         = "rev".qualifyAsString
+  private val descriptionKey = "description".qualifyAsString
+  private val deprecatedKey  = "deprecated".qualifyAsString
+  private val orgKey         = "organization".qualifyAsString
+  private val nameKey        = "name".qualifyAsString
 
   /**
     * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the
@@ -52,19 +52,19 @@ class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSetti
 
     case DomainDeprecated(id, rev) =>
       log.debug(s"Indexing 'DomainDeprecated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, None, deprecated = Some(true))
+      val meta        = buildMeta(id, rev, None, deprecated = Some(true))
       val removeQuery = PatchQuery(id, revKey, deprecatedKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 
   private def buildMeta(id: DomainId, rev: Long, description: Option[String], deprecated: Option[Boolean]): Json = {
     val sharedObj = Json.obj(
-      idKey -> Json.fromString(id.qualifyAsString),
-      revKey -> Json.fromLong(rev),
-      orgKey -> id.orgId.qualify.jsonLd,
-      nameKey -> Json.fromString(id.id),
-      PrefixMapping.rdfTypeKey -> "Domain".qualify.jsonLd)
-
+      idKey                    -> Json.fromString(id.qualifyAsString),
+      revKey                   -> Json.fromLong(rev),
+      orgKey                   -> id.orgId.qualify.jsonLd,
+      nameKey                  -> Json.fromString(id.id),
+      PrefixMapping.rdfTypeKey -> "Domain".qualify.jsonLd
+    )
 
     val deprecatedObj = deprecated
       .map(v => Json.obj(deprecatedKey -> Json.fromBoolean(v)))
@@ -79,6 +79,7 @@ class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSetti
 }
 
 object DomainIndexer {
+
   /**
     * Constructs a domain incremental indexer that pushes data into an rdf triple store.
     *

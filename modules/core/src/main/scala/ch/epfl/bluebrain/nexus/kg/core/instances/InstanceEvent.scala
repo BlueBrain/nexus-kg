@@ -7,6 +7,7 @@ import io.circe.Json
   * Enumeration type for all events that are emitted for instances.
   */
 sealed trait InstanceEvent extends Product with Serializable {
+
   /**
     * @return the unique identifier of the instance
     */

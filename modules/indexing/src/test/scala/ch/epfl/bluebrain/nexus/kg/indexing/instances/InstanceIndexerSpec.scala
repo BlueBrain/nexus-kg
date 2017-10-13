@@ -68,10 +68,10 @@ class InstanceIndexerSpec(blazegraphPort: Int)
   private val settings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
     InstanceIndexingSettings(genString(length = 6), base, s"$base/data/graphs", s"$base/voc/nexus/core")
 
-  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
-  private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
+  private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](nexusVocBase)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
+  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
+  private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId]     = Qualifier.configured[SchemaId](base)
   private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
 
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
@@ -108,15 +108,15 @@ class InstanceIndexerSpec(blazegraphPort: Int)
                               description: String): List[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(instanceBase)
     List(
-      (qualifiedId,                 "rev"            qualifyAsStringWith nexusVocBase,  rev.toString),
-      (qualifiedId,                 "deprecated"     qualifyAsStringWith nexusVocBase,  deprecated.toString),
-      (qualifiedId,                 "desc"           qualifyAsStringWith nexusVocBase,  description),
-      (qualifiedId,                 "organization"   qualifyAsStringWith nexusVocBase,  id.schemaId.domainId.orgId.qualifyAsString),
-      (qualifiedId,                 "domain"         qualifyAsStringWith nexusVocBase,  id.schemaId.domainId.qualifyAsString),
-      (qualifiedId,                 "schema"         qualifyAsStringWith nexusVocBase,  id.schemaId.qualifyAsString),
-      (qualifiedId,                 rdfTypeKey,                                         "Instance".qualifyAsString),
-      (qualifiedId,                 "uuid"           qualifyAsStringWith nexusVocBase,  id.id.show),
-      (id.schemaId.qualifyAsString, schemaGroupKey,                                     id.schemaId.schemaName.qualifyAsString),
+      (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
+      (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
+      (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.schemaId.domainId.orgId.qualifyAsString),
+      (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.schemaId.domainId.qualifyAsString),
+      (qualifiedId, "schema" qualifyAsStringWith nexusVocBase, id.schemaId.qualifyAsString),
+      (qualifiedId, rdfTypeKey, "Instance".qualifyAsString),
+      (qualifiedId, "uuid" qualifyAsStringWith nexusVocBase, id.id.show),
+      (id.schemaId.qualifyAsString, schemaGroupKey, id.schemaId.schemaName.qualifyAsString),
     )
   }
 

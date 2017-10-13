@@ -66,9 +66,9 @@ class SchemaIndexerSpec(blazegraphPort: Int)
   private val settings @ SchemaIndexingSettings(index, schemasBase, schemasBaseNs, nexusVocBase) =
     SchemaIndexingSettings(genString(length = 6), base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
-  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
+  private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](nexusVocBase)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
+  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
   private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
 
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
@@ -92,16 +92,17 @@ class SchemaIndexerSpec(blazegraphPort: Int)
                               description: String): List[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(schemasBase)
     List(
-      (qualifiedId, "rev"          qualifyAsStringWith nexusVocBase, rev.toString),
-      (qualifiedId, "deprecated"   qualifyAsStringWith nexusVocBase, deprecated.toString),
-      (qualifiedId, "published"    qualifyAsStringWith nexusVocBase, published.toString),
-      (qualifiedId, "desc"         qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
+      (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
+      (qualifiedId, "published" qualifyAsStringWith nexusVocBase, published.toString),
+      (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
       (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.domainId.orgId.qualifyAsString),
-      (qualifiedId, "domain"       qualifyAsStringWith nexusVocBase, id.domainId.qualifyAsString),
-      (qualifiedId, "name"        qualifyAsStringWith nexusVocBase,  id.name),
-      (qualifiedId, schemaGroupKey,                                  id.schemaName.qualifyAsString),
-      (qualifiedId, rdfTypeKey,                                      "Schema".qualifyAsString),
-      (qualifiedId, "version"      qualifyAsStringWith nexusVocBase, id.version.show))
+      (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.domainId.qualifyAsString),
+      (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.name),
+      (qualifiedId, schemaGroupKey, id.schemaName.qualifyAsString),
+      (qualifiedId, rdfTypeKey, "Schema".qualifyAsString),
+      (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show)
+    )
   }
 
   "A SchemaIndexer" should {

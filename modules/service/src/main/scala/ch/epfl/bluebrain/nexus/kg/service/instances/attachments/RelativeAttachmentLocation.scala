@@ -21,8 +21,7 @@ import scala.util.Try
   * @param base path of the root directory from where to store attachments
   * @tparam F the monadic effect type
   */
-abstract class RelativeAttachmentLocation[F[_]](base: Path)
-  extends AttachmentLocation[F] {
+abstract class RelativeAttachmentLocation[F[_]](base: Path) extends AttachmentLocation[F] {
 
   override def toAbsoluteURI(relative: String): URI = new File(base.toFile, relative).toURI
 }
@@ -53,14 +52,15 @@ object RelativeAttachmentLocation {
         s"${id.id.takeWhile(_ != '-').mkString("/")}/${id.id}.$rev"
 
       Try {
-        val relative = getAttachmentRelativePath
+        val relative       = getAttachmentRelativePath
         val attachmentPath = new File(base.toFile, relative).toPath
         Files.createDirectories(attachmentPath.getParent)
         Location(attachmentPath, relative)
       }.fold(
         error => {
           logger.error(s"Error while trying to create the directory for instance '$id'", error)
-          F.raiseError(Unexpected(s"I/O error while trying to create directory for instance '$id'. Error '${error.getMessage}'"))
+          F.raiseError(
+            Unexpected(s"I/O error while trying to create directory for instance '$id'. Error '${error.getMessage}'"))
         },
         location => F.pure(location)
       )
@@ -79,7 +79,3 @@ object RelativeAttachmentLocation {
     apply[F](settings.Attachment.VolumePath)
 
 }
-
-
-
-

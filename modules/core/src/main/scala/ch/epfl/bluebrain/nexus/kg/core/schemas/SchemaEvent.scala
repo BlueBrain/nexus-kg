@@ -6,6 +6,7 @@ import io.circe.Json
   * Enumeration type for all events that are emitted for schemas.
   */
 sealed trait SchemaEvent extends Product with Serializable {
+
   /**
     * @return the unique identifier of the schema
     */

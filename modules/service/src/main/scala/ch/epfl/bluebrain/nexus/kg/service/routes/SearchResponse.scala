@@ -20,6 +20,7 @@ trait SearchResponse {
     * Syntactic sugar for constructing a [[Route]] from the [[QueryResults]]
     */
   implicit class QueryResultsOpts[A](qr: Future[QueryResults[A]]) {
+
     /**
       * Interface syntax to expose new functionality into [[QueryResults]] response type.
       *
@@ -27,8 +28,8 @@ trait SearchResponse {
       * @param pagination the pagination values
       */
     def buildResponse(base: Uri, pagination: Pagination)(implicit
-      R: Encoder[UnscoredQueryResult[A]],
-      S: Encoder[ScoredQueryResult[A]]): Route =
+                                                         R: Encoder[UnscoredQueryResult[A]],
+                                                         S: Encoder[ScoredQueryResult[A]]): Route =
       extract(_.request.uri) { uri =>
         onSuccess(qr) { result =>
           val lqu = base.copy(path = uri.path, fragment = uri.fragment, rawQueryString = uri.rawQueryString)

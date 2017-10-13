@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json
 import journal.Logger
+
 /**
   * Schema incremental indexing logic that pushes data into an rdf triple store.
   *
@@ -24,22 +25,22 @@ import journal.Logger
   */
 class SchemaIndexer[F[_]](client: SparqlClient[F], settings: SchemaIndexingSettings) {
 
-  private val log = Logger[this.type]
+  private val log                                                  = Logger[this.type]
   private val SchemaIndexingSettings(index, base, baseNs, baseVoc) = settings
 
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
+  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
   private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
-  private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
-  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
+  private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId]     = Qualifier.configured[SchemaId](base)
+  private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](baseVoc)
 
-  private val revKey          = "rev".qualifyAsString
-  private val deprecatedKey   = "deprecated".qualifyAsString
-  private val publishedKey    = "published".qualifyAsString
-  private val orgKey          = "organization".qualifyAsString
-  private val domainKey       = "domain".qualifyAsString
-  private val nameKey         = "name".qualifyAsString
-  private val versionKey      = "version".qualifyAsString
+  private val revKey        = "rev".qualifyAsString
+  private val deprecatedKey = "deprecated".qualifyAsString
+  private val publishedKey  = "published".qualifyAsString
+  private val orgKey        = "organization".qualifyAsString
+  private val domainKey     = "domain".qualifyAsString
+  private val nameKey       = "name".qualifyAsString
+  private val versionKey    = "version".qualifyAsString
 
   /**
     * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the
@@ -63,27 +64,28 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], settings: SchemaIndexingSetti
 
     case SchemaPublished(id, rev) =>
       log.debug(s"Indexing 'SchemaPublished' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, deprecated = None, published = Some(true))
+      val meta        = buildMeta(id, rev, deprecated = None, published = Some(true))
       val removeQuery = PatchQuery(id, revKey, publishedKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
 
     case SchemaDeprecated(id, rev) =>
       log.debug(s"Indexing 'SchemaDeprecated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, deprecated = Some(true), published = None)
+      val meta        = buildMeta(id, rev, deprecated = Some(true), published = None)
       val removeQuery = PatchQuery(id, revKey, deprecatedKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 
   private def buildMeta(id: SchemaId, rev: Long, deprecated: Option[Boolean], published: Option[Boolean]): Json = {
     val sharedObj = Json.obj(
-      idKey       -> Json.fromString(id.qualifyAsString),
-      revKey      -> Json.fromLong(rev),
-      orgKey      -> id.domainId.orgId.qualify.jsonLd,
-      domainKey   -> id.domainId.qualify.jsonLd,
-      nameKey     -> Json.fromString(id.name),
-      versionKey  -> Json.fromString(id.version.show),
+      idKey          -> Json.fromString(id.qualifyAsString),
+      revKey         -> Json.fromLong(rev),
+      orgKey         -> id.domainId.orgId.qualify.jsonLd,
+      domainKey      -> id.domainId.qualify.jsonLd,
+      nameKey        -> Json.fromString(id.name),
+      versionKey     -> Json.fromString(id.version.show),
       schemaGroupKey -> id.schemaName.qualify.jsonLd,
-      rdfTypeKey     -> "Schema".qualify.jsonLd)
+      rdfTypeKey     -> "Schema".qualify.jsonLd
+    )
 
     val publishedObj = published
       .map(v => Json.obj(publishedKey -> Json.fromBoolean(v)))
@@ -98,6 +100,7 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], settings: SchemaIndexingSetti
 }
 
 object SchemaIndexer {
+
   /**
     * Constructs a schema incremental indexer that pushes data into an rdf triple store.
     *

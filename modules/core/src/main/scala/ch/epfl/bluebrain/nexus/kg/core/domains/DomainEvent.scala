@@ -4,6 +4,7 @@ package ch.epfl.bluebrain.nexus.kg.core.domains
   * Enumeration type for all events that are emitted for domains.
   */
 sealed trait DomainEvent extends Product with Serializable {
+
   /**
     * @return the unique identifier of the domain
     */

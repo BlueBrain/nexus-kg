@@ -11,6 +11,7 @@ import akka.http.scaladsl.model.Uri
 final case class Link(rel: String, href: String)
 
 object Link {
+
   /**
     * Constructs a [[Link]] from a relationship tag and a [[Uri]]
     *

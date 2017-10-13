@@ -23,10 +23,10 @@ import journal.Logger
   */
 class OrganizationIndexer[F[_]](client: SparqlClient[F], settings: OrganizationIndexingSettings) {
 
-  private val log = Logger[this.type]
+  private val log                                                        = Logger[this.type]
   private val OrganizationIndexingSettings(index, base, baseNs, baseVoc) = settings
 
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](base)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
 
   private val revKey        = "rev".qualifyAsString
@@ -55,18 +55,18 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], settings: OrganizationI
 
     case OrgDeprecated(id, rev) =>
       log.debug(s"Indexing 'OrgDeprecated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, deprecated = Some(true))
+      val meta        = buildMeta(id, rev, deprecated = Some(true))
       val removeQuery = PatchQuery(id, revKey, deprecatedKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 
   private def buildMeta(id: OrgId, rev: Long, deprecated: Option[Boolean]): Json = {
     val sharedObj = Json.obj(
-      idKey -> Json.fromString(id.qualifyAsString),
-      revKey -> Json.fromLong(rev),
-      orgName -> Json.fromString(id.id),
-      PrefixMapping.rdfTypeKey -> "Organization".qualify.jsonLd)
-
+      idKey                    -> Json.fromString(id.qualifyAsString),
+      revKey                   -> Json.fromLong(rev),
+      orgName                  -> Json.fromString(id.id),
+      PrefixMapping.rdfTypeKey -> "Organization".qualify.jsonLd
+    )
 
     val deprecatedObj = deprecated
       .map(v => Json.obj(deprecatedKey -> Json.fromBoolean(v)))
@@ -77,6 +77,7 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], settings: OrganizationI
 }
 
 object OrganizationIndexer {
+
   /**
     * Constructs a organization incremental indexer that pushes data into an rdf triple store.
     *
@@ -87,4 +88,3 @@ object OrganizationIndexer {
   final def apply[F[_]](client: SparqlClient[F], settings: OrganizationIndexingSettings): OrganizationIndexer[F] =
     new OrganizationIndexer[F](client, settings)
 }
-

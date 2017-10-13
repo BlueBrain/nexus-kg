@@ -12,6 +12,7 @@ object UriJsonLDSupport {
     * @param value the [[Uri]]
     */
   implicit class UriJsonLDSupportOps(value: Uri) {
+
     /**
       * Method exposed on Uri instances.
       *

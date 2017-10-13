@@ -20,10 +20,6 @@ object DomainState {
     * @param deprecated  the deprecation status
     * @param description the domain description
     */
-  final case class Current(
-    id: DomainId,
-    rev: Long,
-    deprecated: Boolean,
-    description: String) extends DomainState
+  final case class Current(id: DomainId, rev: Long, deprecated: Boolean, description: String) extends DomainState
 
 }

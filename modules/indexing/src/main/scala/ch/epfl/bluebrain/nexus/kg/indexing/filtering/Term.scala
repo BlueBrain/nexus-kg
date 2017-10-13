@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.Uri
 sealed trait Term extends Product with Serializable
 
 object Term {
+
   /**
     * A term represented as an uri.
     *

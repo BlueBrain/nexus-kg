@@ -33,16 +33,20 @@ trait QueryDirectives {
     parameter('filter.?).flatMap {
       case Some(filterString) =>
         decode[Filter](filterString) match {
-          case Left(_: ParsingFailure)   =>
-            reject(MalformedQueryParamRejection(
-              "filter", "IllegalFilterFormat", Some(WrongOrInvalidJson(Some("The filter format is invalid")))))
+          case Left(_: ParsingFailure) =>
+            reject(
+              MalformedQueryParamRejection("filter",
+                                           "IllegalFilterFormat",
+                                           Some(WrongOrInvalidJson(Some("The filter format is invalid")))))
           case Left(df: DecodingFailure) =>
-            reject(MalformedQueryParamRejection(
-              "filter", "IllegalFilterFormat", Some(IllegalFilterFormat(df.message, df.history.reverse.mkString("/")))))
-          case Right(filter)             =>
+            reject(
+              MalformedQueryParamRejection("filter",
+                                           "IllegalFilterFormat",
+                                           Some(IllegalFilterFormat(df.message, df.history.reverse.mkString("/")))))
+          case Right(filter) =>
             provide(Some(filter))
         }
-      case None               =>
+      case None =>
         provide(None)
     }
 
@@ -65,7 +69,9 @@ trait QueryDirectives {
     * @param qs the preconfigured query settings
     * @param fs the preconfigured filtering settings
     */
-  def searchQueryParams(implicit qs: QuerySettings, fs: FilteringSettings): Directive[(Pagination, Option[Filter], Option[String], Option[Boolean])] =
+  def searchQueryParams(
+      implicit qs: QuerySettings,
+      fs: FilteringSettings): Directive[(Pagination, Option[Filter], Option[String], Option[Boolean])] =
     paginated & filtered & q & deprecated
 
 }

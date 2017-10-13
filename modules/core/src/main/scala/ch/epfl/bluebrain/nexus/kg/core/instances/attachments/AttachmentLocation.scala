@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.AttachmentLocation.
   * @tparam F the monadic effect type
   */
 trait AttachmentLocation[F[_]] {
+
   /**
     * Constructs an absolute URI from a relative route.
     *
@@ -28,7 +29,6 @@ trait AttachmentLocation[F[_]] {
     */
   def apply(id: InstanceId, rev: Long): F[Location]
 }
-
 
 object AttachmentLocation {
 

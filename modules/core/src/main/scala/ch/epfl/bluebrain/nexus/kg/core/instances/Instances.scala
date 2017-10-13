@@ -32,12 +32,11 @@ import journal.Logger
   * @tparam In  a typeclass defining the incoming stream client -> service
   * @tparam Out a typeclass defining the outgoing stream service -> client
   */
-
 final class Instances[F[_], In, Out](
-  agg: InstanceAggregate[F],
-  schemas: Schemas[F],
-  validator: ShaclValidator[F],
-  inOutFileStream: InOutFileStream[F, In, Out])(implicit F: MonadError[F, Throwable], al: AttachmentLocation[F]) {
+    agg: InstanceAggregate[F],
+    schemas: Schemas[F],
+    validator: ShaclValidator[F],
+    inOutFileStream: InOutFileStream[F, In, Out])(implicit F: MonadError[F, Throwable], al: AttachmentLocation[F]) {
 
   private val logger = Logger[this.type]
 
@@ -48,7 +47,7 @@ final class Instances[F[_], In, Out](
           if (report.conforms) F.pure(())
           else F.raiseError(CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
         }
-      case None         => F.raiseError(CommandRejected(SchemaRejection.SchemaDoesNotExist))
+      case None => F.raiseError(CommandRejected(SchemaRejection.SchemaDoesNotExist))
     }
   }
 
@@ -62,7 +61,7 @@ final class Instances[F[_], In, Out](
         logger.debug(s"$intent: command '$cmd' was rejected due to '$rejection'")
         F.raiseError(CommandRejected(rejection))
       // $COVERAGE-OFF$
-      case Right(s@Initial) =>
+      case Right(s @ Initial) =>
         logger.error(s"$intent: command '$cmd' evaluation failed, received an '$s' state")
         F.raiseError(Unexpected(s"Unexpected Initial state as outcome of evaluating command '$cmd'"))
       // $COVERAGE-ON$
@@ -139,8 +138,9 @@ final class Instances[F[_], In, Out](
     */
   def fetch(id: InstanceId): F[Option[Instance]] =
     agg.currentState(id.show).map {
-      case Initial                                        => None
-      case Current(_, rev, value, attachment, deprecated) => Some(Instance(id, rev, value, attachment.map(m => m.info), deprecated))
+      case Initial => None
+      case Current(_, rev, value, attachment, deprecated) =>
+        Some(Instance(id, rev, value, attachment.map(m => m.info), deprecated))
     }
 
   /**
@@ -160,13 +160,15 @@ final class Instances[F[_], In, Out](
     }
 
   private def fetchCurrent(id: InstanceId, rev: Long): F[Option[Current]] =
-    agg.foldLeft[InstanceState](id.show, Initial) {
-      case (state, ev) if ev.rev <= rev => Instances.next(state, ev)
-      case (state, _)                   => state
-    }.map {
-      case c: Current if c.rev == rev => Some(c)
-      case _                          => None
-    }
+    agg
+      .foldLeft[InstanceState](id.show, Initial) {
+        case (state, ev) if ev.rev <= rev => Instances.next(state, ev)
+        case (state, _)                   => state
+      }
+      .map {
+        case c: Current if c.rev == rev => Some(c)
+        case _                          => None
+      }
 
   /**
     * Updates an existing instance's state adding attachment relative location and metadata to it.
@@ -185,19 +187,21 @@ final class Instances[F[_], In, Out](
       F.pure {
         logger.debug(s"Uploading file '$filename' with contentType '$contentType' to instance '$id'")
       } flatMap { _ =>
-        agg.currentState(id.show)
+        agg
+          .currentState(id.show)
           .map(Instances.eval(_, CreateInstanceAttachment(id, rev, Attachment.EmptyMeta)))
       } flatMap {
-        case Left(r)  => F.pure(Left(r))
+        case Left(r) => F.pure(Left(r))
         case Right(_) =>
           inOutFileStream.toSink(id, rev, filename, contentType, source).map(Right(_))
       }
 
     inOutResult.flatMap {
       case Left(rejection) =>
-        logger.error(s"Error upload file '$filename' with contentType '$contentType' to instance '$id'. Rejection '$rejection'")
+        logger.error(
+          s"Error upload file '$filename' with contentType '$contentType' to instance '$id'. Rejection '$rejection'")
         F.raiseError(CommandRejected(rejection))
-      case Right(meta)     =>
+      case Right(meta) =>
         logger.debug(s"Uploaded file '$filename' with contentType '$contentType' to instance '$id'")
         evaluate(CreateInstanceAttachment(id, rev, meta), "Create instance attachment")
           .map(curr => InstanceRef(id, curr.rev, Some(meta.info)))
@@ -262,10 +266,10 @@ object Instances {
     */
   type InstanceAggregate[F[_]] = Aggregate[F] {
     type Identifier = String
-    type Event = InstanceEvent
-    type State = InstanceState
-    type Command = InstanceCommand
-    type Rejection = InstanceRejection
+    type Event      = InstanceEvent
+    type State      = InstanceState
+    type Command    = InstanceCommand
+    type Rejection  = InstanceRejection
   }
 
   /**
@@ -282,11 +286,12 @@ object Instances {
     * @tparam In  a typeclass defining the incoming stream client -> service
     * @tparam Out a typeclass defining the outgoing stream service -> client
     **/
-  final def apply[F[_], In, Out](
-    agg: InstanceAggregate[F],
-    schemas: Schemas[F],
-    validator: ShaclValidator[F],
-    inOutFileStream: InOutFileStream[F, In, Out])(implicit F: MonadError[F, Throwable], al: AttachmentLocation[F]): Instances[F, In, Out] =
+  final def apply[F[_], In, Out](agg: InstanceAggregate[F],
+                                 schemas: Schemas[F],
+                                 validator: ShaclValidator[F],
+                                 inOutFileStream: InOutFileStream[F, In, Out])(
+      implicit F: MonadError[F, Throwable],
+      al: AttachmentLocation[F]): Instances[F, In, Out] =
     new Instances[F, In, Out](agg, schemas, validator, inOutFileStream)
 
   /**
@@ -357,7 +362,6 @@ object Instances {
       case Current(_, _, _, None, _)    => Left(AttachmentNotFound)
       case s: Current                   => Right(InstanceAttachmentRemoved(s.id, s.rev + 1))
     }
-
 
     cmd match {
       case c: CreateInstance           => createInstance(c)
