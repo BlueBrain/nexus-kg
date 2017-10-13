@@ -1,314 +1,193 @@
 # Instances
-**`/data/{orgId}/{domainId}/{name}/{version}`** path describes schemas inside an specific organization and domain. The following resources are allowed:
 
-## Get
-###**`GET /data/{orgId}/{domainId}/{name}/{version}/{id}?rev={rev}`**
-**Retrieves** the instance specified in **id** from the schema **name & version** from the domain **domainId** inside the organization **orgId**.
+Instance resources are rooted in the `/v0/data` collection.  As described in the
+@ref:[API Reference](index.md), these represent the last level resources.  
 
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                   |
-| ------------- |-------------  | ---------------------------------------------                                                                                 |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| domainId      | String        | The unique identifier for the domain for this particular organization.                                                        |
-| name          | String        | The unique identifier for the schema for this particular domain.                                                              |
-| version       | String        | The unique identifier for the schema version for this particular schema, following the [semantic format](http://semver.org/)  |
-| id            | String        | The unique identifier for the instance.                                                                                       |
-| rev           | Option[Long]| The revision of the instance you want to retrieve. If not specified, the latest revision will be assumed.                     |
+### Create an instance
 
+An instance is created to be valid against an specific schema (`name` and `version`) and to belong to a certain organization `orgId` and domain `domId`. This is specified using the following URI:
 
-### Response JSON-LD Object
-| Field             | Type          | Description                                                                           |
-| -------------     |-------------  | ---------------------------------------------                                         |
-| @id               | String        | The unique identifier for the instance.                                               |
-| rev               | Long          | The current revision of the instance.                                                 |
-| originalFileName  | Option[String]| The filename instance attachment, if present.                                         |
-| contentType       | Option[String]| The MIME type of the instance attachment, if present.                                 |
-| size.value        | Option[String]| The size of the instance attachment, if present.                                      |
-| size.unit         | Option[String]| The unit if the size.value field, if present.                                         |
-| digest.value      | Option[String]| The value of the digest of the attachment instance, if present                        |
-| digest.alg        | Option[String]| The algorithm used to calculate the digest of the attachment instance, if present.    |
-| *                 | *             | The payload of the instance.                                                          |
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **404 Not Found** - The requested instance does not exist.
-
-### Example request
-```bash
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject/v1.0.0"
+```
+ POST /v0/data/{orgId}/{domId}/{name}/{version} 
+{...}
 ```
 
+The `{name}/{version}` defines the schema that the instance belongs to.
 
-## List
-###**`GET /data/{orgId}?deprecated={deprecated}`**
-###**`GET /data/{orgId}/{domainId}?deprecated={deprecated}`**
-###**`GET /data/{orgId}/{domainId}/{name}?deprecated={deprecated}`**
-###**`GET /data/{orgId}/{domainId}/{name}/{version}?deprecated={deprecated}`**
+The `{domId}` defines the id of the domain that the instance belongs to.
 
-**Retrieves a list** of instances with the specific filters defined on the request URI.
+The `{orgId}` defines the id for the organization that the instance belongs to.
 
-### Request path and query parameters
-| Field         | Type                  | Description                                                                                                                       |
-| ------------- |-------------          | ---------------------------------------------                                                                                     |  
-| orgId         | String                | The organization identifier to which the listing instances belong.                                                                | 
-| domainId      | Option[String]        | The domain identifier to which the listing instances belong.                                                                      |
-| name          | Option[String]        | The schema name to which the listing instances belong.                                                                            |
-| version       | Option[String]        | The schema version to which the listing instances belong.                                                                         |
-| deprecated    | Option[Boolean]       | A deprecated filter for the instances you want to list. If not set, it will return both deprecated and not deprecated instances.  |
-| *             |                       | [Pagination fields](basics.html#pagination-response).                                                                                  |
+The json payload must be valid with the schema defined at `/v0/schemas/{orgId}/{domId}/{name}/{version}`.
 
-### Status Codes
-* **200 OK** - Request completed successfully.
+#### Example
+Request
+:   @@snip [instance.sh](../assets/api-reference/instances/instance.sh)
 
-### Response JSON-LD Object
+Payload
+:   @@snip [instance.json](../assets/api-reference/instances/instance.json)
 
-The response format is the one defined in [Listing and querying response format](basics.html#listing-and-querying-response-format)
+Response
+:   @@snip [instance-ref-new.json](../assets/api-reference/instances/instance-ref-new.json)
 
+### Update an instance
 
-### Examples request
-```bash
-# Filtering by organization nexus and domain core
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core"
+It overrides the payload of the provided instance.
+```
+PUT /v0/data/{orgId}/{domId}/{name}/{version}/{id}?rev={previous_rev}
+{...}
+```
+... where `{previous_rev}` is the last known revision number for the instance and `{id}` is the UUID of the instance.
 
-# Filtering by organization nexus, domain core and schema name subject and only return deprecated instances
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject?deprecated=true"
+The json payload must be valid with the schema defined at `/v0/schemas/{orgId}/{domId}/{name}/{version}`.
 
-# Filtering by organization nexus, domain core, schema name subject and version v1.0.0 and only return deprecated instances. Return maximim 100 results
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject/v1.0.0?deprecated=true&from=0&size=100"
+#### Example
+
+Request
+:   @@snip [instance-update.sh](../assets/api-reference/instances/instance-update.sh)
+
+Payload
+:   @@snip [instance.json](../assets/api-reference/instances/instance.json)
+
+Response
+:   @@snip [instance-ref.json](../assets/api-reference/instances/instance-ref.json)
+
+### Attach a binary to an instance
+
+Every instance may have a sub-resource (`/attachment`) which is a binary representation of the instance.
+
+```
+ PUT /v0/data/{orgId}/{domId}/{name}/{version}/{id}/attachment?rev={rev}
+{...}
+```
+#### Multipart request
+
+The values provided for `filename` and `Content-Type` will be recorded by the system and presented as part of the instance json value.
+
+The binary must be sent as part of the form field `file`.
+
+#### Example
+
+Request
+:   @@snip [instance-attachment-add.sh](../assets/api-reference/instances/instance-attachment-add.sh)
+
+Response
+:   @@snip [instance-attachment-ref.json](../assets/api-reference/instances/instance-attachment-ref.json)
+
+### Fetch an instance
+
+```
+GET /v0/data/{orgId}/{domId}/{name}/{version}/{id}
+```
+#### Example
+
+Request
+:   @@snip [instance-get.sh](../assets/api-reference/instances/instance-get.sh)
+
+Response
+:   @@snip [existing-instance.json](../assets/api-reference/instances/existing-instance.json)
+
+### Fetch an instance revision
+
+```
+GET /v0/data/{orgId}/{domId}/{name}/{version}/{id}?rev={rev}
+```
+#### Example
+
+Request
+:   @@snip [instance-get-rev.sh](../assets/api-reference/instances/instance-get-rev.sh)
+
+Response
+:   @@snip [existing-instance.json](../assets/api-reference/instances/existing-instance.json)
+
+### Fetch an instance's attachment
+
+Retrieves the binary attachment of an instance at a specific revision.
+
+```
+GET /v0/data/{orgId}/{domId}/{name}/{version}/{id}/attachment
+```
+#### Example
+
+Request
+:   @@snip [instance-get.sh](../assets/api-reference/instances/instance-get-attachment.sh)
+
+### Fetch an instance's attachment revision
+
+Retrieves the attachment content of an instance for a specific revision.
+
+```
+GET /v0/data/{orgId}/{domId}/{name}/{version}/{id}/attachment?rev={rev}
+```
+#### Example
+
+Request
+:   @@snip [instance-get-attachment-rev.sh](../assets/api-reference/instances/instance-get-attachment-rev.sh)
+
+### Deprecate an instance
+
+Deprecating an instance prevents further updates or changes to its attachment.
+
+```
+DELETE /v0/data/{orgId}/{domId}/{name}/{version}/{id}?rev={rev}
 ```
 
-## Full text search
-###**`GET /data/q={term}`**
+#### Example
 
-**Retrieves a list** of instances that match the provided **term**
+Request
+:   @@snip [instance-delete.sh](../assets/api-reference/instances/instance-delete.sh)
 
-### Request path and query parameters
-| Field         | Type                  | Description                                                                                                                       |
-| ------------- |-------------          | ---------------------------------------------                                                                                     |  
-| term          | String                | The term used to match against all property values of the instance.                                                                | 
-| *             |                       | [Pagination fields](basics.html#pagination-response).                                                                                  |
+Response
+:   @@snip [instance-ref-delete.json](../assets/api-reference/instances/instance-ref-delete.json)
 
-### Status Codes
-* **200 OK** - Request completed successfully.
+### Delete an instance's attachment
 
-### Response JSON-LD Object
-
-The response format is the one defined in [Listing and querying response format](basics.html#listing-and-querying-response-format)
-
-
-### Examples request
-```bash
-# Filtering by term subject
-curl -v "https://bbp-nexus.epfl.ch/{environment}/{version}/data?q=subject"
 ```
-
-## Create
-###**`POST /data/{orgId}/{domainId}/{name}/{version}`**
-**Creates** the instance to validate against the schema **name & version** from the domain **domainId** inside the organization **orgId** with the provided payload.
-
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                   |
-| ------------- |-------------  | ---------------------------------------------                                                                                 |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| domainId      | String        | The unique identifier for the domain for this particular organization.                                                        |
-| name          | String        | The unique identifier for the schema for this particular domain.                                                              |
-| version       | String        | The unique identifier for the schema version for this particular schema, following the [semantic format](http://semver.org/)  |
-
-### Request JSON-LD Object
-A valid JSON-LD object. This object will be validated against the provided schema.
-
-
-### Response JSON-LD Object
-| Field             | Type          | Description                                                                           |   
-| -------------     |-------------  | ---------------------------------------------                                         |
-| @id               | String        | The unique identifier for the instance.                                               |
-| rev               | Long          | The current revision of the instance.                                                 |
-| originalFileName  | Option[String]| The filename instance attachment, if present.                                         |
-| contentType       | Option[String]| The MIME type of the instance attachment, if present.                                 |
-| size.value        | Option[String]| The size of the instance attachment, if present.                                      |
-| size.unit         | Option[String]| The unit if the size.value field, if present.                                         |
-| digest.value      | Option[String]| The value of the digest of the attachment instance, if present                        |
-| digest.alg        | Option[String]| The algorithm used to calculate the digest of the attachment instance, if present.    |
-
-### Status Codes
-* **201 Created** - Request completed successfully.
-* **400 Bad Request**
-    * The schema, domain or organization are deprecated.
-    * The schema is not published.
-    * The instance payload provided does not have valid shape constrains.
-* **404 Not Found** - The schema, domain or organization do not exist.
-
-### Example request
-```bash
-curl -v -X POST -H "Content-Type: application/json" "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject/v1.0.0" -d '{"@context": {"@vocab": "https://bbp-nexus.epfl.ch/voc/experiment/core/", "@base": "https://bbp-nexus.epfl.ch/v0/data/bbp/experiment/subject/v1.0.0/", "bbpexp": "https://bbp-nexus.epfl.ch/voc/experiment/core/", "description": "http://schema.org/description", "name": "http://schema.org/name", "weight": "http://schema.org/weight", "unitCode": "http://schema.org/unitCode", "value": "http://schema.org/value", "QuantitativeValue": "http://schema.org/QuantitativeValue", "GenderType": "http://schema.org/GenderType", "label": "http://www.w3.org/2000/01/rdf-schema#label", "providerId": "https://bbp-nexus.epfl.ch/voc/experiment/core/providerId", "Subject": "https://bbp-nexus.epfl.ch/voc/experiment/core/Subject", "Age": "https://bbp-nexus.epfl.ch/voc/experiment/core/Age", "period": "https://bbp-nexus.epfl.ch/voc/experiment/core/period", "strain": "https://bbp-nexus.epfl.ch/voc/experiment/core/strain", "species": "https://bbp-nexus.epfl.ch/voc/experiment/core/species"}, "@type": "bbpexp:Subject", "@id": "eb36bc14-5718-11e7-907b-a6006ad3dba0", "providerId": "00826165", "name": "00826165", "description": "Rat used for recording on 20160810 by Jane Yi in LNMC", "species": {"@id": "http://purl.obolibrary.org/obo/NCBITaxon_10116", "label": "Rattus norvegicus"}, "sex": {"@type": "GenderType", "value": "female"}, "weight": {"@type": "QuantitativeValue", "value": 38.1, "unitCode": {"@id": "https://bbp-nexus.epfl.ch/voc/unit/GRM", "label": "g"} }, "strain": {"@id": "http://www.hbp.FIXME.org/hbp_taxonomy_ontology/0000008", "label": "Wistar Han"} }'
+DELETE /v0/data/{orgId}/{domId}/{name}/{version}/{id}/attachment?rev={rev}
 ```
-
-## Update
-###**`PUT /data/{orgId}/{domainId}/{name}/{version}/{id}?rev={rev}`**
-**Updates** the instance **id** from the schema **name & version** from the domain **domainId** inside the organization **orgId** overriding the existing payload with the provided one.
-
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                   |
-| ------------- |-------------  | ---------------------------------------------                                                                                 |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| domainId      | String        | The unique identifier for the domain for this particular organization.                                                        |
-| name          | String        | The unique identifier for the schema for this particular domain.                                                              |
-| version       | String        | The unique identifier for the schema version for this particular schema, following the [semantic format](http://semver.org/)  |
-| id            | String        | The unique identifier for the instance.                                                                                       |
-| rev           | Long          | The current revision of the instance.                                                                                         |
-
-
-### Request JSON-LD Object
-A valid JSON-LD object. This object will be validated against the provided schema.
-
-
-### Response JSON-LD Object
-| Field             | Type          | Description                                                                           |   
-| -------------     |-------------  | ---------------------------------------------                                         |
-| @id               | String        | The unique identifier for the instance.                                               |
-| rev               | Long          | The current revision of the instance.                                                 |
-| originalFileName  | Option[String]| The filename instance attachment, if present.                                         |
-| contentType       | Option[String]| The MIME type of the instance attachment, if present.                                 |
-| size.value        | Option[String]| The size of the instance attachment, if present.                                      |
-| size.unit         | Option[String]| The unit if the size.value field, if present.                                         |
-| digest.value      | Option[String]| The value of the digest of the attachment instance, if present                        |
-| digest.alg        | Option[String]| The algorithm used to calculate the digest of the attachment instance, if present.    |
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **400 Bad Request**
-    * The instance, schema, domain or organization are deprecated.
-    * The instance payload provided does not have valid shape constrains.
-* **404 Not Found** - The instance, schema, domain or organization do not exist.
-* **409 Conflict** - The provided rev query parameter does not match the current revision.
-
-### Example request
-```bash
-curl -v -X PUT -H "Content-Type: application/json" "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject/v1.0.0/ce97bb62-7336-4449-93e2-3e311e9e960d?rev=1" -d '{"@context": {"@vocab": "https://bbp-nexus.epfl.ch/voc/experiment/core/", "@base": "https://bbp-nexus.epfl.ch/v0/data/bbp/experiment/subject/v1.0.0/", "bbpexp": "https://bbp-nexus.epfl.ch/voc/experiment/core/", "description": "http://schema.org/description", "name": "http://schema.org/name", "weight": "http://schema.org/weight", "unitCode": "http://schema.org/unitCode", "value": "http://schema.org/value", "QuantitativeValue": "http://schema.org/QuantitativeValue", "GenderType": "http://schema.org/GenderType", "label": "http://www.w3.org/2000/01/rdf-schema#label", "providerId": "https://bbp-nexus.epfl.ch/voc/experiment/core/providerId", "Subject": "https://bbp-nexus.epfl.ch/voc/experiment/core/Subject", "Age": "https://bbp-nexus.epfl.ch/voc/experiment/core/Age", "period": "https://bbp-nexus.epfl.ch/voc/experiment/core/period", "strain": "https://bbp-nexus.epfl.ch/voc/experiment/core/strain", "species": "https://bbp-nexus.epfl.ch/voc/experiment/core/species"}, "@type": "bbpexp:Subject", "@id": "eb36bc14-5718-11e7-907b-a6006ad3dba0", "providerId": "00826165", "name": "00826165", "description": "Rat used for recording on 20160810 by Jane Yi in LNMC", "species": {"@id": "http://purl.obolibrary.org/obo/NCBITaxon_10116", "label": "Rattus norvegicus"}, "sex": {"@type": "GenderType", "value": "female"}, "weight": {"@type": "QuantitativeValue", "value": 38.1, "unitCode": {"@id": "https://bbp-nexus.epfl.ch/voc/unit/GRM", "label": "g"} }, "strain": {"@id": "http://www.hbp.FIXME.org/hbp_taxonomy_ontology/0000008", "label": "Another label"} }'
-```
-
-
-## Deprecate
-###**`DELETE /data/{orgId}/{domainId}/{name}/{version}/{id}?rev={rev}`**
-**Deprecates** the instance **id** from the schema **name & version** from the domain **domainId** inside the organization **orgId**.
-
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                   |
-| ------------- |-------------  | ---------------------------------------------                                                                                 |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| domainId      | String        | The unique identifier for the domain for this particular organization.                                                        |
-| name          | String        | The unique identifier for the schema for this particular domain.                                                              |
-| version       | String        | The unique identifier for the schema version for this particular schema, following the [semantic format](http://semver.org/)  |
-| id            | String        | The unique identifier for the instance.                                                                                       |
-| rev           | Long          | The current revision of the instance.                                                                                         |
-
-### Response JSON-LD Object
-| Field             | Type          | Description                                                                           |   
-| -------------     |-------------  | ---------------------------------------------                                         |
-| @id               | String        | The unique identifier for the instance.                                               |
-| rev               | Long          | The current revision of the instance.                                                 |
-| originalFileName  | Option[String]| The filename instance attachment, if present.                                         |
-| contentType       | Option[String]| The MIME type of the instance attachment, if present.                                 |
-| size.value        | Option[String]| The size of the instance attachment, if present.                                      |
-| size.unit         | Option[String]| The unit if the size.value field, if present.                                         |
-| digest.value      | Option[String]| The value of the digest of the attachment instance, if present                        |
-| digest.alg        | Option[String]| The algorithm used to calculate the digest of the attachment instance, if present.    |
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **400 Bad Request** - The instance, schema, domain or organization are deprecated.
-* **404 Not Found** - The instance, schema, domain or organization do not exist.
-* **409 Conflict** - The provided rev query parameter does not match the current revision.
-
-### Example request
-```bash
-curl -v -X DELETE "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject/v1.0.0/ce97bb62-7336-4449-93e2-3e311e9e960d?rev=2"
-```
-
-## Get attachment
-###**`GET /data/{orgId}/{domainId}/{name}/{version}/{id}/attachment?rev={rev}`**
-**Retrieves** the instance attachment from the instance **id** from the schema **name & version** from the domain **domainId** inside the organization **orgId**.
-
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                   |
-| ------------- |-------------  | ---------------------------------------------                                                                                 |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| domainId      | String        | The unique identifier for the domain for this particular organization.                                                        |
-| name          | String        | The unique identifier for the schema for this particular domain.                                                              |
-| version       | String        | The unique identifier for the schema version for this particular schema, following the [semantic format](http://semver.org/)  |
-| rev           | Option[Long]| The revision of the instance attachment you want to retrieve. If not specified, the latest revision will be assumed.          |
-
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **404 Not Found** - The requested instance attachment does not exist.
-
-### Example request
-```bash
-curl "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject/v1.0.0/ce97bb62-7336-4449-93e2-3e311e9e960d/attachment?rev=2" -o output.png
-```
-
-## Create attachment
-###**`PUT /data/{orgId}/{domainId}/{name}/{version}/{id}/attachment?rev={rev}`**
-**Creates** the instance attachment from the instance **id** from the schema **name & version** from the domain **domainId** inside the organization **orgId**.
-
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                   |
-| ------------- |-------------  | ---------------------------------------------                                                                                 |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| domainId      | String        | The unique identifier for the domain for this particular organization.                                                        |
-| name          | String        | The unique identifier for the schema for this particular domain.                                                              |
-| version       | String        | The unique identifier for the schema version for this particular schema, following the [semantic format](http://semver.org/)  |
-| rev           | Long]         | The current revision of the instance.          |
-
-### Multipart request
-
-*Content-Type*: application/json
-
-It should contain one of the multipart types as:
-```
-Content-Disposition: form-data; name="file"; filename="{FILENAME}"
-Content-Type: {VALID_MIME_TYPE}
-```
-
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **400 Bad Request** - The instance, schema, domain or organization are deprecated.
-* **404 Not Found** - The instance, schema, domain or organization do not exist.
-* **409 Conflict** - The provided rev query parameter does not match the current revision.
-
-### Example request
-```bash
-curl -v -X PUT -F "filename={filename}" -F "file=@/path/to/file/name" "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject/v1.0.0/ce97bb62-7336-4449-93e2-3e311e9e960d?rev=2"
-```
-
-## Deprecates attachment
-###**`DELETE /data/{orgId}/{domainId}/{name}/{version}/{id}/attachment?rev={rev}`**
-**Deprecates** the instance attachment from the instance **id** from the schema **name & version** from the domain **domainId** inside the organization **orgId**.
-
-@@@ note
-
 This does not delete the binary attached to an instance, although it prevents from fetching it from the latest review. The binary attached will be still available fetching an older review.
 
-@@@
+#### Example
 
-### Request path and query parameters
-| Field         | Type          | Description                                                                                                                   |
-| ------------- |-------------  | ---------------------------------------------                                                                                 |
-| orgId         | String        | The unique identifier for the organization                                                                                    | 
-| domainId      | String        | The unique identifier for the domain for this particular organization.                                                        |
-| name          | String        | The unique identifier for the schema for this particular domain.                                                              |
-| version       | String        | The unique identifier for the schema version for this particular schema, following the [semantic format](http://semver.org/)  |
-| rev           | Long]         | The current revision of the instance.                                                                                         |
+Request
+:   @@snip [instance-delete-attachment.sh](../assets/api-reference/instances/instance-delete-attachment.sh)
 
+Response
+:   @@snip [instance-ref-delete-attachment.json](../assets/api-reference/instances/instance-ref-delete-attachment.json)
 
-### Status Codes
-* **200 OK** - Request completed successfully.
-* **400 Bad Request** - The instance, schema, domain or organization are deprecated.
-* **404 Not Found** - The instance, schema, domain or organization do not exist.
-* **409 Conflict** - The provided rev query parameter does not match the current revision.
+### Search instances
 
-### Example request
-```bash
-curl -v -X DELETE "https://bbp-nexus.epfl.ch/{environment}/{version}/data/nexus/core/subject/v1.0.0/ce97bb62-7336-4449-93e2-3e311e9e960d?rev=3"
+Follows the general definition of searching in a collection of resources.
+
 ```
+GET /v0/data/{orgId}/{domId}/{name}/{version}
+      ?q={full_text_search_query}
+      &filter={filter}
+      &from={from}
+      &size={size}
+      &deprecated={deprecated}
+      &published={published}
+```
+... where 
+
+* `{orgId}` the organization the instance belongs to.
+* `{domId}` the domain the instance belongs to.
+* `{name}` the schema name that the instance conforms to.
+* `{version}` the schema version that the instance conforms to.
+* `{full_text_search_query}` is an arbitrary string that is looked up in the attribute values of the selected instances.
+* `{filter}` is a filtering expression as described in the @ref:[Search and filtering](operating-on-resources.md#search-and-filtering) section.  
+* `{from}` and `{size}` are the listing pagination parameters.  
+* `{deprecated}` selects only instances that have the specified deprecation status.
+
+All query parameters described (`q`, `filter`, `from`, `size`, `deprecated` and `published`) are optional.
+
+The path segments (`{orgId}/{domId}/{name}/{version}`) are optional; when used, they constrain the resulting listing to contain only instances that share the same organization, domain ids and schema name and version. 
+Any of the segments can be omitted but since they are positional it's required that depended segments (to the left) are specified. For example, one can list all the instances within a domain using a simple GET request on `/v0/data/{orgId}/{domId}`.
+
+#### Example
+
+Request
+:   @@snip [instances-list.sh](../assets/api-reference/instances/instance-list.sh)
+
+Response
+:   @@snip [instances-list.json](../assets/api-reference/instances/instance-list.json)

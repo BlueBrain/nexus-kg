@@ -1,0 +1,1 @@
+curl "https://nexus.example.com/v0/schemas?from=0&size=100&published=true"
