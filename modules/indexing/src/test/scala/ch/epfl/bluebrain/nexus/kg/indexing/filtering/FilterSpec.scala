@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.{AlternativeSeqPath, SeqPath, PathZeroOrOne, UriPath}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
@@ -29,7 +30,7 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
       "using a single comparison" in {
         val json =
           jsonContentOf("/filtering/single-comparison.json", replacements)
-        val expected = Filter(ComparisonExpr(Eq, UriTerm(s"${nxv}deprecated"), LiteralTerm("false")))
+        val expected = Filter(ComparisonExpr(Eq, UriPath(s"${nxv}deprecated"), LiteralTerm("false")))
         json.as[Filter] shouldEqual Right(expected)
       }
 
@@ -41,17 +42,17 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
             And,
             List(
               ComparisonExpr(Eq,
-                             UriTerm(s"${prov}wasDerivedFrom"),
+                             UriPath(s"${prov}wasDerivedFrom"),
                              UriTerm(s"$base/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90")),
-              ComparisonExpr(Ne, UriTerm(s"${nxv}deprecated"), LiteralTerm("false")),
-              InExpr(UriTerm(s"${rdf}type"),
+              ComparisonExpr(Ne, UriPath(s"${nxv}deprecated"), LiteralTerm("false")),
+              InExpr(UriPath(s"${rdf}type"),
                      TermCollection(List(UriTerm(s"${prov}Entity"), UriTerm(s"${bbpprod}Circuit")))),
-              ComparisonExpr(Lte, UriTerm(s"${nxv}rev"), LiteralTerm("5")),
+              ComparisonExpr(Lte, UriPath(s"${nxv}rev"), LiteralTerm("5")),
               LogicalExpr(
                 Xor,
                 List(
-                  ComparisonExpr(Eq, UriTerm(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}sy")),
-                  ComparisonExpr(Eq, UriTerm(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}dmontero")),
+                  ComparisonExpr(Eq, UriPath(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}sy")),
+                  ComparisonExpr(Eq, UriPath(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}dmontero")),
                 )
               )
             )
@@ -61,24 +62,38 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
 
       "using nested comparisons with property path" in {
         val json = jsonContentOf("/filtering/nested-comparison-property-path.json", replacements)
+        val nx   = s"$base/voc/nexus/core/"
         val expected = Filter(
-          LogicalExpr(And, List(
-            ComparisonExpr(Eq, UriTerm(s"${prov}wasDerivedFrom"), UriTerm(s"$base/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90")),
-            ComparisonExpr(Ne, UriTerm(s"${nxv}deprecated"), LiteralTerm("false")),
-            InExpr(UriTerm(s"${rdf}type"), TermCollection(List(UriTerm(s"${prov}Entity"), UriTerm(s"${bbpprod}Circuit")))),
-            ComparisonExpr(Lte, UriTerm(s"${nxv}rev"), LiteralTerm("5")),
-            LogicalExpr(Xor, List(
-              ComparisonExpr(Eq, UriTerm(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}sy")),
-              ComparisonExpr(Eq, UriTerm(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}dmontero")),
-            ))
-          )))
+          LogicalExpr(
+            And,
+            List(
+              ComparisonExpr(Eq,
+                             AlternativeSeqPath(SeqPath(UriPath(s"${nx}schema"), PathZeroOrOne(s"${nx}schemaGroup")),
+                                                UriPath(s"${nx}name")),
+                             LiteralTerm(""""subject"""")),
+              ComparisonExpr(Eq,
+                             UriPath(s"${prov}wasDerivedFrom"),
+                             UriTerm(s"$base/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90")),
+              ComparisonExpr(Ne, UriPath(s"${nxv}deprecated"), LiteralTerm("false")),
+              InExpr(UriPath(s"${rdf}type"),
+                     TermCollection(List(UriTerm(s"${prov}Entity"), UriTerm(s"${bbpprod}Circuit")))),
+              ComparisonExpr(Lte, UriPath(s"${nxv}rev"), LiteralTerm("5")),
+              LogicalExpr(
+                Xor,
+                List(
+                  ComparisonExpr(Eq, UriPath(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}sy")),
+                  ComparisonExpr(Eq, UriPath(s"${prov}wasAttributedTo"), UriTerm(s"${bbpagent}dmontero")),
+                )
+              )
+            )
+          ))
         json.as[Filter] shouldEqual Right(expected)
       }
 
       "defining a context that's conflicting with the expected one" in {
         val json =
           jsonContentOf("/filtering/conflicting-context.json", replacements)
-        val expected = Filter(ComparisonExpr(Eq, UriTerm(s"${nxv}deprecated"), LiteralTerm("false")))
+        val expected = Filter(ComparisonExpr(Eq, UriPath(s"${nxv}deprecated"), LiteralTerm("false")))
         json.as[Filter] shouldEqual Right(expected)
       }
 
@@ -88,9 +103,9 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
           LogicalExpr(
             And,
             List(
-              ComparisonExpr(Gt, UriTerm(s"${nxv}rev"), LiteralTerm("0")),
-              ComparisonExpr(Lt, UriTerm(s"${nxv}rev"), LiteralTerm("10")),
-              ComparisonExpr(Gte, UriTerm(s"${nxv}other"), LiteralTerm("10")),
+              ComparisonExpr(Gt, UriPath(s"${nxv}rev"), LiteralTerm("0")),
+              ComparisonExpr(Lt, UriPath(s"${nxv}rev"), LiteralTerm("10")),
+              ComparisonExpr(Gte, UriPath(s"${nxv}other"), LiteralTerm("10")),
             )
           ))
         json.as[Filter] shouldEqual Right(expected)
@@ -102,6 +117,18 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
       "using a nested or" in {
         val json            = jsonContentOf("/filtering/nested-or.json", replacements)
         val expectedHistory = "DownField(filter)/DownField(value)/DownN(4)"
+        json
+          .as[Filter]
+          .left
+          .value
+          .history
+          .reverse
+          .mkString("/") shouldEqual expectedHistory
+      }
+
+      "using a wrong path property" in {
+        val json            = jsonContentOf("/filtering/invalid-property-path.json", replacements)
+        val expectedHistory = "DownField(filter)/DownField(value)/DownN(0)/DownField(path)"
         json
           .as[Filter]
           .left

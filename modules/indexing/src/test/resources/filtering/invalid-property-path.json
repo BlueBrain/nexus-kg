@@ -1,0 +1,24 @@
+{
+  "@context": {
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "bbpprod": "{{base}}/voc/bbp/productionentity/core/",
+    "bbpagent": "{{base}}/voc/bbp/agent/core/",
+    "nx": "{{base}}/voc/nexus/core/"
+  },
+  "filter": {
+    "op": "and",
+    "value": [
+      {
+        "path": "nx:schema / nx:schemaGroup ? ! nx:name",
+        "op": "eq",
+        "value": "subject"
+      },
+      {
+        "path": "prov:wasDerivedFrom",
+        "op": "eq",
+        "value": "{{base}}/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90"
+      }
+    ]
+  }
+}

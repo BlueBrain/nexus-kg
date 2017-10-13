@@ -66,6 +66,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
         val filter = json.as[Filter].right.value
         val expectedWhere =
           s"""
+             |?s <${nxv}schema>/<${nxv}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
              |?s <${nxv}rev> ?var_1 .
              |FILTER ( ?var_1 <= 5 )
@@ -140,6 +141,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?matchedValue bds:rank ?pos .
              |FILTER ( !isBlank(?s) )
              |
+             |?s <${nxv}schema>/<${nxv}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
              |?s <${nxv}rev> ?var_1 .
              |FILTER ( ?var_1 <= 5 )
@@ -211,6 +213,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?ss ?p ?s .
              |FILTER ( ?ss = <${thisId.toString}> )
              |
+             |?s <${nxv}schema>/<${nxv}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
              |?s <${nxv}rev> ?var_1 .
              |FILTER ( ?var_1 <= 5 )
@@ -282,6 +285,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s ?p ?o .
              |FILTER ( ?o = <$thisId> )
              |
+             |?s <${nxv}schema>/<${nxv}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
              |?s <${nxv}rev> ?var_1 .
              |FILTER ( ?var_1 <= 5 )
