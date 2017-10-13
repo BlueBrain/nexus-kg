@@ -71,9 +71,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def list(dom: DomainId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(Filter(orgExpr(dom.orgId))
-           and domExpr(dom)
-           and filter.expr,
+    list(Filter(domExpr(dom)) and filter.expr,
          pagination,
          term)
 
@@ -89,10 +87,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
   def list(schemaName: SchemaName, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id],
       schemaNameFilter: SchemaNameFilterExpr[Id]): F[QueryResults[Id]] =
-    list(Filter(orgExpr(schemaName.domainId.orgId))
-           and domExpr(schemaName.domainId)
-           and schemaNameFilter(schemaName)
-           and filter.expr,
+    list(Filter(schemaNameFilter(schemaName)) and filter.expr,
          pagination,
          term)
 
@@ -106,10 +101,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def list(schema: SchemaId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(Filter(orgExpr(schema.domainId.orgId))
-           and domExpr(schema.domainId)
-           and schemaExpr(schema)
-           and filter.expr,
+    list(Filter(schemaExpr(schema)) and filter.expr,
          pagination,
          term)
 

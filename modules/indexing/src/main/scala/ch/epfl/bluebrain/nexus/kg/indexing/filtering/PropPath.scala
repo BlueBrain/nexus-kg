@@ -4,16 +4,7 @@ import akka.http.scaladsl.model.Uri
 import cats.syntax.show._
 import cats.{Eval, Show}
 import ch.epfl.bluebrain.nexus.commons.types.Err
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.{
-  AlternativeSeqPath,
-  InversePath,
-  PathOneOrMore,
-  PropPathError,
-  PathZeroOrMore,
-  PathZeroOrOne,
-  SeqPath,
-  UriPath
-}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath._
 import org.apache.jena.sparql.path._
 
 import scala.util.Try
@@ -23,44 +14,44 @@ sealed trait PropPath extends Product with Serializable
 object PropPath extends PropPathBuilder {
 
   /**
-    * Path property which represents a URI or a prefixed name
+    * Path property which represents a URI.
     *
-    * @param value the URI or a prefixed name.
+    * @param value the URI
     */
   final case class UriPath(value: Uri) extends PropPath
 
   /**
     * Inverse path (object to subject). Sparql expression: ^value
     *
-    * @param value the URI or a prefixed name.
+    * @param value the URI
     */
   final case class InversePath(value: Uri) extends PropPath
 
   /**
     * A group path ''value''. Sparql expression: (value)
     *
-    * @param value the URI or a prefixed name.
+    * @param value the URI
     */
   final case class GroupPath(value: Uri) extends PropPath
 
   /**
     * A path of zero or more occurrences of ''value''. Sparql expression: value*
     *
-    * @param value the URI or a prefixed name.
+    * @param value the URI
     */
   final case class PathZeroOrMore(value: Uri) extends PropPath
 
   /**
     * A path of one or more occurrences of ''value''. Sparql expression: value+
     *
-    * @param value the URI or a prefixed name.
+    * @param value the URI
     */
   final case class PathOneOrMore(value: Uri) extends PropPath
 
   /**
     * A path of zero or one occurrences of ''value''. Sparql expression: value?
     *
-    * @param value the URI or a prefixed name.
+    * @param value the URI
     */
   final case class PathZeroOrOne(value: Uri) extends PropPath
 
