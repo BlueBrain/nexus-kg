@@ -97,6 +97,7 @@ object PropPath extends PropPathBuilder {
     * Signals that the ''PathProp'' cannot be created for the given ''path''s
     * @param path the [[Path]]s for which the ''PathProp'' was attempted to be created
     */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
   final case class PropPathError(path: Path*) extends Err("Error building the paths")
 }
 
