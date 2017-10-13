@@ -70,13 +70,13 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], settings: InstanceIndexingS
       log.debug(s"Indexing 'InstanceCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = false)
       val data = value deepMerge meta
-      client.createGraph(index, id qualifyWith baseNs, buildCombined(meta, data, id))
+      client.createGraph(index, id qualifyWith baseNs, buildCombined(data, id))
 
     case InstanceUpdated(id, rev, value) =>
       log.debug(s"Indexing 'InstanceUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = false)
       val data = value deepMerge meta
-      client.replaceGraph(index, id qualifyWith baseNs, buildCombined(meta, data, id))
+      client.replaceGraph(index, id qualifyWith baseNs, buildCombined(data, id))
 
     case InstanceDeprecated(id, rev) =>
       log.debug(s"Indexing 'InstanceDeprecated' event for id '${id.show}'")
@@ -114,9 +114,8 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], settings: InstanceIndexingS
 
     ) deepMerge buildRevMeta(id, rev)
 
-  private def buildCombined(meta: Json, data: Json, id: InstanceId): Json =
+  private def buildCombined(data: Json, id: InstanceId): Json =
     Json.obj(graphKey -> Json.arr(
-      meta,
       data,
       Json.obj(
         idKey -> Json.fromString(id.schemaId.qualifyAsString),
