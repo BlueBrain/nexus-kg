@@ -147,8 +147,6 @@ All query parameters described (`q`, `filter`, `from`, `size`, `deprecated` and 
 The path segments (`{orgId}/{domId}/{name}`) are optional; when used, they constrain the resulting listing to contain only schemas that share the same organization, domain ids and name. 
 Any of the segments can be omitted but since they are positional it's required that depended segments (to the left) are specified. For example, one can list all the schemas within a domain using a simple GET request on `/v0/schemas/{orgId}/{domId}`.
 
-The path parameters `/{orgId}/`, `/{domId}/` and `/{name}/` are optional.
-
 #### Example
 
 Request
