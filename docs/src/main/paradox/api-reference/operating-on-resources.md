@@ -219,6 +219,64 @@ With context
 Nested filter
 :   @@snip [nested-filter.json](../assets/api-reference/nested-filter.json)
 
+### Search response format
+
+The response to any search requests follows the described format:
+
+```json
+{
+  "total": {hits},
+  "maxScore": {max_score},
+  "results": [
+    {
+      "resultId": {resource_id},
+      "score": {score_id},
+      "source": {
+        "@id": {id},
+        "links": [
+          {
+            "rel": "self",
+            "href": {self_uri}
+          },
+          {
+            ...
+          }
+        ]
+      }
+    },
+    {
+      ...
+    }
+  ],
+  "links": [
+    {
+      "rel": "self",
+      "href": "https://nexus.example.com/v0/{address}?from=20&size=20"
+    },
+    {
+      "rel": "next",
+      "href": "https://nexus.example.com/v0/data?from=40&size=20"
+    },
+    {
+      "rel": "previous",
+      "href": "https://nexus.example.com/v0/data?from=0&size=20"
+    }
+  ]
+}
+```
+
+...where
+
+* `{hits}` is the total number of results found for the requested search.
+* `{maxScore}` is the maximum score found across all hits.
+* `{resource_id}` is the qualified id for one of the results.
+* `{score_id}` is the score for this particular resource
+* `{self_uri}` is the relationship to itself
+
+The relationships `next` and `previous` at the top level offer discovery of more resources, in terms of navigation/pagination. 
+
+The fields `{maxScore}` and `{score_id}` are optional fields and will only be present whenever a `q` query parameter is provided on the request.
+
 ## Error Signaling
 
 The services makes use of the HTTP Status Codes to report the outcome of each API call.  The status codes are
@@ -232,3 +290,17 @@ Example
 
 While the format only specifies `code` and `message` fields, additional fields may be presented for additional
 information in certain scenarios.
+
+## Resource discovery
+
+We use HATEOAS[https://en.wikipedia.org/wiki/HATEOAS] to provide resource discovery through the `links` array. 
+
+It comprises a list of objects with two fields: `rel` and `href`. 
+Each of those objects can be translated as *'the current resource has a relationship of type `rel` with the resource `href`'*
+
+### Examples
+Instance resource example
+:   @@snip [instance-links.json](../assets/api-reference/instance-links.json)
+
+Search links example
+:   @@snip [pagination-links.json](../assets/api-reference/pagination-links.json)

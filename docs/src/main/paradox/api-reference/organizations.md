@@ -16,15 +16,19 @@ PUT /v0/organizations/{name}
 
 The `{name}` is constrained to `[a-z0-9]{3,5}`.
 
-The json value must be compliant with the [schema.org definition](http://schema.org/Organization) for organizations.
+The json payload must be compliant with the [schema.org definition](http://schema.org/Organization) for organizations.
 The nexus shacl schema for organization constrains the accepted values.
 
 [//]: # (TODO: embed the nexus shacl schema for organization)
 
-Example organization
+#### Example
+Request
+:   @@snip [organization.sh](../assets/api-reference/organizations/organization.sh)
+
+Payload
 :   @@snip [organization.json](../assets/api-reference/organizations/organization.json)
 
-Example response
+Response
 :   @@snip [org-ref-new.json](../assets/api-reference/organizations/org-ref-new.json)
 
 ### Update an organization
@@ -40,10 +44,15 @@ The nexus shacl schema for organization constrains the accepted values.
 
 [//]: # (TODO: link to embedded organization shacl schema)
 
-Example organization
+#### Example
+
+Request
+:   @@snip [organization-update.sh](../assets/api-reference/organizations/organization-update.sh)
+
+Payload
 :   @@snip [organization.json](../assets/api-reference/organizations/organization.json)
 
-Example response
+Response
 :   @@snip [org-ref-new.json](../assets/api-reference/organizations/org-ref.json)
 
 ### Fetch an organization
@@ -51,8 +60,12 @@ Example response
 ```
 GET /v0/organizations/{name}
 ```
+#### Example
 
-Example reponse
+Request
+:   @@snip [organization-get.sh](../assets/api-reference/organizations/organization-get.sh)
+
+Response
 :   @@snip [existing-organization.json](../assets/api-reference/organizations/existing-organization.json)
 
 ### Fetch an organization revision
@@ -60,8 +73,12 @@ Example reponse
 ```
 GET /v0/organizations/{name}?rev={rev}
 ```
+#### Example
 
-Example reponse
+Request
+:   @@snip [organization-get-rev.sh](../assets/api-reference/organizations/organization-get-rev.sh)
+
+Response
 :   @@snip [existing-organization.json](../assets/api-reference/organizations/existing-organization.json)
 
 
@@ -71,8 +88,13 @@ Example reponse
 DELETE /v0/organizations/{name}?rev={rev}
 ```
 
-Example response
-:   @@snip [org-ref-new.json](../assets/api-reference/organizations/org-ref.json)
+#### Example
+
+Request
+:   @@snip [organization-delete.sh](../assets/api-reference/organizations/organization-delete.sh)
+
+Response
+:   @@snip [org-ref-new.json](../assets/api-reference/organizations/org-ref-delete.json)
 
 ### Search organizations
 
@@ -94,5 +116,10 @@ status.
 
 All query parameters described (`q`, `filter`, `from`, `size` and `deprecated`) are optional.
 
-Example reponse
+#### Example
+
+Request
+:   @@snip [organization-delete.sh](../assets/api-reference/organizations/organization-list.sh)
+
+Response
 :   @@snip [organization-list.json](../assets/api-reference/organizations/organization-list.json)
