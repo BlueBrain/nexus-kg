@@ -14,12 +14,14 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture, Qualifier}
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -57,6 +59,9 @@ class DomainIndexerSpec(blazegraphPort: Int)
   private val settings @ DomainIndexingSettings(index, domainsBase, domainsBaseNs, nexusVocBase) =
     DomainIndexingSettings(genString(length = 6), base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
+  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)
+
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
@@ -78,9 +83,11 @@ class DomainIndexerSpec(blazegraphPort: Int)
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
       (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
       (qualifiedId, "description" qualifyAsStringWith nexusVocBase, description),
-      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.orgId.id),
-      (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.id)
+      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.orgId.qualifyAsString),
+      (qualifiedId, rdfTypeKey, "Domain".qualifyAsString),
+      (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.id)
     )
+
   }
 
   "A DomainIndexer" should {
@@ -95,7 +102,7 @@ class DomainIndexerSpec(blazegraphPort: Int)
       val rev = 1L
       indexer(DomainCreated(id, rev, description)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 5
+      rs.size shouldEqual 6
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, description)
     }
 
@@ -103,7 +110,7 @@ class DomainIndexerSpec(blazegraphPort: Int)
       val rev = 2L
       indexer(DomainDeprecated(id, rev)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 5
+      rs.size shouldEqual 6
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, description)
     }
   }

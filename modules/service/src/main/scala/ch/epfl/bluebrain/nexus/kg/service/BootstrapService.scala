@@ -48,7 +48,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   private val baseUri = settings.Http.PublicUri
   // $COVERAGE-OFF$
-  val apiUri: Uri =
+  override val apiUri: Uri =
     if (settings.Http.Prefix.trim.isEmpty) baseUri
     else baseUri.copy(path = baseUri.path / settings.Http.Prefix)
   // $COVERAGE-ON$
@@ -138,20 +138,26 @@ object BootstrapService {
 
   abstract class BootstrapQuerySettings(settings: Settings) {
 
-    val domainSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
-                                       settings.Sparql.Domains.Index,
-                                       settings.Prefixes.CoreVocabulary)
+    def apiUri: Uri
 
-    val orgSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
-                                    settings.Sparql.Organizations.Index,
-                                    settings.Prefixes.CoreVocabulary)
-    val schemaSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
-                                       settings.Sparql.Schemas.Index,
-                                       settings.Prefixes.CoreVocabulary)
+    lazy val domainSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
+                                            settings.Sparql.Domains.Index,
+                                            settings.Prefixes.CoreVocabulary,
+                                            apiUri)
 
-    val instanceSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
-                                         settings.Sparql.Instances.Index,
-                                         settings.Prefixes.CoreVocabulary)
+    lazy val orgSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
+                                         settings.Sparql.Organizations.Index,
+                                         settings.Prefixes.CoreVocabulary,
+                                         apiUri)
+    lazy val schemaSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
+                                            settings.Sparql.Schemas.Index,
+                                            settings.Prefixes.CoreVocabulary,
+                                            apiUri)
+
+    lazy val instanceSettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
+                                              settings.Sparql.Instances.Index,
+                                              settings.Prefixes.CoreVocabulary,
+                                              apiUri)
 
     implicit val filteringSettings: FilteringSettings =
       FilteringSettings(settings.Prefixes.CoreVocabulary, settings.Prefixes.SearchVocabulary)

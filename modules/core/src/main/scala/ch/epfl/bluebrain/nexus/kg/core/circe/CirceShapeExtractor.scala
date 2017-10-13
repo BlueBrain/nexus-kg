@@ -10,6 +10,7 @@ import scala.util.matching.Regex
   * @tparam A generic type parameter for the shape id
   */
 trait CirceShapeExtractor[A] {
+
   /**
     * Extract the targeted shape from a Json payload.
     *
@@ -32,12 +33,15 @@ object CirceShapeExtractorInstances extends CirceShapeExtractorSyntax {
       import io.circe.optics.JsonPath._
       val r = s"""^*.(/|:)$escapedId$$""".r
 
-      root.shapes.each.filter(_.hcursor.get[String]("@id")
-        .fold(_ => false, r.findFirstIn(_).isDefined))
-        .json.headOption(value)
+      root.shapes.each
+        .filter(
+          _.hcursor
+            .get[String]("@id")
+            .fold(_ => false, r.findFirstIn(_).isDefined))
+        .json
+        .headOption(value)
     }
   }
-
 
 }
 
@@ -50,6 +54,7 @@ trait CirceShapeExtractorSyntax {
     * @tparam A generic type parameter for the shape id
     */
   implicit class CirceSchemaExtractorOps[A](value: Json) {
+
     /**
       * Method exposed on Json instances
       *

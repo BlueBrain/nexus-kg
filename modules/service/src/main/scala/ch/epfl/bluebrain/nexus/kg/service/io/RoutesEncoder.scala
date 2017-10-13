@@ -18,7 +18,9 @@ import io.circe.{Encoder, Json}
   * @tparam Id        the generic type representing the id we want to encode
   * @tparam Reference the generic type representing the Ref we want to encode
   */
-abstract class RoutesEncoder[Id, Reference](base: Uri)(implicit le: Encoder[Link], R: Reference => Ref[Id], Q: Qualifier[Id]) {
+abstract class RoutesEncoder[Id, Reference](base: Uri)(implicit le: Encoder[Link],
+                                                       R: Reference => Ref[Id],
+                                                       Q: Qualifier[Id]) {
 
   implicit val typeQualifier: ConfiguredQualifier[Id] = Qualifier.configured[Id](base)
   implicit val refEncoder: Encoder[Reference] = Encoder.encodeJson.contramap { ref =>
@@ -37,17 +39,17 @@ abstract class RoutesEncoder[Id, Reference](base: Uri)(implicit le: Encoder[Link
   implicit def queryResultEncoder(implicit E: Encoder[Id]): Encoder[UnscoredQueryResult[Id]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        "resultId"  -> Json.fromString(qr.source.qualifyAsString),
-        "source"    -> E(qr.source)
+        "resultId" -> Json.fromString(qr.source.qualifyAsString),
+        "source"   -> E(qr.source)
       )
     }
 
   implicit def scoredQueryResultEncoder(implicit E: Encoder[Id]): Encoder[ScoredQueryResult[Id]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        "resultId"  -> Json.fromString(qr.source.qualifyAsString),
-        "score"     -> Json.fromFloatOrString(qr.score),
-        "source"    -> E(qr.source)
+        "resultId" -> Json.fromString(qr.source.qualifyAsString),
+        "score"    -> Json.fromFloatOrString(qr.score),
+        "source"   -> E(qr.source)
       )
     }
 }

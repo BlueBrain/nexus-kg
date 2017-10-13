@@ -6,6 +6,7 @@ import io.circe.Json
   * Enumeration type for commands that apply to organizations.
   */
 sealed trait OrgCommand extends Product with Serializable {
+
   /**
     * @return the unique identifier for the organization for which this command will be evaluated
     */

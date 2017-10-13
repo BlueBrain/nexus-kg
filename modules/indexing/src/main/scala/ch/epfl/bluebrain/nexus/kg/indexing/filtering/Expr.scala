@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.filtering
 
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{ComparisonOp, LogicalOp}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{TermCollection, UriTerm}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.TermCollection
 
 /**
   * Enumeration type for all filtering expressions.
@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{TermCollection, UriTe
 sealed trait Expr extends Product with Serializable
 
 object Expr {
+
   /**
     * A logical filtering expression.
     *
@@ -16,6 +17,7 @@ object Expr {
     * @param operands the expressions to be combined
     */
   final case class LogicalExpr(operator: LogicalOp, operands: List[Expr]) extends Expr
+
   /**
     * A comparison filtering expression.
     *
@@ -23,14 +25,16 @@ object Expr {
     * @param path     the predicate filter
     * @param value    the expected value used in conjunction with the operator
     */
-  final case class ComparisonExpr(operator: ComparisonOp, path: UriTerm, value: Term) extends Expr
+  final case class ComparisonExpr(operator: ComparisonOp, path: PropPath, value: Term) extends Expr
+
   /**
     * A multi-value equality filtering expression.
     *
     * @param path  the predicate filter
     * @param value the sum of possible term values
     */
-  final case class InExpr(path: UriTerm, value: TermCollection) extends Expr
+  final case class InExpr(path: PropPath, value: TermCollection) extends Expr
+
   /**
     * An expression that doesn't filter anything.
     */

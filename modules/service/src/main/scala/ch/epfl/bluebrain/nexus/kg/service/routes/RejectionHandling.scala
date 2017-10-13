@@ -20,24 +20,26 @@ object RejectionHandling {
     * in the routes evaluation process, the priority order to handle them is defined
     * by the order of appearance in this method.
     */
-  final def rejectionHandler: RejectionHandler = RejectionHandler.newBuilder()
-    .handle {
-      case MalformedQueryParamRejection(_, _, Some(e: WrongOrInvalidJson))  =>
-        complete(BadRequest -> (e: CommonRejections))
-      case MalformedQueryParamRejection(_, _, Some(e: IllegalFilterFormat)) =>
-        complete(BadRequest -> (e: CommonRejections))
-      case ValidationRejection(_, Some(e: IllegalVersionFormat))            =>
-        complete(BadRequest -> (e: CommonRejections))
-    }
-    .handleAll[MalformedRequestContentRejection] { rejection =>
-      val aggregate = rejection.map(_.message).mkString(", ")
-      complete(BadRequest -> (WrongOrInvalidJson(Some(aggregate)): CommonRejections))
-    }
-    .handleAll[MethodRejection] { methodRejections =>
-      val names = methodRejections.map(_.supported.name)
-      complete(MethodNotAllowed -> (MethodNotSupported(names): CommonRejections))
-    }
-    .result()
+  final def rejectionHandler: RejectionHandler =
+    RejectionHandler
+      .newBuilder()
+      .handle {
+        case MalformedQueryParamRejection(_, _, Some(e: WrongOrInvalidJson)) =>
+          complete(BadRequest -> (e: CommonRejections))
+        case MalformedQueryParamRejection(_, _, Some(e: IllegalFilterFormat)) =>
+          complete(BadRequest -> (e: CommonRejections))
+        case ValidationRejection(_, Some(e: IllegalVersionFormat)) =>
+          complete(BadRequest -> (e: CommonRejections))
+      }
+      .handleAll[MalformedRequestContentRejection] { rejection =>
+        val aggregate = rejection.map(_.message).mkString(", ")
+        complete(BadRequest -> (WrongOrInvalidJson(Some(aggregate)): CommonRejections))
+      }
+      .handleAll[MethodRejection] { methodRejections =>
+        val names = methodRejections.map(_.supported.name)
+        complete(MethodNotAllowed -> (MethodNotSupported(names): CommonRejections))
+      }
+      .result()
 
   /**
     * The discriminator is enough to give us a Json representation (the name of the class)

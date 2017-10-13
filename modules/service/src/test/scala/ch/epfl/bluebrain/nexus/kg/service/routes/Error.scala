@@ -10,6 +10,7 @@ import shapeless.Typeable
 final case class Error(code: String)
 
 object Error {
+
   /**
     * Provides the class name for ''A''s that have a [[shapeless.Typeable]] typeclass instance.
     *

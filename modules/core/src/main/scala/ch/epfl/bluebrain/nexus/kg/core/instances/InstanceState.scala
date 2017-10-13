@@ -24,10 +24,10 @@ object InstanceState {
     * @param attachment the attachment information of the instance
     * @param deprecated the deprecation status
     */
-  final case class Current(
-    id: InstanceId,
-    rev: Long,
-    value: Json,
-    attachment: Option[Attachment.Meta] = None,
-    deprecated: Boolean) extends InstanceState
+  final case class Current(id: InstanceId,
+                           rev: Long,
+                           value: Json,
+                           attachment: Option[Attachment.Meta] = None,
+                           deprecated: Boolean)
+      extends InstanceState
 }

@@ -21,9 +21,12 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -65,6 +68,12 @@ class InstanceIndexerSpec(blazegraphPort: Int)
   private val settings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
     InstanceIndexingSettings(genString(length = 6), base, s"$base/data/graphs", s"$base/voc/nexus/core")
 
+  private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](nexusVocBase)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
+  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
+  private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId]     = Qualifier.configured[SchemaId](base)
+  private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
+
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
 
   private def triples(id: InstanceId, client: SparqlClient[Future]): Future[List[(String, String, String)]] =
@@ -102,11 +111,12 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
       (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
       (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
-      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.schemaId.domainId.orgId.id),
-      (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.schemaId.domainId.id),
-      (qualifiedId, "schema" qualifyAsStringWith nexusVocBase, id.schemaId.name),
-      (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.schemaId.version.show),
-      (qualifiedId, "uuid" qualifyAsStringWith nexusVocBase, id.id.show)
+      (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.schemaId.domainId.orgId.qualifyAsString),
+      (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.schemaId.domainId.qualifyAsString),
+      (qualifiedId, "schema" qualifyAsStringWith nexusVocBase, id.schemaId.qualifyAsString),
+      (qualifiedId, rdfTypeKey, "Instance".qualifyAsString),
+      (qualifiedId, "uuid" qualifyAsStringWith nexusVocBase, id.id.show),
+      (id.schemaId.qualifyAsString, schemaGroupKey, id.schemaId.schemaName.qualifyAsString),
     )
   }
 
@@ -139,7 +149,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/instances/minimal.json", replacements)
       indexer(InstanceCreated(id, rev, data)).futureValue
       val rs = triples(id, client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 9
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "random")
     }
 
@@ -148,7 +158,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
       indexer(InstanceUpdated(id, rev, data)).futureValue
       val rs = triples(id, client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 9
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
     }
 
@@ -157,7 +167,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val meta = Meta("uri", Info("filename", "contenttype", Size("byte", 1024L), Digest("SHA-256", "asd123")))
       indexer(InstanceAttachmentCreated(id, rev, meta)).futureValue
       val rs = allTriples(id, client).futureValue
-      rs.size shouldEqual 13
+      rs.size shouldEqual 14
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated", meta)
     }
 
@@ -167,7 +177,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
         Meta("uri", Info("filename-update", "contenttype-updated", Size("byte", 1025L), Digest("SHA-256", "asd1234")))
       indexer(InstanceAttachmentCreated(id, rev, meta)).futureValue
       val rs = allTriples(id, client).futureValue
-      rs.size shouldEqual 13
+      rs.size shouldEqual 14
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated", meta)
     }
 
@@ -175,7 +185,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val rev = 5L
       indexer(InstanceAttachmentRemoved(id, rev)).futureValue
       val rs = allTriples(id, client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 9
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
     }
 
@@ -183,7 +193,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val rev = 6L
       indexer(InstanceDeprecated(id, rev)).futureValue
       val rs = triples(id, client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 9
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, "updated")
     }
   }

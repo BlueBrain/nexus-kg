@@ -118,7 +118,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "list organizations with filter on 'path' organization " in {
         val uriFilter = URLEncoder.encode(
-          s"""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}, "filter": {"path": "${"organization".qualify}", "op": "eq", "value": "nexus"} } """,
+          s"""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}, "filter": {"path": "${"name".qualify}", "op": "eq", "value": "nexus"} } """,
           "UTF-8"
         )
         val path = s"/organizations?filter=$uriFilter"

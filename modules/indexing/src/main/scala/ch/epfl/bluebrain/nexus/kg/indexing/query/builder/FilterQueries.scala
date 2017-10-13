@@ -2,18 +2,17 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
 import akka.http.scaladsl.model.Uri
 import cats.instances.string._
-import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, Eq}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries.{domExpr, _}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 
@@ -25,10 +24,17 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
   * @tparam F  the monadic effect type
   * @tparam Id the generic type which defines the response's payload
   */
-class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QuerySettings) {
-
+class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QuerySettings)(
+    implicit typeExpr: TypeFilterExpr[Id]) {
   private implicit val stringQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](querySettings.base)
+  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] =
+    Qualifier.configured[DomainId](querySettings.base)
+  private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] =
+    Qualifier.configured[SchemaName](querySettings.base)
+  private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId] =
+    Qualifier.configured[SchemaId](querySettings.base)
 
   /**
     * Lists all ids in the system that match the given filter.
@@ -39,7 +45,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def list(filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
-    val query = FilteredQuery(filter, pagination, term)
+    val query = FilteredQuery(Filter(typeExpr.apply) and filter.expr, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -53,7 +59,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def list(org: OrgId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(filter and orgExpr(org), pagination, term)
+    list(Filter(orgExpr(org)) and filter.expr, pagination, term)
 
   /**
     * Lists all ids in the system within the specified domain that match the given filter.
@@ -65,30 +71,21 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def list(dom: DomainId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(filter
-           and orgExpr(dom.orgId)
-           and domExpr(dom),
-         pagination,
-         term)
+    list(Filter(domExpr(dom)) and filter.expr, pagination, term)
 
   /**
     * Lists all ids in the system within the specified domain and that have the specified schema name that match
     * the given filter.
     *
-    * @param dom        the domain filter
     * @param schemaName the schema name filter
     * @param filter     the filter expression to be applied
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def list(dom: DomainId, schemaName: String, filter: Filter, pagination: Pagination, term: Option[String])(
-      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(filter
-           and orgExpr(dom.orgId)
-           and domExpr(dom)
-           and schemaNameExpr(schemaName),
-         pagination,
-         term)
+  def list(schemaName: SchemaName, filter: Filter, pagination: Pagination, term: Option[String])(
+      implicit Q: ConfiguredQualifier[Id],
+      schemaNameFilter: SchemaNameFilterExpr[Id]): F[QueryResults[Id]] =
+    list(Filter(schemaNameFilter(schemaName)) and filter.expr, pagination, term)
 
   /**
     * Lists all ids in the system conformant to the specified schema that match the given filter.
@@ -100,13 +97,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def list(schema: SchemaId, filter: Filter, pagination: Pagination, term: Option[String])(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
-    list(filter
-           and orgExpr(schema.domainId.orgId)
-           and domExpr(schema.domainId)
-           and schemaNameExpr(schema.name)
-           and schemaVerExpr(schema.version),
-         pagination,
-         term)
+    list(Filter(schemaExpr(schema)) and filter.expr, pagination, term)
 
   /**
     * Lists all outgoing ids linked to the if identified by ''id'' that match the given filter.
@@ -118,7 +109,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def outgoing(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
-    val query = FilteredQuery.outgoing(id.qualify, filter, pagination, term)
+    val query = FilteredQuery.outgoing(id.qualify, Filter(typeExpr.apply) and filter.expr, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -132,7 +123,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     */
   def incoming(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(
       implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] = {
-    val query = FilteredQuery.incoming(id.qualify, filter, pagination, term)
+    val query = FilteredQuery.incoming(id.qualify, Filter(typeExpr.apply) and filter.expr, pagination, term)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -149,7 +140,8 @@ object FilterQueries {
     * @tparam Id the generic type which defines the response's payload
     * @return an instance of [[FilterQueries]]
     */
-  final def apply[F[_], Id](queryClient: SparqlQuery[F], querySettings: QuerySettings): FilterQueries[F, Id] =
+  final def apply[F[_], Id](queryClient: SparqlQuery[F], querySettings: QuerySettings)(
+      implicit typeExpr: TypeFilterExpr[Id]): FilterQueries[F, Id] =
     new FilterQueries(queryClient, querySettings)
 
   /**
@@ -163,9 +155,19 @@ object FilterQueries {
       *
       * @param expr the expression to add to ''this'' filter.
       */
-    def and(expr: Expr): Filter = filter.expr match {
-      case LogicalExpr(And, exprs) => Filter(LogicalExpr(And, expr +: exprs))
-      case other                   => Filter(LogicalExpr(And, List(expr, other)))
+    def and(expr: Expr): Filter = {
+      expr match {
+        case LogicalExpr(And, exprList) =>
+          filter.expr match {
+            case LogicalExpr(And, exprs) => Filter(LogicalExpr(And, exprs ++ exprList))
+            case other                   => Filter(LogicalExpr(And, other +: exprList))
+          }
+        case _ =>
+          filter.expr match {
+            case LogicalExpr(And, exprs) => Filter(LogicalExpr(And, expr +: exprs))
+            case other                   => Filter(LogicalExpr(And, List(expr, other)))
+          }
+      }
     }
 
     /**
@@ -186,7 +188,7 @@ object FilterQueries {
     * @param baseVoc       the nexus core vocabulary base
     */
   def filterFrom(deprecatedOpt: Option[Boolean], filterOps: Option[Filter], baseVoc: Uri): Filter =
-    deprecatedAndRev(deprecatedOpt, baseVoc) and filterOps.map(_.expr)
+    deprecated(deprecatedOpt, baseVoc) and filterOps.map(_.expr)
 
   /**
     * Constructs a new filter based on an optional deprecation parameter.
@@ -194,35 +196,27 @@ object FilterQueries {
     * @param deprecatedOps the optional deprecated field
     * @param baseVoc       the nexus core vocabulary base
     */
-  def deprecatedAndRev(deprecatedOps: Option[Boolean], baseVoc: Uri): Filter =
-    Filter(LogicalExpr(Op.And, List(deprecatedOrNoop(deprecatedOps, baseVoc), revExpr(baseVoc))))
+  def deprecated(deprecatedOps: Option[Boolean], baseVoc: Uri): Filter =
+    Filter(deprecatedOrNoop(deprecatedOps, baseVoc))
 
   private def deprecatedOrNoop(deprecated: Option[Boolean], baseVoc: Uri): Expr = {
     deprecated
       .map { value =>
         val depr = "deprecated".qualifyWith(baseVoc)
-        ComparisonExpr(Op.Eq, UriTerm(depr), LiteralTerm(value.toString))
+        ComparisonExpr(Op.Eq, UriPath(depr), LiteralTerm(value.toString))
       }
       .getOrElse(NoopExpr)
   }
 
-  private def revExpr(baseVoc: Uri): Expr = {
-    val rev = "rev".qualifyWith(baseVoc)
-    ComparisonExpr(Op.Gt, UriTerm(rev), LiteralTerm("0"))
-  }
+  private def orgExpr(org: OrgId)(implicit qual: ConfiguredQualifier[String], orgQ: ConfiguredQualifier[OrgId]): Expr =
+    ComparisonExpr(Eq, UriPath("organization" qualify), UriTerm(org qualify))
 
-  private def orgExpr(org: OrgId)(implicit qual: ConfiguredQualifier[String]): Expr =
-    ComparisonExpr(Eq, UriTerm("organization" qualify), lit(org.id))
+  private def domExpr(dom: DomainId)(implicit qual: ConfiguredQualifier[String],
+                                     domQ: ConfiguredQualifier[DomainId]): Expr =
+    ComparisonExpr(Eq, UriPath("domain" qualify), UriTerm(dom qualify))
 
-  private def domExpr(dom: DomainId)(implicit qual: ConfiguredQualifier[String]): Expr =
-    ComparisonExpr(Eq, UriTerm("domain" qualify), lit(dom.id))
+  private def schemaExpr(schema: SchemaId)(implicit qual: ConfiguredQualifier[String],
+                                           schemaQ: ConfiguredQualifier[SchemaId]): Expr =
+    ComparisonExpr(Eq, UriPath("schema" qualify), UriTerm(schema qualify))
 
-  private def schemaNameExpr(schemaName: String)(implicit qual: ConfiguredQualifier[String]): Expr =
-    ComparisonExpr(Eq, UriTerm("schema" qualify), lit(schemaName))
-
-  private def schemaVerExpr(version: Version)(implicit qual: ConfiguredQualifier[String]): Expr =
-    ComparisonExpr(Eq, UriTerm("version" qualify), lit(version.show))
-
-  private def lit(value: String): LiteralTerm =
-    LiteralTerm(s""""$value"""")
 }

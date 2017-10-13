@@ -9,6 +9,11 @@
     "op": "and",
     "value": [
       {
+        "path": "<{{base}}/voc/nexus/core/schema> / <{{base}}/voc/nexus/core/schemaGroup>",
+        "op": "eq",
+        "value": "{{base}}/bbp/experiment/subject"
+      },
+      {
         "path": "prov:wasDerivedFrom",
         "op": "eq",
         "value": "{{base}}/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90"

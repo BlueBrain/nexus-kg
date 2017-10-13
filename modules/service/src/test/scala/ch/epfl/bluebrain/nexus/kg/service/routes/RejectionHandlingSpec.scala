@@ -43,7 +43,7 @@ class RejectionHandlingSpec
 
     val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
     val vocab         = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), "org-index", vocab)
+    val querySettings = QuerySettings(Pagination(0L, 20), "org-index", vocab, baseUri)
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =

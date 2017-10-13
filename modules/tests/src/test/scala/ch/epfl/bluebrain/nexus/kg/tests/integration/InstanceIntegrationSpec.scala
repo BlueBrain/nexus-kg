@@ -30,9 +30,16 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
 @DoNotDiscover
-class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesService: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]])(implicit
-  as: ActorSystem, ec: ExecutionContextExecutor, mt: ActorMaterializer)
-  extends BootstrapIntegrationSpec(apiUri, vocab) {
+class InstanceIntegrationSpec(
+    apiUri: Uri,
+    route: Route,
+    vocab: Uri,
+    instancesService: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]])(
+    implicit
+    as: ActorSystem,
+    ec: ExecutionContextExecutor,
+    mt: ActorMaterializer)
+    extends BootstrapIntegrationSpec(apiUri, vocab) {
 
   import BootstrapIntegrationSpec._
   import instanceEncoder._
@@ -41,17 +48,22 @@ class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesSe
 
     "performing integration tests" should {
       lazy val instances =
-        pendingInstances.foldLeft(List.empty[(InstanceId, Json)]) { case (acc, (InstanceId(schemaId, _), aJson)) =>
-          val json = acc match {
-            case (prevId, _) :: _ =>
-              aJson deepMerge Json.obj("hasPart" -> Json.obj("@id" -> Json.fromString(prevId.qualifyAsString)))
-            case _                => aJson
+        pendingInstances
+          .foldLeft(List.empty[(InstanceId, Json)]) {
+            case (acc, (InstanceId(schemaId, _), aJson)) =>
+              val json = acc match {
+                case (prevId, _) :: _ =>
+                  aJson deepMerge Json.obj("hasPart" -> Json.obj("@id" -> Json.fromString(prevId.qualifyAsString)))
+                case _ => aJson
+              }
+              val ref = Await.result(instancesService.create(schemaId, json), 1 second)
+              (ref.id -> json) :: acc
           }
-          val ref = Await.result(instancesService.create(schemaId, json), 1 second)
-          (ref.id -> json) :: acc
-        }.sortWith(_._1.show < _._1.show)
+          .sortWith(_._1.show < _._1.show)
 
-      lazy val randInstances = instances.collect { case tuple@(InstanceId(SchemaId(DomainId(OrgId(org), _), _, _), _), _) if org == "rand" => tuple }
+      lazy val randInstances = instances.collect {
+        case tuple @ (InstanceId(SchemaId(DomainId(OrgId(org), _), _, _), _), _) if org == "rand" => tuple
+      }
 
       "list all instances" in {
         eventually(timeout(Span(1, Minutes)), interval(Span(1, Seconds))) {
@@ -60,7 +72,9 @@ class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesSe
         eventually(timeout(Span(indexTimeout + 5, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/data") ~> route ~> check {
             status shouldEqual StatusCodes.OK
-            val expectedResults = UnscoredQueryResults(instances.length.toLong, instances.take(20).map { case (id, _) => UnscoredQueryResult(id) })
+            val expectedResults = UnscoredQueryResults(instances.length.toLong, instances.take(20).map {
+              case (id, _) => UnscoredQueryResult(id)
+            })
             val expectedLinks = List(Link("self", s"$apiUri/data"), Link("next", s"$apiUri/data?from=20&size=20"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
@@ -69,10 +83,12 @@ class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesSe
 
       "list instances on organization rand with pagination" in {
         val pagination = Pagination(0L, 5)
-        val path = s"/data/rand?size=${pagination.size}"
+        val path       = s"/data/rand?size=${pagination.size}"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          val expectedResults = UnscoredQueryResults(randInstances.length.toLong, randInstances.map { case (id, _) => UnscoredQueryResult(id) }.take(pagination.size))
+          val expectedResults =
+            UnscoredQueryResults(randInstances.length.toLong,
+                                 randInstances.map { case (id, _) => UnscoredQueryResult(id) }.take(pagination.size))
           val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=5"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
@@ -80,47 +96,52 @@ class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesSe
 
       "output the correct total even when the from query parameter is out of scope" in {
         val pagination = Pagination(0L, 5)
-        val path = s"/data/rand?size=${pagination.size}&from=500"
+        val path       = s"/data/rand?size=${pagination.size}&from=500"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          val expectedResults = UnscoredQueryResults(randInstances.length.toLong, List.empty[UnscoredQueryResult[SchemaId]])
-          val expectedLinks = List(Link("self", s"$apiUri$path"), Link("previous", s"$apiUri$path".replace("from=500", s"from=${randInstances.length - 5}")))
+          val expectedResults =
+            UnscoredQueryResults(randInstances.length.toLong, List.empty[UnscoredQueryResult[SchemaId]])
+          val expectedLinks =
+            List(Link("self", s"$apiUri$path"),
+                 Link("previous", s"$apiUri$path".replace("from=500", s"from=${randInstances.length - 5}")))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
       "list instances on organization nexus with full text search" in {
         val (instanceId, _) = instances.head
-        val path = s"/data/nexus?q=${instanceId.id}"
+        val path            = s"/data/nexus?q=${instanceId.id}"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          val json = responseAs[Json]
-          val score = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
+          val json            = responseAs[Json]
+          val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
           val expectedResults = ScoredQueryResults(1L, score, List(ScoredQueryResult(score, instanceId)))
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks   = List(Link("self", s"$apiUri$path"))
           json shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
       "output the correct total in full text search even when the from query parameter is out of scope" in {
         val (instanceId, _) = instances.head
-        val path = s"/data/nexus?q=${instanceId.id}&size=3&from=200"
+        val path            = s"/data/nexus?q=${instanceId.id}&size=3&from=200"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          val json = responseAs[Json]
-          val score = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
+          val json            = responseAs[Json]
+          val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
           val expectedResults = ScoredQueryResults(1L, score, List.empty[ScoredQueryResult[SchemaId]])
-          val expectedLinks = List(Link("self", s"$apiUri$path"), Link("previous", s"$apiUri$path".replace("from=200", "from=0")))
+          val expectedLinks =
+            List(Link("self", s"$apiUri$path"), Link("previous", s"$apiUri$path".replace("from=200", "from=0")))
           json shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
       "list instances on organization nexus and domain development and specific schema name" in {
         val (schemaId, _) = schemas.head
-        val path = s"/data/${schemaId.schemaName.show}"
+        val path          = s"/data/${schemaId.schemaName.show}"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          val expectedResults = UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
+          val expectedResults =
+            UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = List(Link("self", s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
@@ -128,23 +149,27 @@ class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesSe
 
       "list instances with filter on 'desc' path" in {
         val (instanceId, json) = instances.head
-        val desc = json.hcursor.get[String]("nexusvoc:desc").toOption.getOrElse("")
-        val uriFilter = URLEncoder.encode(s"""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}, "filter": {"path": "http://localhost/v0/voc/nexus/core/desc", "op": "eq", "value": "$desc"} } """, "UTF-8")
+        val desc               = json.hcursor.get[String]("nexusvoc:desc").toOption.getOrElse("")
+        val uriFilter = URLEncoder.encode(
+          s"""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}, "filter": {"path": "http://localhost/v0/voc/nexus/core/desc", "op": "eq", "value": "$desc"} } """,
+          "UTF-8"
+        )
         val path = s"/data?filter=$uriFilter"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks   = List(Link("self", s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
       "list instances for one schemaId" in {
         val (instanceId, _) = instances.head
-        val path = s"/data/${instanceId.schemaId.show}"
+        val path            = s"/data/${instanceId.schemaId.show}"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          val expectedResults = UnscoredQueryResults(5L, instances.take(5).map { case (id, _) => UnscoredQueryResult(id) })
+          val expectedResults =
+            UnscoredQueryResults(5L, instances.take(5).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = List(Link("self", s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
@@ -154,7 +179,8 @@ class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesSe
         val path = s"/data/nexus/development"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          val expectedResults = UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
+          val expectedResults =
+            UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = List(Link("self", s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
@@ -173,7 +199,8 @@ class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesSe
           val path = s"/data/nexus/development?deprecated=false"
           Get(path) ~> route ~> check {
             status shouldEqual StatusCodes.OK
-            val expectedResults = UnscoredQueryResults(9L, instances.slice(1, 10).map { case (id, _) => UnscoredQueryResult(id) })
+            val expectedResults =
+              UnscoredQueryResults(9L, instances.slice(1, 10).map { case (id, _) => UnscoredQueryResult(id) })
             val expectedLinks = List(Link("self", s"$apiUri$path"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
@@ -181,25 +208,31 @@ class InstanceIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, instancesSe
       }
 
       "list outgoing instances on one instance" in {
-        val (instanceId, json) = instances.collectFirst { case tuple@(_, j) if j.hcursor.get[Json]("hasPart").toOption.isDefined => tuple }.get
-        val outgoingId: InstanceId = json.hcursor.downField("hasPart").get[String]("@id").toOption.flatMap(_.unqualify[InstanceId]).get
+        val (instanceId, json) = instances.collectFirst {
+          case tuple @ (_, j) if j.hcursor.get[Json]("hasPart").toOption.isDefined => tuple
+        }.get
+        val outgoingId: InstanceId =
+          json.hcursor.downField("hasPart").get[String]("@id").toOption.flatMap(_.unqualify[InstanceId]).get
         val path = s"/data/${instanceId.show}/outgoing"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(outgoingId)))
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks   = List(Link("self", s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
 
       "list incoming instances on one instance" in {
-        val (instanceId, json) = instances.collectFirst { case tuple@(_, j) if j.hcursor.get[Json]("hasPart").toOption.isDefined => tuple }.get
-        val outgoingId: InstanceId = json.hcursor.downField("hasPart").get[String]("@id").toOption.flatMap(_.unqualify[InstanceId]).get
+        val (instanceId, json) = instances.collectFirst {
+          case tuple @ (_, j) if j.hcursor.get[Json]("hasPart").toOption.isDefined => tuple
+        }.get
+        val outgoingId: InstanceId =
+          json.hcursor.downField("hasPart").get[String]("@id").toOption.flatMap(_.unqualify[InstanceId]).get
         val path = s"/data/${outgoingId.show}/incoming"
         Get(path) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks   = List(Link("self", s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }

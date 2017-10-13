@@ -41,11 +41,10 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param querySettings     query parameters from settings
   * @param filteringSettings filtering parameters from settings
   */
-class InstanceRoutes(
-  instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
-  instanceQueries: FilterQueries[Future, InstanceId],
-  base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
-  extends DefaultRouteHandling {
+class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
+                     instanceQueries: FilterQueries[Future, InstanceId],
+                     base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
+    extends DefaultRouteHandling {
 
   private val encoders = new InstanceCustomEncoders(base)
 
@@ -58,26 +57,26 @@ class InstanceRoutes(
         pathEndOrSingleSlash {
           instanceQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
         } ~
-        extractAnyResourceId() { id =>
-          (pathEndOrSingleSlash & resourceId(id, of[OrgId])) { orgId =>
-            instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
-          } ~
-            (pathEndOrSingleSlash & resourceId(id, of[DomainId])) { domainId =>
-            instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
-          } ~
-          (pathEndOrSingleSlash & resourceId(id, of[SchemaName])) { case SchemaName(domainId, name) =>
-            instanceQueries.list(domainId, name, filter, pagination, termOpt).buildResponse(base, pagination)
-          } ~
-          (pathEndOrSingleSlash & resourceId(id, of[SchemaId])) { schemaId =>
-            instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)
-          } ~
-          (resourceId(id, of[InstanceId]) & pathPrefix("outgoing") & pathEndOrSingleSlash) { instanceId =>
-            instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
-          } ~
-          (resourceId(id, of[InstanceId]) & pathPrefix("incoming") & pathEndOrSingleSlash) { instanceId =>
-            instanceQueries.incoming(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+          extractAnyResourceId() { id =>
+            (pathEndOrSingleSlash & resourceId(id, of[OrgId])) { orgId =>
+              instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+            } ~
+              (pathEndOrSingleSlash & resourceId(id, of[DomainId])) { domainId =>
+                instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+              } ~
+              (pathEndOrSingleSlash & resourceId(id, of[SchemaName])) { schemaName =>
+                instanceQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
+              } ~
+              (pathEndOrSingleSlash & resourceId(id, of[SchemaId])) { schemaId =>
+                instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)
+              } ~
+              (resourceId(id, of[InstanceId]) & pathPrefix("outgoing") & pathEndOrSingleSlash) { instanceId =>
+                instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+              } ~
+              (resourceId(id, of[InstanceId]) & pathPrefix("incoming") & pathEndOrSingleSlash) { instanceId =>
+                instanceQueries.incoming(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+              }
           }
-        }
       }
     }
 
@@ -92,78 +91,81 @@ class InstanceRoutes(
           }
         }
       } ~
-      resourceId(id, of[InstanceId]) { instanceId =>
-        pathEndOrSingleSlash {
-          (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
-            traceName("updateInstance") {
-              onSuccess(instances.update(instanceId, rev, json)) { ref =>
-                complete(StatusCodes.OK -> ref)
+        resourceId(id, of[InstanceId]) { instanceId =>
+          pathEndOrSingleSlash {
+            (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
+              traceName("updateInstance") {
+                onSuccess(instances.update(instanceId, rev, json)) { ref =>
+                  complete(StatusCodes.OK -> ref)
+                }
               }
-            }
-          } ~
-          get {
-            parameter('rev.as[Long].?) {
-              case Some(rev) =>
-                traceName("getInstanceRevision") {
-                  onSuccess(instances.fetch(instanceId, rev)) {
-                    case Some(instance) => complete(StatusCodes.OK -> instance)
-                    case None           => complete(StatusCodes.NotFound)
+            } ~
+              get {
+                parameter('rev.as[Long].?) {
+                  case Some(rev) =>
+                    traceName("getInstanceRevision") {
+                      onSuccess(instances.fetch(instanceId, rev)) {
+                        case Some(instance) => complete(StatusCodes.OK -> instance)
+                        case None           => complete(StatusCodes.NotFound)
+                      }
+                    }
+                  case None =>
+                    traceName("getInstance") {
+                      onSuccess(instances.fetch(instanceId)) {
+                        case Some(instance) => complete(StatusCodes.OK -> instance)
+                        case None           => complete(StatusCodes.NotFound)
+                      }
+                    }
+                }
+              } ~
+              (delete & parameter('rev.as[Long])) { rev =>
+                traceName("deprecateInstance") {
+                  onSuccess(instances.deprecate(instanceId, rev)) { ref =>
+                    complete(StatusCodes.OK -> ref)
                   }
                 }
-              case None      =>
-                traceName("getInstance") {
-                  onSuccess(instances.fetch(instanceId)) {
-                    case Some(instance) => complete(StatusCodes.OK -> instance)
-                    case None           => complete(StatusCodes.NotFound)
+              }
+          } ~
+            path("attachment") {
+              (put & parameter('rev.as[Long])) { rev =>
+                fileUpload("file") {
+                  case (metadata, byteSource) =>
+                    traceName("createInstanceAttachment") {
+                      onSuccess(instances
+                        .createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) {
+                        info =>
+                          complete(StatusCodes.Created -> info)
+                      }
+                    }
+                }
+              } ~
+                (delete & parameter('rev.as[Long])) { rev =>
+                  traceName("removeInstanceAttachment") {
+                    onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
+                      complete(StatusCodes.OK -> ref)
+                    }
+                  }
+                } ~
+                get {
+                  parameter('rev.as[Long].?) { revOpt =>
+                    traceName("getInstanceAttachment") {
+                      val result = revOpt match {
+                        case Some(rev) => instances.fetchAttachment(instanceId, rev)
+                        case None      => instances.fetchAttachment(instanceId)
+                      }
+                      onSuccess(result) {
+                        case Some((info, source)) =>
+                          val ct =
+                            ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
+                          complete(HttpEntity(ct, info.size.value, source))
+                        case None =>
+                          complete(StatusCodes.NotFound)
+                      }
+                    }
                   }
                 }
             }
-          } ~
-          (delete & parameter('rev.as[Long])) { rev =>
-            traceName("deprecateInstance") {
-              onSuccess(instances.deprecate(instanceId, rev)) { ref =>
-                complete(StatusCodes.OK -> ref)
-              }
-            }
-          }
-        } ~
-        path("attachment") {
-          (put & parameter('rev.as[Long])) { rev =>
-            fileUpload("file") {
-              case (metadata, byteSource) =>
-                traceName("createInstanceAttachment") {
-                  onSuccess(instances.createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) { info =>
-                    complete(StatusCodes.Created -> info)
-                  }
-                }
-            }
-          } ~
-          (delete & parameter('rev.as[Long])) { rev =>
-            traceName("removeInstanceAttachment") {
-              onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
-                complete(StatusCodes.OK -> ref)
-              }
-            }
-          } ~
-          get {
-            parameter('rev.as[Long].?) { revOpt =>
-              traceName("getInstanceAttachment") {
-                val result = revOpt match {
-                  case Some(rev) => instances.fetchAttachment(instanceId, rev)
-                  case None      => instances.fetchAttachment(instanceId)
-                }
-                onSuccess(result) {
-                  case Some((info, source)) =>
-                    val ct = ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
-                    complete(HttpEntity(ct, info.size.value, source))
-                  case None                 =>
-                    complete(StatusCodes.NotFound)
-                }
-              }
-            }
-          }
         }
-      }
     }
 
   def routes: Route = combinedRoutesFor("data")
@@ -180,26 +182,30 @@ object InstanceRoutes {
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
-    client: SparqlClient[Future],
-    querySettings: QuerySettings,
-    base: Uri)(implicit
-    ec: ExecutionContext,
-    filteringSettings: FilteringSettings): InstanceRoutes = {
+                  client: SparqlClient[Future],
+                  querySettings: QuerySettings,
+                  base: Uri)(implicit
+                             ec: ExecutionContext,
+                             filteringSettings: FilteringSettings): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
-    val instanceQueries = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
+    val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
     new InstanceRoutes(instances, instanceQueries, base)
   }
 }
 
-class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link]) extends RoutesEncoder[InstanceId, InstanceRef](base) {
+class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link])
+    extends RoutesEncoder[InstanceId, InstanceRef](base) {
 
   implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
 
   implicit val instanceEncoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
     val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
-    val meta = instanceRefEncoder.apply(instanceRef).deepMerge(Json.obj(
-      "deprecated" -> Json.fromBoolean(instance.deprecated)
-    ))
+    val meta = instanceRefEncoder
+      .apply(instanceRef)
+      .deepMerge(
+        Json.obj(
+          "deprecated" -> Json.fromBoolean(instance.deprecated)
+        ))
     instance.value.deepMerge(meta)
   }
 
@@ -209,9 +215,10 @@ class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link]) extends Rout
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
     idWithLinksEncoder.apply(instanceId) deepMerge
-      Json.obj("links" -> Json.arr(
-        le(Link(rel = "self", href = instanceId.qualifyAsString)),
-        le(Link(rel = "schema", href = instanceId.schemaId.qualifyAsString))
-      ))
+      Json.obj(
+        "links" -> Json.arr(
+          le(Link(rel = "self", href = instanceId.qualifyAsString)),
+          le(Link(rel = "schema", href = instanceId.schemaId.qualifyAsString))
+        ))
   }
 }

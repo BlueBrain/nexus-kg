@@ -23,11 +23,7 @@ object SchemaState {
     * @param published  the publish status
     * @param deprecated the deprecation status
     */
-  final case class Current(
-    id: SchemaId,
-    rev: Long,
-    value: Json,
-    published: Boolean,
-    deprecated: Boolean) extends SchemaState
+  final case class Current(id: SchemaId, rev: Long, value: Json, published: Boolean, deprecated: Boolean)
+      extends SchemaState
 
 }

@@ -18,8 +18,8 @@ object SystemBuilder {
     * @return an actor system with akka persistence configured to cassandra and clustering enabled
     */
   final def initConfig(name: String, cassandraPort: Int, blazegraphPort: Int): ActorSystem = {
-    val config = ConfigFactory.parseString(
-      s"""
+    val config = ConfigFactory
+      .parseString(s"""
          |test.cassandra-port = $cassandraPort
          |test.blazegraph-port = $blazegraphPort
        """.stripMargin)
@@ -32,5 +32,3 @@ object SystemBuilder {
     ActorSystem(name, config)
   }
 }
-
-

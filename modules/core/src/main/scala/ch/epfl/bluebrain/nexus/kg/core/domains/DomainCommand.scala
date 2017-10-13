@@ -4,6 +4,7 @@ package ch.epfl.bluebrain.nexus.kg.core.domains
   * Enumeration type for commands that apply to domains.
   */
 sealed trait DomainCommand extends Product with Serializable {
+
   /**
     * @return the unique identifier for the domain for which this command will be evaluated
     */

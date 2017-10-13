@@ -20,18 +20,22 @@ class Settings(config: Config) extends Extension {
     * Items that refer to the description of the service.
     */
   object Description {
+
     /**
       * The machine readable name of the service.
       */
     val Name = ns.getString("description.name")
+
     /**
       * The currently deployed version of the service.
       */
     val Version = BuildInfo.version
+
     /**
       * The current environment.
       */
     val Environment = ns.getString("description.environment")
+
     /**
       * The ActorSystem name.
       */
@@ -42,6 +46,7 @@ class Settings(config: Config) extends Extension {
     * Service instance specific settings.
     */
   object Instance {
+
     /**
       * The default interface to bind to.
       */
@@ -49,18 +54,22 @@ class Settings(config: Config) extends Extension {
   }
 
   object Http {
+
     /**
       * The interface to bind to.
       */
     val Interface = ns.getString("http.interface")
+
     /**
       * The port to bind to.
       */
     val Port = ns.getInt("http.port")
+
     /**
       * The default uri prefix.
       */
     val Prefix = ns.getString("http.prefix")
+
     /**
       * The service public uri.
       */
@@ -71,6 +80,7 @@ class Settings(config: Config) extends Extension {
     * Items that refer to the runtime configuration of the service.
     */
   object Runtime {
+
     /**
       * Arbitrary Future completion timeout.
       */
@@ -81,14 +91,17 @@ class Settings(config: Config) extends Extension {
     * Items that refer to Cluster specific settings.
     */
   object Cluster {
+
     /**
       * Duration after which actors are shutdown if they have no interaction.
       */
     val PassivationTimeout = Duration(ns.getDuration("cluster.passivation-timeout", MILLISECONDS), MILLISECONDS)
+
     /**
       * Total number of shards in the cluster.
       */
     val Shards = ns.getInt("cluster.shards")
+
     /**
       * The seeds to use to join a cluster.
       */
@@ -96,14 +109,17 @@ class Settings(config: Config) extends Extension {
   }
 
   object Persistence {
+
     /**
       * The id of the journal plugin to use.
       */
     val JournalPlugin = ns.getString("persistence.journal.plugin")
+
     /**
       * The id of the snapshot store plugin to use.
       */
     val SnapshotStorePlugin = ns.getString("persistence.snapshot-store.plugin")
+
     /**
       * The id of the read journal plugin to use.
       */
@@ -111,10 +127,12 @@ class Settings(config: Config) extends Extension {
   }
 
   object Attachment {
+
     /**
       * The root path where the instance attachments are going to be persisted
       */
     val VolumePath = new File(ns.getString("attachment.volume-path")).toPath
+
     /**
       * The hash algorithm to calculate the attachment's digest
       */
@@ -122,10 +140,12 @@ class Settings(config: Config) extends Extension {
   }
 
   object Prefixes {
+
     /**
       * The nexus core vocabulary prefix.
       */
     val CoreVocabulary = Uri(ns.getString("prefixes.core-vocabulary"))
+
     /**
       * The nexus search vocabulary prefix.
       */
@@ -133,6 +153,7 @@ class Settings(config: Config) extends Extension {
   }
 
   object Sparql {
+
     /**
       * The base uri for the sparql endpoint.
       */
@@ -144,10 +165,12 @@ class Settings(config: Config) extends Extension {
     val Endpoint = Uri(ns.getString("sparql.endpoint"))
 
     object Domains {
+
       /**
         * The index name for domain indexing.
         */
       val Index = ns.getString("sparql.domains.index")
+
       /**
         * The base namespace for domain named graphs.
         */
@@ -155,22 +178,25 @@ class Settings(config: Config) extends Extension {
     }
 
     object Organizations {
+
       /**
         * The index name for organization indexing.
         */
       val Index = ns.getString("sparql.organizations.index")
+
       /**
         * The base namespace for organization named graphs.
         */
       val GraphBaseNamespace = Uri(ns.getString("sparql.organizations.graph-base-namespace"))
     }
 
-
     object Schemas {
+
       /**
         * The index name for schema indexing.
         */
       val Index = ns.getString("sparql.schemas.index")
+
       /**
         * The base namespace for schema named graphs.
         */
@@ -178,15 +204,18 @@ class Settings(config: Config) extends Extension {
     }
 
     object Instances {
+
       /**
         * The index name for instance indexing.
         */
       val Index = ns.getString("sparql.instances.index")
+
       /**
         * The base namespace for instance named graphs.
         */
       val GraphBaseNamespace = Uri(ns.getString("sparql.instances.graph-base-namespace"))
     }
+
     /**
       * The default page offset.
       */
@@ -200,6 +229,7 @@ class Settings(config: Config) extends Extension {
   }
 
   object Organizations {
+
     /**
       * Duration after which actors are shutdown if they have no interaction.
       */
@@ -207,6 +237,7 @@ class Settings(config: Config) extends Extension {
   }
 
   object Domains {
+
     /**
       * Duration after which actors are shutdown if they have no interaction.
       */
@@ -214,6 +245,7 @@ class Settings(config: Config) extends Extension {
   }
 
   object Schemas {
+
     /**
       * Duration after which actors are shutdown if they have no interaction.
       */
@@ -221,6 +253,7 @@ class Settings(config: Config) extends Extension {
   }
 
   object Instances {
+
     /**
       * Duration after which actors are shutdown if they have no interaction.
       */

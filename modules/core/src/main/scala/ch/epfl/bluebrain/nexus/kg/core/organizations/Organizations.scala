@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import io.circe.Json
 import journal.Logger
 import cats.syntax.show._
+
 /**
   * Bundles operations that can be performed against organizations using the underlying persistence abstraction.
   *
@@ -48,7 +49,7 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
     */
   def create(id: OrgId, value: Json): F[OrgRef] =
     for {
-      _ <- validateId(id)
+      _       <- validateId(id)
       current <- evaluate(CreateOrg(id, value), "Create organization")
     } yield OrgRef(id, current.rev)
 
@@ -101,7 +102,7 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
         logger.debug(s"$intent: command '$cmd' was rejected due to '$rejection'")
         F.raiseError(CommandRejected(rejection))
       // $COVERAGE-OFF$
-      case Right(s@Initial) =>
+      case Right(s @ Initial) =>
         logger.error(s"$intent: command '$cmd' evaluation failed, received an '$s' state")
         F.raiseError(Unexpected(s"Unexpected Initial state as outcome of evaluating command '$cmd'"))
       // $COVERAGE-ON$
@@ -121,7 +122,7 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
       case idRegex() =>
         logger.debug(s"Id validation for '$id' succeeded")
         F.pure(())
-      case _         =>
+      case _ =>
         logger.debug(s"Id validation for '$id' failed, did not match regex '$idRegex'")
         F.raiseError(CommandRejected(InvalidOrganizationId(id.id)))
     }
@@ -137,10 +138,10 @@ object Organizations {
     */
   type OrgAggregate[F[_]] = Aggregate[F] {
     type Identifier = String
-    type Event = OrgEvent
-    type State = OrgState
-    type Command = OrgCommand
-    type Rejection = OrgRejection
+    type Event      = OrgEvent
+    type State      = OrgState
+    type Command    = OrgCommand
+    type Rejection  = OrgRejection
   }
 
   /**

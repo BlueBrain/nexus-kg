@@ -11,12 +11,13 @@ object Op {
     * Enumeration type for all filtering logical operators.
     */
   sealed trait LogicalOp extends Op
-  final case object And extends LogicalOp
-  final case object Or extends LogicalOp
-  final case object Not extends LogicalOp
-  final case object Xor extends LogicalOp
+  final case object And  extends LogicalOp
+  final case object Or   extends LogicalOp
+  final case object Not  extends LogicalOp
+  final case object Xor  extends LogicalOp
 
   object LogicalOp {
+
     /**
       * Attempts to construct ''LogicalOp'' from the provided string.
       *
@@ -35,12 +36,12 @@ object Op {
     * Enumeration type for all filtering comparison operators.
     */
   sealed trait ComparisonOp extends Op
-  final case object Eq extends ComparisonOp
-  final case object Ne extends ComparisonOp
-  final case object Lt extends ComparisonOp
-  final case object Gt extends ComparisonOp
-  final case object Lte extends ComparisonOp
-  final case object Gte extends ComparisonOp
+  final case object Eq      extends ComparisonOp
+  final case object Ne      extends ComparisonOp
+  final case object Lt      extends ComparisonOp
+  final case object Gt      extends ComparisonOp
+  final case object Lte     extends ComparisonOp
+  final case object Gte     extends ComparisonOp
 
   object ComparisonOp {
 
@@ -65,6 +66,7 @@ object Op {
     */
   sealed trait In extends Op
   final case object In extends In {
+
     /**
       * Attempts to construct ''In'' from the provided string.
       *

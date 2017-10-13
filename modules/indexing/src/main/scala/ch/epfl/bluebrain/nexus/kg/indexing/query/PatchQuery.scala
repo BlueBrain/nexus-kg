@@ -20,13 +20,16 @@ object PatchQuery {
     */
   def apply[A: ConfiguredQualifier](id: A, predicates: String*): String = {
     val subj = NodeFactory.createURI(id.qualifyAsString)
-    predicates.zipWithIndex.foldLeft(new ConstructBuilder) {
-      case (builder, (elem, idx)) =>
-        val predicate = NodeFactory.createURI(elem)
-        val objVar = NodeFactory.createVariable(s"var$idx")
-        builder
-          .addConstruct(subj, predicate, objVar)
-          .addWhere(subj, predicate, objVar)
-    }.build.serialize()
+    predicates.zipWithIndex
+      .foldLeft(new ConstructBuilder) {
+        case (builder, (elem, idx)) =>
+          val predicate = NodeFactory.createURI(elem)
+          val objVar    = NodeFactory.createVariable(s"var$idx")
+          builder
+            .addConstruct(subj, predicate, objVar)
+            .addWhere(subj, predicate, objVar)
+      }
+      .build
+      .serialize()
   }
 }

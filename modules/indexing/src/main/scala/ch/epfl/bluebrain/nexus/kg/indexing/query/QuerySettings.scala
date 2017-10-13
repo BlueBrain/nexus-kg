@@ -9,5 +9,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
   * @param pagination   the default pagination parameters
   * @param index        the index to be used for querying
   * @param nexusVocBase the nexus core vocabulary base
+  * @param base         the service public uri + prefix
   */
-final case class QuerySettings(pagination: Pagination, index: String, nexusVocBase: Uri)
+final case class QuerySettings(pagination: Pagination, index: String, nexusVocBase: Uri, base: Uri)
