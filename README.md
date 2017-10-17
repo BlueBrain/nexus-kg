@@ -6,6 +6,8 @@
 
 The project bundles the collection of modules that make up the Nexus KG Service.
 
+Please visit the [parent project](https://github.com/BlueBrain/nexus) for more information about Nexus.
+
 ## Building the project
 
 The project depends on the [sbt nexus](https://github.com/bluebrain/sbt-nexus) plugin and
