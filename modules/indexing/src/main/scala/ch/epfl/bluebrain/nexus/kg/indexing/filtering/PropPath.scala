@@ -92,7 +92,11 @@ object PropPath extends PropPathBuilder {
     case AlternativeSeqPath(first, second) => s"${showPath.show(first)}|${showPath.show(second)}"
     case NegatedSeqPath(Nil)               => ""
     case NegatedSeqPath(list) =>
-      list.foldLeft(Vector.empty[String])((acc, current) => acc :+ showPath.show(current)).mkString("!(", "|", ")")
+      list
+        .foldLeft(Vector.empty[String]) { (acc, current) =>
+          acc :+ showPath.show(current)
+        }
+        .mkString("!(", "|", ")")
 
   }
 
@@ -123,21 +127,14 @@ trait PropPathBuilder {
       }
     }
 
-    def many(paths: List[Path]): Either[PropPathError, PropPath] = {
-      Try {
-        paths.foldLeft(Vector.empty[PropPath]) { (acc, current) =>
-          inner(current).map {
-            case Right(r) =>
-              acc :+ r
-            case Left(err) =>
-              throw err
-          }.value
-        }
-      }.fold(
-        _ => Left(PropPathError(paths: _*)),
-        paths => Right(NegatedSeqPath(paths.toList))
-      )
-    }
+    def many(paths: List[Path]): Either[PropPathError, PropPath] =
+      paths.foldLeft[Either[PropPathError, List[PropPath]]](Right(Nil)) {
+        case (l @ Left(_), _)  => l
+        case (Right(list), el) => inner(el).value.map(_ :: list)
+      } match {
+        case Left(_)     => Left(PropPathError(paths: _*))
+        case Right(list) => Right(NegatedSeqPath(list.reverse))
+      }
 
     def inner(path: Path): Eval[Either[PropPathError, PropPath]] = {
       path match {
