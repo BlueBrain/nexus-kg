@@ -6,7 +6,8 @@ import cats.{Eval, Show}
 import ch.epfl.bluebrain.nexus.commons.types.Err
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath._
 import org.apache.jena.sparql.path._
-
+import org.apache.jena.graph.Node
+import scala.collection.JavaConverters._
 import scala.util.Try
 
 sealed trait PropPath extends Product with Serializable
@@ -71,6 +72,13 @@ object PropPath extends PropPathBuilder {
     */
   final case class AlternativeSeqPath(left: PropPath, right: PropPath) extends PropPath
 
+  /**
+    * A negated seq. Sparql expression: !iri or !(iri1| ...|irin)
+    *
+    * @param paths list of [[PropPath]]
+    */
+  final case class NegatedSeqPath(paths: List[PropPath]) extends PropPath
+
   private implicit val showUriPath: Show[Uri] = Show.show(uri => s"<$uri>")
 
   implicit val showPath: Show[PropPath] = Show.show[PropPath] {
@@ -82,6 +90,14 @@ object PropPath extends PropPathBuilder {
     case PathZeroOrOne(uri)                => s"(${uri.show})?"
     case SeqPath(first, second)            => s"${showPath.show(first)}/${showPath.show(second)}"
     case AlternativeSeqPath(first, second) => s"${showPath.show(first)}|${showPath.show(second)}"
+    case NegatedSeqPath(Nil)               => ""
+    case NegatedSeqPath(list) =>
+      list
+        .foldLeft(Vector.empty[String]) { (acc, current) =>
+          acc :+ showPath.show(current)
+        }
+        .mkString("!(", "|", ")")
+
   }
 
   /**
@@ -111,6 +127,15 @@ trait PropPathBuilder {
       }
     }
 
+    def many(paths: List[Path]): Either[PropPathError, PropPath] =
+      paths.foldLeft[Either[PropPathError, List[PropPath]]](Right(Nil)) {
+        case (l @ Left(_), _)  => l
+        case (Right(list), el) => inner(el).value.map(_ :: list)
+      } match {
+        case Left(_)     => Left(PropPathError(paths: _*))
+        case Right(list) => Right(NegatedSeqPath(list.reverse))
+      }
+
     def inner(path: Path): Eval[Either[PropPathError, PropPath]] = {
       path match {
         case LinkExtr(uri)                 => Eval.now(Right(UriPath(uri)))
@@ -118,21 +143,26 @@ trait PropPathBuilder {
         case ZeroOrMoreExtr(LinkExtr(uri)) => Eval.now(Right(PathZeroOrMore(uri)))
         case OneOrMoreExtr(LinkExtr(uri))  => Eval.now(Right(PathOneOrMore(uri)))
         case InverseExtr(LinkExtr(uri))    => Eval.now(Right(InversePath(uri)))
+        case ReverseExtr(uri)              => Eval.now(Right(InversePath(uri)))
         case SeqExtr(left, right)          => two(left, right, SeqPath.apply)
         case AltExtr(left, right)          => two(left, right, AlternativeSeqPath.apply)
-        case _                             => Eval.now(Left(PropPathError(path)))
+        case NegSeqExtr(paths)             => Eval.later(many(paths))
+
+        case _ => Eval.now(Left(PropPathError(path)))
       }
     }
 
     inner(path).value
   }
 
+  private implicit def toUri(node: Node): Option[Uri] =
+    Try(Uri(node.getURI)).toOption
+      .filter(uri => uri.isAbsolute && uri.toString().indexOf("/") > -1)
+
   object LinkExtr {
     def unapply(value: Path): Option[Uri] = value match {
-      case link: P_Link =>
-        Try(Uri(link.getNode.getURI)).toOption
-          .filter(uri => uri.isAbsolute && uri.toString().indexOf("/") > -1)
-      case _ => None
+      case link: P_Link => link.getNode
+      case _            => None
     }
   }
 
@@ -147,6 +177,13 @@ trait PropPathBuilder {
     def unapply(value: Path): Option[Path] = value match {
       case link: P_Inverse => Some(link.getSubPath)
       case _               => None
+    }
+  }
+
+  object ReverseExtr {
+    def unapply(value: Path): Option[Uri] = value match {
+      case link: P_ReverseLink => link.getNode
+      case _                   => None
     }
   }
 
@@ -175,6 +212,13 @@ trait PropPathBuilder {
     def unapply(value: Path): Option[(Path, Path)] = value match {
       case link: P_Alt => Some(link.getLeft -> link.getRight)
       case _           => None
+    }
+  }
+
+  object NegSeqExtr {
+    def unapply(value: Path): Option[List[Path]] = value match {
+      case link: P_NegPropSet => Some(link.getNodes.asScala.toList)
+      case _                  => None
     }
   }
 }
