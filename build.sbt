@@ -47,6 +47,25 @@ lazy val core = project
     )
   )
 
+lazy val authTypes = project
+  .in(file("modules/auth-types"))
+  .settings(common)
+  .settings(
+    name := "auth-types",
+    moduleName := "auth-types",
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka"  %% "akka-http" % akkaHttpVersion.value,
+      "de.heikoseeberger"  %% "akka-http-circe" % akkaHttpCirceVersion.value,
+      "io.circe"           %% "circe-core" % circeVersion.value,
+      "io.circe"           %% "circe-generic-extras" % circeVersion.value,
+      "io.circe"           %% "circe-optics" % circeVersion.value,
+      "io.circe"           %% "circe-parser" % circeVersion.value,
+      "io.verizon.journal" %% "core" % journalVersion.value,
+      commonsTest          % Test,
+      "org.scalatest"      %% "scalatest" % scalaTestVersion.value % Test
+    )
+  )
+
 lazy val indexing = project
   .in(file("modules/indexing"))
   .dependsOn(core)
@@ -81,7 +100,7 @@ lazy val indexing = project
 
 lazy val service = project
   .in(file("modules/service"))
-  .dependsOn(core % "test->test;compile->compile", indexing, docs)
+  .dependsOn(core % "test->test;compile->compile", indexing, docs, authTypes)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(common, buildInfoSettings, packagingSettings, noCoverage)
   .settings(
@@ -149,7 +168,7 @@ lazy val root = project
     description := "Nexus KnowledgeGraph",
     licenses := Seq(("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")))
   )
-  .aggregate(docs, core, indexing, service, tests)
+  .aggregate(docs, core, indexing, authTypes, service, tests)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {})
 

@@ -1,14 +1,19 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.server.Directives.{authorizeAsync, _}
 import akka.http.scaladsl.server.Route
-import akka.stream.IOResult
+import akka.stream.{ActorMaterializer, IOResult}
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.auth.types.AccessControlList
+import ch.epfl.bluebrain.nexus.kg.auth.types.Permission._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -24,6 +29,7 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
+import ch.epfl.bluebrain.nexus.kg.service.routes.ResourceAccess.{IamUri, check}
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -38,19 +44,21 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param instances         the instances operation bundle
   * @param instanceQueries   query builder for schemas
   * @param base              the service public uri + prefix
-  * @param querySettings     query parameters from settings
-  * @param filteringSettings filtering parameters from settings
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
-                     base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
+                     base: Uri)(implicit querySettings: QuerySettings,
+                                filteringSettings: FilteringSettings,
+                                cl: HttpClient[Future, AccessControlList],
+                                iamUri: IamUri,
+                                ec: ExecutionContext)
     extends DefaultRouteHandling {
 
   private val encoders = new InstanceCustomEncoders(base)
 
   import encoders._
 
-  protected def searchRoutes: Route =
+  protected def searchRoutes(cred: OAuth2BearerToken): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
       val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
       traceName("searchInstances") {
@@ -80,10 +88,10 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
       }
     }
 
-  protected def resourceRoutes: Route =
+  protected def resourceRoutes(cred: OAuth2BearerToken): Route =
     extractAnyResourceId() { id =>
       (pathEndOrSingleSlash & post & resourceId(id, of[SchemaId])) { schemaId =>
-        entity(as[Json]) { json =>
+        (entity(as[Json]) & authorizeAsync(check(cred, schemaId, Write))) { json =>
           traceName("createInstance") {
             onSuccess(instances.create(schemaId, json)) { ref =>
               complete(StatusCodes.Created -> ref)
@@ -93,14 +101,15 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
       } ~
         resourceId(id, of[InstanceId]) { instanceId =>
           pathEndOrSingleSlash {
-            (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
-              traceName("updateInstance") {
-                onSuccess(instances.update(instanceId, rev, json)) { ref =>
-                  complete(StatusCodes.OK -> ref)
+            (put & entity(as[Json]) & parameter('rev.as[Long]) & authorizeAsync(check(cred, instanceId, Write))) {
+              (json, rev) =>
+                traceName("updateInstance") {
+                  onSuccess(instances.update(instanceId, rev, json)) { ref =>
+                    complete(StatusCodes.OK -> ref)
+                  }
                 }
-              }
             } ~
-              get {
+              (get & authorizeAsync(check(cred, instanceId, Read))) {
                 parameter('rev.as[Long].?) {
                   case Some(rev) =>
                     traceName("getInstanceRevision") {
@@ -118,7 +127,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                     }
                 }
               } ~
-              (delete & parameter('rev.as[Long])) { rev =>
+              (delete & parameter('rev.as[Long]) & authorizeAsync(check(cred, instanceId, Write))) { rev =>
                 traceName("deprecateInstance") {
                   onSuccess(instances.deprecate(instanceId, rev)) { ref =>
                     complete(StatusCodes.OK -> ref)
@@ -127,7 +136,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
               }
           } ~
             path("attachment") {
-              (put & parameter('rev.as[Long])) { rev =>
+              (put & parameter('rev.as[Long]) & authorizeAsync(check(cred, s"$instanceId/attachment", Write))) { rev =>
                 fileUpload("file") {
                   case (metadata, byteSource) =>
                     traceName("createInstanceAttachment") {
@@ -139,14 +148,15 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                     }
                 }
               } ~
-                (delete & parameter('rev.as[Long])) { rev =>
-                  traceName("removeInstanceAttachment") {
-                    onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
-                      complete(StatusCodes.OK -> ref)
+                (delete & parameter('rev.as[Long]) & authorizeAsync(check(cred, s"$instanceId/attachment", Write))) {
+                  rev =>
+                    traceName("removeInstanceAttachment") {
+                      onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
+                        complete(StatusCodes.OK -> ref)
+                      }
                     }
-                  }
                 } ~
-                get {
+                (get & authorizeAsync(check(cred, s"$instanceId/attachment", Read))) {
                   parameter('rev.as[Long].?) { revOpt =>
                     traceName("getInstanceAttachment") {
                       val result = revOpt match {
@@ -186,9 +196,13 @@ object InstanceRoutes {
                   querySettings: QuerySettings,
                   base: Uri)(implicit
                              ec: ExecutionContext,
-                             filteringSettings: FilteringSettings): InstanceRoutes = {
+                             mt: ActorMaterializer,
+                             baseClient: UntypedHttpClient[Future],
+                             filteringSettings: FilteringSettings,
+                             iamUri: IamUri): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
+    implicit val cl                = HttpClient.withAkkaUnmarshaller[AccessControlList]
     new InstanceRoutes(instances, instanceQueries, base)
   }
 }

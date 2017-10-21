@@ -9,8 +9,8 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -24,8 +24,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
+import ch.epfl.bluebrain.nexus.kg.service.routes.ResourceAccess.IamUri
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
@@ -43,7 +43,8 @@ import scala.concurrent.{ExecutionContextExecutor, Future}
   */
 class BootstrapService(settings: Settings)(implicit as: ActorSystem,
                                            ec: ExecutionContextExecutor,
-                                           mt: ActorMaterializer)
+                                           mt: ActorMaterializer,
+                                           cl: UntypedHttpClient[Future])
     extends BootstrapQuerySettings(settings) {
 
   private val baseUri = settings.Http.PublicUri
@@ -52,15 +53,14 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     if (settings.Http.Prefix.trim.isEmpty) baseUri
     else baseUri.copy(path = baseUri.path / settings.Http.Prefix)
   // $COVERAGE-ON$
-  private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
 
   val sparqlClient = SparqlClient[Future](settings.Sparql.BaseUri)
 
   val (orgs, doms, schemas, instances) = operations()
 
+  implicit val iamUri = IamUri(settings.IAM.BaseUri)
   private val apis = uriPrefix(apiUri) {
     OrganizationRoutes(orgs, sparqlClient, orgSettings, apiUri).routes ~
-      DomainRoutesDeprecated(doms, sparqlClient, domainSettings, apiUri).routes ~
       DomainRoutes(doms, sparqlClient, domainSettings, apiUri).routes ~
       SchemaRoutes(schemas, sparqlClient, schemaSettings, apiUri).routes ~
       InstanceRoutes(instances, sparqlClient, instanceSettings, apiUri).routes
@@ -133,7 +133,8 @@ object BootstrapService {
     */
   final def apply(settings: Settings)(implicit as: ActorSystem,
                                       ec: ExecutionContextExecutor,
-                                      mt: ActorMaterializer): BootstrapService =
+                                      mt: ActorMaterializer,
+                                      cl: UntypedHttpClient[Future]): BootstrapService =
     new BootstrapService(settings)
 
   abstract class BootstrapQuerySettings(settings: Settings) {

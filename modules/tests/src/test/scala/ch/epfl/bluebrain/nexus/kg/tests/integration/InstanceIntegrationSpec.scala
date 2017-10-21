@@ -70,7 +70,7 @@ class InstanceIntegrationSpec(
           instances.length shouldEqual (schemas.length - 1) * 5
         }
         eventually(timeout(Span(indexTimeout + 5, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/data") ~> route ~> check {
+          Get(s"/data") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults = UnscoredQueryResults(instances.length.toLong, instances.take(20).map {
               case (id, _) => UnscoredQueryResult(id)
@@ -84,7 +84,7 @@ class InstanceIntegrationSpec(
       "list instances on organization rand with pagination" in {
         val pagination = Pagination(0L, 5)
         val path       = s"/data/rand?size=${pagination.size}"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(randInstances.length.toLong,
@@ -97,7 +97,7 @@ class InstanceIntegrationSpec(
       "output the correct total even when the from query parameter is out of scope" in {
         val pagination = Pagination(0L, 5)
         val path       = s"/data/rand?size=${pagination.size}&from=500"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(randInstances.length.toLong, List.empty[UnscoredQueryResult[SchemaId]])
@@ -111,7 +111,7 @@ class InstanceIntegrationSpec(
       "list instances on organization nexus with full text search" in {
         val (instanceId, _) = instances.head
         val path            = s"/data/nexus?q=${instanceId.id}"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val json            = responseAs[Json]
           val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
@@ -124,7 +124,7 @@ class InstanceIntegrationSpec(
       "output the correct total in full text search even when the from query parameter is out of scope" in {
         val (instanceId, _) = instances.head
         val path            = s"/data/nexus?q=${instanceId.id}&size=3&from=200"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val json            = responseAs[Json]
           val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
@@ -138,7 +138,7 @@ class InstanceIntegrationSpec(
       "list instances on organization nexus and domain development and specific schema name" in {
         val (schemaId, _) = schemas.head
         val path          = s"/data/${schemaId.schemaName.show}"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
@@ -155,7 +155,7 @@ class InstanceIntegrationSpec(
           "UTF-8"
         )
         val path = s"/data?filter=$uriFilter"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
           val expectedLinks   = List(Link("self", s"$apiUri$path"))
@@ -166,7 +166,7 @@ class InstanceIntegrationSpec(
       "list instances for one schemaId" in {
         val (instanceId, _) = instances.head
         val path            = s"/data/${instanceId.schemaId.show}"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(5L, instances.take(5).map { case (id, _) => UnscoredQueryResult(id) })
@@ -177,7 +177,7 @@ class InstanceIntegrationSpec(
 
       "list instances on organization nexus and domain development" in {
         val path = s"/data/nexus/development"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
@@ -188,7 +188,7 @@ class InstanceIntegrationSpec(
 
       "deprecate one instance on nexus organization and domain development" in {
         val (instanceId, _) = instances.head
-        Delete(s"/data/${instanceId.show}?rev=1") ~> route ~> check {
+        Delete(s"/data/${instanceId.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual InstanceRef(instanceId, 2L).asJson
         }
@@ -197,7 +197,7 @@ class InstanceIntegrationSpec(
       "list instances on nexus organization and domain development that are not deprecated" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           val path = s"/data/nexus/development?deprecated=false"
-          Get(path) ~> route ~> check {
+          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(9L, instances.slice(1, 10).map { case (id, _) => UnscoredQueryResult(id) })
@@ -214,7 +214,7 @@ class InstanceIntegrationSpec(
         val outgoingId: InstanceId =
           json.hcursor.downField("hasPart").get[String]("@id").toOption.flatMap(_.unqualify[InstanceId]).get
         val path = s"/data/${instanceId.show}/outgoing"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(outgoingId)))
           val expectedLinks   = List(Link("self", s"$apiUri$path"))
@@ -229,7 +229,7 @@ class InstanceIntegrationSpec(
         val outgoingId: InstanceId =
           json.hcursor.downField("hasPart").get[String]("@id").toOption.flatMap(_.unqualify[InstanceId]).get
         val path = s"/data/${outgoingId.show}/incoming"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
           val expectedLinks   = List(Link("self", s"$apiUri$path"))

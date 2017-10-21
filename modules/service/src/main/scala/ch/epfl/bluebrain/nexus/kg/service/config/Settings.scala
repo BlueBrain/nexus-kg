@@ -259,6 +259,14 @@ class Settings(config: Config) extends Extension {
       */
     val PassivationTimeout = Duration(ns.getDuration("instances.passivation-timeout", MILLISECONDS), MILLISECONDS)
   }
+
+  object IAM {
+
+    /**
+      * IAM service base URI
+      */
+    val BaseUri = Uri(ns.getString("iam.base-uri"))
+  }
 }
 
 object Settings extends ExtensionId[Settings] with ExtensionIdProvider {

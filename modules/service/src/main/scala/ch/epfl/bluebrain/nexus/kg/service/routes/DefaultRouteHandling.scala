@@ -1,14 +1,22 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import akka.http.scaladsl.server.Directives.{handleExceptions, handleRejections, pathPrefix}
+import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.server.Directives.{
+  handleExceptions,
+  handleRejections,
+  pathPrefix,
+  extractCredentials,
+  complete
+}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 
 trait DefaultRouteHandling {
 
-  protected def resourceRoutes: Route
+  protected def resourceRoutes(credentials: OAuth2BearerToken): Route
 
-  protected def searchRoutes: Route
+  protected def searchRoutes(credentials: OAuth2BearerToken): Route
 
   /**
     * Combining ''resourceRoutes'' with ''searchRoutes''
@@ -19,7 +27,10 @@ trait DefaultRouteHandling {
   def combinedRoutesFor(initialPrefix: String): Route = handleExceptions(ExceptionHandling.exceptionHandler) {
     handleRejections(RejectionHandling.rejectionHandler) {
       pathPrefix(initialPrefix) {
-        resourceRoutes ~ searchRoutes
+        extractCredentials {
+          case Some(cred: OAuth2BearerToken) => resourceRoutes(cred) ~ searchRoutes(cred)
+          case _                             => complete(StatusCodes.Unauthorized)
+        }
       }
     }
   }

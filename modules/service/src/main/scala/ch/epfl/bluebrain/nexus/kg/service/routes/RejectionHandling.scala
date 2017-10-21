@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import akka.http.javadsl.server.AuthorizationFailedRejection
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server._
@@ -30,6 +31,8 @@ object RejectionHandling {
           complete(BadRequest -> (e: CommonRejections))
         case ValidationRejection(_, Some(e: IllegalVersionFormat)) =>
           complete(BadRequest -> (e: CommonRejections))
+        case _: AuthorizationFailedRejection =>
+          complete(Unauthorized -> (UnauthorizedAccess: CommonRejections))
       }
       .handleAll[MalformedRequestContentRejection] { rejection =>
         val aggregate = rejection.map(_.message).mkString(", ")

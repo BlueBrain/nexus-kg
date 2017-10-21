@@ -4,11 +4,13 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import com.typesafe.config.ConfigFactory
 import kamon.Kamon
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
@@ -22,9 +24,10 @@ object Main {
     val config   = ConfigFactory.load()
     val settings = new Settings(config)
 
-    implicit val as = ActorSystem(settings.Description.ActorSystemName, config)
-    implicit val ec = as.dispatcher
-    implicit val mt = ActorMaterializer()
+    implicit val as                            = ActorSystem(settings.Description.ActorSystemName, config)
+    implicit val ec                            = as.dispatcher
+    implicit val mt                            = ActorMaterializer()
+    implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
 
     val logger = Logging(as, getClass)
 

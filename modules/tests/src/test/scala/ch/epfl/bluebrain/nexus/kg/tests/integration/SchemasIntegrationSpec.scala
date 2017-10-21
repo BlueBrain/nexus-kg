@@ -42,7 +42,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "create schemas successfully" in {
         forAll(schemas) {
           case (schemaId, json) =>
-            Put(s"/schemas/${schemaId.show}", json) ~> route ~> check {
+            Put(s"/schemas/${schemaId.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
               status shouldEqual StatusCodes.Created
               responseAs[Json] shouldEqual SchemaRef(schemaId, 1L).asJson
             }
@@ -52,7 +52,8 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "publish schemas successfully" in {
         forAll(schemas) {
           case (schemaId, _) =>
-            Patch(s"/schemas/${schemaId.show}/config?rev=1", SchemaConfig(published = true)) ~> route ~> check {
+            Patch(s"/schemas/${schemaId.show}/config?rev=1", SchemaConfig(published = true)) ~> addCredentials(
+              ValidCredentials) ~> route ~> check {
               status shouldEqual StatusCodes.OK
               responseAs[Json] shouldEqual SchemaRef(schemaId, 2L).asJson
             }
@@ -61,7 +62,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "list all schemas" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/schemas") ~> route ~> check {
+          Get(s"/schemas") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults = UnscoredQueryResults(schemas.length.toLong, schemas.take(20).map {
               case (schemaId, _) => UnscoredQueryResult(schemaId)
@@ -76,7 +77,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         val pagination = Pagination(0L, 5)
         val path       = s"/schemas/rand?size=${pagination.size}"
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(path) ~> route ~> check {
+          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults = UnscoredQueryResults(
               (schemas.length - 3 * 5).toLong,
@@ -95,7 +96,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         val pagination = Pagination(0L, 5)
         val path       = s"/schemas/rand?size=${pagination.size}&from=100"
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(path) ~> route ~> check {
+          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults((schemas.length - 3 * 5).toLong, List.empty[UnscoredQueryResult[SchemaId]])
@@ -110,7 +111,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "list schemas on organization nexus with full text search" in {
         val (schemaId, _) = schemas.head
         val path          = s"/schemas/nexus?q=${schemaId.name}"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(3L, 1F, schemas.take(3).map { case (id, _) => ScoredQueryResult(1F, id) })
@@ -122,7 +123,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "output the correct total in full text search even when the from query parameter is out of scope" in {
         val (schemaId, _) = schemas.head
         val path          = s"/schemas/nexus?q=${schemaId.name}&size=3&from=200"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = ScoredQueryResults(3L, 1F, List.empty[ScoredQueryResult[SchemaId]])
           val expectedLinks =
@@ -133,7 +134,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "list schemas on organization nexus and domain development" in {
         val path = s"/schemas/nexus/development"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(3L, schemas.take(3).map { case (schemaId, _) => UnscoredQueryResult(schemaId) })
@@ -145,7 +146,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "list schemas on organization nexus and domain development and specific schema name" in {
         val (schemaId, _) = schemas.head
         val path          = s"/schemas/${schemaId.schemaName.show}"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(3L, schemas.take(3).map { case (id, _) => UnscoredQueryResult(id) })
@@ -161,7 +162,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         )
         val path = s"/schemas/rand?filter=$uriFilter&size=10"
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(path) ~> route ~> check {
+          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults = UnscoredQueryResults(
               randDomains.length.toLong,
@@ -185,7 +186,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "deprecate one schemas on nexus organization" in {
         val (schemaId, _) = schemas.head
-        Delete(s"/schemas/${schemaId.show}?rev=2") ~> route ~> check {
+        Delete(s"/schemas/${schemaId.show}?rev=2") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual SchemaRef(schemaId, 3L).asJson
         }
@@ -195,7 +196,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           val (schemaId, _) = schemas.head
           val path          = s"/schemas/${schemaId.schemaName.show}?deprecated=false"
-          Get(path) ~> route ~> check {
+          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(2L, schemas.slice(1, 3).map { case (id, _) => UnscoredQueryResult(id) })

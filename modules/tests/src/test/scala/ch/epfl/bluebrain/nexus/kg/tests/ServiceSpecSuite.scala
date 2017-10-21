@@ -10,13 +10,9 @@ import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.{BootstrapService, StartIndexers}
-import ch.epfl.bluebrain.nexus.kg.tests.integration.{
-  DomainIntegrationSpec,
-  InstanceIntegrationSpec,
-  OrgIntegrationSpec,
-  SchemasIntegrationSpec
-}
+import ch.epfl.bluebrain.nexus.kg.tests.integration._
 import ch.epfl.bluebrain.nexus.commons.service.persistence.ProjectionStorage
+import ch.epfl.bluebrain.nexus.kg.service.routes.MockedIAMClient
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingAkkaSettings
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
 import org.scalatest._
@@ -24,7 +20,12 @@ import org.scalatest._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
-class ServiceSpecSuite extends Suites with BeforeAndAfterAll with CassandraBoot with BlazegraphBoot {
+class ServiceSpecSuite
+    extends Suites
+    with BeforeAndAfterAll
+    with CassandraBoot
+    with BlazegraphBoot
+    with MockedIAMClient {
 
   implicit lazy val system: ActorSystem =
     SystemBuilder.initConfig("BootstrapServices", cassandraPort, blazegraphPort)

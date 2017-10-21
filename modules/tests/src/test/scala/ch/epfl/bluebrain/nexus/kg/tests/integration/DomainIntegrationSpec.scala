@@ -41,7 +41,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           case domainId @ DomainId(orgId, name) =>
             val jsonDomain =
               Json.obj("description" -> Json.fromString(s"$name-description"))
-            Put(s"/domains/${orgId.id}/${name}", jsonDomain) ~> route ~> check {
+            Put(s"/domains/${orgId.id}/${name}", jsonDomain) ~> addCredentials(ValidCredentials) ~> route ~> check {
               status shouldEqual StatusCodes.Created
               responseAs[Json] shouldEqual DomainRef(domainId, 1L).asJson
             }
@@ -50,7 +50,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "list all domains" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/domains") ~> route ~> check {
+          Get(s"/domains") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(domains.size.toLong, domains.take(20).map(UnscoredQueryResult(_)))
@@ -63,7 +63,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "list domains on organization nexus" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/domains/nexus") ~> route ~> check {
+          Get(s"/domains/nexus") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(5L, domains.filter(_.orgId.id == "nexus").map(UnscoredQueryResult(_)))
@@ -78,7 +78,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         val path       = s"/domains/rand?size=${pagination.size}"
 
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(path) ~> route ~> check {
+          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults = UnscoredQueryResults(randDomains.length.toLong,
                                                        randDomains.map(UnscoredQueryResult(_)).take(pagination.size))
@@ -91,7 +91,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "output the correct total even when the from query parameter is out of scope" in {
         val pagination = Pagination(0L, 5)
         val path       = s"/domains/rand?size=${pagination.size}&from=100"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(randDomains.length.toLong, List.empty[UnscoredQueryResult[DomainId]])
@@ -105,7 +105,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "list domains on organization rand with full text search" in {
         val domainId = domains(7)
         val path     = s"/domains/rand?q=${domainId.id}"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, domainId)))
@@ -116,7 +116,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "output the correct total in full text search even when the from query parameter is out of scope" in {
         val path = s"/domains/rand?q=${domains(7).id}&size=3&from=200"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(1L, 1F, List.empty[ScoredQueryResult[DomainId]])
@@ -134,7 +134,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           "UTF-8"
         )
         val path = s"/domains/rand?filter=$uriFilter"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(1L, List(UnscoredQueryResult(domainId)))
@@ -145,7 +145,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "deprecate some domains on nexus organization" in {
         forAll(domains.take(2)) { domainId =>
-          Delete(s"/domains/nexus/${domainId.id}?rev=1") ~> route ~> check {
+          Delete(s"/domains/nexus/${domainId.id}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             responseAs[Json] shouldEqual DomainRef(domainId, 2L).asJson
           }
@@ -154,7 +154,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "list domains on organization nexus and deprecated" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/domains/nexus?deprecated=false") ~> route ~> check {
+          Get(s"/domains/nexus?deprecated=false") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults = UnscoredQueryResults(3L, domains.slice(2, 5).map(UnscoredQueryResult(_)))
             val expectedLinks =

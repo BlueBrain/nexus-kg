@@ -39,10 +39,17 @@ object CommonRejections {
       with CommonRejections
 
   /**
-    * Signals the inability to convert a path segment into a [[ch.epfl.bluebrain.nexus.common.types.Version]]
+    * Signals the inability to convert a path segment into a [[ch.epfl.bluebrain.nexus.commons.types.Version]]
     *
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
   final case class IllegalVersionFormat(override val message: String) extends Err(message) with CommonRejections
+
+  /**
+    * Signals that the user does not have access to this resource
+    *
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case object UnauthorizedAccess extends Err("Unauthorized access to the current resource") with CommonRejections
 
 }
