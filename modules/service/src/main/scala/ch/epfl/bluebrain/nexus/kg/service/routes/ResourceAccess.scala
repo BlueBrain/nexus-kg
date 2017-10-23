@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import akka.http.scaladsl.client.RequestBuilding.Get
 import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.Show
 import cats.syntax.show._
@@ -34,7 +33,7 @@ object ResourceAccess {
                                                                    cl: HttpClient[Future, AccessControlList],
                                                                    iamUri: IamUri,
                                                                    ec: ExecutionContext): Future[Boolean] = {
-    cl(Get(Uri(s"${iamUri.value}/acls/kg/$id").withQuery(Query("all" -> "false"))).addCredentials(cred))
+    cl(Get(Uri(s"${iamUri.value}/acls/kg/$id")).addCredentials(cred))
       .map(_.toMap.values.find(!_.contains(perm)).isEmpty)
       .recoverWith {
         case ur: UnexpectedUnsuccessfulHttpResponse =>
