@@ -34,6 +34,13 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
         json.as[Filter] shouldEqual Right(expected)
       }
 
+      "using a single comparison property path" in {
+        val json =
+          jsonContentOf("/filtering/single-comparison-date.json", replacements)
+        val expected = Filter(ComparisonExpr(Eq, UriPath(s"http://www.w3.org/ns/prov#startedAtTime"), LiteralTerm(""""2017-10-07T16:00:00-05:00"""")))
+        json.as[Filter] shouldEqual Right(expected)
+      }
+
       "using nested comparisons" in {
         val json =
           jsonContentOf("/filtering/nested-comparison.json", replacements)
@@ -222,20 +229,6 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
           jsonContentOf("/filtering/missing-logical-op.json", replacements)
         val expectedHistory =
           "DownField(filter)/DownField(value)/DownN(4)/DownField(op)"
-        json
-          .as[Filter]
-          .left
-          .value
-          .history
-          .reverse
-          .mkString("/") shouldEqual expectedHistory
-      }
-
-      "using an uncontextualized value" in {
-        val json =
-          jsonContentOf("/filtering/uncontextualized-value.json", replacements)
-        val expectedHistory =
-          "DownField(filter)/DownField(value)/DownN(4)/DownField(value)/DownN(1)/DownField(value)"
         json
           .as[Filter]
           .left

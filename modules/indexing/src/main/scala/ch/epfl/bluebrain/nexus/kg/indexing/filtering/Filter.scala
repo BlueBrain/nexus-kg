@@ -16,7 +16,7 @@ import org.apache.jena.riot.{Lang, RDFDataMgr}
 import org.apache.jena.sparql.path.PathParser
 
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Try}
+import scala.util.Try
 
 /**
   * Filter representation that wraps a single filtering expression.
@@ -141,14 +141,12 @@ object Filter {
                   asUri(graph, el)
                     .map(uri => UriTerm(uri))
                     .orElse {
-                      if (el.getLiteralLexicalForm.indexOf(":") > -1) Failure(failure)
-                      else
-                        Try(LiteralTerm({
-                          val lit = el.getLiteral
-                          if (classOf[java.lang.Number].isInstance(lit.getValue) || classOf[java.lang.Boolean]
-                                .isInstance(lit.getValue)) lit.getLexicalForm
-                          else s""""${lit.getLexicalForm}""""
-                        }))
+                      Try(LiteralTerm({
+                        val lit = el.getLiteral
+                        if (classOf[java.lang.Number].isInstance(lit.getValue) || classOf[java.lang.Boolean]
+                              .isInstance(lit.getValue)) lit.getLexicalForm
+                        else s""""${lit.getLexicalForm}""""
+                      }))
                     }
                     .toEither
                     .leftMap(_ => failure)
