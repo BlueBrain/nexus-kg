@@ -11,6 +11,7 @@ import scala.util.matching.Regex
 import scala.util.{Failure, Try}
 
 final case class ContextId(domainId: DomainId, name: String, version: Version) {
+
   /**
     * Extracts the [[ContextName]] from the current [[ContextId]].
     */
@@ -33,7 +34,7 @@ object ContextId {
       Try(Version(major.toInt, minor.toInt, patch.toInt)).map { ver =>
         ContextId(DomainId(OrgId(org), dom), name, ver)
       }
-    case _                                          =>
+    case _ =>
       Failure(new IllegalArgumentException("Unable to decode value into a ContextId"))
   }
 
@@ -47,6 +48,5 @@ object ContextId {
 
   final implicit val contextIdDecoder: Decoder[ContextId] =
     Decoder.decodeString.emapTry(str => apply(str))
-
 
 }

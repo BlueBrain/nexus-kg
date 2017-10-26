@@ -24,6 +24,6 @@ object ContextState {
     * @param deprecated the deprecation status
     */
   final case class Current(id: ContextId, rev: Long, value: Json, published: Boolean, deprecated: Boolean)
-    extends ContextState
+      extends ContextState
 
 }

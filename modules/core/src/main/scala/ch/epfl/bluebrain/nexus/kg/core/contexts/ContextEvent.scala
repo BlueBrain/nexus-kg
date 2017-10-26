@@ -6,6 +6,7 @@ import io.circe.Json
   * Enumeration type for all events that are emitted for schemas.
   */
 sealed trait ContextEvent extends Product with Serializable {
+
   /**
     * @return the unique identifier of the context
     */
@@ -52,6 +53,5 @@ object ContextEvent {
     * @param rev the revision number that this event generates
     */
   final case class ContextDeprecated(id: ContextId, rev: Long) extends ContextEvent
-
 
 }
