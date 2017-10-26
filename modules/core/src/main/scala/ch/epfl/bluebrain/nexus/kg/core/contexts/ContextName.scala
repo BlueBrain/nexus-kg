@@ -38,7 +38,7 @@ object ContextName {
     case _                     => None
   }
 
-  final implicit def ContextNameShow(implicit D: Show[DomainId]): Show[ContextName] = Show.show { name =>
+  final implicit def contextNameShow(implicit D: Show[DomainId]): Show[ContextName] = Show.show { name =>
     s"${name.domainId.show}/${name.name}"
   }
 }

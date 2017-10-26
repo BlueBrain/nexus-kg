@@ -29,7 +29,7 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
   private def genName(): String =
     genString(length = 8, Vector.range('a', 'z') ++ Vector.range('0', '9'))
 
-  val objectContextJson = jsonContentOf("/object-context.json")
+  val objectContextJson = jsonContentOf("/contexts/object-context.json")
   def arrayContextJson(id: ContextId) = {
     val ContextId(DomainId(OrgId(org), dom), name, ver) = id
     val replacements = Map(
@@ -38,7 +38,7 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       quote("{{name}}") -> name,
       quote("{{ver}}")  -> ver.show
     )
-    jsonContentOf("/array-context.json", replacements)
+    jsonContentOf("/contexts/array-context.json", replacements)
   }
   val baseUri = "http://localhost/v0"
 
@@ -107,6 +107,63 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       contexts.deprecate(id, 2L).success.value shouldEqual ContextRef(id, 3L)
       contexts.fetch(id).success.value shouldEqual Some(
         Context(id, 3L, objectContextJson, deprecated = true, published = true))
+    }
+
+    "expand nested contexts" in new Context {
+      val ver = genVersion()
+      val defaultReplacements = Map(
+        quote("{{org}}") -> orgRef.id.id,
+        quote("{{dom}}") -> domRef.id.id,
+        quote("{{ver}}") -> ver.show
+      )
+
+      val objId    = ContextId(domRef.id, genName(), ver)
+      val objValue = jsonContentOf("/contexts/object-context.json")
+      contexts.create(objId, objValue).success
+      contexts.publish(objId, 1L).success
+
+      val secondObjId    = ContextId(domRef.id, genName(), ver)
+      val secondObjValue = jsonContentOf("/contexts/second-object-context.json")
+      contexts.create(secondObjId, secondObjValue).success
+      contexts.publish(secondObjId, 1L).success
+
+      val mixedId = ContextId(domRef.id, genName(), ver)
+      val mixedValue = jsonContentOf(
+        "/contexts/mixed-array-context.json",
+        defaultReplacements ++ Map(
+          quote("{{object}}")        -> objId.name,
+          quote("{{second-object}}") -> secondObjId.name,
+        )
+      )
+      contexts.create(mixedId, mixedValue).success
+      contexts.publish(mixedId, 1L).success
+
+      val importingId = ContextId(domRef.id, genName(), ver)
+      val importingValue = jsonContentOf(
+        "/contexts/importing-context.json",
+        defaultReplacements ++ Map(
+          quote("{{mixed}}") -> mixedId.name
+        )
+      )
+      contexts.create(importingId, importingValue).success
+      contexts.publish(importingId, 1L).success
+
+      val input = Json.obj(
+        "existing" -> Json.fromInt(2),
+        "@context" -> Json.fromString(s"$baseUri/contexts/${importingId.show}")
+      )
+
+      val expected =
+        s"""|{
+            |  "@context" : {
+            |    "owl" : "http://www.w3.org/2002/07/owl#",
+            |    "xsd" : "http://www.w3.org/2001/XMLSchema#",
+            |    "schema" : "http://schema.org/"
+            |  },
+            |  "existing" : 2
+            |}""".stripMargin
+
+      contexts.expand(input).success.value.spaces2 shouldEqual expected
     }
 
     "prevent double deprecations" in new Context {
@@ -178,7 +235,8 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       contexts.deprecate(existing, 2L).success
 
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${existing.show}' is deprecated")))
+      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(
+        IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${existing.show}' is deprecated")))
     }
 
     "prevent referring to a non-published context" in new Context {
@@ -186,7 +244,8 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       contexts.create(existing, objectContextJson).success
 
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${existing.show}' is not published")))
+      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(
+        IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${existing.show}' is not published")))
     }
 
     "prevent referring to a non existing context" in new Context {
@@ -197,18 +256,21 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
         ContextId(domRef.id, genName(), genVersion()),
       )
       forAll(ctxs) { c =>
-        contexts.create(id, arrayContextJson(c)).failure.exception shouldEqual CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${c.show}' does not exist")))
+        contexts.create(id, arrayContextJson(c)).failure.exception shouldEqual CommandRejected(
+          IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${c.show}' does not exist")))
       }
     }
 
     "prevent referring to context in a deprecated domain" in new Context {
-      val deprDom = doms.create(DomainId(orgRef.id, genId()), "domain").success.value
+      val deprDom  = doms.create(DomainId(orgRef.id, genId()), "domain").success.value
       val existing = ContextId(deprDom.id, genName(), genVersion())
       contexts.create(existing, objectContextJson).success
       doms.deprecate(deprDom.id, 1L).success.value
 
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${existing.show}' cannot be imported due to its domain deprecation status")))
+      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(
+        IllegalImportsViolation(Set(
+          s"Referenced context '$baseUri/contexts/${existing.show}' cannot be imported due to its domain deprecation status")))
     }
 
     "return None for a context that doesn't exist" in new Context {

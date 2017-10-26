@@ -206,6 +206,56 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
       case Initial                                       => None
       case Current(_, rev, value, published, deprecated) => Some(Context(id, rev, value, deprecated, published))
     }
+
+  /**
+    * Expands the argument context representation by recursively loading referenced contexts regardless of their status.
+    *
+    * @param context the context json representation
+    * @return an expanded json context
+    */
+  def expand(context: Json): F[Json] = {
+    def inner(ctx: Json): F[Json] =
+      ctx.hcursor.get[Json]("@context") match {
+        case Right(value) => expandValue(value)
+        case Left(_)      => F.pure(Json.obj())
+      }
+
+    def expandValue(value: Json): F[Json] =
+      (value.asString, value.asArray, value.asObject) match {
+        case (Some(str), _, _) =>
+          val start = s"$baseUri/contexts/"
+          if (!str.startsWith(start))
+            F.raiseError(
+              CommandRejected(
+                IllegalImportsViolation(Set(s"Referenced context '$str' is not managed in this platform"))))
+          else {
+            val remaining = str.substring(start.length)
+            ContextId(remaining) match {
+              case Success(id) =>
+                fetch(id).flatMap {
+                  case Some(ctx) => inner(ctx.value)
+                  case None =>
+                    F.raiseError(
+                      CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$str' does not exist"))))
+                }
+              case Failure(NonFatal(_)) =>
+                F.raiseError(
+                  CommandRejected(
+                    IllegalImportsViolation(Set(s"Referenced context '$str' is not managed in this platform"))))
+            }
+          }
+        case (_, Some(arr), _) =>
+          F.sequence(arr.map(v => expandValue(v)))
+            .map(values =>
+              values.foldLeft(Json.obj()) { (acc, e) =>
+                acc deepMerge e
+            })
+        case (_, _, Some(_)) => F.pure(value)
+        case (_, _, _)       => F.raiseError(shapeValidationFailure)
+      }
+
+    inner(context).map(json => context deepMerge Json.obj("@context" -> json))
+  }
 }
 
 object Contexts {
