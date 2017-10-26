@@ -8,6 +8,7 @@ import cats.syntax.applicativeError._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidatorErr.{CouldNotFindImports, IllegalImportDefinition}
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ShaclSchema, ShaclValidator}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextName
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaCommand._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
@@ -35,18 +36,15 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], baseUri: St
 
   private val validator = ShaclValidator[F](SchemaImportResolver[F](baseUri, self.fetch))
 
-  private val nameRegex = "[a-z0-9]{2,32}".r
-
   private def validateId(id: SchemaId): F[Unit] = {
-    F.pure {
-      logger.debug(s"Validating id '$id'")
-      id.name
-    } flatMap {
-      case nameRegex() =>
+    logger.debug(s"Validating id '$id'")
+    val regex = ContextName.regex
+    id.schemaName.show match {
+      case regex(_, _, _) =>
         logger.debug(s"Id validation for '$id' succeeded")
         F.pure(())
       case _ =>
-        logger.debug(s"Id validation for '$id' failed, 'name' did not match regex '$nameRegex'")
+        logger.debug(s"Id validation for '$id' failed, name '${id.schemaName.show}' did not match regex '$regex'")
         F.raiseError(CommandRejected(InvalidSchemaId(id)))
     }
   }
@@ -104,7 +102,7 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], baseUri: St
 
   /**
     * Creates a new schema instance.  The schema id passed as an argument must contain an ''alphanumeric''  name with a
-    * length between ''2'' and ''16'' characters (inclusive).
+    * length between ''2'' and ''32'' characters (inclusive).
     *
     * @param id    the unique identifier of the schema
     * @param value the json representation of the schema
