@@ -25,7 +25,7 @@ final case class SchemaName(domainId: DomainId, name: String) {
 }
 
 object SchemaName {
-  final val regex: Regex = s"""${DomainId.regex.regex}/([a-zA-Z0-9]+)""".r
+  final val regex: Regex = s"""${DomainId.regex.regex}/([a-z0-9]{2,32})""".r
 
   /**
     * Attempts to parse the argument string into a ''SchemaName''.

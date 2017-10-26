@@ -21,7 +21,7 @@ object Ref {
     * @tparam Id the identifier type
     * @return an instance of a ''ref''
     */
-  final def apply[Id](identity: Id, revision: Long) = new Ref[Id] {
+  final def apply[Id](identity: Id, revision: Long): Ref[Id] = new Ref[Id] {
     override def id = identity
 
     override def rev = revision
