@@ -8,10 +8,15 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextState.{Current, Initial}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts.ContextAggregate
+import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.{DomainDoesNotExist, DomainIsDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection.{OrgDoesNotExist, OrgIsDeprecated}
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import io.circe.Json
 import journal.Logger
+
+import scala.util.control.NonFatal
+import scala.util.{Failure, Success}
 
 /**
   * Bundles operations that can be performed against contexts using the underlying persistence abstraction.
@@ -60,7 +65,51 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     }
   }
 
-  private def validatePayload(json: Json): F[Unit] = F.pure(())
+  private val shapeValidationFailure = CommandRejected(ShapeConstraintViolations(List("Illegal context format")))
+
+  private def validateRefContext(str: String): F[Unit] = {
+    val start = s"$baseUri/contexts/"
+    if (!str.startsWith(start))
+      F.raiseError(
+        CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$str' is not managed in this platform"))))
+    else {
+      val remaining = str.substring(start.length)
+      ContextId(remaining) match {
+        case Success(id) =>
+          assertUnlocked(id).recoverWith {
+            case CommandRejected(ContextDoesNotExist | OrgDoesNotExist | DomainDoesNotExist) =>
+              F.raiseError(CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$str' does not exist"))))
+            case CommandRejected(ContextIsDeprecated) =>
+              F.raiseError(CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$str' is deprecated"))))
+            case CommandRejected(ContextIsNotPublished) =>
+              F.raiseError(CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$str' is not published"))))
+            case CommandRejected(DomainIsDeprecated | OrgIsDeprecated) =>
+              F.raiseError(
+                CommandRejected(IllegalImportsViolation(
+                  Set(s"Referenced context '$str' cannot be imported due to its domain deprecation status"))))
+          }
+        case Failure(NonFatal(_)) =>
+          F.raiseError(
+            CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$str' is not managed in this platform"))))
+      }
+    }
+  }
+
+  private def validatePayload(json: Json): F[Unit] = {
+    json.hcursor.get[Json]("@context") match {
+      case Left(_)      => F.raiseError(shapeValidationFailure)
+      case Right(value) => validateContextValue(value)
+    }
+  }
+
+  private def validateContextValue(json: Json): F[Unit] = {
+    (json.asString, json.asArray, json.asObject) match {
+      case (Some(str), _, _) => validateRefContext(str)
+      case (_, Some(arr), _) => F.sequence(arr.map(j => validateContextValue(j))).map(_ => ())
+      case (_, _, Some(_))   => F.pure(())
+      case _                 => F.raiseError(shapeValidationFailure)
+    }
+  }
 
   private def evaluate(cmd: ContextCommand, intent: => String): F[Current] = {
     F.pure {

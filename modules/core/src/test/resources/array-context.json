@@ -1,6 +1,6 @@
 {
   "@context": [
-    "http://localhost/v0/nexus/core/schema/v0.1.0",
+    "http://localhost/v0/contexts/{{org}}/{{dom}}/{{name}}/{{ver}}",
     {
       "xsd": "http://www.w3.org/2001/XMLSchema#"
     }

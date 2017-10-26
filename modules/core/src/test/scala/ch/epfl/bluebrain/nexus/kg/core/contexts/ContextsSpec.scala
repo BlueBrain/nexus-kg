@@ -1,13 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.core.contexts
 
-import cats.instances.try_._
+import java.util.regex.Pattern.quote
+
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection.OrgIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.Json
@@ -27,9 +29,18 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
   private def genName(): String =
     genString(length = 8, Vector.range('a', 'z') ++ Vector.range('0', '9'))
 
-  val contextJson         = jsonContentOf("/schema-context.json")
-  val optionalContextJson = jsonContentOf("/array-context.json")
-  val baseUri             = "http://localhost:8080/v0"
+  val objectContextJson = jsonContentOf("/object-context.json")
+  def arrayContextJson(id: ContextId) = {
+    val ContextId(DomainId(OrgId(org), dom), name, ver) = id
+    val replacements = Map(
+      quote("{{org}}")  -> org,
+      quote("{{dom}}")  -> dom,
+      quote("{{name}}") -> name,
+      quote("{{ver}}")  -> ver.show
+    )
+    jsonContentOf("/array-context.json", replacements)
+  }
+  val baseUri = "http://localhost/v0"
 
   trait Context {
     val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Try]
@@ -53,107 +64,151 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
 
     "create a new context" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.fetch(id).success.value shouldEqual Some(
-        Context(id, 1L, contextJson, deprecated = false, published = false))
+        Context(id, 1L, objectContextJson, deprecated = false, published = false))
     }
 
     "update a new context" in new Context {
+      val existing = ContextId(domRef.id, genName(), genVersion())
+      contexts.create(existing, objectContextJson).success
+      contexts.publish(existing, 1L).success
+
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts
-        .update(id, 1L, optionalContextJson)
+        .update(id, 1L, arrayContextJson(existing))
         .success
         .value shouldEqual ContextRef(id, 2L)
       contexts.fetch(id).success.value shouldEqual Some(
-        Context(id, 2L, optionalContextJson, deprecated = false, published = false))
+        Context(id, 2L, arrayContextJson(existing), deprecated = false, published = false))
     }
 
     "publish a context" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.publish(id, 1L).success.value shouldEqual ContextRef(id, 2L)
       contexts.fetch(id).success.value shouldEqual Some(
-        Context(id, 2L, contextJson, deprecated = false, published = true))
+        Context(id, 2L, objectContextJson, deprecated = false, published = true))
     }
 
     "deprecate a context" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.deprecate(id, 1L).success.value shouldEqual ContextRef(id, 2L)
       contexts.fetch(id).success.value shouldEqual Some(
-        Context(id, 2L, contextJson, deprecated = true, published = false))
+        Context(id, 2L, objectContextJson, deprecated = true, published = false))
     }
 
     "deprecate a published context" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.publish(id, 1L).success.value shouldEqual ContextRef(id, 2L)
       contexts.deprecate(id, 2L).success.value shouldEqual ContextRef(id, 3L)
       contexts.fetch(id).success.value shouldEqual Some(
-        Context(id, 3L, contextJson, deprecated = true, published = true))
+        Context(id, 3L, objectContextJson, deprecated = true, published = true))
     }
 
     "prevent double deprecations" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.deprecate(id, 1L).success.value shouldEqual ContextRef(id, 2L)
       contexts.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(ContextIsDeprecated)
     }
 
     "prevent publishing when deprecated" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.deprecate(id, 1L).success.value shouldEqual ContextRef(id, 2L)
       contexts.publish(id, 2L).failure.exception shouldEqual CommandRejected(ContextIsDeprecated)
     }
 
     "prevent duplicate publish" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.publish(id, 1L).success.value shouldEqual ContextRef(id, 2L)
       contexts.publish(id, 2L).failure.exception shouldEqual CommandRejected(CannotUpdatePublished)
     }
 
     "prevent update when deprecated" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.deprecate(id, 1L).success.value shouldEqual ContextRef(id, 2L)
       contexts
-        .update(id, 2L, contextJson)
+        .update(id, 2L, objectContextJson)
         .failure
         .exception shouldEqual CommandRejected(ContextIsDeprecated)
     }
 
     "prevent update when published" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.publish(id, 1L).success.value shouldEqual ContextRef(id, 2L)
       contexts
-        .update(id, 2L, contextJson)
+        .update(id, 2L, objectContextJson)
         .failure
         .exception shouldEqual CommandRejected(CannotUpdatePublished)
     }
 
     "prevent update with incorrect rev" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts
-        .update(id, 2L, contextJson)
+        .update(id, 2L, objectContextJson)
         .failure
         .exception shouldEqual CommandRejected(IncorrectRevisionProvided)
     }
 
     "prevent deprecate with incorrect rev" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
     }
 
     "prevent publish with incorrect rev" in new Context {
       val id = ContextId(domRef.id, genName(), genVersion())
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
       contexts.publish(id, 2L).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
+    }
+
+    "prevent referring to a deprecated context" in new Context {
+      val existing = ContextId(domRef.id, genName(), genVersion())
+      contexts.create(existing, objectContextJson).success
+      contexts.publish(existing, 1L).success
+      contexts.deprecate(existing, 2L).success
+
+      val id = ContextId(domRef.id, genName(), genVersion())
+      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${existing.show}' is deprecated")))
+    }
+
+    "prevent referring to a non-published context" in new Context {
+      val existing = ContextId(domRef.id, genName(), genVersion())
+      contexts.create(existing, objectContextJson).success
+
+      val id = ContextId(domRef.id, genName(), genVersion())
+      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${existing.show}' is not published")))
+    }
+
+    "prevent referring to a non existing context" in new Context {
+      val id = ContextId(domRef.id, genName(), genVersion())
+      val ctxs = List(
+        ContextId(DomainId(OrgId(genId()), genId()), genName(), genVersion()),
+        ContextId(DomainId(orgRef.id, genId()), genName(), genVersion()),
+        ContextId(domRef.id, genName(), genVersion()),
+      )
+      forAll(ctxs) { c =>
+        contexts.create(id, arrayContextJson(c)).failure.exception shouldEqual CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${c.show}' does not exist")))
+      }
+    }
+
+    "prevent referring to context in a deprecated domain" in new Context {
+      val deprDom = doms.create(DomainId(orgRef.id, genId()), "domain").success.value
+      val existing = ContextId(deprDom.id, genName(), genVersion())
+      contexts.create(existing, objectContextJson).success
+      doms.deprecate(deprDom.id, 1L).success.value
+
+      val id = ContextId(domRef.id, genName(), genVersion())
+      contexts.create(id, arrayContextJson(existing)).failure.exception shouldEqual CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$baseUri/contexts/${existing.show}' cannot be imported due to its domain deprecation status")))
     }
 
     "return None for a context that doesn't exist" in new Context {
@@ -161,10 +216,23 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       contexts.fetch(id).success.value shouldEqual None
     }
 
+    val invalidValues = List(
+      Json.obj("@context" -> Json.fromString("bubu")),
+      Json.obj("@context" -> Json.fromString("http://some.domain.com/context")),
+      Json.obj("@context" -> Json.arr(Json.fromString("bubu"))),
+      Json.obj("@context" -> Json.arr(Json.fromString("http://some.domain.com/context"))),
+    )
+
     "prevent creation with invalid context" in new Context {
-      val id    = ContextId(domRef.id, genName(), genVersion())
-      val value = genJson()
-      contexts.create(id, value).failure.exception match {
+      val id = ContextId(domRef.id, genName(), genVersion())
+      forAll(invalidValues) { v =>
+        contexts.create(id, v).failure.exception match {
+          case CommandRejected(IllegalImportsViolation(vs)) =>
+            vs should not be empty
+          case _ => fail("context creation with invalid context was not rejected")
+        }
+      }
+      contexts.create(id, Json.obj()).failure.exception match {
         case CommandRejected(ShapeConstraintViolations(vs)) =>
           vs should not be empty
         case _ => fail("context creation with invalid context was not rejected")
@@ -172,10 +240,16 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
     }
 
     "prevent context update with invalid context" in new Context {
-      val id    = ContextId(domRef.id, genName(), genVersion())
-      val value = genJson()
-      contexts.create(id, contextJson).success.value shouldEqual ContextRef(id, 1L)
-      contexts.update(id, 1L, value).failure.exception match {
+      val id = ContextId(domRef.id, genName(), genVersion())
+      contexts.create(id, objectContextJson).success.value shouldEqual ContextRef(id, 1L)
+      forAll(invalidValues) { v =>
+        contexts.update(id, 1L, v).failure.exception match {
+          case CommandRejected(IllegalImportsViolation(vs)) =>
+            vs should not be empty
+          case _ => fail("context creation with invalid context was not rejected")
+        }
+      }
+      contexts.update(id, 1L, Json.obj()).failure.exception match {
         case CommandRejected(ShapeConstraintViolations(vs)) =>
           vs should not be empty
         case _ => fail("context creation with invalid context was not rejected")
@@ -185,13 +259,13 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
 
   trait DomainDeprecatedContext extends Context {
     val lockedId = ContextId(domRef.id, genName(), genVersion())
-    val locked   = contexts.create(lockedId, contextJson).success.value
+    val locked   = contexts.create(lockedId, objectContextJson).success.value
     val _        = doms.deprecate(domRef.id, domRef.rev).success.value
   }
 
   trait OrgDeprecatedContext extends Context {
     val lockedId = ContextId(domRef.id, genName(), genVersion())
-    val locked   = contexts.create(lockedId, contextJson).success.value
+    val locked   = contexts.create(lockedId, objectContextJson).success.value
     val _        = orgs.deprecate(orgRef.id, orgRef.rev).success.value
   }
 
@@ -216,13 +290,13 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       "allow deprecation" in new DomainDeprecatedContext {
         contexts.deprecate(lockedId, 1L).success.value shouldEqual ContextRef(lockedId, 2L)
         contexts.fetch(lockedId).success.value shouldEqual Some(
-          Context(lockedId, 2L, contextJson, deprecated = true, published = false))
+          Context(lockedId, 2L, objectContextJson, deprecated = true, published = false))
       }
 
       "prevent new context creation" in new DomainDeprecatedContext {
         val id = ContextId(domRef.id, genName(), genVersion())
         contexts
-          .create(id, contextJson)
+          .create(id, objectContextJson)
           .failure
           .exception shouldEqual CommandRejected(DomainIsDeprecated)
       }
@@ -247,13 +321,13 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       "allow deprecation" in new OrgDeprecatedContext {
         contexts.deprecate(lockedId, 1L).success.value shouldEqual ContextRef(lockedId, 2L)
         contexts.fetch(lockedId).success.value shouldEqual Some(
-          Context(lockedId, 2L, contextJson, deprecated = true, published = false))
+          Context(lockedId, 2L, objectContextJson, deprecated = true, published = false))
       }
 
       "prevent new context creation" in new OrgDeprecatedContext {
         val id = ContextId(domRef.id, genName(), genVersion())
         contexts
-          .create(id, contextJson)
+          .create(id, objectContextJson)
           .failure
           .exception shouldEqual CommandRejected(OrgIsDeprecated)
       }
