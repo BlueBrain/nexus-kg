@@ -1,12 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
@@ -16,12 +16,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutes.DomainDescription
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
@@ -46,7 +46,7 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
   private val encoders = new DomainCustomEncoders(base)
   import encoders._
 
-  protected def searchRoutes(implicit caller: Caller): Route =
+  protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
       val filter =
         filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
@@ -64,7 +64,19 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
       }
     }
 
-  protected def resourceRoutes(implicit caller: Caller): Route =
+  protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
+    (extractResourceId[DomainId](2, of[DomainId]) & pathEndOrSingleSlash) { domainId =>
+      (get & authorizeResource(domainId, Read)) {
+        traceName("getDomain") {
+          onSuccess(domains.fetch(domainId)) {
+            case Some(domain) => complete(domain)
+            case None         => complete(StatusCodes.NotFound)
+          }
+        }
+      }
+    }
+
+  protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractResourceId[DomainId](2, of[DomainId]) & pathEndOrSingleSlash) { domainId =>
       (put & entity(as[DomainDescription]) & authorizeResource(domainId, Write)) { desc =>
         traceName("createDomain") {

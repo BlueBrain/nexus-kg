@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.directives
 
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.model.headers.{BasicHttpCredentials, OAuth2BearerToken}
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
@@ -45,18 +45,18 @@ class AuthDirectivesSpec
   private implicit val mt     = ActorMaterializer()
   implicit val cl             = iamClient("http://localhost:8080")
 
-  private def route = {
+  private def route(perm: Permission)(implicit cred: Option[OAuth2BearerToken]) = {
     (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
-      extractCaller(cl) { caller =>
-        complete(caller.asJson)
+      (get & authorizeResource(DomainId(OrgId(s"org-${genString()}"), s"dom-${genString()}"), perm)) {
+        complete("Success")
       }
     }
   }
 
-  private def route(perm: Permission)(implicit caller: Caller) = {
+  private def route()(implicit cred: Option[OAuth2BearerToken]) = {
     (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
-      (get & authorizeResource(DomainId(OrgId(s"org-${genString()}"), s"dom-${genString()}"), perm)) {
-        complete("Success")
+      (get & authenticateCaller) { caller =>
+        complete(caller.asJson)
       }
     }
   }
@@ -66,59 +66,55 @@ class AuthDirectivesSpec
   "An AuthorizationDirectives" should {
 
     "return unathorized when the request contains an invalid token" in {
-      Get("/organizations/org") ~> addCredentials(OAuth2BearerToken("invalidToken")) ~> route ~> check {
-        status shouldEqual StatusCodes.Unauthorized
-        responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
-      }
-    }
-
-    "return unathorized when the request contains a token which is not a bearer token" in {
-      Get("/organizations/org/config") ~> addCredentials(BasicHttpCredentials(ValidToken)) ~> route ~> check {
+      implicit val cred: Option[OAuth2BearerToken] = Some(OAuth2BearerToken("invalid"))
+      Get("/organizations/org") ~> route() ~> check {
         status shouldEqual StatusCodes.Unauthorized
         responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
       }
     }
 
     "return an authenticated caller when the request contains a valid token" in {
-      Get("/organizations/org") ~> addCredentials(ValidCredentials) ~> route ~> check {
+      implicit val cred: Option[OAuth2BearerToken] = Some(ValidCredentials)
+      Get("/organizations/org") ~> route() ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual (AuthenticatedCaller(ValidCredentials, mockedUser): Caller).asJson
       }
     }
 
     "return an anonymous caller when the request contains a valid token" in {
-      Get("/organizations/org") ~> route ~> check {
+      implicit val cred: Option[OAuth2BearerToken] = None
+      Get("/organizations/org") ~> route() ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual (AnonymousCaller: Caller).asJson
       }
     }
 
     "return unathorized when the requested path does not contains random permission" in {
-      implicit val caller = AuthenticatedCaller(OAuth2BearerToken(ValidToken), mockedUser)
+      implicit val cred: Option[OAuth2BearerToken] = Some(OAuth2BearerToken(ValidToken))
       Get("/organizations/org/config") ~> route(Permission("random")) ~> check {
         status shouldEqual StatusCodes.Unauthorized
         responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
       }
     }
 
-    "return unathorized when the token on the caller is wrong" in {
-      implicit val caller = AuthenticatedCaller(OAuth2BearerToken("invalidToken"), mockedUser)
+    "return unathorized when the token on the cred is wrong" in {
+      implicit val cred: Option[OAuth2BearerToken] = Some(OAuth2BearerToken("Invalid"))
       Get("/organizations/org") ~> route(Read) ~> check {
         status shouldEqual StatusCodes.Unauthorized
         responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
       }
     }
 
-    "return authorized when the requested path for the authenticated caller contains read permission" in {
-      implicit val caller = AuthenticatedCaller(OAuth2BearerToken(ValidToken), mockedUser)
+    "return authorized when the requested path for the authenticated cred contains read permission" in {
+      implicit val cred: Option[OAuth2BearerToken] = Some(OAuth2BearerToken(ValidToken))
       Get("/organizations/org") ~> route(Read) ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[String] shouldEqual "Success"
       }
     }
 
-    "return authorized when the requested path for the anon caller contains read permission" in {
-      implicit val caller = AnonymousCaller
+    "return authorized when the requested path for the anon cerd contains read permission" in {
+      implicit val cred: Option[OAuth2BearerToken] = None
       Get("/organizations/org") ~> route(Read) ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[String] shouldEqual "Success"

@@ -1,12 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
@@ -15,12 +15,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives.{extractResourceId, of}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
@@ -46,7 +45,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
 
   import encoders._
 
-  protected def searchRoutes(implicit caller: Caller): Route =
+  protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
       traceName("searchOrganizations") {
         val filter =
@@ -57,7 +56,19 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
       }
     }
 
-  protected def resourceRoutes(implicit caller: Caller): Route =
+  protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
+    (extractResourceId[OrgId](2, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
+      (get & authorizeResource(orgId, Read)) {
+        traceName("getOrganization") {
+          onSuccess(orgs.fetch(orgId)) {
+            case Some(org) => complete(org)
+            case None      => complete(StatusCodes.NotFound)
+          }
+        }
+      }
+    }
+
+  protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractResourceId[OrgId](2, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
       (put & entity(as[Json]) & authorizeResource(orgId, Write)) { json =>
         parameter('rev.as[Long].?) {
@@ -75,14 +86,6 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
             }
         }
       } ~
-        (get & authorizeResource(orgId, Read)) {
-          traceName("getOrganization") {
-            onSuccess(orgs.fetch(orgId)) {
-              case Some(org) => complete(org)
-              case None      => complete(StatusCodes.NotFound)
-            }
-          }
-        } ~
         (delete & authorizeResource(orgId, Write)) {
           parameter('rev.as[Long]) { rev =>
             traceName("deprecateOrganization") {

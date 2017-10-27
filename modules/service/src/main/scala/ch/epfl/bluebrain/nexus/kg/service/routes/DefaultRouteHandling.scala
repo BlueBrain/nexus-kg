@@ -1,19 +1,23 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import akka.http.scaladsl.server.Directives.{handleExceptions, handleRejections, pathPrefix}
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.server.Directives.{
+  extractCredentials,
+  handleExceptions,
+  handleRejections,
+  pathPrefix,
+}
 import akka.http.scaladsl.server.RouteConcatenation._
-import ch.epfl.bluebrain.nexus.commons.iam.IamClient
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
-
-import scala.concurrent.Future
+import akka.http.scaladsl.server.directives.RouteDirectives.reject
+import akka.http.scaladsl.server.{AuthorizationFailedRejection, Route}
 
 trait DefaultRouteHandling {
 
-  protected def resourceRoutes(implicit caller: Caller): Route
+  protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route
 
-  protected def searchRoutes(implicit caller: Caller): Route
+  protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route
+
+  protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route
 
   /**
     * Combining ''resourceRoutes'' with ''searchRoutes''
@@ -21,14 +25,20 @@ trait DefaultRouteHandling {
     *
     * @param initialPrefix the initial prefix to be consumed
     */
-  def combinedRoutesFor(initialPrefix: String)(implicit iamClient: IamClient[Future]): Route =
+  def combinedRoutesFor(initialPrefix: String): Route =
     handleExceptions(ExceptionHandling.exceptionHandler) {
       handleRejections(RejectionHandling.rejectionHandler) {
         pathPrefix(initialPrefix) {
-          extractCaller(iamClient) { implicit caller =>
-            resourceRoutes ~ searchRoutes
+          extractCredentials {
+            case Some(c: OAuth2BearerToken) => combine(Some(c))
+            case Some(_)                    => reject(AuthorizationFailedRejection)
+            case _                          => combine(None)
           }
         }
       }
     }
+
+  private def combine(cred: Option[OAuth2BearerToken]) =
+    writeRoutes(cred) ~ readRoutes(cred) ~ searchRoutes(cred)
+
 }

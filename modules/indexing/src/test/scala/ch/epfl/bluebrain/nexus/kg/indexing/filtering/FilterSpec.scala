@@ -37,7 +37,10 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
       "using a single comparison property path" in {
         val json =
           jsonContentOf("/filtering/single-comparison-date.json", replacements)
-        val expected = Filter(ComparisonExpr(Eq, UriPath(s"http://www.w3.org/ns/prov#startedAtTime"), LiteralTerm(""""2017-10-07T16:00:00-05:00"""")))
+        val expected = Filter(
+          ComparisonExpr(Eq,
+                         UriPath(s"http://www.w3.org/ns/prov#startedAtTime"),
+                         LiteralTerm(""""2017-10-07T16:00:00-05:00"""")))
         json.as[Filter] shouldEqual Right(expected)
       }
 
