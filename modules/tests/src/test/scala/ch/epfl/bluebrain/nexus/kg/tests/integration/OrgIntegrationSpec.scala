@@ -40,7 +40,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "create organizations successfully" in {
         forAll(orgs) { orgId =>
           val json = Json.obj("key" -> Json.fromString(genString()))
-          Put(s"/organizations/${orgId.show}", json) ~> route ~> check {
+          Put(s"/organizations/${orgId.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.Created
             responseAs[Json] shouldEqual OrgRef(orgId, 1L).asJson
           }
@@ -49,7 +49,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "list organizations" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/organizations") ~> route ~> check {
+          Get(s"/organizations") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(orgs.length.toLong, orgs.map {
@@ -67,7 +67,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           s"/organizations?from=${pagination.from}&size=${pagination.size}"
 
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(path) ~> route ~> check {
+          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(orgs.length.toLong, List(UnscoredQueryResult(orgs(1))))
@@ -83,7 +83,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       "output the correct total even when the from query parameter is out of scope" in {
         val pagination = Pagination(0L, 5)
         val path       = s"/organizations?size=${pagination.size}&from=100"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(orgs.length.toLong, List.empty[UnscoredQueryResult[OrgId]])
@@ -95,7 +95,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "list organization with full text search" in {
         val path = s"/organizations?q=${orgs.head.id}"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, orgs.head)))
@@ -106,7 +106,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
 
       "output the correct total in full text search even when the from query parameter is out of scope" in {
         val path = s"/organizations?q=${orgs.head.id}&size=3&from=200"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(1L, 1F, List.empty[ScoredQueryResult[OrgId]])
@@ -122,7 +122,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           "UTF-8"
         )
         val path = s"/organizations?filter=$uriFilter"
-        Get(path) ~> route ~> check {
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(1L, List(UnscoredQueryResult(orgs.head)))
@@ -132,7 +132,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
       }
 
       "list organizations with deprecation" in {
-        Get(s"/organizations?deprecated=false") ~> route ~> check {
+        Get(s"/organizations?deprecated=false") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(orgs.length.toLong, orgs.map {
@@ -142,7 +142,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
             List(Link("self", s"$apiUri/organizations?deprecated=false"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
-        Get(s"/organizations?deprecated=true") ~> route ~> check {
+        Get(s"/organizations?deprecated=true") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(0, List.empty[UnscoredQueryResult[OrgId]])

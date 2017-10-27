@@ -2,10 +2,11 @@ package ch.epfl.bluebrain.nexus.kg.service.directives
 
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive, Directive1, MalformedQueryParamRejection}
+import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.WrongOrInvalidJson
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalFilterFormat, WrongOrInvalidJson}
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
 import io.circe.parser.decode
 import io.circe.{DecodingFailure, ParsingFailure}
 

@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core.contexts
 
-import ch.epfl.bluebrain.nexus.kg.core.Rejection
+import ch.epfl.bluebrain.nexus.commons.types.Rejection
 
 /**
   * Enumeration type for rejections returned when attempting to evaluate commands.

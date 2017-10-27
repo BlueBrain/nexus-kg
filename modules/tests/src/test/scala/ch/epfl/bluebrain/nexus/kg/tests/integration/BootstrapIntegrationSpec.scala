@@ -17,17 +17,11 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
-import ch.epfl.bluebrain.nexus.kg.service.routes.{
-  DomainCustomEncoders,
-  InstanceCustomEncoders,
-  OrgCustomEncoders,
-  SchemaCustomEncoders
-}
+import ch.epfl.bluebrain.nexus.kg.service.routes._
 import io.circe._
 import io.circe.generic.semiauto._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
-
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
@@ -44,7 +38,8 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, vocab: Uri)(implicit as: Ac
     with ScalatestRouteTest
     with Matchers
     with ScalaFutures
-    with Inspectors {
+    with Inspectors
+    with MockedIAMClient {
 
   override implicit val patienceConfig: PatienceConfig =
     PatienceConfig(5 seconds, 300 milliseconds)

@@ -1,12 +1,16 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.IOResult
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
@@ -19,6 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
@@ -38,19 +43,20 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param instances         the instances operation bundle
   * @param instanceQueries   query builder for schemas
   * @param base              the service public uri + prefix
-  * @param querySettings     query parameters from settings
-  * @param filteringSettings filtering parameters from settings
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
-                     base: Uri)(implicit querySettings: QuerySettings, filteringSettings: FilteringSettings)
+                     base: Uri)(implicit querySettings: QuerySettings,
+                                filteringSettings: FilteringSettings,
+                                iamClient: IamClient[Future],
+                                ec: ExecutionContext)
     extends DefaultRouteHandling {
 
   private val encoders = new InstanceCustomEncoders(base)
 
   import encoders._
 
-  protected def searchRoutes: Route =
+  protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
       val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
       traceName("searchInstances") {
@@ -80,10 +86,52 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
       }
     }
 
-  protected def resourceRoutes: Route =
+  protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
+    extractResourceId(5, of[InstanceId]) { instanceId =>
+      (pathEndOrSingleSlash & get & authorizeResource(instanceId, Read)) {
+        parameter('rev.as[Long].?) {
+          case Some(rev) =>
+            traceName("getInstanceRevision") {
+              onSuccess(instances.fetch(instanceId, rev)) {
+                case Some(instance) => complete(StatusCodes.OK -> instance)
+                case None           => complete(StatusCodes.NotFound)
+              }
+            }
+          case None =>
+            traceName("getInstance") {
+              onSuccess(instances.fetch(instanceId)) {
+                case Some(instance) => complete(StatusCodes.OK -> instance)
+                case None           => complete(StatusCodes.NotFound)
+              }
+            }
+        }
+      } ~
+        path("attachment") {
+          (pathEndOrSingleSlash & get & authorizeResource(Path(s"$instanceId/attachment"), Read)) {
+            parameter('rev.as[Long].?) { revOpt =>
+              traceName("getInstanceAttachment") {
+                val result = revOpt match {
+                  case Some(rev) => instances.fetchAttachment(instanceId, rev)
+                  case None      => instances.fetchAttachment(instanceId)
+                }
+                onSuccess(result) {
+                  case Some((info, source)) =>
+                    val ct =
+                      ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
+                    complete(HttpEntity(ct, info.size.value, source))
+                  case None =>
+                    complete(StatusCodes.NotFound)
+                }
+              }
+            }
+          }
+        }
+    }
+
+  protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractAnyResourceId() { id =>
       (pathEndOrSingleSlash & post & resourceId(id, of[SchemaId])) { schemaId =>
-        entity(as[Json]) { json =>
+        (entity(as[Json]) & authorizeResource(schemaId, Write)) { json =>
           traceName("createInstance") {
             onSuccess(instances.create(schemaId, json)) { ref =>
               complete(StatusCodes.Created -> ref)
@@ -93,32 +141,14 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
       } ~
         resourceId(id, of[InstanceId]) { instanceId =>
           pathEndOrSingleSlash {
-            (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
+            (put & entity(as[Json]) & parameter('rev.as[Long]) & authorizeResource(instanceId, Write)) { (json, rev) =>
               traceName("updateInstance") {
                 onSuccess(instances.update(instanceId, rev, json)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
               }
             } ~
-              get {
-                parameter('rev.as[Long].?) {
-                  case Some(rev) =>
-                    traceName("getInstanceRevision") {
-                      onSuccess(instances.fetch(instanceId, rev)) {
-                        case Some(instance) => complete(StatusCodes.OK -> instance)
-                        case None           => complete(StatusCodes.NotFound)
-                      }
-                    }
-                  case None =>
-                    traceName("getInstance") {
-                      onSuccess(instances.fetch(instanceId)) {
-                        case Some(instance) => complete(StatusCodes.OK -> instance)
-                        case None           => complete(StatusCodes.NotFound)
-                      }
-                    }
-                }
-              } ~
-              (delete & parameter('rev.as[Long])) { rev =>
+              (delete & parameter('rev.as[Long]) & authorizeResource(instanceId, Write)) { rev =>
                 traceName("deprecateInstance") {
                   onSuccess(instances.deprecate(instanceId, rev)) { ref =>
                     complete(StatusCodes.OK -> ref)
@@ -127,7 +157,8 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
               }
           } ~
             path("attachment") {
-              (put & parameter('rev.as[Long])) { rev =>
+              val resource = Path(s"$instanceId/attachment")
+              (put & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
                 fileUpload("file") {
                   case (metadata, byteSource) =>
                     traceName("createInstanceAttachment") {
@@ -139,28 +170,10 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                     }
                 }
               } ~
-                (delete & parameter('rev.as[Long])) { rev =>
+                (delete & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
                   traceName("removeInstanceAttachment") {
                     onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
                       complete(StatusCodes.OK -> ref)
-                    }
-                  }
-                } ~
-                get {
-                  parameter('rev.as[Long].?) { revOpt =>
-                    traceName("getInstanceAttachment") {
-                      val result = revOpt match {
-                        case Some(rev) => instances.fetchAttachment(instanceId, rev)
-                        case None      => instances.fetchAttachment(instanceId)
-                      }
-                      onSuccess(result) {
-                        case Some((info, source)) =>
-                          val ct =
-                            ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
-                          complete(HttpEntity(ct, info.size.value, source))
-                        case None =>
-                          complete(StatusCodes.NotFound)
-                      }
                     }
                   }
                 }
@@ -186,6 +199,7 @@ object InstanceRoutes {
                   querySettings: QuerySettings,
                   base: Uri)(implicit
                              ec: ExecutionContext,
+                             iamClient: IamClient[Future],
                              filteringSettings: FilteringSettings): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)

@@ -1,4 +1,4 @@
-val commonsVersion     = "0.5.0"
+val commonsVersion     = "0.5.6"
 val metricsCoreVersion = "3.2.2"
 val jenaVersion        = "3.4.0"
 val blazegraphVersion  = "2.1.4"
@@ -11,6 +11,7 @@ lazy val commonsService = nexusDep("commons-service", commonsVersion)
 lazy val commonsTest    = nexusDep("commons-test", commonsVersion)
 lazy val shaclValidator = nexusDep("shacl-validator", commonsVersion)
 lazy val sparqlClient   = nexusDep("sparql-client", commonsVersion)
+lazy val iamCommons     = nexusDep("iam", commonsVersion)
 
 lazy val docs = project
   .in(file("docs"))
@@ -89,6 +90,7 @@ lazy val service = project
     moduleName := "kg-service",
     libraryDependencies ++= kamonDeps ++ Seq(
       commonsService,
+      iamCommons,
       sourcingAkka,
       sourcingMem                  % Test,
       commonsTest                  % Test,

@@ -15,10 +15,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.instances._
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialIndexer
+import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import _root_.io.circe.generic.extras.auto._
+import _root_.io.circe.generic.extras.Configuration
 
 /**
   * Triggers the start of the indexing process from the resumable projection for all the tags avaialable on the service:
@@ -33,6 +35,9 @@ import scala.concurrent.{ExecutionContext, Future}
 class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiUri: Uri)(implicit
                                                                                          as: ActorSystem,
                                                                                          ec: ExecutionContext) {
+
+  private implicit val config: Configuration =
+    Configuration.default.withDiscriminator("type")
 
   startIndexingOrgs()
   startIndexingDomains()
@@ -58,7 +63,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
                                                             settings.Sparql.Instances.GraphBaseNamespace,
                                                             settings.Prefixes.CoreVocabulary)
 
-    SequentialIndexer.start[InstanceEvent](
+    SequentialTagIndexer.start[InstanceEvent](
       initFunctionOf(settings.Sparql.Instances.Index),
       InstanceIndexer[Future](sparqlClient, instanceIndexingSettings).apply _,
       "instances-to-3s",
@@ -74,7 +79,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
                                                         settings.Sparql.Schemas.GraphBaseNamespace,
                                                         settings.Prefixes.CoreVocabulary)
 
-    SequentialIndexer.start[SchemaEvent](
+    SequentialTagIndexer.start[SchemaEvent](
       initFunctionOf(settings.Sparql.Schemas.Index),
       SchemaIndexer[Future](sparqlClient, schemaIndexingSettings).apply _,
       "schemas-to-3s",
@@ -90,7 +95,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
                                                         settings.Sparql.Domains.GraphBaseNamespace,
                                                         settings.Prefixes.CoreVocabulary)
 
-    SequentialIndexer.start[DomainEvent](
+    SequentialTagIndexer.start[DomainEvent](
       initFunctionOf(settings.Sparql.Domains.Index),
       DomainIndexer[Future](sparqlClient, domainIndexingSettings).apply _,
       "domains-to-3s",
@@ -106,7 +111,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
                                                            settings.Sparql.Organizations.GraphBaseNamespace,
                                                            settings.Prefixes.CoreVocabulary)
 
-    SequentialIndexer.start[OrgEvent](
+    SequentialTagIndexer.start[OrgEvent](
       initFunctionOf(settings.Sparql.Organizations.Index),
       OrganizationIndexer[Future](sparqlClient, orgIndexingSettings).apply _,
       "organization-to-3s",

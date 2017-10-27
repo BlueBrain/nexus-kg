@@ -4,17 +4,16 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -31,7 +30,8 @@ class OrganizationRoutesSpec
     with Matchers
     with ScalatestRouteTest
     with Randomness
-    with ScalaFutures {
+    with ScalaFutures
+    with MockedIAMClient {
 
   "An OrganizationRoutes" should {
     val agg  = MemoryAggregate("orgs")(initial, next, eval).toF[Future]
@@ -41,7 +41,7 @@ class OrganizationRoutesSpec
     val vocab                      = baseUri.copy(path = baseUri.path / "core")
     val querySettings              = QuerySettings(Pagination(0L, 20), "org-index", vocab, baseUri)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl                = HttpClient.akkaHttpClient
+    implicit val cl                = iamClient("http://localhost:8080")
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =
@@ -52,7 +52,7 @@ class OrganizationRoutesSpec
     val jsonUpdated = Json.obj("key" -> Json.fromString(genString(length = 8)))
 
     "create an organization" in {
-      Put(s"/organizations/${id.show}", json) ~> route ~> check {
+      Put(s"/organizations/${id.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.Created
         responseAs[Json] shouldEqual orgRefAsJson(OrgRef(id, 1L))
       }
@@ -60,21 +60,21 @@ class OrganizationRoutesSpec
     }
 
     "reject the creation of an organization with invalid id" in {
-      Put(s"/organizations/invalidId!", json) ~> route ~> check {
+      Put(s"/organizations/invalidId!", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[InvalidOrganizationId.type]
       }
     }
 
     "reject the creation of an organization which already exists" in {
-      Put(s"/organizations/${id.show}", json) ~> route ~> check {
+      Put(s"/organizations/${id.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
         responseAs[Error].code shouldEqual classNameOf[OrgAlreadyExists.type]
       }
     }
 
     "update an organization" in {
-      Put(s"/organizations/${id.show}?rev=1", jsonUpdated) ~> route ~> check {
+      Put(s"/organizations/${id.show}?rev=1", jsonUpdated) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual orgRefAsJson(OrgRef(id, 2L))
       }
@@ -82,21 +82,21 @@ class OrganizationRoutesSpec
     }
 
     "reject updating an organization with incorrect rev" in {
-      Put(s"/organizations/${id.show}?rev=10", jsonUpdated) ~> route ~> check {
+      Put(s"/organizations/${id.show}?rev=10", jsonUpdated) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.Conflict
         responseAs[Error].code shouldEqual classNameOf[IncorrectRevisionProvided.type]
       }
     }
 
     "reject updating an organization with wrong name" in {
-      Put(s"/organizations/noexist?rev=2", jsonUpdated) ~> route ~> check {
+      Put(s"/organizations/noexist?rev=2", jsonUpdated) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].code shouldEqual classNameOf[OrgDoesNotExist.type]
       }
     }
 
     "return the current organization" in {
-      Get(s"/organizations/${id.show}") ~> route ~> check {
+      Get(s"/organizations/${id.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj("@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
@@ -107,13 +107,13 @@ class OrganizationRoutesSpec
     }
 
     "return not found for unknown organizations" in {
-      Get(s"/organizations/${genString(length = 3)}") ~> route ~> check {
+      Get(s"/organizations/${genString(length = 3)}") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     "deprecate an organization" in {
-      Delete(s"/organizations/${id.show}?rev=2") ~> route ~> check {
+      Delete(s"/organizations/${id.show}?rev=2") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual orgRefAsJson(OrgRef(id, 3L))
       }
@@ -121,7 +121,7 @@ class OrganizationRoutesSpec
     }
 
     "reject the deprecation of an organization already deprecated" in {
-      Delete(s"/organizations/${id.show}?rev=3") ~> route ~> check {
+      Delete(s"/organizations/${id.show}?rev=3") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[OrgIsDeprecated.type]
       }

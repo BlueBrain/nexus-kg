@@ -8,7 +8,7 @@ import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ShaclSchema, ShaclValidator}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
-import ch.epfl.bluebrain.nexus.kg.core.Rejection
+import ch.epfl.bluebrain.nexus.commons.types.Rejection
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceCommand._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
