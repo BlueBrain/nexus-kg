@@ -31,7 +31,7 @@ trait AuthDirectives {
                                                           ec: ExecutionContext): Directive0 =
     authorizeAsync {
       iamClient
-        .getAcls(resource)
+        .getAcls(prefix ++ resource)
         .map(_.permissions.contains(perm))
         .recoverWith {
           case UnauthorizedAccess                      => Future.successful(false)
@@ -49,7 +49,7 @@ trait AuthDirectives {
                                                             cred: Option[OAuth2BearerToken],
                                                             ec: ExecutionContext,
                                                             S: Show[Id]): Directive0 =
-    authorizeResource(prefix ++ Path(resource.show), perm)
+    authorizeResource(Path(resource.show), perm)
 
   /**
     * Authenticates the requested with the provided ''cred'' and returns the ''caller''

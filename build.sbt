@@ -11,7 +11,7 @@ lazy val commonsService = nexusDep("commons-service", commonsVersion)
 lazy val commonsTest    = nexusDep("commons-test", commonsVersion)
 lazy val shaclValidator = nexusDep("shacl-validator", commonsVersion)
 lazy val sparqlClient   = nexusDep("sparql-client", commonsVersion)
-lazy val iamTypes       = nexusDep("iam", commonsVersion)
+lazy val iamCommons     = nexusDep("iam", commonsVersion)
 
 lazy val docs = project
   .in(file("docs"))
@@ -90,7 +90,7 @@ lazy val service = project
     moduleName := "kg-service",
     libraryDependencies ++= kamonDeps ++ Seq(
       commonsService,
-      iamTypes,
+      iamCommons,
       sourcingAkka,
       sourcingMem                  % Test,
       commonsTest                  % Test,
