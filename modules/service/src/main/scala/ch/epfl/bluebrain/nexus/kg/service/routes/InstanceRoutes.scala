@@ -8,6 +8,7 @@ import akka.stream.IOResult
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
@@ -107,7 +108,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
         }
       } ~
         path("attachment") {
-          (pathEndOrSingleSlash & get & authorizeResource(Path(s"$instanceId/attachment"), Read)) {
+          (pathEndOrSingleSlash & get & authorizeResource(Path(s"${instanceId.show}/attachment"), Read)) {
             parameter('rev.as[Long].?) { revOpt =>
               traceName("getInstanceAttachment") {
                 val result = revOpt match {

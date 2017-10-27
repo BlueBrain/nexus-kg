@@ -6,20 +6,17 @@ import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.regex.Pattern.quote
 
 import cats.Show
+import cats.syntax.show._
 import cats.instances.try_._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ImportResolver, ShaclValidator}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
-import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.{
-  AttachmentNotFound,
-  IncorrectRevisionProvided,
-  InstanceDoesNotExist,
-  InstanceIsDeprecated,
-  _
-}
+import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstancesSpec._
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment.{Digest, Info, Size}
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.{Attachment, AttachmentLocation, InOutFileStream}
@@ -60,13 +57,17 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
     val schemasAgg =
       MemoryAggregate("schema")(Schemas.initial, Schemas.next, Schemas.eval)
         .toF[Try]
+    val ctxsAgg =
+      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
+        .toF[Try]
     val instAgg         = MemoryAggregate("instance")(Instances.initial, Instances.next, Instances.eval).toF[Try]
     val inOutFileStream = new MockedInOutFileStream()
 
     val orgs      = Organizations(orgsAgg)
     val doms      = Domains(domAgg, orgs)
-    val schemas   = Schemas(schemasAgg, doms, baseUri)
-    val instances = Instances(instAgg, schemas, validator, inOutFileStream)
+    val ctxs      = Contexts(ctxsAgg, doms, baseUri)
+    val schemas   = Schemas(schemasAgg, doms, ctxs, baseUri)
+    val instances = Instances(instAgg, schemas, ctxs, validator, inOutFileStream)
 
     val orgRef = orgs.create(OrgId(genId()), genJson()).success.value
     val domRef =
@@ -77,6 +78,19 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
       .value
     val schemaRef =
       schemas.publish(unpublished.id, unpublished.rev).success.value
+
+    private val ctx =
+      ctxs.create(ContextId(domRef.id, genName(), genVersion()), jsonContentOf("/contexts/shacl.json")).success.value
+    private val _ = ctxs.publish(ctx.id, ctx.rev).success
+    val ctxReplacements = Map(
+      quote("{{context}}") -> s"$baseUri/contexts/${ctx.id.show}"
+    )
+    private val qvalue = schemas
+      .create(SchemaId(domRef.id, genName(), genVersion()),
+              jsonContentOf("/importing-int-value-schema.json", ctxReplacements))
+      .success
+      .value
+    val qvalueRef = schemas.publish(qvalue.id, qvalue.rev).success.value
 
     def createAttachmentRequest(id: InstanceId,
                                 rev: Long,
@@ -207,6 +221,12 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
       }
     }
 
+    "allow instance creation when the schema and instance refer to an external context" in new Context {
+      val id    = InstanceId(qvalueRef.id, genUUID())
+      val value = jsonContentOf("/importing-int-value.json", ctxReplacements)
+      instances.create(id, value).success
+    }
+
     "prevent update if the new json value does not conform to its schema" in new Context {
       val id           = InstanceId(schemaRef.id, genUUID())
       val value        = genJson()
@@ -335,9 +355,9 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
 }
 
 object InstancesSpec {
-  val base = Files.createTempDirectory("attachment").toFile
+  val base: File = Files.createTempDirectory("attachment").toFile
 
-  def digestString(string: String) = {
+  def digestString(string: String): String = {
     val digest = MessageDigest.getInstance("SHA-256")
     digest.digest(string.getBytes("UTF-8")).map("%02x".format(_)).mkString
   }

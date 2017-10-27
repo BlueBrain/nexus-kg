@@ -1,0 +1,18 @@
+{
+  "@context": "{{context}}",
+  "@type": "owl:Ontology",
+  "shapes": [
+    {
+      "@type": "sh:NodeShape",
+      "property": [
+        {
+          "datatype": "xsd:integer",
+          "maxCount": "1",
+          "minCount": "1",
+          "path": "schema:value"
+        }
+      ],
+      "targetClass": "schema:QuantitativeValue"
+    }
+  ]
+}

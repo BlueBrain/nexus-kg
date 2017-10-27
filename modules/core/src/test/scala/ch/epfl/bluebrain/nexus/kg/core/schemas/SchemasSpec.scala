@@ -1,8 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.core.schemas
 
+import java.util.regex.Pattern.quote
+
 import cats.instances.try_._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection.OrgIsDeprecated
@@ -41,10 +45,14 @@ class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryVal
     val schemasAgg =
       MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
         .toF[Try]
+    val ctxsAgg =
+      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
+        .toF[Try]
 
     val orgs    = Organizations(orgsAgg)
     val doms    = Domains(domAgg, orgs)
-    val schemas = Schemas(schemasAgg, doms, baseUri)
+    val ctxs    = Contexts(ctxsAgg, doms, baseUri)
+    val schemas = Schemas(schemasAgg, doms, ctxs, baseUri)
 
     val orgRef = orgs.create(OrgId(genId()), genJson()).success.value
     val domRef =
@@ -97,7 +105,18 @@ class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryVal
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.fetchShape(id, "IdNodeShape2").success.value shouldEqual
-        Some(Shape(ShapeId(id, "IdNodeShape2"), 1L, shapeNodeShape, false, false))
+        Some(Shape(ShapeId(id, "IdNodeShape2"), 1L, shapeNodeShape, deprecated = false, published = false))
+    }
+
+    "expand the context of the schema during validation" in new Context {
+      val ctx =
+        ctxs.create(ContextId(domRef.id, genName(), genVersion()), jsonContentOf("/contexts/shacl.json")).success.value
+      ctxs.publish(ctx.id, ctx.rev).success
+      val ctxReplacements = Map(quote("{{context}}") -> s"$baseUri/contexts/${ctx.id.show}")
+      schemas
+        .create(SchemaId(domRef.id, genName(), genVersion()),
+                jsonContentOf("/importing-int-value-schema.json", ctxReplacements))
+        .success
     }
 
     "prevent from fetching a non existing shape" in new Context {

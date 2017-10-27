@@ -1,12 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import akka.http.scaladsl.server.Directives.{
-  extractCredentials,
-  handleExceptions,
-  handleRejections,
-  pathPrefix,
-}
+import akka.http.scaladsl.server.Directives.{extractCredentials, handleExceptions, handleRejections, pathPrefix}
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.server.directives.RouteDirectives.reject
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Route}

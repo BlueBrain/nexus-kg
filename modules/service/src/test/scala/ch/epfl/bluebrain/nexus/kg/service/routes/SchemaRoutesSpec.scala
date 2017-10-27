@@ -5,10 +5,12 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
@@ -29,7 +31,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
 class SchemaRoutesSpec
     extends WordSpecLike
@@ -40,10 +42,10 @@ class SchemaRoutesSpec
     with ScalaFutures
     with MockedIAMClient {
 
-  private implicit val mt = ActorMaterializer()(system)
-  private implicit val ec = system.dispatcher
+  private implicit val mt: ActorMaterializer        = ActorMaterializer()(system)
+  private implicit val ec: ExecutionContextExecutor = system.dispatcher
 
-  override implicit val patienceConfig = PatienceConfig(3 seconds, 100 millis)
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
   "A SchemaRoutes" should {
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
@@ -57,10 +59,14 @@ class SchemaRoutesSpec
       MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
         .toF[Future]
     val doms = Domains(domAgg, orgs)
+    val ctxAgg =
+      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
+        .toF[Future]
+    val contexts = Contexts(ctxAgg, doms, baseUri.toString())
     val schAgg =
       MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
         .toF[Future]
-    val schemas = Schemas(schAgg, doms, baseUri.toString)
+    val schemas = Schemas(schAgg, doms, contexts, baseUri.toString)
 
     val orgRef =
       Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj()), 2 seconds)
@@ -69,9 +75,9 @@ class SchemaRoutesSpec
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
-    val querySettings              = QuerySettings(Pagination(0L, 20), "some-index", vocab, baseUri)
-    implicit val filteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl                = iamClient("http://localhost:8080")
+    val querySettings                                 = QuerySettings(Pagination(0L, 20), "some-index", vocab, baseUri)
+    implicit val filteringSettings: FilteringSettings = FilteringSettings(vocab, vocab)
+    implicit val cl: IamClient[Future]                = iamClient("http://localhost:8080")
 
     val route =
       SchemaRoutes(schemas, sparqlClient, querySettings, baseUri).routes

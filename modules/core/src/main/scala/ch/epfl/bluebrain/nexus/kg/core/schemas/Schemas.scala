@@ -8,7 +8,7 @@ import cats.syntax.applicativeError._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidatorErr.{CouldNotFindImports, IllegalImportDefinition}
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ShaclSchema, ShaclValidator}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
-import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextName
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextName, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaCommand._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
@@ -25,11 +25,12 @@ import journal.Logger
   *
   * @param agg     the aggregate definition
   * @param doms    the domains operations bundle
+  * @param ctxs    the contexts operations bundle
   * @param baseUri the base uri of the service
   * @param F       a MonadError typeclass instance for ''F[_]''
   * @tparam F the monadic effect type
   */
-final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], baseUri: String)(
+final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Contexts[F], baseUri: String)(
     implicit F: MonadError[F, Throwable]) { self =>
 
   private val logger = Logger[this.type]
@@ -70,15 +71,17 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], baseUri: St
   }
 
   private def validatePayload(json: Json): F[Unit] =
-    validator(ShaclSchema(json))
-      .flatMap { report =>
-        if (report.conforms) F.pure(())
-        else F.raiseError[Unit](CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
-      }
-      .recoverWith {
-        case CouldNotFindImports(missing)     => F.raiseError(CommandRejected(MissingImportsViolation(missing)))
-        case IllegalImportDefinition(missing) => F.raiseError(CommandRejected(IllegalImportsViolation(missing)))
-      }
+    ctxs.expand(json).flatMap { expanded =>
+      validator(ShaclSchema(expanded))
+        .flatMap { report =>
+          if (report.conforms) F.pure(())
+          else F.raiseError[Unit](CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
+        }
+        .recoverWith {
+          case CouldNotFindImports(missing)     => F.raiseError(CommandRejected(MissingImportsViolation(missing)))
+          case IllegalImportDefinition(missing) => F.raiseError(CommandRejected(IllegalImportsViolation(missing)))
+        }
+    }
 
   private def evaluate(cmd: SchemaCommand, intent: => String): F[Current] = {
     F.pure {
@@ -221,13 +224,14 @@ object Schemas {
     *
     * @param agg     the aggregate definition
     * @param doms    the domains operations bundle
+    * @param ctxs    the contexts operations bundle
     * @param baseUri the base uri of the service
     * @param F       a MonadError typeclass instance for ''F[_]''
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](agg: SchemaAggregate[F], doms: Domains[F], baseUri: String)(
+  final def apply[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Contexts[F], baseUri: String)(
       implicit F: MonadError[F, Throwable]): Schemas[F] =
-    new Schemas[F](agg, doms, baseUri)
+    new Schemas[F](agg, doms, ctxs, baseUri)
 
   /**
     * The initial state of a schema.
