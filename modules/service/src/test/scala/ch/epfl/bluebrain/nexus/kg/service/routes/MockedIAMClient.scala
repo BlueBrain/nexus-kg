@@ -8,9 +8,10 @@ import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
 import akka.stream.Materializer
 import akka.util.ByteString
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
-import ch.epfl.bluebrain.nexus.kg.auth.types.{AccessControl, AccessControlList, Permission}
-import ch.epfl.bluebrain.nexus.kg.auth.types.Permission.{Own, Read, Write}
-import ch.epfl.bluebrain.nexus.kg.auth.types.identity.Identity.GroupRef
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
+import ch.epfl.bluebrain.nexus.commons.iam.acls._
+import ch.epfl.bluebrain.nexus.commons.iam.auth.{AuthenticatedUser, User}
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{AuthenticatedRef, GroupRef, UserRef}
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import io.circe.syntax._
@@ -21,7 +22,12 @@ trait MockedIAMClient {
   val ValidToken       = "validToken"
   val ValidCredentials = OAuth2BearerToken(ValidToken)
 
-  private val permissions                    = Set(Own, Read, Write, Permission("publish"))
+  val mockedUser: User = AuthenticatedUser(
+    Set(GroupRef("BBP", "group1"), GroupRef("BBP", "group2"), UserRef("realm", "f:someUUID:username")))
+  val mockedAcls = AccessControlList(
+    Set(AccessControl(GroupRef("BBP", "group1"), Permissions(Own, Read, Write, Permission("publish")))))
+  val mockedAnonAcls = AccessControlList(Set(AccessControl(AuthenticatedRef(None), Permissions(Read))))
+
   private implicit val config: Configuration = Configuration.default.withDiscriminator("type")
 
   implicit def fixedClient(implicit as: ActorSystem, mt: Materializer): UntypedHttpClient[Future] =
@@ -33,23 +39,31 @@ trait MockedIAMClient {
           .header[Authorization]
           .collect {
             case Authorization(ValidCredentials) =>
-              Future.successful(
-                HttpResponse(entity = HttpEntity(
-                  ContentTypes.`application/json`,
-                  AccessControlList(
-                    Set(AccessControl(GroupRef("https://bbpteam.epfl.ch/auth/realms/BBP", "/bbp-ou-nexus"),
-                                      permissions))).asJson.noSpaces
-                )))
+              if (req.uri.toString().contains("/acls/"))
+                Future.successful(
+                  HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAcls.asJson.noSpaces)))
+              else if (req.uri.path.tail.toString().endsWith("/user"))
+                Future.successful(
+                  HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedUser.asJson.noSpaces)))
+              else
+                Future.successful(HttpResponse(status = StatusCodes.NotFound))
+
             case Authorization(OAuth2BearerToken(_)) =>
               Future.successful(
                 HttpResponse(
                   entity = HttpEntity(
                     ContentTypes.`application/json`,
-                    """{"code":"Something bad happened, can't tell you exactly what; want to try again?"}"""),
-                  status = StatusCodes.InternalServerError
+                    """{"code" : "UnauthorizedCaller", "description" : "The caller is not permitted to perform this request"}"""),
+                  status = StatusCodes.Unauthorized
                 ))
           }
-          .getOrElse(Http().singleRequest(req))
+          .getOrElse {
+            if (req.uri.toString().contains("/acls/"))
+              Future.successful(
+                HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAnonAcls.asJson.noSpaces)))
+            else
+              Http().singleRequest(req)
+          }
 
       override def discardBytes(entity: HttpEntity): Future[DiscardedEntity] =
         Future.successful(entity.discardBytes())

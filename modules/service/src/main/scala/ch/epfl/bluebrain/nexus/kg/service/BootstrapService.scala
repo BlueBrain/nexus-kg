@@ -7,12 +7,16 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.Location
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, Materializer}
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.AccessControlList
+import ch.epfl.bluebrain.nexus.commons.iam.auth.User
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.instances.Instances
@@ -25,13 +29,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
-import ch.epfl.bluebrain.nexus.kg.service.routes.ResourceAccess.IamUri
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
 
 /**
   * Construct the service routes, operations and cluster.
@@ -58,7 +61,8 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   val (orgs, doms, schemas, instances) = operations()
 
-  implicit val iamUri = IamUri(settings.IAM.BaseUri)
+  implicit val iamC = iamClient(settings.IAM.BaseUri)
+
   private val apis = uriPrefix(apiUri) {
     OrganizationRoutes(orgs, sparqlClient, orgSettings, apiUri).routes ~
       DomainRoutes(doms, sparqlClient, domainSettings, apiUri).routes ~
@@ -136,6 +140,28 @@ object BootstrapService {
                                       mt: ActorMaterializer,
                                       cl: UntypedHttpClient[Future]): BootstrapService =
     new BootstrapService(settings)
+
+  /**
+    * Constructs [[IamClient]] from the provided ''baseIamUri'' and the implicitly available instances
+    *
+    * @param baseIamUri the baseUri for IAM service
+    */
+  def iamClient(baseIamUri: Uri)(implicit ec: ExecutionContext,
+                                 mt: Materializer,
+                                 cl: UntypedHttpClient[Future]): IamClient[Future] = {
+    import _root_.io.circe.generic.extras.auto._
+    import _root_.io.circe.generic.extras.Configuration
+    import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+
+    implicit val config = Configuration.default.withDiscriminator("type")
+    implicit val iamUri =
+      IamUri(baseIamUri)
+    implicit val aclCl =
+      HttpClient.withAkkaUnmarshaller[AccessControlList]
+    implicit val userCl =
+      HttpClient.withAkkaUnmarshaller[User]
+    IamClient()
+  }
 
   abstract class BootstrapQuerySettings(settings: Settings) {
 

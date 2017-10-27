@@ -3,26 +3,26 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
+import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
+import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
+import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutesSpec._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import io.circe.Json
 import io.circe.generic.auto._
+import io.circe.syntax._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
-import DomainRoutesSpec._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
-import ch.epfl.bluebrain.nexus.kg.service.routes.ResourceAccess.IamUri
-import io.circe.syntax._
 
 import scala.concurrent.Future
 
@@ -43,11 +43,10 @@ class DomainRoutesSpec
         .toF[Future]
     val doms = Domains(domAgg, orgs)
 
-    val orgId           = OrgId(genString(length = 5))
-    val id              = DomainId(orgId, genString(length = 8))
-    val description     = genString(length = 32)
-    val json            = Json.obj("description" -> Json.fromString(description))
-    implicit val iamUri = IamUri(Uri("http://localhost:8080"))
+    val orgId       = OrgId(genString(length = 5))
+    val id          = DomainId(orgId, genString(length = 8))
+    val description = genString(length = 32)
+    val json        = Json.obj("description" -> Json.fromString(description))
 
     orgs
       .create(orgId, Json.obj("key" -> Json.fromString(genString())))
@@ -57,6 +56,7 @@ class DomainRoutesSpec
     val vocab                      = baseUri.copy(path = baseUri.path / "core")
     val querySettings              = QuerySettings(Pagination(0L, 20), "domain-index", vocab, baseUri)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
+    implicit val cl                = iamClient("http://localhost:8080")
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes

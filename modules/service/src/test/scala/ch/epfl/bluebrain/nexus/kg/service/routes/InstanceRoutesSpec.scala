@@ -17,31 +17,22 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
-import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.{
-  IncorrectRevisionProvided,
-  InstanceDoesNotExist,
-  InstanceIsDeprecated,
-  ShapeConstraintViolations
-}
+import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
-  SchemaDoesNotExist,
-  SchemaIsDeprecated,
-  SchemaIsNotPublished
-}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error._
 import ch.epfl.bluebrain.nexus.kg.service.routes.InstanceRoutesSpec._
-import ch.epfl.bluebrain.nexus.kg.service.routes.ResourceAccess.IamUri
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import com.typesafe.config.ConfigFactory
@@ -116,7 +107,8 @@ class InstanceRoutesSpec
 
     val client          = SparqlClient[Future](sparqlUri)
     val instanceIndexer = InstanceIndexer(client, indexSettings)
-    implicit val iamUri = IamUri(Uri("http://localhost:8080"))
+
+    implicit val cl = iamClient("http://localhost:8080")
 
     val route = InstanceRoutes(instances, client, querySettings, baseUri).routes
     val value = genJson()

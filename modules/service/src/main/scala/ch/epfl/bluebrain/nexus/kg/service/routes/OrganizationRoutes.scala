@@ -1,16 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.stream.ActorMaterializer
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
+import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.auth.types.AccessControlList
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
@@ -21,14 +19,14 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives.{extractReso
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.routes.ResourceAccess.{IamUri, check}
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives._
 
 import scala.concurrent.{ExecutionContext, Future}
-import ch.epfl.bluebrain.nexus.kg.auth.types.Permission._
 
 /**
   * Http route definitions for organization specific functionality.
@@ -40,8 +38,7 @@ import ch.epfl.bluebrain.nexus.kg.auth.types.Permission._
 final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQueries[Future, OrgId], base: Uri)(
     implicit querySettings: QuerySettings,
     filteringSettings: FilteringSettings,
-    cl: HttpClient[Future, AccessControlList],
-    iamUri: IamUri,
+    iamClient: IamClient[Future],
     ec: ExecutionContext)
     extends DefaultRouteHandling {
 
@@ -49,7 +46,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
 
   import encoders._
 
-  protected def searchRoutes(cred: OAuth2BearerToken): Route =
+  protected def searchRoutes(implicit caller: Caller): Route =
     (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
       traceName("searchOrganizations") {
         val filter =
@@ -60,9 +57,9 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
       }
     }
 
-  protected def resourceRoutes(cred: OAuth2BearerToken): Route =
+  protected def resourceRoutes(implicit caller: Caller): Route =
     (extractResourceId[OrgId](2, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
-      (put & entity(as[Json]) & authorizeAsync(check(cred, orgId, Write))) { json =>
+      (put & entity(as[Json]) & authorizeResource(orgId, Write)) { json =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
             traceName("updateOrganization") {
@@ -78,7 +75,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
             }
         }
       } ~
-        (get & authorizeAsync(check(cred, orgId, Read))) {
+        (get & authorizeResource(orgId, Read)) {
           traceName("getOrganization") {
             onSuccess(orgs.fetch(orgId)) {
               case Some(org) => complete(org)
@@ -86,7 +83,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
             }
           }
         } ~
-        (delete & authorizeAsync(check(cred, orgId, Write))) {
+        (delete & authorizeResource(orgId, Write)) {
           parameter('rev.as[Long]) { rev =>
             traceName("deprecateOrganization") {
               onSuccess(orgs.deprecate(orgId, rev)) { ref =>
@@ -114,15 +111,12 @@ object OrganizationRoutes {
   final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
       implicit
       ec: ExecutionContext,
-      mt: ActorMaterializer,
-      baseClient: UntypedHttpClient[Future],
-      filteringSettings: FilteringSettings,
-      iamUri: IamUri): OrganizationRoutes = {
+      iamClient: IamClient[Future],
+      filteringSettings: FilteringSettings): OrganizationRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val orgQueries =
       FilterQueries[Future, OrgId](SparqlQuery[Future](client), querySettings)
-    implicit val cl = HttpClient.withAkkaUnmarshaller[AccessControlList]
     new OrganizationRoutes(orgs, orgQueries, base)
   }
 }

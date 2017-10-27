@@ -1,18 +1,16 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.stream.ActorMaterializer
 import cats.instances.future._
 import cats.instances.string._
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
+import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.auth.types.Permission._
-import ch.epfl.bluebrain.nexus.kg.auth.types.{AccessControlList, Permission}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -32,7 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.routes.ResourceAccess.{IamUri, check}
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.{Publish, SchemaConfig}
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
@@ -51,8 +49,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future, SchemaId], base: Uri)(
     implicit querySettings: QuerySettings,
     filteringSettings: FilteringSettings,
-    cl: HttpClient[Future, AccessControlList],
-    iamUri: IamUri,
+    iamClient: IamClient[Future],
     ec: ExecutionContext)
     extends DefaultRouteHandling {
 
@@ -67,7 +64,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler
 
-  protected def searchRoutes(cred: OAuth2BearerToken): Route =
+  protected def searchRoutes(implicit caller: Caller): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
       parameter('published.as[Boolean].?) { publishedOpt =>
         val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
@@ -92,10 +89,10 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
       }
     }
 
-  protected def resourceRoutes(cred: OAuth2BearerToken): Route =
+  protected def resourceRoutes(implicit caller: Caller): Route =
     extractResourceId(4, of[SchemaId]) { schemaId =>
       pathEndOrSingleSlash {
-        (get & authorizeAsync(check(cred, schemaId, Read))) {
+        (get & authorizeResource(schemaId, Read)) {
           traceName("getSchema") {
             onSuccess(schemas.fetch(schemaId)) {
               case Some(schema) => complete(StatusCodes.OK -> schema)
@@ -103,7 +100,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
             }
           }
         } ~
-          (put & entity(as[Json]) & authorizeAsync(check(cred, schemaId, Write))) { json =>
+          (put & entity(as[Json]) & authorizeResource(schemaId, Write)) { json =>
             parameter('rev.as[Long].?) {
               case Some(rev) =>
                 traceName("updateSchema") {
@@ -119,7 +116,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
                 }
             }
           } ~
-          (delete & authorizeAsync(check(cred, schemaId, Write))) {
+          (delete & authorizeResource(schemaId, Write)) {
             parameter('rev.as[Long]) { rev =>
               traceName("deprecateSchema") {
                 onSuccess(schemas.deprecate(schemaId, rev)) { ref =>
@@ -131,7 +128,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
       } ~
         pathPrefix("shapes" / Segment) { fragment =>
           val shapeId = ShapeId(schemaId, fragment)
-          (pathEndOrSingleSlash & get & authorizeAsync(check(cred, shapeId, Read))) {
+          (pathEndOrSingleSlash & get & authorizeResource(shapeId, Read)) {
             traceName("getSchemaShape") {
               onSuccess(schemas.fetchShape(schemaId, fragment)) {
                 case Some(shapes) => complete(StatusCodes.OK -> shapes)
@@ -140,7 +137,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
             }
           }
         } ~
-        (path("config") & authorizeAsync(check(cred, s"$schemaId/config", Publish))) {
+        (path("config") & authorizeResource(s"$schemaId/config", Publish)) {
           (pathEndOrSingleSlash & patch & entity(as[SchemaConfig])) { cfg =>
             parameter('rev.as[Long]) { rev =>
               if (cfg.published) {
@@ -178,14 +175,11 @@ object SchemaRoutes {
   final def apply(schemas: Schemas[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
       implicit
       ec: ExecutionContext,
-      mt: ActorMaterializer,
-      baseClient: UntypedHttpClient[Future],
-      filteringSettings: FilteringSettings,
-      iamUri: IamUri): SchemaRoutes = {
+      iamClient: IamClient[Future],
+      filteringSettings: FilteringSettings): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client), querySettings)
-    implicit val cl                = HttpClient.withAkkaUnmarshaller[AccessControlList]
     new SchemaRoutes(schemas, schemaQueries, base)
   }
 

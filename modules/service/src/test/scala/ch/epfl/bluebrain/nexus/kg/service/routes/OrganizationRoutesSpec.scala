@@ -13,9 +13,9 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organizatio
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
-import ch.epfl.bluebrain.nexus.kg.service.routes.ResourceAccess.IamUri
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.Json
@@ -41,7 +41,7 @@ class OrganizationRoutesSpec
     val vocab                      = baseUri.copy(path = baseUri.path / "core")
     val querySettings              = QuerySettings(Pagination(0L, 20), "org-index", vocab, baseUri)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
-    implicit val iamUri            = IamUri(Uri("http://localhost:8080"))
+    implicit val cl                = iamClient("http://localhost:8080")
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =

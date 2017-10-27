@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import ch.epfl.bluebrain.nexus.commons.types.Err
-import ch.epfl.bluebrain.nexus.kg.core.Rejection
+import ch.epfl.bluebrain.nexus.commons.types.Rejection
 
 /**
   * Enumeration type for rejections returned when a generic rejection occurs.
@@ -9,22 +9,6 @@ import ch.epfl.bluebrain.nexus.kg.core.Rejection
 sealed trait CommonRejections extends Rejection
 
 object CommonRejections {
-
-  /**
-    * Signals the inability to find a resource associated to a particular HTTP verb
-    *
-    * @param supported the collections of supported HTTP verbs for a particular resource
-    */
-  final case class MethodNotSupported(supported: Seq[String]) extends CommonRejections
-
-  /**
-    * Signals the inability to convert the Payload into JSON. It can be due to invalid JSON
-    * syntax or due to constrains in the implemented JSON Decoder
-    *
-    * @param details optional explanation about what went wrong while parsing the Json payload
-    */
-  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class WrongOrInvalidJson(details: Option[String]) extends Err("Invalid json") with CommonRejections
 
   /**
     * Signals the inability to parse a json structure into a [[ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter]]
@@ -44,12 +28,5 @@ object CommonRejections {
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
   final case class IllegalVersionFormat(override val message: String) extends Err(message) with CommonRejections
-
-  /**
-    * Signals that the user does not have access to this resource
-    *
-    */
-  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case object UnauthorizedAccess extends Err("Unauthorized access to the current resource") with CommonRejections
 
 }

@@ -1,4 +1,4 @@
-val commonsVersion     = "0.5.0"
+val commonsVersion     = "0.5.5"
 val metricsCoreVersion = "3.2.2"
 val jenaVersion        = "3.4.0"
 val blazegraphVersion  = "2.1.4"
@@ -11,6 +11,7 @@ lazy val commonsService = nexusDep("commons-service", commonsVersion)
 lazy val commonsTest    = nexusDep("commons-test", commonsVersion)
 lazy val shaclValidator = nexusDep("shacl-validator", commonsVersion)
 lazy val sparqlClient   = nexusDep("sparql-client", commonsVersion)
+lazy val iamTypes       = nexusDep("iam", commonsVersion)
 
 lazy val docs = project
   .in(file("docs"))
@@ -43,25 +44,6 @@ lazy val core = project
       "io.circe"           %% "circe-optics" % circeVersion.value,
       "io.circe"           %% "circe-parser" % circeVersion.value,
       "io.verizon.journal" %% "core" % journalVersion.value,
-      "org.scalatest"      %% "scalatest" % scalaTestVersion.value % Test
-    )
-  )
-
-lazy val authTypes = project
-  .in(file("modules/auth-types"))
-  .settings(common)
-  .settings(
-    name := "auth-types",
-    moduleName := "auth-types",
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka"  %% "akka-http" % akkaHttpVersion.value,
-      "de.heikoseeberger"  %% "akka-http-circe" % akkaHttpCirceVersion.value,
-      "io.circe"           %% "circe-core" % circeVersion.value,
-      "io.circe"           %% "circe-generic-extras" % circeVersion.value,
-      "io.circe"           %% "circe-optics" % circeVersion.value,
-      "io.circe"           %% "circe-parser" % circeVersion.value,
-      "io.verizon.journal" %% "core" % journalVersion.value,
-      commonsTest          % Test,
       "org.scalatest"      %% "scalatest" % scalaTestVersion.value % Test
     )
   )
@@ -100,7 +82,7 @@ lazy val indexing = project
 
 lazy val service = project
   .in(file("modules/service"))
-  .dependsOn(core % "test->test;compile->compile", indexing, docs, authTypes)
+  .dependsOn(core % "test->test;compile->compile", indexing, docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(common, buildInfoSettings, packagingSettings, noCoverage)
   .settings(
@@ -108,6 +90,7 @@ lazy val service = project
     moduleName := "kg-service",
     libraryDependencies ++= kamonDeps ++ Seq(
       commonsService,
+      iamTypes,
       sourcingAkka,
       sourcingMem                  % Test,
       commonsTest                  % Test,
@@ -168,7 +151,7 @@ lazy val root = project
     description := "Nexus KnowledgeGraph",
     licenses := Seq(("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")))
   )
-  .aggregate(docs, core, indexing, authTypes, service, tests)
+  .aggregate(docs, core, indexing, service, tests)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {})
 
