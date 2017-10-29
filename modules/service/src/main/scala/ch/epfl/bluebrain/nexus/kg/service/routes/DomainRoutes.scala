@@ -10,15 +10,14 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutes.DomainDescription
@@ -56,7 +55,7 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
             .list(filter, pagination, termOpt)
             .buildResponse(base, pagination)
         } ~
-          (extractResourceId[OrgId](1, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
+          (extractOrgId & pathEndOrSingleSlash) { orgId =>
             domainQueries
               .list(orgId, filter, pagination, termOpt)
               .buildResponse(base, pagination)
@@ -65,7 +64,7 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
     }
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (extractResourceId[DomainId](2, of[DomainId]) & pathEndOrSingleSlash) { domainId =>
+    (extractDomainId & pathEndOrSingleSlash) { domainId =>
       (get & authorizeResource(domainId, Read)) {
         traceName("getDomain") {
           onSuccess(domains.fetch(domainId)) {
@@ -77,7 +76,7 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
     }
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (extractResourceId[DomainId](2, of[DomainId]) & pathEndOrSingleSlash) { domainId =>
+    (extractDomainId & pathEndOrSingleSlash) { domainId =>
       (put & entity(as[DomainDescription]) & authorizeResource(domainId, Write)) { desc =>
         traceName("createDomain") {
           onSuccess(domains.create(domainId, desc.description)) { ref =>

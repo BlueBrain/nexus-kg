@@ -5,6 +5,7 @@ import java.util.regex.Pattern
 import akka.http.scaladsl.model.Uri
 import cats.Show
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -75,9 +76,9 @@ object Qualifier extends QualifierInstances {
     */
   final def configured[A](base: Uri)(implicit Q: Qualifier[A]): ConfiguredQualifier[A] =
     new ConfiguredQualifier[A] {
-      override def apply(value: A) = Q(value, base)
+      override def apply(value: A): Uri = Q(value, base)
 
-      override def unapply(uri: Uri) = Q.unapply(uri, base)
+      override def unapply(uri: Uri): Option[A] = Q.unapply(uri, base)
     }
 
   implicit class ToQualifierOps[A](value: A)(implicit Q: Qualifier[A]) {
@@ -162,7 +163,7 @@ trait QualifierInstances {
   private def removeBaseUri(uri: Uri, base: Uri, path: Option[String] = None) =
     uri
       .toString()
-      .replaceAll(Pattern.quote(s"${base}/${path.map(p => s"$p/").getOrElse("")}"), "")
+      .replaceAll(Pattern.quote(s"$base/${path.map(p => s"$p/").getOrElse("")}"), "")
 
   implicit val domainIdQualifier: Qualifier[DomainId] =
     new Qualifier[DomainId] {
@@ -186,18 +187,17 @@ trait QualifierInstances {
 
   implicit val schemaNameQualifier: Qualifier[SchemaName] =
     new Qualifier[SchemaName] {
-      override def apply(value: SchemaName, base: Uri) =
+      override def apply(value: SchemaName, base: Uri): Uri =
         Uri(s"$base/schemas/${value.show}")
-      override def unapply(uri: Uri, base: Uri) =
+      override def unapply(uri: Uri, base: Uri): Option[SchemaName] =
         SchemaName(removeBaseUri(uri, base, Some("schemas")))
     }
 
   implicit val schemaIdQualifier: Qualifier[SchemaId] =
     new Qualifier[SchemaId] {
-      override def apply(value: SchemaId, base: Uri) =
+      override def apply(value: SchemaId, base: Uri): Uri =
         Uri(s"$base/schemas/${value.show}")
-
-      override def unapply(uri: Uri, base: Uri) =
+      override def unapply(uri: Uri, base: Uri): Option[SchemaId] =
         SchemaId(removeBaseUri(uri, base, Some("schemas"))).toOption
     }
 
@@ -215,17 +215,31 @@ trait QualifierInstances {
 
   implicit val instanceIdQualifier: Qualifier[InstanceId] =
     new Qualifier[InstanceId] {
-      override def apply(value: InstanceId, base: Uri) =
+      override def apply(value: InstanceId, base: Uri): Uri =
         Uri(s"$base/data/${value.show}")
-
-      override def unapply(uri: Uri, base: Uri) =
+      override def unapply(uri: Uri, base: Uri): Option[InstanceId] =
         InstanceId(removeBaseUri(uri, base, Some("data"))).toOption
+    }
+
+  implicit val contextNameQualifier: Qualifier[ContextName] =
+    new Qualifier[ContextName] {
+      override def apply(value: ContextName, base: Uri): Uri =
+        Uri(s"$base/contexts/${value.show}")
+      override def unapply(uri: Uri, base: Uri): Option[ContextName] =
+        ContextName(removeBaseUri(uri, base, Some("contexts")))
+    }
+
+  implicit val contextIdQualifier: Qualifier[ContextId] =
+    new Qualifier[ContextId] {
+      override def apply(value: ContextId, base: Uri): Uri =
+        Uri(s"$base/contexts/${value.show}")
+      override def unapply(uri: Uri, base: Uri): Option[ContextId] =
+        ContextId(removeBaseUri(uri, base, Some("contexts"))).toOption
     }
 
   implicit def stringIdQualifier(implicit S: Show[String]): Qualifier[String] =
     new Qualifier[String] {
-      override def apply(value: String, base: Uri) = Uri(s"$base/${value.show}")
-
-      override def unapply(uri: Uri, base: Uri) = None
+      override def apply(value: String, base: Uri): Uri    = Uri(s"$base/${value.show}")
+      override def unapply(uri: Uri, base: Uri): None.type = None
     }
 }

@@ -12,8 +12,6 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
 import ch.epfl.bluebrain.nexus.kg.core.schemas._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId, ShapeRef}
@@ -27,7 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
@@ -72,25 +70,21 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
           pathEndOrSingleSlash {
             schemaQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
           } ~
-            (extractAnyResourceId(3) & pathEndOrSingleSlash) { id =>
-              schemaQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
-
-              resourceId(id, of[OrgId]) { orgId =>
-                schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
-              } ~
-                resourceId(id, of[DomainId]) { domainId =>
-                  schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
-                } ~
-                resourceId(id, of[SchemaName]) { schemaName =>
-                  schemaQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
-                }
+            (extractOrgId & pathEndOrSingleSlash) { orgId =>
+              schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+            } ~
+            (extractDomainId & pathEndOrSingleSlash) { domainId =>
+              schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+            } ~
+            (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
+              schemaQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
             }
         }
       }
     }
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    extractResourceId(4, of[SchemaId]) { schemaId =>
+    extractSchemaId { schemaId =>
       (pathEndOrSingleSlash & get & authorizeResource(schemaId, Read)) {
         traceName("getSchema") {
           onSuccess(schemas.fetch(schemaId)) {
@@ -113,7 +107,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
     }
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    extractResourceId(4, of[SchemaId]) { schemaId =>
+    extractSchemaId { schemaId =>
       pathEndOrSingleSlash {
         (put & entity(as[Json]) & authorizeResource(schemaId, Write)) { json =>
           parameter('rev.as[Long].?) {

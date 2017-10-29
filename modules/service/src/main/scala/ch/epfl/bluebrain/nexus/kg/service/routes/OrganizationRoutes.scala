@@ -16,8 +16,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives.{extractResourceId, of}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
@@ -57,7 +57,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
     }
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (extractResourceId[OrgId](2, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
+    (extractOrgId & pathEndOrSingleSlash) { orgId =>
       (get & authorizeResource(orgId, Read)) {
         traceName("getOrganization") {
           onSuccess(orgs.fetch(orgId)) {
@@ -69,7 +69,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
     }
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (extractResourceId[OrgId](2, of[OrgId]) & pathEndOrSingleSlash) { orgId =>
+    (extractOrgId & pathEndOrSingleSlash) { orgId =>
       (put & entity(as[Json]) & authorizeResource(orgId, Write)) { json =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>

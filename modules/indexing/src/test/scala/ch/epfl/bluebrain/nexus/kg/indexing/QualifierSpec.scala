@@ -13,6 +13,7 @@ import org.scalatest.{Matchers, WordSpecLike}
 import cats.syntax.show._
 import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.types.Version
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.ShapeId
 
@@ -66,6 +67,55 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
 
     "be mapped into a qualified uri in string format" in {
       id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/domains/org/dom"
+    }
+  }
+
+  "A ContextName" should {
+    val id = ContextName(DomainId(OrgId("org"), "dom"), "name")
+
+    "be mapped into a qualified uri using a configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[ContextName] =
+        Qualifier.configured[ContextName](base)
+      id.qualify shouldEqual Uri("http://localhost/base/contexts/org/dom/name")
+    }
+
+    "be mapped into a qualified uri in string format using a configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[ContextName] =
+        Qualifier.configured[ContextName](base)
+      id.qualifyAsString shouldEqual "http://localhost/base/contexts/org/dom/name"
+    }
+
+    "be mapped into a qualified uri using an explicit base uri" in {
+      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/contexts/org/dom/name")
+    }
+
+    "be mapped into a qualified uri in string format" in {
+      id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/contexts/org/dom/name"
+    }
+  }
+
+  "A ContextId" should {
+    val id = ContextId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0))
+
+    "be mapped into a qualified uri using a configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[ContextId] =
+        Qualifier.configured[ContextId](base)
+      id.qualify shouldEqual Uri("http://localhost/base/contexts/org/dom/name/v1.0.0")
+    }
+
+    "be mapped into a qualified uri in string format using a configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[ContextId] =
+        Qualifier.configured[ContextId](base)
+      id.qualifyAsString shouldEqual "http://localhost/base/contexts/org/dom/name/v1.0.0"
+    }
+
+    "be mapped into a qualified uri using an explicit base uri" in {
+      id.qualifyWith("http://localhost/explicit") shouldEqual Uri(
+        "http://localhost/explicit/contexts/org/dom/name/v1.0.0")
+    }
+
+    "be mapped into a qualified uri in string format" in {
+      id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/contexts/org/dom/name/v1.0.0"
     }
   }
 
@@ -170,10 +220,12 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
   }
 
   "A qualifier uri" should {
-    val orgId      = OrgId(genString(length = 4))
-    val domainId   = DomainId(orgId, genString(length = 8))
-    val schemaName = SchemaName(domainId, genString(length = 4))
-    val schemaId   = schemaName.versioned(genVersion())
+    val orgId       = OrgId(genString(length = 4))
+    val domainId    = DomainId(orgId, genString(length = 8))
+    val schemaName  = SchemaName(domainId, genString(length = 4))
+    val schemaId    = schemaName.versioned(genVersion())
+    val contextName = ContextName(domainId, genString(length = 4))
+    val contextId   = contextName.versioned(genVersion())
 
     "unqualify the uri into an InstanceId using an explicit base uri" in {
       val id = InstanceId(schemaId, genUUID())
@@ -185,6 +237,31 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
         Qualifier.configured[InstanceId](base)
       val id = InstanceId(schemaId, genUUID())
       s"$base/data/${id.show}".unqualify[InstanceId] shouldEqual Some(id)
+    }
+
+    "unqualify the uri into a ContextId using an explicit base uri" in {
+      s"$base/contexts/${contextId.show}"
+        .unqualifyWith[ContextId](base) shouldEqual Some(contextId)
+    }
+
+    "unqualify the uri into a ContextId using an configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[ContextId] =
+        Qualifier.configured[ContextId](base)
+      s"$base/contexts/${contextId.show}".unqualify[ContextId] shouldEqual Some(contextId)
+    }
+
+    "unqualify the uri into an ContextName using an explicit base uri" in {
+      val uriString = s"$base/contexts/${contextName.show}"
+      uriString.unqualifyWith[ContextName](base) shouldEqual Some(contextName)
+      Uri(uriString).unqualifyWith[ContextName](base) shouldEqual Some(contextName)
+
+    }
+
+    "unqualify the uri into an ContextName using an configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[ContextName] =
+        Qualifier.configured[ContextName](base)
+      s"$base/contexts/${contextName.show}"
+        .unqualify[ContextName] shouldEqual Some(contextName)
     }
 
     "unqualify the uri into an SchemaId using an explicit base uri" in {
@@ -259,6 +336,20 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
       implicit val qualifier: ConfiguredQualifier[String] =
         Qualifier.configured[String](base)
       s"$base/something".unqualify[String] shouldEqual None
+    }
+
+    "attempt to unqualify an invalid uri into a ContextName using an configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[ContextName] =
+        Qualifier.configured[ContextName](base)
+      s"invalid:;uri^http//something?http://ō"
+        .unqualify[ContextName] shouldEqual None
+    }
+
+    "attempt to unqualify an invalid uri into a ContextId using an configured base uri" in {
+      implicit val qualifier: ConfiguredQualifier[ContextId] =
+        Qualifier.configured[ContextId](base)
+      s"invalid:;uri^http//something?http://ō"
+        .unqualify[ContextId] shouldEqual None
     }
 
     "attempt to unqualify an invalid uri into an SchemaId using an configured base uri" in {
