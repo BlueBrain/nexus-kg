@@ -135,7 +135,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
             }
           }
       } ~
-        (path("config") & authorizeResource(s"$schemaId/config", Publish)) {
+        (path("config") & authorizeResource(schemaId, Publish)) {
           (pathEndOrSingleSlash & patch & entity(as[SchemaConfig])) { cfg =>
             parameter('rev.as[Long]) { rev =>
               if (cfg.published) {
