@@ -16,6 +16,8 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas._
 import ch.epfl.bluebrain.nexus.kg.service.io.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.service.io.SerializerSpec.DataAndJson
 import ch.epfl.bluebrain.nexus.commons.service.io.UTF8
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent.ContextCreated
 import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import shapeless.Typeable
@@ -45,6 +47,10 @@ class SerializerSpec extends WordSpecLike with Matchers with Inspectors with Sca
         DataAndJson[SchemaEvent](
           SchemaCreated(SchemaId(domainId, "schemaname", Version(1, 1, 1)), 1, Json.obj()),
           """{"id":"orgid/domainid/schemaname/v1.1.1","rev":1,"value":{},"type":"SchemaCreated"}"""
+        ),
+        DataAndJson[ContextEvent](
+          ContextCreated(ContextId(domainId, "contextname", Version(1, 1, 1)), 1, Json.obj()),
+          """{"id":"orgid/domainid/contextname/v1.1.1","rev":1,"value":{},"type":"ContextCreated"}"""
         ),
         DataAndJson[InstanceEvent](
           InstanceCreated(InstanceId(SchemaId(domainId, "schemaname", Version(1, 1, 1)), uuid), 1, Json.obj()),
