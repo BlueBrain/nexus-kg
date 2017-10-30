@@ -5,6 +5,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances._
 import ch.epfl.bluebrain.nexus.kg.core.organizations._
 import ch.epfl.bluebrain.nexus.kg.core.schemas._
 import ch.epfl.bluebrain.nexus.commons.service.io.AkkaCoproductSerializer
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import shapeless._
@@ -19,6 +20,6 @@ object Serializer {
     Configuration.default.withDiscriminator("type")
 
   class EventSerializer
-      extends AkkaCoproductSerializer[InstanceEvent :+: SchemaEvent :+: DomainEvent :+: OrgEvent :+: CNil](1215)
+      extends AkkaCoproductSerializer[InstanceEvent :+: SchemaEvent :+: ContextEvent :+: DomainEvent :+: OrgEvent :+: CNil](1215)
 
 }

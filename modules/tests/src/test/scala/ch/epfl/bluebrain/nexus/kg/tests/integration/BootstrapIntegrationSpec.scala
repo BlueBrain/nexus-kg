@@ -62,7 +62,7 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, vocab: Uri)(implicit as: Ac
 }
 
 object BootstrapIntegrationSpec extends Randomness with Resources {
-  val indexTimeout = 30L
+  val indexTimeout = 60L
 
   val orgs: List[OrgId] = List(OrgId("nexus"), OrgId("other"), OrgId("rand"))
     .sortWith(_.show < _.show)

@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection
 import ch.epfl.bluebrain.nexus.commons.service.directives.ErrorDirectives._
 import ch.epfl.bluebrain.nexus.commons.service.directives.StatusFrom
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
@@ -34,6 +35,7 @@ object ExceptionHandling {
   final def exceptionHandler: ExceptionHandler = ExceptionHandler {
     case CommandRejected(r: InstanceRejection)   => complete(r)
     case CommandRejected(r: SchemaRejection)     => complete(r)
+    case CommandRejected(r: ContextRejection)    => complete(r)
     case CommandRejected(r: DomainRejection)     => complete(r)
     case CommandRejected(r: OrgRejection)        => complete(r)
     case CommandRejected(r: IllegalFilterFormat) => complete(r)
@@ -83,6 +85,22 @@ object ExceptionHandling {
       case _: MissingImportsViolation   => BadRequest
       case _: IllegalImportsViolation   => BadRequest
       case _: InvalidSchemaId           => BadRequest
+    }
+  }
+
+  private implicit val contextStatusFrom: StatusFrom[ContextRejection] = {
+    import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection._
+    StatusFrom {
+      case ContextAlreadyExists         => Conflict
+      case IncorrectRevisionProvided    => Conflict
+      case ContextDoesNotExist          => NotFound
+      case CannotUnpublishContext       => BadRequest
+      case CannotUpdatePublished        => BadRequest
+      case ContextIsDeprecated          => BadRequest
+      case ContextIsNotPublished        => BadRequest
+      case _: ShapeConstraintViolations => BadRequest
+      case _: IllegalImportsViolation   => BadRequest
+      case _: InvalidContextId          => BadRequest
     }
   }
 

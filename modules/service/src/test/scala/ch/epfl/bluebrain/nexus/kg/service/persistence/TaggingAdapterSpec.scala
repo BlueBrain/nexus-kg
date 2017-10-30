@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.service.persistence
 
 import akka.persistence.journal.Tagged
 import ch.epfl.bluebrain.nexus.commons.types.Version
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainEvent, DomainId}
 import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceEvent, InstanceId}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, OrgId}
@@ -14,18 +15,20 @@ class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors {
 
     val adapter = new TaggingAdapter()
 
-    val id       = "id"
-    val orgId    = OrgId(id)
-    val domId    = DomainId(orgId, id)
-    val schemaId = SchemaId(domId, "name", Version(1, 1, 1))
-    val instId   = InstanceId(schemaId, id)
-    val rev      = 1L
+    val id        = "id"
+    val orgId     = OrgId(id)
+    val domId     = DomainId(orgId, id)
+    val schemaId  = SchemaId(domId, "name", Version(1, 1, 1))
+    val contextId = ContextId(domId, "name", Version(1, 1, 1))
+    val instId    = InstanceId(schemaId, id)
+    val rev       = 1L
 
     val mapping = Map(
-      OrgEvent.OrgDeprecated(orgId, rev)            -> "organization",
-      DomainEvent.DomainDeprecated(domId, rev)      -> "domain",
-      SchemaEvent.SchemaDeprecated(schemaId, rev)   -> "schema",
-      InstanceEvent.InstanceDeprecated(instId, rev) -> "instance"
+      OrgEvent.OrgDeprecated(orgId, rev)             -> "organization",
+      DomainEvent.DomainDeprecated(domId, rev)       -> "domain",
+      SchemaEvent.SchemaDeprecated(schemaId, rev)    -> "schema",
+      ContextEvent.ContextDeprecated(contextId, rev) -> "context",
+      InstanceEvent.InstanceDeprecated(instId, rev)  -> "instance"
     )
 
     "set the appropriate tags" in {

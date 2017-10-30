@@ -155,7 +155,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
             }
         } ~
           path("attachment") {
-            val resource = Path(s"$instanceId/attachment")
+            val resource = Path(s"${instanceId.show}/attachment")
             (put & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
               fileUpload("file") {
                 case (metadata, byteSource) =>
