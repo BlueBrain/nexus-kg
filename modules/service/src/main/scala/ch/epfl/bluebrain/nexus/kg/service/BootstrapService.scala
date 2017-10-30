@@ -60,7 +60,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   val sparqlClient = SparqlClient[Future](settings.Sparql.BaseUri)
 
-  val (orgs, doms, schemas, instances) = operations()
+  val (orgs, doms, schemas, contexts, instances) = operations()
 
   implicit val iamC = iamClient(settings.IAM.BaseUri)
 
@@ -68,6 +68,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     OrganizationRoutes(orgs, sparqlClient, orgSettings, apiUri).routes ~
       DomainRoutes(doms, sparqlClient, domainSettings, apiUri).routes ~
       SchemaRoutes(schemas, sparqlClient, schemaSettings, apiUri).routes ~
+      ContextRoutes(contexts, apiUri).routes ~
       InstanceRoutes(instances, sparqlClient, instanceSettings, apiUri).routes
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)
@@ -128,7 +129,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch))
     implicit val instances =
       Instances(instancesAgg, schemas, contexts, validator, inFileProcessor)
-    (orgs, doms, schemas, instances)
+    (orgs, doms, schemas, contexts, instances)
   }
 
   def joinCluster()  = cluster.joinSeedNodes(seeds.toList)
