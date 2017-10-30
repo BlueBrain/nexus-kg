@@ -8,15 +8,14 @@ import akka.stream.IOResult
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
@@ -24,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
@@ -63,23 +62,23 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
         pathEndOrSingleSlash {
           instanceQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
         } ~
-          extractAnyResourceId() { id =>
-            (pathEndOrSingleSlash & resourceId(id, of[OrgId])) { orgId =>
-              instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+          (extractOrgId & pathEndOrSingleSlash) { orgId =>
+            instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+          (extractDomainId & pathEndOrSingleSlash) { domainId =>
+            instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+          (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
+            instanceQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+          (extractSchemaId & pathEndOrSingleSlash) { schemaId =>
+            instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)
+          } ~
+          extractInstanceId { instanceId =>
+            path("outgoing") {
+              instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
             } ~
-              (pathEndOrSingleSlash & resourceId(id, of[DomainId])) { domainId =>
-                instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
-              } ~
-              (pathEndOrSingleSlash & resourceId(id, of[SchemaName])) { schemaName =>
-                instanceQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
-              } ~
-              (pathEndOrSingleSlash & resourceId(id, of[SchemaId])) { schemaId =>
-                instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)
-              } ~
-              (resourceId(id, of[InstanceId]) & pathPrefix("outgoing") & pathEndOrSingleSlash) { instanceId =>
-                instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
-              } ~
-              (resourceId(id, of[InstanceId]) & pathPrefix("incoming") & pathEndOrSingleSlash) { instanceId =>
+              path("incoming") {
                 instanceQueries.incoming(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
               }
           }
@@ -87,7 +86,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
     }
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    extractResourceId(5, of[InstanceId]) { instanceId =>
+    extractInstanceId { instanceId =>
       (pathEndOrSingleSlash & get & authorizeResource(instanceId, Read)) {
         parameter('rev.as[Long].?) {
           case Some(rev) =>
@@ -107,7 +106,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
         }
       } ~
         path("attachment") {
-          (pathEndOrSingleSlash & get & authorizeResource(Path(s"$instanceId/attachment"), Read)) {
+          (pathEndOrSingleSlash & get & authorizeResource(Path(s"${instanceId.show}/attachment"), Read)) {
             parameter('rev.as[Long].?) { revOpt =>
               traceName("getInstanceAttachment") {
                 val result = revOpt match {
@@ -129,57 +128,55 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
     }
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    extractAnyResourceId() { id =>
-      (pathEndOrSingleSlash & post & resourceId(id, of[SchemaId])) { schemaId =>
-        (entity(as[Json]) & authorizeResource(schemaId, Write)) { json =>
-          traceName("createInstance") {
-            onSuccess(instances.create(schemaId, json)) { ref =>
-              complete(StatusCodes.Created -> ref)
-            }
+    (extractSchemaId & pathEndOrSingleSlash & post) { schemaId =>
+      (entity(as[Json]) & authorizeResource(schemaId, Write)) { json =>
+        traceName("createInstance") {
+          onSuccess(instances.create(schemaId, json)) { ref =>
+            complete(StatusCodes.Created -> ref)
           }
         }
-      } ~
-        resourceId(id, of[InstanceId]) { instanceId =>
-          pathEndOrSingleSlash {
-            (put & entity(as[Json]) & parameter('rev.as[Long]) & authorizeResource(instanceId, Write)) { (json, rev) =>
-              traceName("updateInstance") {
-                onSuccess(instances.update(instanceId, rev, json)) { ref =>
+      }
+    } ~
+      extractInstanceId { instanceId =>
+        pathEndOrSingleSlash {
+          (put & entity(as[Json]) & parameter('rev.as[Long]) & authorizeResource(instanceId, Write)) { (json, rev) =>
+            traceName("updateInstance") {
+              onSuccess(instances.update(instanceId, rev, json)) { ref =>
+                complete(StatusCodes.OK -> ref)
+              }
+            }
+          } ~
+            (delete & parameter('rev.as[Long]) & authorizeResource(instanceId, Write)) { rev =>
+              traceName("deprecateInstance") {
+                onSuccess(instances.deprecate(instanceId, rev)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
               }
+            }
+        } ~
+          path("attachment") {
+            val resource = Path(s"$instanceId/attachment")
+            (put & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
+              fileUpload("file") {
+                case (metadata, byteSource) =>
+                  traceName("createInstanceAttachment") {
+                    onSuccess(instances
+                      .createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) {
+                      info =>
+                        complete(StatusCodes.Created -> info)
+                    }
+                  }
+              }
             } ~
-              (delete & parameter('rev.as[Long]) & authorizeResource(instanceId, Write)) { rev =>
-                traceName("deprecateInstance") {
-                  onSuccess(instances.deprecate(instanceId, rev)) { ref =>
+              (delete & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
+                traceName("removeInstanceAttachment") {
+                  onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
                 }
               }
-          } ~
-            path("attachment") {
-              val resource = Path(s"$instanceId/attachment")
-              (put & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
-                fileUpload("file") {
-                  case (metadata, byteSource) =>
-                    traceName("createInstanceAttachment") {
-                      onSuccess(instances
-                        .createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) {
-                        info =>
-                          complete(StatusCodes.Created -> info)
-                      }
-                    }
-                }
-              } ~
-                (delete & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
-                  traceName("removeInstanceAttachment") {
-                    onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
-                      complete(StatusCodes.OK -> ref)
-                    }
-                  }
-                }
-            }
-        }
-    }
+          }
+      }
 
   def routes: Route = combinedRoutesFor("data")
 }

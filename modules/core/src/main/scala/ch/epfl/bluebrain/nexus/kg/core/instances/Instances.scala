@@ -3,12 +3,11 @@ package ch.epfl.bluebrain.nexus.kg.core.instances
 import java.util.UUID
 
 import cats.MonadError
-import cats.syntax.flatMap._
-import cats.syntax.functor._
-import cats.syntax.show._
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ShaclSchema, ShaclValidator}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.commons.types.Rejection
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceCommand._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
@@ -24,6 +23,7 @@ import journal.Logger
   *
   * @param agg             the aggregate definition
   * @param schemas         the schemas operations bundle
+  * @param ctxs            the contexts operations bundle
   * @param validator       shacl validator
   * @param inOutFileStream the operations on incoming and outgoing file
   * @param F               a MonadError typeclass instance for ''F[_]''
@@ -35,6 +35,7 @@ import journal.Logger
 final class Instances[F[_], In, Out](
     agg: InstanceAggregate[F],
     schemas: Schemas[F],
+    ctxs: Contexts[F],
     validator: ShaclValidator[F],
     inOutFileStream: InOutFileStream[F, In, Out])(implicit F: MonadError[F, Throwable], al: AttachmentLocation[F]) {
 
@@ -43,9 +44,12 @@ final class Instances[F[_], In, Out](
   private def validatePayload(schemaId: SchemaId, json: Json): F[Unit] = {
     schemas.fetch(schemaId).flatMap {
       case Some(schema) =>
-        validator(ShaclSchema(schema.value), json).flatMap { report =>
-          if (report.conforms) F.pure(())
-          else F.raiseError(CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
+        ctxs.expand(schema.value) product ctxs.expand(json) flatMap {
+          case (s, j) =>
+            validator(ShaclSchema(s), j).flatMap { report =>
+              if (report.conforms) F.pure(())
+              else F.raiseError(CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
+            }
         }
       case None => F.raiseError(CommandRejected(SchemaRejection.SchemaDoesNotExist))
     }
@@ -216,6 +220,7 @@ final class Instances[F[_], In, Out](
     *         and typeclass Out wrapped in the abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]]
     *         wrapped within ''F[_]'' otherwise
     */
+  @SuppressWarnings(Array("PartialFunctionInsteadOfMatch"))
   def fetchAttachment(id: InstanceId): F[Option[(Attachment.Info, Out)]] = {
     agg.currentState(id.show).flatMap {
       case Initial                               => F.pure(None)
@@ -233,6 +238,7 @@ final class Instances[F[_], In, Out](
     *         and typeclass Out wrapped in the abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]]
     *         wrapped within ''F[_]'' otherwise
     */
+  @SuppressWarnings(Array("PartialFunctionInsteadOfMatch"))
   def fetchAttachment(id: InstanceId, rev: Long): F[Option[(Attachment.Info, Out)]] = {
     fetchCurrent(id, rev).flatMap {
       case Some(Current(_, _, _, Some(attachment), _)) => sourceFrom(attachment)
@@ -278,6 +284,7 @@ object Instances {
     *
     * @param agg             the aggregate definition
     * @param schemas         the schemas operations bundle
+    * @param ctxs            the contexts operations bundle
     * @param validator       shacl validator
     * @param inOutFileStream the operations on incoming and outgoing file
     * @param F               a MonadError typeclass instance for ''F[_]''
@@ -288,11 +295,12 @@ object Instances {
     **/
   final def apply[F[_], In, Out](agg: InstanceAggregate[F],
                                  schemas: Schemas[F],
+                                 ctxs: Contexts[F],
                                  validator: ShaclValidator[F],
                                  inOutFileStream: InOutFileStream[F, In, Out])(
       implicit F: MonadError[F, Throwable],
       al: AttachmentLocation[F]): Instances[F, In, Out] =
-    new Instances[F, In, Out](agg, schemas, validator, inOutFileStream)
+    new Instances[F, In, Out](agg, schemas, ctxs, validator, inOutFileStream)
 
   /**
     * The initial state of an instance.

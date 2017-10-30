@@ -16,13 +16,9 @@ import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
-import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.{
-  IncorrectRevisionProvided,
-  InstanceDoesNotExist,
-  InstanceIsDeprecated,
-  ShapeConstraintViolations
-}
+import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
@@ -54,6 +50,7 @@ import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
+//noinspection TypeAnnotation
 class InstanceRoutesSpec
     extends WordSpecLike
     with Matchers
@@ -66,7 +63,7 @@ class InstanceRoutesSpec
 
   trait Context extends ScalaFutures {
 
-    override implicit val patienceConfig = PatienceConfig(3 seconds, 100 millis)
+    override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
     def genSchema(): Json =
       Json.obj()
@@ -87,12 +84,16 @@ class InstanceRoutesSpec
     val schAgg =
       MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
         .toF[Future]
-    val schemas         = Schemas(schAgg, doms, baseUri.toString())
-    val validator       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch))
-    val instAgg         = MemoryAggregate("instances")(Instances.initial, Instances.next, Instances.eval).toF[Future]
-    implicit val fa     = RelativeAttachmentLocation[Future](settings)
-    val inFileProcessor = AkkaInOutFileStream(settings)
-    val instances       = Instances(instAgg, schemas, validator, inFileProcessor)
+    val ctxAgg =
+      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
+        .toF[Future]
+    val contexts                                        = Contexts(ctxAgg, doms, baseUri.toString())
+    val schemas                                         = Schemas(schAgg, doms, contexts, baseUri.toString())
+    val validator                                       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch))
+    val instAgg                                         = MemoryAggregate("instances")(Instances.initial, Instances.next, Instances.eval).toF[Future]
+    implicit val fa: RelativeAttachmentLocation[Future] = RelativeAttachmentLocation[Future](settings)
+    val inFileProcessor                                 = AkkaInOutFileStream(settings)
+    val instances                                       = Instances(instAgg, schemas, contexts, validator, inFileProcessor)
 
     val orgRef =
       orgs.create(OrgId(genString(length = 3)), Json.obj()).futureValue
@@ -108,7 +109,7 @@ class InstanceRoutesSpec
       InstanceIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
 
     val querySettings = QuerySettings(Pagination(0L, 20), index, nexusVocBase, baseUri)
-    implicit val filteringSettings =
+    implicit val filteringSettings: FilteringSettings =
       FilteringSettings(nexusVocBase, nexusVocBase)
     val baseUUID = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 

@@ -28,6 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
@@ -109,6 +110,11 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
       sourcingSettings
         .copy(passivationTimeout = settings.Schemas.PassivationTimeout))(Schemas.initial, Schemas.next, Schemas.eval)
 
+    val ctxAgg = ShardingAggregate(
+      "context",
+      sourcingSettings
+        .copy(passivationTimeout = settings.Schemas.PassivationTimeout))(Contexts.initial, Contexts.next, Contexts.eval)
+
     val instancesAgg =
       ShardingAggregate("instance", sourcingSettings.copy(passivationTimeout = settings.Instances.PassivationTimeout))(
         Instances.initial,
@@ -117,10 +123,11 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
     val orgs      = Organizations(orgsAgg)
     val doms      = Domains(domsAgg, orgs)
-    val schemas   = Schemas(schemasAgg, doms, apiUri.toString())
+    val contexts  = Contexts(ctxAgg, doms, apiUri.toString())
+    val schemas   = Schemas(schemasAgg, doms, contexts, apiUri.toString())
     val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch))
     implicit val instances =
-      Instances(instancesAgg, schemas, validator, inFileProcessor)
+      Instances(instancesAgg, schemas, contexts, validator, inFileProcessor)
     (orgs, doms, schemas, instances)
   }
 
