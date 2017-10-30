@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent
 class TaggingAdapter extends WriteEventAdapter {
 
   override def manifest(event: Any): String = ""
-//TODO Contexts
+
   override def toJournal(event: Any): Any = event match {
     case ev: OrgEvent      => Tagged(ev, Set("organization"))
     case ev: DomainEvent   => Tagged(ev, Set("domain"))
