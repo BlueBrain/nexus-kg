@@ -3,6 +3,9 @@
 Instance resources are rooted in the `/v0/data` collection.  As described in the
 @ref:[API Reference](index.md), these represent the last level resources.  
 
+
+**Note:** You might need to add `-H "Authorization: Bearer ***"` if you are attempting to operate on a protected resource using the curl examples.
+
 ### Create an instance
 
 An instance is created to be valid against an specific schema (`name` and `version`) and to belong to a certain organization `orgId` and domain `domId`. This is specified using the following URI:

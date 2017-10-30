@@ -1,0 +1,10 @@
+{
+  "@context": {
+    "nx": "https://nexus.example.com/v0/voc/nexus/core/"
+  },
+  "filter": {
+    "path": "nx:domain / nx:description",
+    "op": "eq",
+    "value": "Some description"
+  }
+}

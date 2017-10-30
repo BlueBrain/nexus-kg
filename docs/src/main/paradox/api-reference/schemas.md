@@ -4,6 +4,9 @@ Schema resources are rooted in the `/v0/schemas` collection.  As described in th
 @ref:[API Reference](index.md), these represent the third level resources.  All configuration and policies apply to their
 sub-resources.
 
+**Note:** You might need to add `-H "Authorization: Bearer ***"` if you are attempting to operate on a protected resource using the curl examples.
+
+
 ### Create a schema
 
 Schema `name` and `version` along with domain `domId` and organization `orgId` create local ids for these resources, which means the consumer has the necessary information to perform

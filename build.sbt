@@ -1,4 +1,4 @@
-val commonsVersion     = "0.5.6"
+val commonsVersion     = "0.5.7"
 val metricsCoreVersion = "3.2.2"
 val jenaVersion        = "3.4.0"
 val blazegraphVersion  = "2.1.4"
@@ -21,6 +21,7 @@ lazy val docs = project
     name := "kg-docs",
     moduleName := "kg-docs",
     paradoxTheme := Some(builtinParadoxTheme("generic")),
+    paradoxProperties in Compile ++= Map("extref.service.base_url" -> "../"),
     target in (Compile, paradox) := (resourceManaged in Compile).value / "docs",
     resourceGenerators in Compile += {
       (paradox in Compile).map { parent =>
