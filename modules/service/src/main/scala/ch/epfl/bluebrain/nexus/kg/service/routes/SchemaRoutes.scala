@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.time.Clock
+
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
@@ -15,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
 import ch.epfl.bluebrain.nexus.kg.core.schemas._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId, ShapeRef}
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
@@ -48,7 +51,8 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
     implicit querySettings: QuerySettings,
     filteringSettings: FilteringSettings,
     iamClient: IamClient[Future],
-    ec: ExecutionContext)
+    ec: ExecutionContext,
+    clock: Clock)
     extends DefaultRouteHandling {
 
   private val schemaEncoders = new SchemaCustomEncoders(base)
@@ -109,24 +113,26 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractSchemaId { schemaId =>
       pathEndOrSingleSlash {
-        (put & entity(as[Json]) & authorizeResource(schemaId, Write)) { json =>
-          parameter('rev.as[Long].?) {
-            case Some(rev) =>
-              traceName("updateSchema") {
-                onSuccess(schemas.update(schemaId, rev, json)) { ref =>
-                  complete(StatusCodes.OK -> ref)
+        (put & entity(as[Json])) { json =>
+          (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
+            parameter('rev.as[Long].?) {
+              case Some(rev) =>
+                traceName("updateSchema") {
+                  onSuccess(schemas.update(schemaId, rev, json)) { ref =>
+                    complete(StatusCodes.OK -> ref)
+                  }
                 }
-              }
-            case None =>
-              traceName("createSchema") {
-                onSuccess(schemas.create(schemaId, json)) { ref =>
-                  complete(StatusCodes.Created -> ref)
+              case None =>
+                traceName("createSchema") {
+                  onSuccess(schemas.create(schemaId, json)) { ref =>
+                    complete(StatusCodes.Created -> ref)
+                  }
                 }
-              }
+            }
           }
         } ~
-          (delete & authorizeResource(schemaId, Write)) {
-            parameter('rev.as[Long]) { rev =>
+          (delete & parameter('rev.as[Long])) { rev =>
+            (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
               traceName("deprecateSchema") {
                 onSuccess(schemas.deprecate(schemaId, rev)) { ref =>
                   complete(StatusCodes.OK -> ref)
@@ -135,9 +141,9 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
             }
           }
       } ~
-        (path("config") & authorizeResource(schemaId, Publish)) {
-          (pathEndOrSingleSlash & patch & entity(as[SchemaConfig])) { cfg =>
-            parameter('rev.as[Long]) { rev =>
+        path("config") {
+          (pathEndOrSingleSlash & patch & entity(as[SchemaConfig]) & parameter('rev.as[Long])) { (cfg, rev) =>
+            (authenticateCaller & authorizeResource(schemaId, Publish)) { implicit caller =>
               if (cfg.published) {
                 traceName("publishSchema") {
                   onSuccess(schemas.publish(schemaId, rev)) { ref =>
@@ -174,7 +180,8 @@ object SchemaRoutes {
       implicit
       ec: ExecutionContext,
       iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings): SchemaRoutes = {
+      filteringSettings: FilteringSettings,
+      clock: Clock): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client), querySettings)

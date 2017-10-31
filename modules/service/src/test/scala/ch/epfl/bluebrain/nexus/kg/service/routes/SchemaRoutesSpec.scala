@@ -1,15 +1,19 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.time.Clock
+
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
@@ -66,12 +70,15 @@ class SchemaRoutesSpec
     val schAgg =
       MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
         .toF[Future]
-    val schemas = Schemas(schAgg, doms, contexts, baseUri.toString)
+    val schemas        = Schemas(schAgg, doms, contexts, baseUri.toString)
+    implicit val clock = Clock.systemUTC
+
+    val caller = CallerCtx(clock, AnonymousCaller)
 
     val orgRef =
-      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj()), 2 seconds)
+      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)
     val domRef =
-      Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8)), 2 seconds)
+      Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller), 2 seconds)
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
@@ -213,7 +220,7 @@ class SchemaRoutesSpec
 
     "reject the creation of schema from a deprecated domain" in {
       //Deprecate the domain
-      doms.deprecate(domRef.id, domRef.rev).futureValue
+      doms.deprecate(domRef.id, domRef.rev)(caller).futureValue
       //Create a SchemaId from the deprecated domain
       val schemaId2 = SchemaId(domRef.id, genString(length = 8), genVersion())
 

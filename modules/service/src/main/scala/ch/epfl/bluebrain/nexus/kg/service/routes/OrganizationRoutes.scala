@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.time.Clock
+
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
@@ -9,6 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
@@ -38,7 +41,8 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
     implicit querySettings: QuerySettings,
     filteringSettings: FilteringSettings,
     iamClient: IamClient[Future],
-    ec: ExecutionContext)
+    ec: ExecutionContext,
+    clock: Clock)
     extends DefaultRouteHandling {
 
   private val encoders = new OrgCustomEncoders(base)
@@ -71,23 +75,25 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractOrgId & pathEndOrSingleSlash) { orgId =>
       (put & entity(as[Json]) & authorizeResource(orgId, Write)) { json =>
-        parameter('rev.as[Long].?) {
-          case Some(rev) =>
-            traceName("updateOrganization") {
-              onSuccess(orgs.update(orgId, rev, json)) { ref =>
-                complete(StatusCodes.OK -> ref)
+        (authenticateCaller & authorizeResource(orgId, Write)) { implicit caller =>
+          parameter('rev.as[Long].?) {
+            case Some(rev) =>
+              traceName("updateOrganization") {
+                onSuccess(orgs.update(orgId, rev, json)) { ref =>
+                  complete(StatusCodes.OK -> ref)
+                }
               }
-            }
-          case None =>
-            traceName("createOrganization") {
-              onSuccess(orgs.create(orgId, json)) { ref =>
-                complete(StatusCodes.Created -> ref)
+            case None =>
+              traceName("createOrganization") {
+                onSuccess(orgs.create(orgId, json)) { ref =>
+                  complete(StatusCodes.Created -> ref)
+                }
               }
-            }
+          }
         }
       } ~
-        (delete & authorizeResource(orgId, Write)) {
-          parameter('rev.as[Long]) { rev =>
+        (delete & parameter('rev.as[Long])) { rev =>
+          (authenticateCaller & authorizeResource(orgId, Write)) { implicit caller =>
             traceName("deprecateOrganization") {
               onSuccess(orgs.deprecate(orgId, rev)) { ref =>
                 complete(StatusCodes.OK -> ref)
@@ -115,7 +121,8 @@ object OrganizationRoutes {
       implicit
       ec: ExecutionContext,
       iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings): OrganizationRoutes = {
+      filteringSettings: FilteringSettings,
+      clock: Clock): OrganizationRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val orgQueries =

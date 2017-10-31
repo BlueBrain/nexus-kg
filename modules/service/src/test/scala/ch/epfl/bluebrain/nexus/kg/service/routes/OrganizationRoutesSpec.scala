@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.time.Clock
+
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
@@ -42,6 +44,7 @@ class OrganizationRoutesSpec
     val querySettings              = QuerySettings(Pagination(0L, 20), "org-index", vocab, baseUri)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
     implicit val cl                = iamClient("http://localhost:8080")
+    implicit val clock             = Clock.systemUTC
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =

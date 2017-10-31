@@ -50,25 +50,25 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], settings: SchemaIndexingSetti
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: SchemaEvent): F[Unit] = event match {
-    case SchemaCreated(id, rev, value) =>
+    case SchemaCreated(id, rev, _, value) =>
       log.debug(s"Indexing 'SchemaCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false), published = Some(false))
       val data = value deepMerge meta
       client.createGraph(index, id qualifyWith baseNs, data)
 
-    case SchemaUpdated(id, rev, value) =>
+    case SchemaUpdated(id, rev, _, value) =>
       log.debug(s"Indexing 'SchemaUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false), published = Some(false))
       val data = value deepMerge meta
       client.replaceGraph(index, id qualifyWith baseNs, data)
 
-    case SchemaPublished(id, rev) =>
+    case SchemaPublished(id, rev, _) =>
       log.debug(s"Indexing 'SchemaPublished' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, deprecated = None, published = Some(true))
       val removeQuery = PatchQuery(id, revKey, publishedKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
 
-    case SchemaDeprecated(id, rev) =>
+    case SchemaDeprecated(id, rev, _) =>
       log.debug(s"Indexing 'SchemaDeprecated' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, deprecated = Some(true), published = None)
       val removeQuery = PatchQuery(id, revKey, deprecatedKey)

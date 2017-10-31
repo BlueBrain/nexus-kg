@@ -1,12 +1,16 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.time.Clock
+
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
@@ -43,13 +47,14 @@ class DomainRoutesSpec
         .toF[Future]
     val doms = Domains(domAgg, orgs)
 
-    val orgId       = OrgId(genString(length = 5))
-    val id          = DomainId(orgId, genString(length = 8))
-    val description = genString(length = 32)
-    val json        = Json.obj("description" -> Json.fromString(description))
+    val orgId          = OrgId(genString(length = 5))
+    val id             = DomainId(orgId, genString(length = 8))
+    val description    = genString(length = 32)
+    val json           = Json.obj("description" -> Json.fromString(description))
+    implicit val clock = Clock.systemUTC
 
     orgs
-      .create(orgId, Json.obj("key" -> Json.fromString(genString())))
+      .create(orgId, Json.obj("key" -> Json.fromString(genString())))(CallerCtx(clock, AnonymousCaller))
       .futureValue
 
     val sparqlUri                  = Uri("http://localhost:9999/bigdata/sparql")

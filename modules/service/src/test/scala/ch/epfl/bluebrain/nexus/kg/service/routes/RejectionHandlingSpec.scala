@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import java.net.URLEncoder
+import java.time.Clock
 
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -40,6 +41,7 @@ class RejectionHandlingSpec
     val nexusVocab                 = s"$baseUri/voc/nexus/core"
     implicit val filteringSettings = FilteringSettings(nexusVocab, nexusVocab)
     implicit val cl                = iamClient("http://localhost:8080")
+    implicit val clock             = Clock.systemUTC
 
     val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
     val vocab         = baseUri.copy(path = baseUri.path / "core")

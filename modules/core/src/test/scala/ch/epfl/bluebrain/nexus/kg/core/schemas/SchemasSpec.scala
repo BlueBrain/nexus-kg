@@ -1,10 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.core.schemas
 
+import java.time.Clock
 import java.util.regex.Pattern.quote
 
 import cats.instances.try_._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
@@ -36,6 +39,9 @@ class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryVal
   val optionalSchemaJson = jsonContentOf("/optional-int-value-schema.json")
   val shapeNodeShape     = jsonContentOf("/int-value-shape-nodeshape.json")
   val baseUri            = "http://localhost:8080/v0"
+
+  private implicit val caller = AnonymousCaller
+  private implicit val clock  = Clock.systemUTC
 
   trait Context {
     val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Try]

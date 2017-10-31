@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.schemas
 
+import java.time.Clock
 import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
@@ -13,6 +14,8 @@ import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
@@ -109,13 +112,14 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     val client  = SparqlClient[Future](baseUri)
     val indexer = SchemaIndexer(client, settings)
 
-    val id = SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0))
+    val id   = SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0))
+    val meta = Meta(Anonymous, Clock.systemUTC.instant())
 
     "index a SchemaCreated event" in {
       client.createIndex(index, properties).futureValue
       val rev  = 1L
       val data = jsonContentOf("/schemas/minimal.json", replacements)
-      indexer(SchemaCreated(id, rev, data)).futureValue
+      indexer(SchemaCreated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 16
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = false, "random")
@@ -124,7 +128,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     "index a SchemaUpdated event" in {
       val rev  = 2L
       val data = jsonContentOf("/schemas/minimal.json", replacements + ("random" -> "updated"))
-      indexer(SchemaUpdated(id, rev, data)).futureValue
+      indexer(SchemaUpdated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 16
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = false, "updated")
@@ -132,7 +136,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
 
     "index a SchemaPublished event" in {
       val rev = 3L
-      indexer(SchemaPublished(id, rev)).futureValue
+      indexer(SchemaPublished(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 16
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = true, "updated")
@@ -140,7 +144,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
 
     "index a SchemaDeprecated event" in {
       val rev = 4L
-      indexer(SchemaDeprecated(id, rev)).futureValue
+      indexer(SchemaDeprecated(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 16
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, published = true, "updated")

@@ -1,8 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.core.organizations
 
+import java.time.Clock
+
 import cats.instances.try_._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -19,6 +23,9 @@ class OrganizationsSpec extends WordSpecLike with Matchers with Inspectors with 
 
   private def genJson(): Json =
     Json.obj("key" -> Json.fromString(genString()))
+
+  private implicit val caller = AnonymousCaller
+  private implicit val clock  = Clock.systemUTC
 
   "An Organizations instance" should {
     val agg = MemoryAggregate("org")(initial, next, eval).toF[Try]

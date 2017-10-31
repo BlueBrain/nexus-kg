@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core.contexts
 
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import io.circe.Json
 
 /**
@@ -19,11 +20,12 @@ object ContextState {
     *
     * @param id         the unique identifier of the context
     * @param rev        the selected revision number
+    * @param meta       the metadata associated to this context
     * @param value      the json representation of the context
     * @param published  the publish status
     * @param deprecated the deprecation status
     */
-  final case class Current(id: ContextId, rev: Long, value: Json, published: Boolean, deprecated: Boolean)
+  final case class Current(id: ContextId, rev: Long, meta: Meta, value: Json, published: Boolean, deprecated: Boolean)
       extends ContextState
 
 }

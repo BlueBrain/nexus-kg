@@ -4,6 +4,7 @@ import cats.MonadError
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainCommand.{CreateDomain, DeprecateDomain}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
@@ -70,11 +71,11 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.domains.DomainRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(id: DomainId, description: String): F[DomainRef] =
+  def create(id: DomainId, description: String)(implicit ctx: CallerCtx): F[DomainRef] =
     for {
       _       <- validateId(id)
       _       <- orgs.assertUnlocked(id.orgId)
-      current <- evaluate(CreateDomain(id, description), "Create domain")
+      current <- evaluate(CreateDomain(id, ctx.meta, description), "Create domain")
     } yield DomainRef(id, current.rev)
 
   /**
@@ -85,8 +86,8 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.domains.DomainRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def deprecate(id: DomainId, rev: Long): F[DomainRef] =
-    evaluate(DeprecateDomain(id, rev), "Deprecate domain")
+  def deprecate(id: DomainId, rev: Long)(implicit ctx: CallerCtx): F[DomainRef] =
+    evaluate(DeprecateDomain(id, rev, ctx.meta), "Deprecate domain")
       .map(current => DomainRef(id, current.rev))
 
   /**
@@ -99,8 +100,8 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
     */
   def fetch(id: DomainId): F[Option[Domain]] =
     agg.currentState(id.show).map {
-      case DomainState.Initial                                  => None
-      case DomainState.Current(_, rev, deprecated, description) => Some(Domain(id, rev, deprecated, description))
+      case DomainState.Initial                                     => None
+      case DomainState.Current(_, rev, _, deprecated, description) => Some(Domain(id, rev, deprecated, description))
     }
 
   private def evaluate(cmd: DomainCommand, intent: => String): F[Current] = {
@@ -167,7 +168,7 @@ object Domains {
     * @return the next state
     */
   final def next(state: DomainState, event: DomainEvent): DomainState = (state, event) match {
-    case (Initial, DomainCreated(id, rev, desc)) => Current(id, rev, deprecated = false, desc)
+    case (Initial, DomainCreated(id, rev, meta, desc)) => Current(id, rev, meta, deprecated = false, desc)
     // $COVERAGE-OFF$
     case (Initial, _) => Initial
     // $COVERAGE-ON$
@@ -186,7 +187,7 @@ object Domains {
     */
   final def eval(state: DomainState, cmd: DomainCommand): Either[DomainRejection, DomainEvent] = {
     def createDomain(c: CreateDomain) = state match {
-      case Initial => Right(DomainCreated(c.id, 1L, c.description))
+      case Initial => Right(DomainCreated(c.id, 1L, c.meta, c.description))
       case _       => Left(DomainAlreadyExists)
     }
 
@@ -194,7 +195,7 @@ object Domains {
       case Initial                      => Left(DomainDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(DomainAlreadyDeprecated)
-      case s: Current                   => Right(DomainDeprecated(s.id, s.rev + 1))
+      case s: Current                   => Right(DomainDeprecated(s.id, s.rev + 1, c.meta))
     }
 
     cmd match {

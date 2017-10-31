@@ -41,19 +41,19 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], settings: OrganizationI
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: OrgEvent): F[Unit] = event match {
-    case OrgCreated(id, rev, value) =>
+    case OrgCreated(id, rev, _, value) =>
       log.debug(s"Indexing 'OrgCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false))
       val data = value deepMerge meta
       client.createGraph(index, id qualifyWith baseNs, data)
 
-    case OrgUpdated(id, rev, value) =>
+    case OrgUpdated(id, rev, _, value) =>
       log.debug(s"Indexing 'OrgUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false))
       val data = value deepMerge meta
       client.replaceGraph(index, id qualifyWith baseNs, data)
 
-    case OrgDeprecated(id, rev) =>
+    case OrgDeprecated(id, rev, _) =>
       log.debug(s"Indexing 'OrgDeprecated' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, deprecated = Some(true))
       val removeQuery = PatchQuery(id, revKey, deprecatedKey)
