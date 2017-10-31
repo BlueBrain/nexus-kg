@@ -1,0 +1,7 @@
+{
+  "filter": {
+    "path": "<https://nexus.example.com/v0/voc/nexus/core/domain> / <https://nexus.example.com/v0/voc/nexus/core/description>",
+    "op": "eq",
+    "value": "Some description"
+  }
+}

@@ -1,6 +1,9 @@
 # Operating on resources
 
-All resources in the system share a base set of operations.  Assuming a nexus deployment at
+Any resources in the system might be protected using an **access token**, provided by the HTTP header `Authorization: Bearer {access_token}`. Visit @extref[Authentication](service:iam/api-reference/auth.html) in order to learn more about how to retrieve an access token.
+
+
+All resources in the system share a base set of operations. Assuming a nexus deployment at
 `http(s)://nexus.example.com` resource address of `/v0/{address}` the following operations should apply to most (all)
 resources:
 
@@ -158,11 +161,11 @@ Search and Filter Instances Response
 Filters follow the general form:
 
 ```
-comparisonOp    ::= 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte'
+comparisonOp    ::= 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'in'
 logicalOp       ::= 'and' | 'or' | 'not' | 'xor'
 op              ::= comparisonOp | logicalOp
 
-path            ::= uri
+path            ::= uri | property path
 comparisonValue ::= literal | uri | {comparisonValue}
 
 comparisonExpr  ::= json {
@@ -189,7 +192,7 @@ filter          ::= json {
 - with a user defined context
 - that describes a filter value as a filter expression
 - a filter expression is either a comparison expression or a logical expression
-- a comparison expression contains a path property (currently restricted to an uri), the value to compare and an
+- a comparison expression contains a path property (a uri or a [property path](https://www.w3.org/TR/sparql11-query/#propertypaths)), the value to compare and an
   operator which describes how to compare that value
 - a logical expression contains a collection of filter expressions joined together through a logical operator
 
@@ -218,6 +221,12 @@ With context
 
 Nested filter
 :   @@snip [nested-filter.json](../assets/api-reference/nested-filter.json)
+
+Property path
+:   @@snip [property-path-filter.json](../assets/api-reference/property-path-filter.json)
+
+Property path with context
+:   @@snip [property-path-context-filter.json](../assets/api-reference/property-path-context-filter.json)
 
 ### Search response format
 

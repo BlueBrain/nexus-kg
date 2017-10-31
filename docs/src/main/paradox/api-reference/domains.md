@@ -4,6 +4,9 @@ Domain resources are rooted in the `/v0/domains` collection.  As described in th
 @ref:[API Reference](index.md), these represent the second level resources.  All configuration and policies apply to their
 sub-resources.
 
+**Note:** You might need to add `-H "Authorization: Bearer ***"` if you are attempting to operate on a protected resource using the curl examples.
+
+
 ### Create a domain
 
 Domain `domId` along with organization `orgId` create local ids for these resources, which means the consumer has the necessary information to perform
