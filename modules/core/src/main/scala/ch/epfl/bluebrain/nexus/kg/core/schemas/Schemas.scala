@@ -7,6 +7,7 @@ import cats.syntax.show._
 import cats.syntax.applicativeError._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidatorErr.{CouldNotFindImports, IllegalImportDefinition}
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ShaclSchema, ShaclValidator}
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextName, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
@@ -112,12 +113,12 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(id: SchemaId, value: Json): F[SchemaRef] =
+  def create(id: SchemaId, value: Json)(implicit ctx: CallerCtx): F[SchemaRef] =
     for {
       _ <- validateId(id)
       _ <- doms.assertUnlocked(id.domainId)
       _ <- validatePayload(value)
-      r <- evaluate(CreateSchema(id, value), "Create schema")
+      r <- evaluate(CreateSchema(id, ctx.meta, value), "Create schema")
     } yield SchemaRef(id, r.rev)
 
   /**
@@ -130,11 +131,11 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def update(id: SchemaId, rev: Long, value: Json): F[SchemaRef] =
+  def update(id: SchemaId, rev: Long, value: Json)(implicit ctx: CallerCtx): F[SchemaRef] =
     for {
       _ <- doms.assertUnlocked(id.domainId)
       _ <- validatePayload(value)
-      r <- evaluate(UpdateSchema(id, rev, value), "Update schema")
+      r <- evaluate(UpdateSchema(id, rev, ctx.meta, value), "Update schema")
     } yield SchemaRef(id, r.rev)
 
   /**
@@ -145,10 +146,10 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def publish(id: SchemaId, rev: Long): F[SchemaRef] =
+  def publish(id: SchemaId, rev: Long)(implicit ctx: CallerCtx): F[SchemaRef] =
     for {
       _ <- doms.assertUnlocked(id.domainId)
-      r <- evaluate(PublishSchema(id, rev), "Publish schema")
+      r <- evaluate(PublishSchema(id, rev, ctx.meta), "Publish schema")
     } yield SchemaRef(id, r.rev)
 
   /**
@@ -160,8 +161,8 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def deprecate(id: SchemaId, rev: Long): F[SchemaRef] =
-    evaluate(DeprecateSchema(id, rev), "Deprecate schema")
+  def deprecate(id: SchemaId, rev: Long)(implicit ctx: CallerCtx): F[SchemaRef] =
+    evaluate(DeprecateSchema(id, rev, ctx.meta), "Deprecate schema")
       .map(r => SchemaRef(id, r.rev))
 
   /**
@@ -175,8 +176,8 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     */
   def fetch(id: SchemaId): F[Option[Schema]] =
     agg.currentState(id.show).map {
-      case Initial                                       => None
-      case Current(_, rev, value, published, deprecated) => Some(Schema(id, rev, value, deprecated, published))
+      case Initial                                          => None
+      case Current(_, rev, _, value, published, deprecated) => Some(Schema(id, rev, value, deprecated, published))
     }
 
   /**
@@ -194,7 +195,7 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     agg.currentState(id.show).map {
       case Initial =>
         None
-      case Current(schemaId, rev, value, published, deprecated) =>
+      case Current(schemaId, rev, _, value, published, deprecated) =>
         value.fetchShape(fragment) match {
           case Some(shapeValue) => Some(Shape(ShapeId(schemaId, fragment), rev, shapeValue, deprecated, published))
           case _                => None
@@ -247,16 +248,18 @@ object Schemas {
     * @return the next state
     */
   final def next(state: SchemaState, event: SchemaEvent): SchemaState = (state, event) match {
-    case (Initial, SchemaCreated(id, rev, value)) => Current(id, rev, value, published = false, deprecated = false)
+    case (Initial, SchemaCreated(id, rev, meta, value)) =>
+      Current(id, rev, meta, value, published = false, deprecated = false)
     // $COVERAGE-OFF$
     case (Initial, _) => Initial
     // $COVERAGE-ON$
-    case (c: Current, SchemaDeprecated(_, rev)) if c.published => c.copy(rev = rev, deprecated = true)
-    case (c: Current, _) if c.deprecated || c.published        => c
-    case (c: Current, _: SchemaCreated)                        => c
-    case (c: Current, SchemaUpdated(_, rev, value))            => c.copy(rev = rev, value = value)
-    case (c: Current, SchemaPublished(_, rev))                 => c.copy(rev = rev, published = true)
-    case (c: Current, SchemaDeprecated(_, rev))                => c.copy(rev = rev, deprecated = true)
+    case (c: Current, SchemaDeprecated(_, rev, meta)) if c.published =>
+      c.copy(rev = rev, meta = meta, deprecated = true)
+    case (c: Current, _) if c.deprecated || c.published   => c
+    case (c: Current, _: SchemaCreated)                   => c
+    case (c: Current, SchemaUpdated(_, rev, meta, value)) => c.copy(rev = rev, meta = meta, value = value)
+    case (c: Current, SchemaPublished(_, rev, meta))      => c.copy(rev = rev, meta = meta, published = true)
+    case (c: Current, SchemaDeprecated(_, rev, meta))     => c.copy(rev = rev, meta = meta, deprecated = true)
   }
 
   /**
@@ -269,7 +272,7 @@ object Schemas {
     */
   final def eval(state: SchemaState, cmd: SchemaCommand): Either[SchemaRejection, SchemaEvent] = {
     def createSchema(c: CreateSchema) = state match {
-      case Initial    => Right(SchemaCreated(c.id, 1L, c.value))
+      case Initial    => Right(SchemaCreated(c.id, 1L, c.meta, c.value))
       case _: Current => Left(SchemaAlreadyExists)
     }
 
@@ -278,7 +281,7 @@ object Schemas {
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(SchemaIsDeprecated)
       case s: Current if s.published    => Left(CannotUpdatePublished)
-      case s: Current                   => Right(SchemaUpdated(s.id, s.rev + 1, c.value))
+      case s: Current                   => Right(SchemaUpdated(s.id, s.rev + 1, c.meta, c.value))
     }
 
     def publishSchema(c: PublishSchema) = state match {
@@ -286,14 +289,14 @@ object Schemas {
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(SchemaIsDeprecated)
       case s: Current if s.published    => Left(CannotUpdatePublished)
-      case s: Current                   => Right(SchemaPublished(s.id, s.rev + 1))
+      case s: Current                   => Right(SchemaPublished(s.id, s.rev + 1, c.meta))
     }
 
     def deprecateSchema(c: DeprecateSchema) = state match {
       case Initial                      => Left(SchemaDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(SchemaIsDeprecated)
-      case s: Current                   => Right(SchemaDeprecated(s.id, s.rev + 1))
+      case s: Current                   => Right(SchemaDeprecated(s.id, s.rev + 1, c.meta))
     }
 
     cmd match {

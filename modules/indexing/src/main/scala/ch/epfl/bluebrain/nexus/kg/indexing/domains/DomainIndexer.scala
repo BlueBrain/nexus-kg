@@ -45,12 +45,12 @@ class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSetti
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: DomainEvent): F[Unit] = event match {
-    case DomainCreated(id, rev, description) =>
+    case DomainCreated(id, rev, _, description) =>
       log.debug(s"Indexing 'DomainCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, Some(description), deprecated = Some(false))
       client.createGraph(index, id qualifyWith baseNs, meta)
 
-    case DomainDeprecated(id, rev) =>
+    case DomainDeprecated(id, rev, _) =>
       log.debug(s"Indexing 'DomainDeprecated' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, None, deprecated = Some(true))
       val removeQuery = PatchQuery(id, revKey, deprecatedKey)

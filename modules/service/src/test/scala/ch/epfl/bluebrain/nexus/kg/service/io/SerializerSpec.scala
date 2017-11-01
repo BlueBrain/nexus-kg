@@ -1,9 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.service.io
 
+import java.time.Clock
 import java.util.UUID
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{Anonymous, UserRef}
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.DomainCreated
 import ch.epfl.bluebrain.nexus.kg.core.domains._
@@ -35,26 +38,41 @@ class SerializerSpec extends WordSpecLike with Matchers with Inspectors with Sca
 
     val uuid     = UUID.randomUUID().toString
     val domainId = DomainId(OrgId("orgid"), "domainid")
+    val meta     = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+    val metaAnon = Meta(Anonymous, Clock.systemUTC.instant())
+
     "using EventSerializer" should {
       val results = List(
-        DataAndJson[OrgEvent](OrgCreated(OrgId("orgid"), 1, Json.obj()),
-                              """{"id":"orgid","rev":1,"value":{},"type":"OrgCreated"}"""),
-        DataAndJson[OrgEvent](OrgUpdated(OrgId("orgid"), 2, Json.obj("one" -> Json.fromString("two"))),
-                              """{"id":"orgid","rev":2,"value":{"one":"two"},"type":"OrgUpdated"}"""),
-        DataAndJson[OrgEvent](OrgDeprecated(OrgId("orgid"), 3), """{"id":"orgid","rev":3,"type":"OrgDeprecated"}"""),
-        DataAndJson[DomainEvent](DomainCreated(domainId, 1L, "desc"),
-                                 """{"id":"orgid/domainid","rev":1,"description":"desc","type":"DomainCreated"}"""),
+        DataAndJson[OrgEvent](
+          OrgCreated(OrgId("orgid"), 1, meta, Json.obj()),
+          s"""{"id":"orgid","rev":1,"meta":{"author":{"realm":"realm","sub":"sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"OrgCreated"}"""
+        ),
+        DataAndJson[OrgEvent](
+          OrgUpdated(OrgId("orgid"), 2, meta, Json.obj("one" -> Json.fromString("two"))),
+          s"""{"id":"orgid","rev":2,"meta":{"author":{"realm":"realm","sub":"sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{"one":"two"},"type":"OrgUpdated"}"""
+        ),
+        DataAndJson[OrgEvent](
+          OrgDeprecated(OrgId("orgid"), 3, metaAnon),
+          s"""{"id":"orgid","rev":3,"meta":{"author":{"type":"Anonymous"},"instant":"${metaAnon.instant}"},"type":"OrgDeprecated"}"""
+        ),
+        DataAndJson[DomainEvent](
+          DomainCreated(domainId, 1L, metaAnon, "desc"),
+          s"""{"id":"orgid/domainid","rev":1,"meta":{"author":{"type":"Anonymous"},"instant":"${metaAnon.instant}"},"description":"desc","type":"DomainCreated"}"""
+        ),
         DataAndJson[SchemaEvent](
-          SchemaCreated(SchemaId(domainId, "schemaname", Version(1, 1, 1)), 1, Json.obj()),
-          """{"id":"orgid/domainid/schemaname/v1.1.1","rev":1,"value":{},"type":"SchemaCreated"}"""
+          SchemaCreated(SchemaId(domainId, "schemaname", Version(1, 1, 1)), 1, meta, Json.obj()),
+          s"""{"id":"orgid/domainid/schemaname/v1.1.1","rev":1,"meta":{"author":{"realm":"realm","sub":"sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"SchemaCreated"}"""
         ),
         DataAndJson[ContextEvent](
-          ContextCreated(ContextId(domainId, "contextname", Version(1, 1, 1)), 1, Json.obj()),
-          """{"id":"orgid/domainid/contextname/v1.1.1","rev":1,"value":{},"type":"ContextCreated"}"""
+          ContextCreated(ContextId(domainId, "contextname", Version(1, 1, 1)), 1, meta, Json.obj()),
+          s"""{"id":"orgid/domainid/contextname/v1.1.1","rev":1,"meta":{"author":{"realm":"realm","sub":"sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"ContextCreated"}"""
         ),
         DataAndJson[InstanceEvent](
-          InstanceCreated(InstanceId(SchemaId(domainId, "schemaname", Version(1, 1, 1)), uuid), 1, Json.obj()),
-          s"""{"id":"orgid/domainid/schemaname/v1.1.1/$uuid","rev":1,"value":{},"type":"InstanceCreated"}"""
+          InstanceCreated(InstanceId(SchemaId(domainId, "schemaname", Version(1, 1, 1)), uuid),
+                          1,
+                          metaAnon,
+                          Json.obj()),
+          s"""{"id":"orgid/domainid/schemaname/v1.1.1/$uuid","rev":1,"meta":{"author":{"type":"Anonymous"},"instant":"${metaAnon.instant}"},"value":{},"type":"InstanceCreated"}"""
         )
       )
 

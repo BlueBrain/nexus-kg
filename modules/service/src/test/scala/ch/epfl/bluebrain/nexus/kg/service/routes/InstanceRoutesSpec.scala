@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import java.net.URLEncoder
 import java.nio.file.{Files, Paths}
 import java.security.MessageDigest
+import java.time.Clock
 import java.util.regex.Pattern
 import java.util.{Comparator, UUID}
 
@@ -12,10 +13,12 @@ import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
@@ -95,15 +98,18 @@ class InstanceRoutesSpec
     val inFileProcessor                                 = AkkaInOutFileStream(settings)
     val instances                                       = Instances(instAgg, schemas, contexts, validator, inFileProcessor)
 
+    implicit val clock = Clock.systemUTC
+    val caller         = CallerCtx(clock, AnonymousCaller)
+
     val orgRef =
-      orgs.create(OrgId(genString(length = 3)), Json.obj()).futureValue
+      orgs.create(OrgId(genString(length = 3)), Json.obj())(caller).futureValue
     val domRef = doms
-      .create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))
+      .create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller)
       .futureValue
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 
-    val unpublished = schemas.create(schemaId, schemaJson).futureValue
-    val _           = schemas.publish(schemaId, unpublished.rev).futureValue
+    val unpublished = schemas.create(schemaId, schemaJson)(caller).futureValue
+    val _           = schemas.publish(schemaId, unpublished.rev)(caller).futureValue
 
     private val indexSettings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
       InstanceIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
@@ -181,7 +187,7 @@ class InstanceRoutesSpec
 
     "reject the creation of an instance when schema is not publish" in new Context {
       val schemaId2 = SchemaId(domRef.id, genString(length = 8), genVersion())
-      schemas.create(schemaId2, schemaJson).futureValue
+      schemas.create(schemaId2, schemaJson)(caller).futureValue
 
       Post(s"/data/${schemaId2.show}", value) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
@@ -192,10 +198,10 @@ class InstanceRoutesSpec
     "reject the creation of an instance when schema is deprecated" in new Context {
       //Create a new schema
       val schemaId2 = SchemaId(domRef.id, genString(length = 8), genVersion())
-      schemas.create(schemaId2, schemaJson).futureValue
+      schemas.create(schemaId2, schemaJson)(caller).futureValue
 
       //Deprecate the new schema
-      schemas.deprecate(schemaId2, 1L).futureValue
+      schemas.deprecate(schemaId2, 1L)(caller).futureValue
 
       Post(s"/data/${schemaId2.show}", value) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
@@ -309,7 +315,7 @@ class InstanceRoutesSpec
 
     "update an instance even when the schema is deprecated" in new Context {
       //deprecate schema
-      schemas.deprecate(schemaId, 2L).futureValue
+      schemas.deprecate(schemaId, 2L)(caller).futureValue
 
       //Update instance linked to a deprecated schema
       private val json = genJson()

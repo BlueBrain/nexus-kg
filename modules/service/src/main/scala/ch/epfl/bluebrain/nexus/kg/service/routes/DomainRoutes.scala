@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.time.Clock
+
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
@@ -9,13 +11,14 @@ import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{authenticateCaller, _}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
@@ -39,7 +42,8 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
     implicit querySettings: QuerySettings,
     filteringSettings: FilteringSettings,
     iamClient: IamClient[Future],
-    ec: ExecutionContext)
+    ec: ExecutionContext,
+    clock: Clock)
     extends DefaultRouteHandling {
 
   private val encoders = new DomainCustomEncoders(base)
@@ -77,23 +81,17 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractDomainId & pathEndOrSingleSlash) { domainId =>
-      (put & entity(as[DomainDescription]) & authorizeResource(domainId, Write)) { desc =>
-        traceName("createDomain") {
-          onSuccess(domains.create(domainId, desc.description)) { ref =>
-            complete(StatusCodes.Created -> ref)
+      (put & entity(as[DomainDescription])) { desc =>
+        (authenticateCaller & authorizeResource(domainId, Write)) { implicit caller =>
+          traceName("createDomain") {
+            onSuccess(domains.create(domainId, desc.description)) { ref =>
+              complete(StatusCodes.Created -> ref)
+            }
           }
         }
       } ~
-        (get & authorizeResource(domainId, Read)) {
-          traceName("getDomain") {
-            onSuccess(domains.fetch(domainId)) {
-              case Some(domain) => complete(domain)
-              case None         => complete(StatusCodes.NotFound)
-            }
-          }
-        } ~
-        (delete & authorizeResource(domainId, Write)) {
-          parameter('rev.as[Long]) { rev =>
+        (delete & parameter('rev.as[Long])) { rev =>
+          (authenticateCaller & authorizeResource(domainId, Write)) { implicit caller =>
             traceName("deprecateDomain") {
               onSuccess(domains.deprecate(domainId, rev)) { ref =>
                 complete(StatusCodes.OK -> ref)
@@ -129,7 +127,8 @@ object DomainRoutes {
       implicit
       ec: ExecutionContext,
       iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings): DomainRoutes = {
+      filteringSettings: FilteringSettings,
+      clock: Clock): DomainRoutes = {
     implicit val qs: QuerySettings = querySettings
     val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
     new DomainRoutes(domains, domainQueries, base)

@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import io.circe.Json
 import journal.Logger
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 
 /**
   * Bundles operations that can be performed against organizations using the underlying persistence abstraction.
@@ -47,10 +48,10 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(id: OrgId, value: Json): F[OrgRef] =
+  def create(id: OrgId, value: Json)(implicit ctx: CallerCtx): F[OrgRef] =
     for {
       _       <- validateId(id)
-      current <- evaluate(CreateOrg(id, value), "Create organization")
+      current <- evaluate(CreateOrg(id, ctx.meta, value), "Create organization")
     } yield OrgRef(id, current.rev)
 
   /**
@@ -62,8 +63,8 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def update(id: OrgId, rev: Long, value: Json): F[OrgRef] =
-    evaluate(UpdateOrg(id, rev, value), "Update organization")
+  def update(id: OrgId, rev: Long, value: Json)(implicit ctx: CallerCtx): F[OrgRef] =
+    evaluate(UpdateOrg(id, rev, ctx.meta, value), "Update organization")
       .map(current => OrgRef(id, current.rev))
 
   /**
@@ -74,8 +75,8 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def deprecate(id: OrgId, rev: Long): F[OrgRef] =
-    evaluate(DeprecateOrg(id, rev), "Deprecate organization")
+  def deprecate(id: OrgId, rev: Long)(implicit ctx: CallerCtx): F[OrgRef] =
+    evaluate(DeprecateOrg(id, rev, ctx.meta), "Deprecate organization")
       .map(current => OrgRef(id, current.rev))
 
   /**
@@ -88,8 +89,8 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
     */
   def fetch(id: OrgId): F[Option[Organization]] =
     agg.currentState(id.show).map {
-      case OrgState.Initial                            => None
-      case OrgState.Current(_, rev, value, deprecated) => Some(Organization(id, rev, value, deprecated))
+      case OrgState.Initial                               => None
+      case OrgState.Current(_, rev, _, value, deprecated) => Some(Organization(id, rev, value, deprecated))
     }
 
   private def evaluate(cmd: OrgCommand, intent: => String): F[Current] = {
@@ -169,14 +170,14 @@ object Organizations {
     * @return the next state
     */
   final def next(state: OrgState, event: OrgEvent): OrgState = (state, event) match {
-    case (Initial, OrgCreated(id, rev, value)) => Current(id, rev, value)
+    case (Initial, OrgCreated(id, rev, meta, value)) => Current(id, rev, meta, value)
     // $COVERAGE-OFF$
     case (Initial, _) => Initial
     // $COVERAGE-ON$
-    case (c: Current, _) if c.deprecated         => c
-    case (c: Current, _: OrgCreated)             => c
-    case (c: Current, OrgUpdated(_, rev, value)) => c.copy(rev = rev, value = value)
-    case (c: Current, OrgDeprecated(_, rev))     => c.copy(rev = rev, deprecated = true)
+    case (c: Current, _) if c.deprecated               => c
+    case (c: Current, _: OrgCreated)                   => c
+    case (c: Current, OrgUpdated(_, rev, meta, value)) => c.copy(rev = rev, meta = meta, value = value)
+    case (c: Current, OrgDeprecated(_, rev, meta))     => c.copy(rev = rev, meta = meta, deprecated = true)
   }
 
   /**
@@ -189,7 +190,7 @@ object Organizations {
     */
   final def eval(state: OrgState, cmd: OrgCommand): Either[OrgRejection, OrgEvent] = {
     def createOrg(c: CreateOrg) = state match {
-      case Initial    => Right(OrgCreated(c.id, 1L, c.value))
+      case Initial    => Right(OrgCreated(c.id, 1L, c.meta, c.value))
       case _: Current => Left(OrgAlreadyExists)
     }
 
@@ -197,14 +198,14 @@ object Organizations {
       case Initial                      => Left(OrgDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(OrgIsDeprecated)
-      case s: Current                   => Right(OrgUpdated(s.id, s.rev + 1, c.value))
+      case s: Current                   => Right(OrgUpdated(s.id, s.rev + 1, c.meta, c.value))
     }
 
     def deprecateOrg(c: DeprecateOrg) = state match {
       case Initial                      => Left(OrgDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(OrgIsDeprecated)
-      case s: Current                   => Right(OrgDeprecated(s.id, s.rev + 1))
+      case s: Current                   => Right(OrgDeprecated(s.id, s.rev + 1, c.meta))
     }
 
     cmd match {

@@ -37,6 +37,7 @@ lazy val core = project
     name := "kg-core",
     moduleName := "kg-core",
     libraryDependencies ++= Seq(
+      iamCommons,
       sourcingCore,
       shaclValidator,
       sourcingMem          % Test,
@@ -91,7 +92,6 @@ lazy val service = project
     moduleName := "kg-service",
     libraryDependencies ++= kamonDeps ++ Seq(
       commonsService,
-      iamCommons,
       sourcingAkka,
       sourcingMem                  % Test,
       commonsTest                  % Test,

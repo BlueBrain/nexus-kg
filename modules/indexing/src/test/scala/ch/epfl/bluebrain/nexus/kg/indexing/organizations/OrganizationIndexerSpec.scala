@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.organizations
 
+import java.time.Clock
 import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
@@ -11,6 +12,8 @@ import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
@@ -93,13 +96,14 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
     val client  = SparqlClient[Future](baseUri)
     val indexer = OrganizationIndexer(client, settings)
 
-    val id = OrgId(genString(length = 4))
+    val id   = OrgId(genString(length = 4))
+    val meta = Meta(Anonymous, Clock.systemUTC.instant())
 
     "index a OrgCreated event" in {
       client.createIndex(index, properties).futureValue
       val rev  = 1L
       val data = jsonContentOf("/instances/minimal.json", replacements)
-      indexer(OrgCreated(id, rev, data)).futureValue
+      indexer(OrgCreated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 5
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "random")
@@ -108,7 +112,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
     "index a OrgUpdated event" in {
       val rev  = 2L
       val data = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
-      indexer(OrgUpdated(id, rev, data)).futureValue
+      indexer(OrgUpdated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 5
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
@@ -116,7 +120,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
 
     "index a OrgDeprecated event" in {
       val rev = 3L
-      indexer(OrgDeprecated(id, rev)).futureValue
+      indexer(OrgDeprecated(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 5
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, "updated")

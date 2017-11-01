@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service
 
+import java.time.Clock
+
 import akka.actor.{ActorSystem, AddressFromURIString}
 import akka.cluster.Cluster
 import akka.http.scaladsl.model.HttpMethods._
@@ -62,7 +64,8 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   val (orgs, doms, schemas, contexts, instances) = operations()
 
-  implicit val iamC = iamClient(settings.IAM.BaseUri)
+  implicit val iamC          = iamClient(settings.IAM.BaseUri)
+  private implicit val clock = Clock.systemUTC
 
   private val apis = uriPrefix(apiUri) {
     OrganizationRoutes(orgs, sparqlClient, orgSettings, apiUri).routes ~

@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.core.contexts
 
 import cats.MonadError
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextCommand._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent._
@@ -140,12 +141,12 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(id: ContextId, value: Json): F[ContextRef] =
+  def create(id: ContextId, value: Json)(implicit ctx: CallerCtx): F[ContextRef] =
     for {
       _ <- validateId(id)
       _ <- doms.assertUnlocked(id.domainId)
       _ <- validatePayload(value)
-      r <- evaluate(CreateContext(id, value), "Create context")
+      r <- evaluate(CreateContext(id, ctx.meta, value), "Create context")
     } yield ContextRef(id, r.rev)
 
   /**
@@ -158,11 +159,11 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def update(id: ContextId, rev: Long, value: Json): F[ContextRef] =
+  def update(id: ContextId, rev: Long, value: Json)(implicit ctx: CallerCtx): F[ContextRef] =
     for {
       _ <- doms.assertUnlocked(id.domainId)
       _ <- validatePayload(value)
-      r <- evaluate(UpdateContext(id, rev, value), "Update context")
+      r <- evaluate(UpdateContext(id, rev, ctx.meta, value), "Update context")
     } yield ContextRef(id, r.rev)
 
   /**
@@ -173,10 +174,10 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def publish(id: ContextId, rev: Long): F[ContextRef] =
+  def publish(id: ContextId, rev: Long)(implicit ctx: CallerCtx): F[ContextRef] =
     for {
       _ <- doms.assertUnlocked(id.domainId)
-      r <- evaluate(PublishContext(id, rev), "Publish context")
+      r <- evaluate(PublishContext(id, rev, ctx.meta), "Publish context")
     } yield ContextRef(id, r.rev)
 
   /**
@@ -188,8 +189,8 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def deprecate(id: ContextId, rev: Long): F[ContextRef] =
-    evaluate(DeprecateContext(id, rev), "Deprecate context")
+  def deprecate(id: ContextId, rev: Long)(implicit ctx: CallerCtx): F[ContextRef] =
+    evaluate(DeprecateContext(id, rev, ctx.meta), "Deprecate context")
       .map(r => ContextRef(id, r.rev))
 
   /**
@@ -203,8 +204,8 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     */
   def fetch(id: ContextId): F[Option[Context]] =
     agg.currentState(id.show).map {
-      case Initial                                       => None
-      case Current(_, rev, value, published, deprecated) => Some(Context(id, rev, value, deprecated, published))
+      case Initial                                          => None
+      case Current(_, rev, _, value, published, deprecated) => Some(Context(id, rev, value, deprecated, published))
     }
 
   /**
@@ -301,16 +302,18 @@ object Contexts {
     * @return the next state
     */
   final def next(state: ContextState, event: ContextEvent): ContextState = (state, event) match {
-    case (Initial, ContextCreated(id, rev, value)) => Current(id, rev, value, published = false, deprecated = false)
+    case (Initial, ContextCreated(id, rev, meta, value)) =>
+      Current(id, rev, meta, value, published = false, deprecated = false)
     // $COVERAGE-OFF$
     case (Initial, _) => Initial
     // $COVERAGE-ON$
-    case (c: Current, ContextDeprecated(_, rev)) if c.published => c.copy(rev = rev, deprecated = true)
-    case (c: Current, _) if c.deprecated || c.published         => c
-    case (c: Current, _: ContextCreated)                        => c
-    case (c: Current, ContextUpdated(_, rev, value))            => c.copy(rev = rev, value = value)
-    case (c: Current, ContextPublished(_, rev))                 => c.copy(rev = rev, published = true)
-    case (c: Current, ContextDeprecated(_, rev))                => c.copy(rev = rev, deprecated = true)
+    case (c: Current, ContextDeprecated(_, rev, meta)) if c.published =>
+      c.copy(rev = rev, meta = meta, deprecated = true)
+    case (c: Current, _) if c.deprecated || c.published    => c
+    case (c: Current, _: ContextCreated)                   => c
+    case (c: Current, ContextUpdated(_, rev, meta, value)) => c.copy(rev = rev, meta = meta, value = value)
+    case (c: Current, ContextPublished(_, rev, meta))      => c.copy(rev = rev, meta = meta, published = true)
+    case (c: Current, ContextDeprecated(_, rev, meta))     => c.copy(rev = rev, meta = meta, deprecated = true)
   }
 
   /**
@@ -323,7 +326,7 @@ object Contexts {
     */
   final def eval(state: ContextState, cmd: ContextCommand): Either[ContextRejection, ContextEvent] = {
     def createContext(c: CreateContext) = state match {
-      case Initial    => Right(ContextCreated(c.id, 1L, c.value))
+      case Initial    => Right(ContextCreated(c.id, 1L, c.meta, c.value))
       case _: Current => Left(ContextAlreadyExists)
     }
 
@@ -332,7 +335,7 @@ object Contexts {
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(ContextIsDeprecated)
       case s: Current if s.published    => Left(CannotUpdatePublished)
-      case s: Current                   => Right(ContextUpdated(s.id, s.rev + 1, c.value))
+      case s: Current                   => Right(ContextUpdated(s.id, s.rev + 1, c.meta, c.value))
     }
 
     def publishContext(c: PublishContext) = state match {
@@ -340,14 +343,14 @@ object Contexts {
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(ContextIsDeprecated)
       case s: Current if s.published    => Left(CannotUpdatePublished)
-      case s: Current                   => Right(ContextPublished(s.id, s.rev + 1))
+      case s: Current                   => Right(ContextPublished(s.id, s.rev + 1, c.meta))
     }
 
     def deprecateContext(c: DeprecateContext) = state match {
       case Initial                      => Left(ContextDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(ContextIsDeprecated)
-      case s: Current                   => Right(ContextDeprecated(s.id, s.rev + 1))
+      case s: Current                   => Right(ContextDeprecated(s.id, s.rev + 1, c.meta))
     }
 
     cmd match {

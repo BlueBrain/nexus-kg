@@ -67,25 +67,25 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], settings: InstanceIndexingS
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: InstanceEvent): F[Unit] = event match {
-    case InstanceCreated(id, rev, value) =>
+    case InstanceCreated(id, rev, _, value) =>
       log.debug(s"Indexing 'InstanceCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = false)
       val data = value deepMerge meta
       client.createGraph(index, id qualifyWith baseNs, buildCombined(data, id))
 
-    case InstanceUpdated(id, rev, value) =>
+    case InstanceUpdated(id, rev, _, value) =>
       log.debug(s"Indexing 'InstanceUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = false)
       val data = value deepMerge meta
       client.replaceGraph(index, id qualifyWith baseNs, buildCombined(data, id))
 
-    case InstanceDeprecated(id, rev) =>
+    case InstanceDeprecated(id, rev, _) =>
       log.debug(s"Indexing 'InstanceDeprecated' event for id '${id.show}'")
       val meta        = buildDeprecatedMeta(id, rev)
       val removeQuery = PatchQuery(id, revKey, deprecatedKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
 
-    case InstanceAttachmentCreated(id, rev, attachmentMeta) =>
+    case InstanceAttachmentCreated(id, rev, _, attachmentMeta) =>
       log.debug(s"Indexing 'InstanceAttachmentCreated' event for id '${id.show}'")
       val meta        = buildAttachmentMeta(id, rev, attachmentMeta)
       val removeQuery = PatchQuery(id, revKey)
@@ -94,7 +94,7 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], settings: InstanceIndexingS
         _ <- client.replaceGraph(index, s"${id qualifyWith baseNs}/attachment", meta)
       } yield ()
 
-    case InstanceAttachmentRemoved(id, rev) =>
+    case InstanceAttachmentRemoved(id, rev, _) =>
       log.debug(s"Indexing 'InstanceAttachmentRemoved' event for id '${id.show}'")
       val meta        = buildRevMeta(id, rev)
       val removeQuery = PatchQuery(id, revKey)

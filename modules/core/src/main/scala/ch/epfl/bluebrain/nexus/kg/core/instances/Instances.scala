@@ -7,6 +7,7 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ShaclSchema, ShaclValidator}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.commons.types.Rejection
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceCommand._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
@@ -83,7 +84,7 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(schemaId: SchemaId, value: Json): F[InstanceRef] = {
+  def create(schemaId: SchemaId, value: Json)(implicit ctx: CallerCtx): F[InstanceRef] = {
     val id = InstanceId(schemaId, UUID.randomUUID().toString.toLowerCase)
     create(id, value)
   }
@@ -96,11 +97,11 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(id: InstanceId, value: Json): F[InstanceRef] =
+  def create(id: InstanceId, value: Json)(implicit ctx: CallerCtx): F[InstanceRef] =
     for {
       _ <- schemas.assertUnlocked(id.schemaId)
       _ <- validatePayload(id.schemaId, value)
-      r <- evaluate(CreateInstance(id, value), "Create instance")
+      r <- evaluate(CreateInstance(id, ctx.meta, value), "Create instance")
     } yield InstanceRef(id, r.rev)
 
   /**
@@ -113,10 +114,10 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def update(id: InstanceId, rev: Long, value: Json): F[InstanceRef] =
+  def update(id: InstanceId, rev: Long, value: Json)(implicit ctx: CallerCtx): F[InstanceRef] =
     for {
       _ <- validatePayload(id.schemaId, value)
-      r <- evaluate(UpdateInstance(id, rev, value), "Update instance")
+      r <- evaluate(UpdateInstance(id, rev, ctx.meta, value), "Update instance")
     } yield InstanceRef(id, r.rev)
 
   /**
@@ -127,8 +128,8 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def deprecate(id: InstanceId, rev: Long): F[InstanceRef] =
-    evaluate(DeprecateInstance(id, rev), "Deprecate instance")
+  def deprecate(id: InstanceId, rev: Long)(implicit ctx: CallerCtx): F[InstanceRef] =
+    evaluate(DeprecateInstance(id, rev, ctx.meta), "Deprecate instance")
       .map(r => InstanceRef(id, r.rev))
 
   /**
@@ -143,7 +144,7 @@ final class Instances[F[_], In, Out](
   def fetch(id: InstanceId): F[Option[Instance]] =
     agg.currentState(id.show).map {
       case Initial => None
-      case Current(_, rev, value, attachment, deprecated) =>
+      case Current(_, rev, _, value, attachment, deprecated) =>
         Some(Instance(id, rev, value, attachment.map(m => m.info), deprecated))
     }
 
@@ -186,14 +187,15 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     **/
-  def createAttachment(id: InstanceId, rev: Long, filename: String, contentType: String, source: In): F[InstanceRef] = {
+  def createAttachment(id: InstanceId, rev: Long, filename: String, contentType: String, source: In)(
+      implicit ctx: CallerCtx): F[InstanceRef] = {
     val inOutResult: F[Either[Rejection, Attachment.Meta]] =
       F.pure {
         logger.debug(s"Uploading file '$filename' with contentType '$contentType' to instance '$id'")
       } flatMap { _ =>
         agg
           .currentState(id.show)
-          .map(Instances.eval(_, CreateInstanceAttachment(id, rev, Attachment.EmptyMeta)))
+          .map(Instances.eval(_, CreateInstanceAttachment(id, rev, ctx.meta, Attachment.EmptyMeta)))
       } flatMap {
         case Left(r) => F.pure(Left(r))
         case Right(_) =>
@@ -207,7 +209,7 @@ final class Instances[F[_], In, Out](
         F.raiseError(CommandRejected(rejection))
       case Right(meta) =>
         logger.debug(s"Uploaded file '$filename' with contentType '$contentType' to instance '$id'")
-        evaluate(CreateInstanceAttachment(id, rev, meta), "Create instance attachment")
+        evaluate(CreateInstanceAttachment(id, rev, ctx.meta, meta), "Create instance attachment")
           .map(curr => InstanceRef(id, curr.rev, Some(meta.info)))
     }
   }
@@ -223,9 +225,9 @@ final class Instances[F[_], In, Out](
   @SuppressWarnings(Array("PartialFunctionInsteadOfMatch"))
   def fetchAttachment(id: InstanceId): F[Option[(Attachment.Info, Out)]] = {
     agg.currentState(id.show).flatMap {
-      case Initial                               => F.pure(None)
-      case Current(_, _, _, None, _)             => F.pure(None)
-      case Current(_, _, _, Some(attachment), _) => sourceFrom(attachment)
+      case Initial                                  => F.pure(None)
+      case Current(_, _, _, _, None, _)             => F.pure(None)
+      case Current(_, _, _, _, Some(attachment), _) => sourceFrom(attachment)
     }
   }
 
@@ -241,8 +243,8 @@ final class Instances[F[_], In, Out](
   @SuppressWarnings(Array("PartialFunctionInsteadOfMatch"))
   def fetchAttachment(id: InstanceId, rev: Long): F[Option[(Attachment.Info, Out)]] = {
     fetchCurrent(id, rev).flatMap {
-      case Some(Current(_, _, _, Some(attachment), _)) => sourceFrom(attachment)
-      case _                                           => F.pure(None)
+      case Some(Current(_, _, _, _, Some(attachment), _)) => sourceFrom(attachment)
+      case _                                              => F.pure(None)
     }
   }
 
@@ -258,8 +260,8 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     **/
-  def removeAttachment(id: InstanceId, rev: Long): F[InstanceRef] =
-    evaluate(RemoveInstanceAttachment(id, rev), "Remove instance attachment")
+  def removeAttachment(id: InstanceId, rev: Long)(implicit ctx: CallerCtx): F[InstanceRef] =
+    evaluate(RemoveInstanceAttachment(id, rev, ctx.meta), "Remove instance attachment")
       .map(r => InstanceRef(id, r.rev))
 }
 
@@ -316,16 +318,17 @@ object Instances {
     * @return the next state
     */
   final def next(state: InstanceState, event: InstanceEvent): InstanceState = (state, event) match {
-    case (Initial, InstanceCreated(id, rev, value)) => Current(id, rev, value, deprecated = false)
+    case (Initial, InstanceCreated(id, rev, meta, value)) => Current(id, rev, meta, value, deprecated = false)
     // $COVERAGE-OFF$
     case (Initial, _) => Initial
     // $COVERAGE-ON$
-    case (c: Current, _) if c.deprecated                        => c
-    case (c: Current, _: InstanceCreated)                       => c
-    case (c: Current, InstanceUpdated(_, rev, value))           => c.copy(rev = rev, value = value)
-    case (c: Current, InstanceDeprecated(_, rev))               => c.copy(rev = rev, deprecated = true)
-    case (c: Current, InstanceAttachmentCreated(_, rev, value)) => c.copy(rev = rev, attachment = Some(value))
-    case (c: Current, InstanceAttachmentRemoved(_, rev))        => c.copy(rev = rev, attachment = None)
+    case (c: Current, _) if c.deprecated                    => c
+    case (c: Current, _: InstanceCreated)                   => c
+    case (c: Current, InstanceUpdated(_, rev, meta, value)) => c.copy(meta = meta, rev = rev, value = value)
+    case (c: Current, InstanceDeprecated(_, rev, meta))     => c.copy(meta = meta, rev = rev, deprecated = true)
+    case (c: Current, InstanceAttachmentCreated(_, rev, meta, value)) =>
+      c.copy(meta = meta, rev = rev, attachment = Some(value))
+    case (c: Current, InstanceAttachmentRemoved(_, rev, meta)) => c.copy(meta = meta, rev = rev, attachment = None)
   }
 
   /**
@@ -338,7 +341,7 @@ object Instances {
     */
   final def eval(state: InstanceState, cmd: InstanceCommand): Either[InstanceRejection, InstanceEvent] = {
     def createInstance(c: CreateInstance) = state match {
-      case Initial    => Right(InstanceCreated(c.id, 1L, c.value))
+      case Initial    => Right(InstanceCreated(c.id, 1L, c.meta, c.value))
       case _: Current => Left(InstanceAlreadyExists)
     }
 
@@ -346,29 +349,29 @@ object Instances {
       case Initial                      => Left(InstanceDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(InstanceIsDeprecated)
-      case s: Current                   => Right(InstanceUpdated(s.id, s.rev + 1, c.value))
+      case s: Current                   => Right(InstanceUpdated(s.id, s.rev + 1, c.meta, c.value))
     }
 
     def deprecateInstance(c: DeprecateInstance) = state match {
       case Initial                      => Left(InstanceDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(InstanceIsDeprecated)
-      case s: Current                   => Right(InstanceDeprecated(s.id, s.rev + 1))
+      case s: Current                   => Right(InstanceDeprecated(s.id, s.rev + 1, c.meta))
     }
 
     def createInstanceAttachment(c: CreateInstanceAttachment) = state match {
       case Initial                      => Left(InstanceDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(InstanceIsDeprecated)
-      case s: Current                   => Right(InstanceAttachmentCreated(s.id, s.rev + 1, c.value))
+      case s: Current                   => Right(InstanceAttachmentCreated(s.id, s.rev + 1, c.meta, c.value))
     }
 
     def removeInstanceAttachment(c: RemoveInstanceAttachment) = state match {
       case Initial                      => Left(InstanceDoesNotExist)
       case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
       case s: Current if s.deprecated   => Left(InstanceIsDeprecated)
-      case Current(_, _, _, None, _)    => Left(AttachmentNotFound)
-      case s: Current                   => Right(InstanceAttachmentRemoved(s.id, s.rev + 1))
+      case Current(_, _, _, _, None, _) => Left(AttachmentNotFound)
+      case s: Current                   => Right(InstanceAttachmentRemoved(s.id, s.rev + 1, c.meta))
     }
 
     cmd match {

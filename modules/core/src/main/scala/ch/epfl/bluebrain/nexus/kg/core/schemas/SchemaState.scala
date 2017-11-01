@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core.schemas
 
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import io.circe.Json
 
 /**
@@ -19,11 +20,12 @@ object SchemaState {
     *
     * @param id         the unique identifier of the schema
     * @param rev        the selected revision number
+    * @param meta       the metadata associated to this schema
     * @param value      the json representation of the schema
     * @param published  the publish status
     * @param deprecated the deprecation status
     */
-  final case class Current(id: SchemaId, rev: Long, value: Json, published: Boolean, deprecated: Boolean)
+  final case class Current(id: SchemaId, rev: Long, meta: Meta, value: Json, published: Boolean, deprecated: Boolean)
       extends SchemaState
 
 }

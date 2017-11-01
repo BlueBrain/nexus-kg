@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import java.net.URLEncoder
+import java.time.Clock
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{StatusCodes, Uri}
@@ -9,7 +10,9 @@ import akka.stream.scaladsl.Source
 import akka.stream.{ActorMaterializer, IOResult}
 import akka.util.ByteString
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -47,6 +50,8 @@ class InstanceIntegrationSpec(
   "A InstanceRoutes" when {
 
     "performing integration tests" should {
+      val caller = CallerCtx(Clock.systemUTC, AnonymousCaller)
+
       lazy val instances =
         pendingInstances
           .foldLeft(List.empty[(InstanceId, Json)]) {
@@ -56,7 +61,7 @@ class InstanceIntegrationSpec(
                   aJson deepMerge Json.obj("hasPart" -> Json.obj("@id" -> Json.fromString(prevId.qualifyAsString)))
                 case _ => aJson
               }
-              val ref = Await.result(instancesService.create(schemaId, json), 1 second)
+              val ref = Await.result(instancesService.create(schemaId, json)(caller), 1 second)
               (ref.id -> json) :: acc
           }
           .sortWith(_._1.show < _._1.show)

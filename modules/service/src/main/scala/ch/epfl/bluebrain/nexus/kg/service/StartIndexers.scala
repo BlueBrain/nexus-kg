@@ -19,6 +19,7 @@ import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import _root_.io.circe.java8.time._
 import _root_.io.circe.generic.extras.auto._
 import _root_.io.circe.generic.extras.Configuration
 

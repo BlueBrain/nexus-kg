@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.domains
 
+import java.time.Clock
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
@@ -9,6 +11,8 @@ import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
@@ -22,6 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture,
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -97,10 +102,12 @@ class DomainIndexerSpec(blazegraphPort: Int)
     val id = DomainId(OrgId("org"), "dom")
 
     val description = "description"
+    val meta        = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+
     "index a DomainCreated event" in {
       client.createIndex(index, properties).futureValue
       val rev = 1L
-      indexer(DomainCreated(id, rev, description)).futureValue
+      indexer(DomainCreated(id, rev, meta, description)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 6
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, description)
@@ -108,7 +115,7 @@ class DomainIndexerSpec(blazegraphPort: Int)
 
     "index a DomainDeprecated event" in {
       val rev = 2L
-      indexer(DomainDeprecated(id, rev)).futureValue
+      indexer(DomainDeprecated(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 6
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, description)

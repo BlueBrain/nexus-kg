@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core.contexts
 
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import io.circe.Json
 
 /**
@@ -16,6 +17,11 @@ sealed trait ContextEvent extends Product with Serializable {
     * @return the revision number that this event generates
     */
   def rev: Long
+
+  /**
+    * @return the metadata associated to this event
+    */
+  def meta: Meta
 }
 
 object ContextEvent {
@@ -25,33 +31,37 @@ object ContextEvent {
     *
     * @param id    the unique identifier of the Context
     * @param rev   the revision number that this event generates
+    * @param meta  the metadata associated to this event
     * @param value the json representation of the Context
     */
-  final case class ContextCreated(id: ContextId, rev: Long, value: Json) extends ContextEvent
+  final case class ContextCreated(id: ContextId, rev: Long, meta: Meta, value: Json) extends ContextEvent
 
   /**
     * Evidence that a Context has been updated.
     *
     * @param id    the unique identifier of the Context
     * @param rev   the revision number that this event generates
+    * @param meta  the metadata associated to this event
     * @param value the new json representation of the Context
     */
-  final case class ContextUpdated(id: ContextId, rev: Long, value: Json) extends ContextEvent
+  final case class ContextUpdated(id: ContextId, rev: Long, meta: Meta, value: Json) extends ContextEvent
 
   /**
     * Evidence that a Context has been published.
     *
-    * @param id  the unique identifier of the Context
-    * @param rev the revision number that this event generates
+    * @param id   the unique identifier of the Context
+    * @param rev  the revision number that this event generates
+    * @param meta the metadata associated to this event
     */
-  final case class ContextPublished(id: ContextId, rev: Long) extends ContextEvent
+  final case class ContextPublished(id: ContextId, rev: Long, meta: Meta) extends ContextEvent
 
   /**
     * Evidence that a Context has been deprecated.
     *
-    * @param id  the unique identifier of the Context
-    * @param rev the revision number that this event generates
+    * @param id   the unique identifier of the Context
+    * @param rev  the revision number that this event generates
+    * @param meta the metadata associated to this event
     */
-  final case class ContextDeprecated(id: ContextId, rev: Long) extends ContextEvent
+  final case class ContextDeprecated(id: ContextId, rev: Long, meta: Meta) extends ContextEvent
 
 }

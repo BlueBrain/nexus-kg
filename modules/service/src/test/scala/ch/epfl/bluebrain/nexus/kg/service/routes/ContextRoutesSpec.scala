@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.time.Clock
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.{StatusCodes, Uri}
@@ -8,8 +9,10 @@ import akka.stream.ActorMaterializer
 import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
@@ -58,13 +61,15 @@ class ContextRoutesSpec
     val ctxAgg =
       MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
         .toF[Future]
-    val contexts = Contexts(ctxAgg, doms, baseUri.toString())
+    val contexts       = Contexts(ctxAgg, doms, baseUri.toString())
+    implicit val clock = Clock.systemUTC
 
+    val caller = CallerCtx(clock, AnonymousCaller)
     val orgRef =
-      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj()), 2 seconds)
+      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)
 
     val domRef =
-      Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8)), 2 seconds)
+      Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller), 2 seconds)
 
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
@@ -188,7 +193,7 @@ class ContextRoutesSpec
 
     "reject the creation of context from a deprecated domain" in {
       //Deprecate the domain
-      doms.deprecate(domRef.id, domRef.rev).futureValue
+      doms.deprecate(domRef.id, domRef.rev)(caller).futureValue
       //Create a SchemaId from the deprecated domain
       val contextId2 = SchemaId(domRef.id, genString(length = 8), genVersion())
 

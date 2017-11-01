@@ -1,10 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg.core.domains
 
+import java.time.Clock
+
 import cats.instances.try_._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains._
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection.{OrgDoesNotExist, OrgIsDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -18,6 +22,9 @@ class DomainsSpec extends WordSpecLike with Matchers with Inspectors with TryVal
 
   private def genJson(): Json =
     Json.obj("key" -> Json.fromString(genString()))
+
+  private implicit val caller = AnonymousCaller
+  private implicit val clock  = Clock.systemUTC
 
   "A Domains instance" should {
     val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Try]

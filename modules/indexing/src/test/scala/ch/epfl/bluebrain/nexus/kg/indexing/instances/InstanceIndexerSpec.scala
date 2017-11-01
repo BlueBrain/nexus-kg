@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.instances
 
+import java.time.Clock
 import java.util.UUID
 import java.util.regex.Pattern
 
@@ -14,11 +15,14 @@ import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
+import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
@@ -31,6 +35,7 @@ import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -124,9 +129,9 @@ class InstanceIndexerSpec(blazegraphPort: Int)
                               rev: Long,
                               deprecated: Boolean,
                               description: String,
-                              meta: Meta): List[(String, String, String)] = {
-    val qualifiedId                                                                            = id.qualifyAsStringWith(instanceBase)
-    val Meta(_, Info(originalFileName, contentType, Size(_, size), Digest(algorithm, digest))) = meta
+                              meta: Attachment.Meta): List[(String, String, String)] = {
+    val qualifiedId                                                                                       = id.qualifyAsStringWith(instanceBase)
+    val Attachment.Meta(_, Info(originalFileName, contentType, Size(_, size), Digest(algorithm, digest))) = meta
     expectedTriples(id, rev, deprecated, description) ++
       List(
         (qualifiedId, "originalFileName" qualifyAsStringWith nexusVocBase, originalFileName),
@@ -141,13 +146,14 @@ class InstanceIndexerSpec(blazegraphPort: Int)
     val client  = SparqlClient[Future](baseUri)
     val indexer = InstanceIndexer(client, settings)
 
-    val id = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
+    val meta = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+    val id   = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
 
     "index an InstanceCreated event" in {
       client.createIndex(index, properties).futureValue
       val rev  = 1L
       val data = jsonContentOf("/instances/minimal.json", replacements)
-      indexer(InstanceCreated(id, rev, data)).futureValue
+      indexer(InstanceCreated(id, rev, meta, data)).futureValue
       val rs = triples(id, client).futureValue
       rs.size shouldEqual 9
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "random")
@@ -156,34 +162,37 @@ class InstanceIndexerSpec(blazegraphPort: Int)
     "index an InstanceUpdated event" in {
       val rev  = 2L
       val data = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
-      indexer(InstanceUpdated(id, rev, data)).futureValue
+      indexer(InstanceUpdated(id, rev, meta, data)).futureValue
       val rs = triples(id, client).futureValue
       rs.size shouldEqual 9
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
     }
 
     "index an InstanceAttachmentCreated" in {
-      val rev  = 3L
-      val meta = Meta("uri", Info("filename", "contenttype", Size("byte", 1024L), Digest("SHA-256", "asd123")))
-      indexer(InstanceAttachmentCreated(id, rev, meta)).futureValue
+      val rev = 3L
+      val attMeta =
+        Attachment.Meta("uri", Info("filename", "contenttype", Size("byte", 1024L), Digest("SHA-256", "asd123")))
+      indexer(InstanceAttachmentCreated(id, rev, meta, attMeta)).futureValue
       val rs = allTriples(id, client).futureValue
       rs.size shouldEqual 14
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated", meta)
+      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated", attMeta)
     }
 
     "index a subsequent InstanceAttachmentCreated" in {
       val rev = 4L
-      val meta =
-        Meta("uri", Info("filename-update", "contenttype-updated", Size("byte", 1025L), Digest("SHA-256", "asd1234")))
-      indexer(InstanceAttachmentCreated(id, rev, meta)).futureValue
+      val attMeta =
+        Attachment.Meta(
+          "uri",
+          Info("filename-update", "contenttype-updated", Size("byte", 1025L), Digest("SHA-256", "asd1234")))
+      indexer(InstanceAttachmentCreated(id, rev, meta, attMeta)).futureValue
       val rs = allTriples(id, client).futureValue
       rs.size shouldEqual 14
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated", meta)
+      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated", attMeta)
     }
 
     "index an InstanceAttachmentRemoved" in {
       val rev = 5L
-      indexer(InstanceAttachmentRemoved(id, rev)).futureValue
+      indexer(InstanceAttachmentRemoved(id, rev, meta)).futureValue
       val rs = allTriples(id, client).futureValue
       rs.size shouldEqual 9
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
@@ -191,7 +200,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
 
     "index an InstanceDeprecated event" in {
       val rev = 6L
-      indexer(InstanceDeprecated(id, rev)).futureValue
+      indexer(InstanceDeprecated(id, rev, meta)).futureValue
       val rs = triples(id, client).futureValue
       rs.size shouldEqual 9
       rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, "updated")

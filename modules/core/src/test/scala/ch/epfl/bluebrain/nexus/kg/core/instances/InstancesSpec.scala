@@ -4,6 +4,7 @@ import java.io.File
 import java.net.URI
 import java.nio.file.Files
 import java.security.MessageDigest
+import java.time.Clock
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern.quote
@@ -11,7 +12,9 @@ import java.util.regex.Pattern.quote
 import cats.Show
 import cats.syntax.show._
 import cats.instances.try_._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ImportResolver, ShaclValidator}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
@@ -47,6 +50,9 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
   val schemaJson = jsonContentOf("/int-value-schema.json")
   val validator  = ShaclValidator[Try](ImportResolver.noop)
   val baseUri    = "http://localhost:8080/v0"
+
+  private implicit val caller = AnonymousCaller
+  private implicit val clock  = Clock.systemUTC
 
   abstract class Context {
     implicit val al = new MockedAttachmentLocation()

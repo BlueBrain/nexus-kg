@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.query
 
+import java.time.Clock
 import java.util.UUID
 import java.util.regex.Pattern
 
@@ -40,6 +41,8 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import cats.instances.string._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 
@@ -113,6 +116,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val data                 = jsonContentOf("/instances/minimal.json", replacements)
     val unmatched            = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "different"))
     val filterNoDepr: Filter = deprecated(Some(false), nexusVocBase)
+    val meta                 = Meta(Anonymous, Clock.systemUTC.instant())
 
     "perform a data full text search" in {
       client.createIndex(index, properties).futureValue
@@ -121,14 +125,14 @@ class SparqlQuerySpec(blazegraphPort: Int)
       (0 until 5).foreach { idx =>
         val id =
           InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, data)).futureValue
+        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
       }
 
       // index 5 not matching instances
       (5 until 10).foreach { idx =>
         val id =
           InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, unmatched)).futureValue
+        instanceIndexer(InstanceCreated(id, rev, meta, unmatched)).futureValue
       }
 
       // run the query
@@ -159,14 +163,14 @@ class SparqlQuerySpec(blazegraphPort: Int)
       // index 5 matching organizations
       (0 until 5).foreach { idx =>
         val id = OrgId(s"org-$idx")
-        orgIndexer(OrgCreated(id, rev, data)).futureValue
+        orgIndexer(OrgCreated(id, rev, meta, data)).futureValue
       }
 
       // index 5 not matching organizations
       (5 until 10).foreach { idx =>
         val id = OrgId(s"org-$idx")
-        orgIndexer(OrgCreated(id, rev, data)).futureValue
-        orgIndexer(OrgDeprecated(id, rev)).futureValue
+        orgIndexer(OrgCreated(id, rev, meta, data)).futureValue
+        orgIndexer(OrgDeprecated(id, rev, meta)).futureValue
       }
 
       val pagination    = Pagination(0L, 100)
@@ -197,20 +201,20 @@ class SparqlQuerySpec(blazegraphPort: Int)
       // index 5 matching domains
       (0 until 5).foreach { idx =>
         val id = DomainId(OrgId("org"), s"domain-$idx")
-        domainIndexer(DomainCreated(id, rev, description)).futureValue
+        domainIndexer(DomainCreated(id, rev, meta, description)).futureValue
       }
 
       // index 5 not matching domains
       (5 until 10).foreach { idx =>
         val id = DomainId(OrgId("org"), s"domain-$idx")
-        domainIndexer(DomainCreated(id, rev, description)).futureValue
-        domainIndexer(DomainDeprecated(id, rev)).futureValue
+        domainIndexer(DomainCreated(id, rev, meta, description)).futureValue
+        domainIndexer(DomainDeprecated(id, rev, meta)).futureValue
       }
 
       // index other 5 not matching domains
       (10 until 15).foreach { idx =>
         val id = DomainId(OrgId(s"org-$idx"), s"domain-$idx")
-        domainIndexer(DomainCreated(id, rev, description)).futureValue
+        domainIndexer(DomainCreated(id, rev, meta, description)).futureValue
       }
       // run the query
       val pagination = Pagination(0L, 100)
@@ -234,21 +238,21 @@ class SparqlQuerySpec(blazegraphPort: Int)
       // index 5 matching schemas
       (0 until 5).foreach { idx =>
         val id = SchemaId(DomainId(OrgId("org"), "dom"), genString(), Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(id, rev, data)).futureValue
+        schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
       }
 
       // index 5 not matching schemas
       (5 until 10).foreach { idx =>
         val id = SchemaId(DomainId(OrgId("org"), "dom"), genString(), Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(id, rev, data)).futureValue
-        schemaIndexer(SchemaDeprecated(id, rev)).futureValue
+        schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
+        schemaIndexer(SchemaDeprecated(id, rev, meta)).futureValue
       }
 
       // index other 5 not matching schemas
       (10 until 15).foreach { idx =>
         val id =
           SchemaId(DomainId(OrgId("org"), "core"), "name", Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(id, rev, unmatched)).futureValue
+        schemaIndexer(SchemaCreated(id, rev, meta, unmatched)).futureValue
       }
 
       val pagination = Pagination(0L, 100)
@@ -275,26 +279,26 @@ class SparqlQuerySpec(blazegraphPort: Int)
       // index 5 matching instances
       (0 until 5).foreach { idx =>
         val id = InstanceId(schemaName.versioned(Version(1, 0, idx)), UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, data)).futureValue
+        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
       }
 
       // index 5 not matching instances
       (5 until 10).foreach { idx =>
         val id = InstanceId(schemaName.versioned(Version(1, 0, idx)), UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, data)).futureValue
-        instanceIndexer(InstanceDeprecated(id, rev + 1)).futureValue
+        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
+        instanceIndexer(InstanceDeprecated(id, rev + 1, meta)).futureValue
       }
 
       // index other 5 not matching instances
       (10 until 15).foreach { idx =>
         val id = InstanceId(SchemaId(DomainId(OrgId("other"), "dom"), schemaName.name, Version(1, 0, idx)),
                             UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, unmatched)).futureValue
+        instanceIndexer(InstanceCreated(id, rev, meta, unmatched)).futureValue
       }
       // index other 5 not matching instances
       (15 until 20).foreach { idx =>
         val id = InstanceId(SchemaId(domainId, genString(), Version(1, 0, idx)), UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, data)).futureValue
+        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
       }
 
       val pagination    = Pagination(3L, 3)

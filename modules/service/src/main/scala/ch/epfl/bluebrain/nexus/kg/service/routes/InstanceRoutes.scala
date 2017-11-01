@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.time.Clock
+
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directives._
@@ -14,6 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
@@ -48,7 +51,8 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                      base: Uri)(implicit querySettings: QuerySettings,
                                 filteringSettings: FilteringSettings,
                                 iamClient: IamClient[Future],
-                                ec: ExecutionContext)
+                                ec: ExecutionContext,
+                                clock: Clock)
     extends DefaultRouteHandling {
 
   private val encoders = new InstanceCustomEncoders(base)
@@ -129,49 +133,59 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractSchemaId & pathEndOrSingleSlash & post) { schemaId =>
-      (entity(as[Json]) & authorizeResource(schemaId, Write)) { json =>
-        traceName("createInstance") {
-          onSuccess(instances.create(schemaId, json)) { ref =>
-            complete(StatusCodes.Created -> ref)
+      entity(as[Json]) { json =>
+        (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
+          traceName("createInstance") {
+            onSuccess(instances.create(schemaId, json)) { ref =>
+              complete(StatusCodes.Created -> ref)
+            }
           }
         }
       }
     } ~
       extractInstanceId { instanceId =>
         pathEndOrSingleSlash {
-          (put & entity(as[Json]) & parameter('rev.as[Long]) & authorizeResource(instanceId, Write)) { (json, rev) =>
-            traceName("updateInstance") {
-              onSuccess(instances.update(instanceId, rev, json)) { ref =>
-                complete(StatusCodes.OK -> ref)
+          (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
+            (authenticateCaller & authorizeResource(instanceId, Write)) { implicit caller =>
+              traceName("updateInstance") {
+                onSuccess(instances.update(instanceId, rev, json)) { ref =>
+                  complete(StatusCodes.OK -> ref)
+                }
               }
             }
           } ~
-            (delete & parameter('rev.as[Long]) & authorizeResource(instanceId, Write)) { rev =>
-              traceName("deprecateInstance") {
-                onSuccess(instances.deprecate(instanceId, rev)) { ref =>
-                  complete(StatusCodes.OK -> ref)
+            (delete & parameter('rev.as[Long])) { rev =>
+              (authenticateCaller & authorizeResource(instanceId, Write)) { implicit caller =>
+                traceName("deprecateInstance") {
+                  onSuccess(instances.deprecate(instanceId, rev)) { ref =>
+                    complete(StatusCodes.OK -> ref)
+                  }
                 }
               }
             }
         } ~
           path("attachment") {
             val resource = Path(s"${instanceId.show}/attachment")
-            (put & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
-              fileUpload("file") {
-                case (metadata, byteSource) =>
-                  traceName("createInstanceAttachment") {
-                    onSuccess(instances
-                      .createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) {
-                      info =>
-                        complete(StatusCodes.Created -> info)
+            (put & parameter('rev.as[Long])) { rev =>
+              (authenticateCaller & authorizeResource(resource, Write)) { implicit caller =>
+                fileUpload("file") {
+                  case (metadata, byteSource) =>
+                    traceName("createInstanceAttachment") {
+                      onSuccess(instances
+                        .createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) {
+                        info =>
+                          complete(StatusCodes.Created -> info)
+                      }
                     }
-                  }
+                }
               }
             } ~
-              (delete & parameter('rev.as[Long]) & authorizeResource(resource, Write)) { rev =>
-                traceName("removeInstanceAttachment") {
-                  onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
-                    complete(StatusCodes.OK -> ref)
+              (delete & parameter('rev.as[Long])) { rev =>
+                (authenticateCaller & authorizeResource(resource, Write)) { implicit caller =>
+                  traceName("removeInstanceAttachment") {
+                    onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
+                      complete(StatusCodes.OK -> ref)
+                    }
                   }
                 }
               }
@@ -197,7 +211,8 @@ object InstanceRoutes {
                   base: Uri)(implicit
                              ec: ExecutionContext,
                              iamClient: IamClient[Future],
-                             filteringSettings: FilteringSettings): InstanceRoutes = {
+                             filteringSettings: FilteringSettings,
+                             clock: Clock): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
     new InstanceRoutes(instances, instanceQueries, base)
