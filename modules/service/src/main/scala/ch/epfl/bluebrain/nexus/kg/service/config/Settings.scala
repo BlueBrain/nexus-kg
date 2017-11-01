@@ -164,12 +164,12 @@ class Settings(config: Config) extends Extension {
       */
     val Endpoint = Uri(ns.getString("sparql.endpoint"))
 
-    object Domains {
+    /**
+      * The index name (namespace) for indexing.
+      */
+    val Index = ns.getString("sparql.index")
 
-      /**
-        * The index name for domain indexing.
-        */
-      val Index = ns.getString("sparql.domains.index")
+    object Domains {
 
       /**
         * The base namespace for domain named graphs.
@@ -180,11 +180,6 @@ class Settings(config: Config) extends Extension {
     object Organizations {
 
       /**
-        * The index name for organization indexing.
-        */
-      val Index = ns.getString("sparql.organizations.index")
-
-      /**
         * The base namespace for organization named graphs.
         */
       val GraphBaseNamespace = Uri(ns.getString("sparql.organizations.graph-base-namespace"))
@@ -193,22 +188,12 @@ class Settings(config: Config) extends Extension {
     object Schemas {
 
       /**
-        * The index name for schema indexing.
-        */
-      val Index = ns.getString("sparql.schemas.index")
-
-      /**
         * The base namespace for schema named graphs.
         */
       val GraphBaseNamespace = Uri(ns.getString("sparql.schemas.graph-base-namespace"))
     }
 
     object Instances {
-
-      /**
-        * The index name for instance indexing.
-        */
-      val Index = ns.getString("sparql.instances.index")
 
       /**
         * The base namespace for instance named graphs.
