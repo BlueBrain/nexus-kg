@@ -29,7 +29,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture, Qualifier}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
-import io.circe.Json
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -50,22 +49,13 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     with Inspectors
     with BeforeAndAfterAll {
 
-  private def genId(): String =
-    genString(length = 4, Vector.range('a', 'z') ++ Vector.range('0', '9'))
-
-  private def genJson(): Json =
-    Json.obj("key" -> Json.fromString(genString()))
-
-  private def genName(): String =
-    genString(length = 8, Vector.range('a', 'z') ++ Vector.range('0', '9'))
-
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 
   override implicit val patienceConfig: PatienceConfig =
-    PatienceConfig(15 seconds, 100 milliseconds)
+    PatienceConfig(5 seconds, 100 milliseconds)
 
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
   private implicit val mt: ActorMaterializer        = ActorMaterializer()
@@ -132,10 +122,10 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     val orgs    = Organizations(orgsAgg)
 
     val doms    = Domains(domAgg, orgs)
-    val ctxs    = Contexts(ctxsAgg, doms, base.toString())
+    val ctxs    = Contexts(ctxsAgg, doms, base.toString)
     val client  = SparqlClient[Future](blazegraphBaseUri)
 
-    val indexer = SchemaIndexer(ctxs, client, settings)
+    val indexer = SchemaIndexer(client, ctxs, settings)
     val orgRef = orgs.create(OrgId(genId()), genJson()).futureValue
 
     val domRef =

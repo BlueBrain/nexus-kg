@@ -2,8 +2,9 @@ package ch.epfl.bluebrain.nexus.kg.indexing.schemas
 
 import cats.MonadError
 import cats.instances.string._
-//import cats.syntax.show._
-import cats.syntax.all._
+import cats.syntax.show._
+import cats.syntax.functor._
+import cats.syntax.flatMap._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
@@ -23,10 +24,11 @@ import journal.Logger
   * Schema incremental indexing logic that pushes data into an rdf triple store.
   *
   * @param client   the SPARQL client to use for communicating with the rdf triple store
+  * @param contexts the context operation bundle
   * @param settings the indexing settings
   * @tparam F       the monadic effect type
   */
-class SchemaIndexer[F[_]](contexts: Contexts[F], client: SparqlClient[F], settings: SchemaIndexingSettings)(implicit F: MonadError[F, Throwable]) {
+class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(implicit F: MonadError[F, Throwable]) {
 
   private val log                                                  = Logger[this.type]
   private val SchemaIndexingSettings(index, base, baseNs, baseVoc) = settings
@@ -110,9 +112,10 @@ object SchemaIndexer {
     * Constructs a schema incremental indexer that pushes data into an rdf triple store.
     *
     * @param client   the SPARQL client to use for communicating with the rdf triple store
+    * @param contexts  the context operation bundle
     * @param settings the indexing settings
     * @tparam F       the monadic effect type
     */
-  final def apply[F[_]](contexts: Contexts[F], client: SparqlClient[F], settings: SchemaIndexingSettings)(implicit F: MonadError[F, Throwable]): SchemaIndexer[F] =
-    new SchemaIndexer[F](contexts: Contexts[F], client, settings)
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(implicit F: MonadError[F, Throwable]): SchemaIndexer[F] =
+    new SchemaIndexer[F](client, contexts, settings)
 }
