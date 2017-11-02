@@ -14,11 +14,13 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
@@ -67,6 +69,9 @@ class InstanceIndexerSpec(blazegraphPort: Int)
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
   private implicit val rs: HttpClient[Future, ResultSet] =
     HttpClient.withAkkaUnmarshaller[ResultSet]
+
+  private implicit val clock  = Clock.systemUTC
+  private implicit val caller = AnonymousCaller
 
   private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"

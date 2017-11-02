@@ -49,6 +49,8 @@ import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -105,6 +107,8 @@ class SparqlQuerySpec(blazegraphPort: Int)
     Qualifier.configured[OrgId](base)
   private implicit val StringQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](nexusVocBaseDomains)
+  private implicit val clock  = Clock.systemUTC
+  private implicit val caller = AnonymousCaller
 
   "A SparqlQuery" should {
     val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]

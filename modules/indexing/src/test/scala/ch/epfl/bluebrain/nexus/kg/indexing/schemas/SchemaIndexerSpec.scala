@@ -13,6 +13,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -32,7 +33,7 @@ import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -63,8 +64,10 @@ class SchemaIndexerSpec(blazegraphPort: Int)
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
   private implicit val rs: HttpClient[Future, ResultSet] =
     HttpClient.withAkkaUnmarshaller[ResultSet]
+  private implicit val clock  = Clock.systemUTC
+  private implicit val caller = AnonymousCaller
 
-  private val base         = s"http://$localhost/v0"
+  private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
   private val settings @ SchemaIndexingSettings(index, schemasBase, schemasBaseNs, nexusVocBase) =
@@ -136,8 +139,6 @@ class SchemaIndexerSpec(blazegraphPort: Int)
 
     ctxs.create(contextId, contextJson).futureValue
     ctxs.publish(contextId, 1L).futureValue
-
-
 
     val id   = SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0))
     val meta = Meta(Anonymous, Clock.systemUTC.instant())
