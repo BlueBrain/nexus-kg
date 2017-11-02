@@ -28,7 +28,8 @@ import journal.Logger
   * @param settings the indexing settings
   * @tparam F       the monadic effect type
   */
-class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(implicit F: MonadError[F, Throwable]) {
+class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(
+    implicit F: MonadError[F, Throwable]) {
 
   private val log                                                  = Logger[this.type]
   private val SchemaIndexingSettings(index, base, baseNs, baseVoc) = settings
@@ -58,15 +59,17 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settin
     case SchemaCreated(id, rev, _, value) =>
       log.debug(s"Indexing 'SchemaCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false), published = Some(false))
-      contexts.expand(value)
-        .map( _ deepMerge meta)
+      contexts
+        .expand(value)
+        .map(_ deepMerge meta)
         .flatMap(client.createGraph(index, id qualifyWith baseNs, _))
 
     case SchemaUpdated(id, rev, _, value) =>
       log.debug(s"Indexing 'SchemaUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false), published = Some(false))
-      contexts.expand(value)
-        .map( _ deepMerge meta)
+      contexts
+        .expand(value)
+        .map(_ deepMerge meta)
         .flatMap(client.replaceGraph(index, id qualifyWith baseNs, _))
 
     case SchemaPublished(id, rev, _) =>
@@ -116,6 +119,7 @@ object SchemaIndexer {
     * @param settings the indexing settings
     * @tparam F       the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(implicit F: MonadError[F, Throwable]): SchemaIndexer[F] =
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(
+      implicit F: MonadError[F, Throwable]): SchemaIndexer[F] =
     new SchemaIndexer[F](client, contexts, settings)
 }

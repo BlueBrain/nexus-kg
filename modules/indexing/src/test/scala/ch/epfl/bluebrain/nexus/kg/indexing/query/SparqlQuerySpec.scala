@@ -115,10 +115,10 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val ctxsAgg =
       MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
         .toF[Future]
-    val orgs    = Organizations(orgsAgg)
+    val orgs = Organizations(orgsAgg)
 
-    val doms    = Domains(domAgg, orgs)
-    val ctxs    = Contexts(ctxsAgg, doms, base.toString())
+    val doms = Domains(domAgg, orgs)
+    val ctxs = Contexts(ctxsAgg, doms, base.toString())
 
     val client          = SparqlClient[Future](blazegraphBaseUri)
     val queryClient     = new SparqlQuery[Future](client)
@@ -127,15 +127,14 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val domainIndexer   = DomainIndexer(client, settingsDomains)
     val orgIndexer      = OrganizationIndexer(client, ctxs, settingsOrgs)
 
-    val orgRef = orgs.create(OrgId(genId()), genJson()).futureValue
-    val domRef = doms.create(DomainId(orgRef.id, genId()), "domain").futureValue
+    val orgRef    = orgs.create(OrgId(genId()), genJson()).futureValue
+    val domRef    = doms.create(DomainId(orgRef.id, genId()), "domain").futureValue
     val contextId = ContextId(domRef.id, genName(), genVersion())
 
     val replacements = Map(Pattern.quote("{{base}}") -> base, Pattern.quote("{{context}}") -> contextId.show)
-    val contextJson = jsonContentOf("/contexts/minimal.json", replacements)
+    val contextJson  = jsonContentOf("/contexts/minimal.json", replacements)
     ctxs.create(contextId, contextJson).futureValue
     ctxs.publish(contextId, 1L).futureValue
-
 
     val rev                  = 1L
     val data                 = jsonContentOf("/instances/minimal.json", replacements)

@@ -75,8 +75,6 @@ class SchemaIndexerSpec(blazegraphPort: Int)
   private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
   private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
 
-
-
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
@@ -119,14 +117,14 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     val ctxsAgg =
       MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
         .toF[Future]
-    val orgs    = Organizations(orgsAgg)
+    val orgs = Organizations(orgsAgg)
 
-    val doms    = Domains(domAgg, orgs)
-    val ctxs    = Contexts(ctxsAgg, doms, base.toString)
-    val client  = SparqlClient[Future](blazegraphBaseUri)
+    val doms   = Domains(domAgg, orgs)
+    val ctxs   = Contexts(ctxsAgg, doms, base.toString)
+    val client = SparqlClient[Future](blazegraphBaseUri)
 
     val indexer = SchemaIndexer(client, ctxs, settings)
-    val orgRef = orgs.create(OrgId(genId()), genJson()).futureValue
+    val orgRef  = orgs.create(OrgId(genId()), genJson()).futureValue
 
     val domRef =
       doms.create(DomainId(orgRef.id, genId()), "domain").futureValue

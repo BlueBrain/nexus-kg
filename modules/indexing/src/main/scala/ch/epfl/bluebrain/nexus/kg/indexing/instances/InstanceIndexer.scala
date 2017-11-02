@@ -72,14 +72,16 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
     case InstanceCreated(id, rev, _, value) =>
       log.debug(s"Indexing 'InstanceCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = false)
-      contexts.expand(value)
+      contexts
+        .expand(value)
         .map(_ deepMerge meta)
         .flatMap(data => client.createGraph(index, id qualifyWith baseNs, buildCombined(data, id)))
 
     case InstanceUpdated(id, rev, _, value) =>
       log.debug(s"Indexing 'InstanceUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = false)
-      contexts.expand(value)
+      contexts
+        .expand(value)
         .map(_ deepMerge meta)
         .flatMap(data => client.replaceGraph(index, id qualifyWith baseNs, buildCombined(data, id)))
 
@@ -158,7 +160,7 @@ object InstanceIndexer {
     * @param F        a MonadError typeclass instance for ''F[_]''
     * @tparam F       the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F],contexts: Contexts[F], settings: InstanceIndexingSettings)(
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceIndexingSettings)(
       implicit F: MonadError[F, Throwable]): InstanceIndexer[F] =
     new InstanceIndexer(client, contexts, settings)
 }

@@ -26,7 +26,8 @@ import journal.Logger
   * @param settings the indexing settings
   * @tparam F the monadic effect type
   */
-class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationIndexingSettings)(implicit F: MonadError[F, Throwable]) {
+class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationIndexingSettings)(
+    implicit F: MonadError[F, Throwable]) {
 
   private val log                                                        = Logger[this.type]
   private val OrganizationIndexingSettings(index, base, baseNs, baseVoc) = settings
@@ -49,14 +50,16 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], 
     case OrgCreated(id, rev, _, value) =>
       log.debug(s"Indexing 'OrgCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false))
-      contexts.expand(value)
-          .map(_ deepMerge meta)
-          .flatMap(client.createGraph(index, id qualifyWith baseNs, _))
+      contexts
+        .expand(value)
+        .map(_ deepMerge meta)
+        .flatMap(client.createGraph(index, id qualifyWith baseNs, _))
 
     case OrgUpdated(id, rev, _, value) =>
       log.debug(s"Indexing 'OrgUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false))
-      contexts.expand(value)
+      contexts
+        .expand(value)
         .map(_ deepMerge meta)
         .flatMap(client.replaceGraph(index, id qualifyWith baseNs, _))
 
@@ -93,6 +96,7 @@ object OrganizationIndexer {
     * @param settings the indexing settings
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationIndexingSettings)(implicit F: MonadError[F, Throwable]): OrganizationIndexer[F] =
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationIndexingSettings)(
+      implicit F: MonadError[F, Throwable]): OrganizationIndexer[F] =
     new OrganizationIndexer[F](client, contexts, settings)
 }

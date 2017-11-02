@@ -35,9 +35,10 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
   * @param as           the implicitly available [[ActorSystem]]
   * @param ec           the implicitly available [[ExecutionContext]]
   */
-class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], contexts: Contexts[Future], apiUri: Uri)(implicit
-                                                                                         as: ActorSystem,
-                                                                                         ec: ExecutionContext) {
+class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], contexts: Contexts[Future], apiUri: Uri)(
+    implicit
+    as: ActorSystem,
+    ec: ExecutionContext) {
 
   private implicit val config: Configuration =
     Configuration.default.withDiscriminator("type")

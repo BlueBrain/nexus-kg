@@ -17,7 +17,6 @@ trait IndexerFixture extends Randomness {
     props.asScala.toMap
   }
 
-
   protected def genId(): String =
     genString(length = 4, Vector.range('a', 'z') ++ Vector.range('0', '9'))
 

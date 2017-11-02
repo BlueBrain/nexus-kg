@@ -103,10 +103,10 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
     val ctxsAgg =
       MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
         .toF[Future]
-    val orgs    = Organizations(orgsAgg)
+    val orgs = Organizations(orgsAgg)
 
-    val doms    = Domains(domAgg, orgs)
-    val ctxs    = Contexts(ctxsAgg, doms, base.toString)
+    val doms = Domains(domAgg, orgs)
+    val ctxs = Contexts(ctxsAgg, doms, base.toString)
 
     val client  = SparqlClient[Future](blazegraphBaseUri)
     val indexer = OrganizationIndexer(client, ctxs, settings)
