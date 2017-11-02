@@ -1,33 +1,25 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.organizations
 
 import java.time.Clock
-import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
-import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
-import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
-import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
-import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
-import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
-import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -62,8 +54,6 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
   private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
   private implicit val rs: HttpClient[Future, ResultSet] =
     HttpClient.withAkkaUnmarshaller[ResultSet]
-  private implicit val clock  = Clock.systemUTC
-  private implicit val caller = AnonymousCaller
 
   private val base              = s"http://$localhost/v0"
   private val blazegraphBaseUri = s"http://$localhost:$blazegraphPort/blazegraph"
@@ -99,34 +89,11 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
   }
 
   "A OrganizationIndexer" should {
-    val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
 
-    val domAgg =
-      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
-        .toF[Future]
-    val ctxsAgg =
-      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
-        .toF[Future]
-    val orgs = Organizations(orgsAgg)
-
-    val doms = Domains(domAgg, orgs)
-    val ctxs = Contexts(ctxsAgg, doms, base.toString)
+    val (ctxs, replacements) = createContext(base)
 
     val client  = SparqlClient[Future](blazegraphBaseUri)
     val indexer = OrganizationIndexer(client, ctxs, settings)
-
-    val orgRef = orgs.create(OrgId(genId()), genJson()).futureValue
-
-    val domRef =
-      doms.create(DomainId(orgRef.id, genId()), "domain").futureValue
-    val contextId = ContextId(domRef.id, genName(), genVersion())
-
-    val replacements = Map(Pattern.quote("{{base}}") -> base, Pattern.quote("{{context}}") -> contextId.show)
-
-    val contextJson = jsonContentOf("/contexts/minimal.json", replacements)
-
-    ctxs.create(contextId, contextJson).futureValue
-    ctxs.publish(contextId, 1L).futureValue
 
     val id   = OrgId(genString(length = 4))
     val meta = Meta(Anonymous, Clock.systemUTC.instant())
