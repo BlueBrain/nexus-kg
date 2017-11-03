@@ -1,8 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.schemas
 
+import cats.MonadError
 import cats.instances.string._
 import cats.syntax.show._
+import cats.syntax.functor._
+import cats.syntax.flatMap._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
@@ -20,10 +24,12 @@ import journal.Logger
   * Schema incremental indexing logic that pushes data into an rdf triple store.
   *
   * @param client   the SPARQL client to use for communicating with the rdf triple store
+  * @param contexts the context operation bundle
   * @param settings the indexing settings
   * @tparam F       the monadic effect type
   */
-class SchemaIndexer[F[_]](client: SparqlClient[F], settings: SchemaIndexingSettings) {
+class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(
+    implicit F: MonadError[F, Throwable]) {
 
   private val log                                                  = Logger[this.type]
   private val SchemaIndexingSettings(index, base, baseNs, baseVoc) = settings
@@ -53,14 +59,18 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], settings: SchemaIndexingSetti
     case SchemaCreated(id, rev, _, value) =>
       log.debug(s"Indexing 'SchemaCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false), published = Some(false))
-      val data = value deepMerge meta
-      client.createGraph(index, id qualifyWith baseNs, data)
+      contexts
+        .expand(value)
+        .map(_ deepMerge meta)
+        .flatMap(client.createGraph(index, id qualifyWith baseNs, _))
 
     case SchemaUpdated(id, rev, _, value) =>
       log.debug(s"Indexing 'SchemaUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = Some(false), published = Some(false))
-      val data = value deepMerge meta
-      client.replaceGraph(index, id qualifyWith baseNs, data)
+      contexts
+        .expand(value)
+        .map(_ deepMerge meta)
+        .flatMap(client.replaceGraph(index, id qualifyWith baseNs, _))
 
     case SchemaPublished(id, rev, _) =>
       log.debug(s"Indexing 'SchemaPublished' event for id '${id.show}'")
@@ -105,9 +115,11 @@ object SchemaIndexer {
     * Constructs a schema incremental indexer that pushes data into an rdf triple store.
     *
     * @param client   the SPARQL client to use for communicating with the rdf triple store
+    * @param contexts  the context operation bundle
     * @param settings the indexing settings
     * @tparam F       the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F], settings: SchemaIndexingSettings): SchemaIndexer[F] =
-    new SchemaIndexer[F](client, settings)
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(
+      implicit F: MonadError[F, Throwable]): SchemaIndexer[F] =
+    new SchemaIndexer[F](client, contexts, settings)
 }

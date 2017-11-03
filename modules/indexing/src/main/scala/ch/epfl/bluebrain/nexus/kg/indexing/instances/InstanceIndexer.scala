@@ -7,6 +7,7 @@ import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
@@ -27,11 +28,12 @@ import journal.Logger
   * Instance incremental indexing logic that pushes data into an rdf triple store.
   *
   * @param client   the SPARQL client to use for communicating with the rdf triple store
+  * @param contexts  the context operation bundle
   * @param settings the indexing settings
   * @param F        a MonadError typeclass instance for ''F[_]''
   * @tparam F       the monadic effect type
   */
-class InstanceIndexer[F[_]](client: SparqlClient[F], settings: InstanceIndexingSettings)(
+class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceIndexingSettings)(
     implicit F: MonadError[F, Throwable]) {
 
   private val log                                                    = Logger[this.type]
@@ -70,14 +72,18 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], settings: InstanceIndexingS
     case InstanceCreated(id, rev, _, value) =>
       log.debug(s"Indexing 'InstanceCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = false)
-      val data = value deepMerge meta
-      client.createGraph(index, id qualifyWith baseNs, buildCombined(data, id))
+      contexts
+        .expand(value)
+        .map(_ deepMerge meta)
+        .flatMap(data => client.createGraph(index, id qualifyWith baseNs, buildCombined(data, id)))
 
     case InstanceUpdated(id, rev, _, value) =>
       log.debug(s"Indexing 'InstanceUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, deprecated = false)
-      val data = value deepMerge meta
-      client.replaceGraph(index, id qualifyWith baseNs, buildCombined(data, id))
+      contexts
+        .expand(value)
+        .map(_ deepMerge meta)
+        .flatMap(data => client.replaceGraph(index, id qualifyWith baseNs, buildCombined(data, id)))
 
     case InstanceDeprecated(id, rev, _) =>
       log.debug(s"Indexing 'InstanceDeprecated' event for id '${id.show}'")
@@ -149,11 +155,12 @@ object InstanceIndexer {
     * Constructs an instance incremental indexer that pushes data into an rdf triple store.
     *
     * @param client   the SPARQL client to use for communicating with the rdf triple store
+    * @param contexts  the context operation bundle
     * @param settings the indexing settings
     * @param F        a MonadError typeclass instance for ''F[_]''
     * @tparam F       the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F], settings: InstanceIndexingSettings)(
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceIndexingSettings)(
       implicit F: MonadError[F, Throwable]): InstanceIndexer[F] =
-    new InstanceIndexer(client, settings)
+    new InstanceIndexer(client, contexts, settings)
 }

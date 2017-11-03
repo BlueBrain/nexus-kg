@@ -47,7 +47,7 @@ object Main {
           Await.result(as.terminate(), 10 seconds)
       }
 
-      StartIndexers(settings, bootstrap.sparqlClient, bootstrap.apiUri)
+      StartIndexers(settings, bootstrap.sparqlClient, bootstrap.contexts, bootstrap.apiUri)
     }
 
     bootstrap.joinCluster()

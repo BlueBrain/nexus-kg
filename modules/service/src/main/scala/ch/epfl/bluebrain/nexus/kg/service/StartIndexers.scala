@@ -22,6 +22,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import _root_.io.circe.java8.time._
 import _root_.io.circe.generic.extras.auto._
 import _root_.io.circe.generic.extras.Configuration
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 
 /**
   * Triggers the start of the indexing process from the resumable projection for all the tags avaialable on the service:
@@ -29,13 +30,15 @@ import _root_.io.circe.generic.extras.Configuration
   *
   * @param settings     the app settings
   * @param sparqlClient the SPARQL client implementation
+  * @param contexts     the context operation bundle
   * @param apiUri       the service public uri + prefix
   * @param as           the implicitly available [[ActorSystem]]
   * @param ec           the implicitly available [[ExecutionContext]]
   */
-class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiUri: Uri)(implicit
-                                                                                         as: ActorSystem,
-                                                                                         ec: ExecutionContext) {
+class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], contexts: Contexts[Future], apiUri: Uri)(
+    implicit
+    as: ActorSystem,
+    ec: ExecutionContext) {
 
   private implicit val config: Configuration =
     Configuration.default.withDiscriminator("type")
@@ -65,7 +68,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
                                                             settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[InstanceEvent](
-      InstanceIndexer[Future](sparqlClient, instanceIndexingSettings).apply _,
+      InstanceIndexer[Future](sparqlClient, contexts, instanceIndexingSettings).apply _,
       "instances-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "instance",
@@ -80,7 +83,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
                                                         settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[SchemaEvent](
-      SchemaIndexer[Future](sparqlClient, schemaIndexingSettings).apply _,
+      SchemaIndexer[Future](sparqlClient, contexts, schemaIndexingSettings).apply _,
       "schemas-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "schema",
@@ -111,7 +114,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
 
     SequentialTagIndexer.start[OrgEvent](
       initFunctionOf(settings.Sparql.Index),
-      OrganizationIndexer[Future](sparqlClient, orgIndexingSettings).apply _,
+      OrganizationIndexer[Future](sparqlClient, contexts, orgIndexingSettings).apply _,
       "organization-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "organization",
@@ -131,11 +134,11 @@ object StartIndexers {
     * @param sparqlClient the SPARQL client implementation
     * @param apiUri       the service public uri + prefix
     */
-  final def apply(settings: Settings, sparqlClient: SparqlClient[Future], apiUri: Uri)(
+  final def apply(settings: Settings, sparqlClient: SparqlClient[Future], contexts: Contexts[Future], apiUri: Uri)(
       implicit
       as: ActorSystem,
       ec: ExecutionContext): StartIndexers =
-    new StartIndexers(settings, sparqlClient, apiUri)
+    new StartIndexers(settings, sparqlClient, contexts, apiUri)
 
   // $COVERAGE-ON$
 }

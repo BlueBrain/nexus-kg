@@ -33,7 +33,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
 }
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
-import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
@@ -121,8 +121,7 @@ class InstanceRoutesSpec
 
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
 
-    val client          = SparqlClient[Future](sparqlUri)
-    val instanceIndexer = InstanceIndexer(client, indexSettings)
+    val client = SparqlClient[Future](sparqlUri)
 
     implicit val cl = iamClient("http://localhost:8080")
 

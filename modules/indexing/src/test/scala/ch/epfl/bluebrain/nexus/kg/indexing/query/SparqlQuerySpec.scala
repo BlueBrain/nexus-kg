@@ -9,18 +9,22 @@ import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.test._
-import ch.epfl.bluebrain.nexus.commons.types.Version
+import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.commons.types.Version
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
+import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDeprecated}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, SchemaDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
@@ -28,27 +32,28 @@ import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainIndexer, DomainIndexin
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.Eq
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.LiteralTerm
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationIndexer, OrganizationIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.ScoredQueryResult
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.ScoredQueryResults
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.{SchemaIndexer, SchemaIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture, Qualifier}
+import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
+import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
-import cats.instances.string._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
+import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 
 @DoNotDiscover
 class SparqlQuerySpec(blazegraphPort: Int)
@@ -77,8 +82,8 @@ class SparqlQuerySpec(blazegraphPort: Int)
   private implicit val rs: HttpClient[Future, ResultSet] =
     HttpClient.withAkkaUnmarshaller[ResultSet]
 
-  private val base         = s"http://$localhost/v0"
-  private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
+  private val base                   = s"http://$localhost/v0"
+  private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
   private val settings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
     InstanceIndexingSettings(genString(length = 6), base, s"$base/data/graphs", s"$base/voc/nexus/core")
@@ -92,7 +97,6 @@ class SparqlQuerySpec(blazegraphPort: Int)
   private val settingsOrgs @ OrganizationIndexingSettings(indexOrgs, orgBase, orgBaseNs, nexusVocBaseOrgs) =
     OrganizationIndexingSettings(genString(length = 6), base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
-  private val replacements = Map(Pattern.quote("{{base}}") -> base)
   private implicit val instanceQualifier: ConfiguredQualifier[InstanceId] =
     Qualifier.configured[InstanceId](base)
   private implicit val schemasQualifier: ConfiguredQualifier[SchemaId] =
@@ -103,14 +107,38 @@ class SparqlQuerySpec(blazegraphPort: Int)
     Qualifier.configured[OrgId](base)
   private implicit val StringQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](nexusVocBaseDomains)
+  private implicit val clock  = Clock.systemUTC
+  private implicit val caller = AnonymousCaller
 
   "A SparqlQuery" should {
-    val client          = SparqlClient[Future](baseUri)
+    val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+
+    val domAgg =
+      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
+        .toF[Future]
+    val ctxsAgg =
+      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
+        .toF[Future]
+    val orgs = Organizations(orgsAgg)
+
+    val doms = Domains(domAgg, orgs)
+    val ctxs = Contexts(ctxsAgg, doms, base.toString())
+
+    val client          = SparqlClient[Future](blazegraphBaseUri)
     val queryClient     = new SparqlQuery[Future](client)
-    val instanceIndexer = InstanceIndexer(client, settings)
-    val schemaIndexer   = SchemaIndexer(client, settingsSchemas)
+    val instanceIndexer = InstanceIndexer(client, ctxs, settings)
+    val schemaIndexer   = SchemaIndexer(client, ctxs, settingsSchemas)
     val domainIndexer   = DomainIndexer(client, settingsDomains)
-    val orgIndexer      = OrganizationIndexer(client, settingsOrgs)
+    val orgIndexer      = OrganizationIndexer(client, ctxs, settingsOrgs)
+
+    val orgRef    = orgs.create(OrgId(genId()), genJson()).futureValue
+    val domRef    = doms.create(DomainId(orgRef.id, genId()), "domain").futureValue
+    val contextId = ContextId(domRef.id, genName(), genVersion())
+
+    val replacements = Map(Pattern.quote("{{base}}") -> base, Pattern.quote("{{context}}") -> contextId.show)
+    val contextJson  = jsonContentOf("/contexts/minimal.json", replacements)
+    ctxs.create(contextId, contextJson).futureValue
+    ctxs.publish(contextId, 1L).futureValue
 
     val rev                  = 1L
     val data                 = jsonContentOf("/instances/minimal.json", replacements)

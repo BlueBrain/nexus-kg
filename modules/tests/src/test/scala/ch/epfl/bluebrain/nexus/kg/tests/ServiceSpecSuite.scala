@@ -44,7 +44,7 @@ class ServiceSpecSuite
 
   bootstrap.cluster.registerOnMemberUp {
     logger.info("==== Cluster is Live ====")
-    StartIndexers(settings, bootstrap.sparqlClient, bootstrap.apiUri)
+    StartIndexers(settings, bootstrap.sparqlClient, bootstrap.contexts, bootstrap.apiUri)
   }
 
   override val nestedSuites = Vector(
@@ -76,7 +76,7 @@ class ServiceSpecSuite
 
 trait BlazegraphBoot {
 
-  val blazegraphPort: Int = freePort()
+  lazy val blazegraphPort: Int = freePort()
 
   private val server = {
     System.setProperty("jetty.home", getClass.getResource("/war").toExternalForm)
@@ -97,7 +97,7 @@ trait BlazegraphBoot {
 
 trait CassandraBoot {
 
-  val cassandraPort: Int = CassandraLauncher.randomPort
+  lazy val cassandraPort: Int = CassandraLauncher.randomPort
 
   def cassandraStart(): Unit = {
     CassandraLauncher.start(
