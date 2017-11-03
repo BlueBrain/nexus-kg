@@ -59,13 +59,12 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
     }
 
   private def startIndexingInstances() = {
-    val instanceIndexingSettings = InstanceIndexingSettings(settings.Sparql.Instances.Index,
+    val instanceIndexingSettings = InstanceIndexingSettings(settings.Sparql.Index,
                                                             apiUri,
                                                             settings.Sparql.Instances.GraphBaseNamespace,
                                                             settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[InstanceEvent](
-      initFunctionOf(settings.Sparql.Instances.Index),
       InstanceIndexer[Future](sparqlClient, instanceIndexingSettings).apply _,
       "instances-to-3s",
       settings.Persistence.QueryJournalPlugin,
@@ -75,13 +74,12 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
   }
 
   private def startIndexingSchemas() = {
-    val schemaIndexingSettings = SchemaIndexingSettings(settings.Sparql.Schemas.Index,
+    val schemaIndexingSettings = SchemaIndexingSettings(settings.Sparql.Index,
                                                         apiUri,
                                                         settings.Sparql.Schemas.GraphBaseNamespace,
                                                         settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[SchemaEvent](
-      initFunctionOf(settings.Sparql.Schemas.Index),
       SchemaIndexer[Future](sparqlClient, schemaIndexingSettings).apply _,
       "schemas-to-3s",
       settings.Persistence.QueryJournalPlugin,
@@ -91,13 +89,12 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
   }
 
   private def startIndexingDomains() = {
-    val domainIndexingSettings = DomainIndexingSettings(settings.Sparql.Domains.Index,
+    val domainIndexingSettings = DomainIndexingSettings(settings.Sparql.Index,
                                                         apiUri,
                                                         settings.Sparql.Domains.GraphBaseNamespace,
                                                         settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[DomainEvent](
-      initFunctionOf(settings.Sparql.Domains.Index),
       DomainIndexer[Future](sparqlClient, domainIndexingSettings).apply _,
       "domains-to-3s",
       settings.Persistence.QueryJournalPlugin,
@@ -107,13 +104,13 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], apiU
   }
 
   private def startIndexingOrgs() = {
-    val orgIndexingSettings = OrganizationIndexingSettings(settings.Sparql.Organizations.Index,
+    val orgIndexingSettings = OrganizationIndexingSettings(settings.Sparql.Index,
                                                            apiUri,
                                                            settings.Sparql.Organizations.GraphBaseNamespace,
                                                            settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[OrgEvent](
-      initFunctionOf(settings.Sparql.Organizations.Index),
+      initFunctionOf(settings.Sparql.Index),
       OrganizationIndexer[Future](sparqlClient, orgIndexingSettings).apply _,
       "organization-to-3s",
       settings.Persistence.QueryJournalPlugin,
