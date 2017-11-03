@@ -71,6 +71,10 @@ class SchemaIndexerSpec(blazegraphPort: Int)
   private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
   private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
 
+  private val rdfSchemaBase = "http://www.w3.org/2000/01/rdf-schema#"
+  private val rdfSyntaxBase = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  private val shaclBase     = "http://www.w3.org/ns/shacl#"
+
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
@@ -87,9 +91,10 @@ class SchemaIndexerSpec(blazegraphPort: Int)
                               rev: Long,
                               deprecated: Boolean,
                               published: Boolean,
-                              description: String): List[(String, String, String)] = {
+                              description: String): Set[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(schemasBase)
-    List(
+    val shapeId     = "shapes/minimalshape".qualifyAsStringWith(base)
+    Set(
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
       (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
       (qualifiedId, "published" qualifyAsStringWith nexusVocBase, published.toString),
@@ -99,7 +104,13 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.name),
       (qualifiedId, schemaGroupKey, id.schemaName.qualifyAsString),
       (qualifiedId, rdfTypeKey, "Schema".qualifyAsString),
-      (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show)
+      (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show),
+      (shapeId, s"${rdfSchemaBase}isDefinedBy", qualifiedId),
+      (shapeId, s"${shaclBase}targetObjectsOf", "rev" qualifyAsStringWith nexusVocBase),
+      (shapeId, s"${shaclBase}description", "A resource revision number."),
+      (shapeId, s"${shaclBase}datatype", "http://www.w3.org/2001/XMLSchema#integer"),
+      (shapeId, s"${shaclBase}minInclusive", "1"),
+      (shapeId, s"${rdfSyntaxBase}type", s"${shaclBase}NodeShape")
     )
   }
 
@@ -119,8 +130,9 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/schemas/minimal.json", replacements)
       indexer(SchemaCreated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
+
       rs.size shouldEqual 16
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = false, "random")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = false, "random")
     }
 
     "index a SchemaUpdated event" in {
@@ -129,7 +141,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       indexer(SchemaUpdated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 16
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = false, "updated")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = false, "updated")
     }
 
     "index a SchemaPublished event" in {
@@ -137,7 +149,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       indexer(SchemaPublished(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 16
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, published = true, "updated")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = true, "updated")
     }
 
     "index a SchemaDeprecated event" in {
@@ -145,7 +157,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       indexer(SchemaDeprecated(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 16
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, published = true, "updated")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, published = true, "updated")
     }
   }
 }

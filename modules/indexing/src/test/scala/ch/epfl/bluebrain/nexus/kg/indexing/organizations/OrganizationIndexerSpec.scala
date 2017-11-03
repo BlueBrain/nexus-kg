@@ -76,10 +76,10 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
   private def expectedTriples(id: OrgId,
                               rev: Long,
                               deprecated: Boolean,
-                              description: String): List[(String, String, String)] = {
+                              description: String): Set[(String, String, String)] = {
 
     val qualifiedId = id.qualifyAsStringWith(orgBase)
-    List(
+    Set(
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
       (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
       (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
@@ -105,7 +105,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       indexer(OrgCreated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 5
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "random")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "random")
     }
 
     "index a OrgUpdated event" in {
@@ -114,7 +114,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       indexer(OrgUpdated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 5
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated")
     }
 
     "index a OrgDeprecated event" in {
@@ -122,7 +122,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       indexer(OrgDeprecated(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 5
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, "updated")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, "updated")
     }
   }
 }

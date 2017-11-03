@@ -3,7 +3,7 @@
   "nexusvoc:desc": "random",
   "shapes": [
     {
-      "@id": "http://test.com/testshape",
+      "@id": "{{base}}/shapes/minimalshape",
       "@type": "sh:NodeShape",
       "targetObjectsOf": "nexusvoc:rev",
       "description": "A resource revision number.",

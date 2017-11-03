@@ -105,9 +105,9 @@ class InstanceIndexerSpec(blazegraphPort: Int)
   private def expectedTriples(id: InstanceId,
                               rev: Long,
                               deprecated: Boolean,
-                              description: String): List[(String, String, String)] = {
+                              description: String): Set[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(instanceBase)
-    List(
+    Set(
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
       (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
       (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
@@ -124,11 +124,11 @@ class InstanceIndexerSpec(blazegraphPort: Int)
                               rev: Long,
                               deprecated: Boolean,
                               description: String,
-                              meta: Attachment.Meta): List[(String, String, String)] = {
+                              meta: Attachment.Meta): Set[(String, String, String)] = {
     val qualifiedId                                                                                       = id.qualifyAsStringWith(instanceBase)
     val Attachment.Meta(_, Info(originalFileName, contentType, Size(_, size), Digest(algorithm, digest))) = meta
     expectedTriples(id, rev, deprecated, description) ++
-      List(
+      Set(
         (qualifiedId, "originalFileName" qualifyAsStringWith nexusVocBase, originalFileName),
         (qualifiedId, "contentType" qualifyAsStringWith nexusVocBase, contentType),
         (qualifiedId, "size" qualifyAsStringWith nexusVocBase, size.toString),
@@ -155,7 +155,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       indexer(InstanceCreated(id, rev, meta, data)).futureValue
       val rs = triples(id, client).futureValue
       rs.size shouldEqual 9
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "random")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "random")
     }
 
     "index an InstanceUpdated event" in {
@@ -164,7 +164,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       indexer(InstanceUpdated(id, rev, meta, data)).futureValue
       val rs = triples(id, client).futureValue
       rs.size shouldEqual 9
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated")
     }
 
     "index an InstanceAttachmentCreated" in {
@@ -174,7 +174,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       indexer(InstanceAttachmentCreated(id, rev, meta, attMeta)).futureValue
       val rs = allTriples(id, client).futureValue
       rs.size shouldEqual 14
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated", attMeta)
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta)
     }
 
     "index a subsequent InstanceAttachmentCreated" in {
@@ -186,7 +186,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       indexer(InstanceAttachmentCreated(id, rev, meta, attMeta)).futureValue
       val rs = allTriples(id, client).futureValue
       rs.size shouldEqual 14
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated", attMeta)
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta)
     }
 
     "index an InstanceAttachmentRemoved" in {
@@ -194,7 +194,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       indexer(InstanceAttachmentRemoved(id, rev, meta)).futureValue
       val rs = allTriples(id, client).futureValue
       rs.size shouldEqual 9
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, "updated")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated")
     }
 
     "index an InstanceDeprecated event" in {
@@ -202,7 +202,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       indexer(InstanceDeprecated(id, rev, meta)).futureValue
       val rs = triples(id, client).futureValue
       rs.size shouldEqual 9
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, "updated")
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, "updated")
     }
   }
 }
