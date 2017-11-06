@@ -18,9 +18,9 @@ final case class CallerCtx(clock: Clock, caller: Caller) {
   private def identity(): Identity =
     caller.identities.collectFirst {
       case id: UserRef => id
-    } orElse (caller.identities.collectFirst {
+    } orElse caller.identities.collectFirst {
       case id: AuthenticatedRef => id
-    }) getOrElse (Identity.Anonymous)
+    } getOrElse Identity.Anonymous()
 }
 
 object CallerCtx {

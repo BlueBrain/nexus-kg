@@ -96,7 +96,7 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
     val indexer = OrganizationIndexer(client, ctxs, settings)
 
     val id   = OrgId(genString(length = 4))
-    val meta = Meta(Anonymous, Clock.systemUTC.instant())
+    val meta = Meta(Anonymous(), Clock.systemUTC.instant())
 
     "index a OrgCreated event" in {
       client.createIndex(index, properties).futureValue

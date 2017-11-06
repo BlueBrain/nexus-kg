@@ -1,8 +1,9 @@
-val commonsVersion     = "0.5.7"
-val metricsCoreVersion = "3.2.2"
-val jenaVersion        = "3.4.0"
-val blazegraphVersion  = "2.1.4"
-val jacksonVersion     = "2.9.0"
+val commonsVersion         = "0.5.10"
+val metricsCoreVersion     = "3.2.2"
+val jenaVersion            = "3.4.0"
+val blazegraphVersion      = "2.1.4"
+val jacksonVersion         = "2.9.0"
+val akkaStreamKafkaVersion = "0.17"
 
 lazy val sourcingCore   = nexusDep("sourcing-core", commonsVersion)
 lazy val sourcingAkka   = nexusDep("sourcing-akka", commonsVersion)
@@ -58,6 +59,7 @@ lazy val indexing = project
     name := "kg-indexing",
     moduleName := "kg-indexing",
     libraryDependencies ++= Seq(
+      iamCommons,
       sourcingCore,
       sourcingMem % Test,
       commonsTest % Test,
@@ -91,6 +93,7 @@ lazy val service = project
     name := "kg-service",
     moduleName := "kg-service",
     libraryDependencies ++= kamonDeps ++ Seq(
+      iamCommons,
       commonsService,
       sourcingAkka,
       sourcingMem                  % Test,
@@ -101,6 +104,7 @@ lazy val service = project
       "com.typesafe.akka"          %% "akka-http" % akkaHttpVersion.value,
       "com.typesafe.akka"          %% "akka-distributed-data" % akkaVersion.value,
       "com.typesafe.akka"          %% "akka-persistence-cassandra" % akkaPersistenceCassandraVersion.value,
+      "com.typesafe.akka"          %% "akka-stream-kafka" % akkaStreamKafkaVersion,
       "io.dropwizard.metrics"      % "metrics-core" % metricsCoreVersion, // for cassandra client, or fails at runtime
       "de.heikoseeberger"          %% "akka-http-circe" % akkaHttpCirceVersion.value,
       "io.circe"                   %% "circe-core" % circeVersion.value,
@@ -114,6 +118,7 @@ lazy val service = project
       "com.github.dnvriend"        %% "akka-persistence-inmemory" % akkaPersistenceInMemVersion.value % Test,
       "com.typesafe.akka"          %% "akka-http-testkit" % akkaHttpVersion.value % Test,
       "com.typesafe.akka"          %% "akka-testkit" % akkaVersion.value % Test,
+      "net.manub"                  %% "scalatest-embedded-kafka" % "1.0.0" % Test,
       "org.scalatest"              %% "scalatest" % scalaTestVersion.value % Test
     )
   )

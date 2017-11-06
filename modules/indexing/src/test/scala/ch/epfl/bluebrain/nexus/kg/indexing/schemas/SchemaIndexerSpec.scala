@@ -122,7 +122,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     val indexer              = SchemaIndexer(client, ctxs, settings)
 
     val id   = SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0))
-    val meta = Meta(Anonymous, Clock.systemUTC.instant())
+    val meta = Meta(Anonymous(), Clock.systemUTC.instant())
 
     "index a SchemaCreated event" in {
       client.createIndex(index, properties).futureValue
