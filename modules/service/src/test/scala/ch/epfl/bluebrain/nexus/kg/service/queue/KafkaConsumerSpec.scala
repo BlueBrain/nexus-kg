@@ -6,24 +6,25 @@ import java.util.concurrent.atomic.AtomicInteger
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Event._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.IdentityId
-import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity._
+import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.EventJsonLdSerialization
 import io.circe.Decoder
 import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.scalatest.concurrent.Eventually
+import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{Matchers, WordSpecLike}
 
-import scala.concurrent.Future
-import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContextExecutor, Future}
 
 class KafkaConsumerSpec extends WordSpecLike with Eventually with Matchers with EmbeddedKafka {
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(30.seconds, 3.seconds)
-  private implicit val as: ActorSystem                 = ActorSystem("embedded-kafka")
+  private implicit val as: ActorSystem              = ActorSystem("embedded-kafka")
+  private implicit val ec: ExecutionContextExecutor = as.dispatcher
+  private implicit val eventDecoder: Decoder[Event] = EventJsonLdSerialization.eventDecoder
 
   private val counter          = new AtomicInteger
   private val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
@@ -44,21 +45,16 @@ class KafkaConsumerSpec extends WordSpecLike with Eventually with Matchers with 
 
   "KafkaConsumer" should {
     "decode and index received messages" in {
-      implicit val eventDecoder: Decoder[Event]     = JsonLdSerialization.eventDecoder
       implicit val kafkaConfig: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = 9092, zooKeeperPort = 2181)
       withRunningKafka {
         for (i <- 1 to 100) {
           publishStringMessageToKafka("test-topic", messages(i % 4))
         }
         KafkaConsumer.start[Event](consumerSettings, index, "test-topic")
-        eventually {
+        eventually(timeout(Span(30, Seconds)), interval(Span(5, Seconds))) {
           counter.get shouldEqual 100
         }
       }
-    }
-
-    "restart from last committed offset" in {
-      succeed
     }
   }
 
