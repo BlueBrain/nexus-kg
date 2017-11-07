@@ -19,8 +19,9 @@ trait IndexingVocab {
     * Indexing vocabulary, with prefix.
     */
   object PrefixMapping {
-    val rdfTypeKey                                                                = s"${PrefixUri.rdf}type"
-    def schemaGroupKey(implicit configuredQualifier: ConfiguredQualifier[String]) = "schemaGroup".qualifyAsString
+    val rdfTypeKey                                                                 = s"${PrefixUri.rdf}type"
+    def schemaGroupKey(implicit configuredQualifier: ConfiguredQualifier[String])  = "schemaGroup".qualifyAsString
+    def contextGroupKey(implicit configuredQualifier: ConfiguredQualifier[String]) = "contextGroup".qualifyAsString
   }
 
   /**

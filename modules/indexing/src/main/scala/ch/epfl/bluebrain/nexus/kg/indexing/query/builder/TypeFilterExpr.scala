@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextId
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -41,6 +42,11 @@ object TypeFilterExpr {
   implicit val schemaFilterExpr = new TypeFilterExpr[SchemaId] {
     override def apply(implicit Q: ConfiguredQualifier[String]) =
       ComparisonExpr(Eq, UriPath(rdfTypeKey), UriTerm("Schema".qualify))
+  }
+
+  implicit val contextFilterExpr = new TypeFilterExpr[ContextId] {
+    override def apply(implicit Q: ConfiguredQualifier[String]) =
+      ComparisonExpr(Eq, UriPath(rdfTypeKey), UriTerm("Context".qualify))
   }
 
   implicit val instanceFilterExpr = new TypeFilterExpr[InstanceId] {

@@ -22,7 +22,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import _root_.io.circe.java8.time._
 import _root_.io.circe.generic.extras.auto._
 import _root_.io.circe.generic.extras.Configuration
-import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, Contexts}
+import ch.epfl.bluebrain.nexus.kg.indexing.contexts.{ContextIndexer, ContextIndexingSettings}
 
 /**
   * Triggers the start of the indexing process from the resumable projection for all the tags avaialable on the service:
@@ -45,6 +46,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
 
   startIndexingOrgs()
   startIndexingDomains()
+  startIndexingContexts()
   startIndexingSchemas()
   startIndexingInstances()
 
@@ -88,6 +90,21 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
       settings.Persistence.QueryJournalPlugin,
       "schema",
       "sequential-schema-indexer"
+    )
+  }
+
+  private def startIndexingContexts() = {
+    val contextsIndexingSettings = ContextIndexingSettings(settings.Sparql.Index,
+                                                           apiUri,
+                                                           settings.Sparql.Contexts.GraphBaseNamespace,
+                                                           settings.Prefixes.CoreVocabulary)
+
+    SequentialTagIndexer.start[ContextEvent](
+      ContextIndexer[Future](sparqlClient, contextsIndexingSettings).apply _,
+      "contexts-to-3s",
+      settings.Persistence.QueryJournalPlugin,
+      "context",
+      "sequential-context-indexer"
     )
   }
 

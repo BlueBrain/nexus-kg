@@ -7,12 +7,12 @@ import akka.event.Logging
 import akka.persistence.cassandra.testkit.CassandraLauncher
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
+import ch.epfl.bluebrain.nexus.commons.service.persistence.ProjectionStorage
 import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import ch.epfl.bluebrain.nexus.kg.service.routes.MockedIAMClient
 import ch.epfl.bluebrain.nexus.kg.service.{BootstrapService, StartIndexers}
 import ch.epfl.bluebrain.nexus.kg.tests.integration._
-import ch.epfl.bluebrain.nexus.commons.service.persistence.ProjectionStorage
-import ch.epfl.bluebrain.nexus.kg.service.routes.MockedIAMClient
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingAkkaSettings
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
 import org.scalatest._
@@ -50,6 +50,7 @@ class ServiceSpecSuite
   override val nestedSuites = Vector(
     new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new DomainIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+    new ContextsIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new SchemasIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new InstanceIntegrationSpec(bootstrap.apiUri,
                                 bootstrap.routes,

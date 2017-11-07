@@ -22,7 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent.{
   ContextPublished,
   ContextUpdated
 }
-import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextId
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
@@ -70,9 +70,10 @@ class ContextIndexerSpec(blazegraphPort: Int)
   private val settings @ ContextIndexingSettings(index, contextsBase, contextsBaseNs, nexusVocBase) =
     ContextIndexingSettings(genString(length = 6), base, s"$base/contexts/graphs", s"$base/voc/nexus/core")
 
-  private implicit val stringQualifier: ConfiguredQualifier[String]     = Qualifier.configured[String](nexusVocBase)
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]       = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
+  private implicit val stringQualifier: ConfiguredQualifier[String]           = Qualifier.configured[String](nexusVocBase)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]             = Qualifier.configured[OrgId](base)
+  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]       = Qualifier.configured[DomainId](base)
+  private implicit val contextNameQualifier: ConfiguredQualifier[ContextName] = Qualifier.configured[ContextName](base)
 
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
@@ -98,6 +99,7 @@ class ContextIndexerSpec(blazegraphPort: Int)
       (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.domainId.orgId.qualifyAsString),
       (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.domainId.qualifyAsString),
       (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.name),
+      (qualifiedId, contextGroupKey, id.contextName.qualifyAsString),
       (qualifiedId, rdfTypeKey, "Context".qualifyAsString),
       (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show)
     )
@@ -122,7 +124,7 @@ class ContextIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/contexts/minimal.json", replacements)
       indexer(ContextCreated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 9
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = false)
     }
 
@@ -131,7 +133,7 @@ class ContextIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/contexts/minimal.json", replacements)
       indexer(ContextUpdated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 9
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = false)
     }
 
@@ -139,7 +141,7 @@ class ContextIndexerSpec(blazegraphPort: Int)
       val rev = 3L
       indexer(ContextPublished(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 9
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = true)
     }
 
@@ -147,7 +149,7 @@ class ContextIndexerSpec(blazegraphPort: Int)
       val rev = 4L
       indexer(ContextDeprecated(id, rev, meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 9
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, published = true)
     }
   }

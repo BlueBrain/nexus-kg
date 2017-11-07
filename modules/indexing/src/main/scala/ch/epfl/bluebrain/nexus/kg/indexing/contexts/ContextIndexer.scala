@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent.{
   ContextPublished,
   ContextUpdated
 }
-import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
@@ -26,10 +26,11 @@ class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSet
   private val log                                                   = Logger[this.type]
   private val ContextIndexingSettings(index, base, baseNs, baseVoc) = settings
 
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]         = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]   = Qualifier.configured[DomainId](base)
-  private implicit val contextIdQualifier: ConfiguredQualifier[ContextId] = Qualifier.configured[ContextId](base)
-  private implicit val stringQualifier: ConfiguredQualifier[String]       = Qualifier.configured[String](baseVoc)
+  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]             = Qualifier.configured[OrgId](base)
+  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]       = Qualifier.configured[DomainId](base)
+  private implicit val contextNameQualifier: ConfiguredQualifier[ContextName] = Qualifier.configured[ContextName](base)
+  private implicit val contextIdQualifier: ConfiguredQualifier[ContextId]     = Qualifier.configured[ContextId](base)
+  private implicit val stringQualifier: ConfiguredQualifier[String]           = Qualifier.configured[String](baseVoc)
 
   private val revKey        = "rev".qualifyAsString
   private val deprecatedKey = "deprecated".qualifyAsString
@@ -67,13 +68,14 @@ class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSet
 
   private def buildMeta(id: ContextId, rev: Long, deprecated: Option[Boolean], published: Option[Boolean]): Json = {
     val sharedObj = Json.obj(
-      idKey      -> Json.fromString(id.qualifyAsString),
-      revKey     -> Json.fromLong(rev),
-      orgKey     -> id.domainId.orgId.qualify.jsonLd,
-      domainKey  -> id.domainId.qualify.jsonLd,
-      nameKey    -> Json.fromString(id.name),
-      versionKey -> Json.fromString(id.version.show),
-      rdfTypeKey -> "Context".qualify.jsonLd
+      idKey           -> Json.fromString(id.qualifyAsString),
+      revKey          -> Json.fromLong(rev),
+      orgKey          -> id.domainId.orgId.qualify.jsonLd,
+      domainKey       -> id.domainId.qualify.jsonLd,
+      nameKey         -> Json.fromString(id.name),
+      versionKey      -> Json.fromString(id.version.show),
+      contextGroupKey -> id.contextName.qualify.jsonLd,
+      rdfTypeKey      -> "Context".qualify.jsonLd
     )
 
     val publishedObj = published

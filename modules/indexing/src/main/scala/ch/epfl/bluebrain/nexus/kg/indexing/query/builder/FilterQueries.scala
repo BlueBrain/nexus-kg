@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
 import akka.http.scaladsl.model.Uri
 import cats.instances.string._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextName
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
@@ -35,6 +36,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     Qualifier.configured[SchemaName](querySettings.base)
   private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId] =
     Qualifier.configured[SchemaId](querySettings.base)
+  private implicit val contextNameQualifier: ConfiguredQualifier[ContextName] =
+    Qualifier.configured[ContextName](querySettings.base)
 
   /**
     * Lists all ids in the system that match the given filter.
@@ -86,6 +89,20 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
       implicit Q: ConfiguredQualifier[Id],
       schemaNameFilter: SchemaNameFilterExpr[Id]): F[QueryResults[Id]] =
     list(Filter(schemaNameFilter(schemaName)) and filter.expr, pagination, term)
+
+  /**
+    * Lists all ids in the system within the specified context and that have the specified context name that match
+    * the given filter.
+    *
+    * @param contextName the context name filter
+    * @param filter     the filter expression to be applied
+    * @param pagination the pagination values
+    * @param term       the optional full text search term
+    */
+  def list(contextName: ContextName, filter: Filter, pagination: Pagination, term: Option[String])(
+      implicit Q: ConfiguredQualifier[Id],
+      contextNameFilter: ContextNameFilterExpr[Id]): F[QueryResults[Id]] =
+    list(Filter(contextNameFilter(contextName)) and filter.expr, pagination, term)
 
   /**
     * Lists all ids in the system conformant to the specified schema that match the given filter.
