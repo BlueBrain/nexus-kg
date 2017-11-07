@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.ContextNameFilterExpr.contextNameFilterExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries.{domExpr, _}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
@@ -100,9 +101,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param term       the optional full text search term
     */
   def list(contextName: ContextName, filter: Filter, pagination: Pagination, term: Option[String])(
-      implicit Q: ConfiguredQualifier[Id],
-      contextNameFilter: ContextNameFilterExpr[Id]): F[QueryResults[Id]] =
-    list(Filter(contextNameFilter(contextName)) and filter.expr, pagination, term)
+      implicit Q: ConfiguredQualifier[Id]): F[QueryResults[Id]] =
+    list(Filter(contextNameFilterExpr(contextName)) and filter.expr, pagination, term)
 
   /**
     * Lists all ids in the system conformant to the specified schema that match the given filter.
