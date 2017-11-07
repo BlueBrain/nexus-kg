@@ -1,0 +1,34 @@
+{
+  "@context": {
+    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
+    "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
+    "total": "nxs:total",
+    "results": "nxs:results",
+    "resultId": "nxs:resultId",
+    "source": "nxs:source",
+    "links": "nxv:links",
+    "rel": "nxv:rel",
+    "href": "nxv:href"
+  },
+  "total": 1,
+  "results": [
+    {
+      "resultId": "https://nexus.example.com/v0/contexts/myorg/mydom/mycontext/1.0.0",
+      "source": {
+        "@id": "https://nexus.example.com/v0/contexts/myorg/mydom/mycontext/1.0.0",
+        "links": [
+          {
+            "rel": "self",
+            "href": "https://nexus.example.com/v0/contexts/myorg/mydom/mycontext/1.0.0"
+          }
+        ]
+      }
+    }
+  ],
+  "links": [
+    {
+      "rel": "self",
+      "href": "https://nexus.example.com/v0/contexts?from=0&size=100&published=true"
+    }
+  ]
+}

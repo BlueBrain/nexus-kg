@@ -4,6 +4,7 @@
 * [organizations](organizations.md)
 * [domains](domains.md)
 * [schemas](schemas.md)
+* [contexts](contexts.md)
 * [instances](instances.md)
 
 @@@
