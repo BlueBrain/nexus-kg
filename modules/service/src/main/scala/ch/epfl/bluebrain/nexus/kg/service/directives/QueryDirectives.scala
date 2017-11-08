@@ -64,6 +64,12 @@ trait QueryDirectives {
     parameter('deprecated.as[Boolean].?).flatMap(opt => provide(opt))
 
   /**
+    * Extracts the ''published'' query param from the request.
+    */
+  def published: Directive1[Option[Boolean]] =
+    parameter('published.as[Boolean].?).flatMap(opt => provide(opt))
+
+  /**
     * Extracts the query parameters defined for search requests or set them to preconfigured values
     * if present.
     *

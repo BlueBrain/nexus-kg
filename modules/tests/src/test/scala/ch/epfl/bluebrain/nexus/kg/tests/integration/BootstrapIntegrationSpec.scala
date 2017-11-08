@@ -10,6 +10,7 @@ import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextId
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -57,6 +58,7 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, vocab: Uri)(implicit as: Ac
 
   val orgsEncoder     = new OrgCustomEncoders(apiUri)
   val domsEncoder     = new DomainCustomEncoders(apiUri)
+  val contextEncoder  = new ContextCustomEncoders(apiUri)
   val schemaEncoder   = new SchemaCustomEncoders(apiUri)
   val instanceEncoder = new InstanceCustomEncoders(apiUri)
 }
@@ -81,14 +83,38 @@ object BootstrapIntegrationSpec extends Randomness with Resources {
     .sortWith(_.show < _.show)
   val randDomains: List[DomainId] = domains.filter(_.orgId.id == "rand")
 
+  val instanceContext: (ContextId, Json) = {
+    val contextName = genString(length = 5)
+    ContextId(domains(2), contextName, Version(1, 0, 0)) -> jsonContentOf("/contexts/instance-context.json")
+  }
+
+  val schemaContext: (ContextId, Json) = {
+    val contextName = genString(length = 5)
+    ContextId(domains(2), contextName, Version(1, 0, 0)) -> jsonContentOf("/contexts/schema-context.json")
+  }
+
+  val contexts: List[(ContextId, Json)] = domains
+    .drop(2)
+    .foldLeft(Vector.empty[(ContextId, Json)])((acc, c) => {
+      val contextName = genString(length = 5)
+      acc ++ (0 until 3).map(v => {
+        ContextId(c, contextName, Version(1, 0, v)) -> jsonContentOf("/contexts/schema-context.json")
+      })
+    })
+    .toList
+    .sortWith(_._1.show < _._1.show) ::: List(instanceContext, schemaContext)
+
   //3 schemas with different version patch value for each domain except for 'nexus/core' and 'nexus/other' which are deprecated
   val schemas: List[(SchemaId, Json)] = domains
     .drop(2)
     .foldLeft(Vector.empty[(SchemaId, Json)])((acc, c) => {
       val schemaName = genString(length = 5)
       acc ++ (0 until 3).map(v => {
-        val replacements =
-          Map(Pattern.quote("{{max_count}}") -> (genInt() + 1).toString, Pattern.quote("{{number}}") -> v.toString)
+        val replacements = Map(
+          Pattern.quote("{{max_count}}") -> (genInt() + 1).toString,
+          Pattern.quote("{{number}}")    -> v.toString,
+          Pattern.quote("{{context}}")   -> schemaContext._1.show
+        )
         SchemaId(c, schemaName, Version(1, 0, v)) -> jsonContentOf("/schemas/int-value-schema-variable-max.json",
                                                                    replacements)
       })
@@ -115,6 +141,7 @@ object BootstrapIntegrationSpec extends Randomness with Resources {
   private def genUUID(): String = UUID.randomUUID().toString.toLowerCase
 
   private def genJson(): Json =
-    jsonContentOf("/data/int-value-has-part.json", Map("random" -> genString(length = 4)))
+    jsonContentOf("/data/int-value-has-part.json",
+                  Map("random" -> genString(length = 4), Pattern.quote("{{context}}") -> instanceContext._1.show))
       .deepMerge(Json.obj("value" -> Json.fromInt(genInt(Int.MaxValue))))
 }

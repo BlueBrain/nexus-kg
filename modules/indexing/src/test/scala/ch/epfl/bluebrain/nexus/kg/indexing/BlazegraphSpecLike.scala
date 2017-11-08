@@ -2,12 +2,14 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import org.scalatest.{BeforeAndAfterAll, Suites}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
+import ch.epfl.bluebrain.nexus.kg.indexing.contexts.ContextIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.DomainIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.OrganizationIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SparqlQuerySpec
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.SchemaIndexerSpec
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
+
 import scala.concurrent.duration._
 
 /**
@@ -36,9 +38,12 @@ trait BlazegraphSpecLike extends Suites with BeforeAndAfterAll {
 }
 
 class BlazeGraphIndexingSpec extends BlazegraphSpecLike {
-  override val nestedSuites = Vector(new InstanceIndexerSpec(port),
-                                     new SchemaIndexerSpec(port),
-                                     new DomainIndexerSpec(port),
-                                     new OrganizationIndexerSpec(port),
-                                     new SparqlQuerySpec(port))
+  override val nestedSuites = Vector(
+    new ContextIndexerSpec(port),
+    new InstanceIndexerSpec(port),
+    new SchemaIndexerSpec(port),
+    new DomainIndexerSpec(port),
+    new OrganizationIndexerSpec(port),
+    new SparqlQuerySpec(port)
+  )
 }

@@ -193,6 +193,14 @@ class Settings(config: Config) extends Extension {
       val GraphBaseNamespace = Uri(ns.getString("sparql.schemas.graph-base-namespace"))
     }
 
+    object Contexts {
+
+      /**
+        * The base namespace for context named graphs.
+        */
+      val GraphBaseNamespace = Uri(ns.getString("sparql.contexts.graph-base-namespace"))
+    }
+
     object Instances {
 
       /**

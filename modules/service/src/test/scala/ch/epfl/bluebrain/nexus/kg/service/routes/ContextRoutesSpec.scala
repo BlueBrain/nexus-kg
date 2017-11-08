@@ -5,11 +5,13 @@ import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, Materializer}
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
@@ -19,6 +21,8 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecate
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec._
@@ -26,13 +30,13 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import io.circe.generic.auto._
 import io.circe.Json
+import io.circe.generic.auto._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContextExecutor, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 
 class ContextRoutesSpec
     extends WordSpecLike
@@ -71,9 +75,13 @@ class ContextRoutesSpec
     val domRef =
       Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller), 2 seconds)
 
+    val sparql                         = sparqlClient()
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
-    val route = ContextRoutes(contexts, baseUri).routes
+    val vocab         = baseUri.copy(path = baseUri.path / "core")
+    val querySettings = QuerySettings(Pagination(0L, 20), "some-index", vocab, baseUri)
+
+    val route = ContextRoutes(contexts, sparql, querySettings, baseUri).routes
 
     val contextId = ContextId(domRef.id, genString(length = 8), genVersion())
 
@@ -212,4 +220,13 @@ object ContextRoutesSpec {
 
   private def contextRefAsJson(ref: ContextRef) =
     Json.obj("@id" -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"), "rev" -> Json.fromLong(ref.rev))
+
+  private def sparqlClient()(implicit cl: UntypedHttpClient[Future],
+                             ec: ExecutionContext,
+                             mt: Materializer): SparqlClient[Future] = {
+    import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
+    SparqlClient[Future](sparqlUri)
+
+  }
 }

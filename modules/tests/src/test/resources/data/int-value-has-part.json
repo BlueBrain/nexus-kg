@@ -1,10 +1,5 @@
 {
-  "@context": {
-    "value": "http://schema.org/value",
-    "QuantitativeValue": "http://schema.org/QuantitativeValue",
-    "nexusvoc": "http://localhost/v0/voc/nexus/core/",
-    "hasPart": "http://purl.org/dc/terms/hasPart"
-  },
+  "@context": "http://127.0.0.1:8080/contexts/{{context}}",
   "@type": "QuantitativeValue",
   "value": 16,
   "nexusvoc:desc": "random"
