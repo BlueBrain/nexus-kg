@@ -1,0 +1,1 @@
+curl "https://nexus.example.com/v0/contexts?from=0&size=100&published=true"
