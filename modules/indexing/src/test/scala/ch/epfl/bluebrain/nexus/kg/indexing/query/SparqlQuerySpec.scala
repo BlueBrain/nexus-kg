@@ -144,7 +144,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val data                 = jsonContentOf("/instances/minimal.json", replacements)
     val unmatched            = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "different"))
     val filterNoDepr: Filter = deprecated(Some(false), nexusVocBase)
-    val meta                 = Meta(Anonymous, Clock.systemUTC.instant())
+    val meta                 = Meta(Anonymous(), Clock.systemUTC.instant())
 
     "perform a data full text search" in {
       client.createIndex(index, properties).futureValue

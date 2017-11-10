@@ -209,6 +209,14 @@ class Settings(config: Config) extends Extension {
       val GraphBaseNamespace = Uri(ns.getString("sparql.instances.graph-base-namespace"))
     }
 
+    object Acls {
+
+      /**
+        * The base namespace for instance named graphs.
+        */
+      val GraphBaseNamespace = Uri(ns.getString("sparql.acls.graph-base-namespace"))
+    }
+
     /**
       * The default page offset.
       */
@@ -259,6 +267,14 @@ class Settings(config: Config) extends Extension {
       * IAM service base URI
       */
     val BaseUri = Uri(ns.getString("iam.base-uri"))
+  }
+
+  object Kafka {
+
+    /**
+      * Name of the Kafka topic where ACL events are published by the IAM service
+      */
+    val Topic = ns.getString("kafka.permissions-topic")
   }
 }
 

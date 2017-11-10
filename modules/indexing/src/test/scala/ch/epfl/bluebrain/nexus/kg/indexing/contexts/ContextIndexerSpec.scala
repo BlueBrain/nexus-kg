@@ -115,7 +115,7 @@ class ContextIndexerSpec(blazegraphPort: Int)
     val domainId = DomainId(orgId, genId())
     val id       = ContextId(domainId, genName(), genVersion())
 
-    val meta = Meta(Anonymous, Clock.systemUTC.instant())
+    val meta = Meta(Anonymous(), Clock.systemUTC.instant())
 
     val replacements = Map(Pattern.quote("{{base}}") -> base.toString, Pattern.quote("{{context}}") -> id.show)
     "index a ContextCreated event" in {

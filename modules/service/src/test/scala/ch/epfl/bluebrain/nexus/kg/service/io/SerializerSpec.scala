@@ -39,40 +39,40 @@ class SerializerSpec extends WordSpecLike with Matchers with Inspectors with Sca
     val uuid     = UUID.randomUUID().toString
     val domainId = DomainId(OrgId("orgid"), "domainid")
     val meta     = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
-    val metaAnon = Meta(Anonymous, Clock.systemUTC.instant())
+    val metaAnon = Meta(Anonymous(), Clock.systemUTC.instant())
 
     "using EventSerializer" should {
       val results = List(
         DataAndJson[OrgEvent](
           OrgCreated(OrgId("orgid"), 1, meta, Json.obj()),
-          s"""{"id":"orgid","rev":1,"meta":{"author":{"realm":"realm","sub":"sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"OrgCreated"}"""
+          s"""{"id":"orgid","rev":1,"meta":{"author":{"id":"realms/realm/users/sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"OrgCreated"}"""
         ),
         DataAndJson[OrgEvent](
           OrgUpdated(OrgId("orgid"), 2, meta, Json.obj("one" -> Json.fromString("two"))),
-          s"""{"id":"orgid","rev":2,"meta":{"author":{"realm":"realm","sub":"sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{"one":"two"},"type":"OrgUpdated"}"""
+          s"""{"id":"orgid","rev":2,"meta":{"author":{"id":"realms/realm/users/sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{"one":"two"},"type":"OrgUpdated"}"""
         ),
         DataAndJson[OrgEvent](
           OrgDeprecated(OrgId("orgid"), 3, metaAnon),
-          s"""{"id":"orgid","rev":3,"meta":{"author":{"type":"Anonymous"},"instant":"${metaAnon.instant}"},"type":"OrgDeprecated"}"""
+          s"""{"id":"orgid","rev":3,"meta":{"author":{"id":"anonymous","type":"Anonymous"},"instant":"${metaAnon.instant}"},"type":"OrgDeprecated"}"""
         ),
         DataAndJson[DomainEvent](
           DomainCreated(domainId, 1L, metaAnon, "desc"),
-          s"""{"id":"orgid/domainid","rev":1,"meta":{"author":{"type":"Anonymous"},"instant":"${metaAnon.instant}"},"description":"desc","type":"DomainCreated"}"""
+          s"""{"id":"orgid/domainid","rev":1,"meta":{"author":{"id":"anonymous","type":"Anonymous"},"instant":"${metaAnon.instant}"},"description":"desc","type":"DomainCreated"}"""
         ),
         DataAndJson[SchemaEvent](
           SchemaCreated(SchemaId(domainId, "schemaname", Version(1, 1, 1)), 1, meta, Json.obj()),
-          s"""{"id":"orgid/domainid/schemaname/v1.1.1","rev":1,"meta":{"author":{"realm":"realm","sub":"sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"SchemaCreated"}"""
+          s"""{"id":"orgid/domainid/schemaname/v1.1.1","rev":1,"meta":{"author":{"id":"realms/realm/users/sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"SchemaCreated"}"""
         ),
         DataAndJson[ContextEvent](
           ContextCreated(ContextId(domainId, "contextname", Version(1, 1, 1)), 1, meta, Json.obj()),
-          s"""{"id":"orgid/domainid/contextname/v1.1.1","rev":1,"meta":{"author":{"realm":"realm","sub":"sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"ContextCreated"}"""
+          s"""{"id":"orgid/domainid/contextname/v1.1.1","rev":1,"meta":{"author":{"id":"realms/realm/users/sub:1234","type":"UserRef"},"instant":"${meta.instant}"},"value":{},"type":"ContextCreated"}"""
         ),
         DataAndJson[InstanceEvent](
           InstanceCreated(InstanceId(SchemaId(domainId, "schemaname", Version(1, 1, 1)), uuid),
                           1,
                           metaAnon,
                           Json.obj()),
-          s"""{"id":"orgid/domainid/schemaname/v1.1.1/$uuid","rev":1,"meta":{"author":{"type":"Anonymous"},"instant":"${metaAnon.instant}"},"value":{},"type":"InstanceCreated"}"""
+          s"""{"id":"orgid/domainid/schemaname/v1.1.1/$uuid","rev":1,"meta":{"author":{"id":"anonymous","type":"Anonymous"},"instant":"${metaAnon.instant}"},"value":{},"type":"InstanceCreated"}"""
         )
       )
 

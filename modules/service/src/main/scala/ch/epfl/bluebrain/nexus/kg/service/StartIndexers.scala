@@ -2,31 +2,36 @@ package ch.epfl.bluebrain.nexus.kg.service
 
 import java.util.Properties
 
+import _root_.io.circe.generic.extras.Configuration
+import _root_.io.circe.generic.extras.auto._
+import _root_.io.circe.java8.time._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
+import akka.kafka.ConsumerSettings
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{Event => AclEvent}
+import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent
+import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.contexts.{ContextIndexer, ContextIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.domains._
 import ch.epfl.bluebrain.nexus.kg.indexing.instances._
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
+import ch.epfl.bluebrain.nexus.kg.service.queue.KafkaConsumer
+import org.apache.kafka.common.serialization.StringDeserializer
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
-import _root_.io.circe.java8.time._
-import _root_.io.circe.generic.extras.auto._
-import _root_.io.circe.generic.extras.Configuration
-import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, Contexts}
-import ch.epfl.bluebrain.nexus.kg.indexing.contexts.{ContextIndexer, ContextIndexingSettings}
 
 /**
-  * Triggers the start of the indexing process from the resumable projection for all the tags avaialable on the service:
+  * Triggers the start of the indexing process from the resumable projection for all the tags available on the service:
   * instance, schema, domain, organization.
   *
   * @param settings     the app settings
@@ -49,6 +54,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
   startIndexingContexts()
   startIndexingSchemas()
   startIndexingInstances()
+  startIndexingAcls()
 
   private lazy val properties: Map[String, String] = {
     val props = new Properties()
@@ -137,6 +143,20 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
       "organization",
       "sequential-organization-indexer"
     )
+  }
+
+  private def startIndexingAcls() = {
+
+    val aclIndexingSettings = AclIndexingSettings(settings.Sparql.Index,
+                                                  apiUri,
+                                                  settings.Sparql.Acls.GraphBaseNamespace,
+                                                  settings.Prefixes.CoreVocabulary)
+
+    val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
+
+    KafkaConsumer.start[AclEvent](consumerSettings,
+                                  AclIndexer[Future](sparqlClient, aclIndexingSettings).apply,
+                                  settings.Kafka.Topic)
   }
 
 }
