@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceId, InstanceRef, Instances}
+import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
@@ -24,11 +24,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResult
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Json
-import io.circe.generic.auto._
 import io.circe.syntax._
 import org.scalatest.DoNotDiscover
 import org.scalatest.time._
 
+import scala.collection.mutable.Map
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
@@ -45,11 +45,18 @@ class InstanceIntegrationSpec(
     extends BootstrapIntegrationSpec(apiUri, vocab) {
 
   import BootstrapIntegrationSpec._
-  import instanceEncoder._
+  import instanceEncoders._
+  import schemaEncoders.{
+    idWithLinksEncoder => schemaIdEncoder,
+    queryResultEncoder => squeryResultEncoder,
+    scoredQueryResultEncoder => sscoredQueryResultEncoder
+  }
 
   "A InstanceRoutes" when {
 
     "performing integration tests" should {
+      val idsPayload = Map[InstanceId, Instance]()
+
       val caller = CallerCtx(Clock.systemUTC, AnonymousCaller)
 
       lazy val instances =
@@ -62,7 +69,8 @@ class InstanceIntegrationSpec(
                 case _ => aJson
               }
               val ref = Await.result(instancesService.create(schemaId, json)(caller), 1 second)
-              (ref.id -> json) :: acc
+              idsPayload += (ref.id -> Instance(ref.id, 1L, json, None, false))
+              (ref.id               -> json) :: acc
           }
           .sortWith(_._1.show < _._1.show)
 
@@ -94,6 +102,20 @@ class InstanceIntegrationSpec(
           val expectedResults =
             UnscoredQueryResults(randInstances.length.toLong,
                                  randInstances.map { case (id, _) => UnscoredQueryResult(id) }.take(pagination.size))
+          val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=5"))
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+        }
+      }
+
+      "list instances on organization rand with pagination retrieving full entities" in {
+        val pagination = Pagination(0L, 5)
+        val path       = s"/data/rand?size=${pagination.size}&fields=all"
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
+          status shouldEqual StatusCodes.OK
+          val expectedResults =
+            UnscoredQueryResults(
+              randInstances.length.toLong,
+              randInstances.map { case (id, _) => UnscoredQueryResult(idsPayload(id)) }.take(pagination.size))
           val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=5"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }

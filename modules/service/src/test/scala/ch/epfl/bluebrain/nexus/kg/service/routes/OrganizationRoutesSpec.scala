@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -24,7 +25,7 @@ import io.circe.Json
 import io.circe.generic.auto._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
-
+import io.circe.syntax._
 import scala.concurrent.Future
 
 class OrganizationRoutesSpec
@@ -102,9 +103,12 @@ class OrganizationRoutesSpec
       Get(s"/organizations/${id.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
-          .obj("@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-               "rev"        -> Json.fromLong(2L),
-               "deprecated" -> Json.fromBoolean(false))
+          .obj(
+            "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+            "rev"        -> Json.fromLong(2L),
+            "links"      -> Json.arr(Link("self", s"$baseUri/organizations/${id.id}").asJson),
+            "deprecated" -> Json.fromBoolean(false)
+          )
           .deepMerge(jsonUpdated)
       }
     }

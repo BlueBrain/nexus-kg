@@ -11,16 +11,19 @@ import io.circe.{Encoder, Json}
 /**
   * Constructs implicit encoders used to format HTTP responses.
   *
-  * @param base the service public uri + prefix
-  * @param le   the implicitly available encoder for [[Link]]
-  * @param R    the implicitly available function which converts a Reference into a [[Ref]]
-  * @param Q    the implicitly available qualifier for the generic type [[Id]]
+  * @param base      the service public uri + prefix
+  * @param le        the implicitly available encoder for [[Link]]
+  * @param extractId the implicitly available extractor of an Id given an Entity
+  * @param R         the implicitly available function which converts a Reference into a [[Ref]]
+  * @param Q         the implicitly available qualifier for the generic type [[Id]]
   * @tparam Id        the generic type representing the id we want to encode
   * @tparam Reference the generic type representing the Ref we want to encode
+  * @tparam Entity    the generic type representing the Entity we want to encode
   */
-abstract class RoutesEncoder[Id, Reference](base: Uri)(implicit le: Encoder[Link],
-                                                       R: Reference => Ref[Id],
-                                                       Q: Qualifier[Id]) {
+abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit le: Encoder[Link],
+                                                               extractId: (Entity) => Id,
+                                                               R: Reference => Ref[Id],
+                                                               Q: Qualifier[Id]) {
 
   implicit val typeQualifier: ConfiguredQualifier[Id] = Qualifier.configured[Id](base)
   implicit val refEncoder: Encoder[Reference] = Encoder.encodeJson.contramap { ref =>
@@ -30,10 +33,9 @@ abstract class RoutesEncoder[Id, Reference](base: Uri)(implicit le: Encoder[Link
     )
   }
   implicit val idWithLinksEncoder: Encoder[Id] = Encoder.encodeJson.contramap { id =>
-    val link = Link(rel = "self", href = id.qualifyAsString)
     Json.obj(
       "@id"   -> Json.fromString(id.qualifyAsString),
-      "links" -> Json.arr(le(link))
+      "links" -> Json.arr(le(selfLink(id)))
     )
   }
   implicit def queryResultEncoder(implicit E: Encoder[Id]): Encoder[UnscoredQueryResult[Id]] =
@@ -52,4 +54,24 @@ abstract class RoutesEncoder[Id, Reference](base: Uri)(implicit le: Encoder[Link
         "source"   -> E(qr.source)
       )
     }
+
+  implicit def queryResultEntityEncoder(implicit E: Encoder[Entity]): Encoder[UnscoredQueryResult[Entity]] =
+    Encoder.encodeJson.contramap { qr =>
+      Json.obj(
+        "resultId" -> Json.fromString(extractId(qr.source).qualifyAsString),
+        "source"   -> E(qr.source)
+      )
+    }
+
+  implicit def scoredQueryResultEntityEncoder(implicit E: Encoder[Entity]): Encoder[ScoredQueryResult[Entity]] =
+    Encoder.encodeJson.contramap { qr =>
+      Json.obj(
+        "resultId" -> Json.fromString(extractId(qr.source).qualifyAsString),
+        "score"    -> Json.fromFloatOrString(qr.score),
+        "source"   -> E(qr.source)
+      )
+    }
+
+  private def selfLink(id: Id): Link = Link(rel = "self", href = id.qualifyAsString)
+
 }

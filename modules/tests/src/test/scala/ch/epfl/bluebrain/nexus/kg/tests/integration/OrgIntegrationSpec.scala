@@ -8,7 +8,7 @@ import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
@@ -20,7 +20,7 @@ import io.circe.Json
 import io.circe.syntax._
 import org.scalatest._
 import org.scalatest.time.{Seconds, Span}
-
+import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
@@ -31,17 +31,18 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
     extends BootstrapIntegrationSpec(apiUri, vocab) {
 
   import BootstrapIntegrationSpec._
-  import orgsEncoder._
+  import orgsEncoders._
 
   "A OrganizationRoutes" when {
 
     "performing integration tests" should {
-
+      val idsPayload = Map[OrgId, Organization]()
       "create organizations successfully" in {
         forAll(orgs) { orgId =>
           val json = Json.obj("key" -> Json.fromString(genString()))
           Put(s"/organizations/${orgId.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.Created
+            idsPayload += (orgId -> Organization(orgId, 1L, json, false))
             responseAs[Json] shouldEqual OrgRef(orgId, 1L).asJson
           }
         }
@@ -56,6 +57,20 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
                 UnscoredQueryResult(_)
               })
             val expectedLinks = List(Link("self", s"$apiUri/organizations"))
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          }
+        }
+      }
+
+      "list organizations with all the fields" in {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
+          Get(s"/organizations?fields=all") ~> addCredentials(ValidCredentials) ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            val expectedResults =
+              UnscoredQueryResults(orgs.length.toLong, orgs.map { id =>
+                UnscoredQueryResult(idsPayload(id))
+              })
+            val expectedLinks = List(Link("self", s"$apiUri/organizations?fields=all"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }

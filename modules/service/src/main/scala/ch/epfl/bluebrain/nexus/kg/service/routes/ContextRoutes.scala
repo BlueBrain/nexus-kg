@@ -30,7 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.Publish
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
@@ -57,12 +57,11 @@ class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Fu
     extends DefaultRouteHandling
     with QueryDirectives {
 
-  private val contextEncoders = new ContextCustomEncoders(base)
-
-  import contextEncoders._
-
+  private implicit val _ = (entity: Context) => entity.id
   private implicit val sQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
+  private val contextEncoders = new ContextCustomEncoders(base)
+  import contextEncoders._
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler
 
@@ -129,20 +128,21 @@ class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Fu
   }
 
   override protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & paginated & deprecated & published) { (pagination, deprecatedOpt, publishedOpt) =>
+    (get & paginated & deprecated & published & fields) { (pagination, deprecatedOpt, publishedOpt, fields) =>
       traceName("searchContexts") {
-        val filter = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
+        val filter     = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
+        implicit val _ = (id: ContextId) => contexts.fetch(id)
         pathEndOrSingleSlash {
-          contextQueries.list(filter, pagination, None).buildResponse(base, pagination)
+          contextQueries.list(filter, pagination, None).buildResponse(fields, base, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            contextQueries.list(orgId, filter, pagination, None).buildResponse(base, pagination)
+            contextQueries.list(orgId, filter, pagination, None).buildResponse(fields, base, pagination)
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
-            contextQueries.list(domainId, filter, pagination, None).buildResponse(base, pagination)
+            contextQueries.list(domainId, filter, pagination, None).buildResponse(fields, base, pagination)
           } ~
           (extractContextName & pathEndOrSingleSlash) { contextName =>
-            contextQueries.list(contextName, filter, pagination, None).buildResponse(base, pagination)
+            contextQueries.list(contextName, filter, pagination, None).buildResponse(fields, base, pagination)
           }
       }
 
@@ -188,11 +188,13 @@ object ContextRoutes {
 
 }
 
-class ContextCustomEncoders(base: Uri) extends RoutesEncoder[ContextId, ContextRef](base) {
+class ContextCustomEncoders(base: Uri)(implicit E: Context => ContextId)
+    extends RoutesEncoder[ContextId, ContextRef, Context](base) {
 
   implicit def contextEncoder: Encoder[Context] = Encoder.encodeJson.contramap { context =>
     val meta = refEncoder
       .apply(ContextRef(context.id, context.rev))
+      .deepMerge(idWithLinksEncoder(context.id))
       .deepMerge(
         Json.obj(
           "deprecated" -> Json.fromBoolean(context.deprecated),

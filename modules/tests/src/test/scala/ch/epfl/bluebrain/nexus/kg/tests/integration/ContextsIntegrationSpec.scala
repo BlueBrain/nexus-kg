@@ -5,19 +5,20 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextRef}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
-import io.circe.generic.auto._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import io.circe.generic.semiauto.deriveEncoder
 import io.circe.syntax._
 import org.scalatest.time.{Seconds, Span}
 
+import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 class ContextsIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
@@ -27,14 +28,18 @@ class ContextsIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
     extends BootstrapIntegrationSpec(apiUri, vocab) {
 
   import BootstrapIntegrationSpec._
-  import contextEncoder._
+  import contextEncoders._
+  implicit val e = deriveEncoder[ContextConfig]
 
   "A ContextRoutes" when {
     "performing integration tests" should {
+      val idsPayload = Map[ContextId, Context]()
+
       "create contexts successfully" in {
         forAll(contexts) {
           case (contextId, json) =>
             Put(s"/contexts/${contextId.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
+              idsPayload += (contextId -> Context(contextId, 2L, json, false, true))
               status shouldEqual StatusCodes.Created
               responseAs[Json] shouldEqual ContextRef(contextId, 1L).asJson
             }
@@ -155,15 +160,15 @@ class ContextsIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         }
 
       }
-      "list contexts on organization rand and deprecated" in {
+      "list contexts on organization rand and not deprecated with all fields" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          val path         = s"/contexts/rand?size=3&deprecated=false"
+          val path         = s"/contexts/rand?size=3&deprecated=false&fields=all"
           val randContexts = contextsForOrg(contexts, "rand")
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(randContexts.length.toLong - 1L, randContexts.slice(1, 4).map {
-                case (id, _) => UnscoredQueryResult(id)
+                case (id, _) => UnscoredQueryResult(idsPayload(id))
               })
             val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=3"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson

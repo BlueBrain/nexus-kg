@@ -140,5 +140,6 @@ class DomainRoutesSpec
 
 object DomainRoutesSpec {
   private val baseUri      = Uri("http://localhost/v0")
+  private implicit val _   = (entity: Domain) => entity.id
   implicit val domsEncoder = new DomainCustomEncoders(baseUri)
 }
