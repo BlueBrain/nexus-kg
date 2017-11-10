@@ -5,20 +5,17 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Event._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{AccessControl, Event, Path, Permission}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 
 /**
   * Acl incremental indexing logic that pushes data into an rdf triple store.
   *
   * @param client    the SPARQL client to use for communicating with the rdf triple store
-  * @param contexts  the context operation bundle
   * @param settings  the indexing settings
   * @param F         a MonadError typeclass instance for ''F[_]''
   * @tparam F        the monadic effect type
   */
 @SuppressWarnings(Array("UnusedMethodParameter"))
-class AclIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: AclIndexingSettings)(
-    implicit F: MonadError[F, Throwable]) {
+class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(implicit F: MonadError[F, Throwable]) {
 
   private val AclIndexingSettings(index, base, baseNs, baseVoc) = settings
 
@@ -53,7 +50,6 @@ class AclIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings:
 }
 
 object AclIndexer {
-  def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: AclIndexingSettings)(
-      implicit F: MonadError[F, Throwable]) =
-    new AclIndexer(client, contexts, settings)
+  def apply[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(implicit F: MonadError[F, Throwable]) =
+    new AclIndexer(client, settings)
 }

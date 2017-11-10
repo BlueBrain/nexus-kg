@@ -155,7 +155,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
     val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
     KafkaConsumer.start[AclEvent](consumerSettings,
-                                  AclIndexer(sparqlClient, contexts, aclIndexingSettings).apply,
+                                  AclIndexer[Future](sparqlClient, aclIndexingSettings).apply,
                                   settings.Kafka.Topic)
   }
 
