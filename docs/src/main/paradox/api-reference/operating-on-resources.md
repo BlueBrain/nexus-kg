@@ -124,6 +124,7 @@ General form:
 GET /v0/{collection_address}
       ?q={full_text_search_query}
       &filter={filter}
+      &fields={fields}
       &from={from}
       &size={size}
       &deprecated={deprecated}
@@ -136,6 +137,7 @@ GET /v0/{collection_address}
 attribute values matching (containing) the provided token; when this field is provided the results will also include
 score values for each result
 - `{filter}`: JsonLd - a filtering expression in JSON-LD format (the structure of the filter is explained below)
+- `{fields}`: a comma separated list of fields which are going to be retrieved as a result. The reserved keyword `all` retrieves all the fields.
 - `{from}`: Number - is the parameter that describes the offset for the current query; defaults to `0`
 - `{size}`: Number - is the parameter that limits the number of results; defaults to `20`
 - `{deprecated}`: Boolean - can be used to filter the resulting resources based on their deprecation status
