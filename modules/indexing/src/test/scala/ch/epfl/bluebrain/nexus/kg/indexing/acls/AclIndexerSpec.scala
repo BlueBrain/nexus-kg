@@ -97,6 +97,7 @@ class AclIndexerSpec(blazegraphPort: Int)
     val group  = GroupRef(IdentityId(s"$base/realms/realm/groups/admin"))
     val group2 = GroupRef(IdentityId(s"$base/realms/realm/groups/core"))
     val group3 = GroupRef(IdentityId(s"$base/realms/realm/groups/other"))
+    val group4 = GroupRef(IdentityId(s"$base/realms/realm/groups/another"))
 
     val meta = Meta(user, Instant.ofEpochMilli(1))
 
@@ -121,6 +122,14 @@ class AclIndexerSpec(blazegraphPort: Int)
     "index a PermissionsAdded event on organizations" in {
       val path = Path("kg") ++ Path(orgId.show)
       indexer(PermissionsAdded(path, group3, Permissions(Read), meta)).futureValue
+      val rs = triples(client).futureValue
+      rs.size shouldEqual 4
+      rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
+    }
+
+    "Do not index a PermissionsAdded event on organizations when the path does not start with kg" in {
+      val path = Path(orgId.show)
+      indexer(PermissionsAdded(path, group4, Permissions(Read), meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 4
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
