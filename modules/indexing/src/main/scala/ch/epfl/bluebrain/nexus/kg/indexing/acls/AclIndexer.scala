@@ -12,9 +12,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.UriJsonLDSupport._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json
 import journal.Logger
+
 /**
   * Acl incremental indexing logic that pushes data into an rdf triple store.
   *
@@ -40,7 +42,7 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: Event): F[Unit] = event match {
-    case PermissionsCreated(path, acl, _) =>
+    case PermissionsCreated(path, acl, _) if isKg(path) =>
       val identities = acl.acl.filter(_.permissions(Permission.Read)).map(_.identity)
       add(path, identities)
     case PermissionsAdded(path, identity, permissions, _) if permissions(Permission.Read) && isKg(path) =>
@@ -60,25 +62,31 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
   private def add(path: Path, identities: Set[Identity]): F[Unit] = {
     log.debug(s"Adding ACL indexing for path '$path' and identities '$identities'")
     val meta = buildMeta(path, identities)
-    client.createGraph(index, toQualifiedUri(baseNs, path), meta)
+    client.createGraph(index, qualifiedPath(path) qualifyWith base, meta)
   }
 
-  //TODO: Not supported yet (since it is not supported in IAM anyway.
-  private def remove(path: Path, identity: Identity): F[Unit] = ???
+  private def remove(path: Path, identity: Identity): F[Unit] = {
+    log.debug(s"Removing ACL indexing for path '$path' and identity '$identity'")
+    val removeQuery = PatchQuery.exactMatch(qualifiedPath(path) qualifyAsStringWith base, readKey -> identity.id.id)
+    client.delete(index, removeQuery)
+  }
 
-  private def clear(path: Path): F[Unit] = client.clearGraph(index, toQualifiedUri(baseNs, path))
+  private def clear(path: Path): F[Unit] = {
+    log.debug(s"Clear ACLs indexing for path '$path'")
+    client.clearGraph(index, qualifiedPath(path) qualifyWith base)
+  }
 
   private def buildMeta(id: Path, value: Set[Identity]): Json = {
     Json.obj(
-      idKey -> Json.fromString(toQualifiedUri(base, id).toString()),
-      readKey -> Json.arr(value.map(identity => Uri(identity.id.id).jsonLd).toSeq: _*),
+      idKey      -> Json.fromString(qualifiedPath(id) qualifyAsStringWith base),
+      readKey    -> Json.arr(value.map(identity => Uri(identity.id.id).jsonLd).toSeq: _*),
       rdfTypeKey -> "Acl".qualify.jsonLd
     )
   }
 
-  private def toQualifiedUri(uri: Uri, path: Path): Uri = {
-    uri.copy(path = (uri.path: Path) ++ addPrefix(path.reverse.tail.reverse))
-  }
+  private def qualifiedPath(path: Path): String =
+    addPrefix(path.reverse.tail.reverse).toString()
+
   private def addPrefix(path: Path): Path = {
     def inner(current: Path, depth: Int = 0): Int = {
       current match {

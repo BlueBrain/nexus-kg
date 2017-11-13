@@ -12,7 +12,7 @@ import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.{PermissionsAdded, PermissionsCleared, PermissionsCreated}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Event._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{AccessControlList, Meta, Path, Permissions}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{GroupRef, UserRef}
@@ -93,38 +93,57 @@ class AclIndexerSpec(blazegraphPort: Int)
     val client  = SparqlClient[Future](baseUri)
     val indexer = AclIndexer(client, settings)
 
-
-    val user = UserRef(IdentityId(s"$base/realms/realm/users/1234"))
-    val group = GroupRef(IdentityId(s"$base/realms/realm/groups/admin"))
+    val user   = UserRef(IdentityId(s"$base/realms/realm/users/1234"))
+    val group  = GroupRef(IdentityId(s"$base/realms/realm/groups/admin"))
     val group2 = GroupRef(IdentityId(s"$base/realms/realm/groups/core"))
+    val group3 = GroupRef(IdentityId(s"$base/realms/realm/groups/other"))
 
-    val meta         = Meta(user, Instant.ofEpochMilli(1))
+    val meta = Meta(user, Instant.ofEpochMilli(1))
 
-    val orgId = OrgId("org")
+    val orgId    = OrgId("org")
     val domainId = DomainId(orgId, "dom")
-    val schema = SchemaId(domainId, "name", Version(1,0,0))
+    val schema   = SchemaId(domainId, "name", Version(1, 0, 0))
     val instance = InstanceId(schema, UUID.randomUUID().toString)
-
 
     "index a PermissionsCreated event" in {
       client.createIndex(index, properties).futureValue
       val path = Path("kg") ++ Path(orgId.show)
-      indexer(PermissionsCreated(path, AccessControlList(user -> Permissions(Write), group -> Permissions(Read), group2 -> Permissions(Read)), meta)).futureValue
+      indexer(
+        PermissionsCreated(
+          path,
+          AccessControlList(user -> Permissions(Write), group -> Permissions(Read), group2 -> Permissions(Read)),
+          meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 3
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2))
     }
 
-    "index a PermissionsAdded event" in {
+    "index a PermissionsAdded event on organizations" in {
+      val path = Path("kg") ++ Path(orgId.show)
+      indexer(PermissionsAdded(path, group3, Permissions(Read), meta)).futureValue
+      val rs = triples(client).futureValue
+      rs.size shouldEqual 4
+      rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
+    }
+
+    "index a PermissionsSubtracted event on organizations" in {
+      val path = Path("kg") ++ Path(orgId.show)
+      indexer(PermissionsSubtracted(path, group, Permissions(Read), meta)).futureValue
+      val rs = triples(client).futureValue
+      rs.size shouldEqual 3
+      rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group2, group3))
+    }
+
+    "index a PermissionsAdded event on instances" in {
       val path = Path("kg") ++ Path(instance.show)
       indexer(PermissionsAdded(path, user, Permissions(Read), meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 5
-      val expectedAllTriples = expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2))
+      val expectedAllTriples = expectedTriples(s"$base/organizations/${orgId.show}", Set(group2, group3))
       rs shouldEqual expectedAllTriples ++ expectedTriples(s"$base/data/${instance.show}", Set(user))
     }
 
-    "index a PermissionsCleared event" in {
+    "index a PermissionsCleared event on organizations" in {
       val path = Path("kg") ++ Path(orgId.show)
       indexer(PermissionsCleared(path, meta)).futureValue
       val rs = triples(client).futureValue

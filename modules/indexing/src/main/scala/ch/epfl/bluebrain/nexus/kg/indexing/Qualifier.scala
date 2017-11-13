@@ -5,6 +5,7 @@ import java.util.regex.Pattern
 import akka.http.scaladsl.model.Uri
 import cats.Show
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
@@ -239,7 +240,7 @@ trait QualifierInstances {
 
   implicit def stringIdQualifier(implicit S: Show[String]): Qualifier[String] =
     new Qualifier[String] {
-      override def apply(value: String, base: Uri): Uri    = Uri(s"$base/${value.show}")
+      override def apply(value: String, base: Uri): Uri    = base.copy(path = (base.path: Path) ++ Path(value.show))
       override def unapply(uri: Uri, base: Uri): None.type = None
     }
 }

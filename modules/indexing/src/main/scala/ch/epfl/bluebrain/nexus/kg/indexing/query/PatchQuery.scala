@@ -32,4 +32,23 @@ object PatchQuery {
       .build
       .serialize()
   }
+
+  /**
+    * Builds a SPARQL query to select the triples to be removed during a patch graph operation.
+    *
+    * @param id          the identifier
+    * @param predAndObj the collection of predicates and values
+    * @return a SPARQL query to select the triples to be removed
+    */
+  def exactMatch(id: String, predAndObj: (String, String)*): String = {
+    val subj = NodeFactory.createURI(id)
+    predAndObj
+      .foldLeft(new ConstructBuilder) {
+        case (builder, (predicate, obj)) =>
+          builder
+            .addConstruct(subj, NodeFactory.createURI(predicate), NodeFactory.createURI(obj))
+      }
+      .build
+      .serialize()
+  }
 }
