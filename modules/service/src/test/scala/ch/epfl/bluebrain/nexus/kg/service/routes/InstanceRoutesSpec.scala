@@ -38,9 +38,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error._
 import ch.epfl.bluebrain.nexus.kg.service.routes.InstanceRoutesSpec._
+import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec.baseUri
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import com.typesafe.config.ConfigFactory
@@ -213,7 +215,9 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "links" -> Json.arr(Link("self", s"$baseUri/data/${instanceRef.id.show}").asJson,
+                                Link("schema", s"$baseUri/schemas/${instanceRef.id.schemaId.show}").asJson),
             "rev"        -> Json.fromLong(1L),
             "deprecated" -> Json.fromBoolean(false)
           )
@@ -232,7 +236,9 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "links" -> Json.arr(Link("self", s"$baseUri/data/${instanceRef.id.show}").asJson,
+                                Link("schema", s"$baseUri/schemas/${instanceRef.id.schemaId.show}").asJson),
             "rev"        -> Json.fromLong(2L),
             "deprecated" -> Json.fromBoolean(false)
           )
@@ -243,7 +249,9 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "links" -> Json.arr(Link("self", s"$baseUri/data/${instanceRef.id.show}").asJson,
+                                Link("schema", s"$baseUri/schemas/${instanceRef.id.schemaId.show}").asJson),
             "rev"        -> Json.fromLong(1L),
             "deprecated" -> Json.fromBoolean(false)
           )
@@ -371,8 +379,10 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "rev"        -> Json.fromLong(2L),
+            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "rev" -> Json.fromLong(2L),
+            "links" -> Json.arr(Link("self", s"$baseUri/data/${instanceRef.id.show}").asJson,
+                                Link("schema", s"$baseUri/schemas/${instanceRef.id.schemaId.show}").asJson),
             "deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest).asJson)

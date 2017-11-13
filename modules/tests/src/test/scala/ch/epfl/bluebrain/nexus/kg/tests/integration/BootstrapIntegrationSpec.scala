@@ -10,11 +10,11 @@ import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
-import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextId
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId}
+import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
@@ -23,6 +23,7 @@ import io.circe._
 import io.circe.generic.semiauto._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
+
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
@@ -55,12 +56,17 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, vocab: Uri)(implicit as: Ac
   implicit val schemaConfig: Encoder[SchemaConfig] = deriveEncoder[SchemaConfig]
   implicit val qualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](vocab)
+  private implicit val domainIdExtractor   = (entity: Domain) => entity.id
+  private implicit val orgIdExtractor      = (entity: Organization) => entity.id
+  private implicit val schemaIdExtractor   = (entity: Schema) => entity.id
+  private implicit val contextIdExtractor  = (entity: Context) => entity.id
+  private implicit val instanceIdExtractor = (entity: Instance) => entity.id
 
-  val orgsEncoder     = new OrgCustomEncoders(apiUri)
-  val domsEncoder     = new DomainCustomEncoders(apiUri)
-  val contextEncoder  = new ContextCustomEncoders(apiUri)
-  val schemaEncoder   = new SchemaCustomEncoders(apiUri)
-  val instanceEncoder = new InstanceCustomEncoders(apiUri)
+  val orgsEncoders     = new OrgCustomEncoders(apiUri)
+  val domsEncoders     = new DomainCustomEncoders(apiUri)
+  val contextEncoders  = new ContextCustomEncoders(apiUri)
+  val schemaEncoders   = new SchemaCustomEncoders(apiUri)
+  val instanceEncoders = new InstanceCustomEncoders(apiUri)
 }
 
 object BootstrapIntegrationSpec extends Randomness with Resources {

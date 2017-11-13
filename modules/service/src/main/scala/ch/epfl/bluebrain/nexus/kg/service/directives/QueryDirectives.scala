@@ -70,6 +70,16 @@ trait QueryDirectives {
     parameter('published.as[Boolean].?).flatMap(opt => provide(opt))
 
   /**
+    * Extracts the ''fields'' query param from the request.
+    */
+  def fields: Directive1[Set[String]] =
+    parameter('fields.?).flatMap {
+      case Some(field) => provide(field.split(",").map(_.trim).filterNot(_.isEmpty).toSet)
+      case None        => provide(Set.empty[String])
+
+    }
+
+  /**
     * Extracts the query parameters defined for search requests or set them to preconfigured values
     * if present.
     *
@@ -78,8 +88,8 @@ trait QueryDirectives {
     */
   def searchQueryParams(
       implicit qs: QuerySettings,
-      fs: FilteringSettings): Directive[(Pagination, Option[Filter], Option[String], Option[Boolean])] =
-    paginated & filtered & q & deprecated
+      fs: FilteringSettings): Directive[(Pagination, Option[Filter], Option[String], Option[Boolean], Set[String])] =
+    paginated & filtered & q & deprecated & fields
 
 }
 

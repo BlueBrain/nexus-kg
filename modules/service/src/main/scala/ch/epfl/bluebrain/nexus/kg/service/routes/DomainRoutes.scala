@@ -46,23 +46,25 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
     clock: Clock)
     extends DefaultRouteHandling {
 
-  private val encoders = new DomainCustomEncoders(base)
+  private implicit val _ = (entity: Domain) => entity.id
+  private val encoders   = new DomainCustomEncoders(base)
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields) =>
       val filter =
         filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+      implicit val _ = (id: DomainId) => domains.fetch(id)
       traceName("searchDomains") {
         pathEndOrSingleSlash {
           domainQueries
             .list(filter, pagination, termOpt)
-            .buildResponse(base, pagination)
+            .buildResponse(fields, base, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
             domainQueries
               .list(orgId, filter, pagination, termOpt)
-              .buildResponse(base, pagination)
+              .buildResponse(fields, base, pagination)
           }
       }
     }
@@ -135,11 +137,13 @@ object DomainRoutes {
   }
 }
 
-class DomainCustomEncoders(base: Uri) extends RoutesEncoder[DomainId, DomainRef](base) {
+class DomainCustomEncoders(base: Uri)(implicit E: Domain => DomainId)
+    extends RoutesEncoder[DomainId, DomainRef, Domain](base) {
 
   implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap { domain =>
     refEncoder
       .apply(DomainRef(domain.id, domain.rev))
+      .deepMerge(idWithLinksEncoder(domain.id))
       .deepMerge(
         Json.obj(
           "deprecated"  -> Json.fromBoolean(domain.deprecated),

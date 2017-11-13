@@ -24,7 +24,9 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
+import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec.baseUri
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -33,7 +35,7 @@ import io.circe.Json
 import io.circe.generic.auto._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
-
+import io.circe.syntax._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
@@ -127,6 +129,7 @@ class SchemaRoutesSpec
           .obj(
             "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
             "rev"        -> Json.fromLong(1L),
+            "links"      -> Json.arr(Link("self", s"$baseUri/schemas/${schemaId.show}").asJson),
             "deprecated" -> Json.fromBoolean(false),
             "published"  -> Json.fromBoolean(false)
           )

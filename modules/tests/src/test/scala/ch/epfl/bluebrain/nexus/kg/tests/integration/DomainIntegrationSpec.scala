@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, DomainRef}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
@@ -20,6 +20,7 @@ import io.circe.syntax._
 import org.scalatest._
 import org.scalatest.time.{Seconds, Span}
 
+import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
@@ -30,18 +31,21 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
     extends BootstrapIntegrationSpec(apiUri, vocab) {
 
   import BootstrapIntegrationSpec._
-  import domsEncoder._
+  import domsEncoders._
 
   "A DomainRoutes" when {
 
     "performing integration tests" should {
+      val idsPayload = Map[DomainId, Domain]()
 
       "create domains successfully" in {
         forAll(domains) {
           case domainId @ DomainId(orgId, name) =>
+            val description = s"$name-description"
             val jsonDomain =
-              Json.obj("description" -> Json.fromString(s"$name-description"))
+              Json.obj("description" -> Json.fromString(description))
             Put(s"/domains/${orgId.id}/${name}", jsonDomain) ~> addCredentials(ValidCredentials) ~> route ~> check {
+              idsPayload += (domainId -> Domain(domainId, 1L, false, description))
               status shouldEqual StatusCodes.Created
               responseAs[Json] shouldEqual DomainRef(domainId, 1L).asJson
             }
@@ -109,6 +113,18 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, domainId)))
+          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+        }
+      }
+
+      "list domains on organization rand with full text search and all fields retrieved" in {
+        val domainId = domains(7)
+        val path     = s"/domains/rand?q=${domainId.id}&fields=all"
+        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
+          status shouldEqual StatusCodes.OK
+          val expectedResults =
+            ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, idsPayload(domainId))))
           val expectedLinks = List(Link("self", s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }

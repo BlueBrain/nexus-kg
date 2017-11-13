@@ -26,8 +26,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
@@ -55,35 +55,39 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                                 clock: Clock)
     extends DefaultRouteHandling {
 
-  private val encoders = new InstanceCustomEncoders(base)
+  private implicit val _ = (entity: Instance) => entity.id
+  private val encoders   = new InstanceCustomEncoders(base)
 
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
-      val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields) =>
+      val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+      implicit val _ = (id: InstanceId) => instances.fetch(id)
       traceName("searchInstances") {
         pathEndOrSingleSlash {
-          instanceQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
+          instanceQueries.list(filter, pagination, termOpt).buildResponse(fields, base, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+            instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
-            instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+            instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
           } ~
           (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
-            instanceQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
+            instanceQueries.list(schemaName, filter, pagination, termOpt).buildResponse(fields, base, pagination)
           } ~
           (extractSchemaId & pathEndOrSingleSlash) { schemaId =>
-            instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(base, pagination)
+            instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
           } ~
           extractInstanceId { instanceId =>
             path("outgoing") {
-              instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+              instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
             } ~
               path("incoming") {
-                instanceQueries.incoming(instanceId, filter, pagination, termOpt).buildResponse(base, pagination)
+                instanceQueries
+                  .incoming(instanceId, filter, pagination, termOpt)
+                  .buildResponse(fields, base, pagination)
               }
           }
       }
@@ -219,15 +223,15 @@ object InstanceRoutes {
   }
 }
 
-class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link])
-    extends RoutesEncoder[InstanceId, InstanceRef](base) {
-
+class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link], E: Instance => InstanceId)
+    extends RoutesEncoder[InstanceId, InstanceRef, Instance](base) {
   implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
 
   implicit val instanceEncoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
     val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
     val meta = instanceRefEncoder
       .apply(instanceRef)
+      .deepMerge(instanceIdWithLinksEncoder(instance.id))
       .deepMerge(
         Json.obj(
           "deprecated" -> Json.fromBoolean(instance.deprecated)

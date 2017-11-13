@@ -13,6 +13,14 @@ sealed trait QueryResults[A] extends Product with Serializable {
   def total: Long
 
   def results: List[QueryResult[A]]
+
+  /**
+    * Constructs a new ''QueryResults'' with the provided ''results''
+    *
+    * @param res the provided results for the inner ''QueryResult''
+    * @tparam B the generic type of the newly created ''QueryResults''
+    */
+  def copyWith[B](res: List[QueryResult[B]]): QueryResults[B]
 }
 
 object QueryResults {
@@ -26,7 +34,9 @@ object QueryResults {
     * @tparam A generic type of the response's payload
     */
   final case class ScoredQueryResults[A](total: Long, maxScore: Float, results: List[QueryResult[A]])
-      extends QueryResults[A]
+      extends QueryResults[A] {
+    override def copyWith[B](res: List[QueryResult[B]]): QueryResults[B] = ScoredQueryResults[B](total, maxScore, res)
+  }
 
   /**
     * A collection of query results including pagination.
@@ -35,7 +45,10 @@ object QueryResults {
     * @param results the collection of results
     * @tparam A generic type of the response's payload
     */
-  final case class UnscoredQueryResults[A](total: Long, results: List[QueryResult[A]]) extends QueryResults[A]
+  final case class UnscoredQueryResults[A](total: Long, results: List[QueryResult[A]]) extends QueryResults[A] {
+    override def copyWith[B](res: List[QueryResult[B]]): QueryResults[B] = UnscoredQueryResults[B](total, res)
+
+  }
 
   final implicit def scoredQueryResultsFunctor(implicit F: Functor[QueryResult]): Functor[ScoredQueryResults] =
     new Functor[ScoredQueryResults] {

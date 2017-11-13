@@ -10,7 +10,7 @@ import akka.stream.ActorMaterializer
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRef}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
@@ -23,6 +23,7 @@ import io.circe.syntax._
 import org.scalatest.DoNotDiscover
 import org.scalatest.time.{Seconds, Span}
 
+import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
@@ -33,9 +34,10 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
     extends BootstrapIntegrationSpec(apiUri, vocab) {
 
   import BootstrapIntegrationSpec._
-  import schemaEncoder._
+  import schemaEncoders._
 
   "A SchemaRoutes" when {
+    val idsPayload = Map[SchemaId, Schema]()
 
     "performing integration tests" should {
 
@@ -43,6 +45,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         forAll(schemas) {
           case (schemaId, json) =>
             Put(s"/schemas/${schemaId.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
+              idsPayload += (schemaId -> Schema(schemaId, 2L, json, false, true))
               status shouldEqual StatusCodes.Created
               responseAs[Json] shouldEqual SchemaRef(schemaId, 1L).asJson
             }
@@ -73,9 +76,9 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         }
       }
 
-      "list schemas on organization rand with pagination" in {
+      "list schemas on organization rand with pagination retrieve all fields" in {
         val pagination = Pagination(0L, 5)
-        val path       = s"/schemas/rand?size=${pagination.size}"
+        val path       = s"/schemas/rand?size=${pagination.size}&fields=all"
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
@@ -83,7 +86,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
               (schemas.length - 3 * 5).toLong,
               schemas
                 .collect { case (schemaId @ SchemaId(DomainId(orgId, _), _, _), _) if orgId.id == "rand" => schemaId }
-                .map(UnscoredQueryResult(_))
+                .map(id => UnscoredQueryResult(idsPayload(id)))
                 .take(pagination.size)
             )
             val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=5"))

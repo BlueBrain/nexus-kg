@@ -15,9 +15,9 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
-import ch.epfl.bluebrain.nexus.kg.core.schemas._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId, ShapeRef}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRef, Schemas, Schema}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
@@ -54,6 +54,10 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
     ec: ExecutionContext,
     clock: Clock)
     extends DefaultRouteHandling {
+  private implicit val schemaIdExtractor = (entity: Schema) => entity.id
+  private implicit val shapeIdExtractor  = (entity: Shape) => entity.id
+  private implicit val sQualifier: ConfiguredQualifier[String] =
+    Qualifier.configured[String](querySettings.nexusVocBase)
 
   private val schemaEncoders = new SchemaCustomEncoders(base)
   private val shapeEncoders  = new ShapeCustomEncoders(base)
@@ -61,27 +65,25 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
   import schemaEncoders._
   import shapeEncoders.shapeEncoder
 
-  private implicit val sQualifier: ConfiguredQualifier[String] =
-    Qualifier.configured[String](querySettings.nexusVocBase)
-
   private val exceptionHandler = ExceptionHandling.exceptionHandler
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields) =>
       parameter('published.as[Boolean].?) { publishedOpt =>
-        val filter = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
+        val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
+        implicit val _ = (id: SchemaId) => schemas.fetch(id)
         traceName("searchSchemas") {
           pathEndOrSingleSlash {
-            schemaQueries.list(filter, pagination, termOpt).buildResponse(base, pagination)
+            schemaQueries.list(filter, pagination, termOpt).buildResponse(fields, base, pagination)
           } ~
             (extractOrgId & pathEndOrSingleSlash) { orgId =>
-              schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(base, pagination)
+              schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
             } ~
             (extractDomainId & pathEndOrSingleSlash) { domainId =>
-              schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(base, pagination)
+              schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
             } ~
             (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
-              schemaQueries.list(schemaName, filter, pagination, termOpt).buildResponse(base, pagination)
+              schemaQueries.list(schemaName, filter, pagination, termOpt).buildResponse(fields, base, pagination)
             }
         }
       }
@@ -199,7 +201,8 @@ object SchemaRoutes {
 
 }
 
-private class ShapeCustomEncoders(base: Uri) extends RoutesEncoder[ShapeId, ShapeRef](base) {
+private class ShapeCustomEncoders(base: Uri)(implicit E: Shape => ShapeId)
+    extends RoutesEncoder[ShapeId, ShapeRef, Shape](base) {
 
   implicit def shapeEncoder: Encoder[Shape] = Encoder.encodeJson.contramap { shape =>
     val meta = refEncoder
@@ -213,11 +216,12 @@ private class ShapeCustomEncoders(base: Uri) extends RoutesEncoder[ShapeId, Shap
   }
 }
 
-class SchemaCustomEncoders(base: Uri) extends RoutesEncoder[SchemaId, SchemaRef](base) {
-
+class SchemaCustomEncoders(base: Uri)(implicit E: Schema => SchemaId)
+    extends RoutesEncoder[SchemaId, SchemaRef, Schema](base) {
   implicit def schemaEncoder: Encoder[Schema] = Encoder.encodeJson.contramap { schema =>
     val meta = refEncoder
       .apply(SchemaRef(schema.id, schema.rev))
+      .deepMerge(idWithLinksEncoder(schema.id))
       .deepMerge(
         Json.obj(
           "deprecated" -> Json.fromBoolean(schema.deprecated),

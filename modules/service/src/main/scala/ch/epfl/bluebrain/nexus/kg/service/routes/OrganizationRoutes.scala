@@ -45,18 +45,19 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
     clock: Clock)
     extends DefaultRouteHandling {
 
-  private val encoders = new OrgCustomEncoders(base)
-
+  private implicit val _ = (entity: Organization) => entity.id
+  private val encoders   = new OrgCustomEncoders(base)
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt) =>
+    (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields) =>
       traceName("searchOrganizations") {
         val filter =
           filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+        implicit val _ = (id: OrgId) => orgs.fetch(id)
         orgQueries
           .list(filter, pagination, termOpt)
-          .buildResponse(base, pagination)
+          .buildResponse(fields, base, pagination)
       }
     }
 
@@ -131,12 +132,14 @@ object OrganizationRoutes {
   }
 }
 
-class OrgCustomEncoders(base: Uri) extends RoutesEncoder[OrgId, OrgRef](base) {
+class OrgCustomEncoders(base: Uri)(implicit E: Organization => OrgId)
+    extends RoutesEncoder[OrgId, OrgRef, Organization](base) {
 
   implicit val orgEncoder: Encoder[Organization] =
     Encoder.encodeJson.contramap { org =>
       val meta = refEncoder
         .apply(OrgRef(org.id, org.rev))
+        .deepMerge(idWithLinksEncoder(org.id))
         .deepMerge(
           Json.obj(
             "deprecated" -> Json.fromBoolean(org.deprecated)
