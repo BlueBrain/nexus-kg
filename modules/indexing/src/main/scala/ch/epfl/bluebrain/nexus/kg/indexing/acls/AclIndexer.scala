@@ -42,22 +42,25 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: Event): F[Unit] = event match {
-    case PermissionsCreated(path, acl, _) if isKg(path) =>
+    case PermissionsCreated(path, acl, _) if isValidKg(path) =>
       val identities = acl.acl.filter(_.permissions(Permission.Read)).map(_.identity)
       add(path, identities)
-    case PermissionsAdded(path, identity, permissions, _) if permissions(Permission.Read) && isKg(path) =>
+    case PermissionsAdded(path, identity, permissions, _) if permissions(Permission.Read) && isValidKg(path) =>
       add(path, Set(identity))
-    case PermissionsSubtracted(path, identity, permissions, _) if permissions(Permission.Read) && isKg(path) =>
+    case PermissionsSubtracted(path, identity, permissions, _) if permissions(Permission.Read) && isValidKg(path) =>
       remove(path, identity)
-    case PermissionsCleared(path, _) if isKg(path) =>
+    case PermissionsCleared(path, _) if isValidKg(path) =>
       clear(path)
-    case PermissionsRemoved(path, identity, _) if isKg(path) =>
+    case PermissionsRemoved(path, identity, _) if isValidKg(path) =>
       remove(path, identity)
     case _ => F.pure(())
   }
 
-  private def isKg(path: Path): Boolean =
-    Path(s"${path.reverse.head}") == Path("kg")
+  private def isValidKg(path: Path): Boolean = {
+    val reverse = path.reverse
+    reverse.head == "kg" && !reverse.tail.isEmpty
+  }
+
 
   private def add(path: Path, identities: Set[Identity]): F[Unit] = {
     log.debug(s"Adding ACL indexing for path '$path' and identities '$identities'")

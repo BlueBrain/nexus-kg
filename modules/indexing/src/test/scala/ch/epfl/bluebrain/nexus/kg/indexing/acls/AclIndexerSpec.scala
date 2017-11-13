@@ -135,6 +135,14 @@ class AclIndexerSpec(blazegraphPort: Int)
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
     }
 
+    "Do not index a PermissionsAdded event on organizations when the path is only /kg" in {
+      val path = Path("kg")
+      indexer(PermissionsAdded(path, group4, Permissions(Read), meta)).futureValue
+      val rs = triples(client).futureValue
+      rs.size shouldEqual 4
+      rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
+    }
+
     "index a PermissionsSubtracted event on organizations" in {
       val path = Path("kg") ++ Path(orgId.show)
       indexer(PermissionsSubtracted(path, group, Permissions(Read), meta)).futureValue
