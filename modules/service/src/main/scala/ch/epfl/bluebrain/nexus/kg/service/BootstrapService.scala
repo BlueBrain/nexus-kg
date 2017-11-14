@@ -162,14 +162,13 @@ object BootstrapService {
                                  mt: Materializer,
                                  cl: UntypedHttpClient[Future]): IamClient[Future] = {
     import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-    import _root_.io.circe.generic.auto._
+    import _root_.io.circe.generic.extras.auto._
+    import _root_.io.circe.generic.extras.Configuration
     implicit val identityDecoder = JsonLdSerialization.identityDecoder
-    implicit val iamUri =
-      IamUri(baseIamUri)
-    implicit val aclCl =
-      HttpClient.withAkkaUnmarshaller[AccessControlList]
-    implicit val userCl =
-      HttpClient.withAkkaUnmarshaller[User]
+    implicit val iamUri          = IamUri(baseIamUri)
+    implicit val config          = Configuration.default.withDiscriminator("@type")
+    implicit val aclCl           = HttpClient.withAkkaUnmarshaller[AccessControlList]
+    implicit val userCl          = HttpClient.withAkkaUnmarshaller[User]
     IamClient()
   }
 
