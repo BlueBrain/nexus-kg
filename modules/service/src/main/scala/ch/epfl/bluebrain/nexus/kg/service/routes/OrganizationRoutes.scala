@@ -75,7 +75,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractOrgId & pathEndOrSingleSlash) { orgId =>
-      (put & entity(as[Json]) & authorizeResource(orgId, Write)) { json =>
+      (put & entity(as[Json])) { json =>
         (authenticateCaller & authorizeResource(orgId, Write)) { implicit caller =>
           parameter('rev.as[Long].?) {
             case Some(rev) =>

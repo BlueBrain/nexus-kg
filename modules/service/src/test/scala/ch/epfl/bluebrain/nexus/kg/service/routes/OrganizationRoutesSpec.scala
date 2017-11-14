@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -26,6 +27,7 @@ import io.circe.generic.auto._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 import io.circe.syntax._
+
 import scala.concurrent.Future
 
 class OrganizationRoutesSpec
@@ -40,12 +42,12 @@ class OrganizationRoutesSpec
     val agg  = MemoryAggregate("orgs")(initial, next, eval).toF[Future]
     val orgs = Organizations(agg)
 
-    val sparqlUri                  = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab                      = baseUri.copy(path = baseUri.path / "core")
-    val querySettings              = QuerySettings(Pagination(0L, 20), "org-index", vocab, baseUri)
-    implicit val filteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl                = iamClient("http://localhost:8080")
-    implicit val clock             = Clock.systemUTC
+    val sparqlUri                                     = Uri("http://localhost:9999/bigdata/sparql")
+    val vocab                                         = baseUri.copy(path = baseUri.path / "core")
+    val querySettings                                 = QuerySettings(Pagination(0L, 20), "org-index", vocab, baseUri)
+    implicit val filteringSettings: FilteringSettings = FilteringSettings(vocab, vocab)
+    implicit val cl: IamClient[Future]                = iamClient("http://localhost:8080")
+    implicit val clock: Clock                         = Clock.systemUTC
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =
