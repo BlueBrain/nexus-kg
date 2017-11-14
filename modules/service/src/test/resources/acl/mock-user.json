@@ -19,5 +19,5 @@
       "@type" : "UserRef"
     }
   ],
-  "type":"AuthenticatedUser"
+  "@type":"AuthenticatedUser"
 }
