@@ -8,27 +8,32 @@ import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
 import akka.stream.Materializer
 import akka.util.ByteString
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
-import ch.epfl.bluebrain.nexus.commons.iam.acls._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{AccessControl, AccessControlList, Permission, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.{Own, Read, Write}
 import ch.epfl.bluebrain.nexus.commons.iam.auth.{AuthenticatedUser, User}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{AuthenticatedRef, GroupRef, UserRef}
-import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.auto._
-import io.circe.syntax._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.IdentityId
+import ch.epfl.bluebrain.nexus.commons.test.Resources
 
 import scala.concurrent.Future
 
-trait MockedIAMClient {
+trait MockedIAMClient extends Resources {
   val ValidToken       = "validToken"
   val ValidCredentials = OAuth2BearerToken(ValidToken)
 
   val mockedUser: User = AuthenticatedUser(
-    Set(GroupRef("BBP", "group1"), GroupRef("BBP", "group2"), UserRef("realm", "f:someUUID:username")))
+    Set(
+      GroupRef(IdentityId("localhost:8080/v0/realms/BBP/groups/group1")),
+      GroupRef(IdentityId("localhost:8080/v0/realms/BBP/groups/group2")),
+      UserRef(IdentityId("localhost:8080/v0/realms/realm/users/f:someUUID:username"))
+    ))
   val mockedAcls = AccessControlList(
     Set(AccessControl(GroupRef("BBP", "group1"), Permissions(Own, Read, Write, Permission("publish")))))
   val mockedAnonAcls = AccessControlList(Set(AccessControl(AuthenticatedRef(None), Permissions(Read))))
 
-  private implicit val config: Configuration = Configuration.default.withDiscriminator("type")
+  private val mockedAclsJson     = jsonContentOf("/acl/mock-acl.json").noSpaces
+  private val mockedUserJson     = jsonContentOf("/acl/mock-user.json").noSpaces
+  private val mockedAuthUserJson = jsonContentOf("/acl/mock-auth.json").noSpaces
 
   implicit def fixedClient(implicit as: ActorSystem, mt: Materializer): UntypedHttpClient[Future] =
     new UntypedHttpClient[Future] {
@@ -40,11 +45,9 @@ trait MockedIAMClient {
           .collect {
             case Authorization(ValidCredentials) =>
               if (req.uri.toString().contains("/acls/"))
-                Future.successful(
-                  HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAcls.asJson.noSpaces)))
+                Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAclsJson)))
               else if (req.uri.path.tail.toString().endsWith("/user"))
-                Future.successful(
-                  HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedUser.asJson.noSpaces)))
+                Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedUserJson)))
               else
                 Future.successful(HttpResponse(status = StatusCodes.NotFound))
 
@@ -59,8 +62,7 @@ trait MockedIAMClient {
           }
           .getOrElse {
             if (req.uri.toString().contains("/acls/"))
-              Future.successful(
-                HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAnonAcls.asJson.noSpaces)))
+              Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAuthUserJson)))
             else
               Http().singleRequest(req)
           }

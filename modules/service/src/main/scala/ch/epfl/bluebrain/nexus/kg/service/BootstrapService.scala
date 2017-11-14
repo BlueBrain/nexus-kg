@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.AccessControlList
 import ch.epfl.bluebrain.nexus.commons.iam.auth.User
+import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
@@ -160,11 +161,9 @@ object BootstrapService {
   def iamClient(baseIamUri: Uri)(implicit ec: ExecutionContext,
                                  mt: Materializer,
                                  cl: UntypedHttpClient[Future]): IamClient[Future] = {
-    import _root_.io.circe.generic.extras.auto._
-    import _root_.io.circe.generic.extras.Configuration
     import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-
-    implicit val config = Configuration.default.withDiscriminator("type")
+    import _root_.io.circe.generic.auto._
+    implicit val identityDecoder = JsonLdSerialization.identityDecoder
     implicit val iamUri =
       IamUri(baseIamUri)
     implicit val aclCl =

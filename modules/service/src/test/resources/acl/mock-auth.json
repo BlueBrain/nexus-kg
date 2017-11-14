@@ -1,0 +1,13 @@
+{
+  "acl" : [
+    {
+      "identity" : {
+        "@id" : "localhost:8080/v0/realms/authenticated",
+        "@type" : "AuthenticatedRef"
+      },
+      "permissions" : [
+        "read"
+      ]
+    }
+  ]
+}

@@ -61,7 +61,6 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
     reverse.head == "kg" && !reverse.tail.isEmpty
   }
 
-
   private def add(path: Path, identities: Set[Identity]): F[Unit] = {
     log.debug(s"Adding ACL indexing for path '$path' and identities '$identities'")
     val meta = buildMeta(path, identities)
