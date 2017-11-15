@@ -10,6 +10,7 @@ import akka.http.scaladsl.model.Uri
 import akka.kafka.ConsumerSettings
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{Event => AclEvent}
+import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
 import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, Contexts}
@@ -156,7 +157,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
 
     KafkaConsumer.start[AclEvent](consumerSettings,
                                   AclIndexer[Future](sparqlClient, aclIndexingSettings).apply,
-                                  settings.Kafka.Topic)
+                                  settings.Kafka.Topic)(as, JsonLdSerialization.eventDecoder)
   }
 
 }
