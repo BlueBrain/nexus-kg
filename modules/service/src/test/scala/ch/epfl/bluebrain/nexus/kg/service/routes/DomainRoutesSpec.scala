@@ -59,7 +59,7 @@ class DomainRoutesSpec
 
     val sparqlUri                  = Uri("http://localhost:9999/bigdata/sparql")
     val vocab                      = baseUri.copy(path = baseUri.path / "core")
-    val querySettings              = QuerySettings(Pagination(0L, 20), "domain-index", vocab, baseUri)
+    val querySettings              = QuerySettings(Pagination(0L, 20), 100, "domain-index", vocab, baseUri)
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
     implicit val cl                = iamClient("http://localhost:8080")
 

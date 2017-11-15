@@ -116,7 +116,7 @@ class InstanceRoutesSpec
     private val indexSettings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
       InstanceIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
 
-    val querySettings = QuerySettings(Pagination(0L, 20), index, nexusVocBase, baseUri)
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri)
     implicit val filteringSettings: FilteringSettings =
       FilteringSettings(nexusVocBase, nexusVocBase)
     val baseUUID = UUID.randomUUID().toString.toLowerCase().dropRight(2)

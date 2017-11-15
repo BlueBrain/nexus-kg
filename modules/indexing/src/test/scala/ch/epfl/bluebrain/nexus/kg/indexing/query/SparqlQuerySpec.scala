@@ -165,7 +165,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       // run the query
       val pagination    = Pagination(0L, 100)
-      val querySettings = QuerySettings(pagination, index, nexusVocBase, base)
+      val querySettings = QuerySettings(pagination, 100, index, nexusVocBase, base)
       val q             = FilterQueries[Future, InstanceId](queryClient, querySettings)
 
       val result = q.list(filterNoDepr, pagination, Some("random")).futureValue
@@ -202,7 +202,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       }
 
       val pagination    = Pagination(0L, 100)
-      val querySettings = QuerySettings(pagination, indexOrgs, nexusVocBaseOrgs, base)
+      val querySettings = QuerySettings(pagination, 100, indexOrgs, nexusVocBaseOrgs, base)
       val q             = FilterQueries[Future, OrgId](queryClient, querySettings)
 
       val result = q.list(filterNoDepr, pagination, None).futureValue
@@ -247,7 +247,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       // run the query
       val pagination = Pagination(0L, 100)
       val querySettings =
-        QuerySettings(pagination, indexDomains, nexusVocBaseDomains, base)
+        QuerySettings(pagination, 100, indexDomains, nexusVocBaseDomains, base)
       val q = FilterQueries[Future, DomainId](queryClient, querySettings)
 
       val result =
@@ -285,7 +285,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       val pagination = Pagination(0L, 100)
       val querySettings =
-        QuerySettings(pagination, indexSchemas, nexusVocBaseSchemas, base)
+        QuerySettings(pagination, 100, indexSchemas, nexusVocBaseSchemas, base)
       val q = FilterQueries[Future, SchemaId](queryClient, querySettings)
 
       val result = q
@@ -330,7 +330,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       }
 
       val pagination    = Pagination(3L, 3)
-      val querySettings = QuerySettings(pagination, index, nexusVocBase, base)
+      val querySettings = QuerySettings(pagination, 100, index, nexusVocBase, base)
       val q             = FilterQueries[Future, InstanceId](queryClient, querySettings)
 
       val result = q.list(schemaName, filterNoDepr, pagination, None).futureValue
