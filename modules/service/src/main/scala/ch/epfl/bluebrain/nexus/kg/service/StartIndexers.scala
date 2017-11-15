@@ -146,7 +146,7 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
     )
   }
 
-  private def startIndexingAcls() = {
+  private def startIndexingAcls(): Unit = {
 
     val aclIndexingSettings = AclIndexingSettings(settings.Sparql.Index,
                                                   apiUri,
@@ -155,9 +155,9 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
 
     val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
-    KafkaConsumer.start[AclEvent](consumerSettings,
+    val _ = KafkaConsumer.start[AclEvent](consumerSettings,
                                   AclIndexer[Future](sparqlClient, aclIndexingSettings).apply,
-                                  settings.Kafka.Topic)(as, JsonLdSerialization.eventDecoder)
+                                  settings.Kafka.Topic, JsonLdSerialization.eventDecoder)
   }
 
 }
