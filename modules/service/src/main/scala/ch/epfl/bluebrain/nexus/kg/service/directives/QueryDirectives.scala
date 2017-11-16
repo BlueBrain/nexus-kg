@@ -22,7 +22,7 @@ trait QueryDirectives {
     */
   def paginated(implicit qs: QuerySettings): Directive1[Pagination] =
     (parameter('from.as[Int] ? qs.pagination.from) & parameter('size.as[Int] ? qs.pagination.size)).tmap {
-      case (from, size) => Pagination(from, size)
+      case (from, size) => Pagination(from.max(0), (size.max(1)).min(qs.maxSize))
     }
 
   /**

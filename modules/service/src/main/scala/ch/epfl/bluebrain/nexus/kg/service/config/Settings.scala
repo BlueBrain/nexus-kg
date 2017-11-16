@@ -227,6 +227,11 @@ class Settings(config: Config) extends Extension {
       */
     val Size = ns.getInt("sparql.page-size")
 
+    /**
+      * The maximum page size.
+      */
+    val MaxSize = ns.getInt("sparql.page-size-limit")
+
   }
 
   object Organizations {
