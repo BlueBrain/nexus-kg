@@ -6,6 +6,7 @@ import java.util.regex.Pattern.quote
 import cats.instances.try_._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
@@ -40,7 +41,7 @@ class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryVal
   val shapeNodeShape     = jsonContentOf("/int-value-shape-nodeshape.json")
   val baseUri            = "http://localhost:8080/v0"
 
-  private implicit val caller = AnonymousCaller
+  private implicit val caller = AnonymousCaller(Anonymous())
   private implicit val clock  = Clock.systemUTC
 
   trait Context {

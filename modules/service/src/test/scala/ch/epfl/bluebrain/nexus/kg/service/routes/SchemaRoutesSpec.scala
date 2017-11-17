@@ -9,6 +9,7 @@ import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
@@ -36,6 +37,7 @@ import io.circe.generic.auto._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 import io.circe.syntax._
+
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
@@ -75,7 +77,7 @@ class SchemaRoutesSpec
     val schemas        = Schemas(schAgg, doms, contexts, baseUri.toString)
     implicit val clock = Clock.systemUTC
 
-    val caller = CallerCtx(clock, AnonymousCaller)
+    val caller = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     val orgRef =
       Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)

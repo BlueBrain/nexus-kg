@@ -5,6 +5,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import akka.http.scaladsl.model.Uri
 import cats.Show
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity
+import ch.epfl.bluebrain.nexus.kg.indexing.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, _}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
@@ -25,16 +27,24 @@ object FilteredQuery {
     *
     * @param filter     the filter on which the query is based on
     * @param pagination the pagination settings for the generated query
+    * @param identities the [[Identity]] list that will be checked for read permissions on a particular resource
     * @param term       the optional full text search term
     * @return a Blazegraph query based on the provided filter and pagination settings
     */
-  def apply(filter: Filter, pagination: Pagination, term: Option[String] = None): String = {
-    applyWithWhere(buildWhereFrom(filter.expr), pagination, term)
+  def apply[Id](filter: Filter, pagination: Pagination, identities: Set[Identity], term: Option[String] = None)(
+      implicit Q: ConfiguredQualifier[String],
+      aclExpr: AclSparqlExpr[Id]): String = {
+    applyWithWhere(buildWhereFrom(filter.expr), pagination, term, identities)
   }
 
-  private def applyWithWhere(where: String, pagination: Pagination, term: Option[String]): String = {
+  private def applyWithWhere[Id](
+      where: String,
+      pagination: Pagination,
+      term: Option[String],
+      identities: Set[Identity])(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
     val (selectTotal, selectWith, selectSubQuery) = buildSelectsFrom(term)
     val (orderByUnion, orderByTotal)              = buildOrderByFrom(term)
+
     s"""
        |PREFIX bds: <${bdsUri.toString()}>
        |$selectTotal
@@ -43,6 +53,7 @@ object FilteredQuery {
        |  WHERE {
        |${buildWhereFrom(term)}
        |$where
+       |${aclExpr(identities)}
        |  }
        |${buildGroupByFrom(term)}
        |} AS %resultSet
@@ -70,15 +81,22 @@ object FilteredQuery {
     * @param thisSubject  the qualified uri of the subject to be selected
     * @param targetFilter the filter to be applied to filter the objects
     * @param pagination   the pagination settings for the generated query
+    * @param identities   the [[Identity]] list that will be checked for read permissions on a particular resource
+    * @param term         the optional full text search term
     */
-  def outgoing(thisSubject: Uri, targetFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
+  def outgoing[Id](
+      thisSubject: Uri,
+      targetFilter: Filter,
+      pagination: Pagination,
+      identities: Set[Identity],
+      term: Option[String] = None)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
     val where =
       s"""
          |?ss ?p ?$subject .
          |FILTER ( ?ss = <$thisSubject> )
          |${buildWhereFrom(targetFilter.expr)}
        """.stripMargin.trim
-    applyWithWhere(where, pagination, term)
+    applyWithWhere(where, pagination, term, identities)
   }
 
   /**
@@ -88,15 +106,22 @@ object FilteredQuery {
     * @param thisObject   the qualified uri of the object to be selected
     * @param sourceFilter the filter to be applied to filter the subjects
     * @param pagination   the pagination settings for the generated query
+    * @param identities   the [[Identity]] list that will be checked for read permissions on a particular resource
+    * @param term         the optional full text search term
     */
-  def incoming(thisObject: Uri, sourceFilter: Filter, pagination: Pagination, term: Option[String] = None): String = {
+  def incoming[Id](
+      thisObject: Uri,
+      sourceFilter: Filter,
+      pagination: Pagination,
+      identities: Set[Identity],
+      term: Option[String] = None)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
     val where =
       s"""
          |?$subject ?p ?o .
          |FILTER ( ?o = <$thisObject> )
          |${buildWhereFrom(sourceFilter.expr)}
        """.stripMargin.trim
-    applyWithWhere(where, pagination, term)
+    applyWithWhere(where, pagination, term, identities)
   }
 
   private final case class Stmt(stmt: String, filter: Option[String])
@@ -127,11 +152,11 @@ object FilteredQuery {
 
   private def buildWhereFrom(term: Option[String]): String =
     term.map(term => s"""
-       |?$subject ?matchedProperty ?matchedValue .
-       |?matchedValue $bdsSearch "$term" .
-       |?matchedValue $bdsRelevance ?rsv .
-       |?matchedValue $bdsRank ?pos .
-       |FILTER ( !isBlank(?s) )
+                        |?$subject ?matchedProperty ?matchedValue .
+                        |?matchedValue $bdsSearch "$term" .
+                        |?matchedValue $bdsRelevance ?rsv .
+                        |?matchedValue $bdsRank ?pos .
+                        |FILTER ( !isBlank(?s) )
      """.stripMargin.trim).getOrElse("")
 
   private def buildWhereFrom(expr: Expr): String = {

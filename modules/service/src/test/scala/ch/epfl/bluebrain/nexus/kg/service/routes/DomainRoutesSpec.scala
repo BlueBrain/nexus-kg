@@ -7,6 +7,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -54,7 +55,7 @@ class DomainRoutesSpec
     implicit val clock = Clock.systemUTC
 
     orgs
-      .create(orgId, Json.obj("key" -> Json.fromString(genString())))(CallerCtx(clock, AnonymousCaller))
+      .create(orgId, Json.obj("key" -> Json.fromString(genString())))(CallerCtx(clock, AnonymousCaller(Anonymous())))
       .futureValue
 
     val sparqlUri                  = Uri("http://localhost:9999/bigdata/sparql")

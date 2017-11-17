@@ -5,6 +5,7 @@ import java.util.regex.Pattern.quote
 
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
@@ -45,7 +46,7 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
   }
   val baseUri = "http://localhost/v0"
 
-  private implicit val caller = AnonymousCaller
+  private implicit val caller = AnonymousCaller(Anonymous())
   private implicit val clock  = Clock.systemUTC
 
   trait Context {
