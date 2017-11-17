@@ -9,6 +9,7 @@ import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.commons.service.persistence.ProjectionStorage
 import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
+import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.routes.MockedIAMClient
 import ch.epfl.bluebrain.nexus.kg.service.{BootstrapService, StartIndexers}
@@ -16,9 +17,9 @@ import ch.epfl.bluebrain.nexus.kg.tests.integration._
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingAkkaSettings
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
 import org.scalatest._
-
+import cats.instances.future._
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContextExecutor}
+import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
 class ServiceSpecSuite
     extends Suites
@@ -48,7 +49,7 @@ class ServiceSpecSuite
   }
 
   override val nestedSuites = Vector(
-    new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+    new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary, aclIndexer),
     new DomainIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new ContextsIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new SchemasIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
@@ -57,6 +58,15 @@ class ServiceSpecSuite
                                 settings.Prefixes.CoreVocabulary,
                                 bootstrap.instances)
   )
+
+  private def aclIndexer: AclIndexer[Future] = {
+    val aclIndexSettings = AclIndexingSettings(settings.Sparql.Index,
+                                               bootstrap.apiUri,
+                                               settings.Sparql.Acls.GraphBaseNamespace,
+                                               settings.Prefixes.CoreVocabulary)
+
+    AclIndexer(bootstrap.sparqlClient, aclIndexSettings)
+  }
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()

@@ -2,7 +2,10 @@ package ch.epfl.bluebrain.nexus.kg.indexing.acls
 
 import akka.http.scaladsl.model.Uri
 import cats.MonadError
+import cats.instances.list._
 import cats.instances.string._
+import cats.syntax.functor._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Event._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path.{Empty, Segment}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{Event, Path, Permission}
@@ -28,11 +31,9 @@ import journal.Logger
 @SuppressWarnings(Array("UnusedMethodParameter"))
 class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(implicit F: MonadError[F, Throwable]) {
 
-  private val log                                               = Logger[this.type]
-  private val AclIndexingSettings(index, base, baseNs, baseVoc) = settings
-
+  private val log                                                   = Logger[this.type]
+  private val AclIndexingSettings(index, base, baseNs, baseVoc)     = settings
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
-  private val readKey                                               = "read".qualifyAsString
 
   /**
     * Indexes the event by pushing its json ld representation into the rdf triple store while also updating the
@@ -56,40 +57,57 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
     case _ => F.pure(())
   }
 
-  private def isValidKg(path: Path): Boolean = {
-    val reverse = path.reverse
-    reverse.head == "kg" && !reverse.tail.isEmpty
+  private def isValidKg(path: Path): Boolean = path.reverse.head == "kg"
+
+  private def isRootPath(path: Path): Boolean = path match {
+    case Segment("kg", Empty) => true
+    case _                    => false
   }
 
   private def add(path: Path, identities: Set[Identity]): F[Unit] = {
-    log.debug(s"Adding ACL indexing for path '$path' and identities '$identities'")
-    val meta = buildMeta(path, identities)
-    client.createGraph(index, qualifiedPath(path) qualifyWith base, meta)
+    F.sequence(qualifiedPaths(path) map { pathString =>
+        log.debug(s"Adding ACL indexing for path '$pathString' and identities '$identities'")
+        val meta = if (isRootPath(path)) buildRootMeta(identities) else buildMeta(pathString, identities)
+        client.createGraph(index, pathString qualifyWith base, meta)
+      })
+      .map(_ => ())
   }
 
   private def remove(path: Path, identity: Identity): F[Unit] = {
-    log.debug(s"Removing ACL indexing for path '$path' and identity '$identity'")
-    val removeQuery = PatchQuery.exactMatch(qualifiedPath(path) qualifyAsStringWith base, readKey -> identity.id.id)
-    client.delete(index, removeQuery)
+    F.sequence(qualifiedPaths(path) map { pathString =>
+        log.debug(s"Removing ACL indexing for path '$pathString' and identity '$identity'")
+        val removeQuery = PatchQuery.exactMatch(pathString qualifyAsStringWith base, readKey -> identity.id.id)
+        client.delete(index, removeQuery)
+      })
+      .map(_ => ())
   }
 
   private def clear(path: Path): F[Unit] = {
-    log.debug(s"Clear ACLs indexing for path '$path'")
-    client.clearGraph(index, qualifiedPath(path) qualifyWith base)
+    F.sequence(qualifiedPaths(path) map { pathString =>
+        log.debug(s"Clear ACLs indexing for path '$pathString'")
+        client.clearGraph(index, pathString qualifyWith base)
+      })
+      .map(_ => ())
   }
 
-  private def buildMeta(id: Path, value: Set[Identity]): Json = {
+  private def buildRootMeta(value: Set[Identity]): Json = {
+    val json = value.map { identity =>
+      Json.obj(hasPermissionsKey -> readAllTypeKey.jsonLd) deepMerge Uri(identity.id.show).jsonLd
+    }
+    Json.obj(graphKey -> Json.arr(json.toSeq: _*))
+  }
+
+  private def buildMeta(path: String, value: Set[Identity]): Json =
     Json.obj(
-      idKey      -> Json.fromString(qualifiedPath(id) qualifyAsStringWith base),
-      readKey    -> Json.arr(value.map(identity => Uri(identity.id.id).jsonLd).toSeq: _*),
+      idKey      -> Json.fromString(path qualifyAsStringWith base),
+      readKey    -> Json.arr(value.map(identity => Uri(identity.id.show).jsonLd).toSeq: _*),
       rdfTypeKey -> "Acl".qualify.jsonLd
     )
-  }
 
-  private def qualifiedPath(path: Path): String =
-    addPrefix(path.reverse.tail.reverse).toString()
+  private def qualifiedPaths(path: Path): List[String] =
+    addPrefix(path.reverse.tail.reverse).map(_.toString())
 
-  private def addPrefix(path: Path): Path = {
+  private def addPrefix(path: Path): List[Path] = {
     def inner(current: Path, depth: Int = 0): Int = {
       current match {
         case Empty             => depth
@@ -98,13 +116,13 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
       }
     }
     val prefix = inner(path) match {
-      case 0 => Path("organizations")
-      case 1 => Path("domains")
-      case 2 => Path("schemas")
-      case 3 => Path("schemas")
-      case _ => Path("data")
+      case 0 => List(Path("organizations"))
+      case 1 => List(Path("domains"))
+      case 2 => List(Path("schemas"), Path("contexts"))
+      case 3 => List(Path("schemas"), Path("contexts"))
+      case _ => List(Path("data"))
     }
-    prefix ++ path
+    prefix.map(_ ++ path)
   }
 }
 

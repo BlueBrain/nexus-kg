@@ -56,15 +56,17 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
         filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
       implicit val _ = (id: DomainId) => domains.fetch(id)
       traceName("searchDomains") {
-        pathEndOrSingleSlash {
+        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           domainQueries
             .list(filter, pagination, termOpt)
             .buildResponse(fields, base, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            domainQueries
-              .list(orgId, filter, pagination, termOpt)
-              .buildResponse(fields, base, pagination)
+            authenticateCaller.apply { implicit caller =>
+              domainQueries
+                .list(orgId, filter, pagination, termOpt)
+                .buildResponse(fields, base, pagination)
+            }
           }
       }
     }

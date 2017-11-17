@@ -11,6 +11,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
@@ -71,7 +72,7 @@ class ContextRoutesSpec
     val contexts       = Contexts(ctxAgg, doms, baseUri.toString())
     implicit val clock = Clock.systemUTC
 
-    val caller = CallerCtx(clock, AnonymousCaller)
+    val caller = CallerCtx(clock, AnonymousCaller(Anonymous()))
     val orgRef =
       Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)
 

@@ -13,6 +13,7 @@ import cats.Show
 import cats.syntax.show._
 import cats.instances.try_._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ImportResolver, ShaclValidator}
@@ -51,7 +52,7 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
   val validator  = ShaclValidator[Try](ImportResolver.noop)
   val baseUri    = "http://localhost:8080/v0"
 
-  private implicit val caller = AnonymousCaller
+  private implicit val caller = AnonymousCaller(Anonymous())
   private implicit val clock  = Clock.systemUTC
 
   abstract class Context {

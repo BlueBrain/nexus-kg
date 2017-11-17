@@ -18,6 +18,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 
 trait IndexerFixture extends Randomness with ScalaFutures with Resources {
@@ -31,7 +32,7 @@ trait IndexerFixture extends Randomness with ScalaFutures with Resources {
   }
 
   private implicit val clock  = Clock.systemUTC
-  private implicit val caller = AnonymousCaller
+  private implicit val caller = AnonymousCaller(Anonymous())
 
   protected def genId(): String =
     genString(length = 4, Vector.range('a', 'z') ++ Vector.range('0', '9'))

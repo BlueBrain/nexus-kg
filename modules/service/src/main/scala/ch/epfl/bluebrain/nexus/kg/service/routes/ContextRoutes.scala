@@ -132,20 +132,25 @@ class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Fu
       traceName("searchContexts") {
         val filter     = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
         implicit val _ = (id: ContextId) => contexts.fetch(id)
-        pathEndOrSingleSlash {
+        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           contextQueries.list(filter, pagination, None).buildResponse(fields, base, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            contextQueries.list(orgId, filter, pagination, None).buildResponse(fields, base, pagination)
+            authenticateCaller.apply { implicit caller =>
+              contextQueries.list(orgId, filter, pagination, None).buildResponse(fields, base, pagination)
+            }
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
-            contextQueries.list(domainId, filter, pagination, None).buildResponse(fields, base, pagination)
+            authenticateCaller.apply { implicit caller =>
+              contextQueries.list(domainId, filter, pagination, None).buildResponse(fields, base, pagination)
+            }
           } ~
           (extractContextName & pathEndOrSingleSlash) { contextName =>
-            contextQueries.list(contextName, filter, pagination, None).buildResponse(fields, base, pagination)
+            authenticateCaller.apply { implicit caller =>
+              contextQueries.list(contextName, filter, pagination, None).buildResponse(fields, base, pagination)
+            }
           }
       }
-
     }
 
   def routes: Route = combinedRoutesFor("contexts")

@@ -14,6 +14,7 @@ import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -101,7 +102,7 @@ class InstanceRoutesSpec
     val instances                                       = Instances(instAgg, schemas, contexts, validator, inFileProcessor)
 
     implicit val clock = Clock.systemUTC
-    val caller         = CallerCtx(clock, AnonymousCaller)
+    val caller         = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     val orgRef =
       orgs.create(OrgId(genString(length = 3)), Json.obj())(caller).futureValue

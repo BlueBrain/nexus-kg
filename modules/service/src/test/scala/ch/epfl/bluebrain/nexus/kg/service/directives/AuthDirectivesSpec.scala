@@ -5,6 +5,7 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
+import ch.epfl.bluebrain.nexus.commons.iam.IamUri
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
@@ -44,6 +45,7 @@ class AuthDirectivesSpec
   private implicit val config = Configuration.default.withDiscriminator("type")
   private implicit val mt     = ActorMaterializer()
   implicit val cl             = iamClient("http://localhost:8080")
+  private implicit val iamUri = IamUri("http://localhost:8080")
 
   private def route(perm: Permission)(implicit cred: Option[OAuth2BearerToken]) = {
     (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
@@ -85,7 +87,7 @@ class AuthDirectivesSpec
       implicit val cred: Option[OAuth2BearerToken] = None
       Get("/organizations/org") ~> route() ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual (AnonymousCaller: Caller).asJson
+        responseAs[Json] shouldEqual (AnonymousCaller(): Caller).asJson
       }
     }
 

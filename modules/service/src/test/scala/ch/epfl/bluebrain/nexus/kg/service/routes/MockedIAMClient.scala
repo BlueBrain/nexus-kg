@@ -8,10 +8,8 @@ import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
 import akka.stream.Materializer
 import akka.util.ByteString
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
-import ch.epfl.bluebrain.nexus.commons.iam.acls.{AccessControl, AccessControlList, Permission, Permissions}
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.{Own, Read, Write}
 import ch.epfl.bluebrain.nexus.commons.iam.auth.{AuthenticatedUser, User}
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{AuthenticatedRef, GroupRef, UserRef}
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.IdentityId
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 
@@ -27,9 +25,6 @@ trait MockedIAMClient extends Resources {
       GroupRef(IdentityId("localhost:8080/v0/realms/BBP/groups/group2")),
       UserRef(IdentityId("localhost:8080/v0/realms/realm/users/f:someUUID:username"))
     ))
-  val mockedAcls = AccessControlList(
-    Set(AccessControl(GroupRef("BBP", "group1"), Permissions(Own, Read, Write, Permission("publish")))))
-  val mockedAnonAcls = AccessControlList(Set(AccessControl(AuthenticatedRef(None), Permissions(Read))))
 
   private val mockedAclsJson     = jsonContentOf("/acl/mock-acl.json").noSpaces
   private val mockedUserJson     = jsonContentOf("/acl/mock-user.json").noSpaces

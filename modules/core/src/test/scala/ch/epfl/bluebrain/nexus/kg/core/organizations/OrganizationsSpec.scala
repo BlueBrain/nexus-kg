@@ -4,6 +4,7 @@ import java.time.Clock
 
 import cats.instances.try_._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
@@ -24,7 +25,7 @@ class OrganizationsSpec extends WordSpecLike with Matchers with Inspectors with 
   private def genJson(): Json =
     Json.obj("key" -> Json.fromString(genString()))
 
-  private implicit val caller = AnonymousCaller
+  private implicit val caller = AnonymousCaller(Anonymous())
   private implicit val clock  = Clock.systemUTC
 
   "An Organizations instance" should {

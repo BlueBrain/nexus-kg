@@ -65,26 +65,34 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
       val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
       implicit val _ = (id: InstanceId) => instances.fetch(id)
       traceName("searchInstances") {
-        pathEndOrSingleSlash {
+        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           instanceQueries.list(filter, pagination, termOpt).buildResponse(fields, base, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            authenticateCaller.apply { implicit caller =>
+              instanceQueries.list(orgId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            }
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
-            instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            authenticateCaller.apply { implicit caller =>
+              instanceQueries.list(domainId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            }
           } ~
           (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
-            instanceQueries.list(schemaName, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            authenticateCaller.apply { implicit caller =>
+              instanceQueries.list(schemaName, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            }
           } ~
           (extractSchemaId & pathEndOrSingleSlash) { schemaId =>
-            instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            authenticateCaller.apply { implicit caller =>
+              instanceQueries.list(schemaId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            }
           } ~
           extractInstanceId { instanceId =>
-            path("outgoing") {
+            (path("outgoing") & authenticateCaller) { implicit caller =>
               instanceQueries.outgoing(instanceId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
             } ~
-              path("incoming") {
+              (path("incoming") & authenticateCaller) { implicit caller =>
                 instanceQueries
                   .incoming(instanceId, filter, pagination, termOpt)
                   .buildResponse(fields, base, pagination)

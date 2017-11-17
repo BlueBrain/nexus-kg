@@ -10,7 +10,7 @@ import akka.stream.scaladsl.Source
 import akka.stream.{ActorMaterializer, IOResult}
 import akka.util.ByteString
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
@@ -57,7 +57,7 @@ class InstanceIntegrationSpec(
     "performing integration tests" should {
       val idsPayload = Map[InstanceId, Instance]()
 
-      val caller = CallerCtx(Clock.systemUTC, AnonymousCaller)
+      val caller = CallerCtx(Clock.systemUTC, AuthenticatedCaller(None, mockedUser.identities))
 
       lazy val instances =
         pendingInstances

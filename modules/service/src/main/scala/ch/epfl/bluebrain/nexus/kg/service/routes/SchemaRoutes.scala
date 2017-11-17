@@ -73,17 +73,23 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
         val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
         implicit val _ = (id: SchemaId) => schemas.fetch(id)
         traceName("searchSchemas") {
-          pathEndOrSingleSlash {
+          (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
             schemaQueries.list(filter, pagination, termOpt).buildResponse(fields, base, pagination)
           } ~
             (extractOrgId & pathEndOrSingleSlash) { orgId =>
-              schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+              authenticateCaller.apply { implicit caller =>
+                schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+              }
             } ~
             (extractDomainId & pathEndOrSingleSlash) { domainId =>
-              schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+              authenticateCaller.apply { implicit caller =>
+                schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+              }
             } ~
             (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
-              schemaQueries.list(schemaName, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+              authenticateCaller.apply { implicit caller =>
+                schemaQueries.list(schemaName, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+              }
             }
         }
       }

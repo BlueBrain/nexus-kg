@@ -1,15 +1,22 @@
 package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import java.net.URLEncoder
+import java.time.Instant
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.PermissionsCreated
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
+import ch.epfl.bluebrain.nexus.commons.iam.acls._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.acls.AclIndexer
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
@@ -20,20 +27,26 @@ import io.circe.Json
 import io.circe.syntax._
 import org.scalatest._
 import org.scalatest.time.{Seconds, Span}
+
 import scala.collection.mutable.Map
-import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.{ExecutionContextExecutor, Future}
 
 @DoNotDiscover
-class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
-                                                                as: ActorSystem,
-                                                                ec: ExecutionContextExecutor,
-                                                                mt: ActorMaterializer)
+class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclIndexer[Future])(
+    implicit
+    as: ActorSystem,
+    ec: ExecutionContextExecutor,
+    mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, vocab) {
 
   import BootstrapIntegrationSpec._
   import orgsEncoders._
 
   "A OrganizationRoutes" when {
+    val meta = Meta(mockedUser.identities.find {
+      case _: UserRef => true
+      case _          => false
+    }.get, Instant.ofEpochMilli(0L))
 
     "performing integration tests" should {
       val idsPayload = Map[OrgId, Organization]()
@@ -44,6 +57,17 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
             status shouldEqual StatusCodes.Created
             idsPayload += (orgId -> Organization(orgId, 1L, json, false))
             responseAs[Json] shouldEqual OrgRef(orgId, 1L).asJson
+          }
+        }
+      }
+
+      "add read permissions for root level" in {
+        forAll(orgs) { orgId =>
+          eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
+            aclIndexer(
+              PermissionsCreated("kg" / orgId.id,
+                                 AccessControlList(mockedUser.identities.map(AccessControl(_, Permissions(Read)))),
+                                 meta)).futureValue
           }
         }
       }

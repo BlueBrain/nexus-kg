@@ -4,11 +4,20 @@ import java.util.regex.Pattern
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.NoopExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
+import cats.instances.string._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{Anonymous, GroupRef, UserRef}
+import ch.epfl.bluebrain.nexus.commons.iam.identity.IdentityId
+import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
+import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.AclSparqlExpr._
 
 class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with EitherValues {
 
@@ -17,11 +26,17 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
   private implicit val filteringSettings @ FilteringSettings(nexusBaseVoc, nexusSearchVoc) =
     FilteringSettings(s"$base/voc/nexus/core", s"$base/voc/nexus/search")
 
-  private val (nxv, nxs) = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
-  private val prov       = Uri("http://www.w3.org/ns/prov#")
-  private val rdf        = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
-  private val bbpprod    = Uri(s"$base/voc/bbp/productionentity/core/")
-  private val bbpagent   = Uri(s"$base/voc/bbp/agent/core/")
+  private val (nxv, nxs)                                            = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
+  private val prov                                                  = Uri("http://www.w3.org/ns/prov#")
+  private val rdf                                                   = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+  private val bbpprod                                               = Uri(s"$base/voc/bbp/productionentity/core/")
+  private val bbpagent                                              = Uri(s"$base/voc/bbp/agent/core/")
+  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusBaseVoc)
+  private val identities = Set(
+    UserRef(IdentityId("http://localhost/prefix/realms/BBP/users/alice")),
+    GroupRef(IdentityId("http://localhost/prefix/realms/BBP/groups/group1")),
+    Anonymous(IdentityId("http://localhost/prefix/anonymous"))
+  )
 
   "A FilteredQuery" should {
     val pagination = Pagination(13, 17)
@@ -38,6 +53,23 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  WHERE {
              |
              |?s ?p ?o .
+             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}
              |  }
              |
              |} AS %resultSet
@@ -56,7 +88,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery(Filter(NoopExpr), pagination)
+        val result = FilteredQuery[DomainId](Filter(NoopExpr), pagination, identities = identities)
         result shouldEqual expected
       }
 
@@ -95,7 +127,42 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_9 .
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
-             |""".stripMargin
+             |
+             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schema>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schema>/<http://localhost/v0/voc/nexus/core/schemaGroup>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schema>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schema>/<http://localhost/v0/voc/nexus/core/schemaGroup>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schema>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schema>/<http://localhost/v0/voc/nexus/core/schemaGroup>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}""".stripMargin
         val expected =
           s"""
              |PREFIX bds: <${bdsUri.toString()}>
@@ -123,7 +190,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery(filter, pagination)
+        val result = FilteredQuery[InstanceId](filter, pagination, identities = identities)
         result shouldEqual expected
       }
 
@@ -170,7 +237,36 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_9 .
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
-             |""".stripMargin.trim
+             |
+             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schemaGroup>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schemaGroup>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/schemaGroup>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}""".stripMargin.trim
         val expected =
           s"""
              |PREFIX bds: <${bdsUri.toString()}>
@@ -179,7 +275,6 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  SELECT DISTINCT ?s (max(?rsv) AS ?score) (max(?pos) AS ?rank)
              |  WHERE {
              |$expectedWhere
-             |
              |  }
              |GROUP BY ?s
              |} AS %resultSet
@@ -198,7 +293,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |ORDER BY DESC(?score)""".stripMargin
-        val result = FilteredQuery(filter, pagination, Some("subject"))
+        val result = FilteredQuery[SchemaId](filter, pagination, identities, Some("subject"))
         result shouldEqual expected
       }
 
@@ -242,7 +337,29 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_9 .
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
-             |""".stripMargin.trim
+             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/organization>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/domain>/<http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}""".stripMargin.trim
         val expected =
           s"""
              |PREFIX bds: <${bdsUri.toString()}>
@@ -270,7 +387,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery.outgoing(thisId, targetFilter, pagination)
+        val result = FilteredQuery.outgoing[SchemaName](thisId, targetFilter, pagination, identities = identities)
         result shouldEqual expected
       }
 
@@ -314,7 +431,17 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_9 .
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
-             |""".stripMargin.trim
+             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |}UNION{
+             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |}UNION{
+             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |}UNION{
+             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}""".stripMargin.trim
         val expected =
           s"""
              |PREFIX bds: <${bdsUri.toString()}>
@@ -342,7 +469,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery.incoming(thisId, targetFilter, pagination)
+        val result = FilteredQuery.incoming[OrgId](thisId, targetFilter, pagination, identities = identities)
         result shouldEqual expected
       }
     }

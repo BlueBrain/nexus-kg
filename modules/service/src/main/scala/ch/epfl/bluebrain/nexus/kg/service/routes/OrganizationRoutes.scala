@@ -51,7 +51,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields) =>
-      traceName("searchOrganizations") {
+      (traceName("searchOrganizations") & authenticateCaller) { implicit caller =>
         val filter =
           filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
         implicit val _ = (id: OrgId) => orgs.fetch(id)
