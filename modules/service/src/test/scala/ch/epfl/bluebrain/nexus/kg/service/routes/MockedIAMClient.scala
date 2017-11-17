@@ -41,10 +41,7 @@ trait MockedIAMClient extends Resources {
             case Authorization(ValidCredentials) =>
               if (req.uri.toString().contains("/acls/"))
                 Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAclsJson)))
-              else if (req.uri.path.toString.endsWith("/oauth2/user") & req.uri
-                         .query()
-                         .toString
-                         .equals("filterGroups=true"))
+              else if (req.uri.path.toString.endsWith("/oauth2/user") & req.uri.query().toString == "filterGroups=true")
                 Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedUserJson)))
               else
                 Future.successful(HttpResponse(status = StatusCodes.NotFound))
