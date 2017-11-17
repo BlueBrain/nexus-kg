@@ -1,0 +1,38 @@
+{
+  "@context": "https://nexus-iam.example.com/v0/context",
+  "path": "/kg/organization/domain/schema",
+  "acl": [
+    {
+      "identity": {
+        "@id": "https://nexus-iam.example.com/v0/anonymous",
+        "@type": "Anonymous"
+      },
+      "permissions": [
+        "own",
+        "read",
+        "write"
+      ]
+    },
+    {
+      "identity": {
+        "@id": "https://nexus-iam.example.com/v0/realms/realm/groups/some-group",
+        "realm": "realm",
+        "group": "some-group",
+        "@type": "GroupRef"
+      },
+      "permissions": [
+        "own"
+      ]
+    }
+  ],
+  "meta": {
+    "author": {
+      "@id": "https://nexus-iam.example.com/v0/realms/realm/users/alice",
+      "realm": "realm",
+      "sub": "alice",
+      "@type": "UserRef"
+    },
+    "instant": "1970-01-01T00:00:00.001Z"
+  },
+  "@type": "PermissionsCreated"
+}
