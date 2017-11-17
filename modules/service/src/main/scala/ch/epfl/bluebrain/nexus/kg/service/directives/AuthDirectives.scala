@@ -57,7 +57,7 @@ trait AuthDirectives {
     * @return the [[Caller]]
     */
   def authenticateCaller(implicit iamClient: IamClient[Future], cred: Option[OAuth2BearerToken]): Directive1[Caller] =
-    onComplete(iamClient.getCaller(cred)).flatMap {
+    onComplete(iamClient.getCaller(cred, filterGroups = true)).flatMap {
       case Success(caller) => provide(caller)
       case _               => reject(AuthorizationFailedRejection)
     }
