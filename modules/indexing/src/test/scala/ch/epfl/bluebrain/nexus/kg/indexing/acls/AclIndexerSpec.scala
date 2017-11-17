@@ -25,13 +25,13 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
-import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture, Qualifier}
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
+
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -69,8 +69,6 @@ class AclIndexerSpec(blazegraphPort: Int)
   private val settings @ AclIndexingSettings(index, aclsBase, aclsBaseNs, nexusVocBase) =
     AclIndexingSettings(genString(length = 6), base, s"$base/acls/graphs", s"$base/voc/nexus/core")
 
-  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
-
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
@@ -86,7 +84,7 @@ class AclIndexerSpec(blazegraphPort: Int)
   private def expectedTriples(id: String, identities: Set[Identity]): List[(String, String, String)] =
     identities.map { identity =>
       (id, "read" qualifyAsStringWith nexusVocBase, identity.id.id)
-    }.toList ++ List((id, rdfTypeKey, "Acl".qualifyAsString))
+    }.toList
 
   "A AclIndexer" should {
     val client  = SparqlClient[Future](baseUri)
@@ -114,7 +112,7 @@ class AclIndexerSpec(blazegraphPort: Int)
           AccessControlList(user -> Permissions(Write), group -> Permissions(Read), group2 -> Permissions(Read)),
           meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 3
+      rs.size shouldEqual 2
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2))
     }
 
@@ -122,7 +120,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val path = Path("kg") ++ Path(orgId.show)
       indexer(PermissionsAdded(path, group3, Permissions(Read), meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 4
+      rs.size shouldEqual 3
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
     }
 
@@ -130,7 +128,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val path = Path(orgId.show)
       indexer(PermissionsAdded(path, group4, Permissions(Read), meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 4
+      rs.size shouldEqual 3
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
     }
 
@@ -138,7 +136,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val path = Path("kg") ++ Path(orgId.show)
       indexer(PermissionsSubtracted(path, group, Permissions(Read), meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 3
+      rs.size shouldEqual 2
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group2, group3))
     }
 
@@ -146,7 +144,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val path = Path("kg") ++ Path(instance.show)
       indexer(PermissionsAdded(path, user, Permissions(Read), meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 5
+      rs.size shouldEqual 3
       val expectedAllTriples = expectedTriples(s"$base/organizations/${orgId.show}", Set(group2, group3))
       rs shouldEqual expectedAllTriples ++ expectedTriples(s"$base/data/${instance.show}", Set(user))
     }
@@ -155,7 +153,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val path = Path("kg") ++ Path(orgId.show)
       indexer(PermissionsCleared(path, meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 2
+      rs.size shouldEqual 1
       rs shouldEqual expectedTriples(s"$base/data/${instance.show}", Set(user))
     }
 
@@ -163,7 +161,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val path = Path("kg") ++ Path(schema.show)
       indexer(PermissionsAdded(path, user, Permissions(Read), meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 6
+      rs.size shouldEqual 3
       rs should contain allElementsOf expectedTriples(s"$base/contexts/${schema.show}", Set(user)) ++
         expectedTriples(s"$base/schemas/${schema.show}", Set(user)) ++
         expectedTriples(s"$base/data/${instance.show}", Set(user))
@@ -177,7 +175,7 @@ class AclIndexerSpec(blazegraphPort: Int)
           AccessControlList(user -> Permissions(Write), group -> Permissions(Read), group2 -> Permissions(Read)),
           meta)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 8
+      rs.size shouldEqual 5
 
       val expectedReadAllTriples = List(
         (group.id.id, "hasPermissions" qualifyAsStringWith nexusVocBase, "readAll" qualifyAsStringWith nexusVocBase),

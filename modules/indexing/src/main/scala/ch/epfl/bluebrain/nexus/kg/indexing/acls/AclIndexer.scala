@@ -100,8 +100,7 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
   private def buildMeta(path: String, value: Set[Identity]): Json =
     Json.obj(
       idKey      -> Json.fromString(path qualifyAsStringWith base),
-      readKey    -> Json.arr(value.map(identity => Uri(identity.id.show).jsonLd).toSeq: _*),
-      rdfTypeKey -> "Acl".qualify.jsonLd
+      readKey    -> Json.arr(value.map(identity => Uri(identity.id.show).jsonLd).toSeq: _*)
     )
 
   private def qualifiedPaths(path: Path): List[String] =
