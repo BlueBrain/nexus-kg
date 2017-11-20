@@ -156,8 +156,9 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
     val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
     val _ = KafkaConsumer.start[AclEvent](consumerSettings,
-                                  AclIndexer[Future](sparqlClient, aclIndexingSettings).apply,
-                                  settings.Kafka.Topic, JsonLdSerialization.eventDecoder)
+                                          AclIndexer[Future](sparqlClient, aclIndexingSettings).apply,
+                                          settings.Kafka.Topic,
+                                          JsonLdSerialization.eventDecoder)
   }
 
 }

@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.IdentityId
 import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
+import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import io.circe.Decoder
 import journal.Logger
 import net.manub.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
@@ -137,9 +138,9 @@ class KafkaConsumerSpec
           Future.failed(new Exception)
       }
 
-      val as1 = ActorSystem("embedded-kafka-1")
-      val as2 = ActorSystem("embedded-kafka-2")
-      val topic                                 = "test-topic-3"
+      val as1   = ActorSystem("embedded-kafka-1")
+      val as2   = ActorSystem("embedded-kafka-2")
+      val topic = "test-topic-3"
 
       val consumerSettings =
         ConsumerSettings(system, new StringDeserializer, new StringDeserializer).withGroupId("group-id-3")
@@ -162,6 +163,31 @@ class KafkaConsumerSpec
       }
       TestKit.shutdownActorSystem(as1)
       TestKit.shutdownActorSystem(as2)
+    }
+
+    "handle exceptions while processing messages" in {
+      val counter = new AtomicInteger
+
+      def isEven(msg: Message): Future[Unit] = {
+        if (counter.incrementAndGet() % 2 == 0)
+          Future.successful(())
+        else
+          Future.failed(new RetriableErr("Number was odd!"))
+      }
+
+      val consumerSettings =
+        ConsumerSettings(system, new StringDeserializer, new StringDeserializer).withGroupId("group-id-4")
+      withRunningKafka {
+        for (i <- 1 to 3) {
+          publishStringMessageToKafka("test-topic-4", s"""{"msg":"foo-$i"}""")
+        }
+        val supervisor = KafkaConsumer.start[Message](consumerSettings, isEven, "test-topic-4", msgDecoder)
+        eventually {
+          counter.get shouldEqual 6
+        }
+        blockingStop(supervisor)
+      }
+
     }
   }
 

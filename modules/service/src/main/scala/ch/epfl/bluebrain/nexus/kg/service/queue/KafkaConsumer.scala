@@ -1,16 +1,21 @@
 package ch.epfl.bluebrain.nexus.kg.service.queue
 
-import akka.Done
+import java.util.concurrent.TimeUnit.SECONDS
+
+import akka.actor.Actor.emptyBehavior
 import akka.actor._
-import akka.kafka.ConsumerMessage.CommittableOffsetBatch
+import akka.kafka.ConsumerMessage.{CommittableMessage, CommittableOffsetBatch, GroupTopicPartition}
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.{ConsumerSettings, Subscriptions}
-import akka.pattern.BackoffSupervisor.{CurrentChild, GetCurrentChild}
+import akka.pattern.BackoffSupervisor.GetCurrentChild
 import akka.pattern.{Backoff, BackoffSupervisor, ask}
+import akka.persistence.query.Sequence
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
 import akka.util.Timeout
-import com.google.common.annotations.VisibleForTesting
+import ch.epfl.bluebrain.nexus.commons.service.persistence.IndexFailuresLog
+import ch.epfl.bluebrain.nexus.commons.service.retryer.RetryOps._
+import ch.epfl.bluebrain.nexus.commons.service.retryer.RetryStrategy.{Backoff => BackoffStrategy}
 import io.circe._
 import io.circe.parser._
 import journal.Logger
@@ -20,45 +25,32 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 class KafkaConsumerWrapper[T](settings: ConsumerSettings[String, String],
-                       index: T => Future[Unit],
-                       topic: String,
-                       decoder: Decoder[T])
+                              index: T => Future[Unit],
+                              topic: String,
+                              decoder: Decoder[T])
     extends Actor {
 
-  private implicit val ec: ExecutionContext  = context.dispatcher
-  private implicit val to: Timeout           = 30.seconds
+  private implicit val as: ActorSystem       = context.system
+  private implicit val ec: ExecutionContext  = as.dispatcher
   private implicit val mt: ActorMaterializer = ActorMaterializer()
   private implicit val ed: Decoder[T]        = decoder
 
-  private val log = Logger[this.type]
+  private val log     = Logger[this.type]
+  private val config  = context.system.settings.config.getConfig("indexing.retry")
+  private val retries = config.getInt("max-count")
+  private val strategy =
+    BackoffStrategy(Duration(config.getDuration("max-duration", SECONDS), SECONDS), config.getDouble("random-factor"))
+  private val failures = IndexFailuresLog("acls")
 
-  override def receive: Receive = {
-    case value: String =>
-      decode[T](value) match {
-        case Right(event) =>
-          log.debug(s"Received message: $value")
-          index(event).onComplete {
-            case Success(_) => ()
-            case Failure(e) => log.error(s"Failed to index event: $event; skipping.", e)
-          }
-          sender ! Done
-        // $COVERAGE-OFF$
-        case Left(e) =>
-          log.error(s"Failed to decode message: $value; skipping.", e)
-          sender ! Done
-        // $COVERAGE-ON$
-      }
-  }
+  override val receive: Receive = emptyBehavior
 
   override def preStart(): Unit = {
     val done = Consumer
       .committableSource(settings, Subscriptions.topics(topic))
       .mapAsync(1) { msg =>
-        val process = self ? msg.record.value
-        process.map {
-          case Done => msg.committableOffset
-          case _ => throw new IllegalStateException(s"Unexpected response after processing message: $msg")
-        }
+        process(msg)
+          .recover { case e => log.error(s"Unexpected failure while processing message: $msg", e) }
+          .map(_ => msg.committableOffset)
       }
       .batch(max = 20, first => CommittableOffsetBatch.empty.updated(first)) { (batch, elem) =>
         batch.updated(elem)
@@ -66,15 +58,45 @@ class KafkaConsumerWrapper[T](settings: ConsumerSettings[String, String],
       .mapAsync(1)(_.commitScaladsl())
       .runWith(Sink.ignore)
 
-    // $COVERAGE-OFF$
     done.onComplete {
       case Failure(e) =>
         log.error("Stream failed with an error, stopping the actor and restarting.", e)
-        self ! PoisonPill
+        kill()
+      // $COVERAGE-OFF$
       case Success(_) =>
         log.warn("Kafka consumer stream ended gracefully, however this should not happen; restarting.")
-        self ! PoisonPill
+        kill()
+      // $COVERAGE-ON$
     }
+  }
+
+  private[queue] def kill(): Unit = self ! PoisonPill
+
+  private def process(msg: CommittableMessage[String, String]): Future[Unit] = {
+    val value = msg.record.value
+    decode[T](value) match {
+      case Right(event) =>
+        log.debug(s"Received message: $value")
+        (() => index(event))
+          .retry(retries)(strategy)
+          .recoverWith {
+            // $COVERAGE-OFF$
+            case e =>
+              log.error(s"Failed to index event: $event; skipping.", e)
+              storeFailure(msg)
+          }
+      case Left(e) =>
+        log.error(s"Failed to decode message: $value; skipping.", e)
+        storeFailure(msg)
+      // $COVERAGE-ON$
+    }
+  }
+
+  private def storeFailure(msg: CommittableMessage[String, String]): Future[Unit] = {
+    // $COVERAGE-OFF$
+    val offset                                       = Sequence(msg.committableOffset.partitionOffset.offset)
+    val GroupTopicPartition(group, topic, partition) = msg.committableOffset.partitionOffset.key
+    failures.storeEvent(s"$group-$topic-$partition", offset, msg.record.value)
     // $COVERAGE-ON$
   }
 
@@ -123,12 +145,10 @@ object KafkaConsumer {
     *
     * @param supervisor the supervisor actor handle
     */
-  @VisibleForTesting
   private[queue] def stop(supervisor: ActorRef)(implicit as: ActorSystem): Unit = {
     implicit val ec: ExecutionContext = as.dispatcher
     implicit val to: Timeout          = 30.seconds
-    val child                         = supervisor ? GetCurrentChild
-    child.foreach(_.asInstanceOf[CurrentChild].ref.get ! PoisonPill)
+    (supervisor ? GetCurrentChild).mapTo[KafkaConsumerWrapper[_]].foreach(_.kill())
   }
 
 }
