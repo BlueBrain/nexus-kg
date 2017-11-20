@@ -1,0 +1,1 @@
+<https://nexus.example.com/v0/data/organization/domain/schema/v1.0.0/uuid> <https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/realms/realm/users/alice>

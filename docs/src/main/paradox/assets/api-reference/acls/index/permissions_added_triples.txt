@@ -1,0 +1,1 @@
+<https://nexus-iam.example.com/v0/realms/realm/groups/a-group> <https://nexus.example.com/v0/voc/nexus/core/hasPermissions> <https://nexus.example.com/v0/voc/nexus/core/readAll>

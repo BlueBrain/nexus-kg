@@ -1,0 +1,26 @@
+...
+WHERE {
+    ?s ?p ?o
+    ...
+    {
+        <https://nexus-iam.example.com/v0/realms/realm/groups/a-group> <https://nexus.example.com/v0/voc/nexus/core/hasPermissions> <https://nexus.example.com/v0/voc/nexus/core/readAll>
+    } UNION {
+        ?s <https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/realms/realm/groups/a-group>
+    } UNION {
+        <https://nexus-iam.example.com/v0/anonymous> <https://nexus.example.com/v0/voc/nexus/core/hasPermissions> <https://nexus.example.com/v0/voc/nexus/core/readAll>
+    } UNION {
+        ?s <https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/anonymous>
+    } UNION {
+        ?s <https://nexus.example.com/v0/voc/nexus/core/organization>/<https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/realms/realm/groups/a-group>
+    } UNION {
+        ?s <https://nexus.example.com/v0/voc/nexus/core/organization>/<https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/anonymous>
+    } UNION {
+        ?s <https://nexus.example.com/v0/voc/nexus/core/domain>/<https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/realms/realm/groups/a-group>
+    } UNION {
+        ?s <https://nexus.example.com/v0/voc/nexus/core/domain>/<https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/anonymous>
+    } UNION {
+        ?s <https://nexus.example.com/v0/voc/nexus/core/schemaGroup>/<https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/realms/realm/groups/a-group>
+    } UNION {
+        ?s <https://nexus.example.com/v0/voc/nexus/core/schemaGroup>/<https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/anonymous>
+    }
+}
