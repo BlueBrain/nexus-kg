@@ -2,7 +2,7 @@
 
 @@@ index
 
-* [acls](ACLs.md)
+* [acls](acls.md)
 
 @@@
 

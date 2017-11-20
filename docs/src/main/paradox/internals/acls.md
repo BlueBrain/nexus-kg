@@ -65,7 +65,7 @@ Every triple on those resources is removed (we clear the graph where those tripl
 Event
 :   @@snip [permissions_cleared.json](../assets/api-reference/acls/index/permissions_cleared.json)
 
-### PermissionsCleared event
+### PermissionsRemoved event
 
 It signals that all permissions associated to a resource have been removed from an identity.
 
