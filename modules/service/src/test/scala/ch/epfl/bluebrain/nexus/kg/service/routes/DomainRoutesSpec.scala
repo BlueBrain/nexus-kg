@@ -123,6 +123,19 @@ class DomainRoutesSpec
       doms.fetch(id).futureValue shouldEqual Some(Domain(id, 2L, deprecated = true, description))
     }
 
+    "fetch old revision of a domain" in {
+      Get(s"/domains/${orgId.show}/${id.id}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual Domain(id, 1L, false, description).asJson
+      }
+    }
+
+    "return not found for unknown revision of a domain" in {
+      Get(s"/domains/${orgId.show}/${id.id}?rev=4") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.NotFound
+      }
+    }
+
     "reject the deprecation of a domain already deprecated" in {
       Delete(s"/domains/${orgId.show}/${id.id}?rev=2", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest

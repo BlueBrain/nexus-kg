@@ -26,7 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
-import kamon.akka.http.KamonTraceDirectives._
+import kamon.akka.http.KamonTraceDirectives.traceName
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -64,11 +64,21 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractOrgId & pathEndOrSingleSlash) { orgId =>
       (get & authorizeResource(orgId, Read)) {
-        traceName("getOrganization") {
-          onSuccess(orgs.fetch(orgId)) {
-            case Some(org) => complete(org)
-            case None      => complete(StatusCodes.NotFound)
-          }
+        parameter('rev.as[Long].?) {
+          case Some(rev) =>
+            traceName("getOrganizationRevision") {
+              onSuccess(orgs.fetch(orgId, rev)) {
+                case Some(org) => complete(org)
+                case None      => complete(StatusCodes.NotFound)
+              }
+            }
+          case None =>
+            traceName("getOrganization") {
+              onSuccess(orgs.fetch(orgId)) {
+                case Some(org) => complete(org)
+                case None      => complete(StatusCodes.NotFound)
+              }
+            }
         }
       }
     }

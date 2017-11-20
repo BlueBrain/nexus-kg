@@ -209,6 +209,29 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     }
 
   /**
+    * Queries the system for the context identified by the argument id at the specified revision.  The (in)existence of
+    * the context or the requested revision is represented by the [[scala.Option]] type wrapped within the ''F[_]''
+    * context.
+    *
+    * @param id  the unique identifier of the context
+    * @param rev the revision attempted to be fetched
+    * @return an optional [[ch.epfl.bluebrain.nexus.kg.core.contexts.Context]] schema wrapped in the
+    *         abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within
+    *         ''F[_]'' otherwise
+    */
+  def fetch(id: ContextId, rev: Long): F[Option[Context]] =
+    stateAt(id, rev).map {
+      case c: Current if c.rev == rev => Some(Context(c.id, rev, c.value, c.deprecated, c.published))
+      case _                          => None
+    }
+
+  private def stateAt(id: ContextId, rev: Long): F[ContextState] =
+    agg.foldLeft[ContextState](id.show, Initial) {
+      case (state, ev) if ev.rev <= rev => Contexts.next(state, ev)
+      case (state, _)                   => state
+    }
+
+  /**
     * Expands the argument context representation by recursively loading referenced contexts regardless of their status.
     *
     * @param context the context json representation

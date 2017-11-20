@@ -181,12 +181,35 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     }
 
   /**
+    * Queries the system for the schema identified by the argument id at the specified revision.  The (in)existence of
+    * the schema or the requested revision is represented by the [[scala.Option]] type wrapped within the ''F[_]''
+    * context.
+    *
+    * @param id  the unique identifier of the schema
+    * @param rev the revision attempted to be fetched
+    * @return an optional [[ch.epfl.bluebrain.nexus.kg.core.schemas.Schema]] schema wrapped in the
+    *         abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within
+    *         ''F[_]'' otherwise
+    */
+  def fetch(id: SchemaId, rev: Long): F[Option[Schema]] =
+    stateAt(id, rev).map {
+      case c: Current if c.rev == rev => Some(Schema(c.id, rev, c.value, c.deprecated, c.published))
+      case _                          => None
+    }
+
+  private def stateAt(id: SchemaId, rev: Long): F[SchemaState] =
+    agg.foldLeft[SchemaState](id.show, Initial) {
+      case (state, ev) if ev.rev <= rev => Schemas.next(state, ev)
+      case (state, _)                   => state
+    }
+
+  /**
     * Queries the system for a particular shape (on a schema identified by the argument id).
     * The (in)existence of the shape is represented by the [[scala.Option]] type wrapped within the ''F[_]'' context.
     *
     * @param id       the unique identifier of the schema
     * @param fragment the partial identifier of the shape (on its @id field)
-    * @return an optional [[ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.Shape]] instance wrapped in the
+    * @return an optional [[ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.Shape]] shape wrapped in the
     *         abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within
     *         ''F[_]'' otherwise
     */
@@ -200,6 +223,28 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
           case Some(shapeValue) => Some(Shape(ShapeId(schemaId, fragment), rev, shapeValue, deprecated, published))
           case _                => None
         }
+    }
+  }
+
+  /**
+    * Queries the system for a particular shape's revision (on a schema identified by the argument id).
+    * The (in)existence of the shape's revision is represented by the [[scala.Option]] type wrapped within the ''F[_]'' context.
+    *
+    * @param id       the unique identifier of the schema
+    * @param fragment the partial identifier of the shape (on its @id field)
+    * @return an optional [[ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.Shape]] shape wrapped in the
+    *         abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within
+    *         ''F[_]'' otherwise
+    */
+  def fetchShape(id: SchemaId, fragment: String, rev: Long): F[Option[Shape]] = {
+    import ch.epfl.bluebrain.nexus.kg.core.circe.CirceShapeExtractorInstances._
+    stateAt(id, rev).map {
+      case Current(schemaId, `rev`, _, value, published, deprecated) =>
+        value.fetchShape(fragment) match {
+          case Some(shapeValue) => Some(Shape(ShapeId(schemaId, fragment), rev, shapeValue, deprecated, published))
+          case _                => None
+        }
+      case _ => None
     }
   }
 }
