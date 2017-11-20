@@ -115,8 +115,28 @@ class OrganizationRoutesSpec
       }
     }
 
+    "fetch old revision of an organization" in {
+      Get(s"/organizations/${id.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual Json
+          .obj(
+            "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+            "rev"        -> Json.fromLong(1L),
+            "links"      -> Json.arr(Link("self", s"$baseUri/organizations/${id.id}").asJson),
+            "deprecated" -> Json.fromBoolean(false)
+          )
+          .deepMerge(json)
+      }
+    }
+
     "return not found for unknown organizations" in {
       Get(s"/organizations/${genString(length = 3)}") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.NotFound
+      }
+    }
+
+    "return not found for unknown revision of an organization" in {
+      Get(s"/organizations/${id.show}?rev=4") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }

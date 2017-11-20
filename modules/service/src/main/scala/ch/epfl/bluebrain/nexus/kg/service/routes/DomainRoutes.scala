@@ -74,11 +74,21 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractDomainId & pathEndOrSingleSlash) { domainId =>
       (get & authorizeResource(domainId, Read)) {
-        traceName("getDomain") {
-          onSuccess(domains.fetch(domainId)) {
-            case Some(domain) => complete(domain)
-            case None         => complete(StatusCodes.NotFound)
-          }
+        parameter('rev.as[Long].?) {
+          case Some(rev) =>
+            traceName("getDomainRevision") {
+              onSuccess(domains.fetch(domainId, rev)) {
+                case Some(domain) => complete(domain)
+                case None         => complete(StatusCodes.NotFound)
+              }
+            }
+          case None =>
+            traceName("getDomain") {
+              onSuccess(domains.fetch(domainId)) {
+                case Some(domain) => complete(domain)
+                case None         => complete(StatusCodes.NotFound)
+              }
+            }
         }
       }
     }

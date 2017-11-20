@@ -47,6 +47,23 @@ class OrganizationsSpec extends WordSpecLike with Matchers with Inspectors with 
       org.fetch(id).success.value shouldEqual Some(Organization(id, 2L, json2, deprecated = false))
     }
 
+    "fetch old revision of an organization" in {
+      val id    = OrgId(genId())
+      val json  = genJson()
+      val json2 = genJson()
+      org.create(id, json).success.value shouldEqual OrgRef(id, 1L)
+      org.update(id, 1, json2).success.value shouldEqual OrgRef(id, 2L)
+      org.fetch(id).success.value shouldEqual Some(Organization(id, 2L, json2, deprecated = false))
+      org.fetch(id, 1L).success.value shouldEqual Some(Organization(id, 1L, json, deprecated = false))
+    }
+
+    "return None when fetching a revision that does not exist" in {
+      val id   = OrgId(genId())
+      val json = genJson()
+      org.create(id, json).success.value shouldEqual OrgRef(id, 1L)
+      org.fetch(id, 4L).success.value shouldEqual None
+    }
+
     "prevent updates to deprecated organizations" in {
       val id   = OrgId(genId())
       val json = genJson()

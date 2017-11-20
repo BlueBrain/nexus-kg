@@ -1,0 +1,25 @@
+{
+  "@context": "https://nexus-iam.example.com/v0/context",
+  "path": "/kg",
+  "identity": {
+    "@id": "https://nexus-iam.example.com/v0/realms/realm/groups/a-group",
+    "realm": "realm",
+    "group": "a-group",
+    "@type": "GroupRef"
+  },
+  "permissions": [
+    "own",
+    "read",
+    "write"
+  ],
+  "meta": {
+    "author": {
+      "@id": "https://nexus-iam.example.com/v0/realms/realm/users/alice",
+      "realm": "realm",
+      "sub": "alice",
+      "@type": "UserRef"
+    },
+    "instant": "1970-01-01T00:00:00.001Z"
+  },
+  "@type": "PermissionsAdded"
+}

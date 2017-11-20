@@ -108,6 +108,40 @@ class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryVal
       schemas.fetch(id).success.value shouldEqual Some(Schema(id, 3L, schemaJson, deprecated = true, published = true))
     }
 
+    "fetch old revision of an schema" in new Context {
+      val id = SchemaId(domRef.id, genName(), genVersion())
+      schemas.create(id, schemaJson).success
+      schemas.update(id, 1L, optionalSchemaJson).success
+      schemas.publish(id, 2L).success
+
+      schemas.fetch(id).success.value shouldEqual Some(
+        Schema(id, 3L, optionalSchemaJson, deprecated = false, published = true))
+
+      schemas.fetch(id, 2L).success.value shouldEqual Some(
+        Schema(id, 2L, optionalSchemaJson, deprecated = false, published = false))
+
+      schemas.fetch(id, 1L).success.value shouldEqual Some(
+        Schema(id, 1L, schemaJson, deprecated = false, published = false))
+    }
+
+    "fetch old revision of a shape" in new Context {
+      val id = SchemaId(domRef.id, genName(), genVersion())
+      schemas.create(id, schemaJson).success
+      schemas.update(id, 1L, optionalSchemaJson).success
+      schemas.publish(id, 2L).success
+
+      schemas.fetchShape(id, "IdNodeShape2").success.value shouldEqual None
+
+      schemas.fetchShape(id, "IdNodeShape2", 1L).success.value shouldEqual
+        Some(Shape(ShapeId(id, "IdNodeShape2"), 1L, shapeNodeShape, deprecated = false, published = false))
+    }
+
+    "return None when fetching a revision that does not exist" in new Context {
+      val id = SchemaId(domRef.id, genName(), genVersion())
+      schemas.create(id, schemaJson).success
+      schemas.fetch(id, 4L).success.value shouldEqual None
+    }
+
     "fetch specific schema shapes" in new Context {
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
@@ -130,6 +164,12 @@ class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryVal
       val id = SchemaId(domRef.id, genName(), genVersion())
       schemas.create(id, schemaJson).success.value shouldEqual SchemaRef(id, 1L)
       schemas.fetchShape(id, "IdNode").success.value shouldEqual None
+    }
+
+    "prevent from fetching a shape with a non existing revision" in new Context {
+      val id = SchemaId(domRef.id, genName(), genVersion())
+      schemas.create(id, schemaJson).success.value
+      schemas.fetchShape(id, "IdNodeShape2", 4L).success.value shouldEqual None
     }
 
     "prevent double deprecations" in new Context {
