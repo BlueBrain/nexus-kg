@@ -192,21 +192,16 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     *         ''F[_]'' otherwise
     */
   def fetch(id: SchemaId, rev: Long): F[Option[Schema]] =
-    fetchCurrent(id, rev).map {
-      case None    => None
-      case Some(c) => Some(Schema(c.id, rev, c.value, c.deprecated, c.published))
+    stateAt(id, rev).map {
+      case c: Current if c.rev == rev => Some(Schema(c.id, rev, c.value, c.deprecated, c.published))
+      case _                          => None
     }
 
-  private def fetchCurrent(id: SchemaId, rev: Long): F[Option[Current]] =
-    agg
-      .foldLeft[SchemaState](id.show, Initial) {
-        case (state, ev) if ev.rev <= rev => Schemas.next(state, ev)
-        case (state, _)                   => state
-      }
-      .map {
-        case c: Current if c.rev == rev => Some(c)
-        case _                          => None
-      }
+  private def stateAt(id: SchemaId, rev: Long): F[SchemaState] =
+    agg.foldLeft[SchemaState](id.show, Initial) {
+      case (state, ev) if ev.rev <= rev => Schemas.next(state, ev)
+      case (state, _)                   => state
+    }
 
   /**
     * Queries the system for a particular shape (on a schema identified by the argument id).
@@ -243,13 +238,13 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     */
   def fetchShape(id: SchemaId, fragment: String, rev: Long): F[Option[Shape]] = {
     import ch.epfl.bluebrain.nexus.kg.core.circe.CirceShapeExtractorInstances._
-    fetchCurrent(id, rev).map {
-      case None => None
-      case Some(Current(schemaId, _, _, value, published, deprecated)) =>
+    stateAt(id, rev).map {
+      case Current(schemaId, `rev`, _, value, published, deprecated) =>
         value.fetchShape(fragment) match {
           case Some(shapeValue) => Some(Shape(ShapeId(schemaId, fragment), rev, shapeValue, deprecated, published))
           case _                => None
         }
+      case _ => None
     }
   }
 }

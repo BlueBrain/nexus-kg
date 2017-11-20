@@ -105,20 +105,16 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
     *         ''F[_]'' otherwise
     */
   def fetch(id: OrgId, rev: Long): F[Option[Organization]] =
-    fetchCurrent(id, rev).map {
-      case None    => None
-      case Some(c) => Some(Organization(c.id, rev, c.value, c.deprecated))
+    stateAt(id, rev).map {
+      case c: Current if c.rev == rev => Some(Organization(c.id, rev, c.value, c.deprecated))
+      case _                          => None
     }
 
-  private def fetchCurrent(id: OrgId, rev: Long): F[Option[Current]] =
+  private def stateAt(id: OrgId, rev: Long): F[OrgState] =
     agg
       .foldLeft[OrgState](id.show, Initial) {
         case (state, ev) if ev.rev <= rev => Organizations.next(state, ev)
         case (state, _)                   => state
-      }
-      .map {
-        case c: Current if c.rev == rev => Some(c)
-        case _                          => None
       }
 
   private def evaluate(cmd: OrgCommand, intent: => String): F[Current] = {

@@ -64,14 +64,21 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractOrgId & pathEndOrSingleSlash) { orgId =>
       (get & authorizeResource(orgId, Read)) {
-        parameter('rev.as[Long].?) { revOpt =>
-          traceName("getOrganization" + revOpt.map(_ => "Revision").getOrElse("")) {
-            val fetched = revOpt.map(orgs.fetch(orgId, _)).getOrElse(orgs.fetch(orgId))
-            onSuccess(fetched) {
-              case Some(org) => complete(org)
-              case None      => complete(StatusCodes.NotFound)
+        parameter('rev.as[Long].?) {
+          case Some(rev) =>
+            traceName("getOrganizationRevision") {
+              onSuccess(orgs.fetch(orgId, rev)) {
+                case Some(org) => complete(org)
+                case None      => complete(StatusCodes.NotFound)
+              }
             }
-          }
+          case None =>
+            traceName("getOrganization") {
+              onSuccess(orgs.fetch(orgId)) {
+                case Some(org) => complete(org)
+                case None      => complete(StatusCodes.NotFound)
+              }
+            }
         }
       }
     }

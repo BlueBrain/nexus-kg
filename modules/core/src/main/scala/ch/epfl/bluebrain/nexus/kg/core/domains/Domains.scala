@@ -116,21 +116,16 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
     *         ''F[_]'' otherwise
     */
   def fetch(id: DomainId, rev: Long): F[Option[Domain]] =
-    fetchCurrent(id, rev).map {
-      case None    => None
-      case Some(c) => Some(Domain(c.id, rev, c.deprecated, c.description))
+    stateAt(id, rev).map {
+      case c: Current if c.rev == rev => Some(Domain(c.id, rev, c.deprecated, c.description))
+      case _                          => None
     }
 
-  private def fetchCurrent(id: DomainId, rev: Long): F[Option[Current]] =
-    agg
-      .foldLeft[DomainState](id.show, Initial) {
-        case (state, ev) if ev.rev <= rev => Domains.next(state, ev)
-        case (state, _)                   => state
-      }
-      .map {
-        case c: Current if c.rev == rev => Some(c)
-        case _                          => None
-      }
+  private def stateAt(id: DomainId, rev: Long): F[DomainState] =
+    agg.foldLeft[DomainState](id.show, Initial) {
+      case (state, ev) if ev.rev <= rev => Domains.next(state, ev)
+      case (state, _)                   => state
+    }
 
   private def evaluate(cmd: DomainCommand, intent: => String): F[Current] = {
     F.pure {

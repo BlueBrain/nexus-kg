@@ -220,21 +220,16 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     *         ''F[_]'' otherwise
     */
   def fetch(id: ContextId, rev: Long): F[Option[Context]] =
-    fetchCurrent(id, rev).map {
-      case None    => None
-      case Some(c) => Some(Context(c.id, rev, c.value, c.deprecated, c.published))
+    stateAt(id, rev).map {
+      case c: Current if c.rev == rev => Some(Context(c.id, rev, c.value, c.deprecated, c.published))
+      case _                          => None
     }
 
-  private def fetchCurrent(id: ContextId, rev: Long): F[Option[Current]] =
-    agg
-      .foldLeft[ContextState](id.show, Initial) {
-        case (state, ev) if ev.rev <= rev => Contexts.next(state, ev)
-        case (state, _)                   => state
-      }
-      .map {
-        case c: Current if c.rev == rev => Some(c)
-        case _                          => None
-      }
+  private def stateAt(id: ContextId, rev: Long): F[ContextState] =
+    agg.foldLeft[ContextState](id.show, Initial) {
+      case (state, ev) if ev.rev <= rev => Contexts.next(state, ev)
+      case (state, _)                   => state
+    }
 
   /**
     * Expands the argument context representation by recursively loading referenced contexts regardless of their status.

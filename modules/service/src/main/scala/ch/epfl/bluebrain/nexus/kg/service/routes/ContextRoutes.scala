@@ -116,14 +116,21 @@ class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Fu
   override protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]) = {
     extractContextId { contextId =>
       (pathEndOrSingleSlash & get & authorizeResource(contextId, Read)) {
-        parameter('rev.as[Long].?) { revOpt =>
-          traceName("getContext" + revOpt.map(_ => "Revision").getOrElse("")) {
-            val fetched = revOpt.map(contexts.fetch(contextId, _)).getOrElse(contexts.fetch(contextId))
-            onSuccess(fetched) {
-              case Some(context) => complete(context)
-              case None          => complete(StatusCodes.NotFound)
+        parameter('rev.as[Long].?) {
+          case Some(rev) =>
+            traceName("getContextRevision") {
+              onSuccess(contexts.fetch(contextId, rev)) {
+                case Some(context) => complete(context)
+                case None          => complete(StatusCodes.NotFound)
+              }
             }
-          }
+          case None =>
+            traceName("getContext") {
+              onSuccess(contexts.fetch(contextId)) {
+                case Some(context) => complete(context)
+                case None          => complete(StatusCodes.NotFound)
+              }
+            }
         }
       }
     }

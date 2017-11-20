@@ -160,21 +160,16 @@ final class Instances[F[_], In, Out](
     *         ''F[_]'' otherwise
     */
   def fetch(id: InstanceId, rev: Long): F[Option[Instance]] =
-    fetchCurrent(id, rev).map {
-      case None    => None
-      case Some(c) => Some(Instance(c.id, rev, c.value, c.attachment.map(m => m.info), c.deprecated))
+    stateAt(id, rev).map {
+      case c: Current if c.rev == rev => Some(Instance(c.id, rev, c.value, c.attachment.map(m => m.info), c.deprecated))
+      case _                          => None
     }
 
-  private def fetchCurrent(id: InstanceId, rev: Long): F[Option[Current]] =
-    agg
-      .foldLeft[InstanceState](id.show, Initial) {
-        case (state, ev) if ev.rev <= rev => Instances.next(state, ev)
-        case (state, _)                   => state
-      }
-      .map {
-        case c: Current if c.rev == rev => Some(c)
-        case _                          => None
-      }
+  private def stateAt(id: InstanceId, rev: Long): F[InstanceState] =
+    agg.foldLeft[InstanceState](id.show, Initial) {
+      case (state, ev) if ev.rev <= rev => Instances.next(state, ev)
+      case (state, _)                   => state
+    }
 
   /**
     * Updates an existing instance's state adding attachment relative location and metadata to it.
@@ -243,9 +238,9 @@ final class Instances[F[_], In, Out](
     */
   @SuppressWarnings(Array("PartialFunctionInsteadOfMatch"))
   def fetchAttachment(id: InstanceId, rev: Long): F[Option[(Attachment.Info, Out)]] = {
-    fetchCurrent(id, rev).flatMap {
-      case Some(Current(_, _, _, _, Some(attachment), _)) => sourceFrom(attachment)
-      case _                                              => F.pure(None)
+    stateAt(id, rev).flatMap {
+      case Current(_, `rev`, _, _, Some(attachment), _) => sourceFrom(attachment)
+      case _                                            => F.pure(None)
     }
   }
 
