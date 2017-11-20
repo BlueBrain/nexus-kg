@@ -20,8 +20,6 @@ trait IndexingVocab {
     */
   object PrefixMapping {
     val rdfTypeKey                                                                   = s"${PrefixUri.rdf}type"
-    def hasPermissionsKey(implicit configuredQualifier: ConfiguredQualifier[String]) = "hasPermissions".qualifyAsString
-    def readAllTypeKey(implicit configuredQualifier: ConfiguredQualifier[String])    = "readAll".qualify
     def readKey(implicit configuredQualifier: ConfiguredQualifier[String])           = "read".qualifyAsString
     def contextGroupKey(implicit configuredQualifier: ConfiguredQualifier[String])   = "contextGroup".qualifyAsString
     def schemaGroupKey(implicit configuredQualifier: ConfiguredQualifier[String])    = "schemaGroup".qualifyAsString

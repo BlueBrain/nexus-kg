@@ -53,15 +53,15 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  WHERE {
              |
              |?s ?p ?o .
-             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |{<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
@@ -128,15 +128,15 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |
-             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |{<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
@@ -238,15 +238,15 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |
-             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |{<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
@@ -337,15 +337,15 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_9 .
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
-             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |{<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
@@ -431,15 +431,15 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_9 .
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
-             |{<http://localhost/prefix/realms/BBP/users/alice> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |{<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/prefix/realms/BBP/groups/group1> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/prefix/anonymous> <http://localhost/v0/voc/nexus/core/hasPermissions> <http://localhost/v0/voc/nexus/core/readAll>
+             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
              |}UNION{
              |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}""".stripMargin.trim
         val expected =
