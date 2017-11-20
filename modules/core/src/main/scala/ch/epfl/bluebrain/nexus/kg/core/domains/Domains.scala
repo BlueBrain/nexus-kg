@@ -104,6 +104,34 @@ final class Domains[F[_]](agg: DomainAggregate[F], orgs: Organizations[F])(impli
       case DomainState.Current(_, rev, _, deprecated, description) => Some(Domain(id, rev, deprecated, description))
     }
 
+  /**
+    * Queries the system for the domain identified by the argument id at the specified revision.  The (in)existence of
+    * the domain or the requested revision is represented by the [[scala.Option]] type wrapped within the ''F[_]''
+    * context.
+    *
+    * @param id  the unique identifier of the domain
+    * @param rev the revision attempted to be fetched
+    * @return an optional [[ch.epfl.bluebrain.nexus.kg.core.domains.Domain]] domain wrapped in the
+    *         abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within
+    *         ''F[_]'' otherwise
+    */
+  def fetch(id: DomainId, rev: Long): F[Option[Domain]] =
+    fetchCurrent(id, rev).map {
+      case None    => None
+      case Some(c) => Some(Domain(c.id, rev, c.deprecated, c.description))
+    }
+
+  private def fetchCurrent(id: DomainId, rev: Long): F[Option[Current]] =
+    agg
+      .foldLeft[DomainState](id.show, Initial) {
+        case (state, ev) if ev.rev <= rev => Domains.next(state, ev)
+        case (state, _)                   => state
+      }
+      .map {
+        case c: Current if c.rev == rev => Some(c)
+        case _                          => None
+      }
+
   private def evaluate(cmd: DomainCommand, intent: => String): F[Current] = {
     F.pure {
       logger.debug(s"$intent: evaluating command '$cmd'")

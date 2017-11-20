@@ -93,6 +93,34 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
       case OrgState.Current(_, rev, _, value, deprecated) => Some(Organization(id, rev, value, deprecated))
     }
 
+  /**
+    * Queries the system for the organization identified by the argument id at the specified revision.  The (in)existence of
+    * the organization or the requested revision is represented by the [[scala.Option]] type wrapped within the ''F[_]''
+    * context.
+    *
+    * @param id  the unique identifier of the organization
+    * @param rev the revision attempted to be fetched
+    * @return an optional [[ch.epfl.bluebrain.nexus.kg.core.organizations.Organization]] organization wrapped in the
+    *         abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within
+    *         ''F[_]'' otherwise
+    */
+  def fetch(id: OrgId, rev: Long): F[Option[Organization]] =
+    fetchCurrent(id, rev).map {
+      case None    => None
+      case Some(c) => Some(Organization(c.id, rev, c.value, c.deprecated))
+    }
+
+  private def fetchCurrent(id: OrgId, rev: Long): F[Option[Current]] =
+    agg
+      .foldLeft[OrgState](id.show, Initial) {
+        case (state, ev) if ev.rev <= rev => Organizations.next(state, ev)
+        case (state, _)                   => state
+      }
+      .map {
+        case c: Current if c.rev == rev => Some(c)
+        case _                          => None
+      }
+
   private def evaluate(cmd: OrgCommand, intent: => String): F[Current] = {
     F.pure {
       logger.debug(s"$intent: evaluating command '$cmd'")

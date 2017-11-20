@@ -153,7 +153,8 @@ final class Instances[F[_], In, Out](
     * the instance or the requested revision is represented by the [[scala.Option]] type wrapped within the ''F[_]''
     * context.
     *
-    * @param id the unique identifier of the instance
+    * @param id  the unique identifier of the instance
+    * @param rev the revision attempted to be fetched
     * @return an optional [[ch.epfl.bluebrain.nexus.kg.core.instances.Instance]] instance wrapped in the
     *         abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within
     *         ''F[_]'' otherwise

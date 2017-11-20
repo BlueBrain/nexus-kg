@@ -98,20 +98,28 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractSchemaId { schemaId =>
       (pathEndOrSingleSlash & get & authorizeResource(schemaId, Read)) {
-        traceName("getSchema") {
-          onSuccess(schemas.fetch(schemaId)) {
-            case Some(schema) => complete(schema)
-            case None         => complete(StatusCodes.NotFound)
+        parameter('rev.as[Long].?) { revOpt =>
+          traceName("getSchema" + revOpt.map(_ => "Revision").getOrElse("")) {
+            val fetched = revOpt.map(schemas.fetch(schemaId, _)).getOrElse(schemas.fetch(schemaId))
+            onSuccess(fetched) {
+              case Some(schema) => complete(schema)
+              case None         => complete(StatusCodes.NotFound)
+            }
           }
         }
       } ~
         pathPrefix("shapes" / Segment) { fragment =>
           val shapeId = ShapeId(schemaId, fragment)
           (pathEndOrSingleSlash & get & authorizeResource(shapeId, Read)) {
-            traceName("getSchemaShape") {
-              onSuccess(schemas.fetchShape(schemaId, fragment)) {
-                case Some(shapes) => complete(StatusCodes.OK -> shapes)
-                case None         => complete(StatusCodes.NotFound)
+            parameter('rev.as[Long].?) { revOpt =>
+              traceName("getSchemaShape" + revOpt.map(_ => "Revision").getOrElse("")) {
+                val fetched = revOpt
+                  .map(schemas.fetchShape(schemaId, fragment, _))
+                  .getOrElse(schemas.fetchShape(schemaId, fragment))
+                onSuccess(fetched) {
+                  case Some(shapes) => complete(shapes)
+                  case None         => complete(StatusCodes.NotFound)
+                }
               }
             }
           }

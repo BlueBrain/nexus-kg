@@ -104,21 +104,14 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractInstanceId { instanceId =>
       (pathEndOrSingleSlash & get & authorizeResource(instanceId, Read)) {
-        parameter('rev.as[Long].?) {
-          case Some(rev) =>
-            traceName("getInstanceRevision") {
-              onSuccess(instances.fetch(instanceId, rev)) {
-                case Some(instance) => complete(StatusCodes.OK -> instance)
-                case None           => complete(StatusCodes.NotFound)
-              }
+        parameter('rev.as[Long].?) { revOpt =>
+          traceName("getInstance" + revOpt.map(_ => "Revision").getOrElse("")) {
+            val fetched = revOpt.map(instances.fetch(instanceId, _)).getOrElse(instances.fetch(instanceId))
+            onSuccess(fetched) {
+              case Some(instance) => complete(instance)
+              case None           => complete(StatusCodes.NotFound)
             }
-          case None =>
-            traceName("getInstance") {
-              onSuccess(instances.fetch(instanceId)) {
-                case Some(instance) => complete(StatusCodes.OK -> instance)
-                case None           => complete(StatusCodes.NotFound)
-              }
-            }
+          }
         }
       } ~
         path("attachment") {

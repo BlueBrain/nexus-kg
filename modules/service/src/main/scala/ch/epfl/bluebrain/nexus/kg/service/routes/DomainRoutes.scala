@@ -74,10 +74,13 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractDomainId & pathEndOrSingleSlash) { domainId =>
       (get & authorizeResource(domainId, Read)) {
-        traceName("getDomain") {
-          onSuccess(domains.fetch(domainId)) {
-            case Some(domain) => complete(domain)
-            case None         => complete(StatusCodes.NotFound)
+        parameter('rev.as[Long].?) { revOpt =>
+          traceName("getDomain" + revOpt.map(_ => "Revision").getOrElse("")) {
+            val fetched = revOpt.map(domains.fetch(domainId, _)).getOrElse(domains.fetch(domainId))
+            onSuccess(fetched) {
+              case Some(domain) => complete(domain)
+              case None         => complete(StatusCodes.NotFound)
+            }
           }
         }
       }
