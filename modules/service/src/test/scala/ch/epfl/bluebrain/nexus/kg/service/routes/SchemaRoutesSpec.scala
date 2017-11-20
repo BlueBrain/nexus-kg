@@ -170,6 +170,27 @@ class SchemaRoutesSpec
         Schema(schemaId, 3L, schemaJson, deprecated = false, published = true))
     }
 
+    "fetch old revision of a schema" in {
+      Get(s"/schemas/${schemaId.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual Json
+          .obj(
+            "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
+            "rev"        -> Json.fromLong(1L),
+            "links"      -> Json.arr(Link("self", s"$baseUri/schemas/${schemaId.show}").asJson),
+            "deprecated" -> Json.fromBoolean(false),
+            "published"  -> Json.fromBoolean(false)
+          )
+          .deepMerge(schemaJson)
+      }
+    }
+
+    "return not found for unknown revision of a schema" in {
+      Get(s"/schemas/${schemaId.show}?rev=4") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.NotFound
+      }
+    }
+
     "return specific schema shape" in {
       Get(s"/schemas/${schemaId.show}/shapes/IdNodeShape2") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
@@ -186,8 +207,30 @@ class SchemaRoutesSpec
       }
     }
 
+    "return old revision from a schema shape" in {
+      Get(s"/schemas/${schemaId.show}/shapes/IdNodeShape2?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Some[Json]] shouldEqual
+          Some(
+            shapeNodeShape.deepMerge(
+              Json.obj(
+                "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
+                "rev"        -> Json.fromLong(1L),
+                "deprecated" -> Json.fromBoolean(false),
+                "published"  -> Json.fromBoolean(false)
+              )
+            ))
+      }
+    }
+
     "reject fetching non existing schema shape" in {
       Get(s"/schemas/${schemaId.show}/shapes/IdNodeS") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.NotFound
+      }
+    }
+
+    "reject fetching non existing revision of a schema shape" in {
+      Get(s"/schemas/${schemaId.show}/shapes/IdNodeShape2?rev=5") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }

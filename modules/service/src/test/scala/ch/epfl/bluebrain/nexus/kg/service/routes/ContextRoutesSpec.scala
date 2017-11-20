@@ -164,6 +164,27 @@ class ContextRoutesSpec
         Context(contextId, 3L, contextJson, deprecated = false, published = true))
     }
 
+    "fetch old revision of a context" in {
+      Get(s"/contexts/${contextId.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual Json
+          .obj(
+            "@id"        -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
+            "rev"        -> Json.fromLong(1L),
+            "links"      -> Json.arr(Link("self", s"$baseUri/contexts/${contextId.show}").asJson),
+            "deprecated" -> Json.fromBoolean(false),
+            "published"  -> Json.fromBoolean(false)
+          )
+          .deepMerge(contextJson)
+      }
+    }
+
+    "return not found for unknown revision of a context" in {
+      Get(s"/contexts/${contextId.show}?rev=5") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.NotFound
+      }
+    }
+
     "reject updating a context when it is published" in {
       Put(s"/contexts/${contextId.show}?rev=3", contextJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest

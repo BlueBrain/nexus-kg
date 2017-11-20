@@ -99,5 +99,21 @@ class DomainsSpec extends WordSpecLike with Matchers with Inspectors with TryVal
       val desc = genDesc()
       doms.create(id, desc).failure.exception shouldEqual CommandRejected(OrgIsDeprecated)
     }
+
+    "fetch old revision of a domain" in {
+      val id   = genId()
+      val desc = genDesc()
+      doms.create(id, desc).success.value shouldEqual DomainRef(id, 1L)
+      doms.deprecate(id, 1L).success.value shouldEqual DomainRef(id, 2L)
+      doms.fetch(id).success.value shouldEqual Some(Domain(id, 2L, deprecated = true, desc))
+      doms.fetch(id, 1L).success.value shouldEqual Some(Domain(id, 1L, deprecated = false, desc))
+    }
+
+    "return None when fetching a revision that does not exist" in {
+      val id   = genId()
+      val desc = genDesc()
+      doms.create(id, desc).success.value shouldEqual DomainRef(id, 1L)
+      doms.fetch(id, 4L).success.value shouldEqual None
+    }
   }
 }
