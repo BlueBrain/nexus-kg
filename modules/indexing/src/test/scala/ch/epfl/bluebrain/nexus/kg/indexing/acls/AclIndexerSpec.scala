@@ -177,11 +177,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val rs = triples(client).futureValue
       rs.size shouldEqual 5
 
-      val expectedReadAllTriples = List(
-        (group.id.id, "hasPermissions" qualifyAsStringWith nexusVocBase, "readAll" qualifyAsStringWith nexusVocBase),
-        (group2.id.id, "hasPermissions" qualifyAsStringWith nexusVocBase, "readAll" qualifyAsStringWith nexusVocBase)
-      )
-      rs should contain allElementsOf expectedReadAllTriples ++
+      rs should contain allElementsOf expectedTriples("root" qualifyAsStringWith nexusVocBase, Set(group, group2)) ++
         expectedTriples(s"$base/contexts/${schema.show}", Set(user)) ++
         expectedTriples(s"$base/schemas/${schema.show}", Set(user)) ++
         expectedTriples(s"$base/data/${instance.show}", Set(user))
