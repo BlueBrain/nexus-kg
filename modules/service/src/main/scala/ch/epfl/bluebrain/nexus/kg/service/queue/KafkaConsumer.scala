@@ -7,7 +7,7 @@ import akka.actor._
 import akka.kafka.ConsumerMessage.{CommittableMessage, CommittableOffsetBatch, GroupTopicPartition}
 import akka.kafka.scaladsl.Consumer
 import akka.kafka.{ConsumerSettings, Subscriptions}
-import akka.pattern.BackoffSupervisor.GetCurrentChild
+import akka.pattern.BackoffSupervisor.{CurrentChild, GetCurrentChild}
 import akka.pattern.{Backoff, BackoffSupervisor, ask}
 import akka.persistence.query.Sequence
 import akka.stream.ActorMaterializer
@@ -70,7 +70,7 @@ class KafkaConsumerWrapper[T](settings: ConsumerSettings[String, String],
     }
   }
 
-  private[queue] def kill(): Unit = self ! PoisonPill
+  private def kill(): Unit = self ! PoisonPill
 
   private def process(msg: CommittableMessage[String, String]): Future[Unit] = {
     val value = msg.record.value
@@ -148,7 +148,7 @@ object KafkaConsumer {
   private[queue] def stop(supervisor: ActorRef)(implicit as: ActorSystem): Unit = {
     implicit val ec: ExecutionContext = as.dispatcher
     implicit val to: Timeout          = 30.seconds
-    (supervisor ? GetCurrentChild).mapTo[KafkaConsumerWrapper[_]].foreach(_.kill())
+    (supervisor ? GetCurrentChild).mapTo[CurrentChild].foreach(_.ref.foreach(as.stop))
   }
 
 }
