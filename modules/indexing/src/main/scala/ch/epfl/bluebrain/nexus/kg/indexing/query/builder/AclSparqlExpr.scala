@@ -41,8 +41,8 @@ object AclSparqlExpr {
   private def orgTriples(identities: List[Identity])(implicit Q: ConfiguredQualifier[String]) =
     identities.flatMap { identity =>
       List(
-        s"<${identity.id.show}> <$hasPermissionsKey> <$readAllTypeKey>",
-        s"?s <$readKey> <${identity.id.show}>",
+        s"<${"root".qualifyAsString}> <$readKey> <${identity.id.show}>",
+        s"?s <$readKey> <${identity.id.show}>"
       )
     }
 

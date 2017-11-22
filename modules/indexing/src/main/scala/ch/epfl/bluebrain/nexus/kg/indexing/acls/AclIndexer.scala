@@ -31,6 +31,8 @@ import journal.Logger
 @SuppressWarnings(Array("UnusedMethodParameter"))
 class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(implicit F: MonadError[F, Throwable]) {
 
+  private val rootPathKey = "root"
+
   private val log                                                   = Logger[this.type]
   private val AclIndexingSettings(index, base, baseNs, baseVoc)     = settings
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
@@ -67,8 +69,8 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
   private def add(path: Path, identities: Set[Identity]): F[Unit] = {
     F.sequence(qualifiedPaths(path) map { pathString =>
         log.debug(s"Adding ACL indexing for path '$pathString' and identities '$identities'")
-        val meta = if (isRootPath(path)) buildRootMeta(identities) else buildMeta(pathString, identities)
-        client.createGraph(index, pathString qualifyWith base, meta)
+        val meta = buildMeta(pathString, identities)
+        client.createGraph(index, pathString qualifyWith baseNs, meta)
       })
       .map(_ => ())
   }
@@ -76,7 +78,7 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
   private def remove(path: Path, identity: Identity): F[Unit] = {
     F.sequence(qualifiedPaths(path) map { pathString =>
         log.debug(s"Removing ACL indexing for path '$pathString' and identity '$identity'")
-        val removeQuery = PatchQuery.exactMatch(pathString qualifyAsStringWith base, readKey -> identity.id.id)
+        val removeQuery = PatchQuery.exactMatch(pathToQualifiedId(pathString), readKey -> identity.id.id)
         client.delete(index, removeQuery)
       })
       .map(_ => ())
@@ -85,26 +87,24 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
   private def clear(path: Path): F[Unit] = {
     F.sequence(qualifiedPaths(path) map { pathString =>
         log.debug(s"Clear ACLs indexing for path '$pathString'")
-        client.clearGraph(index, pathString qualifyWith base)
+        client.clearGraph(index, pathString qualifyWith baseNs)
       })
       .map(_ => ())
   }
 
-  private def buildRootMeta(value: Set[Identity]): Json = {
-    val json = value.map { identity =>
-      Json.obj(hasPermissionsKey -> readAllTypeKey.jsonLd) deepMerge Uri(identity.id.show).jsonLd
-    }
-    Json.obj(graphKey -> Json.arr(json.toSeq: _*))
-  }
-
   private def buildMeta(path: String, value: Set[Identity]): Json =
     Json.obj(
-      idKey   -> Json.fromString(path qualifyAsStringWith base),
+      idKey   -> Json.fromString(pathToQualifiedId(path)),
       readKey -> Json.arr(value.map(identity => Uri(identity.id.show).jsonLd).toSeq: _*)
     )
 
+  private def pathToQualifiedId(path: String): String =
+    if (rootPathKey == path) path qualifyAsStringWith baseVoc
+    else path qualifyAsStringWith base
+
   private def qualifiedPaths(path: Path): List[String] =
-    addPrefix(path.reverse.tail.reverse).map(_.toString())
+    if (isRootPath(path)) List(rootPathKey)
+    else addPrefix(path.reverse.tail.reverse).map(_.toString())
 
   private def addPrefix(path: Path): List[Path] = {
     def inner(current: Path, depth: Int = 0): Int = {
