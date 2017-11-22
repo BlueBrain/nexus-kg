@@ -1,10 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.schemas
 
+import akka.http.scaladsl.model.Uri
 import cats.MonadError
 import cats.instances.string._
 import cats.syntax.show._
 import cats.syntax.functor._
 import cats.syntax.flatMap._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
@@ -14,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaEvent, SchemaId, SchemaNam
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.UriJsonLDSupport._
+import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.IndexJsonLdSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json
@@ -56,45 +58,61 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settin
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: SchemaEvent): F[Unit] = event match {
-    case SchemaCreated(id, rev, _, value) =>
+    case SchemaCreated(id, rev, m, value) =>
       log.debug(s"Indexing 'SchemaCreated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, deprecated = Some(false), published = Some(false))
+      val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
       contexts
         .expand(value)
         .map(_ deepMerge meta)
-        .flatMap(client.createGraph(index, id qualifyWith baseNs, _))
+        .flatMap { json =>
+          for {
+            _ <- client.createGraph(index, id qualifyWith baseNs, json)
+            _ <- client.createGraph(
+              index,
+              persistedGraph(id),
+              Json.obj(idKey -> Json.fromString(id.qualifyAsString), createdAtTimeKey -> m.instant.jsonLd))
+          } yield ()
+        }
 
-    case SchemaUpdated(id, rev, _, value) =>
+    case SchemaUpdated(id, rev, m, value) =>
       log.debug(s"Indexing 'SchemaUpdated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, deprecated = Some(false), published = Some(false))
+      val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
       contexts
         .expand(value)
         .map(_ deepMerge meta)
         .flatMap(client.replaceGraph(index, id qualifyWith baseNs, _))
 
-    case SchemaPublished(id, rev, _) =>
+    case SchemaPublished(id, rev, m) =>
       log.debug(s"Indexing 'SchemaPublished' event for id '${id.show}'")
-      val meta        = buildMeta(id, rev, deprecated = None, published = Some(true))
-      val removeQuery = PatchQuery(id, revKey, publishedKey)
+      val meta = buildMeta(id, rev, m, deprecated = None, published = Some(true)) deepMerge Json.obj(
+        publishedAtTimeKey -> m.instant.jsonLd)
+      val removeQuery = PatchQuery(id, revKey, publishedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
 
-    case SchemaDeprecated(id, rev, _) =>
+    case SchemaDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'SchemaDeprecated' event for id '${id.show}'")
-      val meta        = buildMeta(id, rev, deprecated = Some(true), published = None)
-      val removeQuery = PatchQuery(id, revKey, deprecatedKey)
+      val meta        = buildMeta(id, rev, m, deprecated = Some(true), published = None)
+      val removeQuery = PatchQuery(id, revKey, deprecatedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 
-  private def buildMeta(id: SchemaId, rev: Long, deprecated: Option[Boolean], published: Option[Boolean]): Json = {
+  private def persistedGraph(id: SchemaId): Uri = s"${id qualifyWith baseNs}/persisted"
+
+  private def buildMeta(id: SchemaId,
+                        rev: Long,
+                        meta: Meta,
+                        deprecated: Option[Boolean],
+                        published: Option[Boolean]): Json = {
     val sharedObj = Json.obj(
-      idKey          -> Json.fromString(id.qualifyAsString),
-      revKey         -> Json.fromLong(rev),
-      orgKey         -> id.domainId.orgId.qualify.jsonLd,
-      domainKey      -> id.domainId.qualify.jsonLd,
-      nameKey        -> Json.fromString(id.name),
-      versionKey     -> Json.fromString(id.version.show),
-      schemaGroupKey -> id.schemaName.qualify.jsonLd,
-      rdfTypeKey     -> "Schema".qualify.jsonLd
+      idKey            -> Json.fromString(id.qualifyAsString),
+      revKey           -> Json.fromLong(rev),
+      orgKey           -> id.domainId.orgId.qualify.jsonLd,
+      domainKey        -> id.domainId.qualify.jsonLd,
+      nameKey          -> Json.fromString(id.name),
+      versionKey       -> Json.fromString(id.version.show),
+      schemaGroupKey   -> id.schemaName.qualify.jsonLd,
+      updatedAtTimeKey -> meta.instant.jsonLd,
+      rdfTypeKey       -> "Schema".qualify.jsonLd
     )
 
     val publishedObj = published

@@ -91,6 +91,8 @@ class SchemaIndexerSpec(blazegraphPort: Int)
                               rev: Long,
                               deprecated: Boolean,
                               published: Boolean,
+                              meta: Meta,
+                              firstReqMeta: Meta,
                               description: String): Set[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(schemasBase)
     val shapeId     = "shapes/minimalshape".qualifyAsStringWith(base)
@@ -103,6 +105,8 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.domainId.qualifyAsString),
       (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.name),
       (qualifiedId, schemaGroupKey, id.schemaName.qualifyAsString),
+      (qualifiedId, createdAtTimeKey, firstReqMeta.instant.toString),
+      (qualifiedId, updatedAtTimeKey, meta.instant.toString),
       (qualifiedId, rdfTypeKey, "Schema".qualifyAsString),
       (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show),
       (shapeId, s"${rdfSchemaBase}isDefinedBy", qualifiedId),
@@ -131,33 +135,62 @@ class SchemaIndexerSpec(blazegraphPort: Int)
       indexer(SchemaCreated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
 
-      rs.size shouldEqual 16
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = false, "random")
+      rs.size shouldEqual 18
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = false,
+                                                                published = false,
+                                                                meta,
+                                                                meta,
+                                                                "random")
     }
 
     "index a SchemaUpdated event" in {
-      val rev  = 2L
-      val data = jsonContentOf("/schemas/minimal.json", replacements + ("random" -> "updated"))
-      indexer(SchemaUpdated(id, rev, meta, data)).futureValue
+      val metaUpdated = Meta(Anonymous(), Clock.systemUTC.instant())
+      val rev         = 2L
+      val data        = jsonContentOf("/schemas/minimal.json", replacements + ("random" -> "updated"))
+      indexer(SchemaUpdated(id, rev, metaUpdated, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 16
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = false, "updated")
+      rs.size shouldEqual 18
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = false,
+                                                                published = false,
+                                                                metaUpdated,
+                                                                meta,
+                                                                "updated")
     }
+    val metaPublished = Meta(Anonymous(), Clock.systemUTC.instant())
 
     "index a SchemaPublished event" in {
       val rev = 3L
-      indexer(SchemaPublished(id, rev, meta)).futureValue
+      indexer(SchemaPublished(id, rev, metaPublished)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 16
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = true, "updated")
+      rs.size shouldEqual 19
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = false,
+                                                                published = true,
+                                                                metaPublished,
+                                                                meta,
+                                                                "updated") ++ Set(
+        (id.qualifyAsStringWith(schemasBase), publishedAtTimeKey, metaPublished.instant.toString))
     }
 
     "index a SchemaDeprecated event" in {
-      val rev = 4L
-      indexer(SchemaDeprecated(id, rev, meta)).futureValue
+      val metaUpdated = Meta(Anonymous(), Clock.systemUTC.instant())
+      val rev         = 4L
+      indexer(SchemaDeprecated(id, rev, metaUpdated)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 16
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, published = true, "updated")
+      rs.size shouldEqual 19
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = true,
+                                                                published = true,
+                                                                metaUpdated,
+                                                                meta,
+                                                                "updated") ++ Set(
+        (id.qualifyAsStringWith(schemasBase), publishedAtTimeKey, metaPublished.instant.toString))
     }
   }
 }

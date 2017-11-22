@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.UriJsonLDSupport._
+import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.IndexJsonLdSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json

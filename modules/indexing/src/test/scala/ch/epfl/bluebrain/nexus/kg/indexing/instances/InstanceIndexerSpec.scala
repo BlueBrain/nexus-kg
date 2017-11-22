@@ -78,7 +78,15 @@ class InstanceIndexerSpec(blazegraphPort: Int)
 
   private def triples(id: InstanceId, client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client
-      .query(index, s"SELECT * WHERE { GRAPH <${id.qualifyAsStringWith(instanceBaseNs)}> { ?s ?p ?o } }")
+      .query(
+        index,
+        s"""
+           |SELECT ?s ?p ?o
+           |FROM NAMED <${id.qualifyAsStringWith(instanceBaseNs)}>
+           |FROM NAMED <${id.qualifyAsStringWith(instanceBaseNs)}/persisted>
+           |WHERE { GRAPH ?g { ?s ?p ?o } }
+         """.stripMargin
+      )
       .map { rs =>
         rs.asScala.toList.map { qs =>
           val obj = {
@@ -105,7 +113,9 @@ class InstanceIndexerSpec(blazegraphPort: Int)
   private def expectedTriples(id: InstanceId,
                               rev: Long,
                               deprecated: Boolean,
-                              description: String): Set[(String, String, String)] = {
+                              description: String,
+                              meta: Meta,
+                              firstReqMeta: Meta): Set[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(instanceBase)
     Set(
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
@@ -114,6 +124,8 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.schemaId.domainId.orgId.qualifyAsString),
       (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.schemaId.domainId.qualifyAsString),
       (qualifiedId, "schema" qualifyAsStringWith nexusVocBase, id.schemaId.qualifyAsString),
+      (qualifiedId, createdAtTimeKey, firstReqMeta.instant.toString),
+      (qualifiedId, updatedAtTimeKey, meta.instant.toString),
       (qualifiedId, rdfTypeKey, "Instance".qualifyAsString),
       (qualifiedId, "uuid" qualifyAsStringWith nexusVocBase, id.id.show),
       (id.schemaId.qualifyAsString, schemaGroupKey, id.schemaId.schemaName.qualifyAsString),
@@ -124,10 +136,12 @@ class InstanceIndexerSpec(blazegraphPort: Int)
                               rev: Long,
                               deprecated: Boolean,
                               description: String,
-                              meta: Attachment.Meta): Set[(String, String, String)] = {
+                              meta: Attachment.Meta,
+                              metaUser: Meta,
+                              firstReqMeta: Meta): Set[(String, String, String)] = {
     val qualifiedId                                                                                       = id.qualifyAsStringWith(instanceBase)
     val Attachment.Meta(_, Info(originalFileName, contentType, Size(_, size), Digest(algorithm, digest))) = meta
-    expectedTriples(id, rev, deprecated, description) ++
+    expectedTriples(id, rev, deprecated, description, metaUser, firstReqMeta) ++
       Set(
         (qualifiedId, "originalFileName" qualifyAsStringWith nexusVocBase, originalFileName),
         (qualifiedId, "contentType" qualifyAsStringWith nexusVocBase, contentType),
@@ -154,55 +168,60 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/instances/minimal.json", replacements)
       indexer(InstanceCreated(id, rev, meta, data)).futureValue
       val rs = triples(id, client).futureValue
-      rs.size shouldEqual 9
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "random")
+      rs.size shouldEqual 11
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "random", meta, meta)
     }
 
     "index an InstanceUpdated event" in {
-      val rev  = 2L
-      val data = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
-      indexer(InstanceUpdated(id, rev, meta, data)).futureValue
+      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+      val rev         = 2L
+      val data        = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
+      indexer(InstanceUpdated(id, rev, metaUpdated, data)).futureValue
       val rs = triples(id, client).futureValue
-      rs.size shouldEqual 9
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated")
+      rs.size shouldEqual 11
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", metaUpdated, meta)
     }
 
     "index an InstanceAttachmentCreated" in {
-      val rev = 3L
+      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+      val rev         = 3L
       val attMeta =
         Attachment.Meta("uri", Info("filename", "contenttype", Size("byte", 1024L), Digest("SHA-256", "asd123")))
-      indexer(InstanceAttachmentCreated(id, rev, meta, attMeta)).futureValue
+      indexer(InstanceAttachmentCreated(id, rev, metaUpdated, attMeta)).futureValue
       val rs = allTriples(id, client).futureValue
-      rs.size shouldEqual 14
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta)
+      rs.size shouldEqual 16
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta, metaUpdated, meta)
     }
 
     "index a subsequent InstanceAttachmentCreated" in {
-      val rev = 4L
+      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+      val rev         = 4L
       val attMeta =
         Attachment.Meta(
           "uri",
           Info("filename-update", "contenttype-updated", Size("byte", 1025L), Digest("SHA-256", "asd1234")))
-      indexer(InstanceAttachmentCreated(id, rev, meta, attMeta)).futureValue
+      indexer(InstanceAttachmentCreated(id, rev, metaUpdated, attMeta)).futureValue
       val rs = allTriples(id, client).futureValue
-      rs.size shouldEqual 14
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta)
+      rs.size shouldEqual 16
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta, metaUpdated, meta)
     }
 
     "index an InstanceAttachmentRemoved" in {
-      val rev = 5L
-      indexer(InstanceAttachmentRemoved(id, rev, meta)).futureValue
+      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+      val rev         = 5L
+      indexer(InstanceAttachmentRemoved(id, rev, metaUpdated)).futureValue
       val rs = allTriples(id, client).futureValue
-      rs.size shouldEqual 9
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated")
+      rs.size shouldEqual 11
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", metaUpdated, meta)
     }
 
     "index an InstanceDeprecated event" in {
-      val rev = 6L
-      indexer(InstanceDeprecated(id, rev, meta)).futureValue
+      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+      val rev         = 6L
+      indexer(InstanceDeprecated(id, rev, metaUpdated)).futureValue
       val rs = triples(id, client).futureValue
-      rs.size shouldEqual 9
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, "updated")
+      rs.size shouldEqual 11
+      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, "updated", metaUpdated, meta)
     }
   }
 }

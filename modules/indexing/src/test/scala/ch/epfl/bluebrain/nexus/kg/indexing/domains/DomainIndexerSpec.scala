@@ -82,13 +82,15 @@ class DomainIndexerSpec(blazegraphPort: Int)
   private def expectedTriples(id: DomainId,
                               rev: Long,
                               deprecated: Boolean,
-                              description: String): List[(String, String, String)] = {
+                              description: String,
+                              meta: Meta): List[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(domainsBase)
     List(
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
       (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
       (qualifiedId, "description" qualifyAsStringWith nexusVocBase, description),
       (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.orgId.qualifyAsString),
+      (qualifiedId, updatedAtTimeKey, meta.instant.toString),
       (qualifiedId, rdfTypeKey, "Domain".qualifyAsString),
       (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.id)
     )
@@ -109,16 +111,20 @@ class DomainIndexerSpec(blazegraphPort: Int)
       val rev = 1L
       indexer(DomainCreated(id, rev, meta, description)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 6
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = false, description)
+      rs.size shouldEqual 8
+      rs should contain theSameElementsAs expectedTriples(id, rev, deprecated = false, description, meta) ++ Set(
+        (id.qualifyAsStringWith(domainsBase), createdAtTimeKey, meta.instant.toString))
     }
 
     "index a DomainDeprecated event" in {
+      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+
       val rev = 2L
-      indexer(DomainDeprecated(id, rev, meta)).futureValue
+      indexer(DomainDeprecated(id, rev, metaUpdated)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 6
-      rs should contain allElementsOf expectedTriples(id, rev, deprecated = true, description)
+      rs.size shouldEqual 8
+      rs should contain theSameElementsAs expectedTriples(id, rev, deprecated = true, description, metaUpdated) ++ Set(
+        (id.qualifyAsStringWith(domainsBase), createdAtTimeKey, meta.instant.toString))
     }
   }
 }
