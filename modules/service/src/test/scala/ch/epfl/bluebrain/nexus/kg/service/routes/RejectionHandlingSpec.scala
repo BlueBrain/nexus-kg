@@ -35,6 +35,7 @@ class RejectionHandlingSpec
 
   "A RejectionHandling" should {
     val baseUri                    = Uri("http://localhost/v0")
+    val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
     val orgAgg                     = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs                       = Organizations(orgAgg)
     val id                         = genString(length = 5)
@@ -49,7 +50,7 @@ class RejectionHandlingSpec
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =
-      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
+      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri, contextUri).routes
 
     "reject the creation of a organization with invalid JSON payload" in {
       val invalidJson =

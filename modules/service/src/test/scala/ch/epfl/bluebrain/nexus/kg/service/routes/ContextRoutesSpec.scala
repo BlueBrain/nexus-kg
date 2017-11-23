@@ -86,7 +86,7 @@ class ContextRoutesSpec
     val vocab         = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri)
 
-    val route = ContextRoutes(contexts, sparql, querySettings, baseUri).routes
+    val route = ContextRoutes(contexts, sparql, querySettings, baseUri, contextUri).routes
 
     val contextId = ContextId(domRef.id, genString(length = 8), genVersion())
 
@@ -244,9 +244,10 @@ class ContextRoutesSpec
 object ContextRoutesSpec {
 
   private val baseUri = Uri("http://localhost/v0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
 
   private def contextRefAsJson(ref: ContextRef) =
-    Json.obj("@id" -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"), "rev" -> Json.fromLong(ref.rev))
+    Json.obj("@id" -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"), "nxv:rev" -> Json.fromLong(ref.rev))
 
   private def sparqlClient()(implicit cl: UntypedHttpClient[Future],
                              ec: ExecutionContext,

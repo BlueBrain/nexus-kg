@@ -24,6 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
@@ -38,7 +39,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param orgQueries        query builder for organizations
   * @param base              the service public uri + prefix
   */
-final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQueries[Future, OrgId], base: Uri)(
+final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQueries[Future, OrgId], base: Uri, coreContext: Uri)(
     implicit querySettings: QuerySettings,
     filteringSettings: FilteringSettings,
     iamClient: IamClient[Future],
@@ -48,7 +49,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Organization) => entity.id
-  private val encoders   = new OrgCustomEncoders(base)
+  private val encoders   = new OrgCustomEncoders(base, coreContext)
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
@@ -130,7 +131,7 @@ object OrganizationRoutes {
     * @param base          the service public uri + prefix
     * @return a new ''OrganizationRoutes'' instance
     */
-  final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
+  final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri, coreContext: Uri)(
       implicit
       ec: ExecutionContext,
       iamClient: IamClient[Future],
@@ -141,12 +142,14 @@ object OrganizationRoutes {
     implicit val qs: QuerySettings = querySettings
     val orgQueries =
       FilterQueries[Future, OrgId](SparqlQuery[Future](client), querySettings)
-    new OrganizationRoutes(orgs, orgQueries, base)
+    new OrganizationRoutes(orgs, orgQueries, base, coreContext)
   }
 }
 
-class OrgCustomEncoders(base: Uri)(implicit E: Organization => OrgId)
+class OrgCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Organization => OrgId)
     extends RoutesEncoder[OrgId, OrgRef, Organization](base) {
+
+  implicit val orgRefEncoder: Encoder[OrgRef] = refEncoder.withContext(coreContext)
 
   implicit val orgEncoder: Encoder[Organization] =
     Encoder.encodeJson.contramap { org =>
@@ -159,4 +162,5 @@ class OrgCustomEncoders(base: Uri)(implicit E: Organization => OrgId)
           ))
       org.value.deepMerge(meta)
     }
+
 }

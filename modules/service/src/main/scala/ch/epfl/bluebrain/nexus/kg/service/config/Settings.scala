@@ -141,6 +141,8 @@ class Settings(config: Config) extends Extension {
 
   object Prefixes {
 
+    val CoreContext = Uri(ns.getString("prefixes.core-context"))
+
     /**
       * The nexus core vocabulary prefix.
       */

@@ -28,7 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
-import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec.baseUri
+import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -92,7 +92,7 @@ class SchemaRoutesSpec
     implicit val cl: IamClient[Future]                = iamClient("http://localhost:8080")
 
     val route =
-      SchemaRoutes(schemas, sparqlClient, querySettings, baseUri).routes
+      SchemaRoutes(schemas, sparqlClient, querySettings, baseUri, contextUri).routes
 
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 
@@ -131,10 +131,10 @@ class SchemaRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
-            "rev"        -> Json.fromLong(1L),
+            "nxv:rev"        -> Json.fromLong(1L),
             "links"      -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
-            "deprecated" -> Json.fromBoolean(false),
-            "published"  -> Json.fromBoolean(false)
+            "nxv:deprecated" -> Json.fromBoolean(false),
+            "nxv:published"  -> Json.fromBoolean(false)
           )
           .deepMerge(schemaJson)
       }
@@ -177,10 +177,10 @@ class SchemaRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
-            "rev"        -> Json.fromLong(1L),
+            "nxv:rev"        -> Json.fromLong(1L),
             "links"      -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
-            "deprecated" -> Json.fromBoolean(false),
-            "published"  -> Json.fromBoolean(false)
+            "nxv:deprecated" -> Json.fromBoolean(false),
+            "nxv:published"  -> Json.fromBoolean(false)
           )
           .deepMerge(schemaJson)
       }
@@ -199,10 +199,11 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
+                "@context" -> Json.fromString(contextUri.toString),
                 "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
-                "rev"        -> Json.fromLong(3L),
-                "deprecated" -> Json.fromBoolean(false),
-                "published"  -> Json.fromBoolean(true)
+                "nxv:rev" -> Json.fromLong(3L),
+                "nxv:deprecated" -> Json.fromBoolean(false),
+                "nxv:published" -> Json.fromBoolean(true)
               )
             ))
       }
@@ -215,10 +216,11 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
+                "@context" -> Json.fromString(contextUri.toString),
                 "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
-                "rev"        -> Json.fromLong(1L),
-                "deprecated" -> Json.fromBoolean(false),
-                "published"  -> Json.fromBoolean(false)
+                "nxv:rev" -> Json.fromLong(1L),
+                "nxv:deprecated" -> Json.fromBoolean(false),
+                "nxv:published" -> Json.fromBoolean(false)
               )
             ))
       }
@@ -283,9 +285,14 @@ class SchemaRoutesSpec
 
 object SchemaRoutesSpec {
   private val baseUri = Uri("http://localhost/v0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
 
   import cats.syntax.show._
 
   private def schemaRefAsJson(ref: SchemaRef) =
-    Json.obj("@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"), "rev" -> Json.fromLong(ref.rev))
+    Json.obj(
+      "@context" -> Json.fromString(contextUri.toString),
+      "@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"),
+      "nxv:rev" -> Json.fromLong(ref.rev)
+    )
 }

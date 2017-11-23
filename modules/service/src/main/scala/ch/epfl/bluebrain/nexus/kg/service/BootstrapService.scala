@@ -56,6 +56,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     extends BootstrapQuerySettings(settings) {
 
   private val baseUri = settings.Http.PublicUri
+  private val contextUri = settings.Prefixes.CoreContext
   // $COVERAGE-OFF$
   override val apiUri: Uri =
     if (settings.Http.Prefix.trim.isEmpty) baseUri
@@ -71,11 +72,11 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
   private implicit val orderedKeys = kgOrderedKeys
 
   private val apis = uriPrefix(apiUri) {
-    OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri).routes ~
-      DomainRoutes(doms, sparqlClient, querySettings, apiUri).routes ~
-      SchemaRoutes(schemas, sparqlClient, querySettings, apiUri).routes ~
-      ContextRoutes(contexts, sparqlClient, querySettings, apiUri).routes ~
-      InstanceRoutes(instances, sparqlClient, querySettings, apiUri).routes
+    OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri, contextUri).routes ~
+      DomainRoutes(doms, sparqlClient, querySettings, apiUri, contextUri).routes ~
+      SchemaRoutes(schemas, sparqlClient, querySettings, apiUri, contextUri).routes ~
+      ContextRoutes(contexts, sparqlClient, querySettings, apiUri, contextUri).routes ~
+      InstanceRoutes(instances, sparqlClient, querySettings, apiUri, contextUri).routes
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)
 

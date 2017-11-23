@@ -1,4 +1,5 @@
 {
+  "@context": "http://localhost/v0/contexts/nexus/core/resource/v1.0.0",
   "@id": "http://bbp-nexus.epfl.ch/staging/v0/schemas/nexus/core/organization/v1.0.0/shape/IdNodeShape2",
   "@type": "sh:NodeShape2",
   "property": [

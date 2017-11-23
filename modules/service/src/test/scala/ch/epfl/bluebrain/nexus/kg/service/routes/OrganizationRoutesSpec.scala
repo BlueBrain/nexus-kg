@@ -52,7 +52,7 @@ class OrganizationRoutesSpec
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =
-      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
+      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri, contextUri).routes
 
     val id          = OrgId(genString(length = 3))
     val json        = Json.obj("key" -> Json.fromString(genString(length = 8)))
@@ -108,9 +108,9 @@ class OrganizationRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-            "rev"        -> Json.fromLong(2L),
+            "nxv:rev"        -> Json.fromLong(2L),
             "links"      -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(jsonUpdated)
       }
@@ -121,10 +121,11 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
+            "@context" -> Json.fromString(contextUri.toString),
             "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-            "rev"        -> Json.fromLong(1L),
+            "nxv:rev"        -> Json.fromLong(1L),
             "links"      -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(json)
       }
@@ -161,9 +162,11 @@ class OrganizationRoutesSpec
 
 object OrganizationRoutesSpec {
   private val baseUri = Uri("http://localhost/v0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
 
   private def orgRefAsJson(ref: OrgRef) = Json.obj(
+    "@context" -> Json.fromString(contextUri.toString),
     "@id" -> Json.fromString(s"$baseUri/organizations/${ref.id.id}"),
-    "rev" -> Json.fromLong(ref.rev)
+    "nxv:rev" -> Json.fromLong(ref.rev)
   )
 }

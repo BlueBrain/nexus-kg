@@ -79,6 +79,7 @@
       "@reverse": "http://www.w3.org/2000/01/rdf-schema#isDefinedBy",
       "@type": "@id",
       "@container": "@set"
-    }
+    },
+    "nxv": "http://localhost/v0/contexts/nexus/core/resource/v1.0.0"
   }
 }

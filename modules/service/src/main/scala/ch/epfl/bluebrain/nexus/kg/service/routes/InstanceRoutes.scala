@@ -37,6 +37,7 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives.traceName
+
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -48,7 +49,7 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
-                     base: Uri)(implicit querySettings: QuerySettings,
+                     base: Uri, coreContext: Uri)(implicit querySettings: QuerySettings,
                                 filteringSettings: FilteringSettings,
                                 iamClient: IamClient[Future],
                                 ec: ExecutionContext,
@@ -57,7 +58,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Instance) => entity.id
-  private val encoders   = new InstanceCustomEncoders(base)
+  private val encoders   = new InstanceCustomEncoders(base, coreContext)
 
   import encoders._
 
@@ -221,7 +222,7 @@ object InstanceRoutes {
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
-                  base: Uri)(implicit
+                  base: Uri, coreContext: Uri)(implicit
                              ec: ExecutionContext,
                              iamClient: IamClient[Future],
                              filteringSettings: FilteringSettings,
@@ -229,11 +230,11 @@ object InstanceRoutes {
                              orderedKeys: OrderedKeys): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
-    new InstanceRoutes(instances, instanceQueries, base)
+    new InstanceRoutes(instances, instanceQueries, base, coreContext)
   }
 }
 
-class InstanceCustomEncoders(base: Uri)(implicit E: Instance => InstanceId)
+class InstanceCustomEncoders(base: Uri, coreContext: Uri)(implicit le: Encoder[Link], E: Instance => InstanceId)
     extends RoutesEncoder[InstanceId, InstanceRef, Instance](base) {
   implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
 
@@ -250,7 +251,7 @@ class InstanceCustomEncoders(base: Uri)(implicit E: Instance => InstanceId)
   }
 
   implicit val instanceRefEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
-    refEncoder.apply(ref) deepMerge ref.attachment.map(at => at.asJson).getOrElse(Json.obj())
+    refEncoder.withContext(coreContext).apply(ref) deepMerge ref.attachment.map(at => at.asJson).getOrElse(Json.obj())
   }
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>

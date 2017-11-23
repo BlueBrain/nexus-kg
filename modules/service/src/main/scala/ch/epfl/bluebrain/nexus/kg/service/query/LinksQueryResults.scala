@@ -58,12 +58,12 @@ object LinksQueryResults {
   final implicit def encodeLinksQueryResults[A](implicit E: Encoder[QueryResult[A]]): Encoder[LinksQueryResults[A]] =
     Encoder.encodeJson.contramap { response =>
       val json = Json.obj(
-        "total"   -> Json.fromLong(response.response.total),
-        "results" -> response.response.results.asJson,
-        "links"   -> response.links.asJson
+        "nxv:total"   -> Json.fromLong(response.response.total),
+        "nxv:results" -> response.response.results.asJson,
+        "nxv:links"   -> response.links.asJson
       )
       response.response match {
-        case ScoredQueryResults(_, maxScore, _) => json deepMerge Json.obj("maxScore" -> Json.fromFloatOrNull(maxScore))
+        case ScoredQueryResults(_, maxScore, _) => json deepMerge Json.obj("nxv:maxScore" -> Json.fromFloatOrNull(maxScore))
         case _                                  => json
       }
     }

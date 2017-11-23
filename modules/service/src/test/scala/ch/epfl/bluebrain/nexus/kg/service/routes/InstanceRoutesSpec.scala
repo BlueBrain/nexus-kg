@@ -28,11 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
-  SchemaDoesNotExist,
-  SchemaIsDeprecated,
-  SchemaIsNotPublished
-}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{SchemaDoesNotExist, SchemaIsDeprecated, SchemaIsNotPublished}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexingSettings
@@ -268,8 +264,8 @@ class InstanceRoutesSpec
               "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
               "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
             ).asJson,
-            "rev"        -> Json.fromLong(1L),
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:rev"        -> Json.fromLong(1L),
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(value)
       }
@@ -396,14 +392,14 @@ class InstanceRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "rev" -> Json.fromLong(2L),
+            "nxv:rev" -> Json.fromLong(2L),
             "links" -> Links(
               "self"     -> s"$baseUri/data/${instanceRef.id.show}",
               "schema"   -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}",
               "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
               "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
             ).asJson,
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest).asJson)
           .deepMerge(value)
@@ -530,6 +526,7 @@ class InstanceRoutesSpec
 object InstanceRoutesSpec {
   private val base    = Uri("http://localhost")
   private val baseUri = base.copy(path = base.path / "v0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
 
   import cats.syntax.show._
 
@@ -537,7 +534,7 @@ object InstanceRoutesSpec {
     Json
       .obj(
         "@id" -> Json.fromString(s"$baseUri/data/${ref.id.show}"),
-        "rev" -> Json.fromLong(ref.rev)
+        "nxv:rev" -> Json.fromLong(ref.rev)
       )
       .deepMerge(ref.attachment.map(at => at.asJson).getOrElse(Json.obj()))
 
