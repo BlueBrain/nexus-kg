@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -43,7 +44,8 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
     filteringSettings: FilteringSettings,
     iamClient: IamClient[Future],
     ec: ExecutionContext,
-    clock: Clock)
+    clock: Clock,
+    orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Domain) => entity.id
@@ -142,7 +144,8 @@ object DomainRoutes {
       ec: ExecutionContext,
       iamClient: IamClient[Future],
       filteringSettings: FilteringSettings,
-      clock: Clock): DomainRoutes = {
+      clock: Clock,
+      orderedKeys: OrderedKeys): DomainRoutes = {
     implicit val qs: QuerySettings = querySettings
     val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
     new DomainRoutes(domains, domainQueries, base)

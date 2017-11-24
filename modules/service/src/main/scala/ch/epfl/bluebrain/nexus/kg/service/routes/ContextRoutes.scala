@@ -8,6 +8,7 @@ import akka.http.scaladsl.server.Directives._
 import cats.instances.future._
 import cats.instances.string._
 import akka.http.scaladsl.server.Route
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -53,7 +54,8 @@ class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Fu
     querySettings: QuerySettings,
     iamClient: IamClient[Future],
     ec: ExecutionContext,
-    clock: Clock)
+    clock: Clock,
+    orderedKeys: OrderedKeys)
     extends DefaultRouteHandling
     with QueryDirectives {
 
@@ -186,7 +188,8 @@ object ContextRoutes {
   final def apply(contexts: Contexts[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
       implicit iamClient: IamClient[Future],
       ec: ExecutionContext,
-      clock: Clock): ContextRoutes = {
+      clock: Clock,
+      orderedKeys: OrderedKeys): ContextRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val contextQueries             = FilterQueries[Future, ContextId](SparqlQuery[Future](client), querySettings)

@@ -4,6 +4,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives.{complete, extract, onSuccess}
 import akka.http.scaladsl.server.Route
 import cats.syntax.functor._
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
@@ -22,15 +23,18 @@ trait SearchResponse {
     */
   implicit class QueryResultsOpts[Id](qr: Future[QueryResults[Id]]) {
 
+
     private[routes] def addPagination(base: Uri, pagination: Pagination)(implicit
                                                                          R: Encoder[UnscoredQueryResult[Id]],
-                                                                         S: Encoder[ScoredQueryResult[Id]]): Route =
+                                                                         S: Encoder[ScoredQueryResult[Id]],
+                                                                         orderedKeys: OrderedKeys): Route = {
       extract(_.request.uri) { uri =>
         onSuccess(qr) { result =>
           val lqu = base.copy(path = uri.path, fragment = uri.fragment, rawQueryString = uri.rawQueryString)
           complete(StatusCodes.OK -> LinksQueryResults(result, pagination, lqu))
         }
       }
+    }
 
     /**
       * Interface syntax to expose new functionality into [[QueryResults]] response type.
@@ -47,7 +51,8 @@ trait SearchResponse {
         R: Encoder[UnscoredQueryResult[Id]],
         S: Encoder[ScoredQueryResult[Id]],
         Re: Encoder[UnscoredQueryResult[Entity]],
-        Se: Encoder[ScoredQueryResult[Entity]]): Route = {
+        Se: Encoder[ScoredQueryResult[Entity]],
+        orderedKeys: OrderedKeys): Route = {
       if (fields.contains("all")) {
         qr.flatMap { q =>
             q.results

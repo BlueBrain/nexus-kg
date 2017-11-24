@@ -32,7 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec.baseUri
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.syntax._
