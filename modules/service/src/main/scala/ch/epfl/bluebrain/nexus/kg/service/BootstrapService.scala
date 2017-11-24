@@ -13,6 +13,7 @@ import akka.stream.{ActorMaterializer, Materializer}
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.AccessControlList
 import ch.epfl.bluebrain.nexus.commons.iam.auth.User
@@ -67,6 +68,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   implicit val iamC          = iamClient(settings.IAM.BaseUri)
   private implicit val clock = Clock.systemUTC
+  private implicit val orderedKeys = kgOrderedKeys
 
   private val apis = uriPrefix(apiUri) {
     OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri).routes ~
@@ -171,6 +173,24 @@ object BootstrapService {
     implicit val userCl          = HttpClient.withAkkaUnmarshaller[User]
     IamClient()
   }
+
+  def kgOrderedKeys: OrderedKeys =
+  OrderedKeys(
+    List(
+      "@context",
+      "@id",
+      "@type",
+      "",
+      "nxv:rev",
+      "nxv:published",
+      "nxv:deprecated",
+      "rev",
+      "published",
+      "deprecated",
+      "links",
+      "rel",
+      "href"
+    ))
 
   abstract class BootstrapQuerySettings(settings: Settings) {
 

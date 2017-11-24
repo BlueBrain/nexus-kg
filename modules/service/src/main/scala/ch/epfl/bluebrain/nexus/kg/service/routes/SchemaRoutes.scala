@@ -8,6 +8,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import cats.instances.string._
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
@@ -17,7 +18,7 @@ import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId, ShapeRef}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRef, Schemas, Schema}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
@@ -52,7 +53,8 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
     filteringSettings: FilteringSettings,
     iamClient: IamClient[Future],
     ec: ExecutionContext,
-    clock: Clock)
+    clock: Clock,
+    orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
   private implicit val schemaIdExtractor = (entity: Schema) => entity.id
   private implicit val shapeIdExtractor  = (entity: Shape) => entity.id
@@ -209,7 +211,8 @@ object SchemaRoutes {
       ec: ExecutionContext,
       iamClient: IamClient[Future],
       filteringSettings: FilteringSettings,
-      clock: Clock): SchemaRoutes = {
+      clock: Clock,
+      orderedKeys: OrderedKeys): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client), querySettings)

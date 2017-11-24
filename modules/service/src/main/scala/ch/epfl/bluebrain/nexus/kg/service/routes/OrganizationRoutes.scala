@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -42,7 +43,8 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
     filteringSettings: FilteringSettings,
     iamClient: IamClient[Future],
     ec: ExecutionContext,
-    clock: Clock)
+    clock: Clock,
+    orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Organization) => entity.id
@@ -133,7 +135,8 @@ object OrganizationRoutes {
       ec: ExecutionContext,
       iamClient: IamClient[Future],
       filteringSettings: FilteringSettings,
-      clock: Clock): OrganizationRoutes = {
+      clock: Clock,
+      orderedKeys: OrderedKeys): OrganizationRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val orgQueries =

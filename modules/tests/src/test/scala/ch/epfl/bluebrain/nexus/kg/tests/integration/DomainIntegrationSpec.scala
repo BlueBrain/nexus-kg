@@ -6,6 +6,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
@@ -56,6 +57,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/domains") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(domains.size.toLong, domains.take(20).map(UnscoredQueryResult(_)))
             val expectedLinks =
@@ -110,6 +112,7 @@ class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
         val domainId = domains(7)
         val path     = s"/domains/rand?q=${domainId.id}"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, domainId)))

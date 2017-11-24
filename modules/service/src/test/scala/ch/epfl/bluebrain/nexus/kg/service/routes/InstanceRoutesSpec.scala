@@ -13,6 +13,7 @@ import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
@@ -27,11 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
-  SchemaDoesNotExist,
-  SchemaIsDeprecated,
-  SchemaIsNotPublished
-}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{SchemaDoesNotExist, SchemaIsDeprecated, SchemaIsNotPublished}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexingSettings
@@ -213,6 +210,7 @@ class InstanceRoutesSpec
 
     "return the current instance" in new Context {
       Get(s"/data/${instanceRef.id.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(

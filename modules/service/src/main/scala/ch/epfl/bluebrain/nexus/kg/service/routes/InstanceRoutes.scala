@@ -11,6 +11,7 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
@@ -29,7 +30,6 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
-import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
@@ -52,7 +52,8 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                                 filteringSettings: FilteringSettings,
                                 iamClient: IamClient[Future],
                                 ec: ExecutionContext,
-                                clock: Clock)
+                                clock: Clock,
+                                orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Instance) => entity.id
@@ -224,7 +225,8 @@ object InstanceRoutes {
                              ec: ExecutionContext,
                              iamClient: IamClient[Future],
                              filteringSettings: FilteringSettings,
-                             clock: Clock): InstanceRoutes = {
+                             clock: Clock,
+                             orderedKeys: OrderedKeys): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
     new InstanceRoutes(instances, instanceQueries, base)
