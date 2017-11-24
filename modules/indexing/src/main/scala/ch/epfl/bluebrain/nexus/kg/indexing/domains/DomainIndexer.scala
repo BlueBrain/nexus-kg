@@ -55,7 +55,7 @@ class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSetti
     case DomainDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'DomainDeprecated' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, m, None, deprecated = Some(true))
-      val removeQuery = PatchQuery(id, revKey, deprecatedKey, updatedAtTimeKey)
+      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, deprecatedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 

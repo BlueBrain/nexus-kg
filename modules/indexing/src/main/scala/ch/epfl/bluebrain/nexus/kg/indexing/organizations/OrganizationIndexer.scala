@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.organizations
 
-import akka.http.scaladsl.model.Uri
 import cats.MonadError
 import cats.instances.string._
 import cats.syntax.flatMap._
@@ -57,13 +56,8 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], 
         .expand(value)
         .map(_ deepMerge meta)
         .flatMap { json =>
-          for {
-            _ <- client.createGraph(index, id qualifyWith baseNs, json)
-            _ <- client.createGraph(
-              index,
-              persistedGraph(id),
-              Json.obj(idKey -> Json.fromString(id.qualifyAsString), createdAtTimeKey -> m.instant.jsonLd))
-          } yield ()
+          client
+            .createGraph(index, id qualifyWith baseNs, json deepMerge Json.obj(createdAtTimeKey -> m.instant.jsonLd))
         }
 
     case OrgUpdated(id, rev, m, value) =>
@@ -72,12 +66,15 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], 
       contexts
         .expand(value)
         .map(_ deepMerge meta)
-        .flatMap(client.replaceGraph(index, id qualifyWith baseNs, _))
+        .flatMap { json =>
+          val removeQuery = PatchQuery.inverse(id qualifyWith baseNs, createdAtTimeKey)
+          client.patchGraph(index, id qualifyWith baseNs, removeQuery, json)
+        }
 
     case OrgDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'OrgDeprecated' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, m, deprecated = Some(true))
-      val removeQuery = PatchQuery(id, revKey, deprecatedKey, updatedAtTimeKey)
+      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, deprecatedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 
@@ -96,8 +93,6 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], 
 
     deprecatedObj deepMerge sharedObj
   }
-
-  private def persistedGraph(id: OrgId): Uri = s"${id qualifyWith baseNs}/persisted"
 }
 
 object OrganizationIndexer {

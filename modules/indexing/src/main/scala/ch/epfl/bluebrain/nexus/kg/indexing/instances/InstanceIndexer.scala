@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.instances
 
-import akka.http.scaladsl.model.Uri
 import cats.MonadError
 import cats.instances.string._
 import cats.syntax.flatMap._
@@ -77,13 +76,8 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
         .expand(value)
         .map(_ deepMerge meta)
         .flatMap { json =>
-          for {
-            _ <- client.createGraph(index, id qualifyWith baseNs, buildCombined(json, id))
-            _ <- client.createGraph(
-              index,
-              persistedGraph(id),
-              Json.obj(idKey -> Json.fromString(id.qualifyAsString), createdAtTimeKey -> m.instant.jsonLd))
-          } yield ()
+          val combinedJson = buildCombined(Json.obj(createdAtTimeKey -> m.instant.jsonLd) deepMerge json, id)
+          client.createGraph(index, id qualifyWith baseNs, combinedJson)
         }
 
     case InstanceUpdated(id, rev, m, value) =>
@@ -92,51 +86,63 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
       contexts
         .expand(value)
         .map(_ deepMerge meta)
-        .flatMap(data => client.replaceGraph(index, id qualifyWith baseNs, buildCombined(data, id)))
+        .flatMap { json =>
+          val removeQuery = PatchQuery.inverse(id qualifyWith baseNs,
+                                               createdAtTimeKey,
+                                               schemaGroupKey,
+                                               originalFileNameKey,
+                                               contentTypeKey,
+                                               sizeKey,
+                                               digestAlgoKey,
+                                               digestKey)
+          client.patchGraph(index, id qualifyWith baseNs, removeQuery, json)
+        }
 
     case InstanceDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'InstanceDeprecated' event for id '${id.show}'")
       val meta        = buildDeprecatedMeta(id, rev, m)
-      val removeQuery = PatchQuery(id, revKey, deprecatedKey, updatedAtTimeKey)
+      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, deprecatedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
 
     case InstanceAttachmentCreated(id, rev, m, attachmentMeta) =>
       log.debug(s"Indexing 'InstanceAttachmentCreated' event for id '${id.show}'")
-      val meta        = buildAttachmentMeta(id, rev, attachmentMeta)
-      val removeQuery = PatchQuery(id, revKey)
-      for {
-        _ <- client.patchGraph(index, id qualifyWith baseNs, removeQuery, buildRevMeta(id, rev))
-        _ <- client.replaceGraph(index, s"${id qualifyWith baseNs}/attachment", meta)
-        _ <- addUpdatedAtTime(id, m)
-      } yield ()
+      val meta = buildAttachmentMeta(id, rev, attachmentMeta, m)
+      val removeQuery = PatchQuery(id,
+                                   id qualifyWith baseNs,
+                                   originalFileNameKey,
+                                   contentTypeKey,
+                                   sizeKey,
+                                   digestAlgoKey,
+                                   digestKey,
+                                   revKey,
+                                   updatedAtTimeKey)
+      client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
 
     case InstanceAttachmentRemoved(id, rev, m) =>
       log.debug(s"Indexing 'InstanceAttachmentRemoved' event for id '${id.show}'")
-      val meta        = buildRevMeta(id, rev)
-      val removeQuery = PatchQuery(id, revKey)
-      for {
-        _ <- client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
-        _ <- client.clearGraph(index, attachmentGraph(id))
-        _ <- addUpdatedAtTime(id, m)
-      } yield ()
-  }
-
-  private def addUpdatedAtTime(id: InstanceId, meta: acls.Meta) = {
-    val json        = Json.obj(idKey -> Json.fromString(id.qualifyAsString), updatedAtTimeKey -> meta.instant.jsonLd)
-    val removeQuery = PatchQuery(id, updatedAtTimeKey)
-    client.patchGraph(index, id qualifyWith baseNs, removeQuery, json)
+      val meta = buildRevMeta(id, rev, m)
+      val removeQuery =
+        PatchQuery(id,
+                   id qualifyWith baseNs,
+                   revKey,
+                   updatedAtTimeKey,
+                   originalFileNameKey,
+                   contentTypeKey,
+                   sizeKey,
+                   digestAlgoKey,
+                   digestKey)
+      client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 
   private def buildMeta(id: InstanceId, rev: Long, meta: acls.Meta, deprecated: Boolean): Json =
     Json.obj(
-      deprecatedKey    -> Json.fromBoolean(deprecated),
-      orgKey           -> id.schemaId.domainId.orgId.qualify.jsonLd,
-      domainKey        -> id.schemaId.domainId.qualify.jsonLd,
-      schemaKey        -> id.schemaId.qualify.jsonLd,
-      uuidKey          -> Json.fromString(id.id),
-      updatedAtTimeKey -> meta.instant.jsonLd,
-      rdfTypeKey       -> "Instance".qualify.jsonLd
-    ) deepMerge buildRevMeta(id, rev)
+      deprecatedKey -> Json.fromBoolean(deprecated),
+      orgKey        -> id.schemaId.domainId.orgId.qualify.jsonLd,
+      domainKey     -> id.schemaId.domainId.qualify.jsonLd,
+      schemaKey     -> id.schemaId.qualify.jsonLd,
+      uuidKey       -> Json.fromString(id.id),
+      rdfTypeKey    -> "Instance".qualify.jsonLd
+    ) deepMerge buildRevMeta(id, rev, meta)
 
   private def buildCombined(data: Json, id: InstanceId): Json =
     Json.obj(
@@ -148,11 +154,10 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
 
   private def buildDeprecatedMeta(id: InstanceId, rev: Long, meta: acls.Meta): Json =
     Json.obj(
-      deprecatedKey    -> Json.fromBoolean(true),
-      updatedAtTimeKey -> meta.instant.jsonLd,
-    ) deepMerge buildRevMeta(id, rev)
+      deprecatedKey -> Json.fromBoolean(true),
+    ) deepMerge buildRevMeta(id, rev, meta)
 
-  private def buildAttachmentMeta(id: InstanceId, rev: Long, attachmentMeta: Attachment.Meta): Json = {
+  private def buildAttachmentMeta(id: InstanceId, rev: Long, attachmentMeta: Attachment.Meta, meta: acls.Meta): Json = {
     val Meta(_, Info(originalFileName, contentType, Size(_, size), Digest(algorithm, digest))) = attachmentMeta
     Json.obj(
       originalFileNameKey -> Json.fromString(originalFileName),
@@ -160,16 +165,13 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
       sizeKey             -> Json.fromLong(size),
       digestAlgoKey       -> Json.fromString(algorithm),
       digestKey           -> Json.fromString(digest)
-    ) deepMerge buildRevMeta(id, rev)
+    ) deepMerge buildRevMeta(id, rev, meta)
   }
 
-  private def buildRevMeta(id: InstanceId, rev: Long): Json =
-    Json.obj(idKey -> Json.fromString(id.qualifyAsStringWith(base)), revKey -> Json.fromLong(rev))
-
-  private def attachmentGraph(id: InstanceId): Uri =
-    s"${id qualifyWith baseNs}/attachment"
-
-  private def persistedGraph(id: InstanceId): Uri = s"${id qualifyWith baseNs}/persisted"
+  private def buildRevMeta(id: InstanceId, rev: Long, meta: acls.Meta): Json =
+    Json.obj(idKey            -> Json.fromString(id.qualifyAsStringWith(base)),
+             updatedAtTimeKey -> meta.instant.jsonLd,
+             revKey           -> Json.fromLong(rev))
 
 }
 

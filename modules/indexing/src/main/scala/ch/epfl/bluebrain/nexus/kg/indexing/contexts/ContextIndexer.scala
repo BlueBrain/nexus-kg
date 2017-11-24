@@ -1,10 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.contexts
 
-import akka.http.scaladsl.model.Uri
-import cats.MonadError
 import cats.instances.string._
-import cats.syntax.flatMap._
-import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -26,8 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json
 import journal.Logger
 
-class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSettings)(
-    implicit F: MonadError[F, Throwable]) {
+class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSettings) {
 
   private val log                                                   = Logger[this.type]
   private val ContextIndexingSettings(index, base, baseNs, baseVoc) = settings
@@ -51,31 +46,26 @@ class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSet
       log.debug(s"Indexing 'ContextCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
       val data = value deepMerge meta
-      for {
-        _ <- client.createGraph(index, id qualifyWith baseNs, data)
-        _ <- client.createGraph(
-          index,
-          persistedGraph(id),
-          Json.obj(idKey -> Json.fromString(id.qualifyAsString), createdAtTimeKey -> m.instant.jsonLd))
-      } yield ()
+      client.createGraph(index, id qualifyWith baseNs, data deepMerge Json.obj(createdAtTimeKey -> m.instant.jsonLd))
 
     case ContextUpdated(id, rev, m, value) =>
       log.debug(s"Indexing 'ContextUpdated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val data = value deepMerge meta
-      client.replaceGraph(index, id qualifyWith baseNs, data)
+      val meta        = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
+      val data        = value deepMerge meta
+      val removeQuery = PatchQuery.inverse(id qualifyWith baseNs, createdAtTimeKey)
+      client.patchGraph(index, id qualifyWith baseNs, removeQuery, data)
 
     case ContextPublished(id, rev, m) =>
       log.debug(s"Indexing 'ContextPublished' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = None, published = Some(true)) deepMerge Json.obj(
         publishedAtTimeKey -> m.instant.jsonLd)
-      val removeQuery = PatchQuery(id, revKey, publishedKey, updatedAtTimeKey)
+      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, publishedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
 
     case ContextDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'ContextDeprecated' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, m, deprecated = Some(true), published = None)
-      val removeQuery = PatchQuery(id, revKey, deprecatedKey, updatedAtTimeKey)
+      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, deprecatedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 
@@ -107,12 +97,9 @@ class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSet
     deprecatedObj deepMerge publishedObj deepMerge sharedObj
   }
 
-  private def persistedGraph(id: ContextId): Uri = s"${id qualifyWith baseNs}/persisted"
-
 }
 
 object ContextIndexer {
-  final def apply[F[_]](client: SparqlClient[F], settings: ContextIndexingSettings)(
-      implicit F: MonadError[F, Throwable]): ContextIndexer[F] =
+  final def apply[F[_]](client: SparqlClient[F], settings: ContextIndexingSettings): ContextIndexer[F] =
     new ContextIndexer[F](client, settings)
 }

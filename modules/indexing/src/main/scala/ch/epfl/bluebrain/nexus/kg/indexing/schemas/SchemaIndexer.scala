@@ -1,11 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.schemas
 
-import akka.http.scaladsl.model.Uri
 import cats.MonadError
 import cats.instances.string._
-import cats.syntax.show._
-import cats.syntax.functor._
 import cats.syntax.flatMap._
+import cats.syntax.functor._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
@@ -65,13 +64,8 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settin
         .expand(value)
         .map(_ deepMerge meta)
         .flatMap { json =>
-          for {
-            _ <- client.createGraph(index, id qualifyWith baseNs, json)
-            _ <- client.createGraph(
-              index,
-              persistedGraph(id),
-              Json.obj(idKey -> Json.fromString(id.qualifyAsString), createdAtTimeKey -> m.instant.jsonLd))
-          } yield ()
+          client
+            .createGraph(index, id qualifyWith baseNs, json deepMerge Json.obj(createdAtTimeKey -> m.instant.jsonLd))
         }
 
     case SchemaUpdated(id, rev, m, value) =>
@@ -80,23 +74,24 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settin
       contexts
         .expand(value)
         .map(_ deepMerge meta)
-        .flatMap(client.replaceGraph(index, id qualifyWith baseNs, _))
+        .flatMap { json =>
+          val removeQuery = PatchQuery.inverse(id qualifyWith baseNs, createdAtTimeKey)
+          client.patchGraph(index, id qualifyWith baseNs, removeQuery, json)
+        }
 
     case SchemaPublished(id, rev, m) =>
       log.debug(s"Indexing 'SchemaPublished' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = None, published = Some(true)) deepMerge Json.obj(
         publishedAtTimeKey -> m.instant.jsonLd)
-      val removeQuery = PatchQuery(id, revKey, publishedKey, updatedAtTimeKey)
+      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, publishedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
 
     case SchemaDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'SchemaDeprecated' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, m, deprecated = Some(true), published = None)
-      val removeQuery = PatchQuery(id, revKey, deprecatedKey, updatedAtTimeKey)
+      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, deprecatedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
-
-  private def persistedGraph(id: SchemaId): Uri = s"${id qualifyWith baseNs}/persisted"
 
   private def buildMeta(id: SchemaId,
                         rev: Long,
