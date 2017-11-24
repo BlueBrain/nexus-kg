@@ -38,7 +38,7 @@ trait IndexingVocab {
     val contextKey = "@context"
     val graphKey   = "@graph"
     val valueKey   = "@value"
-    val typeKey    = "@value"
+    val typeKey    = "@type"
   }
 }
 
