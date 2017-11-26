@@ -253,15 +253,18 @@ class SchemaCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Schema => Sc
 
   implicit val schemaRefEncoder: Encoder[SchemaRef] = refEncoder.withContext(coreContext)
 
-  implicit def schemaEncoder: Encoder[Schema] = Encoder.encodeJson.contramap { schema =>
-    val meta = schemaRefEncoder
-      .apply(SchemaRef(schema.id, schema.rev))
-      .deepMerge(idWithLinksEncoder(schema.id))
-      .deepMerge(
-        Json.obj(
-          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(schema.deprecated),
-          JsonLDKeys.nxvPublished  -> Json.fromBoolean(schema.published)
-        ))
-    schema.value.deepMerge(meta)
+  implicit def schemaEncoder: Encoder[Schema] = {
+    val encoder: Encoder[Schema] = Encoder.encodeJson.contramap { schema =>
+      val meta = refEncoder
+        .apply(SchemaRef(schema.id, schema.rev))
+        .deepMerge(idWithLinksEncoder(schema.id))
+        .deepMerge(
+          Json.obj(
+            JsonLDKeys.nxvDeprecated -> Json.fromBoolean(schema.deprecated),
+            JsonLDKeys.nxvPublished -> Json.fromBoolean(schema.published)
+          ))
+      schema.value.deepMerge(meta)
+    }
+    encoder.withContext(coreContext)
   }
 }

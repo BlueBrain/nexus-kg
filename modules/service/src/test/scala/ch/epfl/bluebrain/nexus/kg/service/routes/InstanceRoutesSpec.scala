@@ -133,7 +133,7 @@ class InstanceRoutesSpec
       val json = responseAs[Json]
       val instanceId =
         InstanceId(toCompact(json.hcursor.get[String]("@id").toOption.get)).get
-      InstanceRef(instanceId, json.hcursor.get[Long]("rev").toOption.get)
+      InstanceRef(instanceId, json.hcursor.get[Long]("nxv:rev").toOption.get)
     }
 
     def deprecateInstance(ref: InstanceRef) =
@@ -533,6 +533,7 @@ object InstanceRoutesSpec {
   private def instanceRefAsJson(ref: InstanceRef) =
     Json
       .obj(
+        "@context" -> Json.fromString(contextUri.toString),
         "@id" -> Json.fromString(s"$baseUri/data/${ref.id.show}"),
         "nxv:rev" -> Json.fromLong(ref.rev)
       )

@@ -86,7 +86,7 @@ class SerializerSpec extends WordSpecLike with Matchers with Inspectors with Sca
 
       "decode known events" in {
         forAll(results) {
-          case data @ DataAndJson(event, json, manifest) =>
+          case DataAndJson(event, json, manifest) =>
             val serializer = findConcreteSerializer[EventSerializer](event)
             serializer.fromBinary(json.getBytes(UTF8), manifest) shouldEqual event
         }

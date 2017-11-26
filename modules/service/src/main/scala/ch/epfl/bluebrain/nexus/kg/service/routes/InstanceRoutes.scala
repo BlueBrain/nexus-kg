@@ -238,16 +238,19 @@ class InstanceCustomEncoders(base: Uri, coreContext: Uri)(implicit le: Encoder[L
     extends RoutesEncoder[InstanceId, InstanceRef, Instance](base) {
   implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
 
-  implicit val instanceEncoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
-    val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
-    val meta = instanceRefEncoder
-      .apply(instanceRef)
-      .deepMerge(instanceIdWithLinksEncoder(instance.id))
-      .deepMerge(
-        Json.obj(
-          "deprecated" -> Json.fromBoolean(instance.deprecated)
-        ))
-    instance.value.deepMerge(meta)
+  implicit val instanceEncoder: Encoder[Instance] = {
+    val encoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
+      val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
+      val meta = refEncoder
+        .apply(instanceRef)
+        .deepMerge(instanceIdWithLinksEncoder(instance.id))
+        .deepMerge(
+          Json.obj(
+            JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated)
+          ))
+      instance.value.deepMerge(meta)
+    }
+    encoder.withContext(coreContext)
   }
 
   implicit val instanceRefEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>

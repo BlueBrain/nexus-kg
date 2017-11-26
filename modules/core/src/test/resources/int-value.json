@@ -2,7 +2,8 @@
   "@context": {
     "value": "http://schema.org/value",
     "QuantitativeValue": "http://schema.org/QuantitativeValue",
-    "nexusvoc": "http://localhost/v0/voc/nexus/core/"
+    "nexusvoc": "http://localhost/v0/voc/nexus/core/",
+    "nxv": "http://localhost/v0/contexts/nexus/core/resource/v1.0.0"
   },
   "@type": "QuantitativeValue",
   "value": 16,
