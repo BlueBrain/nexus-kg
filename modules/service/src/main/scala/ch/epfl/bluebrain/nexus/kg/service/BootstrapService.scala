@@ -66,8 +66,8 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   val (orgs, doms, schemas, contexts, instances) = operations()
 
-  implicit val iamC          = iamClient(settings.IAM.BaseUri)
-  private implicit val clock = Clock.systemUTC
+  implicit val iamC                = iamClient(settings.IAM.BaseUri)
+  private implicit val clock       = Clock.systemUTC
   private implicit val orderedKeys = kgOrderedKeys
 
   private val apis = uriPrefix(apiUri) {
@@ -175,22 +175,22 @@ object BootstrapService {
   }
 
   def kgOrderedKeys: OrderedKeys =
-  OrderedKeys(
-    List(
-      "@context",
-      "@id",
-      "@type",
-      "",
-      "nxv:rev",
-      "nxv:published",
-      "nxv:deprecated",
-      "rev",
-      "published",
-      "deprecated",
-      "links",
-      "rel",
-      "href"
-    ))
+    OrderedKeys(
+      List(
+        "@context",
+        "@id",
+        "@type",
+        "",
+        "nxv:rev",
+        "nxv:published",
+        "nxv:deprecated",
+        "rev",
+        "published",
+        "deprecated",
+        "links",
+        "rel",
+        "href"
+      ))
 
   abstract class BootstrapQuerySettings(settings: Settings) {
 

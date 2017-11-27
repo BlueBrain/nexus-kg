@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.service.query
 
 import java.util.UUID
 
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.Uri.Query
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
@@ -27,9 +27,9 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
       val pagination = Pagination(0L, size)
 
       val uri = Uri("http://localhost/v0/schemas/nexus/core?size=10&other=4")
-      LinksQueryResults(resp, pagination, uri).links should contain theSameElementsAs List(
-        Link("self", uri),
-        Link("next", uri.withQuery(Query("size" -> "5", "other" -> "4", "from" -> "5"))))
+      LinksQueryResults(resp, pagination, uri).links shouldEqual Links(
+        "self" -> uri,
+        "next" -> uri.withQuery(Query("size" -> "5", "other" -> "4", "from" -> "5")))
       LinksQueryResults(resp, pagination, uri).response shouldEqual resp
     }
 
@@ -37,10 +37,10 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
       val pagination = Pagination(5L, size)
 
       val uri = Uri("http://localhost/v0/schemas/nexus/core?size=4")
-      LinksQueryResults(resp, pagination, uri).links should contain theSameElementsAs
-        List(Link("self", uri),
-             Link("previous", uri.withQuery(Query("size" -> "5", "from" -> "0"))),
-             Link("next", uri.withQuery(Query("size"     -> "5", "from" -> "10"))))
+      LinksQueryResults(resp, pagination, uri).links shouldEqual Links(
+        "self"     -> uri,
+        "previous" -> uri.withQuery(Query("size" -> "5", "from" -> "0")),
+        "next"     -> uri.withQuery(Query("size" -> "5", "from" -> "10")))
     }
 
     "return the correct previous links when pagination offset is 15" in {
@@ -49,17 +49,18 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
       val response: QueryResults[String] = UnscoredQueryResults[String](total, page)
 
       val uri = Uri("http://localhost/v0/schemas/nexus/core")
-      LinksQueryResults(response, pagination, uri).links should contain theSameElementsAs
-        List(Link("self", uri), Link("previous", uri.withQuery(Query("from" -> "10", "size" -> "5"))))
+      LinksQueryResults(response, pagination, uri).links shouldEqual Links(
+        "self"     -> uri,
+        "previous" -> uri.withQuery(Query("from" -> "10", "size" -> "5")))
     }
 
     "return the correct previous and next links when offset is 2" in {
       val pagination = Pagination(2L, size)
       val uri        = Uri("http://localhost/v0/schemas/nexus/core")
-      LinksQueryResults(resp, pagination, uri).links should contain theSameElementsAs
-        List(Link("self", uri),
-             Link("previous", uri.withQuery(Query("from" -> "0", "size" -> "2"))),
-             Link("next", uri.withQuery(Query("from"     -> "7", "size" -> "5"))))
+      LinksQueryResults(resp, pagination, uri).links shouldEqual Links(
+        "self"     -> uri,
+        "previous" -> uri.withQuery(Query("from" -> "0", "size" -> "2")),
+        "next"     -> uri.withQuery(Query("from" -> "7", "size" -> "5")))
     }
 
     "return the correct previous links when offset is out of scope" in {
@@ -67,8 +68,9 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
       val response: QueryResults[String] = UnscoredQueryResults[String](total, List())
 
       val uri = Uri("http://localhost/v0/schemas/nexus/core")
-      LinksQueryResults(response, pagination, uri).links should contain theSameElementsAs
-        List(Link("self", uri), Link("previous", uri.withQuery(Query("from" -> "12", "size" -> "5"))))
+      LinksQueryResults(response, pagination, uri).links shouldEqual Links(
+        "self"     -> uri,
+        "previous" -> uri.withQuery(Query("from" -> "12", "size" -> "5")))
     }
 
     "return the correct previous links when offset is out of scope and list has one element" in {
@@ -76,15 +78,16 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
       val response: QueryResults[String] = UnscoredQueryResults[String](1, List())
 
       val uri = Uri("http://localhost/v0/schemas/nexus/core")
-      LinksQueryResults(response, pagination, uri).links should contain theSameElementsAs
-        List(Link("self", uri), Link("previous", uri.withQuery(Query("from" -> "0", "size" -> "3"))))
+      LinksQueryResults(response, pagination, uri).links shouldEqual Links(
+        "self"     -> uri,
+        "previous" -> uri.withQuery(Query("from" -> "0", "size" -> "3")))
     }
 
     "return a correct Json representation from an unscored response" in {
       val uri = Uri("http://localhost/v0/schemas/nexus/core")
-      val links = List(Link("self", uri),
-                       Link("previous", uri.withQuery(Query("from" -> "0", "size"  -> "5"))),
-                       Link("next", uri.withQuery(Query("from"     -> "10", "size" -> "5"))))
+      val links = Links("self" -> uri,
+                        "previous" -> uri.withQuery(Query("from" -> "0", "size"  -> "5")),
+                        "next"     -> uri.withQuery(Query("from" -> "10", "size" -> "5")))
       val linksResults = LinksQueryResults(resp, links)
       linksResults.asJson shouldEqual Json.obj(
         "total"   -> Json.fromLong(linksResults.response.total),
@@ -95,9 +98,9 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
 
     "return a correct Json representation form a scored response" in {
       val uri = Uri("http://localhost/v0/schemas/nexus/core")
-      val links = List(Link("self", uri),
-                       Link("previous", uri.withQuery(Query("from" -> "0", "size"  -> "5"))),
-                       Link("next", uri.withQuery(Query("from"     -> "10", "size" -> "5"))))
+      val links = Links("self" -> uri,
+                        "previous" -> uri.withQuery(Query("from" -> "0", "size"  -> "5")),
+                        "next"     -> uri.withQuery(Query("from" -> "10", "size" -> "5")))
       val scoredPage                       = List.fill(size)(ScoredQueryResult(1F, UUID.randomUUID().toString))
       val scoredResp: QueryResults[String] = ScoredQueryResults[String](total, 1F, scoredPage)
 

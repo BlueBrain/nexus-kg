@@ -17,7 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -108,7 +109,7 @@ class OrganizationRoutesSpec
           .obj(
             "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
             "rev"        -> Json.fromLong(2L),
-            "links"      -> Json.arr(Link("self", s"$baseUri/organizations/${id.id}").asJson),
+            "links"      -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
             "deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(jsonUpdated)
@@ -122,7 +123,7 @@ class OrganizationRoutesSpec
           .obj(
             "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
             "rev"        -> Json.fromLong(1L),
-            "links"      -> Json.arr(Link("self", s"$baseUri/organizations/${id.id}").asJson),
+            "links"      -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
             "deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(json)
