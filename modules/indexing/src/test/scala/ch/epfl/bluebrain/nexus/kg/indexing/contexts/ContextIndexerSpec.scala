@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent.{
@@ -26,7 +27,6 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture, Qualifier}
@@ -90,7 +90,9 @@ class ContextIndexerSpec(blazegraphPort: Int)
   private def expectedTriples(id: ContextId,
                               rev: Long,
                               deprecated: Boolean,
-                              published: Boolean): Set[(String, String, String)] = {
+                              published: Boolean,
+                              meta: Meta,
+                              firstReqMeta: Meta): Set[(String, String, String)] = {
     val qualifiedId = id.qualifyAsStringWith(contextsBase)
     Set(
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
@@ -99,6 +101,8 @@ class ContextIndexerSpec(blazegraphPort: Int)
       (qualifiedId, "organization" qualifyAsStringWith nexusVocBase, id.domainId.orgId.qualifyAsString),
       (qualifiedId, "domain" qualifyAsStringWith nexusVocBase, id.domainId.qualifyAsString),
       (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.name),
+      (qualifiedId, createdAtTimeKey, firstReqMeta.instant.toString),
+      (qualifiedId, updatedAtTimeKey, meta.instant.toString),
       (qualifiedId, contextGroupKey, id.contextName.qualifyAsString),
       (qualifiedId, rdfTypeKey, "Context".qualifyAsString),
       (qualifiedId, "version" qualifyAsStringWith nexusVocBase, id.version.show)
@@ -124,33 +128,57 @@ class ContextIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/contexts/minimal.json", replacements)
       indexer(ContextCreated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 9
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = false)
+      rs.size shouldEqual 11
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = false,
+                                                                published = false,
+                                                                meta,
+                                                                meta)
     }
 
     "index a ContextUpdated event" in {
-      val rev  = 2L
-      val data = jsonContentOf("/contexts/minimal.json", replacements)
-      indexer(ContextUpdated(id, rev, meta, data)).futureValue
+      val metaUpdated = Meta(Anonymous(), Clock.systemUTC.instant())
+      val rev         = 2L
+      val data        = jsonContentOf("/contexts/minimal.json", replacements)
+      indexer(ContextUpdated(id, rev, metaUpdated, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 9
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = false)
+      rs.size shouldEqual 11
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = false,
+                                                                published = false,
+                                                                metaUpdated,
+                                                                meta)
     }
-
+    val metaPublished = Meta(Anonymous(), Clock.systemUTC.instant())
     "index a ContextPublished event" in {
       val rev = 3L
-      indexer(ContextPublished(id, rev, meta)).futureValue
+      indexer(ContextPublished(id, rev, metaPublished)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 9
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, published = true)
+      rs.size shouldEqual 12
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = false,
+                                                                published = true,
+                                                                metaPublished,
+                                                                meta) ++ Set(
+        (id.qualifyAsStringWith(contextsBase), publishedAtTimeKey, metaPublished.instant.toString))
     }
 
     "index a ContextDeprecated event" in {
-      val rev = 4L
-      indexer(ContextDeprecated(id, rev, meta)).futureValue
+      val metaUpdated = Meta(Anonymous(), Clock.systemUTC.instant())
+      val rev         = 4L
+      indexer(ContextDeprecated(id, rev, metaUpdated)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 9
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, published = true)
+      rs.size shouldEqual 12
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = true,
+                                                                published = true,
+                                                                metaUpdated,
+                                                                meta) ++ Set(
+        (id.qualifyAsStringWith(contextsBase), publishedAtTimeKey, metaPublished.instant.toString))
     }
   }
 

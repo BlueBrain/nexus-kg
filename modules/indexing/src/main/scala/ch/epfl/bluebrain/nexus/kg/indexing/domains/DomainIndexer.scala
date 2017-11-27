@@ -2,14 +2,15 @@ package ch.epfl.bluebrain.nexus.kg.indexing.domains
 
 import cats.instances.string._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainEvent, DomainId}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.UriJsonLDSupport._
+import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.IndexJsonLdSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json
@@ -45,25 +46,31 @@ class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSetti
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: DomainEvent): F[Unit] = event match {
-    case DomainCreated(id, rev, _, description) =>
+    case DomainCreated(id, rev, m, description) =>
       log.debug(s"Indexing 'DomainCreated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, Some(description), deprecated = Some(false))
+      val meta = buildMeta(id, rev, m, Some(description), deprecated = Some(false)) deepMerge Json.obj(
+        createdAtTimeKey -> m.instant.jsonLd)
       client.createGraph(index, id qualifyWith baseNs, meta)
 
-    case DomainDeprecated(id, rev, _) =>
+    case DomainDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'DomainDeprecated' event for id '${id.show}'")
-      val meta        = buildMeta(id, rev, None, deprecated = Some(true))
-      val removeQuery = PatchQuery(id, revKey, deprecatedKey)
+      val meta        = buildMeta(id, rev, m, None, deprecated = Some(true))
+      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, deprecatedKey, updatedAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
   }
 
-  private def buildMeta(id: DomainId, rev: Long, description: Option[String], deprecated: Option[Boolean]): Json = {
+  private def buildMeta(id: DomainId,
+                        rev: Long,
+                        meta: Meta,
+                        description: Option[String],
+                        deprecated: Option[Boolean]): Json = {
     val sharedObj = Json.obj(
-      idKey                    -> Json.fromString(id.qualifyAsString),
-      revKey                   -> Json.fromLong(rev),
-      orgKey                   -> id.orgId.qualify.jsonLd,
-      nameKey                  -> Json.fromString(id.id),
-      PrefixMapping.rdfTypeKey -> "Domain".qualify.jsonLd
+      idKey            -> Json.fromString(id.qualifyAsString),
+      revKey           -> Json.fromLong(rev),
+      orgKey           -> id.orgId.qualify.jsonLd,
+      nameKey          -> Json.fromString(id.id),
+      updatedAtTimeKey -> meta.instant.jsonLd,
+      rdfTypeKey       -> "Domain".qualify.jsonLd
     )
 
     val deprecatedObj = deprecated

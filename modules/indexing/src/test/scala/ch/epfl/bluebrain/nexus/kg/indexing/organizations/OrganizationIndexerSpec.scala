@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
+import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, IndexerFixture, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
@@ -61,6 +61,8 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
   private val settings @ OrganizationIndexingSettings(index, orgBase, _, nexusVocBase) =
     OrganizationIndexingSettings(genString(length = 6), base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
+  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
+
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
@@ -76,13 +78,17 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
   private def expectedTriples(id: OrgId,
                               rev: Long,
                               deprecated: Boolean,
-                              description: String): Set[(String, String, String)] = {
+                              description: String,
+                              meta: Meta,
+                              firstReqMeta: Meta): Set[(String, String, String)] = {
 
     val qualifiedId = id.qualifyAsStringWith(orgBase)
     Set(
       (qualifiedId, "rev" qualifyAsStringWith nexusVocBase, rev.toString),
       (qualifiedId, "deprecated" qualifyAsStringWith nexusVocBase, deprecated.toString),
       (qualifiedId, "desc" qualifyAsStringWith nexusVocBase, description),
+      (qualifiedId, createdAtTimeKey, firstReqMeta.instant.toString),
+      (qualifiedId, updatedAtTimeKey, meta.instant.toString),
       (qualifiedId, rdfTypeKey, "Organization" qualifyAsStringWith nexusVocBase),
       (qualifiedId, "name" qualifyAsStringWith nexusVocBase, id.id)
     )
@@ -104,25 +110,34 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
       val data = jsonContentOf("/instances/minimal.json", replacements)
       indexer(OrgCreated(id, rev, meta, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 5
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "random")
+      rs.size shouldEqual 7
+      rs.toSet should contain theSameElementsAs expectedTriples(id, rev, deprecated = false, "random", meta, meta)
     }
 
     "index a OrgUpdated event" in {
+      val metaUpdate = Meta(Anonymous(), Clock.systemUTC.instant())
+
       val rev  = 2L
       val data = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
-      indexer(OrgUpdated(id, rev, meta, data)).futureValue
+      indexer(OrgUpdated(id, rev, metaUpdate, data)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 5
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated")
+      rs.size shouldEqual 7
+      rs.toSet should contain theSameElementsAs expectedTriples(id,
+                                                                rev,
+                                                                deprecated = false,
+                                                                "updated",
+                                                                metaUpdate,
+                                                                meta)
     }
 
     "index a OrgDeprecated event" in {
+      val metaUpdate = Meta(Anonymous(), Clock.systemUTC.instant())
+
       val rev = 3L
-      indexer(OrgDeprecated(id, rev, meta)).futureValue
+      indexer(OrgDeprecated(id, rev, metaUpdate)).futureValue
       val rs = triples(client).futureValue
-      rs.size shouldEqual 5
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, "updated")
+      rs.size shouldEqual 7
+      rs.toSet should contain theSameElementsAs expectedTriples(id, rev, deprecated = true, "updated", metaUpdate, meta)
     }
   }
 }
