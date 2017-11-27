@@ -234,27 +234,26 @@ object SchemaRoutes {
 private class ShapeCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Shape => ShapeId)
     extends RoutesEncoder[ShapeId, ShapeRef, Shape](base) {
 
-  implicit val shapeRefEncoder: Encoder[ShapeRef] = refEncoder.withContext(coreContext)
+  implicit val shapeRefEncoder: Encoder[ShapeRef] = refEncoder.mapJson(_.addContext(coreContext))
 
   implicit def shapeEncoder: Encoder[Shape] = Encoder.encodeJson.contramap { shape =>
-    val meta = shapeRefEncoder
+    val meta = refEncoder
       .apply(ShapeRef(shape.id, shape.rev))
       .deepMerge(
         Json.obj(
           JsonLDKeys.nxvDeprecated -> Json.fromBoolean(shape.deprecated),
           JsonLDKeys.nxvPublished  -> Json.fromBoolean(shape.published)
         ))
-    shape.value.deepMerge(meta)
+    shape.value.deepMerge(meta).addContext(coreContext)
   }
 }
 
 class SchemaCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Schema => SchemaId)
     extends RoutesEncoder[SchemaId, SchemaRef, Schema](base) {
 
-  implicit val schemaRefEncoder: Encoder[SchemaRef] = refEncoder.withContext(coreContext)
+  implicit val schemaRefEncoder: Encoder[SchemaRef] = refEncoder.mapJson(_.addContext(coreContext))
 
-  implicit def schemaEncoder: Encoder[Schema] = {
-    val encoder: Encoder[Schema] = Encoder.encodeJson.contramap { schema =>
+  implicit def schemaEncoder: Encoder[Schema] = Encoder.encodeJson.contramap { schema =>
       val meta = refEncoder
         .apply(SchemaRef(schema.id, schema.rev))
         .deepMerge(idWithLinksEncoder(schema.id))
@@ -263,8 +262,6 @@ class SchemaCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Schema => Sc
             JsonLDKeys.nxvDeprecated -> Json.fromBoolean(schema.deprecated),
             JsonLDKeys.nxvPublished -> Json.fromBoolean(schema.published)
           ))
-      schema.value.deepMerge(meta)
+      schema.value.deepMerge(meta).addContext(coreContext)
     }
-    encoder.withContext(coreContext)
-  }
 }

@@ -39,13 +39,15 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param orgQueries        query builder for organizations
   * @param base              the service public uri + prefix
   */
-final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQueries[Future, OrgId], base: Uri, coreContext: Uri)(
-    implicit querySettings: QuerySettings,
-    filteringSettings: FilteringSettings,
-    iamClient: IamClient[Future],
-    ec: ExecutionContext,
-    clock: Clock,
-    orderedKeys: OrderedKeys)
+final class OrganizationRoutes(orgs: Organizations[Future],
+                               orgQueries: FilterQueries[Future, OrgId],
+                               base: Uri,
+                               coreContext: Uri)(implicit querySettings: QuerySettings,
+                                                 filteringSettings: FilteringSettings,
+                                                 iamClient: IamClient[Future],
+                                                 ec: ExecutionContext,
+                                                 clock: Clock,
+                                                 orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Organization) => entity.id
@@ -131,13 +133,16 @@ object OrganizationRoutes {
     * @param base          the service public uri + prefix
     * @return a new ''OrganizationRoutes'' instance
     */
-  final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri, coreContext: Uri)(
-      implicit
-      ec: ExecutionContext,
-      iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings,
-      clock: Clock,
-      orderedKeys: OrderedKeys): OrganizationRoutes = {
+  final def apply(orgs: Organizations[Future],
+                  client: SparqlClient[Future],
+                  querySettings: QuerySettings,
+                  base: Uri,
+                  coreContext: Uri)(implicit
+                                    ec: ExecutionContext,
+                                    iamClient: IamClient[Future],
+                                    filteringSettings: FilteringSettings,
+                                    clock: Clock,
+                                    orderedKeys: OrderedKeys): OrganizationRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val orgQueries =
@@ -149,18 +154,16 @@ object OrganizationRoutes {
 class OrgCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Organization => OrgId)
     extends RoutesEncoder[OrgId, OrgRef, Organization](base) {
 
-  implicit val orgRefEncoder: Encoder[OrgRef] = refEncoder.withContext(coreContext)
+  implicit val orgRefEncoder: Encoder[OrgRef] = refEncoder.mapJson(_.addContext(coreContext))
 
-  implicit val orgEncoder: Encoder[Organization] =
-    Encoder.encodeJson.contramap { org =>
-      val meta = refEncoder
-        .apply(OrgRef(org.id, org.rev))
-        .deepMerge(idWithLinksEncoder(org.id))
-        .deepMerge(
-          Json.obj(
-            "deprecated" -> Json.fromBoolean(org.deprecated)
-          ))
-      org.value.deepMerge(meta)
-    }
-
+  implicit val orgEncoder: Encoder[Organization] = Encoder.encodeJson.contramap { org =>
+    val meta = refEncoder
+      .apply(OrgRef(org.id, org.rev))
+      .deepMerge(idWithLinksEncoder(org.id))
+      .deepMerge(
+        Json.obj(
+          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(org.deprecated)
+        ))
+    org.value.deepMerge(meta).addContext(coreContext)
+  }
 }

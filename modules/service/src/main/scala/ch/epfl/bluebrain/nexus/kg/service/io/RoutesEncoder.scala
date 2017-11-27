@@ -31,8 +31,8 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit extractI
 
   implicit val refEncoder: Encoder[Reference] = Encoder.encodeJson.contramap { ref =>
     Json.obj(
-      `@id`      -> Json.fromString(ref.id.qualifyAsString),
-      nxvRev     -> Json.fromLong(ref.rev)
+      `@id`  -> Json.fromString(ref.id.qualifyAsString),
+      nxvRev -> Json.fromLong(ref.rev)
     )
   }
 
@@ -99,24 +99,22 @@ object RoutesEncoder {
   }
 
   /**
-    * Extension syntax for routes encoders.
+    * Syntax to extend JSON objects in response body with the core context.
     *
-    * @param encoder the encoder for the Entity we want to encode
-    * @tparam Entity its generic type
+    * @param json the JSON object
     */
-  implicit class RoutesEncoderOps[Entity](encoder: Encoder[Entity]) {
+  implicit class JsonOps(json: Json) {
 
     /**
-      * Adds the provided JSON-LD ''core context'' to the encoder we're extending.
-      * If a context is defined in the entity already, its URI will be properly appended.
+      * Adds or merges the core context URI to an existing JSON object.
       *
       * @param context the core context URI
-      * @return a new encoder
+      * @return a new JSON object
       */
-    def withContext(context: Uri): Encoder[Entity] = encoder.mapJson { j =>
+    def addContext(context: Uri): Json = {
       val contextUriString = Json.fromString(context.toString)
 
-      j.asObject match {
+      json.asObject match {
         case Some(jo) =>
           val updated = jo(`@context`) match {
             case None => jo.add(`@context`, contextUriString)
@@ -132,9 +130,8 @@ object RoutesEncoder {
               }
           }
           Json.fromJsonObject(updated)
-        case None => j
+        case None => json
       }
     }
   }
-
 }
