@@ -75,7 +75,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri, contextUri).routes ~
       DomainRoutes(doms, sparqlClient, querySettings, apiUri, contextUri).routes ~
       SchemaRoutes(schemas, sparqlClient, querySettings, apiUri, contextUri).routes ~
-      ContextRoutes(contexts, sparqlClient, querySettings, apiUri).routes ~
+      ContextRoutes(contexts, sparqlClient, querySettings, apiUri, contextUri).routes ~
       InstanceRoutes(instances, sparqlClient, querySettings, apiUri, contextUri).routes
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)

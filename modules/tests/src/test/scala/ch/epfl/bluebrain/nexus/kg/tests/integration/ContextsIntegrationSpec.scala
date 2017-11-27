@@ -21,11 +21,11 @@ import org.scalatest.time.{Seconds, Span}
 import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
-class ContextsIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
+class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab: Uri)(implicit
                                                                      as: ActorSystem,
                                                                      ec: ExecutionContextExecutor,
                                                                      mt: ActorMaterializer)
-    extends BootstrapIntegrationSpec(apiUri, vocab) {
+    extends BootstrapIntegrationSpec(apiUri, contextUri, vocab) {
 
   import BootstrapIntegrationSpec._
   import contextEncoders._

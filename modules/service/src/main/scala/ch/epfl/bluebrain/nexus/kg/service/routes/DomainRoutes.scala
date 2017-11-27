@@ -39,6 +39,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param domains           the domain operation bundle
   * @param domainQueries     query builder for domains
   * @param base              the service public uri + prefix
+  * @param coreContext    the service core context URI
   */
 final class DomainRoutes(domains: Domains[Future],
                          domainQueries: FilterQueries[Future, DomainId],
@@ -140,6 +141,7 @@ object DomainRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
+    * @param coreContext    the service core context URI
     * @return a new ''DomainRoutes'' instance
     */
   final def apply(domains: Domains[Future],

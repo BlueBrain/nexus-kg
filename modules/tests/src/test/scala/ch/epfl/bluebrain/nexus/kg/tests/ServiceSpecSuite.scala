@@ -49,11 +49,12 @@ class ServiceSpecSuite
   }
 
   override val nestedSuites = Vector(
-    new OrgIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary, aclIndexer),
-    new DomainIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
-    new ContextsIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
-    new SchemasIntegrationSpec(bootstrap.apiUri, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+    new OrgIntegrationSpec(bootstrap.apiUri, settings.Prefixes.CoreContext, bootstrap.routes, settings.Prefixes.CoreVocabulary, aclIndexer),
+    new DomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes.CoreContext, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+    new ContextsIntegrationSpec(bootstrap.apiUri, settings.Prefixes.CoreContext, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+    new SchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes.CoreContext, bootstrap.routes, settings.Prefixes.CoreVocabulary),
     new InstanceIntegrationSpec(bootstrap.apiUri,
+                                settings.Prefixes.CoreContext,
                                 bootstrap.routes,
                                 settings.Prefixes.CoreVocabulary,
                                 bootstrap.instances)

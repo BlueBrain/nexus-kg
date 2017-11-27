@@ -246,7 +246,10 @@ object ContextRoutesSpec {
   private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
 
   private def contextRefAsJson(ref: ContextRef) =
-    Json.obj("@id" -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"), "nxv:rev" -> Json.fromLong(ref.rev))
+    Json.obj(
+      "@context" -> Json.fromString(contextUri.toString),
+      "@id" -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"),
+      "nxv:rev" -> Json.fromLong(ref.rev))
 
   private def sparqlClient()(implicit cl: UntypedHttpClient[Future],
                              ec: ExecutionContext,

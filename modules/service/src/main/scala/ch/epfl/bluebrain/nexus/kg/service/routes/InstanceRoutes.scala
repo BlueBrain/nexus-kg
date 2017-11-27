@@ -47,6 +47,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param instances         the instances operation bundle
   * @param instanceQueries   query builder for schemas
   * @param base              the service public uri + prefix
+  * @param coreContext    the service core context URI
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
@@ -218,6 +219,7 @@ object InstanceRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
+    * @param coreContext    the service core context URI
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],

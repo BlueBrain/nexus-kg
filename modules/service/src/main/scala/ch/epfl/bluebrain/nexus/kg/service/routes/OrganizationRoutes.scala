@@ -38,6 +38,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param orgs              the organization operation bundle
   * @param orgQueries        query builder for organizations
   * @param base              the service public uri + prefix
+  * @param coreContext    the service core context URI
   */
 final class OrganizationRoutes(orgs: Organizations[Future],
                                orgQueries: FilterQueries[Future, OrgId],
@@ -131,6 +132,7 @@ object OrganizationRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
+    * @param coreContext    the service core context URI
     * @return a new ''OrganizationRoutes'' instance
     */
   final def apply(orgs: Organizations[Future],
