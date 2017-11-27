@@ -15,22 +15,31 @@ class LinksSpec extends WordSpecLike with Matchers {
       Links("self" -> Uri(s"$base/link/self"), "other" -> Uri(s"$base/link/other")).asJson shouldEqual Json.obj(
         "self"  -> Json.fromString(s"$base/link/self"),
         "other" -> Json.fromString(s"$base/link/other"))
-      Links().asJson shouldEqual Json.obj()
+
+      Links("self" -> Uri(s"$base/link/self"), "some" -> Uri(s"$base/link/one"), "some" -> Uri(s"$base/link/two")).asJson shouldEqual Json
+        .obj("self" -> Json.fromString(s"$base/link/self"),
+             "some" -> Json.arr(Json.fromString(s"$base/link/one"), Json.fromString(s"$base/link/two")))
     }
 
     "be added properly" in {
       Links("self" -> Uri(s"$base/link/self")) ++ Links("other" -> Uri(s"$base/link/other")) shouldEqual Links(
         "self"     -> Uri(s"$base/link/self"),
         "other"    -> Uri(s"$base/link/other"))
+
       Links("self" -> Uri(s"$base/link/self")) + ("other", Uri(s"$base/link/other")) shouldEqual Links(
         "self"     -> Uri(s"$base/link/self"),
         "other"    -> Uri(s"$base/link/other"))
+
+      Links("self" -> Uri(s"$base/link/self")) + ("other", Uri(s"$base/link/other"), Uri(s"$base/link/other2")) shouldEqual Links(
+        "self"     -> Uri(s"$base/link/self"),
+        "other"    -> Uri(s"$base/link/other"),
+        "other"    -> Uri(s"$base/link/other2"))
     }
 
     "be fetched properly" in {
       val links = Links("self" -> Uri(s"$base/link/self"), "other" -> Uri(s"$base/link/other"))
-      links.get("self") shouldEqual Some(Uri(s"$base/link/self"))
-      links.get("onexisting") shouldEqual None
+      links.get("self") shouldEqual Some(List(Uri(s"$base/link/self")))
+      links.get("nonexisting") shouldEqual None
     }
   }
 }
