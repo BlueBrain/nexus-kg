@@ -524,8 +524,8 @@ class InstanceRoutesSpec
 }
 
 object InstanceRoutesSpec {
-  private val base    = Uri("http://localhost")
-  private val baseUri = base.copy(path = base.path / "v0")
+  private val base       = Uri("http://localhost")
+  private val baseUri    = base.copy(path = base.path / "v0")
   private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
 
   import cats.syntax.show._
@@ -534,8 +534,8 @@ object InstanceRoutesSpec {
     Json
       .obj(
         "@context" -> Json.fromString(contextUri.toString),
-        "@id" -> Json.fromString(s"$baseUri/data/${ref.id.show}"),
-        "nxv:rev" -> Json.fromLong(ref.rev)
+        "@id"      -> Json.fromString(s"$baseUri/data/${ref.id.show}"),
+        "nxv:rev"  -> Json.fromLong(ref.rev)
       )
       .deepMerge(ref.attachment.map(at => at.asJson).getOrElse(Json.obj()))
 

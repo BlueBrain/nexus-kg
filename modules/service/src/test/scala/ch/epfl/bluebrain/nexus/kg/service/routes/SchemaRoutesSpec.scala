@@ -134,7 +134,7 @@ class SchemaRoutesSpec
             "nxv:rev"        -> Json.fromLong(1L),
             "links"      -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false),
-            "nxv:published"  -> Json.fromBoolean(false)
+            "nxv:published" -> Json.fromBoolean(false)
           )
           .deepMerge(schemaJson)
       }
@@ -180,7 +180,7 @@ class SchemaRoutesSpec
             "nxv:rev"        -> Json.fromLong(1L),
             "links"      -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false),
-            "nxv:published"  -> Json.fromBoolean(false)
+            "nxv:published" -> Json.fromBoolean(false)
           )
           .deepMerge(schemaJson)
       }
@@ -284,7 +284,7 @@ class SchemaRoutesSpec
 }
 
 object SchemaRoutesSpec {
-  private val baseUri = Uri("http://localhost/v0")
+  private val baseUri    = Uri("http://localhost/v0")
   private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
 
   import cats.syntax.show._
@@ -292,7 +292,7 @@ object SchemaRoutesSpec {
   private def schemaRefAsJson(ref: SchemaRef) =
     Json.obj(
       "@context" -> Json.fromString(contextUri.toString),
-      "@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"),
-      "nxv:rev" -> Json.fromLong(ref.rev)
+      "@id"      -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"),
+      "nxv:rev"  -> Json.fromLong(ref.rev)
     )
 }

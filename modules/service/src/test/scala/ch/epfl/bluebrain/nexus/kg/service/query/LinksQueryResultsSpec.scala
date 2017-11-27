@@ -90,9 +90,9 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
                         "next"     -> uri.withQuery(Query("from" -> "10", "size" -> "5")))
       val linksResults = LinksQueryResults(resp, links)
       linksResults.asJson shouldEqual Json.obj(
-        "nxv:total" -> Json.fromLong(linksResults.response.total),
+        "nxv:total"   -> Json.fromLong(linksResults.response.total),
         "nxv:results" -> linksResults.response.results.asJson,
-        "nxv:links"   -> links.asJson
+        "links"       -> links.asJson
       )
     }
 
@@ -106,10 +106,10 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
 
       val linksResults = LinksQueryResults(scoredResp, links)
       linksResults.asJson shouldEqual Json.obj(
-        "nxv:total" -> Json.fromLong(linksResults.response.total),
+        "nxv:total"    -> Json.fromLong(linksResults.response.total),
         "nxv:maxScore" -> Json.fromFloatOrNull(1F),
-        "nxv:results" -> linksResults.response.results.asJson,
-        "nxv:links"    -> links.asJson
+        "nxv:results"  -> linksResults.response.results.asJson,
+        "links"        -> links.asJson
       )
     }
   }

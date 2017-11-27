@@ -60,11 +60,12 @@ object LinksQueryResults {
       val json = Json.obj(
         "nxv:total"   -> Json.fromLong(response.response.total),
         "nxv:results" -> response.response.results.asJson,
-        "nxv:links"   -> response.links.asJson
+        "links"       -> response.links.asJson
       )
       response.response match {
-        case ScoredQueryResults(_, maxScore, _) => json deepMerge Json.obj("nxv:maxScore" -> Json.fromFloatOrNull(maxScore))
-        case _                                  => json
+        case ScoredQueryResults(_, maxScore, _) =>
+          json deepMerge Json.obj("nxv:maxScore" -> Json.fromFloatOrNull(maxScore))
+        case _ => json
       }
     }
 

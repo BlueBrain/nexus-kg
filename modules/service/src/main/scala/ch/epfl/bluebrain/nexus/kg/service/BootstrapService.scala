@@ -55,7 +55,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
                                            cl: UntypedHttpClient[Future])
     extends BootstrapQuerySettings(settings) {
 
-  private val baseUri = settings.Http.PublicUri
+  private val baseUri    = settings.Http.PublicUri
   private val contextUri = settings.Prefixes.CoreContext
   // $COVERAGE-OFF$
   override val apiUri: Uri =
@@ -75,7 +75,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri, contextUri).routes ~
       DomainRoutes(doms, sparqlClient, querySettings, apiUri, contextUri).routes ~
       SchemaRoutes(schemas, sparqlClient, querySettings, apiUri, contextUri).routes ~
-      ContextRoutes(contexts, sparqlClient, querySettings, apiUri, contextUri).routes ~
+      ContextRoutes(contexts, sparqlClient, querySettings, apiUri).routes ~
       InstanceRoutes(instances, sparqlClient, querySettings, apiUri, contextUri).routes
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)
@@ -189,6 +189,8 @@ object BootstrapService {
         "published",
         "deprecated",
         "links",
+        "rel",
+        "href"
       ))
 
   abstract class BootstrapQuerySettings(settings: Settings) {

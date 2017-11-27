@@ -108,6 +108,7 @@ class OrganizationRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+            "@context"   -> Json.fromString(contextUri.toString),
             "nxv:rev"        -> Json.fromLong(2L),
             "links"      -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false)
@@ -161,12 +162,12 @@ class OrganizationRoutesSpec
 }
 
 object OrganizationRoutesSpec {
-  private val baseUri = Uri("http://localhost/v0")
+  private val baseUri    = Uri("http://localhost/v0")
   private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
 
   private def orgRefAsJson(ref: OrgRef) = Json.obj(
     "@context" -> Json.fromString(contextUri.toString),
-    "@id" -> Json.fromString(s"$baseUri/organizations/${ref.id.id}"),
-    "nxv:rev" -> Json.fromLong(ref.rev)
+    "@id"      -> Json.fromString(s"$baseUri/organizations/${ref.id.id}"),
+    "nxv:rev"  -> Json.fromLong(ref.rev)
   )
 }

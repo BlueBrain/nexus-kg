@@ -51,8 +51,9 @@ class JsonOpsSpec extends WordSpecLike with Matchers with Inspectors {
 
   "JsonOps" should {
     "properly add or merge context into JSON payload" in {
-      forAll(mapping) { case (in, out) =>
-        in.addContext(contextUri) shouldEqual out
+      forAll(mapping) {
+        case (in, out) =>
+          in.addContext(contextUri) shouldEqual out
       }
     }
   }

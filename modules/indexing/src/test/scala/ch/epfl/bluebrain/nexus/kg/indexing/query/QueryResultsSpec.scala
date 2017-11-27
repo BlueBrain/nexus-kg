@@ -29,9 +29,9 @@ class QueryResultsSpec extends WordSpecLike with Matchers {
       val result  = ScoredQueryResult(1F, 1): QueryResult[Int]
       val results = ScoredQueryResults(10L, 1F, List(result)): QueryResults[Int]
       results.asJson shouldEqual Json.obj(
-        "nxv:total" -> Json.fromLong(results.total),
-        "nxv:maxScore" -> Json.fromFloatOrNull(1F),
-        "nxv:results" -> Json.arr(result.asJson)
+        "total"    -> Json.fromLong(results.total),
+        "maxScore" -> Json.fromFloatOrNull(1F),
+        "results"  -> Json.arr(result.asJson)
       )
     }
   }

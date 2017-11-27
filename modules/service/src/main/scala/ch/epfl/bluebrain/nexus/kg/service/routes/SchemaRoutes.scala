@@ -49,13 +49,15 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param schemaQueries     query builder for schemas
   * @param base              the service public uri + prefix
   */
-class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future, SchemaId], base: Uri, coreContext: Uri)(
-    implicit querySettings: QuerySettings,
-    filteringSettings: FilteringSettings,
-    iamClient: IamClient[Future],
-    ec: ExecutionContext,
-    clock: Clock,
-    orderedKeys: OrderedKeys)
+class SchemaRoutes(schemas: Schemas[Future],
+                   schemaQueries: FilterQueries[Future, SchemaId],
+                   base: Uri,
+                   coreContext: Uri)(implicit querySettings: QuerySettings,
+                                     filteringSettings: FilteringSettings,
+                                     iamClient: IamClient[Future],
+                                     ec: ExecutionContext,
+                                     clock: Clock,
+                                     orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
   private implicit val schemaIdExtractor = (entity: Schema) => entity.id
   private implicit val shapeIdExtractor  = (entity: Shape) => entity.id
@@ -207,13 +209,16 @@ object SchemaRoutes {
     * @param base          the service public uri + prefix
     * @return a new ''SchemaRoutes'' instance
     */
-  final def apply(schemas: Schemas[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri, coreContext: Uri)(
-      implicit
-      ec: ExecutionContext,
-      iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings,
-      clock: Clock,
-      orderedKeys: OrderedKeys): SchemaRoutes = {
+  final def apply(schemas: Schemas[Future],
+                  client: SparqlClient[Future],
+                  querySettings: QuerySettings,
+                  base: Uri,
+                  coreContext: Uri)(implicit
+                                    ec: ExecutionContext,
+                                    iamClient: IamClient[Future],
+                                    filteringSettings: FilteringSettings,
+                                    clock: Clock,
+                                    orderedKeys: OrderedKeys): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client), querySettings)
@@ -254,14 +259,14 @@ class SchemaCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Schema => Sc
   implicit val schemaRefEncoder: Encoder[SchemaRef] = refEncoder.mapJson(_.addContext(coreContext))
 
   implicit def schemaEncoder: Encoder[Schema] = Encoder.encodeJson.contramap { schema =>
-      val meta = refEncoder
-        .apply(SchemaRef(schema.id, schema.rev))
-        .deepMerge(idWithLinksEncoder(schema.id))
-        .deepMerge(
-          Json.obj(
-            JsonLDKeys.nxvDeprecated -> Json.fromBoolean(schema.deprecated),
-            JsonLDKeys.nxvPublished -> Json.fromBoolean(schema.published)
-          ))
-      schema.value.deepMerge(meta).addContext(coreContext)
-    }
+    val meta = refEncoder
+      .apply(SchemaRef(schema.id, schema.rev))
+      .deepMerge(idWithLinksEncoder(schema.id))
+      .deepMerge(
+        Json.obj(
+          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(schema.deprecated),
+          JsonLDKeys.nxvPublished  -> Json.fromBoolean(schema.published)
+        ))
+    schema.value.deepMerge(meta).addContext(coreContext)
+  }
 }

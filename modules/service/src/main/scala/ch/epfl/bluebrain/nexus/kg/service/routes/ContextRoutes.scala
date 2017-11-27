@@ -50,7 +50,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param ec             execution context
   * @param clock          the clock used to issue instants
   */
-class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Future, ContextId], base: Uri, coreContext: Uri)(
+class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Future, ContextId], base: Uri)(
     implicit
     querySettings: QuerySettings,
     iamClient: IamClient[Future],
@@ -63,7 +63,7 @@ class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Fu
   private implicit val _ = (entity: Context) => entity.id
   private implicit val sQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
-  private val contextEncoders = new ContextCustomEncoders(base, coreContext)
+  private val contextEncoders = new ContextCustomEncoders(base)
   import contextEncoders._
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler
@@ -186,7 +186,7 @@ object ContextRoutes {
     * @param clock     the clock used to issue instants
     * @return a new ''ContextRoutes'' instance
     */
-  final def apply(contexts: Contexts[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri, coreContext: Uri)(
+  final def apply(contexts: Contexts[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
       implicit iamClient: IamClient[Future],
       ec: ExecutionContext,
       clock: Clock,
@@ -194,7 +194,7 @@ object ContextRoutes {
 
     implicit val qs: QuerySettings = querySettings
     val contextQueries             = FilterQueries[Future, ContextId](SparqlQuery[Future](client), querySettings)
-    new ContextRoutes(contexts, contextQueries, base, coreContext)
+    new ContextRoutes(contexts, contextQueries, base)
   }
 
   /**
@@ -206,7 +206,7 @@ object ContextRoutes {
 
 }
 
-class ContextCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Context => ContextId)
+class ContextCustomEncoders(base: Uri)(implicit E: Context => ContextId)
     extends RoutesEncoder[ContextId, ContextRef, Context](base) {
 
   implicit def contextEncoder: Encoder[Context] = Encoder.encodeJson.contramap { context =>

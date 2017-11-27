@@ -40,13 +40,15 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param domainQueries     query builder for domains
   * @param base              the service public uri + prefix
   */
-final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[Future, DomainId], base: Uri, coreContext: Uri)(
-    implicit querySettings: QuerySettings,
-    filteringSettings: FilteringSettings,
-    iamClient: IamClient[Future],
-    ec: ExecutionContext,
-    clock: Clock,
-    orderedKeys: OrderedKeys)
+final class DomainRoutes(domains: Domains[Future],
+                         domainQueries: FilterQueries[Future, DomainId],
+                         base: Uri,
+                         coreContext: Uri)(implicit querySettings: QuerySettings,
+                                           filteringSettings: FilteringSettings,
+                                           iamClient: IamClient[Future],
+                                           ec: ExecutionContext,
+                                           clock: Clock,
+                                           orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Domain) => entity.id
@@ -140,13 +142,16 @@ object DomainRoutes {
     * @param base          the service public uri + prefix
     * @return a new ''DomainRoutes'' instance
     */
-  final def apply(domains: Domains[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri, coreContext: Uri)(
-      implicit
-      ec: ExecutionContext,
-      iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings,
-      clock: Clock,
-      orderedKeys: OrderedKeys): DomainRoutes = {
+  final def apply(domains: Domains[Future],
+                  client: SparqlClient[Future],
+                  querySettings: QuerySettings,
+                  base: Uri,
+                  coreContext: Uri)(implicit
+                                    ec: ExecutionContext,
+                                    iamClient: IamClient[Future],
+                                    filteringSettings: FilteringSettings,
+                                    clock: Clock,
+                                    orderedKeys: OrderedKeys): DomainRoutes = {
     implicit val qs: QuerySettings = querySettings
     val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
     new DomainRoutes(domains, domainQueries, base, coreContext)

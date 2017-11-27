@@ -23,7 +23,8 @@ import io.circe.{Encoder, Json}
   * @tparam Reference the generic type representing the Ref we want to encode
   * @tparam Entity    the generic type representing the Entity we want to encode
   */
-abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit extractId: (Entity) => Id,
+abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit le: Encoder[Link],
+                                                               extractId: (Entity) => Id,
                                                                R: Reference => Ref[Id],
                                                                Q: Qualifier[Id]) {
 
@@ -39,7 +40,7 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit extractI
   implicit val idWithLinksEncoder: Encoder[Id] = Encoder.encodeJson.contramap { id =>
     Json.obj(
       `@id`   -> Json.fromString(id.qualifyAsString),
-      nxvLinks -> selfLink(id).asJson
+      links -> selfLink(id).asJson
     )
   }
 
@@ -86,9 +87,9 @@ object RoutesEncoder {
   object JsonLDKeys {
     val `@context`     = "@context"
     val `@id`          = "@id"
+    val links          = "links"
     val nxvNs          = "nxv"
     val nxvRev         = "nxv:rev"
-    val nxvLinks       = "nxv:links"
     val nxvValue       = "nxv:value"
     val nxvDeprecated  = "nxv:deprecated"
     val nxvDescription = "nxv:description"

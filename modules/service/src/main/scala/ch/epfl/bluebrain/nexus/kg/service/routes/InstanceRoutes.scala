@@ -32,6 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -222,12 +223,13 @@ object InstanceRoutes {
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
-                  base: Uri, coreContext: Uri)(implicit
-                             ec: ExecutionContext,
-                             iamClient: IamClient[Future],
-                             filteringSettings: FilteringSettings,
-                             clock: Clock,
-                             orderedKeys: OrderedKeys): InstanceRoutes = {
+                  base: Uri,
+                  coreContext: Uri)(implicit
+                                    ec: ExecutionContext,
+                                    iamClient: IamClient[Future],
+                                    filteringSettings: FilteringSettings,
+                                    clock: Clock,
+                                    orderedKeys: OrderedKeys): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
     new InstanceRoutes(instances, instanceQueries, base, coreContext)
@@ -236,25 +238,25 @@ object InstanceRoutes {
 
 class InstanceCustomEncoders(base: Uri, coreContext: Uri)(implicit le: Encoder[Link], E: Instance => InstanceId)
     extends RoutesEncoder[InstanceId, InstanceRef, Instance](base) {
+  private implicit val refWithAttachmentEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
+    refEncoder.apply(ref) deepMerge ref.attachment.map(_.asJson).getOrElse(Json.obj())
+  }
+
   implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
 
   implicit val instanceEncoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
-      val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
-      val meta = refEncoder
-        .apply(instanceRef)
-        .deepMerge(instanceIdWithLinksEncoder(instance.id))
-        .deepMerge(
-          Json.obj(
-            JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated)
-          ))
-      instance.value.deepMerge(meta).addContext(coreContext)
+    val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
+    val meta = refWithAttachmentEncoder
+      .apply(instanceRef)
+      .deepMerge(instanceIdWithLinksEncoder(instance.id))
+      .deepMerge(
+        Json.obj(
+          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated)
+        ))
+    instance.value.deepMerge(meta).addContext(coreContext)
   }
 
-  implicit val instanceRefEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
-    refEncoder.apply(ref)
-      .deepMerge(ref.attachment.map(_.asJson).getOrElse(Json.obj()))
-      .addContext(coreContext)
-  }
+  implicit val instanceRefEncoder: Encoder[InstanceRef] = refWithAttachmentEncoder.mapJson(_.addContext(coreContext))
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
     val linksJson = Links(
