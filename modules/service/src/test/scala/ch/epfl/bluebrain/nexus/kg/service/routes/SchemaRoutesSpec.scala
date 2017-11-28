@@ -60,7 +60,14 @@ class SchemaRoutesSpec
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
     val vocab     = baseUri.copy(path = baseUri.path / "core")
 
-    val schemaJson     = jsonContentOf("/int-value-schema.json")
+    val schemaJson       = jsonContentOf("/int-value-schema.json")
+    val schemaJsonObject = schemaJson.asObject.get
+    val schemaJsonWithStandardsContext = Json.fromJsonObject(
+      schemaJsonObject.add(
+        "@context",
+        Json.arr(schemaJsonObject("@context").getOrElse(Json.obj()), Json.fromString(contextUri.toString)))
+    )
+
     val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
     val orgAgg         = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs           = Organizations(orgAgg)
@@ -136,7 +143,7 @@ class SchemaRoutesSpec
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published" -> Json.fromBoolean(false)
           )
-          .deepMerge(schemaJson)
+          .deepMerge(schemaJsonWithStandardsContext)
       }
     }
 
@@ -182,7 +189,7 @@ class SchemaRoutesSpec
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published" -> Json.fromBoolean(false)
           )
-          .deepMerge(schemaJson)
+          .deepMerge(schemaJsonWithStandardsContext)
       }
     }
 
@@ -285,7 +292,7 @@ class SchemaRoutesSpec
 
 object SchemaRoutesSpec {
   private val baseUri    = Uri("http://localhost/v0")
-  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
 
   import cats.syntax.show._
 

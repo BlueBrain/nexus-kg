@@ -7,8 +7,8 @@ import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
 class JsonOpsSpec extends WordSpecLike with Matchers with Inspectors {
 
-  private val contextUri    = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
-  private val contextString = Json.fromString("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
+  private val contextUri    = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
+  private val contextString = Json.fromString("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
 
   private val mapping = List(
     Json.obj("@id"        -> Json.fromString("foo-id"), "nxv:rev" -> Json.fromLong(1)) ->
@@ -41,9 +41,9 @@ class JsonOpsSpec extends WordSpecLike with Matchers with Inspectors {
       "nxv:rev" -> Json.fromLong(1)
     ) ->
       Json.obj(
-        "@context" -> Json.obj("foo" -> Json.fromString("http://foo.domain/some/context"),
-                               "bar" -> Json.fromString("http://bar.domain/another/context"),
-                               "nxv" -> contextString),
+        "@context" -> Json.arr(Json.obj("foo" -> Json.fromString("http://foo.domain/some/context"),
+                                        "bar" -> Json.fromString("http://bar.domain/another/context")),
+                               contextString),
         "@id"     -> Json.fromString("foo-id"),
         "nxv:rev" -> Json.fromLong(1)
       )

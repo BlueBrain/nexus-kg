@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
@@ -29,10 +30,8 @@ import ch.epfl.bluebrain.nexus.kg.service.hateoas.{Link, Links}
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
-import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec.baseUri
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -58,7 +57,11 @@ class ContextRoutesSpec
 
   "ContextRoutes" should {
 
-    val contextJson = jsonContentOf("/contexts/shacl.json")
+    val contextJson       = jsonContentOf("/contexts/shacl.json")
+    val contextJsonObject = contextJson.asObject.get
+
+    val contextJsonWithStandards = Json.obj(
+      "@context" -> Json.arr(contextJsonObject("@context").getOrElse(Json.obj()), Json.fromString(contextUri.toString)))
 
     val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs   = Organizations(orgAgg)
@@ -129,7 +132,7 @@ class ContextRoutesSpec
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published" -> Json.fromBoolean(false)
           )
-          .deepMerge(contextJson)
+          .deepMerge(contextJsonWithStandards)
       }
     }
 
@@ -175,7 +178,7 @@ class ContextRoutesSpec
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published"  -> Json.fromBoolean(false)
           )
-          .deepMerge(contextJson)
+          .deepMerge(contextJsonWithStandards)
       }
     }
 
@@ -243,13 +246,12 @@ class ContextRoutesSpec
 object ContextRoutesSpec {
 
   private val baseUri    = Uri("http://localhost/v0")
-  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
 
   private def contextRefAsJson(ref: ContextRef) =
-    Json.obj(
-      "@context" -> Json.fromString(contextUri.toString),
-      "@id" -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"),
-      "nxv:rev" -> Json.fromLong(ref.rev))
+    Json.obj("@context" -> Json.fromString(contextUri.toString),
+             "@id"      -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"),
+             "nxv:rev"  -> Json.fromLong(ref.rev))
 
   private def sparqlClient()(implicit cl: UntypedHttpClient[Future],
                              ec: ExecutionContext,

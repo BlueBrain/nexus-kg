@@ -47,34 +47,34 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit le: Enco
   implicit def queryResultEncoder(implicit E: Encoder[Id]): Encoder[UnscoredQueryResult[Id]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        nxvResultId -> Json.fromString(qr.source.qualifyAsString),
-        nxvSource   -> E(qr.source)
+        resultId -> Json.fromString(qr.source.qualifyAsString),
+        source   -> E(qr.source)
       )
     }
 
   implicit def scoredQueryResultEncoder(implicit E: Encoder[Id]): Encoder[ScoredQueryResult[Id]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        nxvResultId -> Json.fromString(qr.source.qualifyAsString),
-        nxvScore    -> Json.fromFloatOrString(qr.score),
-        nxvSource   -> E(qr.source)
+        resultId -> Json.fromString(qr.source.qualifyAsString),
+        score    -> Json.fromFloatOrString(qr.score),
+        source   -> E(qr.source)
       )
     }
 
   implicit def queryResultEntityEncoder(implicit E: Encoder[Entity]): Encoder[UnscoredQueryResult[Entity]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        nxvResultId -> Json.fromString(extractId(qr.source).qualifyAsString),
-        nxvSource   -> E(qr.source)
+        resultId -> Json.fromString(extractId(qr.source).qualifyAsString),
+        source   -> E(qr.source)
       )
     }
 
   implicit def scoredQueryResultEntityEncoder(implicit E: Encoder[Entity]): Encoder[ScoredQueryResult[Entity]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        nxvResultId -> Json.fromString(extractId(qr.source).qualifyAsString),
-        nxvScore    -> Json.fromFloatOrString(qr.score),
-        nxvSource   -> E(qr.source)
+        resultId -> Json.fromString(extractId(qr.source).qualifyAsString),
+        score    -> Json.fromFloatOrString(qr.score),
+        source   -> E(qr.source)
       )
     }
 
@@ -88,28 +88,28 @@ object RoutesEncoder {
     val `@context`     = "@context"
     val `@id`          = "@id"
     val links          = "links"
+    val resultId       = "resultId"
+    val source         = "source"
+    val score          = "score"
     val nxvNs          = "nxv"
     val nxvRev         = "nxv:rev"
     val nxvValue       = "nxv:value"
     val nxvDeprecated  = "nxv:deprecated"
     val nxvDescription = "nxv:description"
     val nxvPublished   = "nxv:published"
-    val nxvResultId    = "nxv:resultId"
-    val nxvSource      = "nxv:source"
-    val nxvScore       = "nxv:score"
   }
 
   /**
-    * Syntax to extend JSON objects in response body with the core context.
+    * Syntax to extend JSON objects in response body with the standard context.
     *
     * @param json the JSON object
     */
   implicit class JsonOps(json: Json) {
 
     /**
-      * Adds or merges the core context URI to an existing JSON object.
+      * Adds or merges the standard context URI to an existing JSON object.
       *
-      * @param context the core context URI
+      * @param context the standard context URI
       * @return a new JSON object
       */
     def addContext(context: Uri): Json = {
@@ -122,11 +122,11 @@ object RoutesEncoder {
             case Some(value) =>
               (value.asObject, value.asArray, value.asString) match {
                 case (Some(vo), _, _) =>
-                  jo.add(`@context`, Json.fromJsonObject(vo.add(nxvNs, contextUriString)))
+                  jo.add(`@context`, Json.arr(value, contextUriString))
                 case (_, Some(va), _) =>
                   jo.add(`@context`, Json.fromValues(va :+ contextUriString))
                 case (_, _, Some(vs)) =>
-                  jo.add(`@context`, Json.arr(Json.fromString(vs), contextUriString))
+                  jo.add(`@context`, Json.arr(value, contextUriString))
                 case _ => jo
               }
           }

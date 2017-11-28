@@ -56,7 +56,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     extends BootstrapQuerySettings(settings) {
 
   private val baseUri    = settings.Http.PublicUri
-  private val contextUri = settings.Prefixes.CoreContext
+  private val contextUri = settings.Prefixes.StandardsContext
   // $COVERAGE-OFF$
   override val apiUri: Uri =
     if (settings.Http.Prefix.trim.isEmpty) baseUri

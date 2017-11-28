@@ -28,9 +28,9 @@ import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
 class SchemasIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab: Uri)(implicit
-                                                                    as: ActorSystem,
-                                                                    ec: ExecutionContextExecutor,
-                                                                    mt: ActorMaterializer)
+                                                                                     as: ActorSystem,
+                                                                                     ec: ExecutionContextExecutor,
+                                                                                     mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, contextUri, vocab) {
 
   import BootstrapIntegrationSpec._

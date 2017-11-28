@@ -163,7 +163,7 @@ class OrganizationRoutesSpec
 
 object OrganizationRoutesSpec {
   private val baseUri    = Uri("http://localhost/v0")
-  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
 
   private def orgRefAsJson(ref: OrgRef) = Json.obj(
     "@context" -> Json.fromString(contextUri.toString),

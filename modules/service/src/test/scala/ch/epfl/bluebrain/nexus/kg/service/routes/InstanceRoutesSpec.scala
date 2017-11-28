@@ -69,11 +69,18 @@ class InstanceRoutesSpec
 
     override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
-    def genSchema(): Json =
-      Json.obj()
+    def genSchema(): Json = Json.obj()
 
     def genJson(): Json =
       jsonContentOf("/int-value.json").deepMerge(Json.obj("value" -> Json.fromInt(genInt(Int.MaxValue))))
+
+    def genJsonWithContext(value: Json): Json = {
+      val valueObject = value.asObject.get
+      Json.fromJsonObject(
+        valueObject.add("@context",
+                        Json.arr(valueObject("@context").getOrElse(Json.obj()), Json.fromString(contextUri.toString)))
+      )
+    }
 
     val settings   = new Settings(ConfigFactory.load())
     val algorithm  = settings.Attachment.HashAlgorithm
@@ -128,6 +135,7 @@ class InstanceRoutesSpec
 
     val route = InstanceRoutes(instances, client, querySettings, baseUri).routes
     val value = genJson()
+
     val instanceRef = Post(s"/data/${schemaId.show}", value) ~> addCredentials(ValidCredentials) ~> route ~> check {
       status shouldEqual StatusCodes.Created
       val json = responseAs[Json]
@@ -225,7 +233,7 @@ class InstanceRoutesSpec
             "rev"        -> Json.fromLong(1L),
             "deprecated" -> Json.fromBoolean(false)
           )
-          .deepMerge(value)
+          .deepMerge(genJsonWithContext(value))
       }
     }
 
@@ -250,7 +258,7 @@ class InstanceRoutesSpec
             "rev"        -> Json.fromLong(2L),
             "deprecated" -> Json.fromBoolean(false)
           )
-          .deepMerge(value2)
+          .deepMerge(genJsonWithContext(value2))
       }
 
       Get(s"/data/${instanceRef.id.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -267,7 +275,7 @@ class InstanceRoutesSpec
             "nxv:rev"        -> Json.fromLong(1L),
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
-          .deepMerge(value)
+          .deepMerge(genJsonWithContext(value))
       }
     }
 
@@ -402,7 +410,7 @@ class InstanceRoutesSpec
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest).asJson)
-          .deepMerge(value)
+          .deepMerge(genJsonWithContext(value))
       }
 
       deleteAttachments()
@@ -526,7 +534,7 @@ class InstanceRoutesSpec
 object InstanceRoutesSpec {
   private val base       = Uri("http://localhost")
   private val baseUri    = base.copy(path = base.path / "v0")
-  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/resource/v1.0.0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
 
   import cats.syntax.show._
 

@@ -47,7 +47,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param contexts       the context operation bundle
   * @param contextQueries query builder for contexts
   * @param base           the service public uri + prefix
-  * @param coreContext    the service core context URI
+  * @param coreContext    the service standard context URI
   * @param iamClient      IAM client
   * @param ec             execution context
   * @param clock          the clock used to issue instants
@@ -185,7 +185,7 @@ object ContextRoutes {
     *
     * @param contexts  the context operation bundle
     * @param base      the service public uri + prefix
-    * @param coreContext    the service core context URI
+    * @param coreContext    the service standard context URI
     * @param iamClient IAM client
     * @param ec        execution context
     * @param clock     the clock used to issue instants

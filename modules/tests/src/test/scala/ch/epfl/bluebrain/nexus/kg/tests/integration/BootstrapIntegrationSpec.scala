@@ -30,7 +30,7 @@ import scala.concurrent.duration._
   * Initialize common implicits, encoders, methods and values used on the tests.
   *
   * @param apiUri      the service public uri + prefix
-  * @param coreContext the nexus core context URI
+  * @param coreContext the nexus standard context URI
   * @param vocab       the nexus core vocabulary base
   * @param as          the implicitly available Actor System
   */

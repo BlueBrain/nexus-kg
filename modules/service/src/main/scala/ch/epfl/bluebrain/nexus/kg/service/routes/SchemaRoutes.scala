@@ -48,7 +48,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param schemas           the schemas operation bundle
   * @param schemaQueries     query builder for schemas
   * @param base              the service public uri + prefix
-  * @param coreContext    the service core context URI
+  * @param coreContext    the service standard context URI
   */
 class SchemaRoutes(schemas: Schemas[Future],
                    schemaQueries: FilterQueries[Future, SchemaId],
@@ -208,7 +208,7 @@ object SchemaRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
-    * @param coreContext    the service core context URI
+    * @param coreContext    the service standard context URI
     * @return a new ''SchemaRoutes'' instance
     */
   final def apply(schemas: Schemas[Future],
