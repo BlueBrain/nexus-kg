@@ -47,20 +47,21 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param instances         the instances operation bundle
   * @param instanceQueries   query builder for schemas
   * @param base              the service public uri + prefix
-  * @param coreContext    the service standard context URI
+  * @param context           the service standard context URI
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
-                     base: Uri, coreContext: Uri)(implicit querySettings: QuerySettings,
-                                filteringSettings: FilteringSettings,
-                                iamClient: IamClient[Future],
-                                ec: ExecutionContext,
-                                clock: Clock,
-                                orderedKeys: OrderedKeys)
+                     base: Uri,
+                     context: Uri)(implicit querySettings: QuerySettings,
+                                   filteringSettings: FilteringSettings,
+                                   iamClient: IamClient[Future],
+                                   ec: ExecutionContext,
+                                   clock: Clock,
+                                   orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Instance) => entity.id
-  private val encoders   = new InstanceCustomEncoders(base, coreContext)
+  private val encoders   = new InstanceCustomEncoders(base, context)
 
   import encoders._
 
@@ -219,28 +220,28 @@ object InstanceRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
-    * @param coreContext    the service standard context URI
+    * @param context       the service standard context URI
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
                   base: Uri,
-                  coreContext: Uri)(implicit
-                                    ec: ExecutionContext,
-                                    iamClient: IamClient[Future],
-                                    filteringSettings: FilteringSettings,
-                                    clock: Clock,
-                                    orderedKeys: OrderedKeys): InstanceRoutes = {
+                  context: Uri)(implicit
+                                ec: ExecutionContext,
+                                iamClient: IamClient[Future],
+                                filteringSettings: FilteringSettings,
+                                clock: Clock,
+                                orderedKeys: OrderedKeys): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
-    new InstanceRoutes(instances, instanceQueries, base, coreContext)
+    new InstanceRoutes(instances, instanceQueries, base, context)
   }
 }
 
-class InstanceCustomEncoders(base: Uri, coreContext: Uri)(implicit le: Encoder[Link], E: Instance => InstanceId)
+class InstanceCustomEncoders(base: Uri, context: Uri)(implicit E: Instance => InstanceId)
     extends RoutesEncoder[InstanceId, InstanceRef, Instance](base) {
-  private implicit val refWithAttachmentEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
+  private val refWithAttachmentEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
     refEncoder.apply(ref) deepMerge ref.attachment.map(_.asJson).getOrElse(Json.obj())
   }
 
@@ -255,10 +256,10 @@ class InstanceCustomEncoders(base: Uri, coreContext: Uri)(implicit le: Encoder[L
         Json.obj(
           JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated)
         ))
-    instance.value.deepMerge(meta).addContext(coreContext)
+    instance.value.deepMerge(meta).addContext(context)
   }
 
-  implicit val instanceRefEncoder: Encoder[InstanceRef] = refWithAttachmentEncoder.mapJson(_.addContext(coreContext))
+  implicit val instanceRefEncoder: Encoder[InstanceRef] = refWithAttachmentEncoder.mapJson(_.addContext(context))
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
     val linksJson = Links(

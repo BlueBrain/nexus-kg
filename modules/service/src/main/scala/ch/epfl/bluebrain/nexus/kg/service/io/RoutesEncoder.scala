@@ -15,7 +15,6 @@ import io.circe.{Encoder, Json}
   * Constructs implicit encoders used to format HTTP responses.
   *
   * @param base      the service public uri + prefix
-  * @param le        the implicitly available encoder for [[Link]]
   * @param extractId the implicitly available extractor of an Id given an Entity
   * @param R         the implicitly available function which converts a Reference into a [[Ref]]
   * @param Q         the implicitly available qualifier for the generic type [[Id]]
@@ -23,8 +22,7 @@ import io.circe.{Encoder, Json}
   * @tparam Reference the generic type representing the Ref we want to encode
   * @tparam Entity    the generic type representing the Entity we want to encode
   */
-abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit le: Encoder[Link],
-                                                               extractId: (Entity) => Id,
+abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit extractId: (Entity) => Id,
                                                                R: Reference => Ref[Id],
                                                                Q: Qualifier[Id]) {
 
@@ -39,7 +37,7 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit le: Enco
 
   implicit val idWithLinksEncoder: Encoder[Id] = Encoder.encodeJson.contramap { id =>
     Json.obj(
-      `@id`   -> Json.fromString(id.qualifyAsString),
+      `@id` -> Json.fromString(id.qualifyAsString),
       links -> selfLink(id).asJson
     )
   }
@@ -121,11 +119,11 @@ object RoutesEncoder {
             case None => jo.add(`@context`, contextUriString)
             case Some(value) =>
               (value.asObject, value.asArray, value.asString) match {
-                case (Some(vo), _, _) =>
+                case (Some(_), _, _) =>
                   jo.add(`@context`, Json.arr(value, contextUriString))
                 case (_, Some(va), _) =>
                   jo.add(`@context`, Json.fromValues(va :+ contextUriString))
-                case (_, _, Some(vs)) =>
+                case (_, _, Some(_)) =>
                   jo.add(`@context`, Json.arr(value, contextUriString))
                 case _ => jo
               }

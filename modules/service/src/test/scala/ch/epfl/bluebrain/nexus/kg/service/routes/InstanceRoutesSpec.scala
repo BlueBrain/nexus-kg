@@ -28,7 +28,11 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{SchemaDoesNotExist, SchemaIsDeprecated, SchemaIsNotPublished}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
+  SchemaDoesNotExist,
+  SchemaIsDeprecated,
+  SchemaIsNotPublished
+}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexingSettings
@@ -133,7 +137,7 @@ class InstanceRoutesSpec
 
     implicit val cl = iamClient("http://localhost:8080")
 
-    val route = InstanceRoutes(instances, client, querySettings, baseUri).routes
+    val route = InstanceRoutes(instances, client, querySettings, baseUri, contextUri).routes
     val value = genJson()
 
     val instanceRef = Post(s"/data/${schemaId.show}", value) ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -230,8 +234,8 @@ class InstanceRoutesSpec
               "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
               "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
             ).asJson,
-            "rev"        -> Json.fromLong(1L),
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:rev"        -> Json.fromLong(1L),
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(genJsonWithContext(value))
       }
@@ -255,8 +259,8 @@ class InstanceRoutesSpec
               "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
               "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
             ).asJson,
-            "rev"        -> Json.fromLong(2L),
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:rev"        -> Json.fromLong(2L),
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(genJsonWithContext(value2))
       }
@@ -399,7 +403,7 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "@id"     -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
             "nxv:rev" -> Json.fromLong(2L),
             "links" -> Links(
               "self"     -> s"$baseUri/data/${instanceRef.id.show}",

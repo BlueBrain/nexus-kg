@@ -107,10 +107,10 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-            "@context"   -> Json.fromString(contextUri.toString),
+            "@id"            -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+            "@context"       -> Json.fromString(contextUri.toString),
             "nxv:rev"        -> Json.fromLong(2L),
-            "links"      -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
+            "links"          -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(jsonUpdated)
@@ -122,10 +122,10 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@context" -> Json.fromString(contextUri.toString),
-            "@id"        -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+            "@context"       -> Json.fromString(contextUri.toString),
+            "@id"            -> Json.fromString(s"$baseUri/organizations/${id.id}"),
             "nxv:rev"        -> Json.fromLong(1L),
-            "links"      -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
+            "links"          -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(json)

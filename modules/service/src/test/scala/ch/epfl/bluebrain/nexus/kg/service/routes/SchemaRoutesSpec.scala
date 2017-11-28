@@ -137,11 +137,11 @@ class SchemaRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
+            "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
             "nxv:rev"        -> Json.fromLong(1L),
-            "links"      -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
+            "links"          -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false),
-            "nxv:published" -> Json.fromBoolean(false)
+            "nxv:published"  -> Json.fromBoolean(false)
           )
           .deepMerge(schemaJsonWithStandardsContext)
       }
@@ -183,11 +183,11 @@ class SchemaRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
+            "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
             "nxv:rev"        -> Json.fromLong(1L),
-            "links"      -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
+            "links"          -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false),
-            "nxv:published" -> Json.fromBoolean(false)
+            "nxv:published"  -> Json.fromBoolean(false)
           )
           .deepMerge(schemaJsonWithStandardsContext)
       }
@@ -206,11 +206,11 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
-                "@context" -> Json.fromString(contextUri.toString),
-                "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
-                "nxv:rev" -> Json.fromLong(3L),
+                "@context"       -> Json.fromString(contextUri.toString),
+                "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
+                "nxv:rev"        -> Json.fromLong(3L),
                 "nxv:deprecated" -> Json.fromBoolean(false),
-                "nxv:published" -> Json.fromBoolean(true)
+                "nxv:published"  -> Json.fromBoolean(true)
               )
             ))
       }
@@ -223,11 +223,11 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
-                "@context" -> Json.fromString(contextUri.toString),
-                "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
-                "nxv:rev" -> Json.fromLong(1L),
+                "@context"       -> Json.fromString(contextUri.toString),
+                "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
+                "nxv:rev"        -> Json.fromLong(1L),
                 "nxv:deprecated" -> Json.fromBoolean(false),
-                "nxv:published" -> Json.fromBoolean(false)
+                "nxv:published"  -> Json.fromBoolean(false)
               )
             ))
       }
