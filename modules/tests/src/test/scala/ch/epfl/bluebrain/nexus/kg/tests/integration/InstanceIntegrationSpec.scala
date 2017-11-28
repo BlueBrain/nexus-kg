@@ -21,7 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Json
 import io.circe.syntax._
@@ -88,7 +88,7 @@ class InstanceIntegrationSpec(
             val expectedResults = UnscoredQueryResults(instances.length.toLong, instances.take(20).map {
               case (id, _) => UnscoredQueryResult(id)
             })
-            val expectedLinks = List(Link("self", s"$apiUri/data"), Link("next", s"$apiUri/data?from=20&size=20"))
+            val expectedLinks = Links("self" -> s"$apiUri/data", "next" -> s"$apiUri/data?from=20&size=20")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -102,7 +102,7 @@ class InstanceIntegrationSpec(
           val expectedResults =
             UnscoredQueryResults(randInstances.length.toLong,
                                  randInstances.map { case (id, _) => UnscoredQueryResult(id) }.take(pagination.size))
-          val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=5"))
+          val expectedLinks = Links("self" -> s"$apiUri$path", "next" -> s"$apiUri$path&from=5")
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -116,7 +116,7 @@ class InstanceIntegrationSpec(
             UnscoredQueryResults(
               randInstances.length.toLong,
               randInstances.map { case (id, _) => UnscoredQueryResult(idsPayload(id)) }.take(pagination.size))
-          val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=5"))
+          val expectedLinks = Links("self" -> s"$apiUri$path", "next" -> s"$apiUri$path&from=5")
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -129,8 +129,8 @@ class InstanceIntegrationSpec(
           val expectedResults =
             UnscoredQueryResults(randInstances.length.toLong, List.empty[UnscoredQueryResult[SchemaId]])
           val expectedLinks =
-            List(Link("self", s"$apiUri$path"),
-                 Link("previous", s"$apiUri$path".replace("from=500", s"from=${randInstances.length - 5}")))
+            Links("self"     -> s"$apiUri$path",
+                  "previous" -> s"$apiUri$path".replace("from=500", s"from=${randInstances.length - 5}"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -143,7 +143,7 @@ class InstanceIntegrationSpec(
           val json            = responseAs[Json]
           val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
           val expectedResults = ScoredQueryResults(1L, score, List(ScoredQueryResult(score, instanceId)))
-          val expectedLinks   = List(Link("self", s"$apiUri$path"))
+          val expectedLinks   = Links("self" -> Uri(s"$apiUri$path"))
           json shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -157,7 +157,7 @@ class InstanceIntegrationSpec(
           val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
           val expectedResults = ScoredQueryResults(1L, score, List.empty[ScoredQueryResult[SchemaId]])
           val expectedLinks =
-            List(Link("self", s"$apiUri$path"), Link("previous", s"$apiUri$path".replace("from=200", "from=0")))
+            Links("self" -> s"$apiUri$path", "previous" -> s"$apiUri$path".replace("from=200", "from=0"))
           json shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -169,7 +169,7 @@ class InstanceIntegrationSpec(
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -185,7 +185,7 @@ class InstanceIntegrationSpec(
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
-          val expectedLinks   = List(Link("self", s"$apiUri$path"))
+          val expectedLinks   = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -197,7 +197,7 @@ class InstanceIntegrationSpec(
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(5L, instances.take(5).map { case (id, _) => UnscoredQueryResult(id) })
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -208,7 +208,7 @@ class InstanceIntegrationSpec(
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -228,7 +228,7 @@ class InstanceIntegrationSpec(
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(9L, instances.slice(1, 10).map { case (id, _) => UnscoredQueryResult(id) })
-            val expectedLinks = List(Link("self", s"$apiUri$path"))
+            val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -244,7 +244,7 @@ class InstanceIntegrationSpec(
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(outgoingId)))
-          val expectedLinks   = List(Link("self", s"$apiUri$path"))
+          val expectedLinks   = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -259,7 +259,7 @@ class InstanceIntegrationSpec(
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
-          val expectedLinks   = List(Link("self", s"$apiUri$path"))
+          val expectedLinks   = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }

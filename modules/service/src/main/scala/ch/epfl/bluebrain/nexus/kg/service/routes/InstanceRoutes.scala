@@ -29,14 +29,14 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives.traceName
-
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -233,7 +233,7 @@ object InstanceRoutes {
   }
 }
 
-class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link], E: Instance => InstanceId)
+class InstanceCustomEncoders(base: Uri)(implicit E: Instance => InstanceId)
     extends RoutesEncoder[InstanceId, InstanceRef, Instance](base) {
   implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
 
@@ -254,11 +254,7 @@ class InstanceCustomEncoders(base: Uri)(implicit le: Encoder[Link], E: Instance 
   }
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
-    idWithLinksEncoder.apply(instanceId) deepMerge
-      Json.obj(
-        "links" -> Json.arr(
-          le(Link(rel = "self", href = instanceId.qualifyAsString)),
-          le(Link(rel = "schema", href = instanceId.schemaId.qualifyAsString))
-        ))
+    val linksJson = Links("self" -> instanceId.qualify, "schema" -> instanceId.schemaId.qualify).asJson
+    idWithLinksEncoder.apply(instanceId) deepMerge Json.obj("links" -> linksJson)
   }
 }

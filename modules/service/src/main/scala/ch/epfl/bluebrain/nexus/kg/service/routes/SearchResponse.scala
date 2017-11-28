@@ -23,7 +23,6 @@ trait SearchResponse {
     */
   implicit class QueryResultsOpts[Id](qr: Future[QueryResults[Id]]) {
 
-
     private[routes] def addPagination(base: Uri, pagination: Pagination)(implicit
                                                                          R: Encoder[UnscoredQueryResult[Id]],
                                                                          S: Encoder[ScoredQueryResult[Id]],

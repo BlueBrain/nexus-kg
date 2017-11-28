@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
@@ -70,7 +70,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
             val expectedResults = UnscoredQueryResults(schemas.length.toLong, schemas.take(20).map {
               case (schemaId, _) => UnscoredQueryResult(schemaId)
             })
-            val expectedLinks = List(Link("self", s"$apiUri/schemas"), Link("next", s"$apiUri/schemas?from=20&size=20"))
+            val expectedLinks = Links("self" -> s"$apiUri/schemas", "next" -> s"$apiUri/schemas?from=20&size=20")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -89,7 +89,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
                 .map(id => UnscoredQueryResult(idsPayload(id)))
                 .take(pagination.size)
             )
-            val expectedLinks = List(Link("self", s"$apiUri$path"), Link("next", s"$apiUri$path&from=5"))
+            val expectedLinks = Links("self" -> s"$apiUri$path", "next" -> s"$apiUri$path&from=5")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -104,8 +104,8 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
             val expectedResults =
               UnscoredQueryResults((schemas.length - 3 * 5).toLong, List.empty[UnscoredQueryResult[SchemaId]])
             val expectedLinks =
-              List(Link("self", s"$apiUri$path"),
-                   Link("previous", s"$apiUri$path".replace("from=100", s"from=${(schemas.length - 3 * 5) - 5}")))
+              Links("self"     -> s"$apiUri$path",
+                    "previous" -> s"$apiUri$path".replace("from=100", s"from=${(schemas.length - 3 * 5) - 5}"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -118,7 +118,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(3L, 1F, schemas.take(3).map { case (id, _) => ScoredQueryResult(1F, id) })
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -130,7 +130,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           status shouldEqual StatusCodes.OK
           val expectedResults = ScoredQueryResults(3L, 1F, List.empty[ScoredQueryResult[SchemaId]])
           val expectedLinks =
-            List(Link("self", s"$apiUri$path"), Link("previous", s"$apiUri$path".replace("from=200", "from=0")))
+            Links("self" -> s"$apiUri$path", "previous" -> s"$apiUri$path".replace("from=200", "from=0"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -141,7 +141,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(3L, schemas.take(3).map { case (schemaId, _) => UnscoredQueryResult(schemaId) })
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -153,7 +153,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(3L, schemas.take(3).map { case (id, _) => UnscoredQueryResult(id) })
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -180,8 +180,8 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
             )
             val uri = Uri(s"$apiUri$path")
             val expectedLinks =
-              List(Link("self", uri),
-                   Link("next", uri.withQuery(Query(uri.query().toMap + ("from" -> "10") + ("size" -> "10")))))
+              Links("self" -> uri,
+                    "next" -> uri.withQuery(Query(uri.query().toMap + ("from" -> "10") + ("size" -> "10"))))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -203,7 +203,7 @@ class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(2L, schemas.slice(1, 3).map { case (id, _) => UnscoredQueryResult(id) })
-            val expectedLinks = List(Link("self", s"$apiUri$path"))
+            val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }

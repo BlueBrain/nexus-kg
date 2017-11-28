@@ -20,7 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.acls.AclIndexer
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Json
@@ -80,7 +80,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclI
               UnscoredQueryResults(orgs.length.toLong, orgs.map {
                 UnscoredQueryResult(_)
               })
-            val expectedLinks = List(Link("self", s"$apiUri/organizations"))
+            val expectedLinks = Links("self" -> Uri(s"$apiUri/organizations"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -94,7 +94,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclI
               UnscoredQueryResults(orgs.length.toLong, orgs.map { id =>
                 UnscoredQueryResult(idsPayload(id))
               })
-            val expectedLinks = List(Link("self", s"$apiUri/organizations?fields=all"))
+            val expectedLinks = Links("self" -> Uri(s"$apiUri/organizations?fields=all"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -110,10 +110,9 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclI
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(orgs.length.toLong, List(UnscoredQueryResult(orgs(1))))
-            val expectedLinks =
-              List(Link("self", s"$apiUri$path"),
-                   Link("previous", s"$apiUri$path".replace("from=1", "from=0")),
-                   Link("next", s"$apiUri$path".replace("from=1", "from=2")))
+            val expectedLinks = Links("self" -> s"$apiUri$path",
+                                      "previous" -> s"$apiUri$path".replace("from=1", "from=0"),
+                                      "next"     -> s"$apiUri$path".replace("from=1", "from=2"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -127,7 +126,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclI
           val expectedResults =
             UnscoredQueryResults(orgs.length.toLong, List.empty[UnscoredQueryResult[OrgId]])
           val expectedLinks =
-            List(Link("self", s"$apiUri$path"), Link("previous", s"$apiUri$path".replace("from=100", s"from=0")))
+            Links("self" -> s"$apiUri$path", "previous" -> s"$apiUri$path".replace("from=100", s"from=0"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -138,7 +137,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclI
           status shouldEqual StatusCodes.OK
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, orgs.head)))
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -150,7 +149,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclI
           val expectedResults =
             ScoredQueryResults(1L, 1F, List.empty[ScoredQueryResult[OrgId]])
           val expectedLinks =
-            List(Link("self", s"$apiUri$path"), Link("previous", s"$apiUri$path".replace("from=200", "from=0")))
+            Links("self" -> s"$apiUri$path", "previous" -> s"$apiUri$path".replace("from=200", "from=0"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -165,7 +164,7 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclI
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(1L, List(UnscoredQueryResult(orgs.head)))
-          val expectedLinks = List(Link("self", s"$apiUri$path"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -177,16 +176,14 @@ class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclI
             UnscoredQueryResults(orgs.length.toLong, orgs.map {
               UnscoredQueryResult(_)
             })
-          val expectedLinks =
-            List(Link("self", s"$apiUri/organizations?deprecated=false"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri/organizations?deprecated=false"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
         Get(s"/organizations?deprecated=true") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(0, List.empty[UnscoredQueryResult[OrgId]])
-          val expectedLinks =
-            List(Link("self", s"$apiUri/organizations?deprecated=true"))
+          val expectedLinks = Links("self" -> Uri(s"$apiUri/organizations?deprecated=true"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }

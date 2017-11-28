@@ -16,7 +16,6 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Link
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import io.circe._
@@ -52,7 +51,6 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, vocab: Uri)(implicit as: Ac
 
   override protected def afterAll(): Unit = ()
 
-  implicit val linkEncoder: Encoder[Link]          = deriveEncoder[Link]
   implicit val schemaConfig: Encoder[SchemaConfig] = deriveEncoder[SchemaConfig]
   implicit val qualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](vocab)
