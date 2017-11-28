@@ -254,7 +254,12 @@ class InstanceCustomEncoders(base: Uri)(implicit E: Instance => InstanceId)
   }
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
-    val linksJson = Links("self" -> instanceId.qualify, "schema" -> instanceId.schemaId.qualify).asJson
+    val linksJson = Links(
+      "self"     -> instanceId.qualify,
+      "schema"   -> instanceId.schemaId.qualify,
+      "outgoing" -> s"${instanceId.qualifyAsString}/outgoing",
+      "incoming" -> s"${instanceId.qualifyAsString}/incoming"
+    ).asJson
     idWithLinksEncoder.apply(instanceId) deepMerge Json.obj("links" -> linksJson)
   }
 }

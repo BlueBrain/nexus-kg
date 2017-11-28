@@ -220,8 +220,12 @@ class InstanceRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "links" -> Links("self" -> s"$baseUri/data/${instanceRef.id.show}",
-                             "schema" -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}").asJson,
+            "links" -> Links(
+              "self"     -> s"$baseUri/data/${instanceRef.id.show}",
+              "schema"   -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}",
+              "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
+              "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
+            ).asJson,
             "rev"        -> Json.fromLong(1L),
             "deprecated" -> Json.fromBoolean(false)
           )
@@ -241,8 +245,12 @@ class InstanceRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "links" -> Links("self" -> s"$baseUri/data/${instanceRef.id.show}",
-                             "schema" -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}").asJson,
+            "links" -> Links(
+              "self"     -> s"$baseUri/data/${instanceRef.id.show}",
+              "schema"   -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}",
+              "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
+              "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
+            ).asJson,
             "rev"        -> Json.fromLong(2L),
             "deprecated" -> Json.fromBoolean(false)
           )
@@ -254,8 +262,12 @@ class InstanceRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "links" -> Links("self" -> s"$baseUri/data/${instanceRef.id.show}",
-                             "schema" -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}").asJson,
+            "links" -> Links(
+              "self"     -> s"$baseUri/data/${instanceRef.id.show}",
+              "schema"   -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}",
+              "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
+              "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
+            ).asJson,
             "rev"        -> Json.fromLong(1L),
             "deprecated" -> Json.fromBoolean(false)
           )
@@ -385,8 +397,12 @@ class InstanceRoutesSpec
           .obj(
             "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
             "rev" -> Json.fromLong(2L),
-            "links" -> Links("self" -> s"$baseUri/data/${instanceRef.id.show}",
-                             "schema" -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}").asJson,
+            "links" -> Links(
+              "self"     -> s"$baseUri/data/${instanceRef.id.show}",
+              "schema"   -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}",
+              "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
+              "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
+            ).asJson,
             "deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest).asJson)
