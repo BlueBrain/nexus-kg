@@ -91,7 +91,6 @@ object RoutesEncoder {
     val score          = "score"
     val nxvNs          = "nxv"
     val nxvRev         = "nxv:rev"
-    val nxvValue       = "nxv:value"
     val nxvDeprecated  = "nxv:deprecated"
     val nxvDescription = "nxv:description"
     val nxvPublished   = "nxv:published"

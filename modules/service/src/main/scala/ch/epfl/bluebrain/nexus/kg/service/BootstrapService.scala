@@ -189,8 +189,6 @@ object BootstrapService {
         "published",
         "deprecated",
         "links",
-        "rel",
-        "href"
       ))
 
   abstract class BootstrapQuerySettings(settings: Settings) {

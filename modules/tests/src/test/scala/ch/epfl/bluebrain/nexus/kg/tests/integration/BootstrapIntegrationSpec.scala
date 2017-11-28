@@ -30,11 +30,11 @@ import scala.concurrent.duration._
   * Initialize common implicits, encoders, methods and values used on the tests.
   *
   * @param apiUri      the service public uri + prefix
-  * @param coreContext the nexus standard context URI
+  * @param context     the nexus standard context URI
   * @param vocab       the nexus core vocabulary base
   * @param as          the implicitly available Actor System
   */
-abstract class BootstrapIntegrationSpec(apiUri: Uri, coreContext: Uri, vocab: Uri)(implicit as: ActorSystem)
+abstract class BootstrapIntegrationSpec(apiUri: Uri, context: Uri, vocab: Uri)(implicit as: ActorSystem)
     extends WordSpecLike
     with Eventually
     with ScalatestRouteTest
@@ -61,11 +61,11 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, coreContext: Uri, vocab: Ur
   private implicit val contextIdExtractor  = (entity: Context) => entity.id
   private implicit val instanceIdExtractor = (entity: Instance) => entity.id
 
-  val orgsEncoders     = new OrgCustomEncoders(apiUri, coreContext)
-  val domsEncoders     = new DomainCustomEncoders(apiUri, coreContext)
-  val contextEncoders  = new ContextCustomEncoders(apiUri, coreContext)
-  val schemaEncoders   = new SchemaCustomEncoders(apiUri, coreContext)
-  val instanceEncoders = new InstanceCustomEncoders(apiUri, coreContext)
+  val orgsEncoders     = new OrgCustomEncoders(apiUri, context)
+  val domsEncoders     = new DomainCustomEncoders(apiUri, context)
+  val contextEncoders  = new ContextCustomEncoders(apiUri, context)
+  val schemaEncoders   = new SchemaCustomEncoders(apiUri, context)
+  val instanceEncoders = new InstanceCustomEncoders(apiUri, context)
 }
 
 object BootstrapIntegrationSpec extends Randomness with Resources {

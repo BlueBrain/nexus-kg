@@ -159,10 +159,10 @@ object DomainRoutes {
   }
 }
 
-class DomainCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Domain => DomainId)
+class DomainCustomEncoders(base: Uri, context: Uri)(implicit E: Domain => DomainId)
     extends RoutesEncoder[DomainId, DomainRef, Domain](base) {
 
-  implicit val domainRefEncoder: Encoder[DomainRef] = refEncoder.mapJson(_.addContext(coreContext))
+  implicit val domainRefEncoder: Encoder[DomainRef] = refEncoder.mapJson(_.addContext(context))
 
   implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap { domain =>
     refEncoder
@@ -173,6 +173,6 @@ class DomainCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Domain => Do
           JsonLDKeys.nxvDeprecated  -> Json.fromBoolean(domain.deprecated),
           JsonLDKeys.nxvDescription -> Json.fromString(domain.description)
         ))
-      .addContext(coreContext)
+      .addContext(context)
   }
 }

@@ -151,10 +151,10 @@ object OrganizationRoutes {
   }
 }
 
-class OrgCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Organization => OrgId)
+class OrgCustomEncoders(base: Uri, context: Uri)(implicit E: Organization => OrgId)
     extends RoutesEncoder[OrgId, OrgRef, Organization](base) {
 
-  implicit val orgRefEncoder: Encoder[OrgRef] = refEncoder.mapJson(_.addContext(coreContext))
+  implicit val orgRefEncoder: Encoder[OrgRef] = refEncoder.mapJson(_.addContext(context))
 
   implicit val orgEncoder: Encoder[Organization] = Encoder.encodeJson.contramap { org =>
     val meta = refEncoder
@@ -164,6 +164,6 @@ class OrgCustomEncoders(base: Uri, coreContext: Uri)(implicit E: Organization =>
         Json.obj(
           JsonLDKeys.nxvDeprecated -> Json.fromBoolean(org.deprecated)
         ))
-    org.value.deepMerge(meta).addContext(coreContext)
+    org.value.deepMerge(meta).addContext(context)
   }
 }
