@@ -181,6 +181,7 @@ object BootstrapService {
         "@context",
         "@id",
         "@type",
+        "total",
         "",
         "nxv:rev",
         "nxv:published",
@@ -188,7 +189,7 @@ object BootstrapService {
         "rev",
         "published",
         "deprecated",
-        "links",
+        "links"
       ))
 
   abstract class BootstrapQuerySettings(settings: Settings) {
