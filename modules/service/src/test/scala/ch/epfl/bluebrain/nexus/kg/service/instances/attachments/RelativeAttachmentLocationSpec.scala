@@ -41,7 +41,7 @@ class RelativeAttachmentLocationSpec extends WordSpecLike with Matchers with Try
         Location(new File(settings.Attachment.VolumePath.toFile, relativePathExpected).toPath, relativePathExpected)
     }
 
-    "fetches the URI of an attachment from it's relative path" in new Context {
+    "fetches the URI of an attachment from its relative path" in new Context {
       override def config: Config = correctConfig
       val relativePathExpected    = s"0/1/7/f/9/8/3/7/${instanceId.id}.$rev"
       fa.toAbsoluteURI(relativePathExpected) shouldEqual
@@ -57,7 +57,7 @@ class RelativeAttachmentLocationSpec extends WordSpecLike with Matchers with Try
 }
 
 object RelativeAttachmentLocationSpec {
-  val tempDir = Files.createTempDirectory("atachment").toString
+  val tempDir = Files.createTempDirectory("attachment").toString
   val correctConfig: Config = ConfigFactory.parseMap(
     Map("app.attachment.volume-path" -> s"$tempDir", "app.attachment.digest-algorithm" -> "SHA-256").asJava)
 

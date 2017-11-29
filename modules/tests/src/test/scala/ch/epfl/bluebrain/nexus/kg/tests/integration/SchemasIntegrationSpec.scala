@@ -27,11 +27,11 @@ import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
-class SchemasIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
-                                                                    as: ActorSystem,
-                                                                    ec: ExecutionContextExecutor,
-                                                                    mt: ActorMaterializer)
-    extends BootstrapIntegrationSpec(apiUri, vocab) {
+class SchemasIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab: Uri)(implicit
+                                                                                     as: ActorSystem,
+                                                                                     ec: ExecutionContextExecutor,
+                                                                                     mt: ActorMaterializer)
+    extends BootstrapIntegrationSpec(apiUri, contextUri, vocab) {
 
   import BootstrapIntegrationSpec._
   import schemaEncoders._

@@ -73,11 +73,18 @@ class InstanceRoutesSpec
 
     override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
-    def genSchema(): Json =
-      Json.obj()
+    def genSchema(): Json = Json.obj()
 
     def genJson(): Json =
       jsonContentOf("/int-value.json").deepMerge(Json.obj("value" -> Json.fromInt(genInt(Int.MaxValue))))
+
+    def genJsonWithContext(value: Json): Json = {
+      val valueObject = value.asObject.get
+      Json.fromJsonObject(
+        valueObject.add("@context",
+                        Json.arr(valueObject("@context").getOrElse(Json.obj()), Json.fromString(contextUri.toString)))
+      )
+    }
 
     val settings   = new Settings(ConfigFactory.load())
     val algorithm  = settings.Attachment.HashAlgorithm
@@ -130,14 +137,15 @@ class InstanceRoutesSpec
 
     implicit val cl = iamClient("http://localhost:8080")
 
-    val route = InstanceRoutes(instances, client, querySettings, baseUri).routes
+    val route = InstanceRoutes(instances, client, querySettings, baseUri, contextUri).routes
     val value = genJson()
+
     val instanceRef = Post(s"/data/${schemaId.show}", value) ~> addCredentials(ValidCredentials) ~> route ~> check {
       status shouldEqual StatusCodes.Created
       val json = responseAs[Json]
       val instanceId =
         InstanceId(toCompact(json.hcursor.get[String]("@id").toOption.get)).get
-      InstanceRef(instanceId, json.hcursor.get[Long]("rev").toOption.get)
+      InstanceRef(instanceId, json.hcursor.get[Long]("nxv:rev").toOption.get)
     }
 
     def deprecateInstance(ref: InstanceRef) =
@@ -226,10 +234,10 @@ class InstanceRoutesSpec
               "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
               "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
             ).asJson,
-            "rev"        -> Json.fromLong(1L),
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:rev"        -> Json.fromLong(1L),
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
-          .deepMerge(value)
+          .deepMerge(genJsonWithContext(value))
       }
     }
 
@@ -251,10 +259,10 @@ class InstanceRoutesSpec
               "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
               "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
             ).asJson,
-            "rev"        -> Json.fromLong(2L),
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:rev"        -> Json.fromLong(2L),
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
-          .deepMerge(value2)
+          .deepMerge(genJsonWithContext(value2))
       }
 
       Get(s"/data/${instanceRef.id.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -268,10 +276,10 @@ class InstanceRoutesSpec
               "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
               "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
             ).asJson,
-            "rev"        -> Json.fromLong(1L),
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:rev"        -> Json.fromLong(1L),
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
-          .deepMerge(value)
+          .deepMerge(genJsonWithContext(value))
       }
     }
 
@@ -395,18 +403,18 @@ class InstanceRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "rev" -> Json.fromLong(2L),
+            "@id"     -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
+            "nxv:rev" -> Json.fromLong(2L),
             "links" -> Links(
               "self"     -> s"$baseUri/data/${instanceRef.id.show}",
               "schema"   -> s"$baseUri/schemas/${instanceRef.id.schemaId.show}",
               "outgoing" -> s"$baseUri/data/${instanceRef.id.show}/outgoing",
               "incoming" -> s"$baseUri/data/${instanceRef.id.show}/incoming"
             ).asJson,
-            "deprecated" -> Json.fromBoolean(false)
+            "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest).asJson)
-          .deepMerge(value)
+          .deepMerge(genJsonWithContext(value))
       }
 
       deleteAttachments()
@@ -528,16 +536,18 @@ class InstanceRoutesSpec
 }
 
 object InstanceRoutesSpec {
-  private val base    = Uri("http://localhost")
-  private val baseUri = base.copy(path = base.path / "v0")
+  private val base       = Uri("http://localhost")
+  private val baseUri    = base.copy(path = base.path / "v0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
 
   import cats.syntax.show._
 
   private def instanceRefAsJson(ref: InstanceRef) =
     Json
       .obj(
-        "@id" -> Json.fromString(s"$baseUri/data/${ref.id.show}"),
-        "rev" -> Json.fromLong(ref.rev)
+        "@context" -> Json.fromString(contextUri.toString),
+        "@id"      -> Json.fromString(s"$baseUri/data/${ref.id.show}"),
+        "nxv:rev"  -> Json.fromLong(ref.rev)
       )
       .deepMerge(ref.attachment.map(at => at.asJson).getOrElse(Json.obj()))
 

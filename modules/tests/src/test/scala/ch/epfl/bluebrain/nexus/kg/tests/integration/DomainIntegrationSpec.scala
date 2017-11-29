@@ -25,11 +25,11 @@ import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
-class DomainIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri)(implicit
-                                                                   as: ActorSystem,
-                                                                   ec: ExecutionContextExecutor,
-                                                                   mt: ActorMaterializer)
-    extends BootstrapIntegrationSpec(apiUri, vocab) {
+class DomainIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab: Uri)(implicit
+                                                                                    as: ActorSystem,
+                                                                                    ec: ExecutionContextExecutor,
+                                                                                    mt: ActorMaterializer)
+    extends BootstrapIntegrationSpec(apiUri, contextUri, vocab) {
 
   import BootstrapIntegrationSpec._
   import domsEncoders._

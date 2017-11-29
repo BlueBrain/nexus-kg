@@ -65,7 +65,7 @@ class DomainRoutesSpec
     implicit val cl                = iamClient("http://localhost:8080")
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
+    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri, contextUri).routes
 
     "create a domain" in {
       Put(s"/domains/${orgId.show}/${id.id}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -154,6 +154,7 @@ class DomainRoutesSpec
 
 object DomainRoutesSpec {
   private val baseUri      = Uri("http://localhost/v0")
+  private val contextUri   = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
   private implicit val _   = (entity: Domain) => entity.id
-  implicit val domsEncoder = new DomainCustomEncoders(baseUri)
+  implicit val domsEncoder = new DomainCustomEncoders(baseUri, contextUri)
 }

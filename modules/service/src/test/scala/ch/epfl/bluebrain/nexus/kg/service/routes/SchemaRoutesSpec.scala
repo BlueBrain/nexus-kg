@@ -28,7 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
-import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec.baseUri
+import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -60,7 +60,14 @@ class SchemaRoutesSpec
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
     val vocab     = baseUri.copy(path = baseUri.path / "core")
 
-    val schemaJson     = jsonContentOf("/int-value-schema.json")
+    val schemaJson       = jsonContentOf("/int-value-schema.json")
+    val schemaJsonObject = schemaJson.asObject.get
+    val schemaJsonWithStandardsContext = Json.fromJsonObject(
+      schemaJsonObject.add(
+        "@context",
+        Json.arr(schemaJsonObject("@context").getOrElse(Json.obj()), Json.fromString(contextUri.toString)))
+    )
+
     val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
     val orgAgg         = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs           = Organizations(orgAgg)
@@ -92,7 +99,7 @@ class SchemaRoutesSpec
     implicit val cl: IamClient[Future]                = iamClient("http://localhost:8080")
 
     val route =
-      SchemaRoutes(schemas, sparqlClient, querySettings, baseUri).routes
+      SchemaRoutes(schemas, sparqlClient, querySettings, baseUri, contextUri).routes
 
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 
@@ -130,13 +137,13 @@ class SchemaRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
-            "rev"        -> Json.fromLong(1L),
-            "links"      -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
-            "deprecated" -> Json.fromBoolean(false),
-            "published"  -> Json.fromBoolean(false)
+            "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
+            "nxv:rev"        -> Json.fromLong(1L),
+            "links"          -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
+            "nxv:deprecated" -> Json.fromBoolean(false),
+            "nxv:published"  -> Json.fromBoolean(false)
           )
-          .deepMerge(schemaJson)
+          .deepMerge(schemaJsonWithStandardsContext)
       }
     }
 
@@ -176,13 +183,13 @@ class SchemaRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
-            "rev"        -> Json.fromLong(1L),
-            "links"      -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
-            "deprecated" -> Json.fromBoolean(false),
-            "published"  -> Json.fromBoolean(false)
+            "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
+            "nxv:rev"        -> Json.fromLong(1L),
+            "links"          -> Links("self" -> Uri(s"$baseUri/schemas/${schemaId.show}")).asJson,
+            "nxv:deprecated" -> Json.fromBoolean(false),
+            "nxv:published"  -> Json.fromBoolean(false)
           )
-          .deepMerge(schemaJson)
+          .deepMerge(schemaJsonWithStandardsContext)
       }
     }
 
@@ -199,10 +206,11 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
-                "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
-                "rev"        -> Json.fromLong(3L),
-                "deprecated" -> Json.fromBoolean(false),
-                "published"  -> Json.fromBoolean(true)
+                "@context"       -> Json.fromString(contextUri.toString),
+                "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
+                "nxv:rev"        -> Json.fromLong(3L),
+                "nxv:deprecated" -> Json.fromBoolean(false),
+                "nxv:published"  -> Json.fromBoolean(true)
               )
             ))
       }
@@ -215,10 +223,11 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
-                "@id"        -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
-                "rev"        -> Json.fromLong(1L),
-                "deprecated" -> Json.fromBoolean(false),
-                "published"  -> Json.fromBoolean(false)
+                "@context"       -> Json.fromString(contextUri.toString),
+                "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
+                "nxv:rev"        -> Json.fromLong(1L),
+                "nxv:deprecated" -> Json.fromBoolean(false),
+                "nxv:published"  -> Json.fromBoolean(false)
               )
             ))
       }
@@ -282,10 +291,15 @@ class SchemaRoutesSpec
 }
 
 object SchemaRoutesSpec {
-  private val baseUri = Uri("http://localhost/v0")
+  private val baseUri    = Uri("http://localhost/v0")
+  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
 
   import cats.syntax.show._
 
   private def schemaRefAsJson(ref: SchemaRef) =
-    Json.obj("@id" -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"), "rev" -> Json.fromLong(ref.rev))
+    Json.obj(
+      "@context" -> Json.fromString(contextUri.toString),
+      "@id"      -> Json.fromString(s"$baseUri/schemas/${ref.id.show}"),
+      "nxv:rev"  -> Json.fromLong(ref.rev)
+    )
 }

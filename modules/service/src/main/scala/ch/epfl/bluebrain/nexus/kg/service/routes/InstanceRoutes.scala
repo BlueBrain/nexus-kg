@@ -32,11 +32,13 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives.traceName
+
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -45,19 +47,21 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param instances         the instances operation bundle
   * @param instanceQueries   query builder for schemas
   * @param base              the service public uri + prefix
+  * @param context           the service standard context URI
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
-                     base: Uri)(implicit querySettings: QuerySettings,
-                                filteringSettings: FilteringSettings,
-                                iamClient: IamClient[Future],
-                                ec: ExecutionContext,
-                                clock: Clock,
-                                orderedKeys: OrderedKeys)
+                     base: Uri,
+                     context: Uri)(implicit querySettings: QuerySettings,
+                                   filteringSettings: FilteringSettings,
+                                   iamClient: IamClient[Future],
+                                   ec: ExecutionContext,
+                                   clock: Clock,
+                                   orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Instance) => entity.id
-  private val encoders   = new InstanceCustomEncoders(base)
+  private val encoders   = new InstanceCustomEncoders(base, context)
 
   import encoders._
 
@@ -216,42 +220,46 @@ object InstanceRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
+    * @param context       the service standard context URI
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
-                  base: Uri)(implicit
-                             ec: ExecutionContext,
-                             iamClient: IamClient[Future],
-                             filteringSettings: FilteringSettings,
-                             clock: Clock,
-                             orderedKeys: OrderedKeys): InstanceRoutes = {
+                  base: Uri,
+                  context: Uri)(implicit
+                                ec: ExecutionContext,
+                                iamClient: IamClient[Future],
+                                filteringSettings: FilteringSettings,
+                                clock: Clock,
+                                orderedKeys: OrderedKeys): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
-    new InstanceRoutes(instances, instanceQueries, base)
+    new InstanceRoutes(instances, instanceQueries, base, context)
   }
 }
 
-class InstanceCustomEncoders(base: Uri)(implicit E: Instance => InstanceId)
+class InstanceCustomEncoders(base: Uri, context: Uri)(implicit E: Instance => InstanceId)
     extends RoutesEncoder[InstanceId, InstanceRef, Instance](base) {
+  private val refWithAttachmentEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
+    refEncoder.apply(ref) deepMerge ref.attachment.map(_.asJson).getOrElse(Json.obj())
+  }
+
   implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
 
   implicit val instanceEncoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
     val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
-    val meta = instanceRefEncoder
+    val meta = refWithAttachmentEncoder
       .apply(instanceRef)
       .deepMerge(instanceIdWithLinksEncoder(instance.id))
       .deepMerge(
         Json.obj(
-          "deprecated" -> Json.fromBoolean(instance.deprecated)
+          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated)
         ))
-    instance.value.deepMerge(meta)
+    instance.value.deepMerge(meta).addContext(context)
   }
 
-  implicit val instanceRefEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
-    refEncoder.apply(ref) deepMerge ref.attachment.map(at => at.asJson).getOrElse(Json.obj())
-  }
+  implicit val instanceRefEncoder: Encoder[InstanceRef] = refWithAttachmentEncoder.mapJson(_.addContext(context))
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
     val linksJson = Links(

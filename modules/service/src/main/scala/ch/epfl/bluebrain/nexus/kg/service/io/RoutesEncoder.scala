@@ -7,6 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult,
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 
@@ -26,52 +27,109 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit extractI
                                                                Q: Qualifier[Id]) {
 
   implicit val typeQualifier: ConfiguredQualifier[Id] = Qualifier.configured[Id](base)
+
   implicit val refEncoder: Encoder[Reference] = Encoder.encodeJson.contramap { ref =>
     Json.obj(
-      "@id" -> Json.fromString(ref.id.qualifyAsString),
-      "rev" -> Json.fromLong(ref.rev)
+      `@id`  -> Json.fromString(ref.id.qualifyAsString),
+      nxvRev -> Json.fromLong(ref.rev)
     )
   }
+
   implicit val idWithLinksEncoder: Encoder[Id] = Encoder.encodeJson.contramap { id =>
     Json.obj(
-      "@id"   -> Json.fromString(id.qualifyAsString),
-      "links" -> selfLink(id).asJson
+      `@id` -> Json.fromString(id.qualifyAsString),
+      links -> selfLink(id).asJson
     )
   }
+
   implicit def queryResultEncoder(implicit E: Encoder[Id]): Encoder[UnscoredQueryResult[Id]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        "resultId" -> Json.fromString(qr.source.qualifyAsString),
-        "source"   -> E(qr.source)
+        resultId -> Json.fromString(qr.source.qualifyAsString),
+        source   -> E(qr.source)
       )
     }
 
   implicit def scoredQueryResultEncoder(implicit E: Encoder[Id]): Encoder[ScoredQueryResult[Id]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        "resultId" -> Json.fromString(qr.source.qualifyAsString),
-        "score"    -> Json.fromFloatOrString(qr.score),
-        "source"   -> E(qr.source)
+        resultId -> Json.fromString(qr.source.qualifyAsString),
+        score    -> Json.fromFloatOrString(qr.score),
+        source   -> E(qr.source)
       )
     }
 
   implicit def queryResultEntityEncoder(implicit E: Encoder[Entity]): Encoder[UnscoredQueryResult[Entity]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        "resultId" -> Json.fromString(extractId(qr.source).qualifyAsString),
-        "source"   -> E(qr.source)
+        resultId -> Json.fromString(extractId(qr.source).qualifyAsString),
+        source   -> E(qr.source)
       )
     }
 
   implicit def scoredQueryResultEntityEncoder(implicit E: Encoder[Entity]): Encoder[ScoredQueryResult[Entity]] =
     Encoder.encodeJson.contramap { qr =>
       Json.obj(
-        "resultId" -> Json.fromString(extractId(qr.source).qualifyAsString),
-        "score"    -> Json.fromFloatOrString(qr.score),
-        "source"   -> E(qr.source)
+        resultId -> Json.fromString(extractId(qr.source).qualifyAsString),
+        score    -> Json.fromFloatOrString(qr.score),
+        source   -> E(qr.source)
       )
     }
 
   private def selfLink(id: Id): Links = Links("self" -> id.qualify)
 
+}
+
+object RoutesEncoder {
+
+  object JsonLDKeys {
+    val `@context`     = "@context"
+    val `@id`          = "@id"
+    val links          = "links"
+    val resultId       = "resultId"
+    val source         = "source"
+    val score          = "score"
+    val nxvNs          = "nxv"
+    val nxvRev         = "nxv:rev"
+    val nxvDeprecated  = "nxv:deprecated"
+    val nxvDescription = "nxv:description"
+    val nxvPublished   = "nxv:published"
+  }
+
+  /**
+    * Syntax to extend JSON objects in response body with the standard context.
+    *
+    * @param json the JSON object
+    */
+  implicit class JsonOps(json: Json) {
+
+    /**
+      * Adds or merges the standard context URI to an existing JSON object.
+      *
+      * @param context the standard context URI
+      * @return a new JSON object
+      */
+    def addContext(context: Uri): Json = {
+      val contextUriString = Json.fromString(context.toString)
+
+      json.asObject match {
+        case Some(jo) =>
+          val updated = jo(`@context`) match {
+            case None => jo.add(`@context`, contextUriString)
+            case Some(value) =>
+              (value.asObject, value.asArray, value.asString) match {
+                case (Some(_), _, _) =>
+                  jo.add(`@context`, Json.arr(value, contextUriString))
+                case (_, Some(va), _) =>
+                  jo.add(`@context`, Json.fromValues(va :+ contextUriString))
+                case (_, _, Some(_)) =>
+                  jo.add(`@context`, Json.arr(value, contextUriString))
+                case _ => jo
+              }
+          }
+          Json.fromJsonObject(updated)
+        case None => json
+      }
+    }
+  }
 }

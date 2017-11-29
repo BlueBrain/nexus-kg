@@ -35,6 +35,7 @@ import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 @DoNotDiscover
 class InstanceIntegrationSpec(
     apiUri: Uri,
+    contextUri: Uri,
     route: Route,
     vocab: Uri,
     instancesService: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]])(
@@ -42,7 +43,7 @@ class InstanceIntegrationSpec(
     as: ActorSystem,
     ec: ExecutionContextExecutor,
     mt: ActorMaterializer)
-    extends BootstrapIntegrationSpec(apiUri, vocab) {
+    extends BootstrapIntegrationSpec(apiUri, contextUri, vocab) {
 
   import BootstrapIntegrationSpec._
   import instanceEncoders._

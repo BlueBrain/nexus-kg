@@ -18,7 +18,6 @@ final case class Links private (values: Map[String, List[Uri]]) {
     */
   def +(rel: String, href: Uri*): Links = Links(values + (rel -> href.toList))
 
-
   /**I
     * Merges two [[Links]] together and returns a new [[Links]] with the added elements.
     *

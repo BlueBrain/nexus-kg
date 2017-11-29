@@ -63,8 +63,9 @@ object LinksQueryResults {
         "links"   -> response.links.asJson
       )
       response.response match {
-        case ScoredQueryResults(_, maxScore, _) => json deepMerge Json.obj("maxScore" -> Json.fromFloatOrNull(maxScore))
-        case _                                  => json
+        case ScoredQueryResults(_, maxScore, _) =>
+          json deepMerge Json.obj("maxScore" -> Json.fromFloatOrNull(maxScore))
+        case _ => json
       }
     }
 

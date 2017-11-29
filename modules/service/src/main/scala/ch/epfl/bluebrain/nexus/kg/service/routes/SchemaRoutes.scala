@@ -14,10 +14,10 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId, ShapeRef}
-import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
@@ -29,10 +29,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.{Publish, SchemaConfig}
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
@@ -47,8 +48,9 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param schemas           the schemas operation bundle
   * @param schemaQueries     query builder for schemas
   * @param base              the service public uri + prefix
+  * @param context           the service standard context URI
   */
-class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future, SchemaId], base: Uri)(
+class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future, SchemaId], base: Uri, context: Uri)(
     implicit querySettings: QuerySettings,
     filteringSettings: FilteringSettings,
     iamClient: IamClient[Future],
@@ -61,8 +63,8 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
   private implicit val sQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
 
-  private val schemaEncoders = new SchemaCustomEncoders(base)
-  private val shapeEncoders  = new ShapeCustomEncoders(base)
+  private val schemaEncoders = new SchemaCustomEncoders(base, context)
+  private val shapeEncoders  = new ShapeCustomEncoders(base, context)
 
   import schemaEncoders._
   import shapeEncoders.shapeEncoder
@@ -204,19 +206,23 @@ object SchemaRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
+    * @param context       the service standard context URI
     * @return a new ''SchemaRoutes'' instance
     */
-  final def apply(schemas: Schemas[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
-      implicit
-      ec: ExecutionContext,
-      iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings,
-      clock: Clock,
-      orderedKeys: OrderedKeys): SchemaRoutes = {
+  final def apply(schemas: Schemas[Future],
+                  client: SparqlClient[Future],
+                  querySettings: QuerySettings,
+                  base: Uri,
+                  context: Uri)(implicit
+                                ec: ExecutionContext,
+                                iamClient: IamClient[Future],
+                                filteringSettings: FilteringSettings,
+                                clock: Clock,
+                                orderedKeys: OrderedKeys): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client), querySettings)
-    new SchemaRoutes(schemas, schemaQueries, base)
+    new SchemaRoutes(schemas, schemaQueries, base, context)
   }
 
   /**
@@ -230,32 +236,37 @@ object SchemaRoutes {
 
 }
 
-private class ShapeCustomEncoders(base: Uri)(implicit E: Shape => ShapeId)
+private class ShapeCustomEncoders(base: Uri, context: Uri)(implicit E: Shape => ShapeId)
     extends RoutesEncoder[ShapeId, ShapeRef, Shape](base) {
+
+  implicit val shapeRefEncoder: Encoder[ShapeRef] = refEncoder.mapJson(_.addContext(context))
 
   implicit def shapeEncoder: Encoder[Shape] = Encoder.encodeJson.contramap { shape =>
     val meta = refEncoder
       .apply(ShapeRef(shape.id, shape.rev))
       .deepMerge(
         Json.obj(
-          "deprecated" -> Json.fromBoolean(shape.deprecated),
-          "published"  -> Json.fromBoolean(shape.published)
+          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(shape.deprecated),
+          JsonLDKeys.nxvPublished  -> Json.fromBoolean(shape.published)
         ))
-    shape.value.deepMerge(meta)
+    shape.value.deepMerge(meta).addContext(context)
   }
 }
 
-class SchemaCustomEncoders(base: Uri)(implicit E: Schema => SchemaId)
+class SchemaCustomEncoders(base: Uri, context: Uri)(implicit E: Schema => SchemaId)
     extends RoutesEncoder[SchemaId, SchemaRef, Schema](base) {
+
+  implicit val schemaRefEncoder: Encoder[SchemaRef] = refEncoder.mapJson(_.addContext(context))
+
   implicit def schemaEncoder: Encoder[Schema] = Encoder.encodeJson.contramap { schema =>
     val meta = refEncoder
       .apply(SchemaRef(schema.id, schema.rev))
       .deepMerge(idWithLinksEncoder(schema.id))
       .deepMerge(
         Json.obj(
-          "deprecated" -> Json.fromBoolean(schema.deprecated),
-          "published"  -> Json.fromBoolean(schema.published)
+          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(schema.deprecated),
+          JsonLDKeys.nxvPublished  -> Json.fromBoolean(schema.published)
         ))
-    schema.value.deepMerge(meta)
+    schema.value.deepMerge(meta).addContext(context)
   }
 }

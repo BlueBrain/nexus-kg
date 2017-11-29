@@ -14,7 +14,6 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
-import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
@@ -24,8 +23,8 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
-import io.circe.generic.auto._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives.traceName
 
@@ -37,18 +36,21 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param orgs              the organization operation bundle
   * @param orgQueries        query builder for organizations
   * @param base              the service public uri + prefix
+  * @param context           the service standard context URI
   */
-final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQueries[Future, OrgId], base: Uri)(
-    implicit querySettings: QuerySettings,
-    filteringSettings: FilteringSettings,
-    iamClient: IamClient[Future],
-    ec: ExecutionContext,
-    clock: Clock,
-    orderedKeys: OrderedKeys)
+final class OrganizationRoutes(orgs: Organizations[Future],
+                               orgQueries: FilterQueries[Future, OrgId],
+                               base: Uri,
+                               context: Uri)(implicit querySettings: QuerySettings,
+                                             filteringSettings: FilteringSettings,
+                                             iamClient: IamClient[Future],
+                                             ec: ExecutionContext,
+                                             clock: Clock,
+                                             orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Organization) => entity.id
-  private val encoders   = new OrgCustomEncoders(base)
+  private val encoders   = new OrgCustomEncoders(base, context)
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
@@ -128,35 +130,40 @@ object OrganizationRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
+    * @param context       the service standard context URI
     * @return a new ''OrganizationRoutes'' instance
     */
-  final def apply(orgs: Organizations[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
-      implicit
-      ec: ExecutionContext,
-      iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings,
-      clock: Clock,
-      orderedKeys: OrderedKeys): OrganizationRoutes = {
+  final def apply(orgs: Organizations[Future],
+                  client: SparqlClient[Future],
+                  querySettings: QuerySettings,
+                  base: Uri,
+                  context: Uri)(implicit
+                                ec: ExecutionContext,
+                                iamClient: IamClient[Future],
+                                filteringSettings: FilteringSettings,
+                                clock: Clock,
+                                orderedKeys: OrderedKeys): OrganizationRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val orgQueries =
       FilterQueries[Future, OrgId](SparqlQuery[Future](client), querySettings)
-    new OrganizationRoutes(orgs, orgQueries, base)
+    new OrganizationRoutes(orgs, orgQueries, base, context)
   }
 }
 
-class OrgCustomEncoders(base: Uri)(implicit E: Organization => OrgId)
+class OrgCustomEncoders(base: Uri, context: Uri)(implicit E: Organization => OrgId)
     extends RoutesEncoder[OrgId, OrgRef, Organization](base) {
 
-  implicit val orgEncoder: Encoder[Organization] =
-    Encoder.encodeJson.contramap { org =>
-      val meta = refEncoder
-        .apply(OrgRef(org.id, org.rev))
-        .deepMerge(idWithLinksEncoder(org.id))
-        .deepMerge(
-          Json.obj(
-            "deprecated" -> Json.fromBoolean(org.deprecated)
-          ))
-      org.value.deepMerge(meta)
-    }
+  implicit val orgRefEncoder: Encoder[OrgRef] = refEncoder.mapJson(_.addContext(context))
+
+  implicit val orgEncoder: Encoder[Organization] = Encoder.encodeJson.contramap { org =>
+    val meta = refEncoder
+      .apply(OrgRef(org.id, org.rev))
+      .deepMerge(idWithLinksEncoder(org.id))
+      .deepMerge(
+        Json.obj(
+          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(org.deprecated)
+        ))
+    org.value.deepMerge(meta).addContext(context)
+  }
 }

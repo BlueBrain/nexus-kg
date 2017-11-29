@@ -32,12 +32,12 @@ import scala.collection.mutable.Map
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
 @DoNotDiscover
-class OrgIntegrationSpec(apiUri: Uri, route: Route, vocab: Uri, aclIndexer: AclIndexer[Future])(
+class OrgIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab: Uri, aclIndexer: AclIndexer[Future])(
     implicit
     as: ActorSystem,
     ec: ExecutionContextExecutor,
     mt: ActorMaterializer)
-    extends BootstrapIntegrationSpec(apiUri, vocab) {
+    extends BootstrapIntegrationSpec(apiUri, contextUri, vocab) {
 
   import BootstrapIntegrationSpec._
   import orgsEncoders._
