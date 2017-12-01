@@ -41,11 +41,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
+import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error._
 import ch.epfl.bluebrain.nexus.kg.service.routes.InstanceRoutesSpec._
-import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec.baseUri
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import com.typesafe.config.ConfigFactory
@@ -137,7 +136,7 @@ class InstanceRoutesSpec
 
     implicit val cl = iamClient("http://localhost:8080")
 
-    val route = InstanceRoutes(instances, client, querySettings, baseUri, contextUri).routes
+    val route = InstanceRoutes(instances, client, querySettings, baseUri, prefixes).routes
     val value = genJson()
 
     val instanceRef = Post(s"/data/${schemaId.show}", value) ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -538,7 +537,7 @@ class InstanceRoutesSpec
 object InstanceRoutesSpec {
   private val base       = Uri("http://localhost")
   private val baseUri    = base.copy(path = base.path / "v0")
-  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
+  private val contextUri = prefixes.CoreContext
 
   import cats.syntax.show._
 

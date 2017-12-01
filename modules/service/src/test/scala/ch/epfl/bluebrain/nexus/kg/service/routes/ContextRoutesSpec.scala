@@ -29,6 +29,7 @@ import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec._
+import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
@@ -61,7 +62,8 @@ class ContextRoutesSpec
     val contextJsonObject = contextJson.asObject.get
 
     val contextJsonWithStandards = Json.obj(
-      "@context" -> Json.arr(contextJsonObject("@context").getOrElse(Json.obj()), Json.fromString(contextUri.toString)))
+      "@context" -> Json.arr(contextJsonObject("@context").getOrElse(Json.obj()),
+                             Json.fromString(prefixes.CoreContext.toString)))
 
     val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs   = Organizations(orgAgg)
@@ -88,7 +90,7 @@ class ContextRoutesSpec
     val vocab         = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri)
 
-    val route = ContextRoutes(contexts, sparql, querySettings, baseUri, contextUri).routes
+    val route = ContextRoutes(contexts, sparql, querySettings, baseUri, prefixes).routes
 
     val contextId = ContextId(domRef.id, genString(length = 8), genVersion())
 
@@ -245,13 +247,14 @@ class ContextRoutesSpec
 
 object ContextRoutesSpec {
 
-  private val baseUri    = Uri("http://localhost/v0")
-  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
+  private val baseUri = Uri("http://localhost/v0")
 
   private def contextRefAsJson(ref: ContextRef) =
-    Json.obj("@context" -> Json.fromString(contextUri.toString),
-             "@id"      -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"),
-             "nxv:rev"  -> Json.fromLong(ref.rev))
+    Json.obj(
+      "@context" -> Json.fromString(prefixes.CoreContext.toString),
+      "@id"      -> Json.fromString(s"$baseUri/contexts/${ref.id.show}"),
+      "nxv:rev"  -> Json.fromLong(ref.rev)
+    )
 
   private def sparqlClient()(implicit cl: UntypedHttpClient[Future],
                              ec: ExecutionContext,

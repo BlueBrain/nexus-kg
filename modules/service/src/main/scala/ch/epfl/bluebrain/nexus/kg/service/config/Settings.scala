@@ -139,9 +139,32 @@ class Settings(config: Config) extends Extension {
     val HashAlgorithm = ns.getString("attachment.digest-algorithm")
   }
 
-  object Prefixes {
+  object Prefixes extends Settings.PrefixUris {
 
+    /**
+      * The nexus core context definition.
+      */
+    val CoreContext = Uri(ns.getString("prefixes.core-context"))
+
+    /**
+      * The nexus standards context definition.
+      */
     val StandardsContext = Uri(ns.getString("prefixes.standards-context"))
+
+    /**
+      * The nexus links context definition.
+      */
+    val LinksContext = Uri(ns.getString("prefixes.links-context"))
+
+    /**
+      * The nexus search context definition.
+      */
+    val SearchContext = Uri(ns.getString("prefixes.search-context"))
+
+    /**
+      * The nexus distribution (attachments) context definition.
+      */
+    val DistributionContext = Uri(ns.getString("prefixes.distribution-context"))
 
     /**
       * The nexus core vocabulary prefix.
@@ -289,5 +312,16 @@ object Settings extends ExtensionId[Settings] with ExtensionIdProvider {
   override def lookup(): ExtensionId[_ <: Extension] = Settings
 
   override def createExtension(system: ExtendedActorSystem): Settings = new Settings(system.settings.config)
+
+  trait PrefixUris {
+    def CoreContext: Uri
+    def StandardsContext: Uri
+    def LinksContext: Uri
+    def SearchContext: Uri
+    def DistributionContext: Uri
+    def CoreVocabulary: Uri
+    def SearchVocabulary: Uri
+  }
+
 }
 // $COVERAGE-ON$

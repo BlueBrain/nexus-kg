@@ -26,11 +26,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.{JsonLDKeys, _}
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.Publish
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
@@ -46,7 +47,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param contexts       the context operation bundle
   * @param contextQueries query builder for contexts
   * @param base           the service public uri + prefix
-  * @param context        the service standard context URI
+  * @param prefixes       the service context URIs
   * @param iamClient      IAM client
   * @param ec             execution context
   * @param clock          the clock used to issue instants
@@ -54,19 +55,19 @@ import scala.concurrent.{ExecutionContext, Future}
 class ContextRoutes(contexts: Contexts[Future],
                     contextQueries: FilterQueries[Future, ContextId],
                     base: Uri,
-                    context: Uri)(implicit
-                                  querySettings: QuerySettings,
-                                  iamClient: IamClient[Future],
-                                  ec: ExecutionContext,
-                                  clock: Clock,
-                                  orderedKeys: OrderedKeys)
+                    prefixes: PrefixUris)(implicit
+                                          querySettings: QuerySettings,
+                                          iamClient: IamClient[Future],
+                                          ec: ExecutionContext,
+                                          clock: Clock,
+                                          orderedKeys: OrderedKeys)
     extends DefaultRouteHandling
     with QueryDirectives {
 
   private implicit val _ = (entity: Context) => entity.id
   private implicit val sQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
-  private val contextEncoders = new ContextCustomEncoders(base, context)
+  private val contextEncoders = new ContextCustomEncoders(base, prefixes)
   import contextEncoders._
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler
@@ -184,7 +185,7 @@ object ContextRoutes {
     *
     * @param contexts  the context operation bundle
     * @param base      the service public uri + prefix
-    * @param context   the service standard context URI
+    * @param prefixes  the service context URIs
     * @param iamClient IAM client
     * @param ec        execution context
     * @param clock     the clock used to issue instants
@@ -194,14 +195,14 @@ object ContextRoutes {
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
                   base: Uri,
-                  context: Uri)(implicit iamClient: IamClient[Future],
-                                ec: ExecutionContext,
-                                clock: Clock,
-                                orderedKeys: OrderedKeys): ContextRoutes = {
+                  prefixes: PrefixUris)(implicit iamClient: IamClient[Future],
+                                        ec: ExecutionContext,
+                                        clock: Clock,
+                                        orderedKeys: OrderedKeys): ContextRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val contextQueries             = FilterQueries[Future, ContextId](SparqlQuery[Future](client), querySettings)
-    new ContextRoutes(contexts, contextQueries, base, context)
+    new ContextRoutes(contexts, contextQueries, base, prefixes)
   }
 
   /**
@@ -213,10 +214,10 @@ object ContextRoutes {
 
 }
 
-class ContextCustomEncoders(base: Uri, context: Uri)(implicit E: Context => ContextId)
-    extends RoutesEncoder[ContextId, ContextRef, Context](base) {
+class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context => ContextId)
+    extends RoutesEncoder[ContextId, ContextRef, Context](base, prefixes) {
 
-  implicit val contextRefEncoder: Encoder[ContextRef] = refEncoder.mapJson(_.addContext(context))
+  implicit val contextRefEncoder: Encoder[ContextRef] = refEncoder.mapJson(_.addCoreContext)
 
   implicit def contextEncoder: Encoder[Context] = Encoder.encodeJson.contramap { ctx =>
     val meta = refEncoder
@@ -228,6 +229,6 @@ class ContextCustomEncoders(base: Uri, context: Uri)(implicit E: Context => Cont
           JsonLDKeys.nxvPublished  -> Json.fromBoolean(ctx.published)
         )
       )
-    ctx.value.deepMerge(meta).addContext(context)
+    ctx.value.deepMerge(meta).addCoreContext
   }
 }

@@ -18,7 +18,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
+import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -52,7 +52,7 @@ class OrganizationRoutesSpec
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =
-      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri, contextUri).routes
+      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri, prefixes).routes
 
     val id          = OrgId(genString(length = 3))
     val json        = Json.obj("key" -> Json.fromString(genString(length = 8)))
@@ -108,7 +108,7 @@ class OrganizationRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id"            -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-            "@context"       -> Json.fromString(contextUri.toString),
+            "@context"       -> Json.fromString(prefixes.CoreContext.toString),
             "nxv:rev"        -> Json.fromLong(2L),
             "links"          -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false)
@@ -122,7 +122,7 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@context"       -> Json.fromString(contextUri.toString),
+            "@context"       -> Json.fromString(prefixes.CoreContext.toString),
             "@id"            -> Json.fromString(s"$baseUri/organizations/${id.id}"),
             "nxv:rev"        -> Json.fromLong(1L),
             "links"          -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
@@ -162,11 +162,10 @@ class OrganizationRoutesSpec
 }
 
 object OrganizationRoutesSpec {
-  private val baseUri    = Uri("http://localhost/v0")
-  private val contextUri = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
+  private val baseUri = Uri("http://localhost/v0")
 
   private def orgRefAsJson(ref: OrgRef) = Json.obj(
-    "@context" -> Json.fromString(contextUri.toString),
+    "@context" -> Json.fromString(prefixes.CoreContext.toString),
     "@id"      -> Json.fromString(s"$baseUri/organizations/${ref.id.id}"),
     "nxv:rev"  -> Json.fromLong(ref.rev)
   )

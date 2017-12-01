@@ -1,12 +1,16 @@
 package ch.epfl.bluebrain.nexus.kg.service.hateoas
 
-import org.scalatest.{Matchers, WordSpecLike}
 import akka.http.scaladsl.model.Uri
+import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
+import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import io.circe.Json
 import io.circe.syntax._
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
+import org.scalatest.{Matchers, WordSpecLike}
 
 class LinksSpec extends WordSpecLike with Matchers {
+
+  private val baseEncoder = new BaseEncoder(prefixes)
+  import baseEncoder.linksEncoder
 
   "Links" should {
 

@@ -1,14 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.service.io
 
-import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonOps
 import io.circe.Json
+import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
 class JsonOpsSpec extends WordSpecLike with Matchers with Inspectors {
 
-  private val contextUri    = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
-  private val contextString = Json.fromString("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
+  private val contextUri    = prefixes.CoreContext
+  private val contextString = Json.fromString(contextUri.toString)
+  private val baseEncoder   = new BaseEncoder(prefixes)
+  import baseEncoder._
 
   private val mapping = List(
     Json.obj("@id"        -> Json.fromString("foo-id"), "nxv:rev" -> Json.fromLong(1)) ->
@@ -53,7 +54,7 @@ class JsonOpsSpec extends WordSpecLike with Matchers with Inspectors {
     "properly add or merge context into JSON payload" in {
       forAll(mapping) {
         case (in, out) =>
-          in.addContext(contextUri) shouldEqual out
+          in.addCoreContext shouldEqual out
       }
     }
   }

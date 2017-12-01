@@ -19,6 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
+import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutesSpec._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -65,7 +66,7 @@ class DomainRoutesSpec
     implicit val cl                = iamClient("http://localhost:8080")
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri, contextUri).routes
+    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri, prefixes).routes
 
     "create a domain" in {
       Put(s"/domains/${orgId.show}/${id.id}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -154,7 +155,6 @@ class DomainRoutesSpec
 
 object DomainRoutesSpec {
   private val baseUri      = Uri("http://localhost/v0")
-  private val contextUri   = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
   private implicit val _   = (entity: Domain) => entity.id
-  implicit val domsEncoder = new DomainCustomEncoders(baseUri, contextUri)
+  implicit val domsEncoder = new DomainCustomEncoders(baseUri, prefixes)
 }

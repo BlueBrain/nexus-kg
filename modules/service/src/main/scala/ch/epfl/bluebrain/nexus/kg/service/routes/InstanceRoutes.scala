@@ -26,13 +26,14 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder._
+import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -47,21 +48,21 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param instances         the instances operation bundle
   * @param instanceQueries   query builder for schemas
   * @param base              the service public uri + prefix
-  * @param context           the service standard context URI
+  * @param prefixes          the service context URIs
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
                      base: Uri,
-                     context: Uri)(implicit querySettings: QuerySettings,
-                                   filteringSettings: FilteringSettings,
-                                   iamClient: IamClient[Future],
-                                   ec: ExecutionContext,
-                                   clock: Clock,
-                                   orderedKeys: OrderedKeys)
+                     prefixes: PrefixUris)(implicit querySettings: QuerySettings,
+                                           filteringSettings: FilteringSettings,
+                                           iamClient: IamClient[Future],
+                                           ec: ExecutionContext,
+                                           clock: Clock,
+                                           orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Instance) => entity.id
-  private val encoders   = new InstanceCustomEncoders(base, context)
+  private val encoders   = new InstanceCustomEncoders(base, prefixes)
 
   import encoders._
 
@@ -220,27 +221,27 @@ object InstanceRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
-    * @param context       the service standard context URI
+    * @param prefixes      the service context URIs
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
                   base: Uri,
-                  context: Uri)(implicit
-                                ec: ExecutionContext,
-                                iamClient: IamClient[Future],
-                                filteringSettings: FilteringSettings,
-                                clock: Clock,
-                                orderedKeys: OrderedKeys): InstanceRoutes = {
+                  prefixes: PrefixUris)(implicit
+                                        ec: ExecutionContext,
+                                        iamClient: IamClient[Future],
+                                        filteringSettings: FilteringSettings,
+                                        clock: Clock,
+                                        orderedKeys: OrderedKeys): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
-    new InstanceRoutes(instances, instanceQueries, base, context)
+    new InstanceRoutes(instances, instanceQueries, base, prefixes)
   }
 }
 
-class InstanceCustomEncoders(base: Uri, context: Uri)(implicit E: Instance => InstanceId)
-    extends RoutesEncoder[InstanceId, InstanceRef, Instance](base) {
+class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Instance => InstanceId)
+    extends RoutesEncoder[InstanceId, InstanceRef, Instance](base, prefixes) {
   private val refWithAttachmentEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
     refEncoder.apply(ref) deepMerge ref.attachment.map(_.asJson).getOrElse(Json.obj())
   }
@@ -256,10 +257,10 @@ class InstanceCustomEncoders(base: Uri, context: Uri)(implicit E: Instance => In
         Json.obj(
           JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated)
         ))
-    instance.value.deepMerge(meta).addContext(context)
+    instance.value.deepMerge(meta).addCoreContext
   }
 
-  implicit val instanceRefEncoder: Encoder[InstanceRef] = refWithAttachmentEncoder.mapJson(_.addContext(context))
+  implicit val instanceRefEncoder: Encoder[InstanceRef] = refWithAttachmentEncoder.mapJson(_.addCoreContext)
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
     val linksJson = Links(

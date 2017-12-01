@@ -18,12 +18,13 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{authenticateCaller, _}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder._
+import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder._
 import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutes.DomainDescription
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
@@ -38,21 +39,21 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param domains           the domain operation bundle
   * @param domainQueries     query builder for domains
   * @param base              the service public uri + prefix
-  * @param context           the service standard context URI
+  * @param prefixes          the service context URIs
   */
 final class DomainRoutes(domains: Domains[Future],
                          domainQueries: FilterQueries[Future, DomainId],
                          base: Uri,
-                         context: Uri)(implicit querySettings: QuerySettings,
-                                       filteringSettings: FilteringSettings,
-                                       iamClient: IamClient[Future],
-                                       ec: ExecutionContext,
-                                       clock: Clock,
-                                       orderedKeys: OrderedKeys)
+                         prefixes: PrefixUris)(implicit querySettings: QuerySettings,
+                                               filteringSettings: FilteringSettings,
+                                               iamClient: IamClient[Future],
+                                               ec: ExecutionContext,
+                                               clock: Clock,
+                                               orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
   private implicit val _ = (entity: Domain) => entity.id
-  private val encoders   = new DomainCustomEncoders(base, context)
+  private val encoders   = new DomainCustomEncoders(base, prefixes)
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
@@ -140,29 +141,29 @@ object DomainRoutes {
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
-    * @param context       the service standard context URI
+    * @param prefixes      the service context URIs
     * @return a new ''DomainRoutes'' instance
     */
   final def apply(domains: Domains[Future],
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
                   base: Uri,
-                  context: Uri)(implicit
-                                ec: ExecutionContext,
-                                iamClient: IamClient[Future],
-                                filteringSettings: FilteringSettings,
-                                clock: Clock,
-                                orderedKeys: OrderedKeys): DomainRoutes = {
+                  prefixes: PrefixUris)(implicit
+                                        ec: ExecutionContext,
+                                        iamClient: IamClient[Future],
+                                        filteringSettings: FilteringSettings,
+                                        clock: Clock,
+                                        orderedKeys: OrderedKeys): DomainRoutes = {
     implicit val qs: QuerySettings = querySettings
     val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
-    new DomainRoutes(domains, domainQueries, base, context)
+    new DomainRoutes(domains, domainQueries, base, prefixes)
   }
 }
 
-class DomainCustomEncoders(base: Uri, context: Uri)(implicit E: Domain => DomainId)
-    extends RoutesEncoder[DomainId, DomainRef, Domain](base) {
+class DomainCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Domain => DomainId)
+    extends RoutesEncoder[DomainId, DomainRef, Domain](base, prefixes) {
 
-  implicit val domainRefEncoder: Encoder[DomainRef] = refEncoder.mapJson(_.addContext(context))
+  implicit val domainRefEncoder: Encoder[DomainRef] = refEncoder.mapJson(_.addCoreContext)
 
   implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap { domain =>
     refEncoder
@@ -173,6 +174,6 @@ class DomainCustomEncoders(base: Uri, context: Uri)(implicit E: Domain => Domain
           JsonLDKeys.nxvDeprecated  -> Json.fromBoolean(domain.deprecated),
           JsonLDKeys.nxvDescription -> Json.fromString(domain.description)
         ))
-      .addContext(context)
+      .addCoreContext
   }
 }
