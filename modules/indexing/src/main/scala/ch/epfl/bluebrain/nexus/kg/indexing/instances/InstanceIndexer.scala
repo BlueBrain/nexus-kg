@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.kg.indexing.JsonManipulation._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.IndexJsonLdSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
@@ -28,10 +29,10 @@ import journal.Logger
   * Instance incremental indexing logic that pushes data into an rdf triple store.
   *
   * @param client   the SPARQL client to use for communicating with the rdf triple store
-  * @param contexts  the context operation bundle
+  * @param contexts the context operation bundle
   * @param settings the indexing settings
   * @param F        a MonadError typeclass instance for ''F[_]''
-  * @tparam F       the monadic effect type
+  * @tparam F the monadic effect type
   */
 class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceIndexingSettings)(
     implicit F: MonadError[F, Throwable]) {
@@ -73,7 +74,7 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
       log.debug(s"Indexing 'InstanceCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = false)
       contexts
-        .expand(value)
+        .expand(value removeKeys ("links"))
         .map(_ deepMerge meta)
         .flatMap { json =>
           val combinedJson = buildCombined(Json.obj(createdAtTimeKey -> m.instant.jsonLd) deepMerge json, id)
@@ -84,7 +85,7 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
       log.debug(s"Indexing 'InstanceUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = false)
       contexts
-        .expand(value)
+        .expand(value removeKeys ("links"))
         .map(_ deepMerge meta)
         .flatMap { json =>
           val removeQuery = PatchQuery.inverse(id qualifyWith baseNs,
@@ -181,10 +182,10 @@ object InstanceIndexer {
     * Constructs an instance incremental indexer that pushes data into an rdf triple store.
     *
     * @param client   the SPARQL client to use for communicating with the rdf triple store
-    * @param contexts  the context operation bundle
+    * @param contexts the context operation bundle
     * @param settings the indexing settings
     * @param F        a MonadError typeclass instance for ''F[_]''
-    * @tparam F       the monadic effect type
+    * @tparam F the monadic effect type
     */
   final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceIndexingSettings)(
       implicit F: MonadError[F, Throwable]): InstanceIndexer[F] =
