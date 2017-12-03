@@ -7,7 +7,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult,
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder.JsonLDKeys._
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 
@@ -78,5 +79,31 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri, prefixes: PrefixU
     }
 
   private def selfLink(id: Id): Links = Links("self" -> id.qualify)
+
+}
+
+object RoutesEncoder {
+
+  implicit val linksEncoder: Encoder[Links] =
+    Encoder.encodeJson.contramap { links =>
+      links.values.mapValues {
+        case href :: Nil => Json.fromString(s"$href")
+        case hrefs       => Json.arr(hrefs.map(href => Json.fromString(s"$href")): _*)
+      }.asJson
+    }
+
+  object JsonLDKeys {
+    val `@context`     = "@context"
+    val `@id`          = "@id"
+    val links          = "links"
+    val resultId       = "resultId"
+    val source         = "source"
+    val score          = "score"
+    val nxvNs          = "nxv"
+    val nxvRev         = "nxv:rev"
+    val nxvDeprecated  = "nxv:deprecated"
+    val nxvDescription = "nxv:description"
+    val nxvPublished   = "nxv:published"
+  }
 
 }

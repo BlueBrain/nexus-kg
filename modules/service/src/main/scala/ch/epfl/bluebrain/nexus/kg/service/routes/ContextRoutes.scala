@@ -30,8 +30,8 @@ import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.Publish
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
