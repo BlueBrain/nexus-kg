@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.IndexJsonLdSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
@@ -45,13 +46,13 @@ class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSet
     case ContextCreated(id, rev, m, value) =>
       log.debug(s"Indexing 'ContextCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val data = value deepMerge meta
+      val data = value removeKeys ("links") deepMerge meta
       client.createGraph(index, id qualifyWith baseNs, data deepMerge Json.obj(createdAtTimeKey -> m.instant.jsonLd))
 
     case ContextUpdated(id, rev, m, value) =>
       log.debug(s"Indexing 'ContextUpdated' event for id '${id.show}'")
       val meta        = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val data        = value deepMerge meta
+      val data        = value removeKeys ("links") deepMerge meta
       val removeQuery = PatchQuery.inverse(id qualifyWith baseNs, createdAtTimeKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, data)
 

@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, OrgId}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.IndexJsonLdSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
@@ -53,7 +54,7 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], 
       log.debug(s"Indexing 'OrgCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false))
       contexts
-        .expand(value)
+        .expand(value removeKeys ("links"))
         .map(_ deepMerge meta)
         .flatMap { json =>
           client
@@ -64,7 +65,7 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], 
       log.debug(s"Indexing 'OrgUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false))
       contexts
-        .expand(value)
+        .expand(value removeKeys ("links"))
         .map(_ deepMerge meta)
         .flatMap { json =>
           val removeQuery = PatchQuery.inverse(id qualifyWith baseNs, createdAtTimeKey)
