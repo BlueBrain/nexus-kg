@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.OrganizationRoutesSpec._
@@ -107,10 +108,11 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"            -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-            "@context"       -> Json.fromString(prefixes.CoreContext.toString),
-            "nxv:rev"        -> Json.fromLong(2L),
-            "links"          -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
+            "@id"      -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+            "@context" -> Json.fromString(prefixes.CoreContext.toString),
+            "nxv:rev"  -> Json.fromLong(2L),
+            "links" -> Links("@context" -> s"${prefixes.LinksContext}",
+                             "self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(jsonUpdated)
@@ -122,10 +124,11 @@ class OrganizationRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@context"       -> Json.fromString(prefixes.CoreContext.toString),
-            "@id"            -> Json.fromString(s"$baseUri/organizations/${id.id}"),
-            "nxv:rev"        -> Json.fromLong(1L),
-            "links"          -> Links("self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
+            "@context" -> Json.fromString(prefixes.CoreContext.toString),
+            "@id"      -> Json.fromString(s"$baseUri/organizations/${id.id}"),
+            "nxv:rev"  -> Json.fromLong(1L),
+            "links" -> Links("@context" -> s"${prefixes.LinksContext}",
+                             "self" -> Uri(s"$baseUri/organizations/${id.id}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(json)

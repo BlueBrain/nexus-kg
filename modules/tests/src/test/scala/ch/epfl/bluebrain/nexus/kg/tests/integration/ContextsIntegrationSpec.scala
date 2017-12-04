@@ -9,10 +9,12 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
 import io.circe.Json
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import io.circe.generic.semiauto.deriveEncoder
 import io.circe.syntax._
@@ -21,11 +23,11 @@ import org.scalatest.time.{Seconds, Span}
 import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
-class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab: Uri)(implicit
-                                                                                      as: ActorSystem,
-                                                                                      ec: ExecutionContextExecutor,
-                                                                                      mt: ActorMaterializer)
-    extends BootstrapIntegrationSpec(apiUri, contextUri, vocab) {
+class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, vocab: Uri)(implicit
+                                                                                           as: ActorSystem,
+                                                                                           ec: ExecutionContextExecutor,
+                                                                                           mt: ActorMaterializer)
+    extends BootstrapIntegrationSpec(apiUri, prefixes, vocab) {
 
   import BootstrapIntegrationSpec._
   import contextEncoders._
@@ -64,7 +66,9 @@ class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab:
             val expectedResults = UnscoredQueryResults(contexts.length.toLong, sorted(contexts).take(20).map {
               case (contextId, _) => UnscoredQueryResult(contextId)
             })
-            val expectedLinks = Links("self" -> s"$apiUri/contexts", "next" -> s"$apiUri/contexts?from=20&size=20")
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
+                                      "self" -> s"$apiUri/contexts",
+                                      "next" -> s"$apiUri/contexts?from=20&size=20")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -84,7 +88,9 @@ class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab:
                 .map(UnscoredQueryResult(_))
                 .take(pagination.size)
             )
-            val expectedLinks = Links("self" -> s"$apiUri$path", "next" -> s"$apiUri$path&from=5")
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
+                                      "self" -> s"$apiUri$path",
+                                      "next" -> s"$apiUri$path&from=5")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -99,9 +105,11 @@ class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab:
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(randContexts.length.toLong, List.empty[UnscoredQueryResult[ContextId]])
-            val expectedLinks =
-              Links("self"     -> s"$apiUri$path",
-                    "previous" -> s"$apiUri$path".replace("from=100", s"from=${randContexts.length - pagination.size}"))
+            val expectedLinks = Links(
+              "@context" -> s"${prefixes.LinksContext}",
+              "self"     -> s"$apiUri$path",
+              "previous" -> s"$apiUri$path".replace("from=100", s"from=${randContexts.length - pagination.size}")
+            )
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -116,7 +124,8 @@ class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab:
           val expectedResults =
             UnscoredQueryResults(nexusContexts.length.toLong, List.empty[ScoredQueryResult[ContextId]])
           val expectedLinks =
-            Links("self"     -> s"$apiUri$path",
+            Links("@context" -> s"${prefixes.LinksContext}",
+                  "self"     -> s"$apiUri$path",
                   "previous" -> s"$apiUri$path".replace("from=200", s"from=${nexusContexts.length - size}"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
@@ -128,7 +137,7 @@ class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab:
           status shouldEqual StatusCodes.OK
           val expectedResults =
             UnscoredQueryResults(ctxs.length.toLong, ctxs.map { case (contextId, _) => UnscoredQueryResult(contextId) })
-          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
+          val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -146,7 +155,7 @@ class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab:
             UnscoredQueryResults(resultContexts.length.toLong, resultContexts.take(3).map {
               case (id, _) => UnscoredQueryResult(id)
             })
-          val expectedLinks = Links("self" -> Uri(s"$apiUri$path"))
+          val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
         }
       }
@@ -168,7 +177,9 @@ class ContextsIntegrationSpec(apiUri: Uri, contextUri: Uri, route: Route, vocab:
               UnscoredQueryResults(randContexts.length.toLong - 1L, randContexts.slice(1, 4).map {
                 case (id, _) => UnscoredQueryResult(idsPayload(id))
               })
-            val expectedLinks = Links("self" -> s"$apiUri$path", "next" -> s"$apiUri$path&from=3")
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
+                                      "self" -> s"$apiUri$path",
+                                      "next" -> s"$apiUri$path&from=3")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }

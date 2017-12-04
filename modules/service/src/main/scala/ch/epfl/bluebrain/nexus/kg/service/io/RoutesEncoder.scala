@@ -40,7 +40,7 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri, prefixes: PrefixU
   implicit val idWithLinksEncoder: Encoder[Id] = Encoder.encodeJson.contramap { id =>
     Json.obj(
       `@id` -> Json.fromString(id.qualifyAsString),
-      links -> selfLink(id).asJson
+      links -> selfLink(id).asJson.addLinksContext
     )
   }
 

@@ -27,6 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec._
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
@@ -128,9 +129,10 @@ class ContextRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"            -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
-            "nxv:rev"        -> Json.fromLong(1L),
-            "links"          -> Links("self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson,
+            "@id"     -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
+            "nxv:rev" -> Json.fromLong(1L),
+            "links" -> Links("@context" -> s"${prefixes.LinksContext}",
+                             "self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published"  -> Json.fromBoolean(false)
           )
@@ -174,9 +176,10 @@ class ContextRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"            -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
-            "nxv:rev"        -> Json.fromLong(1L),
-            "links"          -> Links("self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson,
+            "@id"     -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
+            "nxv:rev" -> Json.fromLong(1L),
+            "links" -> Links("@context" -> s"${prefixes.LinksContext}",
+                             "self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published"  -> Json.fromBoolean(false)
           )
