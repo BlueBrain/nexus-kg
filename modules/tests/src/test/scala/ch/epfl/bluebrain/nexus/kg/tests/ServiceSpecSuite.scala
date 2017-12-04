@@ -52,18 +52,15 @@ class ServiceSpecSuite
     new OrgIntegrationSpec(bootstrap.apiUri,
                            settings.Prefixes,
                            bootstrap.routes,
-                           settings.Prefixes.CoreVocabulary,
                            aclIndexer),
-    new DomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+    new DomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new ContextsIntegrationSpec(bootstrap.apiUri,
                                 settings.Prefixes,
-                                bootstrap.routes,
-                                settings.Prefixes.CoreVocabulary),
-    new SchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, settings.Prefixes.CoreVocabulary),
+                                bootstrap.routes),
+    new SchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new InstanceIntegrationSpec(bootstrap.apiUri,
                                 settings.Prefixes,
                                 bootstrap.routes,
-                                settings.Prefixes.CoreVocabulary,
                                 bootstrap.instances)
   )
 

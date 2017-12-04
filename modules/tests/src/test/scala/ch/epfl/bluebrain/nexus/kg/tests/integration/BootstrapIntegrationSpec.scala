@@ -31,11 +31,10 @@ import scala.concurrent.duration._
   * Initialize common implicits, encoders, methods and values used on the tests.
   *
   * @param apiUri      the service public uri + prefix
-  * @param prefixes    the nexus context URIs
-  * @param vocab       the nexus core vocabulary base
+  * @param prefixes    the nexus context and vocabularies URIs
   * @param as          the implicitly available Actor System
   */
-abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, vocab: Uri)(implicit as: ActorSystem)
+abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris)(implicit as: ActorSystem)
     extends WordSpecLike
     with Eventually
     with ScalatestRouteTest
@@ -54,8 +53,7 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, vocab
   override protected def afterAll(): Unit = ()
 
   implicit val schemaConfig: Encoder[SchemaConfig] = deriveEncoder[SchemaConfig]
-  implicit val qualifier: ConfiguredQualifier[String] =
-    Qualifier.configured[String](vocab)
+  implicit val qualifier: ConfiguredQualifier[String] = Qualifier.configured[String](prefixes.CoreVocabulary)
   private implicit val domainIdExtractor   = (entity: Domain) => entity.id
   private implicit val orgIdExtractor      = (entity: Organization) => entity.id
   private implicit val schemaIdExtractor   = (entity: Schema) => entity.id

@@ -39,13 +39,12 @@ class InstanceIntegrationSpec(
     apiUri: Uri,
     prefixes: PrefixUris,
     route: Route,
-    vocab: Uri,
     instancesService: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]])(
     implicit
     as: ActorSystem,
     ec: ExecutionContextExecutor,
     mt: ActorMaterializer)
-    extends BootstrapIntegrationSpec(apiUri, prefixes, vocab) {
+    extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._
   import instanceEncoders._
