@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder._
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives.traceName

@@ -52,13 +52,13 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris)(impli
 
   override protected def afterAll(): Unit = ()
 
-  implicit val schemaConfig: Encoder[SchemaConfig] = deriveEncoder[SchemaConfig]
+  implicit val schemaConfig: Encoder[SchemaConfig]    = deriveEncoder[SchemaConfig]
   implicit val qualifier: ConfiguredQualifier[String] = Qualifier.configured[String](prefixes.CoreVocabulary)
-  private implicit val domainIdExtractor   = (entity: Domain) => entity.id
-  private implicit val orgIdExtractor      = (entity: Organization) => entity.id
-  private implicit val schemaIdExtractor   = (entity: Schema) => entity.id
-  private implicit val contextIdExtractor  = (entity: Context) => entity.id
-  private implicit val instanceIdExtractor = (entity: Instance) => entity.id
+  private implicit val domainIdExtractor              = (entity: Domain) => entity.id
+  private implicit val orgIdExtractor                 = (entity: Organization) => entity.id
+  private implicit val schemaIdExtractor              = (entity: Schema) => entity.id
+  private implicit val contextIdExtractor             = (entity: Context) => entity.id
+  private implicit val instanceIdExtractor            = (entity: Instance) => entity.id
 
   val orgsEncoders     = new OrgCustomEncoders(apiUri, prefixes)
   val domsEncoders     = new DomainCustomEncoders(apiUri, prefixes)

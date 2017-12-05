@@ -23,7 +23,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult,
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Json
 import io.circe.syntax._

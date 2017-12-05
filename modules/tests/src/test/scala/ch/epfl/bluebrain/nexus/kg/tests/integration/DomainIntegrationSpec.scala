@@ -16,7 +16,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResult
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Json
 import io.circe.syntax._
@@ -28,9 +27,9 @@ import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
 class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(implicit
-                                                                                         as: ActorSystem,
-                                                                                         ec: ExecutionContextExecutor,
-                                                                                         mt: ActorMaterializer)
+                                                                             as: ActorSystem,
+                                                                             ec: ExecutionContextExecutor,
+                                                                             mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._

@@ -9,7 +9,6 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
 import io.circe.Json
@@ -24,9 +23,9 @@ import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(implicit
-                                                                                           as: ActorSystem,
-                                                                                           ec: ExecutionContextExecutor,
-                                                                                           mt: ActorMaterializer)
+                                                                               as: ActorSystem,
+                                                                               ec: ExecutionContextExecutor,
+                                                                               mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._

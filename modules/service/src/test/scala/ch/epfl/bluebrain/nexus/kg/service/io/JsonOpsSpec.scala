@@ -57,5 +57,12 @@ class JsonOpsSpec extends WordSpecLike with Matchers with Inspectors {
           in.addCoreContext shouldEqual out
       }
     }
+
+    "be idempotent" in {
+      forAll(mapping) {
+        case (in, _) =>
+          in.addCoreContext shouldEqual in.addCoreContext.addCoreContext
+      }
+    }
   }
 }

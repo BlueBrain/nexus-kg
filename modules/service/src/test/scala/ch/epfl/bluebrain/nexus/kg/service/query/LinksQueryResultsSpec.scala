@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import org.scalatest.{Matchers, WordSpecLike}
 import io.circe.syntax._
 import io.circe._
