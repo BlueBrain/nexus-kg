@@ -153,7 +153,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
     "index an InstanceUpdated event" in {
       val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
       val rev         = 2L
-      val data        = jsonContentOf("/instances/minimal.json", replacements + ("random" -> "updated"))
+      val data        = jsonContentOf("/instances/minimal_platform_fields.json", replacements + ("random" -> "updated"))
       indexer(InstanceUpdated(id, rev, metaUpdated, data)).futureValue
       val rs = triples(id, client).futureValue
       rs.size shouldEqual 11
