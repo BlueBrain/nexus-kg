@@ -49,28 +49,11 @@ class ServiceSpecSuite
   }
 
   override val nestedSuites = Vector(
-    new OrgIntegrationSpec(bootstrap.apiUri,
-                           settings.Prefixes.StandardsContext,
-                           bootstrap.routes,
-                           settings.Prefixes.CoreVocabulary,
-                           aclIndexer),
-    new DomainIntegrationSpec(bootstrap.apiUri,
-                              settings.Prefixes.StandardsContext,
-                              bootstrap.routes,
-                              settings.Prefixes.CoreVocabulary),
-    new ContextsIntegrationSpec(bootstrap.apiUri,
-                                settings.Prefixes.StandardsContext,
-                                bootstrap.routes,
-                                settings.Prefixes.CoreVocabulary),
-    new SchemasIntegrationSpec(bootstrap.apiUri,
-                               settings.Prefixes.StandardsContext,
-                               bootstrap.routes,
-                               settings.Prefixes.CoreVocabulary),
-    new InstanceIntegrationSpec(bootstrap.apiUri,
-                                settings.Prefixes.StandardsContext,
-                                bootstrap.routes,
-                                settings.Prefixes.CoreVocabulary,
-                                bootstrap.instances)
+    new OrgIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, aclIndexer),
+    new DomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
+    new ContextsIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
+    new SchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
+    new InstanceIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, bootstrap.instances)
   )
 
   private def aclIndexer: AclIndexer[Future] = {

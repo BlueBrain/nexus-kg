@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Encoder
@@ -24,6 +25,7 @@ trait SearchResponse {
   implicit class QueryResultsOpts[Id](qr: Future[QueryResults[Id]]) {
 
     private[routes] def addPagination(base: Uri, pagination: Pagination)(implicit
+                                                                         L: Encoder[Links],
                                                                          R: Encoder[UnscoredQueryResult[Id]],
                                                                          S: Encoder[ScoredQueryResult[Id]],
                                                                          orderedKeys: OrderedKeys): Route = {
@@ -47,6 +49,7 @@ trait SearchResponse {
         implicit
         f: Id => Future[Option[Entity]],
         ec: ExecutionContext,
+        L: Encoder[Links],
         R: Encoder[UnscoredQueryResult[Id]],
         S: Encoder[ScoredQueryResult[Id]],
         Re: Encoder[UnscoredQueryResult[Entity]],

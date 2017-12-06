@@ -6,12 +6,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.ScoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 
 /**
-  * Data type whch holds the SPARQL query response and adds HATEOAS links
+  * Data type which holds the SPARQL query response and adds HATEOAS links
   *
   * @param response the SPARQL query response
   * @param links    the links added to the response for
@@ -55,7 +54,8 @@ object LinksQueryResults {
     LinksQueryResults(response, self ++ prevLink ++ nextLink)
   }
 
-  final implicit def encodeLinksQueryResults[A](implicit E: Encoder[QueryResult[A]]): Encoder[LinksQueryResults[A]] =
+  final implicit def encodeLinksQueryResults[A](implicit qre: Encoder[QueryResult[A]],
+                                                le: Encoder[Links]): Encoder[LinksQueryResults[A]] =
     Encoder.encodeJson.contramap { response =>
       val json = Json.obj(
         "total"   -> Json.fromLong(response.response.total),

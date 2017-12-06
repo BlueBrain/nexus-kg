@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import io.circe._
@@ -30,11 +31,10 @@ import scala.concurrent.duration._
   * Initialize common implicits, encoders, methods and values used on the tests.
   *
   * @param apiUri      the service public uri + prefix
-  * @param context     the nexus standard context URI
-  * @param vocab       the nexus core vocabulary base
+  * @param prefixes    the nexus context and vocabularies URIs
   * @param as          the implicitly available Actor System
   */
-abstract class BootstrapIntegrationSpec(apiUri: Uri, context: Uri, vocab: Uri)(implicit as: ActorSystem)
+abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris)(implicit as: ActorSystem)
     extends WordSpecLike
     with Eventually
     with ScalatestRouteTest
@@ -52,20 +52,19 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, context: Uri, vocab: Uri)(i
 
   override protected def afterAll(): Unit = ()
 
-  implicit val schemaConfig: Encoder[SchemaConfig] = deriveEncoder[SchemaConfig]
-  implicit val qualifier: ConfiguredQualifier[String] =
-    Qualifier.configured[String](vocab)
-  private implicit val domainIdExtractor   = (entity: Domain) => entity.id
-  private implicit val orgIdExtractor      = (entity: Organization) => entity.id
-  private implicit val schemaIdExtractor   = (entity: Schema) => entity.id
-  private implicit val contextIdExtractor  = (entity: Context) => entity.id
-  private implicit val instanceIdExtractor = (entity: Instance) => entity.id
+  implicit val schemaConfig: Encoder[SchemaConfig]    = deriveEncoder[SchemaConfig]
+  implicit val qualifier: ConfiguredQualifier[String] = Qualifier.configured[String](prefixes.CoreVocabulary)
+  private implicit val domainIdExtractor              = (entity: Domain) => entity.id
+  private implicit val orgIdExtractor                 = (entity: Organization) => entity.id
+  private implicit val schemaIdExtractor              = (entity: Schema) => entity.id
+  private implicit val contextIdExtractor             = (entity: Context) => entity.id
+  private implicit val instanceIdExtractor            = (entity: Instance) => entity.id
 
-  val orgsEncoders     = new OrgCustomEncoders(apiUri, context)
-  val domsEncoders     = new DomainCustomEncoders(apiUri, context)
-  val contextEncoders  = new ContextCustomEncoders(apiUri, context)
-  val schemaEncoders   = new SchemaCustomEncoders(apiUri, context)
-  val instanceEncoders = new InstanceCustomEncoders(apiUri, context)
+  val orgsEncoders     = new OrgCustomEncoders(apiUri, prefixes)
+  val domsEncoders     = new DomainCustomEncoders(apiUri, prefixes)
+  val contextEncoders  = new ContextCustomEncoders(apiUri, prefixes)
+  val schemaEncoders   = new SchemaCustomEncoders(apiUri, prefixes)
+  val instanceEncoders = new InstanceCustomEncoders(apiUri, prefixes)
 }
 
 object BootstrapIntegrationSpec extends Randomness with Resources {

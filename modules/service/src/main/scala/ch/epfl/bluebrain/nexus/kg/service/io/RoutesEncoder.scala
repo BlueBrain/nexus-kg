@@ -5,8 +5,9 @@ import ch.epfl.bluebrain.nexus.kg.core.Ref
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links._
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
@@ -22,9 +23,10 @@ import io.circe.{Encoder, Json}
   * @tparam Reference the generic type representing the Ref we want to encode
   * @tparam Entity    the generic type representing the Entity we want to encode
   */
-abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit extractId: (Entity) => Id,
-                                                               R: Reference => Ref[Id],
-                                                               Q: Qualifier[Id]) {
+abstract class RoutesEncoder[Id, Reference, Entity](base: Uri, prefixes: PrefixUris)(implicit extractId: (Entity) => Id,
+                                                                                     R: Reference => Ref[Id],
+                                                                                     Q: Qualifier[Id])
+    extends BaseEncoder(prefixes) {
 
   implicit val typeQualifier: ConfiguredQualifier[Id] = Qualifier.configured[Id](base)
 
@@ -35,10 +37,12 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit extractI
     )
   }
 
+  implicit val linksWithContextEncoder: Encoder[Links] = linksEncoder.mapJson(_.addLinksContext)
+
   implicit val idWithLinksEncoder: Encoder[Id] = Encoder.encodeJson.contramap { id =>
     Json.obj(
       `@id` -> Json.fromString(id.qualifyAsString),
-      links -> selfLink(id).asJson
+      links -> linksWithContextEncoder(selfLink(id))
     )
   }
 
@@ -82,6 +86,14 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri)(implicit extractI
 
 object RoutesEncoder {
 
+  implicit val linksEncoder: Encoder[Links] =
+    Encoder.encodeJson.contramap { links =>
+      links.values.mapValues {
+        case href :: Nil => Json.fromString(s"$href")
+        case hrefs       => Json.arr(hrefs.map(href => Json.fromString(s"$href")): _*)
+      }.asJson
+    }
+
   object JsonLDKeys {
     val `@context`     = "@context"
     val `@id`          = "@id"
@@ -96,40 +108,4 @@ object RoutesEncoder {
     val nxvPublished   = "nxv:published"
   }
 
-  /**
-    * Syntax to extend JSON objects in response body with the standard context.
-    *
-    * @param json the JSON object
-    */
-  implicit class JsonOps(json: Json) {
-
-    /**
-      * Adds or merges the standard context URI to an existing JSON object.
-      *
-      * @param context the standard context URI
-      * @return a new JSON object
-      */
-    def addContext(context: Uri): Json = {
-      val contextUriString = Json.fromString(context.toString)
-
-      json.asObject match {
-        case Some(jo) =>
-          val updated = jo(`@context`) match {
-            case None => jo.add(`@context`, contextUriString)
-            case Some(value) =>
-              (value.asObject, value.asArray, value.asString) match {
-                case (Some(_), _, _) =>
-                  jo.add(`@context`, Json.arr(value, contextUriString))
-                case (_, Some(va), _) =>
-                  jo.add(`@context`, Json.fromValues(va :+ contextUriString))
-                case (_, _, Some(_)) =>
-                  jo.add(`@context`, Json.arr(value, contextUriString))
-                case _ => jo
-              }
-          }
-          Json.fromJsonObject(updated)
-        case None => json
-      }
-    }
-  }
 }

@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
@@ -35,7 +36,6 @@ class RejectionHandlingSpec
 
   "A RejectionHandling" should {
     val baseUri                    = Uri("http://localhost/v0")
-    val contextUri                 = Uri("http://localhost/v0/contexts/nexus/core/standards/v0.1.0")
     val orgAgg                     = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs                       = Organizations(orgAgg)
     val id                         = genString(length = 5)
@@ -50,7 +50,7 @@ class RejectionHandlingSpec
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =
-      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri, contextUri).routes
+      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri, prefixes).routes
 
     "reject the creation of a organization with invalid JSON payload" in {
       val invalidJson =

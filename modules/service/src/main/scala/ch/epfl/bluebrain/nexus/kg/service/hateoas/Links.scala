@@ -1,8 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.hateoas
 
 import akka.http.scaladsl.model.Uri
-import io.circe.{Encoder, Json}
-import io.circe.syntax._
 
 /**
   * Data type which wraps the discoverability relationships.
@@ -53,13 +51,5 @@ object Links {
     Links(values.groupBy(_._1).map {
       case (rel, hrefs) => rel -> hrefs.toList.map(_._2)
     })
-
-  implicit val encoder: Encoder[Links] =
-    Encoder.encodeJson.contramap { links =>
-      links.values.map {
-        case (rel, href :: List()) => rel -> Json.fromString(s"$href")
-        case (rel, hrefs)          => rel -> Json.arr(hrefs.map(href => Json.fromString(s"$href")): _*)
-      }.asJson
-    }
 
 }
