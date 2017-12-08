@@ -419,7 +419,15 @@ class InstanceRoutesSpec
             ).asJson,
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
-          .deepMerge(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest).asJson)
+          .deepMerge(Json.obj("distribution" -> Json.arr(
+            Json.obj(
+              "@context"         -> Json.fromString(prefixes.DistributionContext.toString),
+              "originalFileName" -> Json.fromString(filename),
+              "contentType"      -> Json.fromString(ContentTypes.`text/csv(UTF-8)`.toString),
+              "size"             -> Size(value = size).asJson,
+              "digest"           -> digest.asJson
+            )
+          )))
           .deepMerge(genJsonWithContext(value))
       }
 
@@ -548,14 +556,23 @@ object InstanceRoutesSpec {
 
   import cats.syntax.show._
 
-  private def instanceRefAsJson(ref: InstanceRef) =
-    Json
-      .obj(
+  private def instanceRefAsJson(ref: InstanceRef) = ref.attachment match {
+    case Some(attachment) =>
+      Json.obj(
+        "@context" -> Json.fromString(contextUri.toString),
+        "@id"      -> Json.fromString(s"$baseUri/data/${ref.id.show}"),
+        "nxv:rev"  -> Json.fromLong(ref.rev),
+        "distribution" ->
+          Json.arr(
+            attachment.asJson.deepMerge(Json.obj("@context" -> Json.fromString(prefixes.DistributionContext.toString))))
+      )
+    case None =>
+      Json.obj(
         "@context" -> Json.fromString(contextUri.toString),
         "@id"      -> Json.fromString(s"$baseUri/data/${ref.id.show}"),
         "nxv:rev"  -> Json.fromLong(ref.rev)
       )
-      .deepMerge(ref.attachment.map(at => at.asJson).getOrElse(Json.obj()))
+  }
 
   private def toCompact(value: String) =
     value.replaceAll(Pattern.quote(s"$baseUri/data/"), "")

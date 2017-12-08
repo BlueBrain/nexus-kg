@@ -89,7 +89,7 @@ object QueryResults {
     * @param maxScore   the maximum score of the individual query results
     * @param results    the collection of results
     * @tparam A generic type of the response's payload
-    * @return an socred instance of [[QueryResults]]
+    * @return an scored instance of [[QueryResults]]
     */
   final def apply[A](total: Long, maxScore: Float, results: List[QueryResult[A]]): QueryResults[A] =
     new ScoredQueryResults[A](total, maxScore, results)

@@ -52,8 +52,8 @@ final class DomainRoutes(domains: Domains[Future],
                                                orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
-  private implicit val _ = (entity: Domain) => entity.id
-  private val encoders   = new DomainCustomEncoders(base, prefixes)
+  private implicit val _                              = (entity: Domain) => entity.id
+  private implicit val encoders: DomainCustomEncoders = new DomainCustomEncoders(base, prefixes)
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
