@@ -3,15 +3,12 @@ package ch.epfl.bluebrain.nexus.kg.service.io
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.kg.core.Ref
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.ScoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
-import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 
@@ -81,35 +78,6 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri, prefixes: PrefixU
         score    -> Json.fromFloatOrString(qr.score),
         source   -> E(qr.source)
       )
-    }
-
-  implicit def linksQueryResultsEncoder(implicit E: Encoder[QueryResult[Id]]): Encoder[LinksQueryResults[Id]] =
-    Encoder.encodeJson.contramap { response =>
-      val json = Json.obj(
-        total   -> Json.fromLong(response.response.total),
-        results -> Json.fromValues(response.response.results.map(E.apply)),
-        links   -> linksWithContextEncoder(response.links)
-      )
-      response.response match {
-        case ScoredQueryResults(_, ms, _) =>
-          json.deepMerge(Json.obj(maxScore -> Json.fromFloatOrNull(ms))).addSearchContext
-        case _ => json.addSearchContext
-      }
-    }
-
-  implicit def linksQueryResultsEntityEncoder(
-      implicit E: Encoder[QueryResult[Entity]]): Encoder[LinksQueryResults[Entity]] =
-    Encoder.encodeJson.contramap { response =>
-      val json = Json.obj(
-        total   -> Json.fromLong(response.response.total),
-        results -> Json.fromValues(response.response.results.map(E.apply)),
-        links   -> linksWithContextEncoder(response.links)
-      )
-      response.response match {
-        case ScoredQueryResults(_, ms, _) =>
-          json.deepMerge(Json.obj(maxScore -> Json.fromFloatOrNull(ms))).addSearchContext
-        case _ => json.addSearchContext
-      }
     }
 
   private def selfLink(id: Id): Links = Links("self" -> id.qualify)
