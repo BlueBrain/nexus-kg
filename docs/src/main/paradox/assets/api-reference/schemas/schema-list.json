@@ -1,23 +1,15 @@
 {
-  "@context": {
-    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
-    "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
-    "total": "nxs:total",
-    "results": "nxs:results",
-    "resultId": "nxs:resultId",
-    "source": "nxs:source",
-    "links": "nxv:links",
-    "rel": "nxv:rel",
-    "href": "nxv:href"
-  },
+  "@context": "https://nexus.example.com/v0/contexts/nexus/core/resource",
   "total": 1,
   "results": [
     {
+      "@context": "https://nexus.example.com/v0/contexts/nexus/core/search",
       "resultId": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
       "source": {
         "@id": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
         "links": [
           {
+            "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
             "rel": "self",
             "href": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0"
           }
@@ -27,6 +19,7 @@
   ],
   "links": [
     {
+      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
       "rel": "self",
       "href": "https://nexus.example.com/v0/schemas?from=0&size=100&published=true"
     }

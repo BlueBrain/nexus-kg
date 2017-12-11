@@ -1,7 +1,5 @@
 {
-  "@context": {
-    "nxv": "https://nexus.example.com/v0/voc/nexus/core/"
-  },
+  "@context": "https://nexus.example.com/v0/contexts/nexus/core/resource",
   "@id": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
   "nxv:rev": 4
 }

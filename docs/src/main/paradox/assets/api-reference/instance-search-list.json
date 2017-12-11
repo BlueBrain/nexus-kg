@@ -1,31 +1,22 @@
 {
-  "@context": {
-    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
-    "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
-    "total": "nxs:total",
-    "results": "nxs:results",
-    "resultId": "nxs:resultId",
-    "source": "nxs:source",
-    "maxScore": "nxs:maxScore",
-    "score": "nxs:score",
-    "links": "nxv:links",
-    "rel": "nxv:rel",
-    "href": "nxv:href"
-  },
+  "@context": "https://nexus.example.com/v0/contexts/nexus/core/resource",
   "total": 102,
   "maxScore": 1,
   "results": [
     {
+      "@context": "https://nexus.example.com/v0/contexts/nexus/core/search",
       "resultId": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0/cb806141-b30d-4378-a37b-8bed354dce97",
       "score": 1,
       "source": {
         "@id": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0/cb806141-b30d-4378-a37b-8bed354dce97",
         "links": [
           {
+            "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
             "rel": "self",
             "href": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0/cb806141-b30d-4378-a37b-8bed354dce97"
           },
           {
+            "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
             "rel": "schema",
             "href": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0"
           }
@@ -35,10 +26,12 @@
   ],
   "links": [
     {
+      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
       "rel": "self",
       "href": "https://nexus.example.com/v0/data?from=0&size=1&q=test&filter={\"filter\":{\"op\":\"gte\",\"path\":\"nxv:rev\",\"value\":2}}"
     },
     {
+      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
       "rel": "next",
       "href": "https://nexus.example.com/v0/data?from=1&size=1&q=test&filter={\"filter\":{\"op\":\"gte\",\"path\":\"nxv:rev\",\"value\":2}}"
     }

@@ -1,7 +1,5 @@
 {
-  "@context": {
-    "@vocab": "http(s)://nexus.example.com/v0/voc/nexus/core"
-  },
+  "@context": "https://nexus.example.com/v0/contexts/nexus/core/error",
   "code": "IllegalFilterFormat",
   "message": "Unable to parse 'path' as an uri",
   "field": "DownField(filter)/DownField(path)"
