@@ -33,6 +33,7 @@ object CirceShapeExtractorInstances extends CirceShapeExtractorSyntax {
       import io.circe.optics.JsonPath._
       val r = s"""^*.(/|:)$escapedId$$""".r
 
+      val optContext = value.hcursor.get[Json]("@context")
       root.shapes.each
         .filter(
           _.hcursor
@@ -40,6 +41,7 @@ object CirceShapeExtractorInstances extends CirceShapeExtractorSyntax {
             .fold(_ => false, r.findFirstIn(_).isDefined))
         .json
         .headOption(value)
+        .map(_ deepMerge optContext.map(context => Json.obj("@context" -> context)).getOrElse(Json.obj()))
     }
   }
 
