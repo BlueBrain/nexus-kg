@@ -6,6 +6,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.ScoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
+import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 
@@ -54,20 +56,24 @@ object LinksQueryResults {
     LinksQueryResults(response, self ++ prevLink ++ nextLink)
   }
 
-  final implicit def encodeLinksQueryResults[A](implicit qre: Encoder[QueryResult[A]],
-                                                le: Encoder[Links]): Encoder[LinksQueryResults[A]] =
+  final implicit def encodeLinksQueryResults[A](implicit E: Encoder[QueryResult[A]],
+                                                L: Encoder[Links],
+                                                B: BaseEncoder): Encoder[LinksQueryResults[A]] = {
+    import B.JsonOps
+
     Encoder.encodeJson.contramap { response =>
       val json = Json.obj(
-        "total"   -> Json.fromLong(response.response.total),
-        "results" -> response.response.results.asJson,
-        "links"   -> response.links.asJson
+        JsonLDKeys.total   -> Json.fromLong(response.response.total),
+        JsonLDKeys.results -> response.response.results.asJson,
+        JsonLDKeys.links   -> response.links.asJson
       )
       response.response match {
         case ScoredQueryResults(_, maxScore, _) =>
-          json deepMerge Json.obj("maxScore" -> Json.fromFloatOrNull(maxScore))
-        case _ => json
+          json deepMerge Json.obj("maxScore" -> Json.fromFloatOrNull(maxScore)).addSearchContext
+        case _ => json.addSearchContext
       }
     }
+  }
 
   private def addQuery(uri: Uri, from: Long, size: Int): Query =
     Query(uri.query().toMap + ("from" -> s"$from", "size" -> s"$size"))

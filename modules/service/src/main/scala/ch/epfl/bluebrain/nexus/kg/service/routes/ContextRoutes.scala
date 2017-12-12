@@ -67,7 +67,7 @@ class ContextRoutes(contexts: Contexts[Future],
   private implicit val _ = (entity: Context) => entity.id
   private implicit val sQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
-  private val contextEncoders = new ContextCustomEncoders(base, prefixes)
+  private implicit val contextEncoders: ContextCustomEncoders = new ContextCustomEncoders(base, prefixes)
   import contextEncoders._
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler

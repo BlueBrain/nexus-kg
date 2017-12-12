@@ -10,10 +10,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
+import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Encoder
-import io.circe.generic.auto._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -25,9 +25,10 @@ trait SearchResponse {
   implicit class QueryResultsOpts[Id](qr: Future[QueryResults[Id]]) {
 
     private[routes] def addPagination(base: Uri, pagination: Pagination)(implicit
-                                                                         L: Encoder[Links],
                                                                          R: Encoder[UnscoredQueryResult[Id]],
                                                                          S: Encoder[ScoredQueryResult[Id]],
+                                                                         L: Encoder[Links],
+                                                                         B: BaseEncoder,
                                                                          orderedKeys: OrderedKeys): Route = {
       extract(_.request.uri) { uri =>
         onSuccess(qr) { result =>
@@ -49,11 +50,12 @@ trait SearchResponse {
         implicit
         f: Id => Future[Option[Entity]],
         ec: ExecutionContext,
-        L: Encoder[Links],
         R: Encoder[UnscoredQueryResult[Id]],
         S: Encoder[ScoredQueryResult[Id]],
         Re: Encoder[UnscoredQueryResult[Entity]],
         Se: Encoder[ScoredQueryResult[Entity]],
+        L: Encoder[Links],
+        B: BaseEncoder,
         orderedKeys: OrderedKeys): Route = {
       if (fields.contains("all")) {
         qr.flatMap { q =>

@@ -30,6 +30,11 @@ class BaseEncoder(prefixes: PrefixUris) {
     def addSearchContext: Json = addContext(prefixes.SearchContext)
 
     /**
+      * Adds or merges the distribution (i.e. attachment) context URI to an existing JSON object.
+      */
+    def addDistributionContext: Json = addContext(prefixes.DistributionContext)
+
+    /**
       * Adds or merges a context URI to an existing JSON object.
       *
       * @param context the standard context URI

@@ -7,8 +7,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult,
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 
@@ -99,8 +99,12 @@ object RoutesEncoder {
     val `@id`          = "@id"
     val links          = "links"
     val resultId       = "resultId"
+    val results        = "results"
     val source         = "source"
     val score          = "score"
+    val total          = "total"
+    val maxScore       = "maxScore"
+    val distribution   = "distribution"
     val nxvNs          = "nxv"
     val nxvRev         = "nxv:rev"
     val nxvDeprecated  = "nxv:deprecated"
