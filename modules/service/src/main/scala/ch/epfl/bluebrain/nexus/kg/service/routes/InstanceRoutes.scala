@@ -60,8 +60,8 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                                            orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
-  private implicit val _ = (entity: Instance) => entity.id
-  private val encoders   = new InstanceCustomEncoders(base, prefixes)
+  private implicit val _                                = (entity: Instance) => entity.id
+  private implicit val encoders: InstanceCustomEncoders = new InstanceCustomEncoders(base, prefixes)
 
   import encoders._
 
@@ -241,25 +241,46 @@ object InstanceRoutes {
 
 class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Instance => InstanceId)
     extends RoutesEncoder[InstanceId, InstanceRef, Instance](base, prefixes) {
-  private val refWithAttachmentEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
-    refEncoder.apply(ref) deepMerge ref.attachment.map(_.asJson).getOrElse(Json.obj())
-  }
 
   implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
 
   implicit val instanceEncoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
     val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
-    val meta = refWithAttachmentEncoder
+    val ours        = instance.attachment.map(_.asJson.addDistributionContext).toList
+    val theirs      = instance.value.asObject.flatMap(_.apply(JsonLDKeys.distribution)).toList
+    val merged      = ours ++ theirs
+
+    val meta = refEncoder
       .apply(instanceRef)
       .deepMerge(instanceIdWithLinksEncoder(instance.id))
-      .deepMerge(
+      .deepMerge(if (merged.isEmpty) {
         Json.obj(
           JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated)
-        ))
+        )
+      } else {
+        Json.obj(
+          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated),
+          JsonLDKeys.distribution  -> Json.fromValues(merged)
+        )
+      })
+
     instance.value.deepMerge(meta).addCoreContext
   }
 
-  implicit val instanceRefEncoder: Encoder[InstanceRef] = refWithAttachmentEncoder.mapJson(_.addCoreContext)
+  implicit val instanceRefEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
+    ref.attachment match {
+      case Some(attachment) =>
+        refEncoder
+          .apply(ref)
+          .deepMerge(Json.obj(JsonLDKeys.distribution -> Json.arr(attachment.asJson.addDistributionContext)))
+          .addCoreContext
+
+      case None =>
+        refEncoder
+          .apply(ref)
+          .addCoreContext
+    }
+  }
 
   implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
     val linksJson = Links(
@@ -270,4 +291,5 @@ class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Instan
     ).asJson
     idWithLinksEncoder.apply(instanceId) deepMerge Json.obj("links" -> linksJson)
   }
+
 }

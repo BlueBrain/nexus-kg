@@ -66,8 +66,8 @@ class SchemaRoutes(schemas: Schemas[Future],
   private implicit val sQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
 
-  private val schemaEncoders = new SchemaCustomEncoders(base, prefixes)
-  private val shapeEncoders  = new ShapeCustomEncoders(base, prefixes)
+  private implicit val schemaEncoders: SchemaCustomEncoders = new SchemaCustomEncoders(base, prefixes)
+  private val shapeEncoders                                 = new ShapeCustomEncoders(base, prefixes)
 
   import schemaEncoders._
   import shapeEncoders.shapeEncoder

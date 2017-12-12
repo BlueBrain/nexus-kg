@@ -50,8 +50,8 @@ final class OrganizationRoutes(orgs: Organizations[Future],
                                                      orderedKeys: OrderedKeys)
     extends DefaultRouteHandling {
 
-  private implicit val _ = (entity: Organization) => entity.id
-  private val encoders   = new OrgCustomEncoders(base, prefixes)
+  private implicit val _                           = (entity: Organization) => entity.id
+  private implicit val encoders: OrgCustomEncoders = new OrgCustomEncoders(base, prefixes)
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
