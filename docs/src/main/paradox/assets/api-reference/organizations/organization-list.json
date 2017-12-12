@@ -7,21 +7,15 @@
       "resultId": "https://nexus.example.com/v0/organizations/myorg",
       "source": {
         "@id": "https://nexus.example.com/v0/organizations/myorg",
-        "links": [
-          {
-            "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-            "rel": "self",
-            "href": "https://nexus.example.com/v0/organizations/myorg"
-          }
-        ]
+        "links": {
+          "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
+          "self": "https://nexus.example.com/v0/organizations/myorg"
+        }
       }
     }
   ],
-  "links": [
-    {
-      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-      "rel": "self",
-      "href": "https://nexus.example.com/v0/organizations?from=0&size=20&deprecated=true"
-    }
-  ]
+  "links": {
+    "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
+    "self": "https://nexus.example.com/v0/organizations?from=0&size=20&deprecated=true"
+  }
 }

@@ -1,6 +1,5 @@
 {
   "@context": [
-    "https://nexus.example.com/v0/contexts/nexus/core/resource",
     {
       "schema": "http://schema.org/",
       "@vocab": "https://bbp-nexus.epfl.ch/voc/experiment/core/",
@@ -20,7 +19,8 @@
       "period": "https://bbp-nexus.epfl.ch/voc/experiment/core/period",
       "strain": "https://bbp-nexus.epfl.ch/voc/experiment/core/strain",
       "species": "https://bbp-nexus.epfl.ch/voc/experiment/core/species"
-    }
+    },
+    "https://nexus.example.com/v0/contexts/nexus/core/resource"
   ],
   "@id": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
   "nxv:rev": 3,

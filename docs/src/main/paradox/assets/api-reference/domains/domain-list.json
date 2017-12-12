@@ -7,21 +7,15 @@
       "resultId": "https://nexus.example.com/v0/domains/myorg/mydom",
       "source": {
         "@id": "https://nexus.example.com/v0/domains/myorg/mydom",
-        "links": [
-          {
-            "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-            "rel": "self",
-            "href": "https://nexus.example.com/v0/domains/myorg/mydom"
-          }
-        ]
+        "links": {
+          "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
+          "self": "https://nexus.example.com/v0/domains/myorg/mydom"
+        }
       }
     }
   ],
-  "links": [
-    {
-      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-      "rel": "self",
-      "href": "https://nexus.example.com/v0/domains?from=0&size=20"
-    }
-  ]
+  "links": {
+    "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
+    "self": "https://nexus.example.com/v0/domains?from=0&size=20"
+  }
 }

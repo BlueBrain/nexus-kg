@@ -1,19 +1,8 @@
 {
-  "links": [
-    {
-      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-      "rel": "self",
-      "href": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0/42ae55e3-7746-45ed-a9fd-a7ccdd1d736f"
-    },
-    {
-      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-      "rel": "attachment",
-      "href": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0/42ae55e3-7746-45ed-a9fd-a7ccdd1d736f/attachment"
-    },
-    {
-      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-      "rel": "schema",
-      "href": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0"
-    }
-  ]
+  "links": {
+    "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
+    "self": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0/42ae55e3-7746-45ed-a9fd-a7ccdd1d736f",
+    "attachment": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0/42ae55e3-7746-45ed-a9fd-a7ccdd1d736f/attachment",
+    "schema": "https://nexus.example.com/v0/data/myorg/mydom/myschema/1.0.0"
+  }
 }

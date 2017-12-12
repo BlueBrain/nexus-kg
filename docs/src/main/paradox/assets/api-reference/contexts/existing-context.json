@@ -1,6 +1,5 @@
 {
   "@context": [
-    "https://nexus.example.com/v0/contexts/nexus/core/resource",
     {
       "schema": "http://schema.org/",
       "maxCount": {
@@ -69,7 +68,8 @@
         "@reverse": "rdfs:isDefinedBy",
         "@type": "@id"
       }
-    }
+    },
+    "https://nexus.example.com/v0/contexts/nexus/core/resource"
   ],
   "@id": "https://nexus.example.com/v0/contexts/myorg/mydom/mycontext/1.0.0",
   "nxv:rev": 1,

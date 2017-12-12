@@ -9,31 +9,17 @@
       "score": 1,
       "source": {
         "@id": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0/cb806141-b30d-4378-a37b-8bed354dce97",
-        "links": [
-          {
-            "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-            "rel": "self",
-            "href": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0/cb806141-b30d-4378-a37b-8bed354dce97"
-          },
-          {
-            "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-            "rel": "schema",
-            "href": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0"
-          }
-        ]
+        "links": {
+          "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
+          "self": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0/cb806141-b30d-4378-a37b-8bed354dce97",
+          "schema": "https://nexus.example.com/v0/data/myorg/mydom/2ndschema/v0.1.0"
+        }
       }
     }
   ],
-  "links": [
-    {
-      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-      "rel": "self",
-      "href": "https://nexus.example.com/v0/data?from=0&size=1&q=test&filter={\"filter\":{\"op\":\"gte\",\"path\":\"nxv:rev\",\"value\":2}}"
-    },
-    {
-      "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-      "rel": "next",
-      "href": "https://nexus.example.com/v0/data?from=1&size=1&q=test&filter={\"filter\":{\"op\":\"gte\",\"path\":\"nxv:rev\",\"value\":2}}"
-    }
-  ]
+  "links": {
+    "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
+    "self": "https://nexus.example.com/v0/data?from=0&size=1&q=test&filter={\"filter\":{\"op\":\"gte\",\"path\":\"nxv:rev\",\"value\":2}}",
+    "next": "https://nexus.example.com/v0/data?from=1&size=1&q=test&filter={\"filter\":{\"op\":\"gte\",\"path\":\"nxv:rev\",\"value\":2}}"
+  }
 }
