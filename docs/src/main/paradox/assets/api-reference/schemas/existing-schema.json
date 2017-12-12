@@ -1,75 +1,76 @@
 {
-  "@context": {
-    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
-    "schema": "http://schema.org/",
-    "maxCount": {
-      "@id": "sh:maxCount",
-      "@type": "xsd:integer"
+  "@context": [
+    {
+      "schema": "http://schema.org/",
+      "maxCount": {
+        "@id": "sh:maxCount",
+        "@type": "xsd:integer"
+      },
+      "minCount": {
+        "@id": "sh:minCount",
+        "@type": "xsd:integer"
+      },
+      "datatype": {
+        "@id": "sh:datatype",
+        "@type": "@id"
+      },
+      "name": "sh:name",
+      "path": {
+        "@id": "sh:path",
+        "@type": "@id"
+      },
+      "nodeKind": {
+        "@id": "node:Kind",
+        "@type": "@id"
+      },
+      "description": "sh:description",
+      "class": {
+        "@id": "sh:class",
+        "@type": "@id"
+      },
+      "property": {
+        "@id": "sh:property",
+        "@type": "@id"
+      },
+      "isDefinedBy": {
+        "@id": "rdfs:isDefinedBy",
+        "@type": "@id"
+      },
+      "targetClass": {
+        "@id": "sh:targetClass",
+        "@type": "@id"
+      },
+      "targetObjectOf": {
+        "@id": "sh:targetObjectOf",
+        "@type": "@id"
+      },
+      "node": {
+        "@id": "sh:node",
+        "@type": "@id"
+      },
+      "rest": {
+        "@id": "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest",
+        "@type": "@id"
+      },
+      "first": "http://www.w3.org/1999/02/22-rdf-syntax-ns#first",
+      "in": {
+        "@id": "sh:in",
+        "@type": "@id"
+      },
+      "bbpexpshape": "https://bbp-nexus.epfl.ch/schemas/bbp/experiment/subject/v1.0.0/shapes/",
+      "sh": "http://www.w3.org/ns/shacl#",
+      "owl": "http://www.w3.org/2002/07/owl#",
+      "sex": "http://www.hbp.FIXME.org/hbp_sex_ontology/",
+      "xsd": "http://www.w3.org/2001/XMLSchema#",
+      "bbpexp": "https://bbp-nexus.epfl.ch/voc/experiment/core/",
+      "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+      "shapes": {
+        "@reverse": "rdfs:isDefinedBy",
+        "@type": "@id"
+      }
     },
-    "minCount": {
-      "@id": "sh:minCount",
-      "@type": "xsd:integer"
-    },
-    "datatype": {
-      "@id": "sh:datatype",
-      "@type": "@id"
-    },
-    "name": "sh:name",
-    "path": {
-      "@id": "sh:path",
-      "@type": "@id"
-    },
-    "nodeKind": {
-      "@id": "node:Kind",
-      "@type": "@id"
-    },
-    "description": "sh:description",
-    "class": {
-      "@id": "sh:class",
-      "@type": "@id"
-    },
-    "property": {
-      "@id": "sh:property",
-      "@type": "@id"
-    },
-    "isDefinedBy": {
-      "@id": "rdfs:isDefinedBy",
-      "@type": "@id"
-    },
-    "targetClass": {
-      "@id": "sh:targetClass",
-      "@type": "@id"
-    },
-    "targetObjectOf": {
-      "@id": "sh:targetObjectOf",
-      "@type": "@id"
-    },
-    "node": {
-      "@id": "sh:node",
-      "@type": "@id"
-    },
-    "rest": {
-      "@id": "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest",
-      "@type": "@id"
-    },
-    "first": "http://www.w3.org/1999/02/22-rdf-syntax-ns#first",
-    "in": {
-      "@id": "sh:in",
-      "@type": "@id"
-    },
-    "schema": "http://schema.org/",
-    "bbpexpshape": "https://bbp-nexus.epfl.ch/schemas/bbp/experiment/subject/v1.0.0/shapes/",
-    "sh": "http://www.w3.org/ns/shacl#",
-    "owl": "http://www.w3.org/2002/07/owl#",
-    "sex": "http://www.hbp.FIXME.org/hbp_sex_ontology/",
-    "xsd": "http://www.w3.org/2001/XMLSchema#",
-    "bbpexp": "https://bbp-nexus.epfl.ch/voc/experiment/core/",
-    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
-    "shapes": {
-      "@reverse": "rdfs:isDefinedBy",
-      "@type": "@id"
-    }
-  },
+    "https://nexus.example.com/v0/contexts/nexus/core/resource"
+  ],
   "@id": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
   "nxv:rev": 1,
   "nxv:deprecated": false,

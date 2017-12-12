@@ -1,8 +1,10 @@
 {
-  "@context": {
-    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
-    "schema": "http://schema.org/"
-  },
+  "@context": [
+    {
+      "schema": "http://schema.org/"
+    },
+    "https://nexus.example.com/v0/contexts/nexus/core/resource"
+  ],
   "@id": "https://nexus.example.com/v0/domains/myorg/mydom",
   "nxv:rev": 1,
   "nxv:deprecated": false,
