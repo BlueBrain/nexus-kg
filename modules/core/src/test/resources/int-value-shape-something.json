@@ -1,5 +1,5 @@
 {
-  "@context": [{
+  "@context": {
     "maxCount": {
       "@id": "sh:maxCount",
       "@type": "xsd:integer"
@@ -39,8 +39,6 @@
       "@container": "@set"
     }
   },
-    "http://example.com"
-  ],
   "@id": "bbp:IdSomething",
   "@type": "sh:Something",
   "property": [

@@ -41,7 +41,7 @@
     }
   ],
   "@type": "owl:Ontology",
-  "@context": [{
+  "@context": {
     "maxCount": {
       "@id": "sh:maxCount",
       "@type": "xsd:integer"
@@ -80,7 +80,5 @@
       "@type": "@id",
       "@container": "@set"
     }
-  },
-    "http://example.com"
-  ]
+  }
 }

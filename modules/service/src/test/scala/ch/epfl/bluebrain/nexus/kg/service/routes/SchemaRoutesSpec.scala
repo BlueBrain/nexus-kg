@@ -63,10 +63,11 @@ class SchemaRoutesSpec
 
     val schemaJson       = jsonContentOf("/int-value-schema.json")
     val schemaJsonObject = schemaJson.asObject.get
+    val jsonContext = Json.arr(schemaJsonObject("@context").getOrElse(Json.obj()), Json.fromString(prefixes.CoreContext.toString))
     val schemaJsonWithStandardsContext = Json.fromJsonObject(
       schemaJsonObject.add(
         "@context",
-        Json.arr(schemaJsonObject("@context").getOrElse(Json.obj()), Json.fromString(prefixes.CoreContext.toString)))
+        jsonContext)
     )
 
     val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
@@ -209,7 +210,7 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
-                "@context"       -> Json.fromString(prefixes.CoreContext.toString),
+                "@context"       -> jsonContext,
                 "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
                 "nxv:rev"        -> Json.fromLong(3L),
                 "nxv:deprecated" -> Json.fromBoolean(false),
@@ -226,7 +227,7 @@ class SchemaRoutesSpec
           Some(
             shapeNodeShape.deepMerge(
               Json.obj(
-                "@context"       -> Json.fromString(prefixes.CoreContext.toString),
+                "@context"       -> jsonContext,
                 "@id"            -> Json.fromString(s"$baseUri/schemas/${schemaId.show}/shapes/IdNodeShape2"),
                 "nxv:rev"        -> Json.fromLong(1L),
                 "nxv:deprecated" -> Json.fromBoolean(false),
