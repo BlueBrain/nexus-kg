@@ -196,11 +196,14 @@ object BootstrapService {
 
     def apiUri: Uri
 
-    lazy val querySettings = QuerySettings(Pagination(settings.Sparql.From, settings.Sparql.Size),
-                                           settings.Sparql.MaxSize,
-                                           settings.Sparql.Index,
-                                           settings.Prefixes.CoreVocabulary,
-                                           apiUri)
+    lazy val querySettings = QuerySettings(
+      Pagination(settings.Sparql.From, settings.Sparql.Size),
+      settings.Sparql.MaxSize,
+      settings.Sparql.Index,
+      settings.Prefixes.CoreVocabulary,
+      apiUri,
+      settings.Sparql.Acls.GraphBaseNamespace
+    )
 
     implicit val filteringSettings: FilteringSettings =
       FilteringSettings(settings.Prefixes.CoreVocabulary, settings.Prefixes.SearchVocabulary)

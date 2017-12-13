@@ -45,6 +45,7 @@ import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileSt
 import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
+import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec.baseUri
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error._
 import ch.epfl.bluebrain.nexus.kg.service.routes.InstanceRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -127,7 +128,7 @@ class InstanceRoutesSpec
     private val indexSettings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
       InstanceIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
 
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri)
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
     implicit val filteringSettings: FilteringSettings =
       FilteringSettings(nexusVocBase, nexusVocBase)
     val baseUUID = UUID.randomUUID().toString.toLowerCase().dropRight(2)

@@ -70,7 +70,7 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
     F.sequence(qualifiedPaths(path) map { pathString =>
         log.debug(s"Adding ACL indexing for path '$pathString' and identities '$identities'")
         val meta = buildMeta(pathString, identities)
-        client.createGraph(index, pathString qualifyWith baseNs, meta)
+        client.createGraph(index, baseNs, meta)
       })
       .map(_ => ())
   }
@@ -87,7 +87,8 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
   private def clear(path: Path): F[Unit] = {
     F.sequence(qualifiedPaths(path) map { pathString =>
         log.debug(s"Clear ACLs indexing for path '$pathString'")
-        client.clearGraph(index, pathString qualifyWith baseNs)
+        val removeQuery = PatchQuery(pathToQualifiedId(pathString), baseNs, readKey)(Qualifier.configured[String](""))
+        client.delete(index, removeQuery)
       })
       .map(_ => ())
   }

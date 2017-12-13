@@ -28,7 +28,7 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
   "An searchQueryParams directive" should {
     val base        = "http://localhost"
     implicit val fs = FilteringSettings(s"$base/voc/nexus/core", s"$base/voc/nexus/search")
-    implicit val qs = QuerySettings(Pagination(0, 20), 100, "index", fs.nexusBaseVoc, base)
+    implicit val qs = QuerySettings(Pagination(0, 20), 100, "index", fs.nexusBaseVoc, base, s"$base/acls/graph")
 
     "extract default page when not provided" in {
       Get("/") ~> route ~> check {
