@@ -25,16 +25,20 @@
   "@id": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
   "nxv:rev": 3,
   "nxv:deprecated": false,
-  "nxv:originalFileName": "myfile.png",
-  "nxv:contentType": "image/png",
-  "nxv:size": {
-    "unit": "byte",
-    "value": 59215
-  },
-  "nxv:digest": {
-    "alg": "SHA-256",
-    "value": "742a6f671488aaaa50654c74c96cf14b8642bf5baa41b1d7e209d3de53225ed2"
-  },
+  "distribution": [
+    {
+      "originalFileName": "myfile.png",
+      "mediaType": "image/png",
+      "contentSize": {
+        "unit": "byte",
+        "value": 59215
+      },
+      "digest": {
+        "algorithm": "SHA-256",
+        "value": "742a6f671488aaaa50654c74c96cf14b8642bf5baa41b1d7e209d3de53225ed2"
+      }
+    }
+  ],
   "@type": "bbpexp:Subject",
   "providerId": "00826165",
   "name": "00826165",

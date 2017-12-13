@@ -137,8 +137,8 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                 onSuccess(result) {
                   case Some((info, source)) =>
                     val ct =
-                      ContentType.parse(info.contentType).getOrElse(ContentTypes.`application/octet-stream`)
-                    complete(HttpEntity(ct, info.size.value, source))
+                      ContentType.parse(info.mediaType).getOrElse(ContentTypes.`application/octet-stream`)
+                    complete(HttpEntity(ct, info.contentSize.value, source))
                   case None =>
                     complete(StatusCodes.NotFound)
                 }

@@ -108,11 +108,7 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
                                          contentType,
                                          Size(value = source.length.toLong),
                                          Digest("SHA-256", digestString(source)))
-      expectedInfo -> instances.createAttachment(id,
-                                                 rev,
-                                                 expectedInfo.originalFileName,
-                                                 expectedInfo.contentType,
-                                                 source)
+      expectedInfo -> instances.createAttachment(id, rev, expectedInfo.originalFileName, expectedInfo.mediaType, source)
     }
   }
 

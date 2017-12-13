@@ -423,8 +423,8 @@ class InstanceRoutesSpec
             Json.obj(
               "@context"         -> Json.fromString(prefixes.DistributionContext.toString),
               "originalFileName" -> Json.fromString(filename),
-              "contentType"      -> Json.fromString(ContentTypes.`text/csv(UTF-8)`.toString),
-              "size"             -> Size(value = size).asJson,
+              "mediaType"        -> Json.fromString(ContentTypes.`text/csv(UTF-8)`.toString),
+              "contentSize"      -> Size(value = size).asJson,
               "digest"           -> digest.asJson
             )
           )))
