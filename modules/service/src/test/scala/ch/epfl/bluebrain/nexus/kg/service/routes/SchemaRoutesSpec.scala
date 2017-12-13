@@ -63,11 +63,10 @@ class SchemaRoutesSpec
 
     val schemaJson       = jsonContentOf("/int-value-schema.json")
     val schemaJsonObject = schemaJson.asObject.get
-    val jsonContext = Json.arr(schemaJsonObject("@context").getOrElse(Json.obj()), Json.fromString(prefixes.CoreContext.toString))
+    val jsonContext =
+      Json.arr(schemaJsonObject("@context").getOrElse(Json.obj()), Json.fromString(prefixes.CoreContext.toString))
     val schemaJsonWithStandardsContext = Json.fromJsonObject(
-      schemaJsonObject.add(
-        "@context",
-        jsonContext)
+      schemaJsonObject.add("@context", jsonContext)
     )
 
     val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")

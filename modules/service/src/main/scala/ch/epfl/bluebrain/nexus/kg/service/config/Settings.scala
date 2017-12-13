@@ -313,6 +313,7 @@ object Settings extends ExtensionId[Settings] with ExtensionIdProvider {
 
   override def createExtension(system: ExtendedActorSystem): Settings = new Settings(system.settings.config)
 
+  @SuppressWarnings(Array("MethodNames"))
   trait PrefixUris {
     def CoreContext: Uri
     def StandardsContext: Uri

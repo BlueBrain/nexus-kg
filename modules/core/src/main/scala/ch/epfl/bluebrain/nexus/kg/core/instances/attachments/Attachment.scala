@@ -19,19 +19,19 @@ object Attachment {
     * that we want to expose through the service.
     *
     * @param originalFileName the original filename of the attached file
-    * @param contentType      the content type of the attached file
-    * @param size             the size of the attached file
+    * @param mediaType        the media type of the attached file
+    * @param contentSize      the size of the attached file
     * @param digest           the digest information of the attached file
     */
-  final case class Info(originalFileName: String, contentType: String, size: Size, digest: Digest)
+  final case class Info(originalFileName: String, mediaType: String, contentSize: Size, digest: Digest)
 
   /**
     * Digest related information of the attached file
     *
-    * @param alg   the algorithm used in order to compute the digest
-    * @param value the actual value of the digest of the attached file
+    * @param algorithm the algorithm used in order to compute the digest
+    * @param value     the actual value of the digest of the attached file
     */
-  final case class Digest(alg: String, value: String)
+  final case class Digest(algorithm: String, value: String)
 
   /**
     * The size of the attached file

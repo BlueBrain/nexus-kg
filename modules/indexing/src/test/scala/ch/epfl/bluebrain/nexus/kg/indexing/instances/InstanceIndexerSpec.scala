@@ -117,13 +117,13 @@ class InstanceIndexerSpec(blazegraphPort: Int)
                               meta: Attachment.Meta,
                               metaUser: Meta,
                               firstReqMeta: Meta): Set[(String, String, String)] = {
-    val qualifiedId                                                                                       = id.qualifyAsStringWith(instanceBase)
-    val Attachment.Meta(_, Info(originalFileName, contentType, Size(_, size), Digest(algorithm, digest))) = meta
+    val qualifiedId                                                                                            = id.qualifyAsStringWith(instanceBase)
+    val Attachment.Meta(_, Info(originalFileName, mediaType, Size(_, contentSize), Digest(algorithm, digest))) = meta
     expectedTriples(id, rev, deprecated, description, metaUser, firstReqMeta) ++
       Set(
         (qualifiedId, "originalFileName" qualifyAsStringWith nexusVocBase, originalFileName),
-        (qualifiedId, "contentType" qualifyAsStringWith nexusVocBase, contentType),
-        (qualifiedId, "size" qualifyAsStringWith nexusVocBase, size.toString),
+        (qualifiedId, "mediaType" qualifyAsStringWith nexusVocBase, mediaType),
+        (qualifiedId, "contentSize" qualifyAsStringWith nexusVocBase, contentSize.toString),
         (qualifiedId, "digestAlgorithm" qualifyAsStringWith nexusVocBase, algorithm),
         (qualifiedId, "digest" qualifyAsStringWith nexusVocBase, digest)
       )

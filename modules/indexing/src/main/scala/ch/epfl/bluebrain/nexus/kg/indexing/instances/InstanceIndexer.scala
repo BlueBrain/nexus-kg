@@ -57,8 +57,8 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
 
   // attachment vocabulary
   private val originalFileNameKey = "originalFileName".qualifyAsString
-  private val contentTypeKey      = "contentType".qualifyAsString
-  private val sizeKey             = "size".qualifyAsString
+  private val mediaTypeKey        = "mediaType".qualifyAsString
+  private val contentSizeKey      = "contentSize".qualifyAsString
   private val digestAlgoKey       = "digestAlgorithm".qualifyAsString
   private val digestKey           = "digest".qualifyAsString
 
@@ -92,8 +92,8 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
                                                createdAtTimeKey,
                                                schemaGroupKey,
                                                originalFileNameKey,
-                                               contentTypeKey,
-                                               sizeKey,
+                                               mediaTypeKey,
+                                               contentSizeKey,
                                                digestAlgoKey,
                                                digestKey)
           client.patchGraph(index, id qualifyWith baseNs, removeQuery, json)
@@ -111,8 +111,8 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
       val removeQuery = PatchQuery(id,
                                    id qualifyWith baseNs,
                                    originalFileNameKey,
-                                   contentTypeKey,
-                                   sizeKey,
+                                   mediaTypeKey,
+                                   contentSizeKey,
                                    digestAlgoKey,
                                    digestKey,
                                    revKey,
@@ -128,8 +128,8 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
                    revKey,
                    updatedAtTimeKey,
                    originalFileNameKey,
-                   contentTypeKey,
-                   sizeKey,
+                   mediaTypeKey,
+                   contentSizeKey,
                    digestAlgoKey,
                    digestKey)
       client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
@@ -162,8 +162,8 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
     val Meta(_, Info(originalFileName, contentType, Size(_, size), Digest(algorithm, digest))) = attachmentMeta
     Json.obj(
       originalFileNameKey -> Json.fromString(originalFileName),
-      contentTypeKey      -> Json.fromString(contentType),
-      sizeKey             -> Json.fromLong(size),
+      mediaTypeKey        -> Json.fromString(contentType),
+      contentSizeKey      -> Json.fromLong(size),
       digestAlgoKey       -> Json.fromString(algorithm),
       digestKey           -> Json.fromString(digest)
     ) deepMerge buildRevMeta(id, rev, meta)
