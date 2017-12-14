@@ -240,7 +240,10 @@ trait QualifierInstances {
 
   implicit def stringIdQualifier(implicit S: Show[String]): Qualifier[String] =
     new Qualifier[String] {
-      override def apply(value: String, base: Uri): Uri    = base.copy(path = (base.path: Path) ++ Path(value.show))
+      override def apply(value: String, base: Uri): Uri =
+        if (base.isEmpty) value.show
+        else base.copy(path = (base.path: Path) ++ Path(value.show))
+
       override def unapply(uri: Uri, base: Uri): None.type = None
     }
 }

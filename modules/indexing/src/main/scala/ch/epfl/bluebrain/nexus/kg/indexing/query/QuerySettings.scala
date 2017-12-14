@@ -11,5 +11,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
   * @param index        the index to be used for querying
   * @param nexusVocBase the nexus core vocabulary base
   * @param base         the service public uri + prefix
+  * @param aclGraph     the graph where ACLs are indexed
   */
-final case class QuerySettings(pagination: Pagination, maxSize: Int, index: String, nexusVocBase: Uri, base: Uri)
+final case class QuerySettings(pagination: Pagination,
+                               maxSize: Int,
+                               index: String,
+                               nexusVocBase: Uri,
+                               base: Uri,
+                               aclGraph: Uri)

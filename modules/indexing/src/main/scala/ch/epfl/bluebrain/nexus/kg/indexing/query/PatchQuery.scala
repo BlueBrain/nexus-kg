@@ -20,7 +20,7 @@ object PatchQuery {
     * @tparam A the identifier type
     * @return a SPARQL query to select the triples to be removed
     */
-  def apply[A: ConfiguredQualifier](id: A, graph: Uri, predicates: String*): String = {
+  def apply[A](id: A, graph: Uri, predicates: String*)(implicit C: ConfiguredQualifier[A]): String = {
     val subj     = NodeFactory.createURI(id.qualifyAsString)
     val graphUri = NodeFactory.createURI(graph.toString())
     val (construct, where) = predicates.zipWithIndex

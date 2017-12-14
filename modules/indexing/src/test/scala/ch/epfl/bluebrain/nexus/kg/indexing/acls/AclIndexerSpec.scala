@@ -69,17 +69,21 @@ class AclIndexerSpec(blazegraphPort: Int)
   private val settings @ AclIndexingSettings(index, aclsBase, aclsBaseNs, nexusVocBase) =
     AclIndexingSettings(genString(length = 6), base, s"$base/acls/graphs", s"$base/voc/nexus/core")
 
+  private def triplesFromGraph(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
+    client.query(index, s"SELECT * { GRAPH <$aclsBaseNs> { ?s ?p ?o } }").map(rsToTuples)
+
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
-    client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
-      rs.asScala.toList.map { qs =>
-        val obj = {
-          val node = qs.get("?o")
-          if (node.isLiteral) node.asLiteral().getLexicalForm
-          else node.asResource().toString
-        }
-        (qs.get(s"?$subject").toString, qs.get("?p").toString, obj)
+    client.query(index, "SELECT * { ?s ?p ?o }").map(rsToTuples)
+
+  private implicit val rsToTuples: ResultSet => List[(String, String, String)] = rs =>
+    rs.asScala.toList.map { qs =>
+      val obj = {
+        val node = qs.get("?o")
+        if (node.isLiteral) node.asLiteral().getLexicalForm
+        else node.asResource().toString
       }
-    }
+      (qs.get(s"?$subject").toString, qs.get("?p").toString, obj)
+  }
 
   private def expectedTriples(id: String, identities: Set[Identity]): List[(String, String, String)] =
     identities.map { identity =>
@@ -114,6 +118,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val rs = triples(client).futureValue
       rs.size shouldEqual 2
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2))
+      rs shouldEqual triplesFromGraph(client).futureValue
     }
 
     "index a PermissionsAdded event on organizations" in {
@@ -122,6 +127,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val rs = triples(client).futureValue
       rs.size shouldEqual 3
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
+      rs shouldEqual triplesFromGraph(client).futureValue
     }
 
     "Do not index a PermissionsAdded event on organizations when the path does not start with kg" in {
@@ -130,6 +136,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val rs = triples(client).futureValue
       rs.size shouldEqual 3
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
+      rs shouldEqual triplesFromGraph(client).futureValue
     }
 
     "index a PermissionsSubtracted event on organizations" in {
@@ -138,6 +145,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val rs = triples(client).futureValue
       rs.size shouldEqual 2
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group2, group3))
+      rs shouldEqual triplesFromGraph(client).futureValue
     }
 
     "index a PermissionsAdded event on instances" in {
@@ -147,6 +155,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       rs.size shouldEqual 3
       val expectedAllTriples = expectedTriples(s"$base/organizations/${orgId.show}", Set(group2, group3))
       rs shouldEqual expectedAllTriples ++ expectedTriples(s"$base/data/${instance.show}", Set(user))
+      rs shouldEqual triplesFromGraph(client).futureValue
     }
 
     "index a PermissionsCleared event on organizations" in {
@@ -155,6 +164,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       val rs = triples(client).futureValue
       rs.size shouldEqual 1
       rs shouldEqual expectedTriples(s"$base/data/${instance.show}", Set(user))
+      rs shouldEqual triplesFromGraph(client).futureValue
     }
 
     "index a PermissionsAdded event on schemas/context" in {
@@ -165,6 +175,7 @@ class AclIndexerSpec(blazegraphPort: Int)
       rs should contain allElementsOf expectedTriples(s"$base/contexts/${schema.show}", Set(user)) ++
         expectedTriples(s"$base/schemas/${schema.show}", Set(user)) ++
         expectedTriples(s"$base/data/${instance.show}", Set(user))
+      rs shouldEqual triplesFromGraph(client).futureValue
     }
 
     "index a PermissionsCreated event on the root path" in {
@@ -181,6 +192,7 @@ class AclIndexerSpec(blazegraphPort: Int)
         expectedTriples(s"$base/contexts/${schema.show}", Set(user)) ++
         expectedTriples(s"$base/schemas/${schema.show}", Set(user)) ++
         expectedTriples(s"$base/data/${instance.show}", Set(user))
+      rs shouldEqual triplesFromGraph(client).futureValue
     }
   }
 }
