@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
@@ -48,7 +49,8 @@ class AuthDirectivesSpec
   private implicit val iamUri = IamUri("http://localhost:8080")
 
   private def route(perm: Permission)(implicit cred: Option[OAuth2BearerToken]) = {
-    (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
+    (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
+      RejectionHandling.rejectionHandler(ErrorContext))) {
       (get & authorizeResource(DomainId(OrgId(s"org-${genString()}"), s"dom-${genString()}"), perm)) {
         complete("Success")
       }
@@ -56,7 +58,8 @@ class AuthDirectivesSpec
   }
 
   private def route()(implicit cred: Option[OAuth2BearerToken]) = {
-    (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
+    (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
+      RejectionHandling.rejectionHandler(ErrorContext))) {
       (get & authenticateCaller) { caller =>
         complete(caller.asJson)
       }

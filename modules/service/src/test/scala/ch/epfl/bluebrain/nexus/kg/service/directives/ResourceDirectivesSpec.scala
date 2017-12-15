@@ -6,6 +6,7 @@ import akka.http.scaladsl.server.{Directive1, Route}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalVersionFormat
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
@@ -17,7 +18,8 @@ import org.scalatest.{Matchers, WordSpecLike}
 class ResourceDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matchers {
 
   private def route[A: Qualifier](dir: Directive1[A]): Route =
-    (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
+    (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
+      RejectionHandling.rejectionHandler(ErrorContext))) {
       dir { extracted =>
         complete(extracted.qualifyAsStringWith(""))
       }

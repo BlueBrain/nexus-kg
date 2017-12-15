@@ -5,6 +5,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.{ExceptionHandling, RejectionHandling}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -18,7 +19,8 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
                               deprecatedOpt: Option[Boolean],
                               fields: Set[String])
   private def route(implicit qs: QuerySettings, fs: FilteringSettings) = {
-    (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
+    (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
+      RejectionHandling.rejectionHandler(ErrorContext))) {
       (get & searchQueryParams) { (pagination, _, qOpt, deprecatedOpt, fields) =>
         complete(Response(pagination, qOpt, deprecatedOpt, fields))
       }

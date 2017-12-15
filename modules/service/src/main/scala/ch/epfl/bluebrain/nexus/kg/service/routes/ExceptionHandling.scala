@@ -1,21 +1,23 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import akka.http.scaladsl.model.EntityStreamSizeException
 import akka.http.scaladsl.model.StatusCodes._
+import akka.http.scaladsl.model.{EntityStreamSizeException, Uri}
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
+import ch.epfl.bluebrain.nexus.commons.service.directives.ErrorDirectives._
+import ch.epfl.bluebrain.nexus.commons.service.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.AttachmentLimitExceeded
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection
-import ch.epfl.bluebrain.nexus.commons.service.directives.ErrorDirectives._
-import ch.epfl.bluebrain.nexus.commons.service.directives.StatusFrom
-import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys.`@context`
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
 import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.auto._
+import io.circe.generic.extras.semiauto._
+import io.circe.{Encoder, Json}
 import journal.Logger
 
 /**
@@ -24,15 +26,11 @@ import journal.Logger
   * all rejections and unexpected failures are gracefully handled
   * and presented to the caller.
   */
-object ExceptionHandling {
+class ExceptionHandling(errorContext: Uri) {
 
   val logger = Logger[this.type]
 
-  /**
-    * @return an ExceptionHandler for [[ch.epfl.bluebrain.nexus.kg.core.Fault]] subtypes that ensures a descriptive
-    *         message is returned to the caller
-    */
-  final def exceptionHandler: ExceptionHandler = ExceptionHandler {
+  private final def exceptionHandler: ExceptionHandler = ExceptionHandler {
     case CommandRejected(r: InstanceRejection)   => complete(r)
     case CommandRejected(r: SchemaRejection)     => complete(r)
     case CommandRejected(r: ContextRejection)    => complete(r)
@@ -55,8 +53,30 @@ object ExceptionHandling {
   /**
     * The discriminator is enough to give us a Json representation (the name of the class)
     */
-  private implicit val config: Configuration =
-    Configuration.default.withDiscriminator("code")
+  private implicit val config: Configuration = Configuration.default.withDiscriminator("code")
+
+  private val context = Json.obj(`@context` -> Json.fromString(errorContext.toString))
+
+  private implicit val instanceRejectionEncoder: Encoder[InstanceRejection] =
+    deriveEncoder[InstanceRejection].mapJson(_.deepMerge(context))
+
+  private implicit val schemaRejectionEncoder: Encoder[SchemaRejection] =
+    deriveEncoder[SchemaRejection].mapJson(_.deepMerge(context))
+
+  private implicit val contextRejectionEncoder: Encoder[ContextRejection] =
+    deriveEncoder[ContextRejection].mapJson(_.deepMerge(context))
+
+  private implicit val domainRejectionEncoder: Encoder[DomainRejection] =
+    deriveEncoder[DomainRejection].mapJson(_.deepMerge(context))
+
+  private implicit val orgRejectionEncoder: Encoder[OrgRejection] =
+    deriveEncoder[OrgRejection].mapJson(_.deepMerge(context))
+
+  private implicit val illegalFilterFormatEncoder: Encoder[IllegalFilterFormat] =
+    deriveEncoder[IllegalFilterFormat].mapJson(_.deepMerge(context))
+
+  private implicit val internalErrorEncoder: Encoder[InternalError] =
+    deriveEncoder[InternalError].mapJson(_.deepMerge(context))
 
   private implicit val instanceStatusFrom: StatusFrom[InstanceRejection] = {
     import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
@@ -138,6 +158,19 @@ object ExceptionHandling {
     *
     * @param code the code displayed as a response (InternalServerError as default)
     */
-  private final case class InternalError(code: String = "InternalServerError")
+  private case class InternalError(code: String = "InternalServerError")
 
+}
+
+object ExceptionHandling {
+
+  /**
+    * @param errorContext the context URI to be injected in the JSON-LD error responses
+    * @return an ExceptionHandler for [[ch.epfl.bluebrain.nexus.kg.core.Fault]] subtypes that ensures a descriptive
+    *         message is returned to the caller
+    */
+  final def exceptionHandler(errorContext: Uri): ExceptionHandler = {
+    val handler = new ExceptionHandling(errorContext)
+    handler.exceptionHandler
+  }
 }

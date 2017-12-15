@@ -61,7 +61,7 @@ class ContextRoutes(contexts: Contexts[Future],
                                           ec: ExecutionContext,
                                           clock: Clock,
                                           orderedKeys: OrderedKeys)
-    extends DefaultRouteHandling
+    extends DefaultRouteHandling()(prefixes)
     with QueryDirectives {
 
   private implicit val _ = (entity: Context) => entity.id
@@ -70,7 +70,7 @@ class ContextRoutes(contexts: Contexts[Future],
   private implicit val contextEncoders: ContextCustomEncoders = new ContextCustomEncoders(base, prefixes)
   import contextEncoders._
 
-  private val exceptionHandler = ExceptionHandling.exceptionHandler
+  private val exceptionHandler = ExceptionHandling.exceptionHandler(prefixes.ErrorContext)
 
   override protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]) =
     extractContextId { contextId =>
@@ -229,6 +229,9 @@ class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context
           JsonLDKeys.nxvPublished  -> Json.fromBoolean(ctx.published)
         )
       )
-    ctx.value.deepMerge(meta).addCoreContext
+    if (ctx.id.qualify == prefixes.CoreContext)
+      ctx.value.deepMerge(meta)
+    else
+      ctx.value.deepMerge(meta).addCoreContext
   }
 }

@@ -48,7 +48,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
                                                      ec: ExecutionContext,
                                                      clock: Clock,
                                                      orderedKeys: OrderedKeys)
-    extends DefaultRouteHandling {
+    extends DefaultRouteHandling()(prefixes) {
 
   private implicit val _                           = (entity: Organization) => entity.id
   private implicit val encoders: OrgCustomEncoders = new OrgCustomEncoders(base, prefixes)

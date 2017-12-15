@@ -58,6 +58,7 @@ class RejectionHandlingSpec
       Put(s"/organizations/$id", invalidJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[WrongOrInvalidJson.type]
+        responseAs[Error].`@context` shouldEqual prefixes.ErrorContext.toString
       }
     }
 
@@ -65,8 +66,8 @@ class RejectionHandlingSpec
       Head(s"/organizations/$id") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.MethodNotAllowed
         responseAs[Error].code shouldEqual classNameOf[MethodNotSupported.type]
+        responseAs[Error].`@context` shouldEqual prefixes.ErrorContext.toString
         responseAs[MethodNotSupported].supported should contain theSameElementsAs Vector("GET", "DELETE", "PUT")
-
       }
     }
 
@@ -75,6 +76,7 @@ class RejectionHandlingSpec
       Get(s"/organizations?filter=$filter") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[IllegalFilterFormat.type]
+        responseAs[Error].`@context` shouldEqual prefixes.ErrorContext.toString
       }
     }
 
@@ -82,6 +84,7 @@ class RejectionHandlingSpec
       Get(s"/organizations?filter=wrong") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[WrongOrInvalidJson.type]
+        responseAs[Error].`@context` shouldEqual prefixes.ErrorContext.toString
       }
     }
   }

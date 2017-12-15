@@ -58,7 +58,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                                            ec: ExecutionContext,
                                            clock: Clock,
                                            orderedKeys: OrderedKeys)
-    extends DefaultRouteHandling {
+    extends DefaultRouteHandling()(prefixes) {
 
   private implicit val _                                = (entity: Instance) => entity.id
   private implicit val encoders: InstanceCustomEncoders = new InstanceCustomEncoders(base, prefixes)
