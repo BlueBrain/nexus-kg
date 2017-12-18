@@ -7,7 +7,7 @@ import shapeless.Typeable
   *
   * @param code the unique code for this error
   */
-final case class Error(code: String)
+final case class Error(code: String, `@context`: String)
 
 object Error {
 

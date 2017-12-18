@@ -5,8 +5,9 @@ import akka.http.scaladsl.server.Directives.{extractCredentials, handleException
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.server.directives.RouteDirectives.reject
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Route}
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 
-trait DefaultRouteHandling {
+abstract class DefaultRouteHandling()(implicit prefixes: PrefixUris) {
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route
 
@@ -21,8 +22,8 @@ trait DefaultRouteHandling {
     * @param initialPrefix the initial prefix to be consumed
     */
   def combinedRoutesFor(initialPrefix: String): Route =
-    handleExceptions(ExceptionHandling.exceptionHandler) {
-      handleRejections(RejectionHandling.rejectionHandler) {
+    handleExceptions(ExceptionHandling.exceptionHandler(prefixes.ErrorContext)) {
+      handleRejections(RejectionHandling.rejectionHandler(prefixes.ErrorContext)) {
         pathPrefix(initialPrefix) {
           extractCredentials {
             case Some(c: OAuth2BearerToken) => combine(Some(c))

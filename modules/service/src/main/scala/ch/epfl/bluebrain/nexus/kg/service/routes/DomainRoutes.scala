@@ -50,7 +50,7 @@ final class DomainRoutes(domains: Domains[Future],
                                                ec: ExecutionContext,
                                                clock: Clock,
                                                orderedKeys: OrderedKeys)
-    extends DefaultRouteHandling {
+    extends DefaultRouteHandling()(prefixes) {
 
   private implicit val _                              = (entity: Domain) => entity.id
   private implicit val encoders: DomainCustomEncoders = new DomainCustomEncoders(base, prefixes)

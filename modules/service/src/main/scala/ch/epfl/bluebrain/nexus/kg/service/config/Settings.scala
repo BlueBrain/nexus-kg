@@ -167,6 +167,11 @@ class Settings(config: Config) extends Extension {
     val DistributionContext = Uri(ns.getString("prefixes.distribution-context"))
 
     /**
+      * The nexus distribution (attachments) context definition.
+      */
+    val ErrorContext = Uri(ns.getString("prefixes.error-context"))
+
+    /**
       * The nexus core vocabulary prefix.
       */
     val CoreVocabulary = Uri(ns.getString("prefixes.core-vocabulary"))
@@ -320,6 +325,7 @@ object Settings extends ExtensionId[Settings] with ExtensionIdProvider {
     def LinksContext: Uri
     def SearchContext: Uri
     def DistributionContext: Uri
+    def ErrorContext: Uri
     def CoreVocabulary: Uri
     def SearchVocabulary: Uri
   }

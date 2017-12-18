@@ -6,6 +6,7 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
 import ch.epfl.bluebrain.nexus.kg.service.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalVersionFormat
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
@@ -27,7 +28,8 @@ class PathDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Match
   }
 
   private val route = {
-    (handleExceptions(ExceptionHandling.exceptionHandler) & handleRejections(RejectionHandling.rejectionHandler)) {
+    (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
+      RejectionHandling.rejectionHandler(ErrorContext))) {
       extractAnyResourceId() { id =>
         id.fold(completeWithType)
       }

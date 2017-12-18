@@ -60,7 +60,7 @@ class SchemaRoutes(schemas: Schemas[Future],
                                          ec: ExecutionContext,
                                          clock: Clock,
                                          orderedKeys: OrderedKeys)
-    extends DefaultRouteHandling {
+    extends DefaultRouteHandling()(prefixes) {
   private implicit val schemaIdExtractor = (entity: Schema) => entity.id
   private implicit val shapeIdExtractor  = (entity: Shape) => entity.id
   private implicit val sQualifier: ConfiguredQualifier[String] =
@@ -72,7 +72,7 @@ class SchemaRoutes(schemas: Schemas[Future],
   import schemaEncoders._
   import shapeEncoders.shapeEncoder
 
-  private val exceptionHandler = ExceptionHandling.exceptionHandler
+  private val exceptionHandler = ExceptionHandling.exceptionHandler(prefixes.ErrorContext)
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields) =>

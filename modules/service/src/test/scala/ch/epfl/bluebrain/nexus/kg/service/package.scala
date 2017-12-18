@@ -16,6 +16,8 @@ package object service {
 
     override val DistributionContext = Uri("http://localhost/v0/contexts/nexus/core/distribution/v0.1.0")
 
+    override val ErrorContext = Uri("http://localhost/v0/contexts/nexus/core/error/v0.1.0")
+
     override val CoreVocabulary = Uri("http://localhost/v0/vocabs/nexus/core/terms/v0.1.0")
 
     override val SearchVocabulary = Uri("http://localhost/v0/vocabs/nexus/search/terms/v0.1.0")
