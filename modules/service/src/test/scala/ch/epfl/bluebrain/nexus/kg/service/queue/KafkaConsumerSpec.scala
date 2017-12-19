@@ -43,9 +43,8 @@ class KafkaConsumerSpec
   private val ownReadWrite = Permissions(Permission.Own, Permission.Read, Permission.Write)
   private val acl          = AccessControlList(anonymous -> ownReadWrite)
   private val messages = List(
-    """{"@context":"http://localhost/prefix/context","path":"a/b/c","identity":{"@id":"http://localhost/prefix/realms/realm/groups/some-group","realm":"realm","group":"some-group","@type":"GroupRef"},"permissions":["own","read","write"],"meta":{"author":{"@id":"http://localhost/prefix/realms/realm/users/alice","realm":"realm","sub":"alice","@type":"UserRef"},"instant":"1970-01-01T00:00:00.001Z"},"@type":"PermissionsAdded"}""",
     """{"@context":"http://localhost/prefix/context","path":"a/b/c","meta":{"author":{"@id":"http://localhost/prefix/realms/realm/users/alice","realm":"realm","sub":"alice","@type":"UserRef"},"instant":"1970-01-01T00:00:00.001Z"},"@type":"PermissionsCleared"}""",
-    """{"@context":"http://localhost/prefix/context","path":"a/b/c","acl":[{"identity":{"@id":"http://localhost/prefix/anonymous","@type":"Anonymous"},"permissions":["own","read","write"]}],"meta":{"author":{"@id":"http://localhost/prefix/realms/realm/users/alice","realm":"realm","sub":"alice","@type":"UserRef"},"instant":"1970-01-01T00:00:00.001Z"},"@type":"PermissionsCreated"}""",
+    """{"@context":"http://localhost/prefix/context","path":"a/b/c","acl":[{"identity":{"@id":"http://localhost/prefix/anonymous","@type":"Anonymous"},"permissions":["own","read","write"]}],"meta":{"author":{"@id":"http://localhost/prefix/realms/realm/users/alice","realm":"realm","sub":"alice","@type":"UserRef"},"instant":"1970-01-01T00:00:00.001Z"},"@type":"PermissionsAdded"}""",
     """{"@context":"http://localhost/prefix/context","path":"a/b/c","identity":{"@id":"http://localhost/prefix/realms/realm/authenticated","realm":"realm","@type":"AuthenticatedRef"},"meta":{"author":{"@id":"http://localhost/prefix/realms/realm/users/alice","realm":"realm","sub":"alice","@type":"UserRef"},"instant":"1970-01-01T00:00:00.001Z"},"@type":"PermissionsRemoved"}""",
     """{"@context":"http://localhost/prefix/context","path":"a/b/c","identity":{"@id":"http://localhost/prefix/realms/realm/users/alice","realm":"realm","sub":"alice","@type":"UserRef"},"permissions":["own","read","write"],"meta":{"author":{"@id":"http://localhost/prefix/realms/realm/users/alice","realm":"realm","sub":"alice","@type":"UserRef"},"instant":"1970-01-01T00:00:00.001Z"},"@type":"PermissionsSubtracted"}"""
   )
@@ -61,8 +60,7 @@ class KafkaConsumerSpec
         e.path shouldEqual path
         e.meta shouldEqual meta
         e match {
-          case PermissionsCreated(_, accessControlList, _) => accessControlList shouldEqual acl
-          case PermissionsAdded(_, _, permissions, _)      => permissions shouldEqual ownReadWrite
+          case PermissionsAdded(_, accessControlList, _) => accessControlList shouldEqual acl
           case PermissionsSubtracted(_, _, permissions, _) => permissions shouldEqual ownReadWrite
           case _                                           => ()
         }

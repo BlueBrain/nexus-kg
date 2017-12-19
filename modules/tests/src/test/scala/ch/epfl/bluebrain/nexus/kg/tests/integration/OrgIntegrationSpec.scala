@@ -8,7 +8,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.PermissionsCreated
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.PermissionsAdded
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
 import ch.epfl.bluebrain.nexus.commons.iam.acls._
@@ -66,7 +66,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         forAll(orgs) { orgId =>
           eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
             aclIndexer(
-              PermissionsCreated("kg" / orgId.id,
+              PermissionsAdded("kg" / orgId.id,
                                  AccessControlList(mockedUser.identities.map(AccessControl(_, Permissions(Read)))),
                                  meta)).futureValue
           }

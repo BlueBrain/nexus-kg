@@ -45,11 +45,9 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
     * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: Event): F[Unit] = event match {
-    case PermissionsCreated(path, acl, _) if isValidKg(path) =>
+    case PermissionsAdded(path, acl, _) if isValidKg(path) =>
       val identities = acl.acl.filter(_.permissions(Permission.Read)).map(_.identity)
       add(path, identities)
-    case PermissionsAdded(path, identity, permissions, _) if permissions(Permission.Read) && isValidKg(path) =>
-      add(path, Set(identity))
     case PermissionsSubtracted(path, identity, permissions, _) if permissions(Permission.Read) && isValidKg(path) =>
       remove(path, identity)
     case PermissionsCleared(path, _) if isValidKg(path) =>

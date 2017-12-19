@@ -12,7 +12,7 @@ import cats.instances.future._
 import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.{Meta, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{AccessControlList, Meta, Permissions}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -168,7 +168,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
         val id =
           InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", version), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-        aclIndexer(PermissionsAdded("kg" / "org" / "dom" / "name" / version.show, group, Permissions(Read), meta)).futureValue
+        aclIndexer(PermissionsAdded("kg" / "org" / "dom" / "name" / version.show, AccessControlList(group -> Permissions(Read)), meta)).futureValue
       }
 
       (4 until 5).foreach { idx =>
@@ -212,7 +212,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       (0 until 5).foreach { idx =>
         val id = OrgId(s"org$idx")
         orgIndexer(OrgCreated(id, rev, meta, data)).futureValue
-        aclIndexer(PermissionsAdded("kg" / s"org${idx}", UserRef("BBP", "1234"), Permissions(Read), meta)).futureValue
+        aclIndexer(PermissionsAdded("kg" / s"org${idx}", AccessControlList(UserRef("BBP", "1234") -> Permissions(Read)), meta)).futureValue
       }
 
       // index 5 not matching organizations
@@ -235,7 +235,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       // index 3 matching organizations ACLs
       (0 until 3).foreach { idx =>
-        aclIndexer(PermissionsAdded("kg" / s"org${idx}", group, Permissions(Read), meta)).futureValue
+        aclIndexer(PermissionsAdded("kg" / s"org${idx}", AccessControlList(group -> Permissions(Read)), meta)).futureValue
       }
 
       val pagination             = Pagination(0L, 100)
@@ -299,7 +299,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       })
 
       (0 until 2).foreach { idx =>
-        aclIndexer(PermissionsAdded("kg" / "org3" / s"domain${idx}", group, Permissions(Read), meta)).futureValue
+        aclIndexer(PermissionsAdded("kg" / "org3" / s"domain${idx}", AccessControlList(group -> Permissions(Read)), meta)).futureValue
       }
 
       val result2 =
@@ -360,7 +360,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       result2.total shouldEqual 0L
       result2.results.size shouldEqual 0
 
-      aclIndexer(PermissionsAdded("kg" / "org0" / "core" / "name", group, Permissions(Read), meta)).futureValue
+      aclIndexer(PermissionsAdded("kg" / "org0" / "core" / "name", AccessControlList(group -> Permissions(Read)), meta)).futureValue
 
       val result3 = q
         .list(DomainId(OrgId("org0"), "core"), filterNoDepr, pagination, None)
@@ -417,7 +417,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       val res = q.list(schemaName, filterNoDepr, pagination, None).futureValue
       res.total shouldEqual 0L
 
-      aclIndexer(PermissionsAdded("kg" / "org0" / "dom0" / schemaName.name, group, Permissions(Read), meta)).futureValue
+      aclIndexer(PermissionsAdded("kg" / "org0" / "dom0" / schemaName.name, AccessControlList(group -> Permissions(Read)), meta)).futureValue
 
       val result = q.list(schemaName, filterNoDepr, pagination, None).futureValue
       result.total shouldEqual 5L
