@@ -51,6 +51,15 @@ lazy val core = project
     )
   )
 
+lazy val schemas = project.in(file("modules/kg-schemas"))
+  .settings(common)
+  .enablePlugins(WorkbenchPlugin)
+  .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
+  .settings(
+    name := "kg-schemas",
+    moduleName := "kg-schemas"
+  )
+
 lazy val indexing = project
   .in(file("modules/indexing"))
   .dependsOn(core)
@@ -157,12 +166,15 @@ lazy val root = project
     description := "Nexus KnowledgeGraph",
     licenses := Seq(("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")))
   )
-  .aggregate(docs, core, indexing, service, tests)
+  .aggregate(docs, core, indexing, service, tests,schemas)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {})
 
-lazy val common = Seq(scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
-                      resolvers += Resolver.bintrayRepo("bogdanromanx", "maven"))
+lazy val common = Seq(
+  scalacOptions in(Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
+  resolvers += Resolver.bintrayRepo("bogdanromanx", "maven"),
+  workbenchVersion := "0.2.0"
+)
 
 lazy val noCoverage = Seq(coverageFailOnMinimum := false)
 

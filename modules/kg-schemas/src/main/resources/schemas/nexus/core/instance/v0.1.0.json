@@ -1,0 +1,44 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/core/schema/v0.1.0",
+    {
+      "this": "{{base}}/schemas/nexus/core/instance/v0.1.0/shapes/"
+    }
+  ],
+  "@type": "owl:Ontology",
+  "imports": [
+    "{{base}}/schemas/nexus/core/resource/v0.1.0",
+    "{{base}}/schemas/nexus/core/distribution/v0.1.0"
+  ],
+  "shapes": [
+    {
+      "@id": "this:InstanceShape",
+      "@type": "sh:NodeShape",
+      "label": "Nexus instance shape",
+      "comment": "A Nexus instance is a Nexus resource (with rev, deprecated and links properties) and potentially has distributions information to download the data it describes.",
+      "targetClass": [
+        "nxv:Instance"
+      ],
+      "targetSubjectsOf": [
+        "nxv:rev",
+        "nxv:deprecated",
+        "nxv:links"
+      ],
+      "and":[
+        {
+          "node":"{{base}}/schemas/nexus/core/resource/v0.1.0/shapes/ResourceShape"
+        },{
+          "property":[
+            {
+              "path":"schema:distribution",
+              "name":"Distribution",
+              "description":"The shape for the attached data metadata (e.g. content size, download url)",
+              "node":"{{base}}/schemas/nexus/core/distribution/v0.1.0/shapes/DistributionShape",
+              "maxCount":1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

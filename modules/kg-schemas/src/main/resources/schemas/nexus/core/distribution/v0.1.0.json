@@ -1,0 +1,57 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/core/schema/v0.1.0",
+    {
+      "this": "{{base}}/schemas/nexus/core/distribution/v0.1.0/shapes/"
+    }
+  ],
+  "@type": "owl:Ontology",
+  "imports": [
+    "{{base}}/schemas/nexus/core/quantitativevalue/v0.1.0",
+    "{{base}}/schemas/nexus/core/digest/v0.1.0"
+  ],
+  "shapes": [
+    {
+      "@id": "this:DistributionShape",
+      "@type": "sh:NodeShape",
+      "and":[
+        {
+          "or": [
+            {
+              "path": "schema:downloadURL",
+              "datatype": "xsd:anyURI",
+              "minCount": 1,
+              "maxCount": 1
+            },
+            {
+              "path": "schema:accessURL",
+              "datatype": "xsd:anyURI",
+              "minCount": 1,
+              "maxCount": 1
+            }
+          ]
+        },
+        {
+          "property": [
+            {
+              "path": "schema:contentSize",
+              "node": "{{base}}/schemas/nexus/core/quantitativevalue/v0.1.0/shapes/PositiveQuantitativeValueShape",
+              "maxCount": 1
+            },
+            {
+              "path": "nxv:digest",
+              "node": "{{base}}/schemas/nexus/core/digest/v0.1.0/shapes/DigestShape"
+            },
+            {
+              "path": "schema:mediaType",
+              "datatype": "xsd:string",
+              "pattern":"^(application|audio|font|image|message|model|multipart|text|video)\/.+",
+              "minCount": 1,
+              "maxCount": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/core/shacl20170720/v0.1.0",
+    {
+      "this": "{{base}}/schemas/nexus/core/digest/v0.1.0/shapes/"
+    }
+  ],
+  "@type": "owl:Ontology",
+  "shapes": [
+    {
+      "@id": "this:DigestShape",
+      "@type": "sh:NodeShape",
+      "property": [
+        {
+          "path": "schema:value",
+          "name": "Digest",
+          "description": "The digest value.",
+          "datatype": "xsd:string",
+          "maxCount": 1,
+          "minCount": 1
+        },
+        {
+          "path": "schema:algorithm",
+          "name": "Algorithm",
+          "description": "The digest algorithm.",
+          "datatype": "xsd:string",
+          "maxCount": 1,
+          "minCount": 1
+        }
+      ]
+    }
+  ]
+}
