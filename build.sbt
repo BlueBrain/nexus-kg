@@ -9,6 +9,7 @@ lazy val sourcingCore   = nexusDep("sourcing-core", commonsVersion)
 lazy val sourcingAkka   = nexusDep("sourcing-akka", commonsVersion)
 lazy val sourcingMem    = nexusDep("sourcing-mem", commonsVersion)
 lazy val commonsService = nexusDep("commons-service", commonsVersion)
+lazy val commonsSchemas = nexusDep("commons-schemas", commonsVersion)
 lazy val commonsTest    = nexusDep("commons-test", commonsVersion)
 lazy val shaclValidator = nexusDep("shacl-validator", commonsVersion)
 lazy val sparqlClient   = nexusDep("sparql-client", commonsVersion)
@@ -48,6 +49,19 @@ lazy val core = project
       "io.circe"           %% "circe-parser" % circeVersion.value,
       "io.verizon.journal" %% "core" % journalVersion.value,
       "org.scalatest"      %% "scalatest" % scalaTestVersion.value % Test
+    )
+  )
+
+lazy val schemas = project
+  .in(file("modules/kg-schemas"))
+  .settings(common)
+  .enablePlugins(WorkbenchPlugin)
+  .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
+  .settings(
+    name := "kg-schemas",
+    moduleName := "kg-schemas",
+    libraryDependencies ++= Seq(
+      commonsSchemas
     )
   )
 
@@ -157,12 +171,15 @@ lazy val root = project
     description := "Nexus KnowledgeGraph",
     licenses := Seq(("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")))
   )
-  .aggregate(docs, core, indexing, service, tests)
+  .aggregate(docs, core, indexing, service, tests, schemas)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {})
 
-lazy val common = Seq(scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
-                      resolvers += Resolver.bintrayRepo("bogdanromanx", "maven"))
+lazy val common = Seq(
+  scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
+  resolvers += Resolver.bintrayRepo("bogdanromanx", "maven"),
+  workbenchVersion := "0.2.0"
+)
 
 lazy val noCoverage = Seq(coverageFailOnMinimum := false)
 

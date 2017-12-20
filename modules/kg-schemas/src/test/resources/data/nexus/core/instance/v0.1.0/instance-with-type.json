@@ -1,0 +1,5 @@
+{
+  "@context":"{{base}}/contexts/nexus/core/resource/v0.1.0",
+  "@type":"nxv:Instance",
+  "@id": "{{base}}/data/orgId/domainId/domainId/v0.0.1/d76df1e4-d57f-4614-b18c-a378087e524f"
+}

@@ -1,0 +1,45 @@
+{
+  "@context": "{{base}}/contexts/nexus/core/resource/v0.1.0",
+  "@type":"nxv:Instance",
+  "distribution":[
+    {
+      "@context": {
+        "schema": "http://schema.org/",
+        "nxv": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/",
+        "originalFileName": {
+          "@id": "nxv:originalFileName"
+        },
+        "downloadURL": {
+          "@id": "schema:downloadURL",
+          "@type": "@id"
+        },
+        "accessURL": {
+          "@id": "schema:accessURL"
+        },
+        "contentSize": {
+          "@id": "schema:contentSize"
+        },
+        "digest": {
+          "@id": "nxv:digest"
+        },
+        "mediaType": {
+          "@id": "schema:mediaType"
+        },
+        "storage": {
+          "@id": "nxv:storage"
+        },
+        "value": {
+          "@id": "schema:value"
+        },
+        "unit": {
+          "@id": "schema:unitCode"
+        },
+        "algorithm": {
+          "@id": "schema:algorithm"
+        }
+      },
+      "downloadURL": "{{base}}/data/orgId/domainId/schema/v0.1.0/aab2fb8f-2c77-4dfa-84aa-383768832f3e/attachment?rev=1",
+      "mediaType": "BBP/json"
+    }
+  ]
+}

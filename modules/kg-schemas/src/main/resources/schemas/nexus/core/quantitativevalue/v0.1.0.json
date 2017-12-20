@@ -1,0 +1,40 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/core/schema/v0.1.0",
+    {
+      "this": "{{base}}/schemas/nexus/core/quantitativevalue/v0.1.0/shapes/"
+    }
+  ],
+  "@type": "owl:Ontology",
+  "imports": [
+    "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0"
+  ],
+  "shapes": [
+    {
+      "@id": "this:PositiveQuantitativeValueShape",
+      "@type": "sh:NodeShape",
+      "and": [
+        {
+          "node": "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0/shapes/QuantitativeValueShape"
+        },
+        {
+          "property": [
+            {
+              "path": "schema:value",
+              "minInclusive": 0,
+              "minCount": 1,
+              "maxCount": 1
+            },
+            {
+              "path": "schema:unitCode",
+              "name": "Unit",
+              "datatype": "xsd:anyURI",
+              "minCount": 1,
+              "maxCount": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
