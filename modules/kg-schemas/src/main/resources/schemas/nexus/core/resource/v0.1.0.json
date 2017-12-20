@@ -49,7 +49,17 @@
     {
       "@id": "this:LinkShape",
       "@type": "sh:NodeShape",
-      "nodeKind": "sh:BlankNode"
+      "nodeKind": "sh:BlankNode",
+      "property": [
+        {
+          "path": "nxv:self",
+          "name": "self",
+          "description": "The shape of this specific resource representation identifier.",
+          "nodeKind": "sh:IRI",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
     }
   ]
 }

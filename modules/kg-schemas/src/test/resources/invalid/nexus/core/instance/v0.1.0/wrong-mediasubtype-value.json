@@ -1,10 +1,6 @@
 {
   "@context": "{{base}}/contexts/nexus/core/resource/v0.1.0",
   "@type":"nxv:Instance",
-  "@id":"{{base}}/data/orgId/domainId/schema/v0.1.0/aab2fb8f-2c77-4dfa-84aa-383768832f3e",
-  "nxv:rev":1,
-  "nxv:published": true,
-  "nxv:deprecated": false,
   "distribution":[
     {
       "@context": {
@@ -43,33 +39,7 @@
         }
       },
       "downloadURL": "{{base}}/data/orgId/domainId/schema/v0.1.0/aab2fb8f-2c77-4dfa-84aa-383768832f3e/attachment?rev=1",
-      "mediaType": "application/json",
-      "contentSize": {
-        "value": 50,
-        "unit": "mb"
-      },
-      "digest": [
-        {
-          "algorithm": "MD5",
-          "value": "c02aa11a4c6"
-        },
-        {
-          "algorithm": "SHA-256",
-          "value": "639e...60cba"
-        }
-      ]
-    }
-  ],
-  "links": [
-    {
-      "@context":
-      {
-        "self": {
-          "@id": "nxv:self",
-          "@type": "@id"
-        }
-      },
-      "self": "{{base}}/schemas/nexus/core/resource/v0.1.0/d76df1e4-d57f-4614-b18c-a378087e524f?rev=1"
+      "mediaType": "BBP/json"
     }
   ]
 }
