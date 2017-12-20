@@ -52,7 +52,8 @@ lazy val core = project
     )
   )
 
-lazy val schemas = project.in(file("modules/kg-schemas"))
+lazy val schemas = project
+  .in(file("modules/kg-schemas"))
   .settings(common)
   .enablePlugins(WorkbenchPlugin)
   .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
@@ -84,7 +85,6 @@ lazy val indexing = project
       "io.circe"                   %% "circe-parser"       % circeVersion.value,
       "io.verizon.journal"         %% "core"               % journalVersion.value,
       "org.apache.jena"            % "jena-arq"            % jenaVersion,
-      "org.apache.jena"            % "jena-querybuilder"   % jenaVersion,
       "org.apache.jena"            % "jena-querybuilder"   % jenaVersion,
       "com.blazegraph"             % "blazegraph-jar"      % blazegraphVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion % Test,
@@ -171,12 +171,12 @@ lazy val root = project
     description := "Nexus KnowledgeGraph",
     licenses := Seq(("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")))
   )
-  .aggregate(docs, core, indexing, service, tests,schemas)
+  .aggregate(docs, core, indexing, service, tests, schemas)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {})
 
 lazy val common = Seq(
-  scalacOptions in(Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
+  scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
   resolvers += Resolver.bintrayRepo("bogdanromanx", "maven"),
   workbenchVersion := "0.2.0"
 )

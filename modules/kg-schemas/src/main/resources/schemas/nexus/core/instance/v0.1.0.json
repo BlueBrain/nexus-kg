@@ -32,7 +32,7 @@
             {
               "path":"schema:distribution",
               "name":"Distribution",
-              "description":"The shape for the attached data metadata (e.g. content size, download url)",
+              "description":"The shape for the attached data metadata (e.g. content size, download url).",
               "node":"{{base}}/schemas/nexus/core/distribution/v0.1.0/shapes/DistributionShape"
             }
           ]

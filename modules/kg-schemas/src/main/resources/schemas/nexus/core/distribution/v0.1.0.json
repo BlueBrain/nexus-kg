@@ -14,19 +14,19 @@
     {
       "@id": "this:DistributionShape",
       "@type": "sh:NodeShape",
-      "and":[
+      "and": [
         {
           "or": [
             {
               "path": "schema:downloadURL",
-              "name":"Download URL",
+              "name": "Download URL",
               "nodeKind": "sh:IRI",
               "minCount": 1,
               "maxCount": 1
             },
             {
               "path": "schema:accessURL",
-              "name":"Access URL",
+              "name": "Access URL",
               "nodeKind": "sh:IRI",
               "minCount": 1,
               "maxCount": 1
@@ -46,11 +46,11 @@
             },
             {
               "path": "schema:mediaType",
-              "name":"Media type",
-              "description":"The media value should starts with one of application|audio|font|image|message|model|multipart|text|video followed by / and then any Alphanumeric characters.",
-              "comment":"The pattern used here is temporary and not complete. The media type values need to be taken from a controlled vocabulary: to be handled in a next iteration.",
+              "name": "Media type",
+              "description": "The media value should start with one of the following application|audio|font|image|message|model|multipart|text|video followed by / and then any Alphanumeric characters.",
+              "comment": "The pattern used here is temporary and not complete. The media type values need to be taken from a controlled vocabulary: to be handled in a next iteration.",
               "datatype": "xsd:string",
-              "sh:pattern":"^(application|audio|font|image|message|model|multipart|text|video)\/[A-Za-z0-9]+",
+              "sh:pattern": "^(application|audio|font|image|message|model|multipart|text|video)\/[A-Za-z0-9]+",
               "minCount": 1,
               "maxCount": 1
             }

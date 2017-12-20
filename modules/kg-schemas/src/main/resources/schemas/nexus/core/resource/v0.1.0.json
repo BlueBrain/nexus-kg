@@ -24,7 +24,7 @@
       "@type": "sh:PropertyShape",
       "path":"nxv:rev",
       "name": "Revision number",
-      "description": "The revision number of a resource",
+      "description": "The revision number of a resource.",
       "datatype": "xsd:integer",
       "minInclusive":1,
       "maxCount":1
