@@ -1,6 +1,6 @@
 {
   "@context": [
-    "{{base}}/contexts/nexus/core/shacl20170720/v0.1.0",
+    "{{base}}/contexts/nexus/core/schema/v0.1.0",
     {
       "this": "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0/shapes/"
     }

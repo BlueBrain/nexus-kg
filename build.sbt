@@ -9,6 +9,7 @@ lazy val sourcingCore   = nexusDep("sourcing-core", commonsVersion)
 lazy val sourcingAkka   = nexusDep("sourcing-akka", commonsVersion)
 lazy val sourcingMem    = nexusDep("sourcing-mem", commonsVersion)
 lazy val commonsService = nexusDep("commons-service", commonsVersion)
+lazy val commonsSchemas = nexusDep("commons-schemas", commonsVersion)
 lazy val commonsTest    = nexusDep("commons-test", commonsVersion)
 lazy val shaclValidator = nexusDep("shacl-validator", commonsVersion)
 lazy val sparqlClient   = nexusDep("sparql-client", commonsVersion)
@@ -57,7 +58,10 @@ lazy val schemas = project.in(file("modules/kg-schemas"))
   .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
   .settings(
     name := "kg-schemas",
-    moduleName := "kg-schemas"
+    moduleName := "kg-schemas",
+    libraryDependencies ++= Seq(
+      commonsSchemas
+    )
   )
 
 lazy val indexing = project
@@ -80,6 +84,7 @@ lazy val indexing = project
       "io.circe"                   %% "circe-parser"       % circeVersion.value,
       "io.verizon.journal"         %% "core"               % journalVersion.value,
       "org.apache.jena"            % "jena-arq"            % jenaVersion,
+      "org.apache.jena"            % "jena-querybuilder"   % jenaVersion,
       "org.apache.jena"            % "jena-querybuilder"   % jenaVersion,
       "com.blazegraph"             % "blazegraph-jar"      % blazegraphVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion % Test,

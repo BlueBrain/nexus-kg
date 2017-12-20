@@ -45,7 +45,7 @@
             {
               "path": "schema:mediaType",
               "datatype": "xsd:string",
-              "pattern":"^(application|audio|font|image|message|model|multipart|text|video)\/.+",
+              "pattern":"^(application|audio|font|image|message|model|multipart|text|video).+",
               "minCount": 1,
               "maxCount": 1
             }
