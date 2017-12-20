@@ -107,11 +107,11 @@ class AclIndexerSpec(blazegraphPort: Int)
     val schema   = SchemaId(domainId, "name", Version(1, 0, 0))
     val instance = InstanceId(schema, UUID.randomUUID().toString)
 
-    "index a PermissionsCreated event" in {
+    "index a PermissionsAdded event" in {
       client.createIndex(index, properties).futureValue
       val path = Path("kg") ++ Path(orgId.show)
       indexer(
-        PermissionsCreated(
+        PermissionsAdded(
           path,
           AccessControlList(user -> Permissions(Write), group -> Permissions(Read), group2 -> Permissions(Read)),
           meta)).futureValue
@@ -123,7 +123,7 @@ class AclIndexerSpec(blazegraphPort: Int)
 
     "index a PermissionsAdded event on organizations" in {
       val path = Path("kg") ++ Path(orgId.show)
-      indexer(PermissionsAdded(path, group3, Permissions(Read), meta)).futureValue
+      indexer(PermissionsAdded(path, AccessControlList(group3 -> Permissions(Read)), meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 3
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
@@ -132,7 +132,7 @@ class AclIndexerSpec(blazegraphPort: Int)
 
     "Do not index a PermissionsAdded event on organizations when the path does not start with kg" in {
       val path = Path(orgId.show)
-      indexer(PermissionsAdded(path, group4, Permissions(Read), meta)).futureValue
+      indexer(PermissionsAdded(path, AccessControlList(group4 -> Permissions(Read)), meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 3
       rs shouldEqual expectedTriples(s"$base/organizations/${orgId.show}", Set(group, group2, group3))
@@ -150,7 +150,7 @@ class AclIndexerSpec(blazegraphPort: Int)
 
     "index a PermissionsAdded event on instances" in {
       val path = Path("kg") ++ Path(instance.show)
-      indexer(PermissionsAdded(path, user, Permissions(Read), meta)).futureValue
+      indexer(PermissionsAdded(path, AccessControlList(user -> Permissions(Read)), meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 3
       val expectedAllTriples = expectedTriples(s"$base/organizations/${orgId.show}", Set(group2, group3))
@@ -169,7 +169,7 @@ class AclIndexerSpec(blazegraphPort: Int)
 
     "index a PermissionsAdded event on schemas/context" in {
       val path = Path("kg") ++ Path(schema.show)
-      indexer(PermissionsAdded(path, user, Permissions(Read), meta)).futureValue
+      indexer(PermissionsAdded(path, AccessControlList(user -> Permissions(Read)), meta)).futureValue
       val rs = triples(client).futureValue
       rs.size shouldEqual 3
       rs should contain allElementsOf expectedTriples(s"$base/contexts/${schema.show}", Set(user)) ++
@@ -178,10 +178,10 @@ class AclIndexerSpec(blazegraphPort: Int)
       rs shouldEqual triplesFromGraph(client).futureValue
     }
 
-    "index a PermissionsCreated event on the root path" in {
+    "index a PermissionsAdded event on the root path" in {
       val path = Path("kg")
       indexer(
-        PermissionsCreated(
+        PermissionsAdded(
           path,
           AccessControlList(user -> Permissions(Write), group -> Permissions(Read), group2 -> Permissions(Read)),
           meta)).futureValue
