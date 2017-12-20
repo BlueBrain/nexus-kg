@@ -1,6 +1,6 @@
 # Operating on resources
 
-Any resources in the system might be protected using an **access token**, provided by the HTTP header `Authorization: Bearer {access_token}`. Visit @extref[Authentication](service:iam/api-reference/auth.html) in order to learn more about how to retrieve an access token.
+Any resources in the system might be protected using an **access token**, provided by the HTTP header `Authorization: Bearer {access_token}`. Visit [Authentication](../../iam/api-reference/auth.html) in order to learn more about how to retrieve an access token.
 
 
 All resources in the system share a base set of operations. Assuming a nexus deployment at
