@@ -28,6 +28,8 @@ The `{orgId}` defines the id of the organization that the schema belongs to.
 The json payload must be compliant with the [SHACL definition](https://www.w3.org/TR/shacl/).
 
 #### Example
+The context provided in this example makes use of a reference to the external context for shacl, [defined here](https://github.com/BlueBrain/nexus-commons/blob/master/modules/schemas/src/main/resources/contexts/nexus/core/shacl20170720/v0.1.0.json). This is the recommended way to create schemas, keeping the context in a separate resource.
+
 Request
 :   @@snip [schema.sh](../assets/api-reference/schemas/schema.sh)
 
@@ -53,7 +55,7 @@ Request
 :   @@snip [schema-update.sh](../assets/api-reference/schemas/schema-update.sh)
 
 Payload
-:   @@snip [schema.json](../assets/api-reference/schemas/schema.json)
+:   @@snip [schema-update.json](../assets/api-reference/schemas/schema-update.json)
 
 Response
 :   @@snip [schema-ref-new.json](../assets/api-reference/schemas/schema-ref.json)

@@ -3,8 +3,8 @@
 * [operating on resources](operating-on-resources.md)
 * [organizations](organizations.md)
 * [domains](domains.md)
-* [schemas](schemas.md)
 * [contexts](contexts.md)
+* [schemas](schemas.md)
 * [instances](instances.md)
 
 @@@
