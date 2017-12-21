@@ -16,14 +16,7 @@
           "path": "schema:unitCode",
           "name": "Unit Code",
           "description": "The unit of measurement given using the UN/CEFACT Common Code (3 characters) or a URL. Other codes than the UN/CEFACT Common Code may be used with a prefix followed by a colon.",
-          "or": [
-            {
-              "datatype": "xsd:anyURI"
-            },
-            {
-              "datatype": "xsd:string"
-            }
-          ]
+          "datatype": "xsd:anyURI"
         },
         {
           "path": "schema:unitText",
