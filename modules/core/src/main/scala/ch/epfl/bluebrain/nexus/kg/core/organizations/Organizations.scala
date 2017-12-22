@@ -137,7 +137,7 @@ final class Organizations[F[_]](agg: OrgAggregate[F])(implicit F: MonadError[F, 
     }
   }
 
-  private val idRegex = "[a-z0-9]{3,5}".r
+  private val idRegex = "[a-z0-9]{3,32}".r
 
   private def validateId(id: OrgId): F[Unit] = {
     F.pure {

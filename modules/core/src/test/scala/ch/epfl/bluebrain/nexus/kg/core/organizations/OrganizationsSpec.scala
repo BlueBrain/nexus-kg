@@ -20,7 +20,7 @@ import scala.util.Try
 class OrganizationsSpec extends WordSpecLike with Matchers with Inspectors with TryValues with Randomness {
 
   private def genId(): String =
-    genString(length = 4, Vector.range('a', 'z') ++ Vector.range('0', '9'))
+    genString(length = 32, Vector.range('a', 'z') ++ Vector.range('0', '9'))
 
   private def genJson(): Json =
     Json.obj("key" -> Json.fromString(genString()))
@@ -97,7 +97,7 @@ class OrganizationsSpec extends WordSpecLike with Matchers with Inspectors with 
     }
 
     "prevent creation with illegal id" in {
-      forAll(List("", " ", "abv ", "123-", "ab", "abcdef")) { id =>
+      forAll(List("", " ", "abv ", "123-", "ab", genString(length = 33))) { id =>
         val json = genJson()
         org
           .create(OrgId(id), json)
