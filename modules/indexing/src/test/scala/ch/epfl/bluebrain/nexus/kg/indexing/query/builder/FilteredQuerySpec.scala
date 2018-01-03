@@ -29,7 +29,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
   private implicit val qSettings =
     QuerySettings(Pagination(0, 10), 10, "index", s"$base/voc/nexus/core", s"$base", s"$base/acls/graphs")
 
-  private val (nxv, nxs)                                            = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
+  private val (nxv, _)                                              = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
   private val prov                                                  = Uri("http://www.w3.org/ns/prov#")
   private val rdf                                                   = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
   private val bbpprod                                               = Uri(s"$base/voc/bbp/productionentity/core/")

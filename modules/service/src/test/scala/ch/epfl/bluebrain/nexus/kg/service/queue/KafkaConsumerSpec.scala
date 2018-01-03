@@ -60,7 +60,7 @@ class KafkaConsumerSpec
         e.path shouldEqual path
         e.meta shouldEqual meta
         e match {
-          case PermissionsAdded(_, accessControlList, _) => accessControlList shouldEqual acl
+          case PermissionsAdded(_, accessControlList, _)   => accessControlList shouldEqual acl
           case PermissionsSubtracted(_, _, permissions, _) => permissions shouldEqual ownReadWrite
           case _                                           => ()
         }
@@ -170,7 +170,7 @@ class KafkaConsumerSpec
         if (counter.incrementAndGet() % 2 == 0)
           Future.successful(())
         else
-          Future.failed(new RetriableErr("Number was odd!"))
+          Future.failed(new RetriableErr(s"We need to use $msg somewhere!"))
       }
 
       val consumerSettings =

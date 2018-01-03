@@ -66,7 +66,7 @@ class AclIndexerSpec(blazegraphPort: Int)
   private val base         = s"http://$localhost/v0"
   private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ AclIndexingSettings(index, aclsBase, aclsBaseNs, nexusVocBase) =
+  private val settings @ AclIndexingSettings(index, _, aclsBaseNs, nexusVocBase) =
     AclIndexingSettings(genString(length = 6), base, s"$base/acls/graphs", s"$base/voc/nexus/core")
 
   private def triplesFromGraph(client: SparqlClient[Future]): Future[List[(String, String, String)]] =

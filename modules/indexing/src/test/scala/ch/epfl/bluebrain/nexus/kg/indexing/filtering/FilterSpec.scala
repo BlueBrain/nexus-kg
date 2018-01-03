@@ -17,11 +17,11 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
   private implicit val filteringSettings @ FilteringSettings(nexusBaseVoc, nexusSearchVoc) =
     FilteringSettings(s"$base/voc/nexus/core", s"$base/voc/nexus/search")
 
-  private val (nxv, nxs) = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
-  private val prov       = Uri("http://www.w3.org/ns/prov#")
-  private val rdf        = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
-  private val bbpprod    = Uri(s"$base/voc/bbp/productionentity/core/")
-  private val bbpagent   = Uri(s"$base/voc/bbp/agent/core/")
+  private val (nxv, _) = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
+  private val prov     = Uri("http://www.w3.org/ns/prov#")
+  private val rdf      = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+  private val bbpprod  = Uri(s"$base/voc/bbp/productionentity/core/")
+  private val bbpagent = Uri(s"$base/voc/bbp/agent/core/")
 
   "A Filter" should {
 

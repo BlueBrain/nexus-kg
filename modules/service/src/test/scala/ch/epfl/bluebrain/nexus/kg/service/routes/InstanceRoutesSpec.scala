@@ -125,7 +125,7 @@ class InstanceRoutesSpec
     val unpublished = schemas.create(schemaId, schemaJson)(caller).futureValue
     val _           = schemas.publish(schemaId, unpublished.rev)(caller).futureValue
 
-    private val indexSettings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
+    private val InstanceIndexingSettings(index, _, _, nexusVocBase) =
       InstanceIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
 
     val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
