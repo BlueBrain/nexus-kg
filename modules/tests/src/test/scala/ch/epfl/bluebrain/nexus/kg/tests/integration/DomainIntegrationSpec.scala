@@ -9,6 +9,7 @@ import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef}
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
@@ -64,6 +65,23 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/domains",
                                       "next" -> s"$apiUri/domains?from=20&size=20")
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          }
+        }
+      }
+
+      "list all domains sorted in creation order" in {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
+          val rdfType = PrefixMapping.rdfTypeKey.replace("#","%23")
+          val uri = s"/domains?sort=-${prefixes.CoreVocabulary}/createdAtTime,$rdfType,http://localhost/something/that/does/exist"
+          Get(uri) ~> addCredentials(ValidCredentials) ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            val expectedResults =
+              UnscoredQueryResults(domains.size.toLong, domains.takeRight(20).reverse.map(UnscoredQueryResult(_)))
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
+              "self" -> s"$apiUri$uri",
+              "next" -> s"$apiUri$uri&from=20&size=20")
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }

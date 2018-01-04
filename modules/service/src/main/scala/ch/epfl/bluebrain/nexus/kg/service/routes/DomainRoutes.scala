@@ -57,20 +57,20 @@ final class DomainRoutes(domains: Domains[Future],
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields) =>
+    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
       val filter =
         filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
       implicit val _ = (id: DomainId) => domains.fetch(id)
       traceName("searchDomains") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           domainQueries
-            .list(filter, pagination, termOpt)
+            .list(filter, pagination, termOpt, sort)
             .buildResponse(fields, base, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
             authenticateCaller.apply { implicit caller =>
               domainQueries
-                .list(orgId, filter, pagination, termOpt)
+                .list(orgId, filter, pagination, termOpt, sort)
                 .buildResponse(fields, base, pagination)
             }
           }

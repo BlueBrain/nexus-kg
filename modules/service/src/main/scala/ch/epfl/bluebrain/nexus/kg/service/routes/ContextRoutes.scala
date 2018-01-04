@@ -144,29 +144,30 @@ class ContextRoutes(contexts: Contexts[Future],
   }
 
   override protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & paginated & deprecated & published & fields) { (pagination, deprecatedOpt, publishedOpt, fields) =>
-      traceName("searchContexts") {
-        val filter     = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
-        implicit val _ = (id: ContextId) => contexts.fetch(id)
-        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-          contextQueries.list(filter, pagination, None).buildResponse(fields, base, pagination)
-        } ~
-          (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            authenticateCaller.apply { implicit caller =>
-              contextQueries.list(orgId, filter, pagination, None).buildResponse(fields, base, pagination)
-            }
+    (get & paginated & deprecated & published & fields & sort) {
+      (pagination, deprecatedOpt, publishedOpt, fields, sort) =>
+        traceName("searchContexts") {
+          val filter     = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
+          implicit val _ = (id: ContextId) => contexts.fetch(id)
+          (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
+            contextQueries.list(filter, pagination, None, sort).buildResponse(fields, base, pagination)
           } ~
-          (extractDomainId & pathEndOrSingleSlash) { domainId =>
-            authenticateCaller.apply { implicit caller =>
-              contextQueries.list(domainId, filter, pagination, None).buildResponse(fields, base, pagination)
+            (extractOrgId & pathEndOrSingleSlash) { orgId =>
+              authenticateCaller.apply { implicit caller =>
+                contextQueries.list(orgId, filter, pagination, None, sort).buildResponse(fields, base, pagination)
+              }
+            } ~
+            (extractDomainId & pathEndOrSingleSlash) { domainId =>
+              authenticateCaller.apply { implicit caller =>
+                contextQueries.list(domainId, filter, pagination, None, sort).buildResponse(fields, base, pagination)
+              }
+            } ~
+            (extractContextName & pathEndOrSingleSlash) { contextName =>
+              authenticateCaller.apply { implicit caller =>
+                contextQueries.list(contextName, filter, pagination, None, sort).buildResponse(fields, base, pagination)
+              }
             }
-          } ~
-          (extractContextName & pathEndOrSingleSlash) { contextName =>
-            authenticateCaller.apply { implicit caller =>
-              contextQueries.list(contextName, filter, pagination, None).buildResponse(fields, base, pagination)
-            }
-          }
-      }
+        }
     }
 
   def routes: Route = combinedRoutesFor("contexts")

@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SortList
 
 /**
   * Describes paginated queries based on filters.
@@ -29,21 +30,26 @@ object FilteredQuery {
     * @param pagination the pagination settings for the generated query
     * @param identities the [[Identity]] list that will be checked for read permissions on a particular resource
     * @param term       the optional full text search term
+    * @param sort       the sorting values
     * @return a Blazegraph query based on the provided filter and pagination settings
     */
-  def apply[Id](filter: Filter, pagination: Pagination, identities: Set[Identity], term: Option[String] = None)(
-      implicit Q: ConfiguredQualifier[String],
-      aclExpr: AclSparqlExpr[Id]): String = {
-    applyWithWhere(buildWhereFrom(filter.expr), pagination, term, identities)
+  def apply[Id](
+      filter: Filter,
+      pagination: Pagination,
+      identities: Set[Identity],
+      term: Option[String] = None,
+      sort: SortList = SortList.Empty)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
+    applyWithWhere(buildWhereFrom(filter.expr), pagination, term, identities, sort)
   }
 
   private def applyWithWhere[Id](
       where: String,
       pagination: Pagination,
       term: Option[String],
-      identities: Set[Identity])(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
-    val (selectTotal, selectWith, selectSubQuery) = buildSelectsFrom(term)
-    val (orderByUnion, orderByTotal)              = buildOrderByFrom(term)
+      identities: Set[Identity],
+      sort: SortList)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
+    val (selectTotal, selectWith, selectSubQuery) = buildSelectsFrom(term, sort)
+    val (orderByUnion, orderByTotal)              = buildOrderByFrom(term, sort)
 
     s"""
        |PREFIX bds: <${bdsUri.toString()}>
@@ -53,6 +59,7 @@ object FilteredQuery {
        |  WHERE {
        |${buildWhereFrom(term)}
        |$where
+       |${sort.toTriples}
        |${aclExpr(identities)}
        |  }
        |${buildGroupByFrom(term)}
@@ -83,20 +90,22 @@ object FilteredQuery {
     * @param pagination   the pagination settings for the generated query
     * @param identities   the [[Identity]] list that will be checked for read permissions on a particular resource
     * @param term         the optional full text search term
+    * @param sort         the sorting values
     */
   def outgoing[Id](
       thisSubject: Uri,
       targetFilter: Filter,
       pagination: Pagination,
       identities: Set[Identity],
-      term: Option[String] = None)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
+      term: Option[String] = None,
+      sort: SortList = SortList.Empty)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
     val where =
       s"""
          |?ss ?p ?$subject .
          |FILTER ( ?ss = <$thisSubject> )
          |${buildWhereFrom(targetFilter.expr)}
        """.stripMargin.trim
-    applyWithWhere(where, pagination, term, identities)
+    applyWithWhere(where, pagination, term, identities, sort)
   }
 
   /**
@@ -108,44 +117,48 @@ object FilteredQuery {
     * @param pagination   the pagination settings for the generated query
     * @param identities   the [[Identity]] list that will be checked for read permissions on a particular resource
     * @param term         the optional full text search term
+    * @param sort         the sorting values
     */
   def incoming[Id](
       thisObject: Uri,
       sourceFilter: Filter,
       pagination: Pagination,
       identities: Set[Identity],
-      term: Option[String] = None)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
+      term: Option[String] = None,
+      sort: SortList = SortList.Empty)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
     val where =
       s"""
          |?$subject ?p ?o .
          |FILTER ( ?o = <$thisObject> )
          |${buildWhereFrom(sourceFilter.expr)}
        """.stripMargin.trim
-    applyWithWhere(where, pagination, term, identities)
+    applyWithWhere(where, pagination, term, identities, sort)
   }
 
   private final case class Stmt(stmt: String, filter: Option[String])
 
-  private def buildSelectsFrom(term: Option[String]): (String, String, String) = {
+  private def buildSelectsFrom(term: Option[String], sort: SortList): (String, String, String) = {
     term
       .map(
         _ =>
           (
             s"SELECT DISTINCT ?$total ?$subject ?$maxScore ?$score ?$rank",
-            s"SELECT DISTINCT ?$subject (max(?rsv) AS ?$score) (max(?pos) AS ?$rank)",
+            s"SELECT DISTINCT ?$subject ${sort.toVars} (max(?rsv) AS ?$score) (max(?pos) AS ?$rank)",
             s"SELECT (COUNT(DISTINCT ?$subject) AS ?$total) (max(?$score) AS ?$maxScore)"
         ))
       .getOrElse(
         (
           s"SELECT DISTINCT ?$total ?$subject",
-          s"SELECT DISTINCT ?$subject",
+          s"SELECT DISTINCT ?$subject ${sort.toVars}".trim,
           s"SELECT (COUNT(DISTINCT ?$subject) AS ?$total)"
         )
       )
   }
 
-  private def buildOrderByFrom(term: Option[String]): (String, String) =
-    term.map(_ => (s"ORDER BY ?$subject", s"ORDER BY DESC(?$score)")).getOrElse((s"ORDER BY ?$subject", ""))
+  private def buildOrderByFrom(term: Option[String], sort: SortList): (String, String) =
+    term
+      .map(_ => (s"ORDER BY ${sort.toOrderByClause}", s"ORDER BY DESC(?$score)"))
+      .getOrElse((s"ORDER BY ${sort.toOrderByClause}", ""))
 
   private def buildGroupByFrom(term: Option[String]): String =
     term.map(_ => s"GROUP BY ?$subject").getOrElse("")
