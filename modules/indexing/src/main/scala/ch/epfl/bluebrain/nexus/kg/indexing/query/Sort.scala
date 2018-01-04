@@ -17,7 +17,7 @@ final case class SortList(values: List[Sort]) extends Product with Serializable 
 
   lazy val toTriples = toVarsMapping map {
     case (Sort(_, predicate), variable) => s"?s <${predicate}> $variable"
-  } mkString ("}\nOPTIONAL{") prefixSuffixNonEmpty ("OPTIONAL{","}")
+  } mkString ("}\nOPTIONAL{") prefixSuffixNonEmpty ("OPTIONAL{", "}")
 
   lazy val toOrderByClause = Option(toVarsMapping map {
     case (Sort(Desc, _), variable) => s"DESC($variable)"

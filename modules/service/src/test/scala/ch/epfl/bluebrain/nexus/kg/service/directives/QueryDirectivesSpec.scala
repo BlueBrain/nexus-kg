@@ -80,7 +80,7 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
       }
     }
     "extract sort when provided" in {
-      val rdfType = PrefixMapping.rdfTypeKey.replace("#","%23")
+      val rdfType = PrefixMapping.rdfTypeKey.replace("#", "%23")
       Get(s"/?sort=$base/createdAtTime,${rdfType},-three,,") ~> route ~> check {
         val expectedSort =
           SortList(List(Sort(OrderType.Asc, s"$base/createdAtTime"), Sort(OrderType.Asc, PrefixMapping.rdfTypeKey)))

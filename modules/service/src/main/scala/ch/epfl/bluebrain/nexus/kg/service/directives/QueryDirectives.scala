@@ -81,10 +81,10 @@ trait QueryDirectives {
     * Extracts the ''fields'' query param from the request.
     */
   def fields: Directive1[Set[String]] = parameter('fields.?).flatMap {
-      case Some(field) => provide(field.split(",").map(_.trim).filterNot(_.isEmpty).toSet)
-      case None        => provide(Set.empty[String])
+    case Some(field) => provide(field.split(",").map(_.trim).filterNot(_.isEmpty).toSet)
+    case None        => provide(Set.empty[String])
 
-    }
+  }
 
   /**
     * Extracts the query parameters defined for search requests or set them to preconfigured values

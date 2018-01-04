@@ -67,8 +67,8 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
           eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
             aclIndexer(
               PermissionsAdded("kg" / orgId.id,
-                                 AccessControlList(mockedUser.identities.map(AccessControl(_, Permissions(Read)))),
-                                 meta)).futureValue
+                               AccessControlList(mockedUser.identities.map(AccessControl(_, Permissions(Read)))),
+                               meta)).futureValue
           }
         }
       }

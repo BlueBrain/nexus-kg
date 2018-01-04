@@ -72,15 +72,16 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
 
       "list all domains sorted in creation order" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          val rdfType = PrefixMapping.rdfTypeKey.replace("#","%23")
-          val uri = s"/domains?sort=-${prefixes.CoreVocabulary}/createdAtTime,$rdfType,http://localhost/something/that/does/exist"
+          val rdfType = PrefixMapping.rdfTypeKey.replace("#", "%23")
+          val uri =
+            s"/domains?sort=-${prefixes.CoreVocabulary}/createdAtTime,$rdfType,http://localhost/something/that/does/exist"
           Get(uri) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             val expectedResults =
               UnscoredQueryResults(domains.size.toLong, domains.takeRight(20).reverse.map(UnscoredQueryResult(_)))
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
-              "self" -> s"$apiUri$uri",
-              "next" -> s"$apiUri$uri&from=20&size=20")
+                                      "self" -> s"$apiUri$uri",
+                                      "next" -> s"$apiUri$uri&from=20&size=20")
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
