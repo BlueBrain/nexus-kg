@@ -46,6 +46,7 @@ trait SearchResponse {
       * @param base       the service public uri + prefix
       * @param pagination the pagination values
       */
+    @SuppressWarnings(Array("MaxParameters"))
     def buildResponse[Entity](fields: Set[String], base: Uri, pagination: Pagination)(
         implicit
         f: Id => Future[Option[Entity]],
