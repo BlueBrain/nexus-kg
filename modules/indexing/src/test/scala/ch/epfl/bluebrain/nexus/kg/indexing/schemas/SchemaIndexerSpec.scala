@@ -63,7 +63,7 @@ class SchemaIndexerSpec(blazegraphPort: Int)
   private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ SchemaIndexingSettings(index, schemasBase, schemasBaseNs, nexusVocBase) =
+  private val settings @ SchemaIndexingSettings(index, schemasBase, _, nexusVocBase) =
     SchemaIndexingSettings(genString(length = 6), base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](nexusVocBase)

@@ -67,7 +67,7 @@ class ContextIndexerSpec(blazegraphPort: Int)
   private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ ContextIndexingSettings(index, contextsBase, contextsBaseNs, nexusVocBase) =
+  private val settings @ ContextIndexingSettings(index, contextsBase, _, nexusVocBase) =
     ContextIndexingSettings(genString(length = 6), base, s"$base/contexts/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String]           = Qualifier.configured[String](nexusVocBase)

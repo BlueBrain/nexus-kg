@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms
 import journal.Logger
-import org.apache.jena.query.{QuerySolution, ResultSet}
+import org.apache.jena.query.QuerySolution
 
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -37,7 +37,7 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
     */
   def apply[A](index: String, query: String, scored: Boolean)(
       implicit Q: ConfiguredQualifier[A]): F[QueryResults[A]] = {
-    def scoredQueryResult(rs: ResultSet, sol: QuerySolution): (Option[QueryResult[A]], Option[Long], Option[Float]) = {
+    def scoredQueryResult(sol: QuerySolution): (Option[QueryResult[A]], Option[Long], Option[Float]) = {
       val queryResult = for {
         (subj, score) <- subjectScoreFrom(sol)
         id            <- subj.unqualify
@@ -45,8 +45,7 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
       (queryResult, totalFrom(sol), maxScoreFrom(sol))
     }
 
-    def unscoredQueryResult(rs: ResultSet,
-                            sol: QuerySolution): (Option[QueryResult[A]], Option[Long], Option[Float]) = {
+    def unscoredQueryResult(sol: QuerySolution): (Option[QueryResult[A]], Option[Long], Option[Float]) = {
       val queryResult = subjectFrom(sol).flatMap(_.unqualify).map(UnscoredQueryResult(_))
       (queryResult, totalFrom(sol), None)
     }
@@ -63,8 +62,8 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
       val listWithTotal = rs.asScala.foldLeft[(Vector[QueryResult[A]], Long, Float)]((Vector.empty, 0L, 0F)) {
         case ((queryResults, currentTotal, currentMaxScore), sol) =>
           val (qr, total, maxScore) =
-            if (scored) scoredQueryResult(rs, sol)
-            else unscoredQueryResult(rs, sol)
+            if (scored) scoredQueryResult(sol)
+            else unscoredQueryResult(sol)
           (qr.map(queryResults :+ _).getOrElse(queryResults),
            total.getOrElse(currentTotal),
            maxScore.getOrElse(currentMaxScore))

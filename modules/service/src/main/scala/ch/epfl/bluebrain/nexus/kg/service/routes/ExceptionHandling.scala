@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys.`@context`
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
+import ch.epfl.bluebrain.nexus.kg.service.routes.ExceptionHandling.InternalError
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto._
 import io.circe.{Encoder, Json}
@@ -28,7 +29,7 @@ import journal.Logger
   */
 class ExceptionHandling(errorContext: Uri) {
 
-  val logger = Logger[this.type]
+  private val logger = Logger[this.type]
 
   private final def exceptionHandler: ExceptionHandler = ExceptionHandler {
     case CommandRejected(r: InstanceRejection)   => complete(r)
@@ -153,13 +154,6 @@ class ExceptionHandling(errorContext: Uri) {
   private implicit val internalErrorStatusFrom: StatusFrom[InternalError] =
     StatusFrom(_ => InternalServerError)
 
-  /**
-    * An internal error representation that can safely be returned in its json form to the caller.
-    *
-    * @param code the code displayed as a response (InternalServerError as default)
-    */
-  private case class InternalError(code: String = "InternalServerError")
-
 }
 
 object ExceptionHandling {
@@ -173,4 +167,12 @@ object ExceptionHandling {
     val handler = new ExceptionHandling(errorContext)
     handler.exceptionHandler
   }
+
+  /**
+    * An internal error representation that can safely be returned in its json form to the caller.
+    *
+    * @param code the code displayed as a response (InternalServerError as default)
+    */
+  private final case class InternalError(code: String = "InternalServerError")
+
 }

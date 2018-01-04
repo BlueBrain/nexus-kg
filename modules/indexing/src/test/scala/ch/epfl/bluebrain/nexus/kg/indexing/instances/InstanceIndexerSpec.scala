@@ -60,14 +60,13 @@ class InstanceIndexerSpec(blazegraphPort: Int)
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
   private implicit val mt: ActorMaterializer        = ActorMaterializer()
 
-  private implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
-  private implicit val rs: HttpClient[Future, ResultSet] =
-    HttpClient.withAkkaUnmarshaller[ResultSet]
+  private implicit val cl: UntypedHttpClient[Future]     = HttpClient.akkaHttpClient
+  private implicit val rs: HttpClient[Future, ResultSet] = HttpClient.withAkkaUnmarshaller[ResultSet]
 
   private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ InstanceIndexingSettings(index, instanceBase, instanceBaseNs, nexusVocBase) =
+  private val settings @ InstanceIndexingSettings(index, instanceBase, _, nexusVocBase) =
     InstanceIndexingSettings(genString(length = 6), base, s"$base/data/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](nexusVocBase)
@@ -76,7 +75,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
   private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId]     = Qualifier.configured[SchemaId](base)
   private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
 
-  private def triples(id: InstanceId, client: SparqlClient[Future]): Future[List[(String, String, String)]] =
+  private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
     client.query(index, s"SELECT * WHERE { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
         val obj = {
@@ -145,7 +144,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val rev  = 1L
       val data = jsonContentOf("/instances/minimal.json", replacements)
       indexer(InstanceCreated(id, rev, meta, data)).futureValue
-      val rs = triples(id, client).futureValue
+      val rs = triples(client).futureValue
       rs.size shouldEqual 11
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "random", meta, meta)
     }
@@ -155,7 +154,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val rev         = 2L
       val data        = jsonContentOf("/instances/minimal_platform_fields.json", replacements + ("random" -> "updated"))
       indexer(InstanceUpdated(id, rev, metaUpdated, data)).futureValue
-      val rs = triples(id, client).futureValue
+      val rs = triples(client).futureValue
       rs.size shouldEqual 11
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", metaUpdated, meta)
     }
@@ -166,7 +165,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val attMeta =
         Attachment.Meta("uri", Info("filename", "contenttype", Size("byte", 1024L), Digest("SHA-256", "asd123")))
       indexer(InstanceAttachmentCreated(id, rev, metaUpdated, attMeta)).futureValue
-      val rs = triples(id, client).futureValue
+      val rs = triples(client).futureValue
       rs.size shouldEqual 16
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta, metaUpdated, meta)
     }
@@ -179,7 +178,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
           "uri",
           Info("filename-update", "contenttype-updated", Size("byte", 1025L), Digest("SHA-256", "asd1234")))
       indexer(InstanceAttachmentCreated(id, rev, metaUpdated, attMeta)).futureValue
-      val rs = triples(id, client).futureValue
+      val rs = triples(client).futureValue
       rs.size shouldEqual 16
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta, metaUpdated, meta)
     }
@@ -188,7 +187,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
       val rev         = 5L
       indexer(InstanceAttachmentRemoved(id, rev, metaUpdated)).futureValue
-      val rs = triples(id, client).futureValue
+      val rs = triples(client).futureValue
       rs.size shouldEqual 11
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", metaUpdated, meta)
     }
@@ -197,7 +196,7 @@ class InstanceIndexerSpec(blazegraphPort: Int)
       val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
       val rev         = 6L
       indexer(InstanceDeprecated(id, rev, metaUpdated)).futureValue
-      val rs = triples(id, client).futureValue
+      val rs = triples(client).futureValue
       rs.size shouldEqual 11
       rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, "updated", metaUpdated, meta)
     }

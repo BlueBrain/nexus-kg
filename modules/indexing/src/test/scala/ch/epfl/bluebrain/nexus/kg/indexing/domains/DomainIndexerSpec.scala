@@ -61,7 +61,7 @@ class DomainIndexerSpec(blazegraphPort: Int)
   private val base         = s"http://$localhost/v0"
   private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ DomainIndexingSettings(index, domainsBase, domainsBaseNs, nexusVocBase) =
+  private val settings @ DomainIndexingSettings(index, domainsBase, _, nexusVocBase) =
     DomainIndexingSettings(genString(length = 6), base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)

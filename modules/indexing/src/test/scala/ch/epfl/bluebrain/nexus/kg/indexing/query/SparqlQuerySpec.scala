@@ -92,49 +92,40 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
   val namespace = genString(length = 6)
 
-  private val settings @ InstanceIndexingSettings(_, instanceBase, instanceBaseNs, nexusVocBase) =
+  private val settings @ InstanceIndexingSettings(_, _, _, nexusVocBase) =
     InstanceIndexingSettings(namespace, base, s"$base/data/graphs", s"$base/voc/nexus/core")
 
-  private val settingsSchemas @ SchemaIndexingSettings(_, schemaBase, schemaBaseNs, nexusVocBaseSchemas) =
+  private val settingsSchemas @ SchemaIndexingSettings(_, _, _, nexusVocBaseSchemas) =
     SchemaIndexingSettings(namespace, base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
-  private val settingsDomains @ DomainIndexingSettings(_, domainBase, domainBaseNs, nexusVocBaseDomains) =
+  private val settingsDomains @ DomainIndexingSettings(_, _, _, nexusVocBaseDomains) =
     DomainIndexingSettings(namespace, base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
-  private val settingsOrgs @ OrganizationIndexingSettings(_, orgBase, orgBaseNs, nexusVocBaseOrgs) =
+  private val settingsOrgs @ OrganizationIndexingSettings(_, _, _, nexusVocBaseOrgs) =
     OrganizationIndexingSettings(namespace, base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
-  private val settingsAcls @ AclIndexingSettings(_, aclBase, aclBaseNs, nexusVocBaseAcls) =
+  private val settingsAcls @ AclIndexingSettings(_, _, aclBaseNs, _) =
     AclIndexingSettings(namespace, base, s"$base/acls/graphs", s"$base/voc/nexus/core")
 
-  private implicit val instanceQualifier: ConfiguredQualifier[InstanceId] =
-    Qualifier.configured[InstanceId](base)
-  private implicit val schemasQualifier: ConfiguredQualifier[SchemaId] =
-    Qualifier.configured[SchemaId](base)
-  private implicit val domainsQualifier: ConfiguredQualifier[DomainId] =
-    Qualifier.configured[DomainId](base)
-  private implicit val orgsQualifier: ConfiguredQualifier[OrgId] =
-    Qualifier.configured[OrgId](base)
-  private implicit val StringQualifier: ConfiguredQualifier[String] =
-    Qualifier.configured[String](nexusVocBaseDomains)
-  private implicit val clock = Clock.systemUTC
-  private val group          = GroupRef(IdentityId(s"$base/realms/BBP/groups/group"))
-  private implicit val caller =
+  private implicit val instanceQualifier: ConfiguredQualifier[InstanceId] = Qualifier.configured[InstanceId](base)
+  private implicit val schemasQualifier: ConfiguredQualifier[SchemaId]    = Qualifier.configured[SchemaId](base)
+  private implicit val domainsQualifier: ConfiguredQualifier[DomainId]    = Qualifier.configured[DomainId](base)
+  private implicit val orgsQualifier: ConfiguredQualifier[OrgId]          = Qualifier.configured[OrgId](base)
+  private implicit val StringQualifier: ConfiguredQualifier[String]       = Qualifier.configured[String](nexusVocBaseDomains)
+  private implicit val clock: Clock                                       = Clock.systemUTC
+  private val group                                                       = GroupRef(IdentityId(s"$base/realms/BBP/groups/group"))
+  private implicit val caller: AuthenticatedCaller =
     AuthenticatedCaller(None, Set[Identity](UserRef(IdentityId(s"$base/realms/BBP/users/1234")), group))
 
   "A SparqlQuery" should {
     val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
 
-    val domAgg =
-      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
-        .toF[Future]
-    val ctxsAgg =
-      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
-        .toF[Future]
-    val orgs = Organizations(orgsAgg)
+    val domAgg  = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val ctxsAgg = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    val orgs    = Organizations(orgsAgg)
 
     val doms = Domains(domAgg, orgs)
-    val ctxs = Contexts(ctxsAgg, doms, base.toString())
+    val ctxs = Contexts(ctxsAgg, doms, base.toString)
 
     val client          = SparqlClient[Future](blazegraphBaseUri)
     val queryClient     = new SparqlQuery[Future](client)
@@ -168,7 +159,10 @@ class SparqlQuerySpec(blazegraphPort: Int)
         val id =
           InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", version), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-        aclIndexer(PermissionsAdded("kg" / "org" / "dom" / "name" / version.show, AccessControlList(group -> Permissions(Read)), meta)).futureValue
+        aclIndexer(
+          PermissionsAdded("kg" / "org" / "dom" / "name" / version.show,
+                           AccessControlList(group -> Permissions(Read)),
+                           meta)).futureValue
       }
 
       (4 until 5).foreach { idx =>
@@ -212,7 +206,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
       (0 until 5).foreach { idx =>
         val id = OrgId(s"org$idx")
         orgIndexer(OrgCreated(id, rev, meta, data)).futureValue
-        aclIndexer(PermissionsAdded("kg" / s"org${idx}", AccessControlList(UserRef("BBP", "1234") -> Permissions(Read)), meta)).futureValue
+        aclIndexer(PermissionsAdded("kg" / s"org${idx}",
+                                    AccessControlList(UserRef("BBP", "1234") -> Permissions(Read)),
+                                    meta)).futureValue
       }
 
       // index 5 not matching organizations
@@ -299,7 +295,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
       })
 
       (0 until 2).foreach { idx =>
-        aclIndexer(PermissionsAdded("kg" / "org3" / s"domain${idx}", AccessControlList(group -> Permissions(Read)), meta)).futureValue
+        aclIndexer(PermissionsAdded("kg" / "org3" / s"domain${idx}",
+                                    AccessControlList(group -> Permissions(Read)),
+                                    meta)).futureValue
       }
 
       val result2 =
@@ -417,7 +415,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
       val res = q.list(schemaName, filterNoDepr, pagination, None).futureValue
       res.total shouldEqual 0L
 
-      aclIndexer(PermissionsAdded("kg" / "org0" / "dom0" / schemaName.name, AccessControlList(group -> Permissions(Read)), meta)).futureValue
+      aclIndexer(PermissionsAdded("kg" / "org0" / "dom0" / schemaName.name,
+                                  AccessControlList(group -> Permissions(Read)),
+                                  meta)).futureValue
 
       val result = q.list(schemaName, filterNoDepr, pagination, None).futureValue
       result.total shouldEqual 5L
