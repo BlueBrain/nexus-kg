@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.AclSparqlExpr._
 
 class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with EitherValues {
@@ -56,6 +56,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  WHERE {
              |
              |?s ?p ?o .
+             |
              |?s <http://localhost/v0/voc/nexus/core/organization> ?orgId
              |GRAPH <${qSettings.aclGraph}> { {<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
@@ -132,6 +133,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |
+             |OPTIONAL{?s <http://localhost/v0/createdAtTime> ?sort0}
              |?s <http://localhost/v0/voc/nexus/core/domain> ?domainId .
              |?s <http://localhost/v0/voc/nexus/core/organization> ?orgId .
              |?s <http://localhost/v0/voc/nexus/core/schema> ?schemaId .
@@ -176,7 +178,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |PREFIX bds: <${bdsUri.toString()}>
              |SELECT DISTINCT ?total ?s
              |WITH {
-             |  SELECT DISTINCT ?s
+             |  SELECT DISTINCT ?s ?sort0
              |  WHERE {
              |
              |$expectedWhere
@@ -192,13 +194,17 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  {
              |    SELECT *
              |    WHERE { INCLUDE %resultSet }
-             |    ORDER BY ?s
+             |    ORDER BY ASC(?sort0)
              |    LIMIT 17
              |    OFFSET 13
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery[InstanceId](filter, pagination, identities = identities)
+        val result = FilteredQuery[InstanceId](filter,
+                                               pagination,
+                                               identities = identities,
+                                               None,
+                                               SortList(List(Sort(s"$base/createdAtTime").get)))
         result shouldEqual expected
       }
 
@@ -246,6 +252,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |
+             |
              |?s <http://localhost/v0/voc/nexus/core/schemaGroup> ?schemaGroupId .
              |?s <http://localhost/v0/voc/nexus/core/domain> ?domainId .
              |?s <http://localhost/v0/voc/nexus/core/organization> ?orgId
@@ -283,7 +290,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |PREFIX bds: <${bdsUri.toString()}>
              |SELECT DISTINCT ?total ?s ?maxscore ?score ?rank
              |WITH {
-             |  SELECT DISTINCT ?s (max(?rsv) AS ?score) (max(?pos) AS ?rank)
+             |  SELECT DISTINCT ?s  (max(?rsv) AS ?score) (max(?pos) AS ?rank)
              |  WHERE {
              |$expectedWhere
              |  }
@@ -348,6 +355,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_9 .
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
+             |
              |?s <http://localhost/v0/voc/nexus/core/domain> ?domainId .
              |?s <http://localhost/v0/voc/nexus/core/organization> ?orgId
              |GRAPH <${qSettings.aclGraph}> { {<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
@@ -444,6 +452,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?s <${prov}wasAttributedTo> ?var_9 .
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
+             |
              |
              |GRAPH <${qSettings.aclGraph}> { {<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{

@@ -75,27 +75,29 @@ class SchemaRoutes(schemas: Schemas[Future],
   private val exceptionHandler = ExceptionHandling.exceptionHandler(prefixes.ErrorContext)
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields) =>
+    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
       parameter('published.as[Boolean].?) { publishedOpt =>
         val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
         implicit val _ = (id: SchemaId) => schemas.fetch(id)
         traceName("searchSchemas") {
           (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-            schemaQueries.list(filter, pagination, termOpt).buildResponse(fields, base, pagination)
+            schemaQueries.list(filter, pagination, termOpt, sort).buildResponse(fields, base, pagination)
           } ~
             (extractOrgId & pathEndOrSingleSlash) { orgId =>
               authenticateCaller.apply { implicit caller =>
-                schemaQueries.list(orgId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+                schemaQueries.list(orgId, filter, pagination, termOpt, sort).buildResponse(fields, base, pagination)
               }
             } ~
             (extractDomainId & pathEndOrSingleSlash) { domainId =>
               authenticateCaller.apply { implicit caller =>
-                schemaQueries.list(domainId, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+                schemaQueries.list(domainId, filter, pagination, termOpt, sort).buildResponse(fields, base, pagination)
               }
             } ~
             (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
               authenticateCaller.apply { implicit caller =>
-                schemaQueries.list(schemaName, filter, pagination, termOpt).buildResponse(fields, base, pagination)
+                schemaQueries
+                  .list(schemaName, filter, pagination, termOpt, sort)
+                  .buildResponse(fields, base, pagination)
               }
             }
         }

@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.{Directive, Directive1, MalformedQueryParamReje
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.WrongOrInvalidJson
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
 import io.circe.parser.decode
 import io.circe.{DecodingFailure, ParsingFailure}
@@ -70,14 +70,21 @@ trait QueryDirectives {
     parameter('published.as[Boolean].?).flatMap(opt => provide(opt))
 
   /**
+    * Extracts the ''sort'' query param from the request.
+    */
+  def sort: Directive1[SortList] = parameter('sort.?).flatMap {
+    case Some(v) => provide(SortList(v.split(",").map(Sort(_)).collect { case Some(sort) => sort }.toList))
+    case None    => provide(SortList.Empty)
+  }
+
+  /**
     * Extracts the ''fields'' query param from the request.
     */
-  def fields: Directive1[Set[String]] =
-    parameter('fields.?).flatMap {
-      case Some(field) => provide(field.split(",").map(_.trim).filterNot(_.isEmpty).toSet)
-      case None        => provide(Set.empty[String])
+  def fields: Directive1[Set[String]] = parameter('fields.?).flatMap {
+    case Some(field) => provide(field.split(",").map(_.trim).filterNot(_.isEmpty).toSet)
+    case None        => provide(Set.empty[String])
 
-    }
+  }
 
   /**
     * Extracts the query parameters defined for search requests or set them to preconfigured values
@@ -86,10 +93,9 @@ trait QueryDirectives {
     * @param qs the preconfigured query settings
     * @param fs the preconfigured filtering settings
     */
-  def searchQueryParams(
-      implicit qs: QuerySettings,
-      fs: FilteringSettings): Directive[(Pagination, Option[Filter], Option[String], Option[Boolean], Set[String])] =
-    paginated & filtered & q & deprecated & fields
+  def searchQueryParams(implicit qs: QuerySettings, fs: FilteringSettings)
+    : Directive[(Pagination, Option[Filter], Option[String], Option[Boolean], Set[String], SortList)] =
+    paginated & filtered & q & deprecated & fields & sort
 
 }
 

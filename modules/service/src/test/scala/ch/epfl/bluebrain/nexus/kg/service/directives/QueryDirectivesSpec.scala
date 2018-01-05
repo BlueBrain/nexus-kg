@@ -2,9 +2,11 @@ package ch.epfl.bluebrain.nexus.kg.service.directives
 
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.indexing.query.Sort.OrderType
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.{ExceptionHandling, RejectionHandling}
@@ -17,12 +19,14 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
   private case class Response(pagination: Pagination,
                               qOpt: Option[String],
                               deprecatedOpt: Option[Boolean],
-                              fields: Set[String])
+                              fields: Set[String],
+                              sort: SortList)
+
   private def route(implicit qs: QuerySettings, fs: FilteringSettings) = {
     (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
       RejectionHandling.rejectionHandler(ErrorContext))) {
-      (get & searchQueryParams) { (pagination, _, qOpt, deprecatedOpt, fields) =>
-        complete(Response(pagination, qOpt, deprecatedOpt, fields))
+      (get & searchQueryParams) { (pagination, _, qOpt, deprecatedOpt, fields, sort) =>
+        complete(Response(pagination, qOpt, deprecatedOpt, fields, sort))
       }
     }
   }
@@ -34,40 +38,53 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
 
     "extract default page when not provided" in {
       Get("/") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(qs.pagination, None, None, Set.empty)
+        responseAs[Response] shouldEqual Response(qs.pagination, None, None, Set.empty, SortList.Empty)
       }
     }
 
     "extract provided page" in {
       Get("/?from=1&size=30") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(Pagination(1L, 30), None, None, Set.empty)
+        responseAs[Response] shouldEqual Response(Pagination(1L, 30), None, None, Set.empty, SortList.Empty)
       }
     }
 
     "extract 0 when size and from are negative" in {
       Get("/?from=-1&size=-30") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(Pagination(0L, 1), None, None, Set.empty)
+        responseAs[Response] shouldEqual Response(Pagination(0L, 1), None, None, Set.empty, SortList.Empty)
       }
     }
 
     "extract maximum page size when provided is greater" in {
       Get("/?from=1&size=300") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(Pagination(1L, 100), None, None, Set.empty)
+        responseAs[Response] shouldEqual Response(Pagination(1L, 100), None, None, Set.empty, SortList.Empty)
       }
     }
 
     "extract deprecated and q query params when provided" in {
       Get("/?deprecated=false&q=something") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(qs.pagination, Some("something"), Some(false), Set.empty)
+        responseAs[Response] shouldEqual Response(qs.pagination,
+                                                  Some("something"),
+                                                  Some(false),
+                                                  Set.empty,
+                                                  SortList.Empty)
       }
     }
 
-    "extract fields, pagination, q and deprecatedwhen provided" in {
+    "extract fields, pagination, q and deprecated when provided" in {
       Get("/?deprecated=true&q=something&from=1&size=30&fields=one,two,three,,") ~> route ~> check {
         responseAs[Response] shouldEqual Response(Pagination(1L, 30),
                                                   Some("something"),
                                                   Some(true),
-                                                  Set("one", "two", "three"))
+                                                  Set("one", "two", "three"),
+                                                  SortList.Empty)
+      }
+    }
+    "extract sort when provided" in {
+      val rdfType = PrefixMapping.rdfTypeKey.replace("#", "%23")
+      Get(s"/?sort=$base/createdAtTime,${rdfType},-three,,") ~> route ~> check {
+        val expectedSort =
+          SortList(List(Sort(OrderType.Asc, s"$base/createdAtTime"), Sort(OrderType.Asc, PrefixMapping.rdfTypeKey)))
+        responseAs[Response] shouldEqual Response(qs.pagination, None, None, Set.empty, expectedSort)
       }
     }
   }

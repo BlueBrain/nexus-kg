@@ -125,6 +125,7 @@ GET /v0/{collection_address}
       ?q={full_text_search_query}
       &filter={filter}
       &fields={fields}
+      &sort={sort}
       &from={from}
       &size={size}
       &deprecated={deprecated}
@@ -138,6 +139,7 @@ attribute values matching (containing) the provided token; when this field is pr
 score values for each result
 - `{filter}`: JsonLd - a filtering expression in JSON-LD format (the structure of the filter is explained below)
 - `{fields}`: a comma separated list of fields which are going to be retrieved as a result. The reserved keyword `all` retrieves all the fields.
+- `{sort}`: a comma separated list of fields (absolute qualified URIs) which are going to be used to order the results. Prefixing a field with `-` will result into descending ordering on that field while prefixing it with `+` results in ascending ordering. When no prefix is set, the default behaviour is to assume ascending ordering..
 - `{from}`: Number - is the parameter that describes the offset for the current query; defaults to `0`
 - `{size}`: Number - is the parameter that limits the number of results; defaults to `20`
 - `{deprecated}`: Boolean - can be used to filter the resulting resources based on their deprecation status
@@ -163,27 +165,27 @@ Search and Filter Instances Response
 Filters follow the general form:
 
 ```
-comparisonOp    ::= 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'in'
-logicalOp       ::= 'and' | 'or' | 'not' | 'xor'
-op              ::= comparisonOp | logicalOp
+comparisonOp    = 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'in'
+logicalOp       = 'and' | 'or' | 'not' | 'xor'
+op              = comparisonOp | logicalOp
 
-path            ::= uri | property path
-comparisonValue ::= literal | uri | {comparisonValue}
+path            = uri | property path
+comparisonValue = literal | uri | {comparisonValue}
 
-comparisonExpr  ::= json {
+comparisonExpr  = json {
                       "op": comparisonOp,
                       "path": path,
                       "value": comparisonValue
                     }
 
-logicalExpr     ::= json {
+logicalExpr     = json {
                       "op": logicalOp,
                       "value": {filterExpr}
                     }
 
-filterExpr      ::= logicalExpr | comparisonExpr
+filterExpr      = logicalExpr | comparisonExpr
 
-filter          ::= json {
+filter          = json {
                       "@context": {...},
                       "filter": filterExpr
                     }

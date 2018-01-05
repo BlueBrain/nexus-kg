@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries.{domExpr, _}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SortList, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 
 /**
@@ -48,10 +48,12 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param filter     the filter expression to be applied
     * @param pagination the pagination values
     * @param term       the optional full text search term
+    * @param sort       the sorting values
     */
-  def list(filter: Filter, pagination: Pagination, term: Option[String])(implicit Q: ConfiguredQualifier[Id],
-                                                                         caller: Caller): F[QueryResults[Id]] = {
-    val query = FilteredQuery[Id](Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term)
+  def list(filter: Filter, pagination: Pagination, term: Option[String], sort: SortList)(
+      implicit Q: ConfiguredQualifier[Id],
+      caller: Caller): F[QueryResults[Id]] = {
+    val query = FilteredQuery[Id](Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term, sort)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -62,11 +64,12 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param filter     the filter expression to be applied
     * @param pagination the pagination values
     * @param term       the optional full text search term
+    * @param sort       the sorting values
     */
-  def list(org: OrgId, filter: Filter, pagination: Pagination, term: Option[String])(
+  def list(org: OrgId, filter: Filter, pagination: Pagination, term: Option[String], sort: SortList)(
       implicit Q: ConfiguredQualifier[Id],
       caller: Caller): F[QueryResults[Id]] =
-    list(Filter(orgExpr(org)) and filter.expr, pagination, term)
+    list(Filter(orgExpr(org)) and filter.expr, pagination, term, sort)
 
   /**
     * Lists all ids in the system within the specified domain that match the given filter.
@@ -75,11 +78,12 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param filter     the filter expression to be applied
     * @param pagination the pagination values
     * @param term       the optional full text search term
+    * @param sort       the sorting values
     */
-  def list(dom: DomainId, filter: Filter, pagination: Pagination, term: Option[String])(
+  def list(dom: DomainId, filter: Filter, pagination: Pagination, term: Option[String], sort: SortList)(
       implicit Q: ConfiguredQualifier[Id],
       caller: Caller): F[QueryResults[Id]] =
-    list(Filter(domExpr(dom)) and filter.expr, pagination, term)
+    list(Filter(domExpr(dom)) and filter.expr, pagination, term, sort)
 
   /**
     * Lists all ids in the system within the specified domain and that have the specified schema name that match
@@ -89,12 +93,13 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param filter     the filter expression to be applied
     * @param pagination the pagination values
     * @param term       the optional full text search term
+    * @param sort       the sorting values
     */
-  def list(schemaName: SchemaName, filter: Filter, pagination: Pagination, term: Option[String])(
+  def list(schemaName: SchemaName, filter: Filter, pagination: Pagination, term: Option[String], sort: SortList)(
       implicit Q: ConfiguredQualifier[Id],
       schemaNameFilter: SchemaNameFilterExpr[Id],
       caller: Caller): F[QueryResults[Id]] =
-    list(Filter(schemaNameFilter(schemaName)) and filter.expr, pagination, term)
+    list(Filter(schemaNameFilter(schemaName)) and filter.expr, pagination, term, sort)
 
   /**
     * Lists all ids in the system within the specified context and that have the specified context name that match
@@ -104,13 +109,17 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param filter     the filter expression to be applied
     * @param pagination the pagination values
     * @param term       the optional full text search term
+    * @param sort       the sorting values
     */
-  def list(contextName: ContextName, filter: Filter, pagination: Pagination, term: Option[String])(
-      implicit Q: ConfiguredQualifier[Id],
-      caller: Caller): F[QueryResults[Id]] =
+  def list(contextName: ContextName,
+           filter: Filter,
+           pagination: Pagination,
+           term: Option[String],
+           sort: SortList = SortList.Empty)(implicit Q: ConfiguredQualifier[Id], caller: Caller): F[QueryResults[Id]] =
     list(Filter(ComparisonExpr(Eq, UriPath(contextGroupKey), UriTerm(contextName qualify))) and filter.expr,
          pagination,
-         term)
+         term,
+         sort)
 
   /**
     * Lists all ids in the system conformant to the specified schema that match the given filter.
@@ -119,11 +128,12 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param filter     the filter expression to be applied
     * @param pagination the pagination values
     * @param term       the optional full text search term
+    * @param sort       the sorting values
     */
-  def list(schema: SchemaId, filter: Filter, pagination: Pagination, term: Option[String])(
+  def list(schema: SchemaId, filter: Filter, pagination: Pagination, term: Option[String], sort: SortList)(
       implicit Q: ConfiguredQualifier[Id],
       caller: Caller): F[QueryResults[Id]] =
-    list(Filter(schemaExpr(schema)) and filter.expr, pagination, term)
+    list(Filter(schemaExpr(schema)) and filter.expr, pagination, term, sort)
 
   /**
     * Lists all outgoing ids linked to the if identified by ''id'' that match the given filter.
@@ -132,12 +142,13 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param filter     the filter to apply to outgoing ids
     * @param pagination the pagination values
     * @param term       the optional full text search term
+    * @param sort       the sorting values
     */
-  def outgoing(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(
+  def outgoing(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None, sort: SortList)(
       implicit Q: ConfiguredQualifier[Id],
       caller: Caller): F[QueryResults[Id]] = {
     val query = FilteredQuery
-      .outgoing[Id](id.qualify, Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term)
+      .outgoing[Id](id.qualify, Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term, sort)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -149,11 +160,11 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
     * @param pagination the pagination values
     * @param term       the optional full text search term
     */
-  def incoming(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None)(
+  def incoming(id: Id, filter: Filter, pagination: Pagination, term: Option[String] = None, sort: SortList)(
       implicit Q: ConfiguredQualifier[Id],
       caller: Caller): F[QueryResults[Id]] = {
     val query = FilteredQuery
-      .incoming[Id](id.qualify, Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term)
+      .incoming[Id](id.qualify, Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term, sort)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
