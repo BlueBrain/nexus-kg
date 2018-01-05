@@ -62,7 +62,7 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settin
       log.debug(s"Indexing 'SchemaCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
       contexts
-        .expand(value removeKeys ("links"))
+        .resolve(value removeKeys ("links"))
         .map(_ deepMerge meta)
         .flatMap { json =>
           client
@@ -73,7 +73,7 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settin
       log.debug(s"Indexing 'SchemaUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
       contexts
-        .expand(value removeKeys ("links"))
+        .resolve(value removeKeys ("links"))
         .map(_ deepMerge meta)
         .flatMap { json =>
           val removeQuery = PatchQuery.inverse(id qualifyWith baseNs, createdAtTimeKey)

@@ -72,7 +72,7 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
   }
 
   private def validatePayload(json: Json): F[Unit] =
-    ctxs.expand(json).flatMap { expanded =>
+    ctxs.resolve(json).flatMap { expanded =>
       validator(ShaclSchema(expanded))
         .flatMap { report =>
           if (report.conforms) F.pure(())

@@ -13,7 +13,8 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.{DomainDoesNotExi
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection.{OrgDoesNotExist, OrgIsDeprecated}
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
-import io.circe.Json
+import io.circe.syntax._
+import io.circe.{Json, JsonObject}
 import journal.Logger
 
 import scala.util.control.NonFatal
@@ -232,20 +233,15 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
     }
 
   /**
-    * Expands the argument context representation by recursively loading referenced contexts regardless of their status.
+    * Resolves the argument ''json'' representation by recursively loading referenced contexts regardless of their status.
     *
-    * @param context the context json representation
-    * @return an expanded json context
+    * @param json the json payload which contains a ''@context'' json object
+    * @return a json payload with an expanded json context
     */
-  def expand(context: Json): F[Json] = {
-    def inner(ctx: Json): F[Json] =
-      ctx.hcursor.get[Json]("@context") match {
-        case Right(value) => expandValue(value)
-        case Left(_)      => F.pure(Json.obj())
-      }
+  def resolve(json: Json): F[Json] = {
 
-    def expandValue(value: Json): F[Json] =
-      (value.asString, value.asArray, value.asObject) match {
+    def resolveValue(context: Json): F[Json] =
+      (context.asString, context.asArray, context.asObject) match {
         case (Some(str), _, _) =>
           val start = s"$baseUri/contexts/"
           if (!str.startsWith(start))
@@ -257,7 +253,8 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
             ContextId(remaining) match {
               case Success(id) =>
                 fetch(id).flatMap {
-                  case Some(ctx) => inner(ctx.value)
+                  case Some(ctx) =>
+                    ctx.value.hcursor.get[Json]("@context").map(resolveValue).getOrElse(F.pure(Json.obj()))
                   case None =>
                     F.raiseError(
                       CommandRejected(IllegalImportsViolation(Set(s"Referenced context '$str' does not exist"))))
@@ -269,16 +266,24 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
             }
           }
         case (_, Some(arr), _) =>
-          F.sequence(arr.map(v => expandValue(v)))
+          F.sequence(arr.map(v => resolveValue(v)))
             .map(values =>
               values.foldLeft(Json.obj()) { (acc, e) =>
                 acc deepMerge e
             })
-        case (_, _, Some(_)) => F.pure(value)
+        case (_, _, Some(_)) => F.pure(context)
         case (_, _, _)       => F.raiseError(shapeValidationFailure)
       }
 
-    inner(context).map(json => context deepMerge Json.obj("@context" -> json))
+    def inner(jsonObj: JsonObject): F[JsonObject] =
+      F.sequence(jsonObj.toVector.map {
+        case ("@context", v) => resolveValue(v).map("@context" -> _)
+        case (k, v)          => resolve(v).map(k               -> _)
+      }).map(JsonObject.fromIterable)
+
+    json.arrayOrObject[F[Json]](F.pure(json),
+                                   arr => F.sequence(arr.map(resolve)).map(Json.fromValues),
+                                   obj => inner(obj).map(_.asJson))
   }
 }
 
