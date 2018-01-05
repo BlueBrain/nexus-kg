@@ -17,7 +17,7 @@ final case class SortList(values: List[Sort]) extends Product with Serializable 
   /**
     * @return the string representation of the variables used for sorting (inside the SELECT clause) in SPARQL language
     */
-  def toVars = toVarsMapping map (_._2) mkString (" ")
+  def toVars = toVarsMapping map {case (_, variable) => variable} mkString (" ")
 
   /**
     * @return the string representation of the optional triples used for sorting (inside the WHERE clause) in SPARQL language
