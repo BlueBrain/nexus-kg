@@ -74,7 +74,7 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
       log.debug(s"Indexing 'InstanceCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = false)
       contexts
-        .expand(value removeKeys ("links"))
+        .resolve(value removeKeys ("links"))
         .map(_ deepMerge meta)
         .flatMap { json =>
           val combinedJson = buildCombined(Json.obj(createdAtTimeKey -> m.instant.jsonLd) deepMerge json, id)
@@ -85,7 +85,7 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
       log.debug(s"Indexing 'InstanceUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = false)
       contexts
-        .expand(value removeKeys ("links"))
+        .resolve(value removeKeys ("links"))
         .map(_ deepMerge meta)
         .flatMap { json =>
           val removeQuery = PatchQuery.inverse(id qualifyWith baseNs,

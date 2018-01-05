@@ -45,7 +45,7 @@ final class Instances[F[_], In, Out](
   private def validatePayload(schemaId: SchemaId, json: Json): F[Unit] = {
     schemas.fetch(schemaId).flatMap {
       case Some(schema) =>
-        ctxs.expand(schema.value) product ctxs.expand(json) flatMap {
+        ctxs.resolve(schema.value) product ctxs.resolve(json) flatMap {
           case (s, j) =>
             validator(ShaclSchema(s), j).flatMap { report =>
               if (report.conforms) F.pure(())

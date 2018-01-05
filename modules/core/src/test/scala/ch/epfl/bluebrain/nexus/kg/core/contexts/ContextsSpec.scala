@@ -34,6 +34,7 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
     genString(length = 8, Vector.range('a', 'z') ++ Vector.range('0', '9'))
 
   val objectContextJson = jsonContentOf("/contexts/object-context.json")
+
   def arrayContextJson(id: ContextId) = {
     val ContextId(DomainId(OrgId(org), dom), name, ver) = id
     val replacements = Map(
@@ -44,6 +45,7 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
     )
     jsonContentOf("/contexts/array-context.json", replacements)
   }
+
   val baseUri = "http://localhost/v0"
 
   private implicit val caller = AnonymousCaller(Anonymous())
@@ -124,40 +126,43 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
         quote("{{ver}}") -> ver.show
       )
 
-      val objId    = ContextId(domRef.id, genName(), ver)
-      val objValue = jsonContentOf("/contexts/object-context.json")
-      contexts.create(objId, objValue).success
-      contexts.publish(objId, 1L).success
+      def createContext(id: ContextId, resourcePath: String, extraReplacements: Map[String, String] = Map.empty) = {
+        val value = jsonContentOf(resourcePath, defaultReplacements ++ extraReplacements)
+        contexts.create(id, value).success
+        contexts.publish(id, 1L).success
+      }
 
-      val secondObjId    = ContextId(domRef.id, genName(), ver)
-      val secondObjValue = jsonContentOf("/contexts/second-object-context.json")
-      contexts.create(secondObjId, secondObjValue).success
-      contexts.publish(secondObjId, 1L).success
+      val objId = ContextId(domRef.id, genName(), ver)
+      createContext(objId, "/contexts/object-context.json")
+
+      val secondObjId = ContextId(domRef.id, genName(), ver)
+      createContext(secondObjId, "/contexts/second-object-context.json")
+
+      val thirdObjId = ContextId(domRef.id, genName(), ver)
+      createContext(thirdObjId, "/contexts/third-object-context.json")
+
+      val fourthObjId        = ContextId(domRef.id, genName(), ver)
+      val fourthReplacements = defaultReplacements ++ Map(quote("{{third-object}}") -> thirdObjId.name)
+      createContext(fourthObjId, "/contexts/fourth-object-context.json", fourthReplacements)
 
       val mixedId = ContextId(domRef.id, genName(), ver)
-      val mixedValue = jsonContentOf(
-        "/contexts/mixed-array-context.json",
-        defaultReplacements ++ Map(
-          quote("{{object}}")        -> objId.name,
-          quote("{{second-object}}") -> secondObjId.name,
-        )
-      )
-      contexts.create(mixedId, mixedValue).success
-      contexts.publish(mixedId, 1L).success
+      val mixedReplacements = defaultReplacements ++ Map(quote("{{object}}") -> objId.name,
+                                                         quote("{{second-object}}") -> secondObjId.name)
+      createContext(mixedId, "/contexts/mixed-array-context.json", mixedReplacements)
 
-      val importingId = ContextId(domRef.id, genName(), ver)
-      val importingValue = jsonContentOf(
-        "/contexts/importing-context.json",
-        defaultReplacements ++ Map(
-          quote("{{mixed}}") -> mixedId.name
-        )
-      )
-      contexts.create(importingId, importingValue).success
-      contexts.publish(importingId, 1L).success
+      val importingId           = ContextId(domRef.id, genName(), ver)
+      val importingReplacements = defaultReplacements ++ Map(quote("{{mixed}}") -> mixedId.name)
+      createContext(importingId, "/contexts/importing-context.json", importingReplacements)
 
       val input = Json.obj(
+        "@context" -> Json.fromString(s"$baseUri/contexts/${importingId.show}"),
         "existing" -> Json.fromInt(2),
-        "@context" -> Json.fromString(s"$baseUri/contexts/${importingId.show}")
+        "other" -> Json.obj("@context" -> Json.fromString(s"$baseUri/contexts/${thirdObjId.show}"),
+                            "value" -> Json.fromInt(3)),
+        "deep" -> Json.obj(
+          "deep2" -> Json.obj(
+            "deep3" -> Json.obj("@context" -> Json.fromString(s"$baseUri/contexts/${fourthObjId.show}")),
+            "value" -> Json.fromInt(4)))
       )
 
       val expected =
@@ -167,10 +172,27 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
             |    "xsd" : "http://www.w3.org/2001/XMLSchema#",
             |    "schema" : "http://schema.org/"
             |  },
-            |  "existing" : 2
+            |  "existing" : 2,
+            |  "other" : {
+            |    "@context" : {
+            |      "prov" : "http://www.w3.org/ns/prov#"
+            |    },
+            |    "value" : 3
+            |  },
+            |  "deep" : {
+            |    "deep2" : {
+            |      "deep3" : {
+            |        "@context" : {
+            |          "sh" : "http://www.w3.org/ns/shacl#",
+            |          "prov" : "http://www.w3.org/ns/prov#"
+            |        }
+            |      },
+            |      "value" : 4
+            |    }
+            |  }
             |}""".stripMargin
 
-      contexts.expand(input).success.value.spaces2 shouldEqual expected
+      contexts.resolve(input).success.value.spaces2 shouldEqual expected
     }
 
     "prevent double deprecations" in new Context {
@@ -260,7 +282,7 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       val ctxs = List(
         ContextId(DomainId(OrgId(genId()), genId()), genName(), genVersion()),
         ContextId(DomainId(orgRef.id, genId()), genName(), genVersion()),
-        ContextId(domRef.id, genName(), genVersion()),
+        ContextId(domRef.id, genName(), genVersion())
       )
       forAll(ctxs) { c =>
         contexts.create(id, arrayContextJson(c)).failure.exception shouldEqual CommandRejected(
@@ -289,7 +311,7 @@ class ContextsSpec extends WordSpecLike with Matchers with Inspectors with TryVa
       Json.obj("@context" -> Json.fromString("bubu")),
       Json.obj("@context" -> Json.fromString("http://some.domain.com/context")),
       Json.obj("@context" -> Json.arr(Json.fromString("bubu"))),
-      Json.obj("@context" -> Json.arr(Json.fromString("http://some.domain.com/context"))),
+      Json.obj("@context" -> Json.arr(Json.fromString("http://some.domain.com/context")))
     )
 
     "prevent creation with invalid context" in new Context {
