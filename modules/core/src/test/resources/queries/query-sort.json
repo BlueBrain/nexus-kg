@@ -1,0 +1,10 @@
+{
+  "@context": {
+    "nxv": "nexus.example.ch/context/some"
+  },
+  "resource": "{{resource}}",
+  "fields": [ "all" ],
+  "sort": [ "-nxv:createdAtTime" ],
+  "from": "{{from}}",
+  "size": "{{size}}"
+}

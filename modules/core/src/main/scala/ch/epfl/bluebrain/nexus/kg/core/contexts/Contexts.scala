@@ -277,13 +277,14 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
 
     def inner(jsonObj: JsonObject): F[JsonObject] =
       F.sequence(jsonObj.toVector.map {
-        case ("@context", v) => resolveValue(v).map("@context" -> _)
-        case (k, v)          => resolve(v).map(k               -> _)
-      }).map(JsonObject.fromIterable)
+          case ("@context", v) => resolveValue(v).map("@context" -> _)
+          case (k, v)          => resolve(v).map(k               -> _)
+        })
+        .map(JsonObject.fromIterable)
 
     json.arrayOrObject[F[Json]](F.pure(json),
-                                   arr => F.sequence(arr.map(resolve)).map(Json.fromValues),
-                                   obj => inner(obj).map(_.asJson))
+                                arr => F.sequence(arr.map(resolve)).map(Json.fromValues),
+                                obj => inner(obj).map(_.asJson))
   }
 }
 
