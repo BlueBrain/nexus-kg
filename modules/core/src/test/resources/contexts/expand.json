@@ -1,0 +1,32 @@
+{
+  "@context": [
+    "{{base}}/contexts/nexus/core/standards/v0.1.0",
+    {
+      "@base": "https://bbp-nexus.epfl.ch/dev/v0/voc/experiment/",
+      "@vocab": "https://bbp-nexus.epfl.ch/vocabs/bbp/neurosciencegraph/core/v0.1.0/",
+      "familyName": "http://schema.org/familyName",
+      "givenName": "http://schema.org/givenName",
+      "prov": "http://www.w3.org/ns/prov#",
+      "schema": "http://schema.org/",
+      "links": {
+        "@id": "nxv:links"
+      }
+    }
+  ],
+  "@id": "https://bbp-nexus.epfl.ch/dev/v0/data/bbp/core/person/v0.1.0/44b97c0d-fe24-4c9a-9c01-3e5feb16543d",
+  "@type": "schema:Person",
+  "familyName": "Maria",
+  "givenName": "Toledo",
+  "nxv:rev": 1,
+  "nxv:deprecated": false,
+  "links": {
+    "incoming": "https://bbp-nexus.epfl.ch/dev/v0/data/bbp/core/person/v0.1.0/44b97c0d-fe24-4c9a-9c01-3e5feb16543d/incoming",
+    "outgoing": "https://bbp-nexus.epfl.ch/dev/v0/data/bbp/core/person/v0.1.0/44b97c0d-fe24-4c9a-9c01-3e5feb16543d/outgoing",
+    "schema": "https://bbp-nexus.epfl.ch/dev/v0/schemas/bbp/core/person/v0.1.0",
+    "self": "https://bbp-nexus.epfl.ch/dev/v0/data/bbp/core/person/v0.1.0/44b97c0d-fe24-4c9a-9c01-3e5feb16543d"
+  },
+  "other": "something",
+  "otherId": {
+    "@id": "toExpand"
+  }
+}
