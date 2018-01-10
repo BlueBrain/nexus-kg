@@ -22,6 +22,7 @@
                 {
                   "path": "schema:downloadURL",
                   "name": "Download URL",
+                  "description": "When followed this link leads to the actual data.",
                   "nodeKind": "sh:IRI",
                   "minCount": 1,
                   "maxCount": 1
@@ -30,6 +31,7 @@
             },
             {
               "path": "schema:accessURL",
+              "description": "When followed this link leads to a resource providing further description on how to download the attached data.",
               "name": "Access URL",
               "nodeKind": "sh:IRI",
               "minCount": 1,
