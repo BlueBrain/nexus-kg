@@ -30,6 +30,14 @@ object CommonRejections {
   final case class IllegalVersionFormat(override val message: String) extends Err(message) with CommonRejections
 
   /**
+    * Signals the inability to convert the requested output format into a valid
+    * [[ch.epfl.bluebrain.nexus.kg.service.directives.JsonLdFormat]]
+    *
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case class IllegalOutputFormat(override val message: String) extends Err(message) with CommonRejections
+
+  /**
     * Signals the inability to connect to an underlying service to perform a request
     *
     * @param message a human readable description of the cause

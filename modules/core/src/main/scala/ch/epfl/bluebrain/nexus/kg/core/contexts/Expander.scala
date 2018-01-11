@@ -18,37 +18,40 @@ sealed trait StringExpander[F[_]] extends ((String, Json) => F[String])
 
 sealed trait JsonExpander[F[_]] extends (Json => F[Json])
 
-class JenaExpander[F[_]](implicit contexts: Contexts[F], F: MonadError[F, Throwable])
+class JenaExpander[F[_]](contexts: Contexts[F])(implicit F: MonadError[F, Throwable])
     extends StringExpander[F]
     with JsonExpander[F] {
 
   override def apply(value: String, json: Json): F[String] = {
-    contexts.expand(json).map { expanded =>
+    contexts.resolve(json).map { expanded =>
       val m = createModel(expanded)
       expand(value, m)
     }
   }
 
-  override def apply(json: Json): F[Json] = {
-    contexts.expand(json).flatMap { expanded =>
+  def apply(json: Json): F[Json] = apply(json, RDFFormat.JSONLD_EXPAND_FLAT)
+
+  def apply(json: Json, rdfFormat: RDFFormat): F[Json] = {
+    contexts.resolve(json).flatMap { expanded =>
       val m = createModel(expanded)
-      expand(m, RDFFormat.JSONLD_EXPAND_FLAT)
-      }
+      expand(m, rdfFormat)
     }
+  }
 
   private def createModel(json: Json): Model = {
     val model = ModelFactory.createDefaultModel()
     RDFDataMgr.read(model, new ByteArrayInputStream(json.noSpaces.getBytes), Lang.JSONLD)
     model
   }
+
   private def expand(value: String, model: Model): String =
     model.expandPrefix(value)
 
   private def expand(m: Model, f: RDFFormat): F[Json] = {
     val out = new ByteArrayOutputStream()
     Try {
-      val w = RDFDataMgr.createDatasetWriter(f)
-      val g = DatasetFactory.create(m).asDatasetGraph
+      val w  = RDFDataMgr.createDatasetWriter(f)
+      val g  = DatasetFactory.create(m).asDatasetGraph
       val pm = RiotLib.prefixMap(g)
       w.write(out, g, pm, null, null)
       out.flush()
@@ -57,20 +60,11 @@ class JenaExpander[F[_]](implicit contexts: Contexts[F], F: MonadError[F, Throwa
       err => {
         Try(out.close())
         F.raiseError(err)
-      },
-      {
+      }, {
         case (Success(value)) => F.pure(value)
-        case (Failure(err)) => F.raiseError(err)
+        case (Failure(err))   => F.raiseError(err)
       }
     )
   }
 
-}
-
-object JenaExpander {
-  final def apply[F[_]](v: String, j: Json)(implicit contexts: Contexts[F], F: MonadError[F, Throwable]): F[String] =
-    new JenaExpander().apply(v, j)
-
-  final def apply[F[_]](j: Json)(implicit contexts: Contexts[F], F: MonadError[F, Throwable]): F[Json] =
-    new JenaExpander().apply(j)
 }

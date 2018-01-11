@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -13,6 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
@@ -44,16 +46,15 @@ class DomainRoutesSpec
     import domsEncoder._
     val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs   = Organizations(orgAgg)
-    val domAgg =
-      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
-        .toF[Future]
-    val doms = Domains(domAgg, orgs)
+    val domAgg = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms   = Domains(domAgg, orgs)
 
     val orgId          = OrgId(genString(length = 5))
     val id             = DomainId(orgId, genString(length = 8))
     val description    = genString(length = 32)
     val json           = Json.obj("description" -> Json.fromString(description))
     implicit val clock = Clock.systemUTC
+    val caller         = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     orgs
       .create(orgId, Json.obj("key" -> Json.fromString(genString())))(CallerCtx(clock, AnonymousCaller(Anonymous())))
@@ -65,13 +66,18 @@ class DomainRoutesSpec
     implicit val filteringSettings = FilteringSettings(vocab, vocab)
     implicit val cl                = iamClient("http://localhost:8080")
 
+    val ctxAgg   = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    val contexts = Contexts(ctxAgg, doms, baseUri.toString())
+
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri, prefixes).routes
+    val route        = DomainRoutes(doms, contexts, sparqlClient, querySettings, baseUri).routes
+
+    createNexusContexts(orgs, doms, contexts)(caller)
 
     "create a domain" in {
       Put(s"/domains/${orgId.show}/${id.id}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.Created
-        responseAs[Json] shouldEqual DomainRef(id, 1L).asJson
+        responseAs[Json] shouldEqual DomainRef(id, 1L).asJson.addCoreContext
       }
       doms.fetch(id).futureValue shouldEqual Some(Domain(id, 1L, deprecated = false, description))
     }
@@ -92,8 +98,16 @@ class DomainRoutesSpec
 
     "return the current domain" in {
       Get(s"/domains/${orgId.show}/${id.id}") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual Domain(id, 1L, false, description).asJson
+        responseAs[Json] shouldEqual Domain(id, 1L, false, description).asJson.addCoreContext
+      }
+    }
+
+    "return the current domain with a custom format" in {
+      Get(s"/domains/${orgId.show}/${id.id}?format=expanded") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+        status shouldEqual StatusCodes.OK
       }
     }
 
@@ -119,7 +133,7 @@ class DomainRoutesSpec
     "deprecate a domain" in {
       Delete(s"/domains/${orgId.show}/${id.id}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual DomainRef(id, 2L).asJson
+        responseAs[Json] shouldEqual DomainRef(id, 2L).asJson.addCoreContext
       }
       doms.fetch(id).futureValue shouldEqual Some(Domain(id, 2L, deprecated = true, description))
     }
@@ -127,7 +141,7 @@ class DomainRoutesSpec
     "fetch old revision of a domain" in {
       Get(s"/domains/${orgId.show}/${id.id}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual Domain(id, 1L, false, description).asJson
+        responseAs[Json] shouldEqual Domain(id, 1L, false, description).asJson.addCoreContext
       }
     }
 

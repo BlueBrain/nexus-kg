@@ -1,16 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.service.directives
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import ch.epfl.bluebrain.nexus.commons.types.search.Sort.OrderType
-import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.Sort.OrderType
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
-import ch.epfl.bluebrain.nexus.kg.service.routes.{ExceptionHandling, RejectionHandling}
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import ch.epfl.bluebrain.nexus.kg.service.routes.{Error, ExceptionHandling, RejectionHandling}
 import io.circe.generic.auto._
 import org.scalatest.{Matchers, WordSpecLike}
 
@@ -31,7 +32,7 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
     }
   }
 
-  "An searchQueryParams directive" should {
+  "A searchQueryParams directive" should {
     val base        = "http://localhost"
     implicit val fs = FilteringSettings(s"$base/voc/nexus/core", s"$base/voc/nexus/search")
     implicit val qs = QuerySettings(Pagination(0, 20), 100, "index", fs.nexusBaseVoc, base, s"$base/acls/graph")
@@ -81,10 +82,46 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
     }
     "extract sort when provided" in {
       val rdfType = PrefixMapping.rdfTypeKey.replace("#", "%23")
-      Get(s"/?sort=$base/createdAtTime,${rdfType},,,") ~> route ~> check {
+      Get(s"/?sort=$base/createdAtTime,${rdfType},-three,,") ~> route ~> check {
         val expectedSort =
           SortList(List(Sort(OrderType.Asc, s"$base/createdAtTime"), Sort(OrderType.Asc, PrefixMapping.rdfTypeKey)))
         responseAs[Response] shouldEqual Response(qs.pagination, None, None, Set.empty, expectedSort)
+      }
+    }
+  }
+
+  "A format query param" should {
+    val resourceRoute = (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) &
+      handleRejections(RejectionHandling.rejectionHandler(ErrorContext))) {
+      (get & format) { f =>
+        complete(f)
+      }
+    }
+
+    "extract the JSON-LD output format when provided" in {
+      Get("/?format=expanded") ~> resourceRoute ~> check {
+        responseAs[JsonLdFormat] shouldEqual JsonLdFormat.Expanded
+      }
+      Get("/?format=flattened") ~> resourceRoute ~> check {
+        responseAs[JsonLdFormat] shouldEqual JsonLdFormat.Flattened
+      }
+      Get("/?format=compacted") ~> resourceRoute ~> check {
+        responseAs[JsonLdFormat] shouldEqual JsonLdFormat.Compacted
+      }
+    }
+
+    "fall back to the default output format when absent" in {
+      Get("/") ~> resourceRoute ~> check {
+        responseAs[JsonLdFormat] shouldEqual JsonLdFormat.Default
+      }
+    }
+
+    "reject when an invalid JSON-LD output format is provided" in {
+      Get("/?format=foobar") ~> resourceRoute ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Error] shouldEqual Error("IllegalOutputFormat",
+                                            Some("Unsupported JSON-LD output formats: 'foobar'"),
+                                            "http://localhost/v0/contexts/nexus/core/error/v0.1.0")
       }
     }
   }

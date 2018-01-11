@@ -2,13 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import java.time.Clock
 
+import akka.http.scaladsl.marshalling.ToEntityMarshaller
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import cats.instances.string._
-import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
@@ -36,7 +36,7 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.Publish
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
-import io.circe.{Encoder, Json}
+import io.circe.{Encoder, Json, Printer}
 import kamon.akka.http.KamonTraceDirectives.traceName
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -52,16 +52,15 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param ec             execution context
   * @param clock          the clock used to issue instants
   */
-class ContextRoutes(contexts: Contexts[Future],
-                    contextQueries: FilterQueries[Future, ContextId],
-                    base: Uri,
-                    prefixes: PrefixUris)(implicit
-                                          querySettings: QuerySettings,
-                                          iamClient: IamClient[Future],
-                                          ec: ExecutionContext,
-                                          clock: Clock,
-                                          orderedKeys: OrderedKeys)
-    extends DefaultRouteHandling()(prefixes)
+class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Future, ContextId], base: Uri)(
+    implicit
+    querySettings: QuerySettings,
+    iamClient: IamClient[Future],
+    ec: ExecutionContext,
+    clock: Clock,
+    orderedKeys: OrderedKeys,
+    prefixes: PrefixUris)
+    extends DefaultRouteHandling(contexts)
     with QueryDirectives {
 
   private implicit val _ = (entity: Context) => entity.id
@@ -72,9 +71,8 @@ class ContextRoutes(contexts: Contexts[Future],
 
   private val exceptionHandler = ExceptionHandling.exceptionHandler(prefixes.ErrorContext)
 
-  override protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]) =
+  override protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractContextId { contextId =>
-      implicit val coreContext: ContextUri = prefixes.CoreContext
       pathEndOrSingleSlash {
         (put & entity(as[Json])) { json =>
           (authenticateCaller & authorizeResource(contextId, Write)) { implicit caller =>
@@ -121,22 +119,22 @@ class ContextRoutes(contexts: Contexts[Future],
         }
     }
 
-  override protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]) = {
+  override protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route = {
+    import contextEncoders.marshallerHttp
     extractContextId { contextId =>
-      implicit val coreContext: ContextUri = prefixes.CoreContext
-      (pathEndOrSingleSlash & get & authorizeResource(contextId, Read)) {
+      (pathEndOrSingleSlash & get & authorizeResource(contextId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
             traceName("getContextRevision") {
               onSuccess(contexts.fetch(contextId, rev)) {
-                case Some(context) => complete(context)
+                case Some(context) => formatOutput(context, format)
                 case None          => complete(StatusCodes.NotFound)
               }
             }
           case None =>
             traceName("getContext") {
               onSuccess(contexts.fetch(contextId)) {
-                case Some(context) => complete(context)
+                case Some(context) => formatOutput(context, format)
                 case None          => complete(StatusCodes.NotFound)
               }
             }
@@ -147,27 +145,32 @@ class ContextRoutes(contexts: Contexts[Future],
 
   override protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & paginated & deprecated & published & fields & sort) {
-      implicit val searchContext: ContextUri = prefixes.SearchContext
       (pagination, deprecatedOpt, publishedOpt, fields, sort) =>
         traceName("searchContexts") {
           val filter     = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
           implicit val _ = (id: ContextId) => contexts.fetch(id)
           (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-            contextQueries.list(filter, pagination, None, sort).buildResponse(fields, base, pagination)
+            contextQueries.list(filter, pagination, None, sort).buildResponse(fields, base, prefixes, pagination)
           } ~
             (extractOrgId & pathEndOrSingleSlash) { orgId =>
               authenticateCaller.apply { implicit caller =>
-                contextQueries.list(orgId, filter, pagination, None, sort).buildResponse(fields, base, pagination)
+                contextQueries
+                  .list(orgId, filter, pagination, None, sort)
+                  .buildResponse(fields, base, prefixes, pagination)
               }
             } ~
             (extractDomainId & pathEndOrSingleSlash) { domainId =>
               authenticateCaller.apply { implicit caller =>
-                contextQueries.list(domainId, filter, pagination, None, sort).buildResponse(fields, base, pagination)
+                contextQueries
+                  .list(domainId, filter, pagination, None, sort)
+                  .buildResponse(fields, base, prefixes, pagination)
               }
             } ~
             (extractContextName & pathEndOrSingleSlash) { contextName =>
               authenticateCaller.apply { implicit caller =>
-                contextQueries.list(contextName, filter, pagination, None, sort).buildResponse(fields, base, pagination)
+                contextQueries
+                  .list(contextName, filter, pagination, None, sort)
+                  .buildResponse(fields, base, prefixes, pagination)
               }
             }
         }
@@ -180,6 +183,7 @@ class ContextRoutes(contexts: Contexts[Future],
       val pub = "published".qualify
       ComparisonExpr(Op.Eq, UriPath(pub), LiteralTerm(value.toString))
     }
+
 }
 
 object ContextRoutes {
@@ -195,18 +199,16 @@ object ContextRoutes {
     * @param clock     the clock used to issue instants
     * @return a new ''ContextRoutes'' instance
     */
-  final def apply(contexts: Contexts[Future],
-                  client: SparqlClient[Future],
-                  querySettings: QuerySettings,
-                  base: Uri,
-                  prefixes: PrefixUris)(implicit iamClient: IamClient[Future],
-                                        ec: ExecutionContext,
-                                        clock: Clock,
-                                        orderedKeys: OrderedKeys): ContextRoutes = {
+  final def apply(contexts: Contexts[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
+      implicit iamClient: IamClient[Future],
+      ec: ExecutionContext,
+      clock: Clock,
+      orderedKeys: OrderedKeys,
+      prefixes: PrefixUris): ContextRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val contextQueries             = FilterQueries[Future, ContextId](SparqlQuery[Future](client), querySettings)
-    new ContextRoutes(contexts, contextQueries, base, prefixes)
+    new ContextRoutes(contexts, contextQueries, base)
   }
 
   /**
@@ -223,7 +225,7 @@ class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context
 
   implicit val contextRefEncoder: Encoder[ContextRef] = refEncoder.mapJson(_.addCoreContext)
 
-  implicit def contextEncoder: Encoder[Context] = Encoder.encodeJson.contramap { ctx =>
+  implicit val contextEncoder: Encoder[Context] = Encoder.encodeJson.contramap { ctx =>
     val meta = refEncoder
       .apply(ContextRef(ctx.id, ctx.rev))
       .deepMerge(idWithLinksEncoder(ctx.id))
@@ -238,4 +240,15 @@ class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context
     else
       ctx.value.deepMerge(meta).addCoreContext
   }
+
+  /**
+    * Custom marshaller that doesn't inject the context into the JSON-LD payload.
+    *
+    * @return a [[Context]] marshaller
+    */
+  implicit def marshallerHttp(implicit
+                              encoder: Encoder[Context],
+                              printer: Printer = Printer.noSpaces.copy(dropNullKeys = true),
+                              keys: OrderedKeys = OrderedKeys()): ToEntityMarshaller[Context] =
+    jsonLdMarshaller.compose(encoder.apply)
 }

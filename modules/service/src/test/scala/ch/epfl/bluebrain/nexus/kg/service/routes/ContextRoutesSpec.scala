@@ -9,10 +9,11 @@ import akka.stream.{ActorMaterializer, Materializer}
 import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
@@ -66,21 +67,16 @@ class ContextRoutesSpec
       "@context" -> Json.arr(contextJsonObject("@context").getOrElse(Json.obj()),
                              Json.fromString(prefixes.CoreContext.toString)))
 
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs   = Organizations(orgAgg)
-    val domAgg =
-      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
-        .toF[Future]
-    val doms = Domains(domAgg, orgs)
-    val ctxAgg =
-      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
-        .toF[Future]
+    val orgAgg         = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs           = Organizations(orgAgg)
+    val domAgg         = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms           = Domains(domAgg, orgs)
+    val ctxAgg         = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
     val contexts       = Contexts(ctxAgg, doms, baseUri.toString())
     implicit val clock = Clock.systemUTC
 
     val caller = CallerCtx(clock, AnonymousCaller(Anonymous()))
-    val orgRef =
-      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)
+    val orgRef = Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)
 
     val domRef =
       Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller), 2 seconds)
@@ -91,9 +87,11 @@ class ContextRoutesSpec
     val vocab         = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri, s"$baseUri/acls/graph")
 
-    val route = ContextRoutes(contexts, sparql, querySettings, baseUri, prefixes).routes
+    val route = ContextRoutes(contexts, sparql, querySettings, baseUri).routes
 
     val contextId = ContextId(domRef.id, genString(length = 8), genVersion())
+
+    createNexusContexts(orgs, doms, contexts)(caller)
 
     "create a context" in {
       Put(s"/contexts/${contextId.show}", contextJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -127,6 +125,7 @@ class ContextRoutesSpec
     "return the current context" in {
       Get(s"/contexts/${contextId.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         responseAs[Json] shouldEqual Json
           .obj(
             "@id"     -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
@@ -137,6 +136,13 @@ class ContextRoutesSpec
             "nxv:published"  -> Json.fromBoolean(false)
           )
           .deepMerge(contextJsonWithStandards)
+      }
+    }
+
+    "return the current context with a custom format" in {
+      Get(s"/contexts/${contextId.show}?format=expanded") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
       }
     }
 

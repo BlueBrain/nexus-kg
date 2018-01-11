@@ -3,10 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.service.directives
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive, Directive1, MalformedQueryParamRejection}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.WrongOrInvalidJson
-import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
-import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
+import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, Sort, SortList}
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalFilterFormat, IllegalOutputFormat}
 import io.circe.parser.decode
 import io.circe.{DecodingFailure, ParsingFailure}
 
@@ -22,7 +22,7 @@ trait QueryDirectives {
     */
   def paginated(implicit qs: QuerySettings): Directive1[Pagination] =
     (parameter('from.as[Int] ? qs.pagination.from) & parameter('size.as[Int] ? qs.pagination.size)).tmap {
-      case (from, size) => Pagination(from.max(0), (size.max(1)).min(qs.maxSize))
+      case (from, size) => Pagination(from.max(0), size.max(1).min(qs.maxSize))
     }
 
   /**
@@ -70,10 +70,29 @@ trait QueryDirectives {
     parameter('published.as[Boolean].?).flatMap(opt => provide(opt))
 
   /**
+    * Extracts the ''format'' query param from the request.
+    */
+  def format: Directive1[JsonLdFormat] =
+    parameter('format.as[String].?).flatMap {
+      case None => provide(JsonLdFormat.Default)
+      case Some(format) =>
+        format match {
+          case "compacted" => provide(JsonLdFormat.Compacted)
+          case "expanded"  => provide(JsonLdFormat.Expanded)
+          case "flattened" => provide(JsonLdFormat.Flattened)
+          case _ =>
+            reject(
+              MalformedQueryParamRejection("format",
+                                           "IllegalOutputFormat",
+                                           Some(IllegalOutputFormat(s"Unsupported JSON-LD output formats: '$format'"))))
+        }
+    }
+
+  /**
     * Extracts the ''sort'' query param from the request.
     */
   def sort: Directive1[SortList] = parameter('sort.?).flatMap {
-    case Some(v) => provide(SortList(v.split(",").map(Sort(_)).toList))
+    case Some(v) => provide(SortList(v.split(",").map(Sort(_)).collect { case Some(sort) => sort }.toList))
     case None    => provide(SortList.Empty)
   }
 

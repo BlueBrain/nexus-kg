@@ -14,12 +14,10 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection.AttachmentLimitExceeded
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys.`@context`
-import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalFilterFormat
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalFilterFormat, IllegalOutputFormat}
 import ch.epfl.bluebrain.nexus.kg.service.routes.ExceptionHandling.InternalError
 import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.semiauto._
-import io.circe.{Encoder, Json}
+import io.circe.generic.extras.auto._
 import journal.Logger
 
 /**
@@ -39,6 +37,7 @@ class ExceptionHandling(implicit errorContext: ContextUri) {
     case CommandRejected(r: DomainRejection)     => complete(r)
     case CommandRejected(r: OrgRejection)        => complete(r)
     case CommandRejected(r: IllegalFilterFormat) => complete(r)
+    case CommandRejected(r: IllegalOutputFormat) => complete(r)
     case ex: EntityStreamSizeException =>
       logger.warn(s"An attachment with size '${ex.actualSize}' has been rejected because actual limit is '${ex.limit}'")
       complete(toRejection(ex))
@@ -56,29 +55,6 @@ class ExceptionHandling(implicit errorContext: ContextUri) {
     * The discriminator is enough to give us a Json representation (the name of the class)
     */
   private implicit val config: Configuration = Configuration.default.withDiscriminator("code")
-
-  private val context = Json.obj(`@context` -> Json.fromString(errorContext.toString))
-
-  private implicit val instanceRejectionEncoder: Encoder[InstanceRejection] =
-    deriveEncoder[InstanceRejection].mapJson(_.deepMerge(context))
-
-  private implicit val schemaRejectionEncoder: Encoder[SchemaRejection] =
-    deriveEncoder[SchemaRejection].mapJson(_.deepMerge(context))
-
-  private implicit val contextRejectionEncoder: Encoder[ContextRejection] =
-    deriveEncoder[ContextRejection].mapJson(_.deepMerge(context))
-
-  private implicit val domainRejectionEncoder: Encoder[DomainRejection] =
-    deriveEncoder[DomainRejection].mapJson(_.deepMerge(context))
-
-  private implicit val orgRejectionEncoder: Encoder[OrgRejection] =
-    deriveEncoder[OrgRejection].mapJson(_.deepMerge(context))
-
-  private implicit val illegalFilterFormatEncoder: Encoder[IllegalFilterFormat] =
-    deriveEncoder[IllegalFilterFormat].mapJson(_.deepMerge(context))
-
-  private implicit val internalErrorEncoder: Encoder[InternalError] =
-    deriveEncoder[InternalError].mapJson(_.deepMerge(context))
 
   private implicit val instanceStatusFrom: StatusFrom[InstanceRejection] = {
     import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
@@ -164,8 +140,8 @@ object ExceptionHandling {
     * @return an ExceptionHandler for [[ch.epfl.bluebrain.nexus.kg.core.Fault]] subtypes that ensures a descriptive
     *         message is returned to the caller
     */
-  final def exceptionHandler(implicit errorContext: ContextUri): ExceptionHandler = {
-    val handler = new ExceptionHandling
+  final def exceptionHandler(errorContext: ContextUri): ExceptionHandler = {
+    val handler = new ExceptionHandling()(errorContext)
     handler.exceptionHandler
   }
 

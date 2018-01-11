@@ -58,7 +58,7 @@ object LinksQueryResults {
   final implicit def encodeLinksQueryResults[A](implicit E: Encoder[QueryResult[A]],
                                                 L: Encoder[Links],
                                                 B: BaseEncoder): Encoder[LinksQueryResults[A]] = {
-    import B.JsonOps
+    import B.JsonOpsWithContextSyntax
 
     Encoder.encodeJson.contramap { response =>
       val json = Json.obj(

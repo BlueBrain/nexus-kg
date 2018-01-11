@@ -7,6 +7,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
@@ -71,24 +72,17 @@ class SchemaRoutesSpec
     val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
     val orgAgg         = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs           = Organizations(orgAgg)
-    val domAgg =
-      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
-        .toF[Future]
-    val doms = Domains(domAgg, orgs)
-    val ctxAgg =
-      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
-        .toF[Future]
-    val contexts = Contexts(ctxAgg, doms, baseUri.toString())
-    val schAgg =
-      MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
-        .toF[Future]
+    val domAgg         = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms           = Domains(domAgg, orgs)
+    val ctxAgg         = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    val contexts       = Contexts(ctxAgg, doms, baseUri.toString())
+    val schAgg         = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
     val schemas        = Schemas(schAgg, doms, contexts, baseUri.toString)
     implicit val clock = Clock.systemUTC
 
     val caller = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
-    val orgRef =
-      Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)
+    val orgRef = Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)
     val domRef =
       Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller), 2 seconds)
 
@@ -98,10 +92,11 @@ class SchemaRoutesSpec
     implicit val filteringSettings: FilteringSettings = FilteringSettings(vocab, vocab)
     implicit val cl: IamClient[Future]                = iamClient("http://localhost:8080")
 
-    val route =
-      SchemaRoutes(schemas, sparqlClient, querySettings, baseUri, prefixes).routes
+    val route = SchemaRoutes(schemas, contexts, sparqlClient, querySettings, baseUri).routes
 
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
+
+    createNexusContexts(orgs, doms, contexts)(caller)
 
     "create a schema" in {
       Put(s"/schemas/${schemaId.show}", schemaJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -135,6 +130,7 @@ class SchemaRoutesSpec
     "return the current schema" in {
       Get(s"/schemas/${schemaId.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         responseAs[Json] shouldEqual Json
           .obj(
             "@id"     -> Json.fromString(s"$baseUri/schemas/${schemaId.show}"),
@@ -145,6 +141,13 @@ class SchemaRoutesSpec
             "nxv:published"  -> Json.fromBoolean(false)
           )
           .deepMerge(schemaJsonWithStandardsContext)
+      }
+    }
+
+    "return the current schema with a custom format" in {
+      Get(s"/schemas/${schemaId.show}?format=expanded") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
       }
     }
 
