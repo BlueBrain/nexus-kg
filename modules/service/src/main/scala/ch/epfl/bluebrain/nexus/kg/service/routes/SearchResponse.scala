@@ -12,7 +12,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult,
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Encoder
 
@@ -30,9 +29,8 @@ trait SearchResponse {
         R: Encoder[UnscoredQueryResult[Id]],
         S: Encoder[ScoredQueryResult[Id]],
         L: Encoder[Links],
-        B: BaseEncoder,
         orderedKeys: OrderedKeys): Route = {
-      implicit val linksContext: ContextUri = prefixes.LinksContext
+      implicit val context: ContextUri = prefixes.SearchContext
 
       extract(_.request.uri) { uri =>
         onSuccess(qr) { result =>
@@ -60,7 +58,6 @@ trait SearchResponse {
         Re: Encoder[UnscoredQueryResult[Entity]],
         Se: Encoder[ScoredQueryResult[Entity]],
         L: Encoder[Links],
-        B: BaseEncoder,
         orderedKeys: OrderedKeys): Route = {
       if (fields.contains("all")) {
         qr.flatMap { q =>

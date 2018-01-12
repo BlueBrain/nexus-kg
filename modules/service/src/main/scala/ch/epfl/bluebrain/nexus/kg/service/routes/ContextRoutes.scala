@@ -64,8 +64,7 @@ class ContextRoutes(contexts: Contexts[Future], contextQueries: FilterQueries[Fu
     with QueryDirectives {
 
   private implicit val _ = (entity: Context) => entity.id
-  private implicit val sQualifier: ConfiguredQualifier[String] =
-    Qualifier.configured[String](querySettings.nexusVocBase)
+  private implicit val qualifier: ConfiguredQualifier[String] = Qualifier.configured[String](querySettings.nexusVocBase)
   private implicit val contextEncoders: ContextCustomEncoders = new ContextCustomEncoders(base, prefixes)
   import contextEncoders._
 

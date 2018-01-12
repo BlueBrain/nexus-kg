@@ -2,22 +2,21 @@ package ch.epfl.bluebrain.nexus.kg.service.query
 
 import java.util.UUID
 
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.Uri.Query
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{UnscoredQueryResult, _}
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
+import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
-import ch.epfl.bluebrain.nexus.kg.service.prefixes
-import io.circe._
-import io.circe.syntax._
 import org.scalatest.{Matchers, WordSpecLike}
+import io.circe.syntax._
+import io.circe._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult._
 
 class LinksQueryResultsSpec extends WordSpecLike with Matchers {
 
-  private val baseEncoder = new BaseEncoder(prefixes)
   private val sqr: Encoder[ScoredQueryResult[String]] = Encoder.encodeJson.contramap { res =>
     Json.obj(
       "source" -> Json.fromString(res.source),
@@ -28,7 +27,7 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
     Json.obj("source" -> Json.fromString(res.source))
   }
   private implicit val qr  = QueryResult.queryResultEncoder(sqr, uqr)
-  private implicit val lqr = LinksQueryResults.encodeLinksQueryResults(qr, linksEncoder, baseEncoder)
+  private implicit val lqr = LinksQueryResults.encodeLinksQueryResults(qr, linksEncoder)
 
   "A LinksQueryResults" should {
     val total                      = 17L
@@ -105,8 +104,7 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
       linksResults.asJson shouldEqual Json.obj(
         "total"    -> Json.fromLong(linksResults.response.total),
         "results"  -> linksResults.response.results.asJson,
-        "links"    -> links.asJson,
-        "@context" -> Json.fromString(prefixes.SearchContext.toString)
+        "links"    -> links.asJson
       )
     }
 
@@ -123,8 +121,7 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
         "total"    -> Json.fromLong(linksResults.response.total),
         "maxScore" -> Json.fromFloatOrNull(1F),
         "results"  -> linksResults.response.results.asJson,
-        "links"    -> links.asJson,
-        "@context" -> Json.fromString(prefixes.SearchContext.toString)
+        "links"    -> links.asJson
       )
     }
   }
