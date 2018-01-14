@@ -49,7 +49,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
             Put(s"/schemas/${schemaId.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
               idsPayload += (schemaId -> Schema(schemaId, 2L, json, false, true))
               status shouldEqual StatusCodes.Created
-              responseAs[Json] shouldEqual SchemaRef(schemaId, 1L).asJson
+              responseAs[Json] shouldEqual SchemaRef(schemaId, 1L).asJson.addCoreContext
             }
         }
       }
@@ -60,7 +60,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
             Patch(s"/schemas/${schemaId.show}/config?rev=1", SchemaConfig(published = true)) ~> addCredentials(
               ValidCredentials) ~> route ~> check {
               status shouldEqual StatusCodes.OK
-              responseAs[Json] shouldEqual SchemaRef(schemaId, 2L).asJson
+              responseAs[Json] shouldEqual SchemaRef(schemaId, 2L).asJson.addCoreContext
             }
         }
       }
@@ -70,13 +70,13 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
           Get(s"/schemas") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults = UnscoredQueryResults(schemas.length.toLong, schemas.take(10).map {
+            val expectedResults = UnscoredQueryResults(schemas.length.toLong, schemas.take(20).map {
               case (schemaId, _) => UnscoredQueryResult(schemaId)
             })
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/schemas",
-                                      "next" -> s"$apiUri/schemas?from=10&size=10")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+                                      "next" -> s"$apiUri/schemas?from=20&size=20")
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -98,7 +98,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri$path",
                                       "next" -> s"$apiUri$path&from=5")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -116,7 +116,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
               Links("@context" -> s"${prefixes.LinksContext}",
                     "self"     -> s"$apiUri$path",
                     "previous" -> s"$apiUri$path".replace("from=100", s"from=${(schemas.length - 3 * 5) - 5}"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -130,7 +130,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
           val expectedResults =
             ScoredQueryResults(3L, 1F, schemas.take(3).map { case (id, _) => ScoredQueryResult(1F, id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -145,7 +145,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
             Links("@context" -> s"${prefixes.LinksContext}",
                   "self"     -> s"$apiUri$path",
                   "previous" -> s"$apiUri$path".replace("from=200", "from=0"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -156,7 +156,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
           val expectedResults =
             UnscoredQueryResults(3L, schemas.take(3).map { case (schemaId, _) => UnscoredQueryResult(schemaId) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -168,7 +168,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
           val expectedResults =
             UnscoredQueryResults(3L, schemas.take(3).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -197,7 +197,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
               Links("@context" -> s"${prefixes.LinksContext}",
                     "self"     -> uri,
                     "next"     -> uri.withQuery(Query(uri.query().toMap + ("from" -> "10") + ("size" -> "10"))))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -206,7 +206,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
         val (schemaId, _) = schemas.head
         Delete(s"/schemas/${schemaId.show}?rev=2") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual SchemaRef(schemaId, 3L).asJson
+          responseAs[Json] shouldEqual SchemaRef(schemaId, 3L).asJson.addCoreContext
         }
       }
 

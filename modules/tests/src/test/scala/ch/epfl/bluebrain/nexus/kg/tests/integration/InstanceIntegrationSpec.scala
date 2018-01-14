@@ -21,7 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
@@ -48,11 +48,7 @@ class InstanceIntegrationSpec(
 
   import BootstrapIntegrationSpec._
   import instanceEncoders._
-  import schemaEncoders.{
-    idWithLinksEncoder => schemaIdEncoder,
-    queryResultEncoder => squeryResultEncoder,
-    scoredQueryResultEncoder => sscoredQueryResultEncoder
-  }
+  import schemaEncoders.{idWithLinksEncoder => schemaIdEncoder, queryResultEncoder => squeryResultEncoder, scoredQueryResultEncoder => sscoredQueryResultEncoder}
 
   "A InstanceRoutes" when {
 
@@ -88,13 +84,13 @@ class InstanceIntegrationSpec(
           Get(s"/data") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults = UnscoredQueryResults(instances.length.toLong, instances.take(10).map {
+            val expectedResults = UnscoredQueryResults(instances.length.toLong, instances.take(20).map {
               case (id, _) => UnscoredQueryResult(id)
             })
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/data",
-                                      "next" -> s"$apiUri/data?from=10&size=10")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+                                      "next" -> s"$apiUri/data?from=20&size=20")
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -111,7 +107,7 @@ class InstanceIntegrationSpec(
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                     "self" -> s"$apiUri$path",
                                     "next" -> s"$apiUri$path&from=5")
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -128,7 +124,7 @@ class InstanceIntegrationSpec(
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                     "self" -> s"$apiUri$path",
                                     "next" -> s"$apiUri$path&from=5")
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -144,7 +140,7 @@ class InstanceIntegrationSpec(
             Links("@context" -> s"${prefixes.LinksContext}",
                   "self"     -> s"$apiUri$path",
                   "previous" -> s"$apiUri$path".replace("from=500", s"from=${randInstances.length - 5}"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -158,7 +154,7 @@ class InstanceIntegrationSpec(
           val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
           val expectedResults = ScoredQueryResults(1L, score, List(ScoredQueryResult(score, instanceId)))
           val expectedLinks   = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          json shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          json shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -174,7 +170,7 @@ class InstanceIntegrationSpec(
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                     "self"     -> s"$apiUri$path",
                                     "previous" -> s"$apiUri$path".replace("from=200", "from=0"))
-          json shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          json shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -187,7 +183,7 @@ class InstanceIntegrationSpec(
           val expectedResults =
             UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -204,7 +200,7 @@ class InstanceIntegrationSpec(
           contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
           val expectedLinks   = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -217,7 +213,7 @@ class InstanceIntegrationSpec(
           val expectedResults =
             UnscoredQueryResults(5L, instances.take(5).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -229,7 +225,7 @@ class InstanceIntegrationSpec(
           val expectedResults =
             UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -237,7 +233,7 @@ class InstanceIntegrationSpec(
         val (instanceId, _) = instances.head
         Delete(s"/data/${instanceId.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual InstanceRef(instanceId, 2L).asJson
+          responseAs[Json] shouldEqual InstanceRef(instanceId, 2L).asJson.addCoreContext
         }
       }
 
@@ -250,7 +246,7 @@ class InstanceIntegrationSpec(
             val expectedResults =
               UnscoredQueryResults(9L, instances.slice(1, 10).map { case (id, _) => UnscoredQueryResult(id) })
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -267,7 +263,7 @@ class InstanceIntegrationSpec(
           contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(outgoingId)))
           val expectedLinks   = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -283,7 +279,7 @@ class InstanceIntegrationSpec(
           contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
           val expectedLinks   = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
     }
