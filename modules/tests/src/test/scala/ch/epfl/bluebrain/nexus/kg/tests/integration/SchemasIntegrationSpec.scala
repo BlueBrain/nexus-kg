@@ -219,7 +219,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
             val expectedResults =
               UnscoredQueryResults(2L, schemas.slice(1, 3).map { case (id, _) => UnscoredQueryResult(id) })
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
