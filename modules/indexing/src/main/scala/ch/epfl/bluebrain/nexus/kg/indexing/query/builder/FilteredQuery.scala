@@ -6,16 +6,16 @@ import akka.http.scaladsl.model.Uri
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, SortList}
 import ch.epfl.bluebrain.nexus.kg.indexing.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, _}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Term}
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SortList
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SortListSparql._
 
 /**
   * Describes paginated queries based on filters.

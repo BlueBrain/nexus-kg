@@ -10,14 +10,24 @@ import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.{PermissionsAdded, PermissionsCleared}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{AccessControlList, Meta, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{GroupRef, UserRef}
+import ch.epfl.bluebrain.nexus.commons.iam.identity.{Identity, IdentityId}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.ScoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.ScoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
@@ -28,6 +38,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, SchemaDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainIndexer, DomainIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter
@@ -36,9 +47,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.LiteralTerm
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationIndexer, OrganizationIndexingSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.ScoredQueryResult
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.ScoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.{SchemaIndexer, SchemaIndexingSettings}
@@ -48,14 +56,6 @@ import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.{PermissionsAdded, PermissionsCleared}
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
-import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.{Identity, IdentityId}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -254,7 +254,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       result2.results.head.source shouldEqual OrgId("org0")
 
       val result3 = q
-        .list(filterNoDepr, pagination, None, SortList(List(Sort(s"-$nexusVocBaseOrgs/createdAtTime").get)))
+        .list(filterNoDepr, pagination, None, SortList(List(Sort(s"-$nexusVocBaseOrgs/createdAtTime"))))
         .futureValue
       result3.total shouldEqual 3L
       result3.results.size shouldEqual 3

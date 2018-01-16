@@ -3,22 +3,21 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 import java.util.regex.Pattern
 
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.commons.test.Resources
-import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.NoopExpr
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
-import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{Anonymous, GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.IdentityId
+import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, Sort, SortList}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.AclSparqlExpr._
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.NoopExpr
+import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
+import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
 class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with EitherValues {
 
@@ -204,7 +203,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
                                                pagination,
                                                identities = identities,
                                                None,
-                                               SortList(List(Sort(s"$base/createdAtTime").get)))
+                                               SortList(List(Sort(s"$base/createdAtTime"))))
         result shouldEqual expected
       }
 
