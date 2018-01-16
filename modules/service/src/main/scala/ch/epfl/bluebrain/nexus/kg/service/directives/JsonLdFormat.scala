@@ -24,5 +24,4 @@ object JsonLdFormat {
 
   final case object Flattened extends JenaJsonLdFormat(RDFFormat.JSONLD_FLATTEN_FLAT)
 
-  final case object Framed extends JenaJsonLdFormat(RDFFormat.JSONLD_FRAME_FLAT)
 }

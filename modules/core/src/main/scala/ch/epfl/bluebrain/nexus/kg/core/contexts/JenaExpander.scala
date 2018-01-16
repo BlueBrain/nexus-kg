@@ -9,28 +9,50 @@ import io.circe.Json
 import io.circe.parser._
 import org.apache.jena.query.DatasetFactory
 import org.apache.jena.rdf.model.{Model, ModelFactory}
+import org.apache.jena.riot.RDFFormat._
 import org.apache.jena.riot.system.RiotLib
 import org.apache.jena.riot.{Lang, RDFDataMgr, RDFFormat}
 
 import scala.util.{Failure, Success, Try}
 
-sealed trait StringExpander[F[_]] extends ((String, Json) => F[String])
+/**
+  * Utility class to format JSON-LD payloads using Jena.
+  *
+  * @param contexts the operations bundle to resolve contexts
+  * @param F        a MonadError typeclass instance for ''F[_]''
+  * @tparam F       the monadic effect type
+  */
+class JenaExpander[F[_]](contexts: Contexts[F])(implicit F: MonadError[F, Throwable]) {
 
-sealed trait JsonExpander[F[_]] extends (Json => F[Json])
-
-class JenaExpander[F[_]](contexts: Contexts[F])(implicit F: MonadError[F, Throwable])
-    extends StringExpander[F]
-    with JsonExpander[F] {
-
-  override def apply(value: String, json: Json): F[String] = {
+  /**
+    * Expands a single JSON-LD ''value'' given the provided context.
+    *
+    * @param value the string to expand
+    * @param json the json payload which contains a ''@context'' json object
+    * @return the expanded string
+    */
+  def apply(value: String, json: Json): F[String] = {
     contexts.resolve(json).map { expanded =>
       val m = createModel(expanded)
       expand(value, m)
     }
   }
 
-  def apply(json: Json): F[Json] = apply(json, RDFFormat.JSONLD_EXPAND_FLAT)
+  /**
+    * Formats a JSON-LD payload following the JSON-LD ''expanded'' output variant.
+    *
+    * @param json the json payload to expand, which contains a ''@context'' json object
+    * @return the expanded output
+    */
+  def apply(json: Json): F[Json] = apply(json, JSONLD_EXPAND_FLAT)
 
+  /**
+    * Formats a JSON-LD payload following a provided JSON-LD variant.
+    *
+    * @param json the json payload to format, which contains a ''@context'' json object
+    * @param rdfFormat a Jena [[RDFFormat]] variant
+    * @return the formatted output
+    */
   def apply(json: Json, rdfFormat: RDFFormat): F[Json] = {
     contexts.resolve(json).flatMap { expanded =>
       val m = createModel(expanded)
@@ -61,8 +83,8 @@ class JenaExpander[F[_]](contexts: Contexts[F])(implicit F: MonadError[F, Throwa
         Try(out.close())
         F.raiseError(err)
       }, {
-        case (Success(value)) => F.pure(value)
-        case (Failure(err))   => F.raiseError(err)
+        case Success(value) => F.pure(value)
+        case Failure(err)   => F.raiseError(err)
       }
     )
   }
