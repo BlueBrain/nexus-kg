@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.io
 
-import akka.http.scaladsl.model.Uri
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
 import io.circe._
@@ -40,7 +40,7 @@ class BaseEncoder(prefixes: PrefixUris) {
       * @param context the standard context URI
       * @return a new JSON object
       */
-    private def addContext(context: Uri): Json = {
+    private def addContext(context: ContextUri): Json = {
       val contextUriString = Json.fromString(context.toString)
 
       json.asObject match {

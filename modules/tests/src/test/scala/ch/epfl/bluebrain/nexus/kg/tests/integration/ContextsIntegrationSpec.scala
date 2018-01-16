@@ -5,6 +5,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
@@ -62,6 +63,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
           Get(s"/contexts") ~> addCredentials(ValidCredentials) ~> route ~> check {
 
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults = UnscoredQueryResults(contexts.length.toLong, sorted(contexts).take(20).map {
               case (contextId, _) => UnscoredQueryResult(contextId)
             })
@@ -80,6 +82,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults = UnscoredQueryResults(
               randContexts.length.toLong,
               randContexts
@@ -102,6 +105,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(randContexts.length.toLong, List.empty[UnscoredQueryResult[ContextId]])
             val expectedLinks = Links(
@@ -120,6 +124,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
         val nexusContexts = contextsForOrg(contexts, "nexus")
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(nexusContexts.length.toLong, List.empty[ScoredQueryResult[ContextId]])
           val expectedLinks =
@@ -134,6 +139,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
         val ctxs = contextsForOrgAndDomain(contexts, "nexus", "development")
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(ctxs.length.toLong, ctxs.map { case (contextId, _) => UnscoredQueryResult(contextId) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -150,6 +156,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
                                                             contextId.contextName.show)
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(resultContexts.length.toLong, resultContexts.take(3).map {
               case (id, _) => UnscoredQueryResult(id)
@@ -172,6 +179,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
           val randContexts = contextsForOrg(contexts, "rand")
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(randContexts.length.toLong - 1L, randContexts.slice(1, 4).map {
                 case (id, _) => UnscoredQueryResult(idsPayload(id))

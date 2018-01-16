@@ -10,6 +10,7 @@ import akka.stream.scaladsl.Source
 import akka.stream.{ActorMaterializer, IOResult}
 import akka.util.ByteString
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
@@ -86,6 +87,7 @@ class InstanceIntegrationSpec(
         eventually(timeout(Span(indexTimeout + 5, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/data") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults = UnscoredQueryResults(instances.length.toLong, instances.take(20).map {
               case (id, _) => UnscoredQueryResult(id)
             })
@@ -102,6 +104,7 @@ class InstanceIntegrationSpec(
         val path       = s"/data/rand?size=${pagination.size}"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(randInstances.length.toLong,
                                  randInstances.map { case (id, _) => UnscoredQueryResult(id) }.take(pagination.size))
@@ -117,6 +120,7 @@ class InstanceIntegrationSpec(
         val path       = s"/data/rand?size=${pagination.size}&fields=all"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(
               randInstances.length.toLong,
@@ -133,6 +137,7 @@ class InstanceIntegrationSpec(
         val path       = s"/data/rand?size=${pagination.size}&from=500"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(randInstances.length.toLong, List.empty[UnscoredQueryResult[SchemaId]])
           val expectedLinks =
@@ -148,6 +153,7 @@ class InstanceIntegrationSpec(
         val path            = s"/data/nexus?q=${instanceId.id}"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val json            = responseAs[Json]
           val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
           val expectedResults = ScoredQueryResults(1L, score, List(ScoredQueryResult(score, instanceId)))
@@ -161,6 +167,7 @@ class InstanceIntegrationSpec(
         val path            = s"/data/nexus?q=${instanceId.id}&size=3&from=200"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val json            = responseAs[Json]
           val score           = json.hcursor.get[Float]("maxScore").toOption.getOrElse(1F)
           val expectedResults = ScoredQueryResults(1L, score, List.empty[ScoredQueryResult[SchemaId]])
@@ -176,6 +183,7 @@ class InstanceIntegrationSpec(
         val path          = s"/data/${schemaId.schemaName.show}"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -193,6 +201,7 @@ class InstanceIntegrationSpec(
         val path = s"/data?filter=$uriFilter"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
           val expectedLinks   = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
@@ -204,6 +213,7 @@ class InstanceIntegrationSpec(
         val path            = s"/data/${instanceId.schemaId.show}"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(5L, instances.take(5).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -215,6 +225,7 @@ class InstanceIntegrationSpec(
         val path = s"/data/nexus/development"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(10L, instances.take(10).map { case (id, _) => UnscoredQueryResult(id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -235,6 +246,7 @@ class InstanceIntegrationSpec(
           val path = s"/data/nexus/development?deprecated=false"
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(9L, instances.slice(1, 10).map { case (id, _) => UnscoredQueryResult(id) })
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -252,6 +264,7 @@ class InstanceIntegrationSpec(
         val path = s"/data/${instanceId.show}/outgoing"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(outgoingId)))
           val expectedLinks   = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
@@ -267,6 +280,7 @@ class InstanceIntegrationSpec(
         val path = s"/data/${outgoingId.show}/incoming"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(instanceId)))
           val expectedLinks   = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson

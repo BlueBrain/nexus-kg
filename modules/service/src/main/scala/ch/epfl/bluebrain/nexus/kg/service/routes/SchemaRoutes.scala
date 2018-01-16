@@ -8,11 +8,11 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import cats.instances.string._
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
@@ -76,6 +76,7 @@ class SchemaRoutes(schemas: Schemas[Future],
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
+      implicit val searchContext: ContextUri = prefixes.SearchContext
       parameter('published.as[Boolean].?) { publishedOpt =>
         val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
         implicit val _ = (id: SchemaId) => schemas.fetch(id)
@@ -106,6 +107,7 @@ class SchemaRoutes(schemas: Schemas[Future],
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractSchemaId { schemaId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       (pathEndOrSingleSlash & get & authorizeResource(schemaId, Read)) {
         parameter('rev.as[Long].?) {
           case Some(rev) =>
@@ -149,6 +151,7 @@ class SchemaRoutes(schemas: Schemas[Future],
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractSchemaId { schemaId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       pathEndOrSingleSlash {
         (put & entity(as[Json])) { json =>
           (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>

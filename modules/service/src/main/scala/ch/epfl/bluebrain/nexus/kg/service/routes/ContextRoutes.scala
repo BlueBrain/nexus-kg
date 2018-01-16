@@ -8,10 +8,10 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
 import cats.instances.string._
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
@@ -74,6 +74,7 @@ class ContextRoutes(contexts: Contexts[Future],
 
   override protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]) =
     extractContextId { contextId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       pathEndOrSingleSlash {
         (put & entity(as[Json])) { json =>
           (authenticateCaller & authorizeResource(contextId, Write)) { implicit caller =>
@@ -122,6 +123,7 @@ class ContextRoutes(contexts: Contexts[Future],
 
   override protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]) = {
     extractContextId { contextId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       (pathEndOrSingleSlash & get & authorizeResource(contextId, Read)) {
         parameter('rev.as[Long].?) {
           case Some(rev) =>
@@ -145,6 +147,7 @@ class ContextRoutes(contexts: Contexts[Future],
 
   override protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & paginated & deprecated & published & fields & sort) {
+      implicit val searchContext: ContextUri = prefixes.SearchContext
       (pagination, deprecatedOpt, publishedOpt, fields, sort) =>
         traceName("searchContexts") {
           val filter     = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
@@ -230,7 +233,7 @@ class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context
           JsonLDKeys.nxvPublished  -> Json.fromBoolean(ctx.published)
         )
       )
-    if (ctx.id.qualify == prefixes.CoreContext)
+    if (ctx.id.qualify == prefixes.CoreContext.context)
       ctx.value.deepMerge(meta)
     else
       ctx.value.deepMerge(meta).addCoreContext
