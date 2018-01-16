@@ -77,6 +77,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             s"/domains?sort=-${prefixes.CoreVocabulary}/createdAtTime,$rdfType,http://localhost/something/that/does/exist"
           Get(uri) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(domains.size.toLong, domains.takeRight(20).reverse.map(UnscoredQueryResult(_)))
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
@@ -92,6 +93,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/domains/nexus") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(5L, domains.filter(_.orgId.id == "nexus").map(UnscoredQueryResult(_)))
             val expectedLinks =
@@ -108,6 +110,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults = UnscoredQueryResults(randDomains.length.toLong,
                                                        randDomains.map(UnscoredQueryResult(_)).take(pagination.size))
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
@@ -123,6 +126,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         val path       = s"/domains/rand?size=${pagination.size}&from=100"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(randDomains.length.toLong, List.empty[UnscoredQueryResult[DomainId]])
           val expectedLinks =
@@ -139,6 +143,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, domainId)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -151,6 +156,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         val path     = s"/domains/rand?q=${domainId.id}&fields=all"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, idsPayload(domainId))))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -162,6 +168,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         val path = s"/domains/rand?q=${domains(7).id}&size=3&from=200"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             ScoredQueryResults(1L, 1F, List.empty[ScoredQueryResult[DomainId]])
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
@@ -181,6 +188,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         val path = s"/domains/rand?filter=$uriFilter"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(1L, List(UnscoredQueryResult(domainId)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -192,6 +200,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         forAll(domains.take(2)) { domainId =>
           Delete(s"/domains/nexus/${domainId.id}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             responseAs[Json] shouldEqual DomainRef(domainId, 2L).asJson
           }
         }
@@ -201,6 +210,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/domains/nexus?deprecated=false") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults = UnscoredQueryResults(3L, domains.slice(2, 5).map(UnscoredQueryResult(_)))
             val expectedLinks =
               Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/domains/nexus?deprecated=false"))

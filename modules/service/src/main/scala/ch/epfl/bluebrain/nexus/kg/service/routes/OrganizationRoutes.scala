@@ -7,10 +7,10 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
@@ -56,6 +56,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
+      implicit val searchContext: ContextUri = prefixes.SearchContext
       (traceName("searchOrganizations") & authenticateCaller) { implicit caller =>
         val filter =
           filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
@@ -68,6 +69,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractOrgId & pathEndOrSingleSlash) { orgId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       (get & authorizeResource(orgId, Read)) {
         parameter('rev.as[Long].?) {
           case Some(rev) =>
@@ -90,6 +92,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractOrgId & pathEndOrSingleSlash) { orgId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       (put & entity(as[Json])) { json =>
         (authenticateCaller & authorizeResource(orgId, Write)) { implicit caller =>
           parameter('rev.as[Long].?) {

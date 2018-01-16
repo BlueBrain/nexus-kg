@@ -1,9 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import akka.http.scaladsl.model.EntityStreamSizeException
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.{EntityStreamSizeException, Uri}
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.service.directives.ErrorDirectives._
 import ch.epfl.bluebrain.nexus.commons.service.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
@@ -27,7 +28,7 @@ import journal.Logger
   * all rejections and unexpected failures are gracefully handled
   * and presented to the caller.
   */
-class ExceptionHandling(errorContext: Uri) {
+class ExceptionHandling(implicit errorContext: ContextUri) {
 
   private val logger = Logger[this.type]
 
@@ -163,8 +164,8 @@ object ExceptionHandling {
     * @return an ExceptionHandler for [[ch.epfl.bluebrain.nexus.kg.core.Fault]] subtypes that ensures a descriptive
     *         message is returned to the caller
     */
-  final def exceptionHandler(errorContext: Uri): ExceptionHandler = {
-    val handler = new ExceptionHandling(errorContext)
+  final def exceptionHandler(implicit errorContext: ContextUri): ExceptionHandler = {
+    val handler = new ExceptionHandling
     handler.exceptionHandler
   }
 

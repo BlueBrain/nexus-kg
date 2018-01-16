@@ -7,10 +7,10 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
@@ -58,6 +58,7 @@ final class DomainRoutes(domains: Domains[Future],
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
+      implicit val searchContext: ContextUri = prefixes.SearchContext
       val filter =
         filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
       implicit val _ = (id: DomainId) => domains.fetch(id)
@@ -79,6 +80,7 @@ final class DomainRoutes(domains: Domains[Future],
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractDomainId & pathEndOrSingleSlash) { domainId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       (get & authorizeResource(domainId, Read)) {
         parameter('rev.as[Long].?) {
           case Some(rev) =>
@@ -101,6 +103,7 @@ final class DomainRoutes(domains: Domains[Future],
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractDomainId & pathEndOrSingleSlash) { domainId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       (put & entity(as[DomainDescription])) { desc =>
         (authenticateCaller & authorizeResource(domainId, Write)) { implicit caller =>
           traceName("createDomain") {

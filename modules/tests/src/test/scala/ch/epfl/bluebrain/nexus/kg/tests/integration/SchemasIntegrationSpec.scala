@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef}
@@ -68,6 +69,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/schemas") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults = UnscoredQueryResults(schemas.length.toLong, schemas.take(20).map {
               case (schemaId, _) => UnscoredQueryResult(schemaId)
             })
@@ -85,6 +87,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults = UnscoredQueryResults(
               (schemas.length - 3 * 5).toLong,
               schemas
@@ -106,6 +109,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults((schemas.length - 3 * 5).toLong, List.empty[UnscoredQueryResult[SchemaId]])
             val expectedLinks =
@@ -122,6 +126,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
         val path          = s"/schemas/nexus?q=${schemaId.name}"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             ScoredQueryResults(3L, 1F, schemas.take(3).map { case (id, _) => ScoredQueryResult(1F, id) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -134,6 +139,7 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
         val path          = s"/schemas/nexus?q=${schemaId.name}&size=3&from=200"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults = ScoredQueryResults(3L, 1F, List.empty[ScoredQueryResult[SchemaId]])
           val expectedLinks =
             Links("@context" -> s"${prefixes.LinksContext}",

@@ -2,9 +2,9 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import akka.http.javadsl.server.AuthorizationFailedRejection
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server._
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.{MethodNotSupported, UnauthorizedAccess, WrongOrInvalidJson}
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
@@ -26,7 +26,7 @@ object RejectionHandling {
     * in the routes evaluation process, the priority order to handle them is defined
     * by the order of appearance in this method.
     */
-  final def rejectionHandler(errorContext: Uri): RejectionHandler = {
+  final def rejectionHandler(errorContext: ContextUri): RejectionHandler = {
 
     val context = Json.obj(`@context` -> Json.fromString(errorContext.toString))
 

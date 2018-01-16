@@ -11,11 +11,11 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
@@ -67,8 +67,9 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
-      val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-      implicit val _ = (id: InstanceId) => instances.fetch(id)
+      val filter                             = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+      implicit val _                         = (id: InstanceId) => instances.fetch(id)
+      implicit val searchContext: ContextUri = prefixes.SearchContext
       traceName("searchInstances") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           instanceQueries.list(filter, pagination, termOpt, sort).buildResponse(fields, base, pagination)
@@ -112,6 +113,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractInstanceId { instanceId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       (pathEndOrSingleSlash & get & authorizeResource(instanceId, Read)) {
         parameter('rev.as[Long].?) {
           case Some(rev) =>
@@ -154,6 +156,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractSchemaId & pathEndOrSingleSlash & post) { schemaId =>
+      implicit val coreContext: ContextUri = prefixes.CoreContext
       entity(as[Json]) { json =>
         (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
           traceName("createInstance") {

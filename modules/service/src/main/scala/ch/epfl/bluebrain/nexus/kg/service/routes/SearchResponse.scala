@@ -4,8 +4,8 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives.{complete, extract, onSuccess}
 import akka.http.scaladsl.server.Route
 import cats.syntax.functor._
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.{OrderedKeys, marshallerHttp}
 import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
@@ -29,7 +29,8 @@ trait SearchResponse {
                                                                          S: Encoder[ScoredQueryResult[Id]],
                                                                          L: Encoder[Links],
                                                                          B: BaseEncoder,
-                                                                         orderedKeys: OrderedKeys): Route = {
+                                                                         orderedKeys: OrderedKeys,
+                                                                         C: ContextUri): Route = {
       extract(_.request.uri) { uri =>
         onSuccess(qr) { result =>
           val lqu = base.copy(path = uri.path, fragment = uri.fragment, rawQueryString = uri.rawQueryString)
@@ -57,7 +58,8 @@ trait SearchResponse {
         Se: Encoder[ScoredQueryResult[Entity]],
         L: Encoder[Links],
         B: BaseEncoder,
-        orderedKeys: OrderedKeys): Route = {
+        orderedKeys: OrderedKeys,
+        C: ContextUri): Route = {
       if (fields.contains("all")) {
         qr.flatMap { q =>
             q.results

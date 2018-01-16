@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.PermissionsAdded
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
@@ -62,6 +63,15 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         }
       }
 
+      "retrieve organizations successfully" in {
+        forAll(orgs) { orgId =>
+          Get(s"/organizations/${orgId.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+          }
+        }
+      }
+
       "add read permissions for root level" in {
         forAll(orgs) { orgId =>
           eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
@@ -77,6 +87,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/organizations") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(orgs.length.toLong, orgs.map {
                 UnscoredQueryResult(_)
@@ -92,6 +103,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/organizations?fields=all") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(orgs.length.toLong, orgs.map { id =>
                 UnscoredQueryResult(idsPayload(id))
@@ -111,6 +123,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
               UnscoredQueryResults(orgs.length.toLong, List(UnscoredQueryResult(orgs(1))))
             val expectedLinks = Links(
@@ -129,6 +142,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         val path       = s"/organizations?size=${pagination.size}&from=100"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(orgs.length.toLong, List.empty[UnscoredQueryResult[OrgId]])
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
@@ -142,6 +156,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         val path = s"/organizations?q=${orgs.head.id}"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, orgs.head)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -153,6 +168,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         val path = s"/organizations?q=${orgs.head.id}&size=3&from=200"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             ScoredQueryResults(1L, 1F, List.empty[ScoredQueryResult[OrgId]])
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
@@ -170,6 +186,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         val path = s"/organizations?filter=$uriFilter"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(1L, List(UnscoredQueryResult(orgs.head)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
@@ -180,6 +197,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
       "list organizations with deprecation" in {
         Get(s"/organizations?deprecated=false") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(orgs.length.toLong, orgs.map {
               UnscoredQueryResult(_)
@@ -190,6 +208,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         }
         Get(s"/organizations?deprecated=true") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
           val expectedResults =
             UnscoredQueryResults(0, List.empty[UnscoredQueryResult[OrgId]])
           val expectedLinks =

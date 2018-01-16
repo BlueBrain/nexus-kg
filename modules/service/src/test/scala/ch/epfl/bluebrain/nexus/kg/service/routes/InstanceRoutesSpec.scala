@@ -254,6 +254,7 @@ class InstanceRoutesSpec
 
       Get(s"/data/${instanceRef.id.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         responseAs[Json] shouldEqual Json
           .obj(
             "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
@@ -272,6 +273,7 @@ class InstanceRoutesSpec
 
       Get(s"/data/${instanceRef.id.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         responseAs[Json] shouldEqual Json
           .obj(
             "@id" -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
@@ -406,6 +408,7 @@ class InstanceRoutesSpec
       }
 
       Get(s"/data/${instanceRef.id.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
