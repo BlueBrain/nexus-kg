@@ -76,11 +76,4 @@ abstract class DefaultRouteHandling(contexts: Contexts[Future])(implicit prefixe
     }
   }
 
-  /**
-  * Wrapper class to ensure the formatted JSON goes through the JSON-LD marshaller.
-
-  private case class Formatted(value: Json)
-
-  private implicit val formattedEncoder: Encoder[Formatted] = Encoder.encodeJson.contramap(_.value) */
-
 }

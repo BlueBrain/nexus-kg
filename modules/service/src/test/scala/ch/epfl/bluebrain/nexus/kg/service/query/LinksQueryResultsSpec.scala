@@ -102,9 +102,9 @@ class LinksQueryResultsSpec extends WordSpecLike with Matchers {
                         "next"     -> uri.withQuery(Query("from" -> "10", "size" -> "5")))
       val linksResults = LinksQueryResults(resp, links)
       linksResults.asJson shouldEqual Json.obj(
-        "total"    -> Json.fromLong(linksResults.response.total),
-        "results"  -> linksResults.response.results.asJson,
-        "links"    -> links.asJson
+        "total"   -> Json.fromLong(linksResults.response.total),
+        "results" -> linksResults.response.results.asJson,
+        "links"   -> links.asJson
       )
     }
 

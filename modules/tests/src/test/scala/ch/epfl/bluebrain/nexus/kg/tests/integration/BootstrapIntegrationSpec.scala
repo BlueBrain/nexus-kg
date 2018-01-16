@@ -64,11 +64,11 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris)(impli
   private implicit val contextIdExtractor             = (entity: Context) => entity.id
   private implicit val instanceIdExtractor            = (entity: Instance) => entity.id
 
-  val orgsEncoders                      = new OrgCustomEncoders(apiUri, prefixes)
-  val domsEncoders                      = new DomainCustomEncoders(apiUri, prefixes)
-  val contextEncoders                   = new ContextCustomEncoders(apiUri, prefixes)
-  val schemaEncoders                    = new SchemaCustomEncoders(apiUri, prefixes)
-  val instanceEncoders                  = new InstanceCustomEncoders(apiUri, prefixes)
+  val orgsEncoders     = new OrgCustomEncoders(apiUri, prefixes)
+  val domsEncoders     = new DomainCustomEncoders(apiUri, prefixes)
+  val contextEncoders  = new ContextCustomEncoders(apiUri, prefixes)
+  val schemaEncoders   = new SchemaCustomEncoders(apiUri, prefixes)
+  val instanceEncoders = new InstanceCustomEncoders(apiUri, prefixes)
 }
 
 object BootstrapIntegrationSpec extends Randomness with Resources {
