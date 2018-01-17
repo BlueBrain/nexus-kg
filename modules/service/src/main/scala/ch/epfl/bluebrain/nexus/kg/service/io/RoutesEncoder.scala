@@ -1,9 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.service.io
 
 import akka.http.scaladsl.model.Uri
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.core.Ref
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links

@@ -11,16 +11,15 @@ import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
-import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec.baseUri
 import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutesSpec._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate

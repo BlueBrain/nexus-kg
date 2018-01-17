@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
@@ -28,15 +29,10 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
-  SchemaDoesNotExist,
-  SchemaIsDeprecated,
-  SchemaIsNotPublished
-}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{SchemaDoesNotExist, SchemaIsDeprecated, SchemaIsNotPublished}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexingSettings
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
@@ -45,7 +41,6 @@ import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileSt
 import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
-import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec.baseUri
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error._
 import ch.epfl.bluebrain.nexus.kg.service.routes.InstanceRoutesSpec._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate

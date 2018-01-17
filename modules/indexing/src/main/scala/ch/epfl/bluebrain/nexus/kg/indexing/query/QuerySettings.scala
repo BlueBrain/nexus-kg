@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.query
 
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
+import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 
 /**
   * Collection of configurable settings specific to queries.

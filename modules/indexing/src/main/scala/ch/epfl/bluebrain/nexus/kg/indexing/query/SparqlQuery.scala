@@ -3,9 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query
 import cats.MonadError
 import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.indexing.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms
 import journal.Logger
 import org.apache.jena.query.QuerySolution

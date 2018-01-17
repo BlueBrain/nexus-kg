@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.kg.indexing.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import org.apache.jena.arq.querybuilder.ConstructBuilder
+import org.apache.jena.arq.querybuilder.{ConstructBuilder, SelectBuilder}
 import org.apache.jena.graph.NodeFactory
 
 /**
@@ -24,13 +24,11 @@ object PatchQuery {
     val subj     = NodeFactory.createURI(id.qualifyAsString)
     val graphUri = NodeFactory.createURI(graph.toString())
     val (construct, where) = predicates.zipWithIndex
-      .foldLeft((new ConstructBuilder, new ConstructBuilder)) {
+      .foldLeft((new ConstructBuilder, new SelectBuilder)) {
         case ((builderConstruct, builderWhere), (elem, idx)) =>
           val predicate = NodeFactory.createURI(elem)
           val objVar    = NodeFactory.createVariable(s"var$idx")
-          (builderConstruct
-             .addConstruct(subj, predicate, objVar),
-           builderWhere.addOptional(subj, predicate, objVar))
+          (builderConstruct.addConstruct(subj, predicate, objVar), builderWhere.addOptional(subj, predicate, objVar))
       }
     construct
       .addGraph(graphUri, where)
@@ -50,7 +48,7 @@ object PatchQuery {
     val filter   = predicates.map(p => s"?p != <${NodeFactory.createURI(p)}>").mkString(" && ")
     new ConstructBuilder()
       .addConstruct("?s", "?p", "?o")
-      .addGraph(graphUri, new ConstructBuilder().addWhere("?s", "?p", "?o").addFilter(filter))
+      .addGraph(graphUri, new SelectBuilder().addWhere("?s", "?p", "?o").addFilter(filter))
       .build
       .serialize()
   }

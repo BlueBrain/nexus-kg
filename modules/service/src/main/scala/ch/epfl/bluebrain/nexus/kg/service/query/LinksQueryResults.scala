@@ -2,9 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.service.query
 
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.Uri.Query
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.ScoredQueryResults
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.ScoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys

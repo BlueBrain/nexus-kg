@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 import akka.http.scaladsl.model.Uri
 import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, _}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextName
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -14,9 +15,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, Eq}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries.{domExpr, _}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResults, QuerySettings, SortList, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 
 /**

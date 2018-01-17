@@ -1,9 +1,21 @@
-val commonsVersion         = "0.5.25"
-val metricsCoreVersion     = "3.2.2"
-val jenaVersion            = "3.4.0"
-val blazegraphVersion      = "2.1.4"
-val jacksonVersion         = "2.9.0"
-val akkaStreamKafkaVersion = "0.17"
+val akkaVersion                     = "2.5.4"
+val akkaHttpVersion                 = "10.0.10"
+val akkaHttpCorsVersion             = "0.2.1"
+val akkaPersistenceCassandraVersion = "0.55"
+val akkaPersistenceInMemVersion     = "2.5.1.1"
+val akkaHttpCirceVersion            = "1.18.0"
+val akkaStreamKafkaVersion          = "0.17"
+val catsVersion                     = "0.9.0"
+val circeVersion                    = "0.8.0"
+val logbackVersion                  = "1.2.3"
+val journalVersion                  = "3.0.19"
+val commonsVersion                  = "0.5.30"
+val metricsCoreVersion              = "3.2.2"
+val jenaVersion                     = "3.3.0"
+val jsonldJavaVersion               = "0.9.0" // TODO: remove once we upgrade to Jena 3.4
+val blazegraphVersion               = "2.1.4"
+val jacksonVersion                  = "2.9.0"
+val scalaTestVersion                = "3.0.4"
 
 lazy val sourcingCore   = nexusDep("sourcing-core", commonsVersion)
 lazy val sourcingAkka   = nexusDep("sourcing-akka", commonsVersion)
@@ -44,11 +56,11 @@ lazy val core = project
       shaclValidator,
       sourcingMem          % Test,
       commonsTest          % Test,
-      "io.circe"           %% "circe-core" % circeVersion.value,
-      "io.circe"           %% "circe-optics" % circeVersion.value,
-      "io.circe"           %% "circe-parser" % circeVersion.value,
-      "io.verizon.journal" %% "core" % journalVersion.value,
-      "org.scalatest"      %% "scalatest" % scalaTestVersion.value % Test
+      "io.circe"           %% "circe-core" % circeVersion,
+      "io.circe"           %% "circe-optics" % circeVersion,
+      "io.circe"           %% "circe-parser" % circeVersion,
+      "io.verizon.journal" %% "core" % journalVersion,
+      "org.scalatest"      %% "scalatest" % scalaTestVersion % Test
     )
   )
 
@@ -78,20 +90,20 @@ lazy val indexing = project
       sourcingMem % Test,
       commonsTest % Test,
       sparqlClient,
-      "com.typesafe.akka"          %% "akka-stream"        % akkaVersion.value,
-      "com.typesafe.akka"          %% "akka-http"          % akkaHttpVersion.value,
-      "de.heikoseeberger"          %% "akka-http-circe"    % akkaHttpCirceVersion.value,
-      "io.circe"                   %% "circe-core"         % circeVersion.value,
-      "io.circe"                   %% "circe-parser"       % circeVersion.value,
-      "io.verizon.journal"         %% "core"               % journalVersion.value,
+      "com.typesafe.akka"          %% "akka-stream"        % akkaVersion,
+      "com.typesafe.akka"          %% "akka-http"          % akkaHttpVersion,
+      "de.heikoseeberger"          %% "akka-http-circe"    % akkaHttpCirceVersion,
+      "io.circe"                   %% "circe-core"         % circeVersion,
+      "io.circe"                   %% "circe-parser"       % circeVersion,
+      "io.verizon.journal"         %% "core"               % journalVersion,
       "org.apache.jena"            % "jena-arq"            % jenaVersion,
       "org.apache.jena"            % "jena-querybuilder"   % jenaVersion,
       "com.blazegraph"             % "blazegraph-jar"      % blazegraphVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-core"        % jacksonVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonVersion % Test,
-      "com.typesafe.akka"          %% "akka-testkit"       % akkaVersion.value % Test,
-      "org.scalatest"              %% "scalatest"          % scalaTestVersion.value % Test
+      "com.typesafe.akka"          %% "akka-testkit"       % akkaVersion % Test,
+      "org.scalatest"              %% "scalatest"          % scalaTestVersion % Test
     )
   )
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
@@ -112,28 +124,28 @@ lazy val service = project
       sourcingAkka,
       sourcingMem                  % Test,
       commonsTest                  % Test,
-      "ch.megard"                  %% "akka-http-cors" % akkaHttpCorsVersion.value,
-      "ch.qos.logback"             % "logback-classic" % logbackVersion.value,
-      "com.typesafe.akka"          %% "akka-slf4j" % akkaVersion.value,
-      "com.typesafe.akka"          %% "akka-http" % akkaHttpVersion.value,
-      "com.typesafe.akka"          %% "akka-distributed-data" % akkaVersion.value,
-      "com.typesafe.akka"          %% "akka-persistence-cassandra" % akkaPersistenceCassandraVersion.value,
+      "ch.megard"                  %% "akka-http-cors" % akkaHttpCorsVersion,
+      "ch.qos.logback"             % "logback-classic" % logbackVersion,
+      "com.typesafe.akka"          %% "akka-slf4j" % akkaVersion,
+      "com.typesafe.akka"          %% "akka-http" % akkaHttpVersion,
+      "com.typesafe.akka"          %% "akka-distributed-data" % akkaVersion,
+      "com.typesafe.akka"          %% "akka-persistence-cassandra" % akkaPersistenceCassandraVersion,
       "com.typesafe.akka"          %% "akka-stream-kafka" % akkaStreamKafkaVersion,
       "io.dropwizard.metrics"      % "metrics-core" % metricsCoreVersion, // for cassandra client, or fails at runtime
-      "de.heikoseeberger"          %% "akka-http-circe" % akkaHttpCirceVersion.value,
-      "io.circe"                   %% "circe-core" % circeVersion.value,
-      "io.circe"                   %% "circe-parser" % circeVersion.value,
-      "io.circe"                   %% "circe-generic-extras" % circeVersion.value,
-      "io.circe"                   %% "circe-java8" % circeVersion.value,
+      "de.heikoseeberger"          %% "akka-http-circe" % akkaHttpCirceVersion,
+      "io.circe"                   %% "circe-core" % circeVersion,
+      "io.circe"                   %% "circe-parser" % circeVersion,
+      "io.circe"                   %% "circe-generic-extras" % circeVersion,
+      "io.circe"                   %% "circe-java8" % circeVersion,
       "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-core" % jacksonVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion % Test,
       "com.blazegraph"             % "blazegraph-jar" % blazegraphVersion % Test,
-      "com.github.dnvriend"        %% "akka-persistence-inmemory" % akkaPersistenceInMemVersion.value % Test,
-      "com.typesafe.akka"          %% "akka-http-testkit" % akkaHttpVersion.value % Test,
-      "com.typesafe.akka"          %% "akka-testkit" % akkaVersion.value % Test,
+      "com.github.dnvriend"        %% "akka-persistence-inmemory" % akkaPersistenceInMemVersion % Test,
+      "com.typesafe.akka"          %% "akka-http-testkit" % akkaHttpVersion % Test,
+      "com.typesafe.akka"          %% "akka-testkit" % akkaVersion % Test,
       "net.manub"                  %% "scalatest-embedded-kafka" % "1.0.0" % Test,
-      "org.scalatest"              %% "scalatest" % scalaTestVersion.value % Test
+      "org.scalatest"              %% "scalatest" % scalaTestVersion % Test
     )
   )
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
@@ -154,7 +166,7 @@ lazy val tests = project
     moduleName := "kg-tests",
     libraryDependencies ++= Seq(
       commonsTest         % Test,
-      "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion.value % Test
+      "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion % Test
     )
   )
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
@@ -166,10 +178,7 @@ lazy val root = project
   .settings(common, noPublish)
   .settings(
     name := "kg",
-    moduleName := "kg",
-    homepage := Some(new URL("https://github.com/BlueBrain/nexus-kg")),
-    description := "Nexus KnowledgeGraph",
-    licenses := Seq(("Apache 2.0", new URL("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")))
+    moduleName := "kg"
   )
   .aggregate(docs, core, indexing, service, tests, schemas)
 
@@ -177,8 +186,11 @@ lazy val noPublish = Seq(publishLocal := {}, publish := {})
 
 lazy val common = Seq(
   scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
-  resolvers += Resolver.bintrayRepo("bogdanromanx", "maven"),
-  workbenchVersion := "0.2.0"
+  workbenchVersion := "0.2.2",
+  homepage := Some(url("https://github.com/BlueBrain/nexus-kg")),
+  licenses := Seq("Apache-2.0" -> url("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")),
+  scmInfo := Some(
+    ScmInfo(url("https://github.com/BlueBrain/nexus-kg"), "scm:git:git@github.com:BlueBrain/nexus-kg.git"))
 )
 
 lazy val noCoverage = Seq(coverageFailOnMinimum := false)

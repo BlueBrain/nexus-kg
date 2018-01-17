@@ -13,15 +13,15 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.indexing.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
@@ -48,11 +48,7 @@ class InstanceIntegrationSpec(
 
   import BootstrapIntegrationSpec._
   import instanceEncoders._
-  import schemaEncoders.{
-    idWithLinksEncoder => schemaIdEncoder,
-    queryResultEncoder => squeryResultEncoder,
-    scoredQueryResultEncoder => sscoredQueryResultEncoder
-  }
+  import schemaEncoders.{idWithLinksEncoder => schemaIdEncoder, queryResultEncoder => squeryResultEncoder, scoredQueryResultEncoder => sscoredQueryResultEncoder}
 
   "A InstanceRoutes" when {
 
