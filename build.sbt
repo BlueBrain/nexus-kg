@@ -69,7 +69,6 @@ lazy val schemas = project
   .settings(common)
   .enablePlugins(WorkbenchPlugin)
   .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
-  .settings(publishSettings)
   .settings(
     name := "kg-schemas",
     moduleName := "kg-schemas",
@@ -81,7 +80,6 @@ lazy val schemas = project
 lazy val indexing = project
   .in(file("modules/indexing"))
   .dependsOn(core)
-  .settings(publishSettings)
   .settings(common)
   .settings(
     name := "kg-indexing",
@@ -116,7 +114,6 @@ lazy val service = project
   .in(file("modules/service"))
   .dependsOn(core % "test->test;compile->compile", indexing, docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
-  .settings(publishSettings)
   .settings(common, buildInfoSettings, packagingSettings, noCoverage)
   .settings(
     name := "kg-service",
@@ -187,17 +184,13 @@ lazy val root = project
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {})
 
-lazy val publishSettings = Seq(
+lazy val common = Seq(
+  scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
+  workbenchVersion := "0.2.2",
   homepage := Some(url("https://github.com/BlueBrain/nexus-kg")),
   licenses := Seq("Apache-2.0" -> url("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")),
   scmInfo := Some(
     ScmInfo(url("https://github.com/BlueBrain/nexus-kg"), "scm:git:git@github.com:BlueBrain/nexus-kg.git"))
-)
-
-lazy val common = Seq(
-  scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
-  resolvers += Resolver.bintrayRepo("bogdanromanx", "maven"),
-  workbenchVersion := "0.2.0"
 )
 
 lazy val noCoverage = Seq(coverageFailOnMinimum := false)
