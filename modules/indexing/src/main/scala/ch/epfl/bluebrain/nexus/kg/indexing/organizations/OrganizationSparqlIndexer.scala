@@ -25,15 +25,15 @@ import journal.Logger
   * Organization incremental indexing logic that pushes data into an rdf triple store.
   *
   * @param client   the SPARQL client to use for communicating with the rdf triple store
-  * @param contexts  the context operation bundle
+  * @param contexts the context operation bundle
   * @param settings the indexing settings
   * @tparam F the monadic effect type
   */
-class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationIndexingSettings)(
+class OrganizationSparqlIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationSparqlIndexingSettings)(
     implicit F: MonadError[F, Throwable]) {
 
   private val log                                                        = Logger[this.type]
-  private val OrganizationIndexingSettings(index, base, baseNs, baseVoc) = settings
+  private val OrganizationSparqlIndexingSettings(index, base, baseNs, baseVoc) = settings
 
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
@@ -96,17 +96,17 @@ class OrganizationIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], 
   }
 }
 
-object OrganizationIndexer {
+object OrganizationSparqlIndexer {
 
   /**
     * Constructs a organization incremental indexer that pushes data into an rdf triple store.
     *
     * @param client   the SPARQL client to use for communicating with the rdf triple store
-    * @param contexts  the context operation bundle
+    * @param contexts the context operation bundle
     * @param settings the indexing settings
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationIndexingSettings)(
-      implicit F: MonadError[F, Throwable]): OrganizationIndexer[F] =
-    new OrganizationIndexer[F](client, contexts, settings)
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationSparqlIndexingSettings)(
+      implicit F: MonadError[F, Throwable]): OrganizationSparqlIndexer[F] =
+    new OrganizationSparqlIndexer[F](client, contexts, settings)
 }

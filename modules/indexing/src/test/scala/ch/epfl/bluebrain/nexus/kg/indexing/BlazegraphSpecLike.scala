@@ -6,7 +6,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.acls.AclIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.contexts.ContextIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.DomainIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexerSpec
-import ch.epfl.bluebrain.nexus.kg.indexing.organizations.OrganizationIndexerSpec
+import ch.epfl.bluebrain.nexus.kg.indexing.organizations.OrganizationSparqlIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SparqlQuerySpec
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.SchemaIndexerSpec
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
@@ -45,7 +45,7 @@ class BlazeGraphIndexingSpec extends BlazegraphSpecLike {
     new InstanceIndexerSpec(port),
     new SchemaIndexerSpec(port),
     new DomainIndexerSpec(port),
-    new OrganizationIndexerSpec(port),
+    new OrganizationSparqlIndexerSpec(port),
     new SparqlQuerySpec(port)
   )
 }

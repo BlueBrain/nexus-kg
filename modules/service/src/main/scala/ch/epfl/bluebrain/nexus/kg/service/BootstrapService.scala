@@ -11,6 +11,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.{ActorMaterializer, Materializer}
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
@@ -64,6 +65,10 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
   // $COVERAGE-ON$
 
   val sparqlClient = SparqlClient[Future](settings.Sparql.BaseUri)
+
+  val elasticQueryClient = ElasticQueryClient[Future](settings.Elastic.BaseUri)
+
+  val elasticClient = ElasticClient[Future](settings.Elastic.BaseUri, elasticQueryClient)
 
   val (orgs, doms, schemas, contexts, instances) = operations()
 
@@ -197,8 +202,8 @@ object BootstrapService {
     def apiUri: Uri
 
     lazy val querySettings = QuerySettings(
-      Pagination(settings.Sparql.From, settings.Sparql.Size),
-      settings.Sparql.MaxSize,
+      Pagination(settings.Pagination.From, settings.Pagination.Size),
+      settings.Pagination.MaxSize,
       settings.Sparql.Index,
       settings.Prefixes.CoreVocabulary,
       apiUri,

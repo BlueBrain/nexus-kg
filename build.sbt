@@ -14,7 +14,7 @@ val metricsCoreVersion              = "3.2.2"
 val jenaVersion                     = "3.3.0"
 val jsonldJavaVersion               = "0.9.0" // TODO: remove once we upgrade to Jena 3.4
 val blazegraphVersion               = "2.1.4"
-val jacksonVersion                  = "2.9.0"
+val jacksonVersion                  = "2.8.10"
 val scalaTestVersion                = "3.0.4"
 
 lazy val sourcingCore   = nexusDep("sourcing-core", commonsVersion)
@@ -25,6 +25,9 @@ lazy val commonsSchemas = nexusDep("commons-schemas", commonsVersion)
 lazy val commonsTest    = nexusDep("commons-test", commonsVersion)
 lazy val shaclValidator = nexusDep("shacl-validator", commonsVersion)
 lazy val sparqlClient   = nexusDep("sparql-client", commonsVersion)
+lazy val elasticClient  = nexusDep("elastic-client", commonsVersion)
+lazy val elasticEmbed   = nexusDep("elastic-server-embed", commonsVersion)
+
 lazy val iamCommons     = nexusDep("iam", commonsVersion)
 
 lazy val docs = project
@@ -89,6 +92,8 @@ lazy val indexing = project
       sourcingCore,
       sourcingMem % Test,
       commonsTest % Test,
+      elasticEmbed % Test,
+      elasticClient,
       sparqlClient,
       "com.typesafe.akka"          %% "akka-stream"        % akkaVersion,
       "com.typesafe.akka"          %% "akka-http"          % akkaHttpVersion,

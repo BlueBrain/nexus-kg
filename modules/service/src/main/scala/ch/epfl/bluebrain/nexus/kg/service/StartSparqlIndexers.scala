@@ -42,10 +42,12 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param as           the implicitly available [[ActorSystem]]
   * @param ec           the implicitly available [[ExecutionContext]]
   */
-class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], contexts: Contexts[Future], apiUri: Uri)(
-    implicit
-    as: ActorSystem,
-    ec: ExecutionContext) {
+class StartSparqlIndexers(settings: Settings,
+                          sparqlClient: SparqlClient[Future],
+                          contexts: Contexts[Future],
+                          apiUri: Uri)(implicit
+                                       as: ActorSystem,
+                                       ec: ExecutionContext) {
 
   private implicit val config: Configuration =
     Configuration.default.withDiscriminator("type")
@@ -131,14 +133,14 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
   }
 
   private def startIndexingOrgs() = {
-    val orgIndexingSettings = OrganizationIndexingSettings(settings.Sparql.Index,
-                                                           apiUri,
-                                                           settings.Sparql.Organizations.GraphBaseNamespace,
-                                                           settings.Prefixes.CoreVocabulary)
+    val orgIndexingSettings = OrganizationSparqlIndexingSettings(settings.Sparql.Index,
+                                                                 apiUri,
+                                                                 settings.Sparql.Organizations.GraphBaseNamespace,
+                                                                 settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[OrgEvent](
       initFunctionOf(settings.Sparql.Index),
-      OrganizationIndexer[Future](sparqlClient, contexts, orgIndexingSettings).apply _,
+      OrganizationSparqlIndexer[Future](sparqlClient, contexts, orgIndexingSettings).apply _,
       "organization-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "organization",
@@ -163,11 +165,11 @@ class StartIndexers(settings: Settings, sparqlClient: SparqlClient[Future], cont
 
 }
 
-object StartIndexers {
+object StartSparqlIndexers {
 
   // $COVERAGE-OFF$
   /**
-    * Constructs a StartIndexers
+    * Constructs a StartElasticIndexers
     *
     * @param settings     the app settings
     * @param sparqlClient the SPARQL client implementation
@@ -176,8 +178,8 @@ object StartIndexers {
   final def apply(settings: Settings, sparqlClient: SparqlClient[Future], contexts: Contexts[Future], apiUri: Uri)(
       implicit
       as: ActorSystem,
-      ec: ExecutionContext): StartIndexers =
-    new StartIndexers(settings, sparqlClient, contexts, apiUri)
+      ec: ExecutionContext): StartSparqlIndexers =
+    new StartSparqlIndexers(settings, sparqlClient, contexts, apiUri)
 
   // $COVERAGE-ON$
 }

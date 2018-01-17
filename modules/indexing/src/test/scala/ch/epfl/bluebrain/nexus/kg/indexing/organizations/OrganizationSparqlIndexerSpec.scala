@@ -29,8 +29,8 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
 @DoNotDiscover
-class OrganizationIndexerSpec(blazegraphPort: Int)
-    extends TestKit(ActorSystem("OrganizationIndexerSpec"))
+class OrganizationSparqlIndexerSpec(blazegraphPort: Int)
+    extends TestKit(ActorSystem("OrganizationSparqlIndexerSpec"))
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -58,8 +58,8 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
   private val base              = s"http://$localhost/v0"
   private val blazegraphBaseUri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ OrganizationIndexingSettings(index, orgBase, _, nexusVocBase) =
-    OrganizationIndexingSettings(genString(length = 6), base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
+  private val settings @ OrganizationSparqlIndexingSettings(index, orgBase, _, nexusVocBase) =
+    OrganizationSparqlIndexingSettings(genString(length = 6), base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
 
@@ -94,12 +94,12 @@ class OrganizationIndexerSpec(blazegraphPort: Int)
     )
   }
 
-  "A OrganizationIndexer" should {
+  "A OrganizationSparqlIndexer" should {
 
     val (ctxs, replacements) = createContext(base)
 
     val client  = SparqlClient[Future](blazegraphBaseUri)
-    val indexer = OrganizationIndexer(client, ctxs, settings)
+    val indexer = OrganizationSparqlIndexer(client, ctxs, settings)
 
     val id   = OrgId(genString(length = 4))
     val meta = Meta(Anonymous(), Clock.systemUTC.instant())

@@ -46,7 +46,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.Eq
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.LiteralTerm
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationIndexer, OrganizationIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationSparqlIndexer, OrganizationSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.{SchemaIndexer, SchemaIndexingSettings}
@@ -101,8 +101,8 @@ class SparqlQuerySpec(blazegraphPort: Int)
   private val settingsDomains @ DomainIndexingSettings(_, _, _, nexusVocBaseDomains) =
     DomainIndexingSettings(namespace, base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
-  private val settingsOrgs @ OrganizationIndexingSettings(_, _, _, nexusVocBaseOrgs) =
-    OrganizationIndexingSettings(namespace, base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
+  private val settingsOrgs @ OrganizationSparqlIndexingSettings(_, _, _, nexusVocBaseOrgs) =
+    OrganizationSparqlIndexingSettings(namespace, base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
   private val settingsAcls @ AclIndexingSettings(_, _, aclBaseNs, _) =
     AclIndexingSettings(namespace, base, s"$base/acls/graphs", s"$base/voc/nexus/core")
@@ -132,7 +132,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val instanceIndexer = InstanceIndexer(client, ctxs, settings)
     val schemaIndexer   = SchemaIndexer(client, ctxs, settingsSchemas)
     val domainIndexer   = DomainIndexer(client, settingsDomains)
-    val orgIndexer      = OrganizationIndexer(client, ctxs, settingsOrgs)
+    val orgIndexer      = OrganizationSparqlIndexer(client, ctxs, settingsOrgs)
     val aclIndexer      = AclIndexer(client, settingsAcls)
 
     val orgRef    = orgs.create(OrgId(genId()), genJson()).futureValue
