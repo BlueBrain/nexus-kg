@@ -5,7 +5,7 @@
       "this": "{{base}}/schemas/nexus/core/quantitativevalue/v0.1.0/shapes/"
     }
   ],
-  "@type": "owl:Ontology",
+  "@type": "nxv:Schema",
   "imports": [
     "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0"
   ],

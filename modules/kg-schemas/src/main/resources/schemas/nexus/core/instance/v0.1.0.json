@@ -5,7 +5,7 @@
       "this": "{{base}}/schemas/nexus/core/instance/v0.1.0/shapes/"
     }
   ],
-  "@type": "owl:Ontology",
+  "@type": "nxv:Schema",
   "imports": [
     "{{base}}/schemas/nexus/core/resource/v0.1.0",
     "{{base}}/schemas/nexus/core/distribution/v0.1.0"
