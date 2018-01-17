@@ -1,4 +1,4 @@
-val commonsVersion         = "0.5.28"
+val commonsVersion         = "0.5.29"
 val metricsCoreVersion     = "3.2.2"
 val jenaVersion            = "3.4.0"
 val blazegraphVersion      = "2.1.4"
