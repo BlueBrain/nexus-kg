@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.routes.MockedIAMClient
-import ch.epfl.bluebrain.nexus.kg.service.{BootstrapService, StartIndexers}
+import ch.epfl.bluebrain.nexus.kg.service.{BootstrapService, StartSparqlIndexers}
 import ch.epfl.bluebrain.nexus.kg.tests.integration._
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingAkkaSettings
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
@@ -23,6 +23,7 @@ import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
 class ServiceSpecSuite
     extends Suites
+    with SequentialNestedSuiteExecution
     with BeforeAndAfterAll
     with CassandraBoot
     with BlazegraphBoot
@@ -45,7 +46,7 @@ class ServiceSpecSuite
 
   bootstrap.cluster.registerOnMemberUp {
     logger.info("==== Cluster is Live ====")
-    StartIndexers(settings, bootstrap.sparqlClient, bootstrap.contexts, bootstrap.apiUri)
+    StartSparqlIndexers(settings, bootstrap.sparqlClient, bootstrap.contexts, bootstrap.apiUri)
   }
 
   override val nestedSuites = Vector(
@@ -55,6 +56,8 @@ class ServiceSpecSuite
     new SchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new InstanceIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, bootstrap.instances)
   )
+
+  override def run(testName: Option[String], args: Args): Status = super.run(testName, args)
 
   private def aclIndexer: AclIndexer[Future] = {
     val aclIndexSettings = AclIndexingSettings(settings.Sparql.Index,

@@ -183,6 +183,43 @@ class Settings(config: Config) extends Extension {
     val SearchVocabulary = Uri(ns.getString("prefixes.search-vocabulary"))
   }
 
+  object Pagination {
+
+    /**
+      * The default page offset.
+      */
+    val From = ns.getLong("pagination.page-from")
+
+    /**
+      * The default page size.
+      */
+    val Size = ns.getInt("pagination.page-size")
+
+    /**
+      * The maximum page size.
+      */
+    val MaxSize = ns.getInt("pagination.page-size-limit")
+  }
+
+  object Elastic {
+
+    /**
+      * The base uri for the elastic endpoint.
+      */
+    val BaseUri = Uri(ns.getString("elastic.base-uri"))
+
+    /**
+      * The index prefix (namespace) for indexing.
+      */
+    val IndexPrefix = ns.getString("elastic.index-prefix")
+
+    /**
+      * ElasticSearch type.
+      */
+    val Type = ns.getString("elastic.type")
+
+  }
+
   object Sparql {
 
     /**
@@ -247,21 +284,6 @@ class Settings(config: Config) extends Extension {
         */
       val GraphBaseNamespace = Uri(ns.getString("sparql.acls.graph-base-namespace"))
     }
-
-    /**
-      * The default page offset.
-      */
-    val From = ns.getLong("sparql.page-from")
-
-    /**
-      * The default page size.
-      */
-    val Size = ns.getInt("sparql.page-size")
-
-    /**
-      * The maximum page size.
-      */
-    val MaxSize = ns.getInt("sparql.page-size-limit")
 
   }
 

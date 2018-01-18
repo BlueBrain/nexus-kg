@@ -10,12 +10,13 @@ import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId}
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId}
-import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.core.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
@@ -23,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.service.routes._
 import io.circe._
 import io.circe.generic.semiauto._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import org.scalatest.{Inspectors, Matchers, WordSpecLike}
+import org.scalatest.{Resources => _, _}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -36,13 +37,16 @@ import scala.concurrent.duration._
   * @param as          the implicitly available Actor System
   */
 abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris)(implicit as: ActorSystem)
-    extends WordSpecLike
+    extends Suite
+    with WordSpecLike
     with Eventually
     with ScalatestRouteTest
     with Matchers
     with ScalaFutures
     with Inspectors
-    with MockedIAMClient {
+    with MockedIAMClient
+    with CancelAfterFailure
+    with Assertions {
 
   override implicit val patienceConfig: PatienceConfig =
     PatienceConfig(5 seconds, 300 milliseconds)
@@ -70,7 +74,7 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris)(impli
 }
 
 object BootstrapIntegrationSpec extends Randomness with Resources {
-  val indexTimeout = 60L
+  val indexTimeout = 35L
 
   val orgs: List[OrgId] = List(OrgId("nexus"), OrgId("other"), OrgId("rand"))
     .sortWith(_.show < _.show)
