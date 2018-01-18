@@ -1,18 +1,17 @@
-val akkaVersion                     = "2.5.4"
-val akkaHttpVersion                 = "10.0.10"
-val akkaHttpCorsVersion             = "0.2.1"
+val akkaVersion                     = "2.5.9"
+val akkaHttpVersion                 = "10.0.11"
+val akkaHttpCorsVersion             = "0.2.2"
 val akkaPersistenceCassandraVersion = "0.55"
 val akkaPersistenceInMemVersion     = "2.5.1.1"
-val akkaHttpCirceVersion            = "1.18.0"
-val akkaStreamKafkaVersion          = "0.17"
-val catsVersion                     = "0.9.0"
-val circeVersion                    = "0.8.0"
+val akkaHttpCirceVersion            = "1.19.0"
+val akkaStreamKafkaVersion          = "0.18"
+val catsVersion                     = "1.0.1"
+val circeVersion                    = "0.9.0"
 val logbackVersion                  = "1.2.3"
 val journalVersion                  = "3.0.19"
-val commonsVersion                  = "0.5.30"
-val metricsCoreVersion              = "3.2.2"
-val jenaVersion                     = "3.3.0"
-val jsonldJavaVersion               = "0.9.0" // TODO: remove once we upgrade to Jena 3.4
+val commonsVersion                  = "0.6.0"
+val metricsCoreVersion              = "3.2.6"
+val jenaVersion                     = "3.6.0"
 val blazegraphVersion               = "2.1.4"
 val jacksonVersion                  = "2.8.10"
 val scalaTestVersion                = "3.0.4"
@@ -63,7 +62,9 @@ lazy val core = project
       "io.circe"           %% "circe-optics" % circeVersion,
       "io.circe"           %% "circe-parser" % circeVersion,
       "io.verizon.journal" %% "core" % journalVersion,
-      "org.scalatest"      %% "scalatest" % scalaTestVersion % Test
+      "org.scalatest"      %% "scalatest" % scalaTestVersion % Test,
+      "com.typesafe.akka"  %% "akka-http-testkit" % akkaHttpVersion % Test,
+      "com.typesafe.akka"  %% "akka-testkit" % akkaVersion % Test
     )
   )
 

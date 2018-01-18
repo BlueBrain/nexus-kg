@@ -5,19 +5,19 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef}
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
-import io.circe.{Json, Encoder}
 import io.circe.generic.semiauto.deriveEncoder
 import io.circe.syntax._
+import io.circe.{Encoder, Json}
 import org.scalatest.time.{Seconds, Span}
 
 import scala.collection.mutable.Map

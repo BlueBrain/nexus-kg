@@ -2,18 +2,16 @@ package ch.epfl.bluebrain.nexus.kg.service.query
 
 import java.util.UUID
 
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.Uri.Query
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
-import org.scalatest.{Matchers, WordSpecLike}
-import io.circe.syntax._
 import io.circe._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult._
+import io.circe.syntax._
+import org.scalatest.{Matchers, WordSpecLike}
 
 class LinksQueryResultsSpec extends WordSpecLike with Matchers {
 

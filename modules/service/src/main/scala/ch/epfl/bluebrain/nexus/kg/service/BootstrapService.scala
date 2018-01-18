@@ -17,25 +17,25 @@ import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryCli
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
-import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.AccessControlList
 import ch.epfl.bluebrain.nexus.commons.iam.auth.User
 import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.instances.Instances
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.AttachmentLocation
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes._
@@ -173,8 +173,8 @@ object BootstrapService {
   def iamClient(baseIamUri: Uri)(implicit ec: ExecutionContext,
                                  mt: Materializer,
                                  cl: UntypedHttpClient[Future]): IamClient[Future] = {
-    import _root_.io.circe.generic.extras.auto._
     import _root_.io.circe.generic.extras.Configuration
+    import _root_.io.circe.generic.extras.auto._
     implicit val identityDecoder = JsonLdSerialization.identityDecoder
     implicit val iamUri          = IamUri(baseIamUri)
     implicit val config          = Configuration.default.withDiscriminator("@type")

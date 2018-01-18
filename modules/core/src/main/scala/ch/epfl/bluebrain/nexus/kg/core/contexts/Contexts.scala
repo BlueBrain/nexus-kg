@@ -1,7 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.core.contexts
 
-import cats.MonadError
-import cats.implicits._
+import cats.instances.vector._
+import cats.syntax.applicativeError._
+import cats.syntax.flatMap._
+import cats.syntax.functor._
+import cats.syntax.show._
+import cats.{MonadError, Traverse}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextCommand._
@@ -107,7 +111,7 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
   private def validateContextValue(json: Json): F[Unit] = {
     (json.asString, json.asArray, json.asObject) match {
       case (Some(str), _, _) => validateRefContext(str)
-      case (_, Some(arr), _) => F.sequence(arr.map(j => validateContextValue(j))).map(_ => ())
+      case (_, Some(arr), _) => Traverse[Vector].sequence_(arr.map(j => validateContextValue(j)))
       case (_, _, Some(_))   => F.pure(())
       case _                 => F.raiseError(shapeValidationFailure)
     }
@@ -266,7 +270,8 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
             }
           }
         case (_, Some(arr), _) =>
-          F.sequence(arr.map(v => resolveValue(v)))
+          Traverse[Vector]
+            .sequence(arr.map(v => resolveValue(v)))
             .map(values =>
               values.foldLeft(Json.obj()) { (acc, e) =>
                 acc deepMerge e
@@ -276,14 +281,15 @@ final class Contexts[F[_]](agg: ContextAggregate[F], doms: Domains[F], baseUri: 
       }
 
     def inner(jsonObj: JsonObject): F[JsonObject] =
-      F.sequence(jsonObj.toVector.map {
+      Traverse[Vector]
+        .sequence(jsonObj.toVector.map {
           case ("@context", v) => resolveValue(v).map("@context" -> _)
           case (k, v)          => resolve(v).map(k               -> _)
         })
         .map(JsonObject.fromIterable)
 
     json.arrayOrObject[F[Json]](F.pure(json),
-                                arr => F.sequence(arr.map(resolve)).map(Json.fromValues),
+                                arr => Traverse[Vector].sequence(arr.map(resolve)).map(Json.fromValues),
                                 obj => inner(obj).map(_.asJson))
   }
 }

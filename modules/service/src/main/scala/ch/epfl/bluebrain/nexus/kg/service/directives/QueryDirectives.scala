@@ -3,9 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.service.directives
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive, Directive1, MalformedQueryParamRejection}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.WrongOrInvalidJson
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, Sort, SortList}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalFilterFormat, IllegalOutputFormat}
 import io.circe.parser.decode
 import io.circe.{DecodingFailure, ParsingFailure}
@@ -92,7 +92,7 @@ trait QueryDirectives {
     * Extracts the ''sort'' query param from the request.
     */
   def sort: Directive1[SortList] = parameter('sort.?).flatMap {
-    case Some(v) => provide(SortList(v.split(",").map(Sort(_)).collect { case Some(sort) => sort }.toList))
+    case Some(v) => provide(SortList(v.split(",").map(Sort(_)).toList))
     case None    => provide(SortList.Empty)
   }
 

@@ -32,8 +32,7 @@ class ExpanderSpec
     with Resources
     with ScalaFutures {
 
-  override implicit val patienceConfig: PatienceConfig =
-    PatienceConfig(3 seconds, 100 milliseconds)
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 milliseconds)
 
   "An Expander" should {
     import system.dispatcher

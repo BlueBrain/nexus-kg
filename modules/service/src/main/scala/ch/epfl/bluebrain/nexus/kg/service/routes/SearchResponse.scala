@@ -5,11 +5,9 @@ import akka.http.scaladsl.server.Directives.{complete, extract, onSuccess}
 import akka.http.scaladsl.server.Route
 import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.marshallerHttp
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
-import ch.epfl.bluebrain.nexus.kg.indexing.pagination.Pagination
-import ch.epfl.bluebrain.nexus.kg.indexing.query.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.{QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.{OrderedKeys, marshallerHttp}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults

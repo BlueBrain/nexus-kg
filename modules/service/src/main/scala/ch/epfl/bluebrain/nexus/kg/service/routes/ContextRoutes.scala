@@ -247,7 +247,7 @@ class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context
     */
   implicit def marshallerHttp(implicit
                               encoder: Encoder[Context],
-                              printer: Printer = Printer.noSpaces.copy(dropNullKeys = true),
+                              printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
                               keys: OrderedKeys = OrderedKeys()): ToEntityMarshaller[Context] =
     jsonLdMarshaller.compose(encoder.apply)
 }
