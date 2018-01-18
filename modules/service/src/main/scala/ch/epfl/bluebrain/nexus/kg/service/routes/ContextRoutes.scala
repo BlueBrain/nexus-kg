@@ -17,8 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef, Contexts}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection.CannotUnpublishContext
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.LiteralTerm
@@ -115,7 +115,7 @@ class ContextRoutes(contexts: Contexts[Future],
                     complete(StatusCodes.OK -> ref)
                   }
                 }
-              } else exceptionHandler(CommandRejected(CannotUnpublishSchema))
+              } else exceptionHandler(CommandRejected(CannotUnpublishContext))
             }
           }
         }
