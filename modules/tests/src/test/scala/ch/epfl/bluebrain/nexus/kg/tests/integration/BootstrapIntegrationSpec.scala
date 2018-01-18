@@ -10,12 +10,13 @@ import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId}
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId}
-import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.core.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig

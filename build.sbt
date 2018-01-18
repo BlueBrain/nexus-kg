@@ -80,20 +80,18 @@ lazy val schemas = project
     )
   )
 
-lazy val indexing = project
-  .in(file("modules/indexing"))
+lazy val sparql = project
+  .in(file("modules/sparql"))
   .dependsOn(core)
   .settings(common)
   .settings(
-    name := "kg-indexing",
-    moduleName := "kg-indexing",
+    name := "kg-sparql",
+    moduleName := "kg-sparql",
     libraryDependencies ++= Seq(
       iamCommons,
       sourcingCore,
-      sourcingMem  % Test,
-      commonsTest  % Test,
-      elasticEmbed % Test,
-      elasticClient,
+      sourcingMem % Test,
+      commonsTest % Test,
       sparqlClient,
       "com.typesafe.akka"          %% "akka-stream"        % akkaVersion,
       "com.typesafe.akka"          %% "akka-http"          % akkaHttpVersion,
@@ -111,13 +109,40 @@ lazy val indexing = project
       "org.scalatest"              %% "scalatest"          % scalaTestVersion % Test
     )
   )
+
+lazy val elastic = project
+  .in(file("modules/elastic"))
+  .dependsOn(core)
+  .settings(common)
+  .settings(
+    name := "kg-elastic",
+    moduleName := "kg-elastic",
+    libraryDependencies ++= Seq(
+      iamCommons,
+      sourcingCore,
+      sourcingMem  % Test,
+      commonsTest  % Test,
+      elasticEmbed % Test,
+      elasticClient,
+      "com.typesafe.akka"  %% "akka-stream"      % akkaVersion,
+      "com.typesafe.akka"  %% "akka-http"        % akkaHttpVersion,
+      "de.heikoseeberger"  %% "akka-http-circe"  % akkaHttpCirceVersion,
+      "io.circe"           %% "circe-core"       % circeVersion,
+      "io.circe"           %% "circe-parser"     % circeVersion,
+      "io.verizon.journal" %% "core"             % journalVersion,
+      "org.apache.jena"    % "jena-arq"          % jenaVersion,
+      "org.apache.jena"    % "jena-querybuilder" % jenaVersion,
+      "com.typesafe.akka"  %% "akka-testkit"     % akkaVersion % Test,
+      "org.scalatest"      %% "scalatest"        % scalaTestVersion % Test
+    )
+  )
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
   // tests reduces false negatives.
   .settings(parallelExecution in Test := false)
 
 lazy val service = project
   .in(file("modules/service"))
-  .dependsOn(core % "test->test;compile->compile", indexing, docs)
+  .dependsOn(core % "test->test;compile->compile", sparql, elastic, docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(common, buildInfoSettings, packagingSettings, noCoverage)
   .settings(
@@ -185,7 +210,7 @@ lazy val root = project
     name := "kg",
     moduleName := "kg"
   )
-  .aggregate(docs, core, indexing, service, tests, schemas)
+  .aggregate(docs, core, sparql, elastic, service, tests, schemas)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {})
 
