@@ -59,7 +59,10 @@ class OrganizationSparqlIndexerSpec(blazegraphPort: Int)
   private val blazegraphBaseUri = s"http://$localhost:$blazegraphPort/blazegraph"
 
   private val settings @ OrganizationSparqlIndexingSettings(index, orgBase, _, nexusVocBase) =
-    OrganizationSparqlIndexingSettings(genString(length = 6), base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
+    OrganizationSparqlIndexingSettings(genString(length = 6),
+                                       base,
+                                       s"$base/organizations/graphs",
+                                       s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
 

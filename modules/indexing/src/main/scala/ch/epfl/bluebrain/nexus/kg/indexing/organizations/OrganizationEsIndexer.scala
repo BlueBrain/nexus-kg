@@ -26,6 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.jsonld.IndexJsonLdSupport._
 import ch.epfl.bluebrain.nexus.kg.indexing.{ConfiguredQualifier, Qualifier}
 import io.circe.Json
 import journal.Logger
+import scala.collection.mutable.Set
 
 /**
   * Organization incremental indexing logic that pushes data into an ElasticSearch indexer.
@@ -50,13 +51,17 @@ class OrganizationEsIndexer[F[_]](client: ElasticClient[F],
   private val deprecatedKey        = "deprecated".qualifyAsString
   private val orgName              = "name".qualifyAsString
   private lazy val indexJson: Json = jsonContentOf("/es-index.json", Map(quote("{{type}}") -> t))
+  private val indices              = Set[String]()
 
   private def createIndexIfNotExist(id: OrgId): F[Unit] = {
     val index = id.toIndex(prefix)
-    client.existsIndex(index).recoverWith {
-      case ElasticClientError(StatusCodes.NotFound, _) => client.createIndex(index, indexJson)
-      case other                                       => F.raiseError(other)
-    }
+    if (!indices(index)) {
+      client.existsIndex(index).recoverWith {
+        case ElasticClientError(StatusCodes.NotFound, _) =>
+          client.createIndex(index, indexJson).map(_ => indices += index)
+        case other => F.raiseError(other)
+      }
+    } else F.pure(())
   }
 
   /**

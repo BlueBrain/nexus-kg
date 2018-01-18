@@ -29,7 +29,11 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{SchemaDoesNotExist, SchemaIsDeprecated, SchemaIsNotPublished}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
+  SchemaDoesNotExist,
+  SchemaIsDeprecated,
+  SchemaIsNotPublished
+}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexingSettings

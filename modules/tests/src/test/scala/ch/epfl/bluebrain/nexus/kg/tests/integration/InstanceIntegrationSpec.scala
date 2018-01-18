@@ -48,7 +48,11 @@ class InstanceIntegrationSpec(
 
   import BootstrapIntegrationSpec._
   import instanceEncoders._
-  import schemaEncoders.{idWithLinksEncoder => schemaIdEncoder, queryResultEncoder => squeryResultEncoder, scoredQueryResultEncoder => sscoredQueryResultEncoder}
+  import schemaEncoders.{
+    idWithLinksEncoder => schemaIdEncoder,
+    queryResultEncoder => squeryResultEncoder,
+    scoredQueryResultEncoder => sscoredQueryResultEncoder
+  }
 
   "A InstanceRoutes" when {
 

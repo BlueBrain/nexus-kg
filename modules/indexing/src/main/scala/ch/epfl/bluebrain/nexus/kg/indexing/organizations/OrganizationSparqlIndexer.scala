@@ -29,10 +29,12 @@ import journal.Logger
   * @param settings the indexing settings
   * @tparam F the monadic effect type
   */
-class OrganizationSparqlIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: OrganizationSparqlIndexingSettings)(
-    implicit F: MonadError[F, Throwable]) {
+class OrganizationSparqlIndexer[F[_]](
+    client: SparqlClient[F],
+    contexts: Contexts[F],
+    settings: OrganizationSparqlIndexingSettings)(implicit F: MonadError[F, Throwable]) {
 
-  private val log                                                        = Logger[this.type]
+  private val log                                                              = Logger[this.type]
   private val OrganizationSparqlIndexingSettings(index, base, baseNs, baseVoc) = settings
 
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)

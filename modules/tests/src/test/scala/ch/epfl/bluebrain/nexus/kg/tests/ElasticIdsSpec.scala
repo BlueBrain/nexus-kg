@@ -25,8 +25,10 @@ class ElasticIdsSpec extends WordSpecLike with Matchers with Inspectors with Ran
       val prefix = "some"
       OrgId("one").toIndex(prefix) shouldEqual "some_orgid_one"
       DomainId(OrgId("one"), "two").toIndex(prefix) shouldEqual s"some_domainid_one${Slash}two"
-      SchemaId(DomainId(OrgId("one"), "two"), "name", Version(1, 0, 0)).toIndex(prefix) shouldEqual s"some_domainid_one${Slash}two"
-      InstanceId(SchemaId(DomainId(OrgId("one"), "two"), "name", Version(1, 0, 0)), UUID.randomUUID().toString).toIndex(prefix) shouldEqual s"some_domainid_one${Slash}two"
+      SchemaId(DomainId(OrgId("one"), "two"), "name", Version(1, 0, 0))
+        .toIndex(prefix) shouldEqual s"some_domainid_one${Slash}two"
+      InstanceId(SchemaId(DomainId(OrgId("one"), "two"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
+        .toIndex(prefix) shouldEqual s"some_domainid_one${Slash}two"
     }
   }
 }

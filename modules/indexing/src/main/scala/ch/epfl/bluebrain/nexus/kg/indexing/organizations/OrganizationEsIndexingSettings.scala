@@ -10,4 +10,4 @@ import akka.http.scaladsl.model.Uri
   * @param orgBase      the application base uri for operating on organization
   * @param nexusVocBase the nexus core vocabulary base
   */
-final case class OrganizationEsIndexingSettings(index: String, `type` : String, orgBase: Uri, nexusVocBase: Uri)
+final case class OrganizationEsIndexingSettings(index: String, `type`: String, orgBase: Uri, nexusVocBase: Uri)

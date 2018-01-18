@@ -28,7 +28,7 @@ lazy val sparqlClient   = nexusDep("sparql-client", commonsVersion)
 lazy val elasticClient  = nexusDep("elastic-client", commonsVersion)
 lazy val elasticEmbed   = nexusDep("elastic-server-embed", commonsVersion)
 
-lazy val iamCommons     = nexusDep("iam", commonsVersion)
+lazy val iamCommons = nexusDep("iam", commonsVersion)
 
 lazy val docs = project
   .in(file("docs"))
@@ -90,8 +90,8 @@ lazy val indexing = project
     libraryDependencies ++= Seq(
       iamCommons,
       sourcingCore,
-      sourcingMem % Test,
-      commonsTest % Test,
+      sourcingMem  % Test,
+      commonsTest  % Test,
       elasticEmbed % Test,
       elasticClient,
       sparqlClient,
