@@ -1,10 +1,12 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.domains
+package ch.epfl.bluebrain.nexus.kg.indexing.contexts
 
 import java.time.Clock
+import java.util.regex.Pattern
 
 import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.es.server.embed.ElasticServer
@@ -12,13 +14,14 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -32,8 +35,8 @@ import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class DomainElasticIndexerSpec
-  extends ElasticServer
+class ContextElasticIndexerSpec
+    extends ElasticServer
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -64,63 +67,98 @@ class DomainElasticIndexerSpec
 
   private val settings @ ElasticIndexingSettings(indexPrefix, _, orgBase, nexusVocBase) =
     ElasticIndexingSettings(genString(length = 6), genString(length = 6), base, s"$base/voc/nexus/core")
-  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
-  implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
+  private implicit val stringQualifier: ConfiguredQualifier[String]   = Qualifier.configured[String](nexusVocBase)
+  implicit val orgIdQualifier: ConfiguredQualifier[OrgId]             = Qualifier.configured[OrgId](base)
+  implicit val domainIdQualifier: ConfiguredQualifier[DomainId]       = Qualifier.configured[DomainId](base)
+  implicit val contextNameQualifier: ConfiguredQualifier[ContextName] = Qualifier.configured[ContextName](base)
 
   private def getAll: Future[QueryResults[Json]] =
     client.search[Json](Json.obj("query" -> Json.obj("match_all" -> Json.obj())))(Pagination(0, 100))
 
-  private def expectedJson(id: DomainId,
+  private def expectedJson(id: ContextId,
                            rev: Long,
-                           description: String,
                            deprecated: Boolean,
+                           published: Boolean,
                            meta: Meta,
                            firstReqMeta: Meta): Json = {
     Json.obj(
       createdAtTimeKey                                 -> firstReqMeta.instant.jsonLd,
       idKey                                            -> Json.fromString(id.qualifyAsStringWith(orgBase)),
       "rev".qualifyAsStringWith(nexusVocBase)          -> Json.fromLong(rev),
-      "organization".qualifyAsStringWith(nexusVocBase) -> id.orgId.qualify.jsonLd,
-      "name".qualifyAsStringWith(nexusVocBase)         -> Json.fromString(id.id),
-      "description".qualifyAsStringWith(nexusVocBase)  -> Json.fromString(description),
+      "organization".qualifyAsStringWith(nexusVocBase) -> id.domainId.orgId.qualify.jsonLd,
+      "domain".qualifyAsStringWith(nexusVocBase)       -> id.domainId.qualify.jsonLd,
+      "name".qualifyAsStringWith(nexusVocBase)         -> Json.fromString(id.name),
+      "version".qualifyAsStringWith(nexusVocBase)      -> Json.fromString(id.version.show),
+      "published".qualifyAsStringWith(nexusVocBase)    -> Json.fromBoolean(published),
       updatedAtTimeKey                                 -> meta.instant.jsonLd,
-      rdfTypeKey                                       -> "Domain".qualify.jsonLd,
+      rdfTypeKey                                       -> "Context".qualify.jsonLd,
+      contextGroupKey                                  -> id.contextName.qualify.jsonLd,
       "deprecated".qualifyAsStringWith(nexusVocBase)   -> Json.fromBoolean(deprecated)
     )
   }
 
-  "A DomainElasticIndexer" should {
-    val indexer     = DomainElasticIndexer(client, settings)
-    val id          = DomainId(OrgId("org"), "dom")
-    val description = "description"
-    val meta        = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+  "A ContextElasticIndexer" should {
+    val indexer      = ContextElasticIndexer(client, settings)
+    val orgId        = OrgId(genId())
+    val domainId     = DomainId(orgId, genId())
+    val id           = ContextId(domainId, genName(), genVersion())
+    val meta         = Meta(Anonymous(), Clock.systemUTC.instant())
+    val replacements = Map(Pattern.quote("{{base}}") -> base.toString, Pattern.quote("{{context}}") -> id.show)
 
-    "index a DomainCreated event" in {
+    "index a ContextCreated event" in {
       val indexId = id.toIndex(indexPrefix)
 
       whenReady(client.existsIndex(indexId).failed) { e =>
         e shouldBe a[ElasticClientError]
       }
-      val rev = 1L
-
-      indexer(DomainCreated(id, rev, meta, description)).futureValue
+      val rev  = 1L
+      val data = jsonContentOf("/contexts/minimal.json", replacements)
+      indexer(ContextCreated(id, rev, meta, data)).futureValue
       eventually {
         val rs = getAll.futureValue
         rs.results.size shouldEqual 1
-        rs.results.head.source shouldEqual expectedJson(id, rev, description, false, meta, meta)
+        rs.results.head.source shouldEqual data.deepMerge(
+          expectedJson(id, rev, deprecated = false, published = false, meta, meta))
         client.existsIndex(indexId).futureValue shouldEqual (())
       }
     }
 
-    "index a DomainDeprecated event" in {
-      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
-
-      val rev = 2L
-      indexer(DomainDeprecated(id, rev, metaUpdated)).futureValue
+    val data = jsonContentOf("/contexts/minimal.json", replacements)
+    "index a ContextUpdated event" in {
+      val metaUpdated = Meta(Anonymous(), Clock.systemUTC.instant())
+      val rev         = 2L
+      indexer(ContextUpdated(id, rev, metaUpdated, data)).futureValue
       eventually {
         val rs = getAll.futureValue
         rs.results.size shouldEqual 1
-        rs.results.head.source shouldEqual expectedJson(id, rev, description, true, metaUpdated, meta)
+        rs.results.head.source shouldEqual data.deepMerge(
+          expectedJson(id, rev, deprecated = false, published = false, metaUpdated, meta))
+      }
+    }
+
+    val metaPublished = Meta(Anonymous(), Clock.systemUTC.instant())
+    "index a ContextPublished event" in {
+      val rev = 3L
+      indexer(ContextPublished(id, rev, metaPublished)).futureValue
+      eventually {
+        val rs = getAll.futureValue
+        rs.results.size shouldEqual 1
+        rs.results.head.source shouldEqual data
+          .deepMerge(expectedJson(id, rev, deprecated = false, published = true, metaPublished, meta))
+          .deepMerge(Json.obj(publishedAtTimeKey -> metaPublished.instant.jsonLd))
+      }
+    }
+
+    "index a ContextDeprecated event" in {
+      val metaUpdated = Meta(Anonymous(), Clock.systemUTC.instant())
+      val rev         = 4L
+      indexer(ContextDeprecated(id, rev, metaUpdated)).futureValue
+      eventually {
+        val rs = getAll.futureValue
+        rs.results.size shouldEqual 1
+        rs.results.head.source shouldEqual data
+          .deepMerge(expectedJson(id, rev, deprecated = true, published = true, metaUpdated, meta))
+          .deepMerge(Json.obj(publishedAtTimeKey -> metaPublished.instant.jsonLd))
       }
     }
   }

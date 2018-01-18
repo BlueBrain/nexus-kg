@@ -44,6 +44,7 @@ private[indexing] abstract class BaseElasticIndexer[F[_]](client: ElasticClient[
 
   val revKey: String        = "rev".qualifyAsString
   val deprecatedKey: String = "deprecated".qualifyAsString
+  val publishedKey: String  = "published".qualifyAsString
   val nameKey: String       = "name".qualifyAsString
   val orgKey: String        = "organization".qualifyAsString
   val domainKey: String     = "domain".qualifyAsString

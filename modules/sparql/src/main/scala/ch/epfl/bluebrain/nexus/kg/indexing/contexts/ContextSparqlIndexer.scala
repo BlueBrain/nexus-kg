@@ -20,11 +20,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import io.circe.Json
 import journal.Logger
 
-class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSettings)
+class ContextSparqlIndexer[F[_]](client: SparqlClient[F], settings: ContextSparqlIndexingSettings)
     extends BaseSparqlIndexer(settings.contextsBase, settings.nexusVocBase) {
 
   private val log                                          = Logger[this.type]
-  private val ContextIndexingSettings(index, _, baseNs, _) = settings
+  private val ContextSparqlIndexingSettings(index, _, baseNs, _) = settings
   private val versionKey                                   = "version".qualifyAsString
 
   final def apply(event: ContextEvent): F[Unit] = event match {
@@ -85,7 +85,7 @@ class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSet
 
 }
 
-object ContextIndexer {
-  final def apply[F[_]](client: SparqlClient[F], settings: ContextIndexingSettings): ContextIndexer[F] =
-    new ContextIndexer[F](client, settings)
+object ContextSparqlIndexer {
+  final def apply[F[_]](client: SparqlClient[F], settings: ContextSparqlIndexingSettings): ContextSparqlIndexer[F] =
+    new ContextSparqlIndexer[F](client, settings)
 }

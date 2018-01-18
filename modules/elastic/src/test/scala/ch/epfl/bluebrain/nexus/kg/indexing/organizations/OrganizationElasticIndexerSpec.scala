@@ -2,14 +2,12 @@ package ch.epfl.bluebrain.nexus.kg.indexing.organizations
 
 import java.time.Clock
 
-import akka.actor.ActorSystem
-import akka.http.scaladsl.model.Uri
-import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder, ElasticQueryClient}
+import ch.epfl.bluebrain.nexus.commons.es.server.embed.ElasticServer
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
@@ -17,24 +15,24 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
+import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIndexingSettings, IndexerFixture}
 import io.circe.{Decoder, Json}
 import org.scalatest._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIndexingSettings, IndexerFixture}
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContextExecutor, Future}
-@DoNotDiscover
-class OrganizationElasticIndexerSpec(esUri: Uri)
-    extends TestKit(ActorSystem("OrganizationElasticIndexerSpec"))
+
+class OrganizationElasticIndexerSpec
+    extends ElasticServer
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -53,10 +51,7 @@ class OrganizationElasticIndexerSpec(esUri: Uri)
   }
 
   override implicit val patienceConfig: PatienceConfig =
-    PatienceConfig(3 seconds, 100 milliseconds)
-
-  private implicit val ec: ExecutionContextExecutor = system.dispatcher
-  private implicit val mt: ActorMaterializer        = ActorMaterializer()
+    PatienceConfig(6 seconds, 300 milliseconds)
 
   private implicit val cl: UntypedHttpClient[Future]                    = HttpClient.akkaHttpClient
   private implicit val D: Decoder[QueryResults[Json]]                   = ElasticDecoder[Json]

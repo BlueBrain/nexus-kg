@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import org.scalatest.{BeforeAndAfterAll, Suites}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.AclIndexerSpec
-import ch.epfl.bluebrain.nexus.kg.indexing.contexts.ContextIndexerSpec
+import ch.epfl.bluebrain.nexus.kg.indexing.contexts.ContextSparqlIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.DomainSparqlIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.OrganizationSparqlIndexerSpec
@@ -41,7 +41,7 @@ trait BlazegraphSpecLike extends Suites with BeforeAndAfterAll {
 class BlazeGraphIndexingSpec extends BlazegraphSpecLike {
   override val nestedSuites = Vector(
     new AclIndexerSpec(port),
-    new ContextIndexerSpec(port),
+    new ContextSparqlIndexerSpec(port),
     new InstanceIndexerSpec(port),
     new SchemaIndexerSpec(port),
     new DomainSparqlIndexerSpec(port),
