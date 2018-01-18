@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConverters._
 import scala.collection.mutable.Set
 
-object ConcurrentSerBuilder {
+object ConcurrentSetBuilder {
 
   /**
     * Constructs a concurrent set which uses an underlying [[ConcurrentHashMap]] implementation

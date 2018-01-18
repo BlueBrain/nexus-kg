@@ -28,7 +28,7 @@ import org.scalatest._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
+import ch.epfl.bluebrain.nexus.kg.indexing.{EsIndexingSettings, IndexerFixture}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -63,8 +63,8 @@ class OrganizationEsIndexerSpec(esUri: Uri)
 
   private val base = s"http://$localhost/v0"
 
-  private val settings @ OrganizationEsIndexingSettings(indexPrefix, _, orgBase, nexusVocBase) =
-    OrganizationEsIndexingSettings(genString(length = 6), genString(length = 6), base, s"$base/voc/nexus/core")
+  private val settings @ EsIndexingSettings(indexPrefix, _, orgBase, nexusVocBase) =
+    EsIndexingSettings(genString(length = 6), genString(length = 6), base, s"$base/voc/nexus/core")
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
 
   private def getAll: Future[QueryResults[Json]] =

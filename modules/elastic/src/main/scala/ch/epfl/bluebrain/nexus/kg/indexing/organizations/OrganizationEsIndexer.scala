@@ -17,13 +17,14 @@ import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.core.collection.ConcurrentSerBuilder
+import ch.epfl.bluebrain.nexus.kg.core.collection.ConcurrentSetBuilder
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDeprecated, OrgUpdated}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, OrgId}
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
+import ch.epfl.bluebrain.nexus.kg.indexing.EsIndexingSettings
 import io.circe.Json
 import journal.Logger
 
@@ -37,11 +38,11 @@ import journal.Logger
   */
 class OrganizationEsIndexer[F[_]](client: ElasticClient[F],
                                   contexts: Contexts[F],
-                                  settings: OrganizationEsIndexingSettings)(implicit F: MonadError[F, Throwable])
+                                  settings: EsIndexingSettings)(implicit F: MonadError[F, Throwable])
     extends Resources {
 
   private val log                                                      = Logger[this.type]
-  private val OrganizationEsIndexingSettings(prefix, t, base, baseVoc) = settings
+  private val EsIndexingSettings(prefix, t, base, baseVoc) = settings
 
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
@@ -51,7 +52,7 @@ class OrganizationEsIndexer[F[_]](client: ElasticClient[F],
   private val orgName       = "name".qualifyAsString
   private lazy val indexJson: Json =
     jsonContentOf("/es-index.json", Map(quote("{{type}}") -> t))
-  private val indices = ConcurrentSerBuilder[String]()
+  private val indices = ConcurrentSetBuilder[String]()
 
   private def createIndexIfNotExist(id: OrgId): F[Unit] = {
     val index = id.toIndex(prefix)
@@ -128,7 +129,7 @@ object OrganizationEsIndexer {
     * @param settings the indexing settings
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](client: ElasticClient[F], contexts: Contexts[F], settings: OrganizationEsIndexingSettings)(
+  final def apply[F[_]](client: ElasticClient[F], contexts: Contexts[F], settings: EsIndexingSettings)(
       implicit F: MonadError[F, Throwable]): OrganizationEsIndexer[F] =
     new OrganizationEsIndexer[F](client, contexts, settings)
 }

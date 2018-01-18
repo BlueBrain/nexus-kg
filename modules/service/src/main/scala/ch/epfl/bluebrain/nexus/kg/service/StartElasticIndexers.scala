@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent
+import ch.epfl.bluebrain.nexus.kg.indexing.EsIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 
@@ -39,7 +40,7 @@ class StartElasticIndexers(settings: Settings,
   startIndexingOrgs()
 
   private def startIndexingOrgs() = {
-    val orgIndexingSettings = OrganizationEsIndexingSettings(settings.Elastic.IndexPrefix,
+    val orgIndexingSettings = EsIndexingSettings(settings.Elastic.IndexPrefix,
                                                              settings.Elastic.Type,
                                                              apiUri,
                                                              settings.Prefixes.CoreVocabulary)

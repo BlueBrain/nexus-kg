@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.organizations
+package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.http.scaladsl.model.Uri
 
@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.Uri
   *
   * @param index        the name of the index
   * @param `type`       the name of the `type`
-  * @param orgBase      the application base uri for operating on organization
+  * @param base         the application base uri for operating on resources
   * @param nexusVocBase the nexus core vocabulary base
   */
-final case class OrganizationEsIndexingSettings(index: String, `type`: String, orgBase: Uri, nexusVocBase: Uri)
+final case class EsIndexingSettings(index: String, `type`: String, base: Uri, nexusVocBase: Uri)
