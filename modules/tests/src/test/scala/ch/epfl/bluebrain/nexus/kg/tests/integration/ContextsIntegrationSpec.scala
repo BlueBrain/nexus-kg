@@ -64,12 +64,12 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
 
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults = UnscoredQueryResults(contexts.length.toLong, sorted(contexts).take(20).map {
+            val expectedResults = UnscoredQueryResults(contexts.length.toLong, sorted(contexts).take(10).map {
               case (contextId, _) => UnscoredQueryResult(contextId)
             })
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/contexts",
-                                      "next" -> s"$apiUri/contexts?from=20&size=20")
+                                      "next" -> s"$apiUri/contexts?from=10&size=10")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }

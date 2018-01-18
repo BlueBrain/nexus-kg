@@ -6,7 +6,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.Sort.OrderType
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexingVocab.PrefixMapping
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
