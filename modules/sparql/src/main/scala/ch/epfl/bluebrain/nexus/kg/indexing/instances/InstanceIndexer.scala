@@ -1,26 +1,22 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.instances
 
 import cats.MonadError
-import cats.instances.string._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.commons.iam.acls
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceEvent, InstanceId}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
+import ch.epfl.bluebrain.nexus.kg.indexing.BaseSparqlIndexer
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import io.circe.Json
 import journal.Logger
@@ -35,25 +31,14 @@ import journal.Logger
   * @tparam F the monadic effect type
   */
 class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceIndexingSettings)(
-    implicit F: MonadError[F, Throwable]) {
+    implicit F: MonadError[F, Throwable])
+    extends BaseSparqlIndexer(settings.instanceBase, settings.nexusVocBase) {
 
-  private val log                                                    = Logger[this.type]
-  private val InstanceIndexingSettings(index, base, baseNs, baseVoc) = settings
-
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
-  private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
-  private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId]     = Qualifier.configured[SchemaId](base)
-  private implicit val instanceIdQualifier: ConfiguredQualifier[InstanceId] = Qualifier.configured[InstanceId](base)
-  private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](baseVoc)
+  private val log                                              = Logger[this.type]
+  private val InstanceIndexingSettings(index, base, baseNs, _) = settings
 
   // instance vocabulary
-  private val revKey        = "rev".qualifyAsString
-  private val deprecatedKey = "deprecated".qualifyAsString
-  private val orgKey        = "organization".qualifyAsString
-  private val domainKey     = "domain".qualifyAsString
-  private val schemaKey     = "schema".qualifyAsString
-  private val uuidKey       = "uuid".qualifyAsString
+  private val uuidKey = "uuid".qualifyAsString
 
   // attachment vocabulary
   private val originalFileNameKey = "originalFileName".qualifyAsString

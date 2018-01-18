@@ -4,7 +4,7 @@ import org.scalatest.{BeforeAndAfterAll, Suites}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.AclIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.contexts.ContextIndexerSpec
-import ch.epfl.bluebrain.nexus.kg.indexing.domains.DomainIndexerSpec
+import ch.epfl.bluebrain.nexus.kg.indexing.domains.DomainSparqlIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.OrganizationSparqlIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SparqlQuerySpec
@@ -44,7 +44,7 @@ class BlazeGraphIndexingSpec extends BlazegraphSpecLike {
     new ContextIndexerSpec(port),
     new InstanceIndexerSpec(port),
     new SchemaIndexerSpec(port),
-    new DomainIndexerSpec(port),
+    new DomainSparqlIndexerSpec(port),
     new OrganizationSparqlIndexerSpec(port),
     new SparqlQuerySpec(port)
   )

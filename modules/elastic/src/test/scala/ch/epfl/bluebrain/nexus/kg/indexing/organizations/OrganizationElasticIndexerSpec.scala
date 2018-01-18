@@ -28,13 +28,13 @@ import org.scalatest._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.kg.indexing.{EsIndexingSettings, IndexerFixture}
+import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIndexingSettings, IndexerFixture}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
 @DoNotDiscover
-class OrganizationEsIndexerSpec(esUri: Uri)
-    extends TestKit(ActorSystem("OrganizationEsIndexerSpec"))
+class OrganizationElasticIndexerSpec(esUri: Uri)
+    extends TestKit(ActorSystem("OrganizationElasticIndexerSpec"))
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -43,7 +43,9 @@ class OrganizationEsIndexerSpec(esUri: Uri)
     with Resources
     with Inspectors
     with BeforeAndAfterAll
-    with Eventually {
+    with Eventually
+    with CancelAfterFailure
+    with Assertions {
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -63,8 +65,8 @@ class OrganizationEsIndexerSpec(esUri: Uri)
 
   private val base = s"http://$localhost/v0"
 
-  private val settings @ EsIndexingSettings(indexPrefix, _, orgBase, nexusVocBase) =
-    EsIndexingSettings(genString(length = 6), genString(length = 6), base, s"$base/voc/nexus/core")
+  private val settings @ ElasticIndexingSettings(indexPrefix, _, orgBase, nexusVocBase) =
+    ElasticIndexingSettings(genString(length = 6), genString(length = 6), base, s"$base/voc/nexus/core")
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
 
   private def getAll: Future[QueryResults[Json]] =
@@ -82,11 +84,11 @@ class OrganizationEsIndexerSpec(esUri: Uri)
     )
   }
 
-  "A OrganizationEsIndexer" should {
+  "A OrganizationElasticIndexer" should {
 
     val (ctxs, replacements) = createContext(base)
 
-    val indexer = OrganizationEsIndexer(client, ctxs, settings)
+    val indexer = OrganizationElasticIndexer(client, ctxs, settings)
 
     val id   = OrgId(genString(length = 4))
     val meta = Meta(Anonymous(), Clock.systemUTC.instant())

@@ -40,7 +40,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, Schem
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainIndexer, DomainIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainSparqlIndexer, DomainSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.Eq
@@ -99,8 +99,8 @@ class SparqlQuerySpec(blazegraphPort: Int)
   private val settingsSchemas @ SchemaIndexingSettings(_, _, _, nexusVocBaseSchemas) =
     SchemaIndexingSettings(namespace, base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
-  private val settingsDomains @ DomainIndexingSettings(_, _, _, nexusVocBaseDomains) =
-    DomainIndexingSettings(namespace, base, s"$base/domains/graphs", s"$base/voc/nexus/core")
+  private val settingsDomains @ DomainSparqlIndexingSettings(_, _, _, nexusVocBaseDomains) =
+    DomainSparqlIndexingSettings(namespace, base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
   private val settingsOrgs @ OrganizationSparqlIndexingSettings(_, _, _, nexusVocBaseOrgs) =
     OrganizationSparqlIndexingSettings(namespace, base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
@@ -132,7 +132,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val queryClient     = new SparqlQuery[Future](client)
     val instanceIndexer = InstanceIndexer(client, ctxs, settings)
     val schemaIndexer   = SchemaIndexer(client, ctxs, settingsSchemas)
-    val domainIndexer   = DomainIndexer(client, settingsDomains)
+    val domainIndexer   = DomainSparqlIndexer(client, settingsDomains)
     val orgIndexer      = OrganizationSparqlIndexer(client, ctxs, settingsOrgs)
     val aclIndexer      = AclIndexer(client, settingsAcls)
 

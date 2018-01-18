@@ -1,23 +1,20 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.schemas
 
 import cats.MonadError
-import cats.instances.string._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaEvent, SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaEvent, SchemaId}
+import ch.epfl.bluebrain.nexus.kg.indexing.BaseSparqlIndexer
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import io.circe.Json
 import journal.Logger
@@ -31,24 +28,12 @@ import journal.Logger
   * @tparam F       the monadic effect type
   */
 class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(
-    implicit F: MonadError[F, Throwable]) {
+    implicit F: MonadError[F, Throwable])
+    extends BaseSparqlIndexer(settings.schemasBase, settings.nexusVocBase) {
 
-  private val log                                                  = Logger[this.type]
-  private val SchemaIndexingSettings(index, base, baseNs, baseVoc) = settings
-
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
-  private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
-  private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId]     = Qualifier.configured[SchemaId](base)
-  private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](baseVoc)
-
-  private val revKey        = "rev".qualifyAsString
-  private val deprecatedKey = "deprecated".qualifyAsString
-  private val publishedKey  = "published".qualifyAsString
-  private val orgKey        = "organization".qualifyAsString
-  private val domainKey     = "domain".qualifyAsString
-  private val nameKey       = "name".qualifyAsString
-  private val versionKey    = "version".qualifyAsString
+  private val log                                         = Logger[this.type]
+  private val SchemaIndexingSettings(index, _, baseNs, _) = settings
+  private val versionKey                                  = "version".qualifyAsString
 
   /**
     * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the

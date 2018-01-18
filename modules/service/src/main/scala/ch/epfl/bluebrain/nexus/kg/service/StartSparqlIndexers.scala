@@ -118,13 +118,13 @@ class StartSparqlIndexers(settings: Settings,
   }
 
   private def startIndexingDomains() = {
-    val domainIndexingSettings = DomainIndexingSettings(settings.Sparql.Index,
-                                                        apiUri,
-                                                        settings.Sparql.Domains.GraphBaseNamespace,
-                                                        settings.Prefixes.CoreVocabulary)
+    val domainIndexingSettings = DomainSparqlIndexingSettings(settings.Sparql.Index,
+                                                              apiUri,
+                                                              settings.Sparql.Domains.GraphBaseNamespace,
+                                                              settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[DomainEvent](
-      DomainIndexer[Future](sparqlClient, domainIndexingSettings).apply _,
+      DomainSparqlIndexer[Future](sparqlClient, domainIndexingSettings).apply _,
       "domains-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "domain",
