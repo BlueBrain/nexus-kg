@@ -1,22 +1,21 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.organizations
 
 import cats.MonadError
-import cats.instances.string._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDeprecated, OrgUpdated}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, OrgId}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDeprecated, OrgUpdated}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, OrgId}
+import ch.epfl.bluebrain.nexus.kg.indexing.BaseSparqlIndexer
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import io.circe.Json
 import journal.Logger
@@ -32,17 +31,11 @@ import journal.Logger
 class OrganizationSparqlIndexer[F[_]](
     client: SparqlClient[F],
     contexts: Contexts[F],
-    settings: OrganizationSparqlIndexingSettings)(implicit F: MonadError[F, Throwable]) {
+    settings: OrganizationSparqlIndexingSettings)(implicit F: MonadError[F, Throwable])
+    extends BaseSparqlIndexer(settings.orgBase, settings.nexusVocBase) {
 
-  private val log                                                              = Logger[this.type]
-  private val OrganizationSparqlIndexingSettings(index, base, baseNs, baseVoc) = settings
-
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)
-  private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](baseVoc)
-
-  private val revKey        = "rev".qualifyAsString
-  private val deprecatedKey = "deprecated".qualifyAsString
-  private val orgName       = "name".qualifyAsString
+  private val log                                                     = Logger[this.type]
+  private val OrganizationSparqlIndexingSettings(index, _, baseNs, _) = settings
 
   /**
     * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the
@@ -85,7 +78,7 @@ class OrganizationSparqlIndexer[F[_]](
     val sharedObj = Json.obj(
       idKey                    -> Json.fromString(id.qualifyAsString),
       revKey                   -> Json.fromLong(rev),
-      orgName                  -> Json.fromString(id.id),
+      nameKey                  -> Json.fromString(id.id),
       updatedAtTimeKey         -> meta.instant.jsonLd,
       PrefixMapping.rdfTypeKey -> "Organization".qualify.jsonLd
     )

@@ -10,4 +10,4 @@ import akka.http.scaladsl.model.Uri
   * @param base         the application base uri for operating on resources
   * @param nexusVocBase the nexus core vocabulary base
   */
-final case class EsIndexingSettings(index: String, `type`: String, base: Uri, nexusVocBase: Uri)
+final case class ElasticIndexingSettings(index: String, `type`: String, base: Uri, nexusVocBase: Uri)

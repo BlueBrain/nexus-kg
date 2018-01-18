@@ -50,7 +50,7 @@ object ElasticIds {
   }
 
   private def elasticId[A: Show](id: A, prefix: String)(implicit T: Typeable[A]): String =
-    prefix + "_" + T.describe.toLowerCase + "_" + URLEncoder.encode(id.show, "UTF-8")
+    prefix + "_" + T.describe.toLowerCase + "_" + URLEncoder.encode(id.show, "UTF-8").toLowerCase
 
   /**
     * Interface syntax to expose new functionality into the generic type A
@@ -76,7 +76,7 @@ object ElasticIds {
     /**
       * Converts this ''id'' to a uniquely valid ElasticSearch id
       */
-    def elasticId: String = T.describe.toLowerCase + "_" + URLEncoder.encode(id.show, "UTF-8")
+    def elasticId: String = T.describe.toLowerCase + "_" + URLEncoder.encode(id.show, "UTF-8").toLowerCase
   }
 
 }

@@ -33,8 +33,8 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
 @DoNotDiscover
-class DomainIndexerSpec(blazegraphPort: Int)
-    extends TestKit(ActorSystem("DomainIndexerSpec"))
+class DomainSparqlIndexerSpec(blazegraphPort: Int)
+    extends TestKit(ActorSystem("DomainSparqlIndexerSpec"))
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -62,8 +62,8 @@ class DomainIndexerSpec(blazegraphPort: Int)
   private val base         = s"http://$localhost/v0"
   private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ DomainIndexingSettings(index, domainsBase, _, nexusVocBase) =
-    DomainIndexingSettings(genString(length = 6), base, s"$base/domains/graphs", s"$base/voc/nexus/core")
+  private val settings @ DomainSparqlIndexingSettings(index, domainsBase, _, nexusVocBase) =
+    DomainSparqlIndexingSettings(genString(length = 6), base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)
@@ -98,9 +98,9 @@ class DomainIndexerSpec(blazegraphPort: Int)
 
   }
 
-  "A DomainIndexer" should {
+  "A DomainSparqlIndexer" should {
     val client  = SparqlClient[Future](baseUri)
-    val indexer = DomainIndexer(client, settings)
+    val indexer = DomainSparqlIndexer(client, settings)
 
     val id = DomainId(OrgId("org"), "dom")
 

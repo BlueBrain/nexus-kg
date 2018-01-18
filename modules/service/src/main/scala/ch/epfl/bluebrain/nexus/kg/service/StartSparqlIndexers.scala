@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.contexts.{ContextIndexer, ContextIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.contexts.{ContextSparqlIndexer, ContextSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.domains._
 import ch.epfl.bluebrain.nexus.kg.indexing.instances._
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations._
@@ -103,13 +103,13 @@ class StartSparqlIndexers(settings: Settings,
   }
 
   private def startIndexingContexts() = {
-    val contextsIndexingSettings = ContextIndexingSettings(settings.Sparql.Index,
+    val contextsIndexingSettings = ContextSparqlIndexingSettings(settings.Sparql.Index,
                                                            apiUri,
                                                            settings.Sparql.Contexts.GraphBaseNamespace,
                                                            settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[ContextEvent](
-      ContextIndexer[Future](sparqlClient, contextsIndexingSettings).apply _,
+      ContextSparqlIndexer[Future](sparqlClient, contextsIndexingSettings).apply _,
       "contexts-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "context",
@@ -118,13 +118,13 @@ class StartSparqlIndexers(settings: Settings,
   }
 
   private def startIndexingDomains() = {
-    val domainIndexingSettings = DomainIndexingSettings(settings.Sparql.Index,
-                                                        apiUri,
-                                                        settings.Sparql.Domains.GraphBaseNamespace,
-                                                        settings.Prefixes.CoreVocabulary)
+    val domainIndexingSettings = DomainSparqlIndexingSettings(settings.Sparql.Index,
+                                                              apiUri,
+                                                              settings.Sparql.Domains.GraphBaseNamespace,
+                                                              settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[DomainEvent](
-      DomainIndexer[Future](sparqlClient, domainIndexingSettings).apply _,
+      DomainSparqlIndexer[Future](sparqlClient, domainIndexingSettings).apply _,
       "domains-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "domain",

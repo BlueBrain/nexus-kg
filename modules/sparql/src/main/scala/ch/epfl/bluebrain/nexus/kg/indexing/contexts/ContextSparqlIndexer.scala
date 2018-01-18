@@ -1,46 +1,31 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.contexts
 
-import cats.instances.string._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent.{
   ContextCreated,
   ContextDeprecated,
   ContextPublished,
   ContextUpdated
 }
-import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId, ContextName}
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId}
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
+import ch.epfl.bluebrain.nexus.kg.indexing.BaseSparqlIndexer
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import io.circe.Json
 import journal.Logger
 
-class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSettings) {
+class ContextSparqlIndexer[F[_]](client: SparqlClient[F], settings: ContextSparqlIndexingSettings)
+    extends BaseSparqlIndexer(settings.contextsBase, settings.nexusVocBase) {
 
-  private val log                                                   = Logger[this.type]
-  private val ContextIndexingSettings(index, base, baseNs, baseVoc) = settings
-
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]             = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId]       = Qualifier.configured[DomainId](base)
-  private implicit val contextNameQualifier: ConfiguredQualifier[ContextName] = Qualifier.configured[ContextName](base)
-  private implicit val contextIdQualifier: ConfiguredQualifier[ContextId]     = Qualifier.configured[ContextId](base)
-  private implicit val stringQualifier: ConfiguredQualifier[String]           = Qualifier.configured[String](baseVoc)
-
-  private val revKey        = "rev".qualifyAsString
-  private val deprecatedKey = "deprecated".qualifyAsString
-  private val publishedKey  = "published".qualifyAsString
-  private val orgKey        = "organization".qualifyAsString
-  private val domainKey     = "domain".qualifyAsString
-  private val nameKey       = "name".qualifyAsString
-  private val versionKey    = "version".qualifyAsString
+  private val log                                          = Logger[this.type]
+  private val ContextSparqlIndexingSettings(index, _, baseNs, _) = settings
+  private val versionKey                                   = "version".qualifyAsString
 
   final def apply(event: ContextEvent): F[Unit] = event match {
     case ContextCreated(id, rev, m, value) =>
@@ -100,7 +85,7 @@ class ContextIndexer[F[_]](client: SparqlClient[F], settings: ContextIndexingSet
 
 }
 
-object ContextIndexer {
-  final def apply[F[_]](client: SparqlClient[F], settings: ContextIndexingSettings): ContextIndexer[F] =
-    new ContextIndexer[F](client, settings)
+object ContextSparqlIndexer {
+  final def apply[F[_]](client: SparqlClient[F], settings: ContextSparqlIndexingSettings): ContextSparqlIndexer[F] =
+    new ContextSparqlIndexer[F](client, settings)
 }

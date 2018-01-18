@@ -1,17 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.domains
 
-import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent._
-import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainEvent, DomainId}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent._
+import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainEvent, DomainId}
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
+import ch.epfl.bluebrain.nexus.kg.indexing.BaseSparqlIndexer
 import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import io.circe.Json
 import journal.Logger
@@ -23,20 +21,13 @@ import journal.Logger
   * @param settings the indexing settings
   * @tparam F the monadic effect type
   */
-class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSettings) {
+class DomainSparqlIndexer[F[_]](client: SparqlClient[F], settings: DomainSparqlIndexingSettings)
+    extends BaseSparqlIndexer(settings.domainBase, settings.nexusVocBase) {
 
-  private val log                                                  = Logger[this.type]
-  private val DomainIndexingSettings(index, base, baseNs, baseVoc) = settings
+  private val log                                               = Logger[this.type]
+  private val DomainSparqlIndexingSettings(index, _, baseNs, _) = settings
 
-  private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]       = Qualifier.configured[OrgId](base)
-  private implicit val domainIdQualifier: ConfiguredQualifier[DomainId] = Qualifier.configured[DomainId](base)
-  private implicit val stringQualifier: ConfiguredQualifier[String]     = Qualifier.configured[String](baseVoc)
-
-  private val revKey         = "rev".qualifyAsString
   private val descriptionKey = "description".qualifyAsString
-  private val deprecatedKey  = "deprecated".qualifyAsString
-  private val orgKey         = "organization".qualifyAsString
-  private val nameKey        = "name".qualifyAsString
 
   /**
     * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the
@@ -85,7 +76,7 @@ class DomainIndexer[F[_]](client: SparqlClient[F], settings: DomainIndexingSetti
   }
 }
 
-object DomainIndexer {
+object DomainSparqlIndexer {
 
   /**
     * Constructs a domain incremental indexer that pushes data into an rdf triple store.
@@ -94,6 +85,6 @@ object DomainIndexer {
     * @param settings the indexing settings
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F], settings: DomainIndexingSettings): DomainIndexer[F] =
-    new DomainIndexer[F](client, settings)
+  final def apply[F[_]](client: SparqlClient[F], settings: DomainSparqlIndexingSettings): DomainSparqlIndexer[F] =
+    new DomainSparqlIndexer[F](client, settings)
 }

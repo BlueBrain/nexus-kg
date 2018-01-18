@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
 class ElasticIdsSpec extends WordSpecLike with Matchers with Inspectors with Randomness {
-  private val Slash = "%2F"
+  private val Slash = "%2f"
 
   "An ElasticIds" should {
 
