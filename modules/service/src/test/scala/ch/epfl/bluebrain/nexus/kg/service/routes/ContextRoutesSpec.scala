@@ -171,6 +171,15 @@ class ContextRoutesSpec
         Context(contextId, 3L, contextJson, deprecated = false, published = true))
     }
 
+    "reject publishing a context when setting passing a config with published=false" in {
+      Patch(s"/contexts/${contextId.show}/config?rev=3", ContextConfig(published = false)) ~> addCredentials(
+        ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Error].code shouldEqual classNameOf[CannotUnpublishContext.type]
+      }
+    }
+
+
     "fetch old revision of a context" in {
       Get(s"/contexts/${contextId.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
@@ -184,6 +193,12 @@ class ContextRoutesSpec
             "nxv:published"  -> Json.fromBoolean(false)
           )
           .deepMerge(contextJsonWithStandards)
+      }
+    }
+
+    "return not found for attempting to fetch an unexisting context" in {
+      Get(s"/contexts/${contextId.show}123") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.NotFound
       }
     }
 
