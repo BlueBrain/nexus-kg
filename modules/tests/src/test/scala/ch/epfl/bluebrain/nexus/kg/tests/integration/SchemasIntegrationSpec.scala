@@ -70,12 +70,12 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
           Get(s"/schemas") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults = UnscoredQueryResults(schemas.length.toLong, schemas.take(20).map {
+            val expectedResults = UnscoredQueryResults(schemas.length.toLong, schemas.take(10).map {
               case (schemaId, _) => UnscoredQueryResult(schemaId)
             })
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/schemas",
-                                      "next" -> s"$apiUri/schemas?from=20&size=20")
+                                      "next" -> s"$apiUri/schemas?from=10&size=10")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }

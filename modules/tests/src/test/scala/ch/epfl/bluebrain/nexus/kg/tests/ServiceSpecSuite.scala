@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
 class ServiceSpecSuite
-    extends Suites
+    extends Suites with SequentialNestedSuiteExecution
     with BeforeAndAfterAll
     with CassandraBoot
     with BlazegraphBoot
@@ -55,6 +55,9 @@ class ServiceSpecSuite
     new SchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new InstanceIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, bootstrap.instances)
   )
+
+  override def run(testName: Option[String], args: Args): Status = super.run(testName, args)
+
 
   private def aclIndexer: AclIndexer[Future] = {
     val aclIndexSettings = AclIndexingSettings(settings.Sparql.Index,

@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.tests
+package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.UUID
 
@@ -8,8 +8,8 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
+import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 class ElasticIdsSpec extends WordSpecLike with Matchers with Inspectors with Randomness {
   private val Slash = "%2F"
 

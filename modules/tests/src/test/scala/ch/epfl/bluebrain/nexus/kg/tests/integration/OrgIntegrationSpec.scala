@@ -93,7 +93,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
                 UnscoredQueryResult(_)
               })
             val expectedLinks =
-              Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations"))
+              Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations545"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }

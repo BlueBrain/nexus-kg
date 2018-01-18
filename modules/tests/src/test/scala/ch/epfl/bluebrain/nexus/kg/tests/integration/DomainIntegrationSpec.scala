@@ -61,10 +61,10 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
-              UnscoredQueryResults(domains.size.toLong, domains.take(20).map(UnscoredQueryResult(_)))
+              UnscoredQueryResults(domains.size.toLong, domains.take(10).map(UnscoredQueryResult(_)))
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/domains",
-                                      "next" -> s"$apiUri/domains?from=20&size=20")
+                                      "next" -> s"$apiUri/domains?from=10&size=10")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
         }
@@ -79,10 +79,10 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
-              UnscoredQueryResults(domains.size.toLong, domains.takeRight(20).reverse.map(UnscoredQueryResult(_)))
+              UnscoredQueryResults(domains.size.toLong, domains.takeRight(10).reverse.map(UnscoredQueryResult(_)))
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri$uri",
-                                      "next" -> s"$apiUri$uri&from=20&size=20")
+                                      "next" -> s"$apiUri$uri&from=10&size=10")
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
           }
