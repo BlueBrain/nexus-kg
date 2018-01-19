@@ -13,10 +13,10 @@ import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{Path, Permission}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.CustomAuthorizationRejection
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.DownstreamServiceError
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
+
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
@@ -73,7 +73,7 @@ object AuthDirectives extends AuthDirectives {
     */
   final case class CustomAuthorizationRejection(err: CommonRejections) extends CustomRejection
 
-  private[directives] def authorizationRejection(err: Throwable): CustomAuthorizationRejection =
+  private[directives] def authorizationRejection(err: Throwable) =
     CustomAuthorizationRejection(
       DownstreamServiceError(Try(err.getMessage).getOrElse("error while authenticating on the downstream service")))
 }
