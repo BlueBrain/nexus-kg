@@ -8,10 +8,15 @@ import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
+import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
@@ -42,8 +47,12 @@ class OrganizationRoutesSpec
     with MockedIAMClient {
 
   "An OrganizationRoutes" should {
-    val agg  = MemoryAggregate("orgs")(initial, next, eval).toF[Future]
-    val orgs = Organizations(agg)
+    val agg      = MemoryAggregate("orgs")(initial, next, eval).toF[Future]
+    val orgs     = Organizations(agg)
+    val domAgg   = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms     = Domains(domAgg, orgs)
+    val ctxAgg   = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    val contexts = Contexts(ctxAgg, doms, baseUri.toString())
 
     val sparqlUri                                     = Uri("http://localhost:9999/bigdata/sparql")
     val vocab                                         = baseUri.copy(path = baseUri.path / "core")
@@ -51,14 +60,17 @@ class OrganizationRoutesSpec
     implicit val filteringSettings: FilteringSettings = FilteringSettings(vocab, vocab)
     implicit val cl: IamClient[Future]                = iamClient("http://localhost:8080")
     implicit val clock: Clock                         = Clock.systemUTC
+    val caller                                        = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =
-      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri, prefixes).routes
+      OrganizationRoutes(orgs, contexts, sparqlClient, querySettings, baseUri).routes
 
     val id          = OrgId(genString(length = 3))
     val json        = Json.obj("key" -> Json.fromString(genString(length = 8)))
     val jsonUpdated = Json.obj("key" -> Json.fromString(genString(length = 8)))
+
+    createNexusContexts(orgs, doms, contexts)(caller)
 
     "create an organization" in {
       Put(s"/organizations/${id.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
@@ -106,6 +118,7 @@ class OrganizationRoutesSpec
 
     "return the current organization" in {
       Get(s"/organizations/${id.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         status shouldEqual StatusCodes.OK
         contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         responseAs[Json] shouldEqual Json
@@ -118,6 +131,13 @@ class OrganizationRoutesSpec
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(jsonUpdated)
+      }
+    }
+
+    "return the current organization with a custom format" in {
+      Get(s"/organizations/${id.show}?format=expanded") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+        status shouldEqual StatusCodes.OK
       }
     }
 

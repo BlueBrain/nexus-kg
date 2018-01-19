@@ -9,7 +9,9 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.Location
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.stream.{ActorMaterializer, Materializer}
+import akka.stream.scaladsl.Source
+import akka.stream.{ActorMaterializer, IOResult, Materializer}
+import akka.util.ByteString
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -34,6 +36,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
@@ -56,8 +59,8 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
                                            cl: UntypedHttpClient[Future])
     extends BootstrapQuerySettings(settings) {
 
-  private val baseUri  = settings.Http.PublicUri
-  private val prefixes = settings.Prefixes
+  private val baseUri = settings.Http.PublicUri
+
   // $COVERAGE-OFF$
   override val apiUri: Uri =
     if (settings.Http.Prefix.trim.isEmpty) baseUri
@@ -72,16 +75,17 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   val (orgs, doms, schemas, contexts, instances) = operations()
 
-  implicit val iamC                = iamClient(settings.IAM.BaseUri)
-  private implicit val clock       = Clock.systemUTC
-  private implicit val orderedKeys = kgOrderedKeys
+  private implicit val iamC: IamClient[Future]  = iamClient(settings.IAM.BaseUri)
+  private implicit val clock: Clock             = Clock.systemUTC
+  private implicit val orderedKeys: OrderedKeys = kgOrderedKeys
+  private implicit val prefixes: PrefixUris     = settings.Prefixes
 
   private val apis = uriPrefix(apiUri) {
-    OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri, prefixes).routes ~
-      DomainRoutes(doms, sparqlClient, querySettings, apiUri, prefixes).routes ~
-      SchemaRoutes(schemas, sparqlClient, querySettings, apiUri, prefixes).routes ~
-      ContextRoutes(contexts, sparqlClient, querySettings, apiUri, prefixes).routes ~
-      InstanceRoutes(instances, sparqlClient, querySettings, apiUri, prefixes).routes
+    OrganizationRoutes(orgs, contexts, sparqlClient, querySettings, apiUri).routes ~
+      DomainRoutes(doms, contexts, sparqlClient, querySettings, apiUri).routes ~
+      SchemaRoutes(schemas, contexts, sparqlClient, querySettings, apiUri).routes ~
+      ContextRoutes(contexts, sparqlClient, querySettings, apiUri).routes ~
+      InstanceRoutes(instances, contexts, sparqlClient, querySettings, apiUri).routes
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)
 
@@ -99,7 +103,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     if (provided.isEmpty) Set(cluster.selfAddress) else provided
   // $COVERAGE-ON$
 
-  def operations() = {
+  private def operations() = {
     implicit val al: AttachmentLocation[Future] = RelativeAttachmentLocation(settings.Attachment.VolumePath)
 
     val sourcingSettings = SourcingAkkaSettings(journalPluginId = settings.Persistence.QueryJournalPlugin)
@@ -139,13 +143,13 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     val contexts  = Contexts(ctxAgg, doms, apiUri.toString())
     val schemas   = Schemas(schemasAgg, doms, contexts, apiUri.toString())
     val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch))
-    implicit val instances =
+    implicit val instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]] =
       Instances(instancesAgg, schemas, contexts, validator, inFileProcessor)
     (orgs, doms, schemas, contexts, instances)
   }
 
-  def joinCluster()  = cluster.joinSeedNodes(seeds.toList)
-  def leaveCluster() = cluster.leave(cluster.selfAddress)
+  def joinCluster(): Unit  = cluster.joinSeedNodes(seeds.toList)
+  def leaveCluster(): Unit = cluster.leave(cluster.selfAddress)
 }
 
 object BootstrapService {
@@ -171,7 +175,6 @@ object BootstrapService {
                                  cl: UntypedHttpClient[Future]): IamClient[Future] = {
     import _root_.io.circe.generic.extras.Configuration
     import _root_.io.circe.generic.extras.auto._
-    import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
     implicit val identityDecoder = JsonLdSerialization.identityDecoder
     implicit val iamUri          = IamUri(baseIamUri)
     implicit val config          = Configuration.default.withDiscriminator("@type")

@@ -104,9 +104,9 @@ class StartSparqlIndexers(settings: Settings,
 
   private def startIndexingContexts() = {
     val contextsIndexingSettings = ContextSparqlIndexingSettings(settings.Sparql.Index,
-                                                           apiUri,
-                                                           settings.Sparql.Contexts.GraphBaseNamespace,
-                                                           settings.Prefixes.CoreVocabulary)
+                                                                 apiUri,
+                                                                 settings.Sparql.Contexts.GraphBaseNamespace,
+                                                                 settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[ContextEvent](
       ContextSparqlIndexer[Future](sparqlClient, contextsIndexingSettings).apply _,

@@ -18,10 +18,11 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
@@ -45,67 +46,74 @@ import scala.concurrent.{ExecutionContext, Future}
   * Http route definitions for instance specific functionality.
   *
   * @param instances         the instances operation bundle
+  * @param contexts          the contexts operation bundle
   * @param instanceQueries   query builder for schemas
   * @param base              the service public uri + prefix
   * @param prefixes          the service context URIs
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
+                     contexts: Contexts[Future],
                      instanceQueries: FilterQueries[Future, InstanceId],
-                     base: Uri,
-                     prefixes: PrefixUris)(implicit querySettings: QuerySettings,
-                                           filteringSettings: FilteringSettings,
-                                           iamClient: IamClient[Future],
-                                           ec: ExecutionContext,
-                                           clock: Clock,
-                                           orderedKeys: OrderedKeys)
-    extends DefaultRouteHandling()(prefixes) {
+                     base: Uri)(implicit querySettings: QuerySettings,
+                                filteringSettings: FilteringSettings,
+                                iamClient: IamClient[Future],
+                                ec: ExecutionContext,
+                                clock: Clock,
+                                orderedKeys: OrderedKeys,
+                                prefixes: PrefixUris)
+    extends DefaultRouteHandling(contexts) {
 
   private implicit val _                                = (entity: Instance) => entity.id
   private implicit val encoders: InstanceCustomEncoders = new InstanceCustomEncoders(base, prefixes)
-
+  private implicit val coreContext: ContextUri          = prefixes.CoreContext
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
-      val filter                             = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
-      implicit val _                         = (id: InstanceId) => instances.fetch(id)
-      implicit val searchContext: ContextUri = prefixes.SearchContext
+      val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+      implicit val _ = (id: InstanceId) => instances.fetch(id)
       traceName("searchInstances") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-          instanceQueries.list(filter, pagination, termOpt, sort).buildResponse(fields, base, pagination)
+          instanceQueries.list(filter, pagination, termOpt, sort).buildResponse(fields, base, prefixes, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
             authenticateCaller.apply { implicit caller =>
-              instanceQueries.list(orgId, filter, pagination, termOpt, sort).buildResponse(fields, base, pagination)
+              instanceQueries
+                .list(orgId, filter, pagination, termOpt, sort)
+                .buildResponse(fields, base, prefixes, pagination)
             }
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
             authenticateCaller.apply { implicit caller =>
-              instanceQueries.list(domainId, filter, pagination, termOpt, sort).buildResponse(fields, base, pagination)
+              instanceQueries
+                .list(domainId, filter, pagination, termOpt, sort)
+                .buildResponse(fields, base, prefixes, pagination)
             }
           } ~
           (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
             authenticateCaller.apply { implicit caller =>
               instanceQueries
                 .list(schemaName, filter, pagination, termOpt, sort)
-                .buildResponse(fields, base, pagination)
+                .buildResponse(fields, base, prefixes, pagination)
             }
           } ~
           (extractSchemaId & pathEndOrSingleSlash) { schemaId =>
             authenticateCaller.apply { implicit caller =>
-              instanceQueries.list(schemaId, filter, pagination, termOpt, sort).buildResponse(fields, base, pagination)
+              instanceQueries
+                .list(schemaId, filter, pagination, termOpt, sort)
+                .buildResponse(fields, base, prefixes, pagination)
             }
           } ~
           extractInstanceId { instanceId =>
             (path("outgoing") & authenticateCaller) { implicit caller =>
               instanceQueries
                 .outgoing(instanceId, filter, pagination, termOpt, sort)
-                .buildResponse(fields, base, pagination)
+                .buildResponse(fields, base, prefixes, pagination)
             } ~
               (path("incoming") & authenticateCaller) { implicit caller =>
                 instanceQueries
                   .incoming(instanceId, filter, pagination, termOpt, sort)
-                  .buildResponse(fields, base, pagination)
+                  .buildResponse(fields, base, prefixes, pagination)
               }
           }
       }
@@ -113,20 +121,19 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
 
   protected def readRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     extractInstanceId { instanceId =>
-      implicit val coreContext: ContextUri = prefixes.CoreContext
-      (pathEndOrSingleSlash & get & authorizeResource(instanceId, Read)) {
+      (pathEndOrSingleSlash & get & authorizeResource(instanceId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
             traceName("getInstanceRevision") {
               onSuccess(instances.fetch(instanceId, rev)) {
-                case Some(instance) => complete(StatusCodes.OK -> instance)
+                case Some(instance) => formatOutput(instance, format)
                 case None           => complete(StatusCodes.NotFound)
               }
             }
           case None =>
             traceName("getInstance") {
               onSuccess(instances.fetch(instanceId)) {
-                case Some(instance) => complete(StatusCodes.OK -> instance)
+                case Some(instance) => formatOutput(instance, format)
                 case None           => complete(StatusCodes.NotFound)
               }
             }
@@ -156,7 +163,6 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractSchemaId & pathEndOrSingleSlash & post) { schemaId =>
-      implicit val coreContext: ContextUri = prefixes.CoreContext
       entity(as[Json]) { json =>
         (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
           traceName("createInstance") {
@@ -218,12 +224,14 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
 
   def routes: Route = combinedRoutesFor("data")
 }
+
 object InstanceRoutes {
 
   /**
     * Constructs a new ''InstanceRoutes'' instance that defines the http routes specific to instances.
     *
     * @param instances     the instances operation bundle
+    * @param contexts      the context operation bundle
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
@@ -231,19 +239,21 @@ object InstanceRoutes {
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
+                  contexts: Contexts[Future],
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
-                  base: Uri,
-                  prefixes: PrefixUris)(implicit
-                                        ec: ExecutionContext,
-                                        iamClient: IamClient[Future],
-                                        filteringSettings: FilteringSettings,
-                                        clock: Clock,
-                                        orderedKeys: OrderedKeys): InstanceRoutes = {
+                  base: Uri)(implicit
+                             ec: ExecutionContext,
+                             iamClient: IamClient[Future],
+                             filteringSettings: FilteringSettings,
+                             clock: Clock,
+                             orderedKeys: OrderedKeys,
+                             prefixes: PrefixUris): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
-    new InstanceRoutes(instances, instanceQueries, base, prefixes)
+    new InstanceRoutes(instances, contexts, instanceQueries, base)
   }
+
 }
 
 class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Instance => InstanceId)
@@ -271,7 +281,7 @@ class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Instan
         )
       })
 
-    instance.value.deepMerge(meta).addCoreContext
+    instance.value.deepMerge(meta)
   }
 
   implicit val instanceRefEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
@@ -280,12 +290,10 @@ class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Instan
         refEncoder
           .apply(ref)
           .deepMerge(Json.obj(JsonLDKeys.distribution -> Json.arr(attachment.asJson.addDistributionContext)))
-          .addCoreContext
 
       case None =>
         refEncoder
           .apply(ref)
-          .addCoreContext
     }
   }
 

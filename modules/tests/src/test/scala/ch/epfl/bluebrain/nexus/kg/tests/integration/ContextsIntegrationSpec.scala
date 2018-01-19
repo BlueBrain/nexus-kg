@@ -15,9 +15,9 @@ import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
-import io.circe.Json
 import io.circe.generic.semiauto.deriveEncoder
 import io.circe.syntax._
+import io.circe.{Encoder, Json}
 import org.scalatest.time.{Seconds, Span}
 
 import scala.collection.mutable.Map
@@ -31,7 +31,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
 
   import BootstrapIntegrationSpec._
   import contextEncoders._
-  implicit val e = deriveEncoder[ContextConfig]
+  private implicit val e: Encoder[ContextConfig] = deriveEncoder[ContextConfig]
 
   "A ContextRoutes" when {
     "performing integration tests" should {
@@ -43,7 +43,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
             Put(s"/contexts/${contextId.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
               idsPayload += (contextId -> Context(contextId, 2L, json, false, true))
               status shouldEqual StatusCodes.Created
-              responseAs[Json] shouldEqual ContextRef(contextId, 1L).asJson
+              responseAs[Json] shouldEqual ContextRef(contextId, 1L).asJson.addCoreContext
             }
         }
       }
@@ -53,7 +53,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
             Patch(s"/contexts/${contextId.show}/config?rev=1", ContextConfig(published = true)) ~> addCredentials(
               ValidCredentials) ~> route ~> check {
               status shouldEqual StatusCodes.OK
-              responseAs[Json] shouldEqual ContextRef(contextId, 2L).asJson
+              responseAs[Json] shouldEqual ContextRef(contextId, 2L).asJson.addCoreContext
             }
         }
       }
@@ -70,7 +70,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/contexts",
                                       "next" -> s"$apiUri/contexts?from=10&size=10")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -93,7 +93,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri$path",
                                       "next" -> s"$apiUri$path&from=5")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -113,7 +113,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
               "self"     -> s"$apiUri$path",
               "previous" -> s"$apiUri$path".replace("from=100", s"from=${randContexts.length - pagination.size}")
             )
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -131,7 +131,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
             Links("@context" -> s"${prefixes.LinksContext}",
                   "self"     -> s"$apiUri$path",
                   "previous" -> s"$apiUri$path".replace("from=200", s"from=${nexusContexts.length - size}"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
       "list contexts on organization nexus and domain development" in {
@@ -143,7 +143,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
           val expectedResults =
             UnscoredQueryResults(ctxs.length.toLong, ctxs.map { case (contextId, _) => UnscoredQueryResult(contextId) })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -162,14 +162,14 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
               case (id, _) => UnscoredQueryResult(id)
             })
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
       "deprecate one context on rand organization" in {
         val (contextId, _) = contextsForOrg(contexts, "rand").head
         Delete(s"/contexts/${contextId.show}?rev=2") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual ContextRef(contextId, 3L).asJson
+          responseAs[Json] shouldEqual ContextRef(contextId, 3L).asJson.addCoreContext
         }
 
       }
@@ -187,7 +187,7 @@ class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(i
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri$path",
                                       "next" -> s"$apiUri$path&from=3")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }

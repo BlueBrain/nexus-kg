@@ -5,7 +5,6 @@ import akka.http.scaladsl.model.Uri.Query
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.ScoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
@@ -56,10 +55,7 @@ object LinksQueryResults {
   }
 
   final implicit def encodeLinksQueryResults[A](implicit E: Encoder[QueryResult[A]],
-                                                L: Encoder[Links],
-                                                B: BaseEncoder): Encoder[LinksQueryResults[A]] = {
-    import B.JsonOps
-
+                                                L: Encoder[Links]): Encoder[LinksQueryResults[A]] = {
     Encoder.encodeJson.contramap { response =>
       val json = Json.obj(
         JsonLDKeys.total   -> Json.fromLong(response.response.total),
@@ -68,8 +64,8 @@ object LinksQueryResults {
       )
       response.response match {
         case ScoredQueryResults(_, maxScore, _) =>
-          json deepMerge Json.obj("maxScore" -> Json.fromFloatOrNull(maxScore)).addSearchContext
-        case _ => json.addSearchContext
+          json deepMerge Json.obj("maxScore" -> Json.fromFloatOrNull(maxScore))
+        case _ => json
       }
     }
   }

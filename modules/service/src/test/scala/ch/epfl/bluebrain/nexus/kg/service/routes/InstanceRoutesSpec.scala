@@ -87,22 +87,17 @@ class InstanceRoutesSpec
       )
     }
 
-    val settings   = new Settings(ConfigFactory.load())
-    val algorithm  = settings.Attachment.HashAlgorithm
-    val schemaJson = jsonContentOf("/int-value-schema.json")
+    val settings     = new Settings(ConfigFactory.load())
+    val algorithm    = settings.Attachment.HashAlgorithm
+    val schemaJson   = jsonContentOf("/int-value-schema.json")
+    val replacements = Map(Pattern.quote("{{base}}") -> baseUri.toString)
 
-    val orgAgg = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs   = Organizations(orgAgg)
-    val domAgg =
-      MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval)
-        .toF[Future]
-    val doms = Domains(domAgg, orgs)
-    val schAgg =
-      MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval)
-        .toF[Future]
-    val ctxAgg =
-      MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval)
-        .toF[Future]
+    val orgAgg                                          = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs                                            = Organizations(orgAgg)
+    val domAgg                                          = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms                                            = Domains(domAgg, orgs)
+    val schAgg                                          = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
+    val ctxAgg                                          = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
     val contexts                                        = Contexts(ctxAgg, doms, baseUri.toString())
     val schemas                                         = Schemas(schAgg, doms, contexts, baseUri.toString())
     val validator                                       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch))
@@ -114,11 +109,8 @@ class InstanceRoutesSpec
     implicit val clock = Clock.systemUTC
     val caller         = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
-    val orgRef =
-      orgs.create(OrgId(genString(length = 3)), Json.obj())(caller).futureValue
-    val domRef = doms
-      .create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller)
-      .futureValue
+    val orgRef   = orgs.create(OrgId(genString(length = 3)), Json.obj())(caller).futureValue
+    val domRef   = doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller).futureValue
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 
     val unpublished = schemas.create(schemaId, schemaJson)(caller).futureValue
@@ -127,10 +119,9 @@ class InstanceRoutesSpec
     private val InstanceIndexingSettings(index, _, _, nexusVocBase) =
       InstanceIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
 
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
-    implicit val filteringSettings: FilteringSettings =
-      FilteringSettings(nexusVocBase, nexusVocBase)
-    val baseUUID = UUID.randomUUID().toString.toLowerCase().dropRight(2)
+    val querySettings                                 = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
+    implicit val filteringSettings: FilteringSettings = FilteringSettings(nexusVocBase, nexusVocBase)
+    val baseUUID                                      = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
 
@@ -138,7 +129,7 @@ class InstanceRoutesSpec
 
     implicit val cl = iamClient("http://localhost:8080")
 
-    val route       = InstanceRoutes(instances, client, querySettings, baseUri, prefixes).routes
+    val route       = InstanceRoutes(instances, contexts, client, querySettings, baseUri).routes
     val value       = genJson()
     val baseEncoder = new BaseEncoder(prefixes)
 
@@ -241,6 +232,26 @@ class InstanceRoutesSpec
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(genJsonWithContext(value))
+      }
+    }
+
+    "return the current instance with a custom format" in new Context {
+      createNexusContexts(orgs, doms, contexts)(caller)
+
+      val toExpand = genJsonWithContext(jsonContentOf("/int-value.json"))
+      val toExpandRef = Post(s"/data/${schemaId.show}", toExpand) ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.Created
+        val json       = responseAs[Json]
+        val instanceId = InstanceId(toCompact(json.hcursor.get[String]("@id").toOption.get)).get
+        InstanceRef(instanceId, json.hcursor.get[Long]("nxv:rev").toOption.get)
+      }
+
+      Get(s"/data/${toExpandRef.id.show}?format=expanded") ~> addCredentials(ValidCredentials) ~> route ~> check {
+        contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual jsonContentOf("/int-value-expanded-with-links.json",
+                                                   Map(Pattern.quote("{{schemaId}}")   -> schemaId.show,
+                                                       Pattern.quote("{{instanceId}}") -> toExpandRef.id.show))
       }
     }
 

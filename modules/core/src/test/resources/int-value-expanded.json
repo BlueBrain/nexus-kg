@@ -1,0 +1,18 @@
+[
+  {
+    "@id" : "_:b0",
+    "@type": [
+      "http://schema.org/QuantitativeValue"
+    ],
+    "http://localhost/v0/voc/nexus/core/desc": [
+      {
+        "@value": "random"
+      }
+    ],
+    "http://schema.org/value": [
+      {
+        "@value": 16
+      }
+    ]
+  }
+]

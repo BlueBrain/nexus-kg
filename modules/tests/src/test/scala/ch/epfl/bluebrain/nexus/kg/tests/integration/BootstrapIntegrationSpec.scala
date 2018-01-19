@@ -18,7 +18,6 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId}
 import ch.epfl.bluebrain.nexus.kg.core.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
-import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import io.circe._
@@ -65,12 +64,11 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris)(impli
   private implicit val contextIdExtractor             = (entity: Context) => entity.id
   private implicit val instanceIdExtractor            = (entity: Instance) => entity.id
 
-  val orgsEncoders                      = new OrgCustomEncoders(apiUri, prefixes)
-  val domsEncoders                      = new DomainCustomEncoders(apiUri, prefixes)
-  val contextEncoders                   = new ContextCustomEncoders(apiUri, prefixes)
-  val schemaEncoders                    = new SchemaCustomEncoders(apiUri, prefixes)
-  val instanceEncoders                  = new InstanceCustomEncoders(apiUri, prefixes)
-  implicit val baseEncoder: BaseEncoder = instanceEncoders
+  val orgsEncoders     = new OrgCustomEncoders(apiUri, prefixes)
+  val domsEncoders     = new DomainCustomEncoders(apiUri, prefixes)
+  val contextEncoders  = new ContextCustomEncoders(apiUri, prefixes)
+  val schemaEncoders   = new SchemaCustomEncoders(apiUri, prefixes)
+  val instanceEncoders = new InstanceCustomEncoders(apiUri, prefixes)
 }
 
 object BootstrapIntegrationSpec extends Randomness with Resources {

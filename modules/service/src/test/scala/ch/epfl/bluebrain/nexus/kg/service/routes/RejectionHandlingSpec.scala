@@ -11,6 +11,8 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
+import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
@@ -38,6 +40,10 @@ class RejectionHandlingSpec
     val baseUri                    = Uri("http://localhost/v0")
     val orgAgg                     = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs                       = Organizations(orgAgg)
+    val domAgg                     = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms                       = Domains(domAgg, orgs)
+    val ctxAgg                     = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    val contexts                   = Contexts(ctxAgg, doms, baseUri.toString())
     val id                         = genString(length = 5)
     val nexusVocab                 = s"$baseUri/voc/nexus/core"
     implicit val filteringSettings = FilteringSettings(nexusVocab, nexusVocab)
@@ -49,12 +55,10 @@ class RejectionHandlingSpec
     val querySettings = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri, s"$baseUri/acls/graph")
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route =
-      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri, prefixes).routes
+    val route        = OrganizationRoutes(orgs, contexts, sparqlClient, querySettings, baseUri).routes
 
     "reject the creation of a organization with invalid JSON payload" in {
-      val invalidJson =
-        HttpEntity(ContentTypes.`application/json`, s"""{"key" "value"}""")
+      val invalidJson = HttpEntity(ContentTypes.`application/json`, s"""{"key" "value"}""")
       Put(s"/organizations/$id", invalidJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[WrongOrInvalidJson.type]

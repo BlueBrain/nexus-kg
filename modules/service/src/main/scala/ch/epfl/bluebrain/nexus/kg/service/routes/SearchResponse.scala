@@ -8,9 +8,8 @@ import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.{OrderedKeys, marshallerHttp}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.BaseEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
 import io.circe.Encoder
 
@@ -23,13 +22,14 @@ trait SearchResponse {
     */
   implicit class QueryResultsOpts[Id](qr: Future[QueryResults[Id]]) {
 
-    private[routes] def addPagination(base: Uri, pagination: Pagination)(implicit
-                                                                         R: Encoder[UnscoredQueryResult[Id]],
-                                                                         S: Encoder[ScoredQueryResult[Id]],
-                                                                         L: Encoder[Links],
-                                                                         B: BaseEncoder,
-                                                                         orderedKeys: OrderedKeys,
-                                                                         C: ContextUri): Route = {
+    private[routes] def addPagination(base: Uri, prefixes: PrefixUris, pagination: Pagination)(
+        implicit
+        R: Encoder[UnscoredQueryResult[Id]],
+        S: Encoder[ScoredQueryResult[Id]],
+        L: Encoder[Links],
+        orderedKeys: OrderedKeys): Route = {
+      implicit val context: ContextUri = prefixes.SearchContext
+
       extract(_.request.uri) { uri =>
         onSuccess(qr) { result =>
           val lqu = base.copy(path = uri.path, fragment = uri.fragment, rawQueryString = uri.rawQueryString)
@@ -47,7 +47,7 @@ trait SearchResponse {
       * @param pagination the pagination values
       */
     @SuppressWarnings(Array("MaxParameters"))
-    def buildResponse[Entity](fields: Set[String], base: Uri, pagination: Pagination)(
+    def buildResponse[Entity](fields: Set[String], base: Uri, prefixes: PrefixUris, pagination: Pagination)(
         implicit
         f: Id => Future[Option[Entity]],
         ec: ExecutionContext,
@@ -56,9 +56,7 @@ trait SearchResponse {
         Re: Encoder[UnscoredQueryResult[Entity]],
         Se: Encoder[ScoredQueryResult[Entity]],
         L: Encoder[Links],
-        B: BaseEncoder,
-        orderedKeys: OrderedKeys,
-        C: ContextUri): Route = {
+        orderedKeys: OrderedKeys): Route = {
       if (fields.contains("all")) {
         qr.flatMap { q =>
             q.results
@@ -70,9 +68,9 @@ trait SearchResponse {
               }
               .map(list => q.copyWith(list.reverse))
           }
-          .addPagination(base, pagination)
+          .addPagination(base, prefixes, pagination)
       } else {
-        qr.addPagination(base, pagination)
+        qr.addPagination(base, prefixes, pagination)
       }
     }
   }

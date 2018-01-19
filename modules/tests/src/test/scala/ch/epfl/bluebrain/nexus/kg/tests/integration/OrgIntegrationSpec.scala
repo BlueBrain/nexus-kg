@@ -58,7 +58,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
           Put(s"/organizations/${orgId.show}", json) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.Created
             idsPayload += (orgId -> Organization(orgId, 1L, json, false))
-            responseAs[Json] shouldEqual OrgRef(orgId, 1L).asJson
+            responseAs[Json] shouldEqual OrgRef(orgId, 1L).asJson.addCoreContext
           }
         }
       }
@@ -94,7 +94,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
               })
             val expectedLinks =
               Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -110,7 +110,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
               })
             val expectedLinks =
               Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations?fields=all"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -132,7 +132,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
               "previous" -> s"$apiUri$path".replace("from=1", "from=0"),
               "next"     -> s"$apiUri$path".replace("from=1", "from=2")
             )
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -148,7 +148,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                     "self"     -> s"$apiUri$path",
                                     "previous" -> s"$apiUri$path".replace("from=100", s"from=0"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -160,7 +160,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, orgs.head)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -174,7 +174,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                     "self"     -> s"$apiUri$path",
                                     "previous" -> s"$apiUri$path".replace("from=200", "from=0"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -190,7 +190,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
           val expectedResults =
             UnscoredQueryResults(1L, List(UnscoredQueryResult(orgs.head)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -204,7 +204,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
             })
           val expectedLinks =
             Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations?deprecated=false"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
         Get(s"/organizations?deprecated=true") ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
@@ -213,7 +213,7 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
             UnscoredQueryResults(0, List.empty[UnscoredQueryResult[OrgId]])
           val expectedLinks =
             Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations?deprecated=true"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
     }

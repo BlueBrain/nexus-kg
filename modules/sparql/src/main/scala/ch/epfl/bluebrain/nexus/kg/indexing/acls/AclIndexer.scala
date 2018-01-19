@@ -1,11 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.acls
 
 import akka.http.scaladsl.model.Uri
-import cats.MonadError
 import cats.instances.list._
 import cats.instances.string._
-import cats.syntax.functor._
 import cats.syntax.show._
+import cats.{MonadError, Traverse}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Event._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path.{Empty, Segment}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{Event, Path, Permission}
@@ -65,30 +64,27 @@ class AclIndexer[F[_]](client: SparqlClient[F], settings: AclIndexingSettings)(i
   }
 
   private def add(path: Path, identities: Set[Identity]): F[Unit] = {
-    F.sequence(qualifiedPaths(path) map { pathString =>
-        log.debug(s"Adding ACL indexing for path '$pathString' and identities '$identities'")
-        val meta = buildMeta(pathString, identities)
-        client.createGraph(index, baseNs, meta)
-      })
-      .map(_ => ())
+    Traverse[List].sequence_(qualifiedPaths(path) map { pathString =>
+      log.debug(s"Adding ACL indexing for path '$pathString' and identities '$identities'")
+      val meta = buildMeta(pathString, identities)
+      client.createGraph(index, baseNs, meta)
+    })
   }
 
   private def remove(path: Path, identity: Identity): F[Unit] = {
-    F.sequence(qualifiedPaths(path) map { pathString =>
-        log.debug(s"Removing ACL indexing for path '$pathString' and identity '$identity'")
-        val removeQuery = PatchQuery.exactMatch(pathToQualifiedId(pathString), readKey -> identity.id.id)
-        client.delete(index, removeQuery)
-      })
-      .map(_ => ())
+    Traverse[List].sequence_(qualifiedPaths(path) map { pathString =>
+      log.debug(s"Removing ACL indexing for path '$pathString' and identity '$identity'")
+      val removeQuery = PatchQuery.exactMatch(pathToQualifiedId(pathString), readKey -> identity.id.id)
+      client.delete(index, removeQuery)
+    })
   }
 
   private def clear(path: Path): F[Unit] = {
-    F.sequence(qualifiedPaths(path) map { pathString =>
-        log.debug(s"Clear ACLs indexing for path '$pathString'")
-        val removeQuery = PatchQuery(pathToQualifiedId(pathString), baseNs, readKey)(Qualifier.configured[String](""))
-        client.delete(index, removeQuery)
-      })
-      .map(_ => ())
+    Traverse[List].sequence_(qualifiedPaths(path) map { pathString =>
+      log.debug(s"Clear ACLs indexing for path '$pathString'")
+      val removeQuery = PatchQuery(pathToQualifiedId(pathString), baseNs, readKey)(Qualifier.configured[String](""))
+      client.delete(index, removeQuery)
+    })
   }
 
   private def buildMeta(path: String, value: Set[Identity]): Json =

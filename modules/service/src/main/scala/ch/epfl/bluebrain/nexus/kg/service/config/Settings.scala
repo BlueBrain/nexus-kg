@@ -145,32 +145,32 @@ class Settings(config: Config) extends Extension {
     /**
       * The nexus core context definition.
       */
-    val CoreContext = ContextUri(ns.getString("prefixes.core-context"))
+    val CoreContext = ContextUri(Uri(ns.getString("prefixes.core-context")))
 
     /**
       * The nexus standards context definition.
       */
-    val StandardsContext = ContextUri(ns.getString("prefixes.standards-context"))
+    val StandardsContext = ContextUri(Uri(ns.getString("prefixes.standards-context")))
 
     /**
       * The nexus links context definition.
       */
-    val LinksContext = ContextUri(ns.getString("prefixes.links-context"))
+    val LinksContext = ContextUri(Uri(ns.getString("prefixes.links-context")))
 
     /**
       * The nexus search context definition.
       */
-    val SearchContext = ContextUri(ns.getString("prefixes.search-context"))
+    val SearchContext = ContextUri(Uri(ns.getString("prefixes.search-context")))
 
     /**
       * The nexus distribution (attachments) context definition.
       */
-    val DistributionContext = ContextUri(ns.getString("prefixes.distribution-context"))
+    val DistributionContext = ContextUri(Uri(ns.getString("prefixes.distribution-context")))
 
     /**
       * The nexus distribution (attachments) context definition.
       */
-    val ErrorContext = ContextUri(ns.getString("prefixes.error-context"))
+    val ErrorContext = ContextUri(Uri(ns.getString("prefixes.error-context")))
 
     /**
       * The nexus core vocabulary prefix.

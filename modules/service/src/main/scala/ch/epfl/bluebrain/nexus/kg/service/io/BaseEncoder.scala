@@ -1,8 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.io
 
-import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps.JsonOpsSyntax
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
 import io.circe._
 
 class BaseEncoder(prefixes: PrefixUris) {
@@ -12,7 +11,7 @@ class BaseEncoder(prefixes: PrefixUris) {
     *
     * @param json the JSON object
     */
-  implicit class JsonOps(json: Json) {
+  implicit class JsonOpsWithContextSyntax(json: Json) extends JsonOpsSyntax(json) {
 
     /**
       * Adds or merges the core context URI to an existing JSON object.
@@ -34,33 +33,6 @@ class BaseEncoder(prefixes: PrefixUris) {
       */
     def addDistributionContext: Json = addContext(prefixes.DistributionContext)
 
-    /**
-      * Adds or merges a context URI to an existing JSON object.
-      *
-      * @param context the standard context URI
-      * @return a new JSON object
-      */
-    private def addContext(context: ContextUri): Json = {
-      val contextUriString = Json.fromString(context.toString)
-
-      json.asObject match {
-        case Some(jo) =>
-          val updated = jo(`@context`) match {
-            case None => jo.add(`@context`, contextUriString)
-            case Some(value) =>
-              (value.asObject, value.asArray, value.asString) match {
-                case (Some(vo), _, _) if !vo.values.contains(contextUriString) =>
-                  jo.add(`@context`, Json.arr(value, contextUriString))
-                case (_, Some(va), _) if !va.contains(contextUriString) =>
-                  jo.add(`@context`, Json.fromValues(va :+ contextUriString))
-                case (_, _, Some(vs)) if vs != context.toString =>
-                  jo.add(`@context`, Json.arr(value, contextUriString))
-                case _ => jo
-              }
-          }
-          Json.fromJsonObject(updated)
-        case None => json
-      }
-    }
   }
+
 }

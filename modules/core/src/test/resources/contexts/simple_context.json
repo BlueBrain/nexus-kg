@@ -1,0 +1,8 @@
+{
+  "@context": [
+    {
+      "other": "http://purl.org/dc/terms/"
+    },
+    "{{base}}/contexts/nexus/core/standards/v0.1.0"
+  ]
+}

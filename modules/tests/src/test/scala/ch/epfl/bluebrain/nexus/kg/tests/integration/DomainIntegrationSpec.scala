@@ -11,9 +11,9 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
@@ -50,7 +50,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             Put(s"/domains/${orgId.id}/${name}", jsonDomain) ~> addCredentials(ValidCredentials) ~> route ~> check {
               idsPayload += (domainId -> Domain(domainId, 1L, false, description))
               status shouldEqual StatusCodes.Created
-              responseAs[Json] shouldEqual DomainRef(domainId, 1L).asJson
+              responseAs[Json] shouldEqual DomainRef(domainId, 1L).asJson.addCoreContext
             }
         }
       }
@@ -65,7 +65,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/domains",
                                       "next" -> s"$apiUri/domains?from=10&size=10")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -84,7 +84,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
                                       "self" -> s"$apiUri$uri",
                                       "next" -> s"$apiUri$uri&from=10&size=10")
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -98,7 +98,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
               UnscoredQueryResults(5L, domains.filter(_.orgId.id == "nexus").map(UnscoredQueryResult(_)))
             val expectedLinks =
               Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/domains/nexus"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -116,7 +116,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri$path",
                                       "next" -> s"$apiUri$path&from=5")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }
@@ -133,7 +133,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             Links("@context" -> s"${prefixes.LinksContext}",
                   "self"     -> s"$apiUri$path",
                   "previous" -> s"$apiUri$path".replace("from=100", s"from=${randDomains.length - 5}"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -147,7 +147,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, domainId)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -160,7 +160,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
           val expectedResults =
             ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, idsPayload(domainId))))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -174,7 +174,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                     "self"     -> s"$apiUri$path",
                                     "previous" -> s"$apiUri$path".replace("from=200", "from=0"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -192,7 +192,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
           val expectedResults =
             UnscoredQueryResults(1L, List(UnscoredQueryResult(domainId)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -201,7 +201,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
           Delete(s"/domains/nexus/${domainId.id}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            responseAs[Json] shouldEqual DomainRef(domainId, 2L).asJson
+            responseAs[Json] shouldEqual DomainRef(domainId, 2L).asJson.addCoreContext
           }
         }
       }
@@ -214,7 +214,7 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             val expectedResults = UnscoredQueryResults(3L, domains.slice(2, 5).map(UnscoredQueryResult(_)))
             val expectedLinks =
               Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/domains/nexus?deprecated=false"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }
       }

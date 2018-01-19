@@ -11,7 +11,7 @@ import org.scalatest.{Matchers, WordSpecLike}
 class LinksSpec extends WordSpecLike with Matchers {
 
   private val baseEncoder = new BaseEncoder(prefixes)
-  import baseEncoder.JsonOps
+  import baseEncoder.JsonOpsWithContextSyntax
 
   "Links" should {
 
