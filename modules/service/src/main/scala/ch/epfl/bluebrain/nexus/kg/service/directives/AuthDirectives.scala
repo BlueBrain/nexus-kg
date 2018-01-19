@@ -1,20 +1,24 @@
 package ch.epfl.bluebrain.nexus.kg.service.directives
 
+import akka.http.javadsl.server.CustomRejection
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.directives.BasicDirectives.pass
 import akka.http.scaladsl.server.directives.FutureDirectives.onComplete
 import akka.http.scaladsl.server.directives.RouteDirectives.reject
-import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive0, Directive1}
+import akka.http.scaladsl.server.{AuthorizationFailedRejection, _}
 import cats.Show
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.http.UnexpectedUnsuccessfulHttpResponse
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{Path, Permission}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.DownstreamServiceError
 
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Success
+import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 trait AuthDirectives {
 
@@ -27,16 +31,12 @@ trait AuthDirectives {
     * @param perm     the permission to be checked
     */
   def authorizeResource(resource: Path, perm: Permission)(implicit iamClient: IamClient[Future],
-                                                          cred: Option[OAuth2BearerToken],
-                                                          ec: ExecutionContext): Directive0 =
-    authorizeAsync {
-      iamClient
-        .getAcls(prefix ++ resource)
-        .map(_.permissions.contains(perm))
-        .recoverWith {
-          case UnauthorizedAccess                      => Future.successful(false)
-          case err: UnexpectedUnsuccessfulHttpResponse => Future.failed(err)
-        }
+                                                          cred: Option[OAuth2BearerToken]): Directive0 =
+    onComplete(iamClient.getAcls(prefix ++ resource)).flatMap {
+      case Success(acls) if (acls.permissions.contains(perm)) => pass
+      case Success(_)                                         => reject(AuthorizationFailedRejection)
+      case Failure(UnauthorizedAccess)                        => reject(AuthorizationFailedRejection)
+      case Failure(err)                                       => reject(authorizationRejection(err))
     }
 
   /**
@@ -47,7 +47,6 @@ trait AuthDirectives {
     */
   def authorizeResource[Id](resource: Id, perm: Permission)(implicit iamClient: IamClient[Future],
                                                             cred: Option[OAuth2BearerToken],
-                                                            ec: ExecutionContext,
                                                             S: Show[Id]): Directive0 =
     authorizeResource(Path(resource.show), perm)
 
@@ -58,10 +57,23 @@ trait AuthDirectives {
     */
   def authenticateCaller(implicit iamClient: IamClient[Future], cred: Option[OAuth2BearerToken]): Directive1[Caller] =
     onComplete(iamClient.getCaller(cred, filterGroups = true)).flatMap {
-      case Success(caller) => provide(caller)
-      case _               => reject(AuthorizationFailedRejection)
+      case Success(caller)             => provide(caller)
+      case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
+      case Failure(err)                => reject(authorizationRejection(err))
     }
 
 }
 
-object AuthDirectives extends AuthDirectives
+object AuthDirectives extends AuthDirectives {
+
+  /**
+    * Signals that the authorization was rejected with an unexpected error.
+    *
+    * @param err the [[CommonRejections]]
+    */
+  final case class CustomAuthorizationRejection(err: CommonRejections) extends CustomRejection
+
+  private[directives] def authorizationRejection(err: Throwable) =
+    CustomAuthorizationRejection(
+      DownstreamServiceError(Try(err.getMessage).getOrElse("error while authenticating on the downstream service")))
+}
