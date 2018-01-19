@@ -23,9 +23,9 @@ import journal.Logger
 class ContextSparqlIndexer[F[_]](client: SparqlClient[F], settings: ContextSparqlIndexingSettings)
     extends BaseSparqlIndexer(settings.contextsBase, settings.nexusVocBase) {
 
-  private val log                                          = Logger[this.type]
+  private val log                                                = Logger[this.type]
   private val ContextSparqlIndexingSettings(index, _, baseNs, _) = settings
-  private val versionKey                                   = "version".qualifyAsString
+  private val versionKey                                         = "version".qualifyAsString
 
   final def apply(event: ContextEvent): F[Unit] = event match {
     case ContextCreated(id, rev, m, value) =>

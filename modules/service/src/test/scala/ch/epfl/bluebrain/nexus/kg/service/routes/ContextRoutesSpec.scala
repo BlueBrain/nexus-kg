@@ -185,7 +185,6 @@ class ContextRoutesSpec
       }
     }
 
-
     "fetch old revision of a context" in {
       Get(s"/contexts/${contextId.show}?rev=1") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK

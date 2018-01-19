@@ -57,7 +57,6 @@ class ContextElasticIndexerSpec
   override implicit val patienceConfig: PatienceConfig =
     PatienceConfig(6 seconds, 300 milliseconds)
 
-
   private implicit val cl: UntypedHttpClient[Future]                    = HttpClient.akkaHttpClient
   private implicit val D: Decoder[QueryResults[Json]]                   = ElasticDecoder[Json]
   private implicit val rsSearch: HttpClient[Future, QueryResults[Json]] = withAkkaUnmarshaller[QueryResults[Json]]
