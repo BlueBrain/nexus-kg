@@ -30,12 +30,13 @@ import journal.Logger
   * @param F        a MonadError typeclass instance for ''F[_]''
   * @tparam F the monadic effect type
   */
-class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceIndexingSettings)(
-    implicit F: MonadError[F, Throwable])
+class InstanceSparqlIndexer[F[_]](client: SparqlClient[F],
+                                  contexts: Contexts[F],
+                                  settings: InstanceSparqlIndexingSettings)(implicit F: MonadError[F, Throwable])
     extends BaseSparqlIndexer(settings.instanceBase, settings.nexusVocBase) {
 
-  private val log                                              = Logger[this.type]
-  private val InstanceIndexingSettings(index, base, baseNs, _) = settings
+  private val log                                                    = Logger[this.type]
+  private val InstanceSparqlIndexingSettings(index, base, baseNs, _) = settings
 
   // instance vocabulary
   private val uuidKey = "uuid".qualifyAsString
@@ -161,7 +162,7 @@ class InstanceIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], sett
 
 }
 
-object InstanceIndexer {
+object InstanceSparqlIndexer {
 
   /**
     * Constructs an instance incremental indexer that pushes data into an rdf triple store.
@@ -172,7 +173,7 @@ object InstanceIndexer {
     * @param F        a MonadError typeclass instance for ''F[_]''
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceIndexingSettings)(
-      implicit F: MonadError[F, Throwable]): InstanceIndexer[F] =
-    new InstanceIndexer(client, contexts, settings)
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: InstanceSparqlIndexingSettings)(
+      implicit F: MonadError[F, Throwable]): InstanceSparqlIndexer[F] =
+    new InstanceSparqlIndexer(client, contexts, settings)
 }
