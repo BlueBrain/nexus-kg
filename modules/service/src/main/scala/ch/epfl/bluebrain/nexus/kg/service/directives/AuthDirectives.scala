@@ -15,10 +15,10 @@ import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.CustomAuthorizationRejection
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections
-import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.UnderlyingServiceError
-
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.DownstreamServiceError
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import scala.concurrent.Future
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 trait AuthDirectives {
 
@@ -36,7 +36,7 @@ trait AuthDirectives {
       case Success(acls) if (acls.permissions.contains(perm)) => pass
       case Success(_)                                         => reject(AuthorizationFailedRejection)
       case Failure(UnauthorizedAccess)                        => reject(AuthorizationFailedRejection)
-      case Failure(err)                                       => reject(CustomAuthorizationRejection(UnderlyingServiceError(err.getMessage)))
+      case Failure(err)                                       => reject(authorizationRejection(err))
     }
 
   /**
@@ -59,7 +59,7 @@ trait AuthDirectives {
     onComplete(iamClient.getCaller(cred, filterGroups = true)).flatMap {
       case Success(caller)             => provide(caller)
       case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
-      case Failure(err)                => reject(CustomAuthorizationRejection(UnderlyingServiceError(err.getMessage)))
+      case Failure(err)                => reject(authorizationRejection(err))
     }
 
 }
@@ -72,4 +72,8 @@ object AuthDirectives extends AuthDirectives {
     * @param err the [[CommonRejections]]
     */
   final case class CustomAuthorizationRejection(err: CommonRejections) extends CustomRejection
+
+  private[directives] def authorizationRejection(err: Throwable): CustomAuthorizationRejection =
+    CustomAuthorizationRejection(
+      DownstreamServiceError(Try(err.getMessage).getOrElse("error while authenticating on the downstream service")))
 }

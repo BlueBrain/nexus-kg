@@ -47,8 +47,7 @@ object RejectionHandling {
         case ValidationRejection(_, Some(e: IllegalVersionFormat)) =>
           complete(BadRequest -> (e: CommonRejections))
         case CustomAuthorizationRejection(e) =>
-        complete(InternalServerError -> (e: CommonRejections))
-
+          complete(InternalServerError -> (e: CommonRejections))
         case _: AuthorizationFailedRejection =>
           complete(Unauthorized -> (UnauthorizedAccess: HttpRejection))
       }

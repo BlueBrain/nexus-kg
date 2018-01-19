@@ -18,7 +18,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
-import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.UnderlyingServiceError
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.DownstreamServiceError
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.{Error, ExceptionHandling, MockedIAMClient, RejectionHandling}
 import io.circe.generic.extras.Configuration
@@ -80,10 +80,10 @@ class AuthDirectivesSpec
       }
     }
 
-    "return internal server error when the underlying service is down" in {
+    "return internal server error when the downstream service is down" in {
       Get("/organizations/org") ~> route()(Some(ValidCredentials), iamClient("http://other.domain:8080")) ~> check {
         status shouldEqual StatusCodes.InternalServerError
-        responseAs[Error].code shouldEqual classNameOf[UnderlyingServiceError.type]
+        responseAs[Error].code shouldEqual classNameOf[DownstreamServiceError.type]
       }
     }
 

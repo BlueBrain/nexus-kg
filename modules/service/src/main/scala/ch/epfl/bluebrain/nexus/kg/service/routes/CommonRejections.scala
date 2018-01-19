@@ -35,6 +35,6 @@ object CommonRejections {
     * @param message a human readable description of the cause
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class UnderlyingServiceError(override val message: String) extends Err(message) with CommonRejections
+  final case class DownstreamServiceError(override val message: String) extends Err(message) with CommonRejections
 
 }
