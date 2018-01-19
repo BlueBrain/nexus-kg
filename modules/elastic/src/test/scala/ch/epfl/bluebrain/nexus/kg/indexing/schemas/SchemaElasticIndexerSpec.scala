@@ -21,7 +21,6 @@ import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
@@ -81,17 +80,17 @@ class SchemaElasticIndexerSpec
                            meta: Meta,
                            firstReqMeta: Meta): Json = {
     Json.obj(
-      createdAtTimeKey                                 -> firstReqMeta.instant.jsonLd,
+      createdAtTimeKey                                 -> Json.fromString(firstReqMeta.instant.toString),
       idKey                                            -> Json.fromString(id.qualifyAsStringWith(orgBase)),
       "rev".qualifyAsStringWith(nexusVocBase)          -> Json.fromLong(rev),
-      "organization".qualifyAsStringWith(nexusVocBase) -> id.domainId.orgId.qualify.jsonLd,
-      "domain".qualifyAsStringWith(nexusVocBase)       -> id.domainId.qualify.jsonLd,
+      "organization".qualifyAsStringWith(nexusVocBase) -> Json.fromString(id.domainId.orgId.qualifyAsString),
+      "domain".qualifyAsStringWith(nexusVocBase)       -> Json.fromString(id.domainId.qualifyAsString),
       "name".qualifyAsStringWith(nexusVocBase)         -> Json.fromString(id.name),
       "version".qualifyAsStringWith(nexusVocBase)      -> Json.fromString(id.version.show),
-      schemaGroupKey                                   -> id.schemaName.qualify.jsonLd,
+      schemaGroupKey                                   -> Json.fromString(id.schemaName.qualifyAsString),
       "published".qualifyAsStringWith(nexusVocBase)    -> Json.fromBoolean(published),
-      updatedAtTimeKey                                 -> meta.instant.jsonLd,
-      rdfTypeKey                                       -> "Schema".qualify.jsonLd,
+      updatedAtTimeKey                                 -> Json.fromString(meta.instant.toString),
+      rdfTypeKey                                       -> Json.fromString("Schema".qualifyAsString),
       "deprecated".qualifyAsStringWith(nexusVocBase)   -> Json.fromBoolean(deprecated)
     )
   }
@@ -111,8 +110,9 @@ class SchemaElasticIndexerSpec
         e shouldBe a[ElasticClientError]
       }
 
-      val rev  = 1L
-      val data = jsonContentOf("/schemas/minimal.json", replacements)
+      val rev = 1L
+      val data = jsonContentOf("/schemas/minimal.json", replacements) deepMerge Json.obj(
+        genString() -> Json.fromString(genString()))
       indexer(SchemaCreated(id, rev, meta, data)).futureValue
 
       eventually {
@@ -149,7 +149,7 @@ class SchemaElasticIndexerSpec
         val json = ctxs.resolve(data).futureValue
         rs.results.head.source shouldEqual json
           .deepMerge(expectedJson(id, rev, deprecated = false, published = true, metaPublished, meta))
-          .deepMerge(Json.obj(publishedAtTimeKey -> metaPublished.instant.jsonLd))
+          .deepMerge(Json.obj(publishedAtTimeKey -> Json.fromString(metaPublished.instant.toString)))
       }
     }
 
@@ -163,7 +163,7 @@ class SchemaElasticIndexerSpec
         val json = ctxs.resolve(data).futureValue
         rs.results.head.source shouldEqual json
           .deepMerge(expectedJson(id, rev, deprecated = true, published = true, metaUpdated, meta))
-          .deepMerge(Json.obj(publishedAtTimeKey -> metaPublished.instant.jsonLd))
+          .deepMerge(Json.obj(publishedAtTimeKey -> Json.fromString(metaPublished.instant.toString)))
       }
     }
   }

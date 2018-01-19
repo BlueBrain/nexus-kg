@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.indexing.schemas
 
 import cats.MonadError
 import cats.syntax.flatMap._
-import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
@@ -11,11 +10,10 @@ import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaEvent, SchemaId}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
-import ch.epfl.bluebrain.nexus.kg.indexing.{BaseElasticIndexer, ElasticIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.{BaseElasticIndexer, ElasticIndexingSettings, PatchQuery}
 import io.circe.Json
 import journal.Logger
 
@@ -35,8 +33,8 @@ class SchemaElasticIndexer[F[_]](client: ElasticClient[F], contexts: Contexts[F]
   private val versionKey = "version".qualifyAsString
 
   /**
-    * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the
-    * existing triples.
+    * Indexes the event by pushing it's json ld representation into the ElasticSearch indexer while also updating the
+    * existing content.
     *
     * @param event the event to index
     * @return a Unit value in the ''F[_]'' context
@@ -48,10 +46,10 @@ class SchemaElasticIndexer[F[_]](client: ElasticClient[F], contexts: Contexts[F]
       createIndexIfNotExist(event.id).flatMap { _ =>
         contexts
           .resolve(value removeKeys ("links"))
-          .map(_ deepMerge meta)
           .flatMap { json =>
-            val jsonWithMeta = json deepMerge Json.obj(createdAtTimeKey -> m.instant.jsonLd)
-            client.create(event.id.toIndex(prefix), t, event.id.elasticId, jsonWithMeta)
+            val combined = json deepMerge meta deepMerge Json.obj(
+              createdAtTimeKey -> Json.fromString(m.instant.toString))
+            client.create(event.id.toIndex(prefix), t, event.id.elasticId, combined)
           }
       }
 
@@ -60,15 +58,15 @@ class SchemaElasticIndexer[F[_]](client: ElasticClient[F], contexts: Contexts[F]
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
       contexts
         .resolve(value removeKeys ("links"))
-        .map(_ deepMerge meta)
         .flatMap { json =>
-          client.update(event.id.toIndex(prefix), t, event.id.elasticId, Json.obj("doc" -> json))
+          val query = PatchQuery.inverse(json deepMerge meta, createdAtTimeKey)
+          client.update(event.id.toIndex(prefix), t, event.id.elasticId, query)
         }
 
     case SchemaPublished(id, rev, m) =>
       log.debug(s"Indexing 'SchemaPublished' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = None, published = Some(true)) deepMerge Json.obj(
-        publishedAtTimeKey                                                          -> m.instant.jsonLd)
+        publishedAtTimeKey                                                          -> Json.fromString(m.instant.toString))
       client.update(event.id.toIndex(prefix), t, event.id.elasticId, Json.obj("doc" -> meta))
 
     case SchemaDeprecated(id, rev, m) =>
@@ -86,13 +84,13 @@ class SchemaElasticIndexer[F[_]](client: ElasticClient[F], contexts: Contexts[F]
     val sharedObj = Json.obj(
       idKey            -> Json.fromString(id.qualifyAsString),
       revKey           -> Json.fromLong(rev),
-      orgKey           -> id.domainId.orgId.qualify.jsonLd,
-      domainKey        -> id.domainId.qualify.jsonLd,
+      orgKey           -> Json.fromString(id.domainId.orgId.qualifyAsString),
+      domainKey        -> Json.fromString(id.domainId.qualifyAsString),
       nameKey          -> Json.fromString(id.name),
       versionKey       -> Json.fromString(id.version.show),
-      schemaGroupKey   -> id.schemaName.qualify.jsonLd,
-      updatedAtTimeKey -> meta.instant.jsonLd,
-      rdfTypeKey       -> "Schema".qualify.jsonLd
+      schemaGroupKey   -> Json.fromString(id.schemaName.qualifyAsString),
+      updatedAtTimeKey -> Json.fromString(meta.instant.toString),
+      rdfTypeKey       -> Json.fromString("Schema".qualifyAsString)
     )
 
     val publishedObj = published

@@ -50,9 +50,8 @@ private[indexing] abstract class BaseElasticIndexer[F[_]](client: ElasticClient[
   val domainKey: String     = "domain".qualifyAsString
   val schemaKey: String     = "schema".qualifyAsString
 
-  private lazy val indexJson: Json =
-    jsonContentOf("/es-index.json", Map(quote("{{type}}") -> t))
-  private val indices = ConcurrentSetBuilder[String]()
+  private lazy val indexJson: Json = jsonContentOf("/es-index.json", Map(quote("{{type}}") -> t))
+  private val indices              = ConcurrentSetBuilder[String]()
 
   /**
     * Creates an index for the provided ''id'' when this does not exist on the cached ''indices''

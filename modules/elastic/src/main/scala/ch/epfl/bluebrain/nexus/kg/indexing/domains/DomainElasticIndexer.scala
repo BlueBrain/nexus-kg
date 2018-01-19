@@ -10,7 +10,6 @@ import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainEvent, DomainId}
-import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import ch.epfl.bluebrain.nexus.kg.indexing.{BaseElasticIndexer, ElasticIndexingSettings}
 import io.circe.Json
@@ -41,7 +40,7 @@ class DomainElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInde
     case DomainCreated(id, rev, m, description) =>
       log.debug(s"Indexing 'DomainCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, Some(description), deprecated = Some(false)) deepMerge Json.obj(
-        createdAtTimeKey -> m.instant.jsonLd)
+        createdAtTimeKey -> Json.fromString(m.instant.toString))
       createIndexIfNotExist(event.id).flatMap { _ =>
         client.create(event.id.toIndex(prefix), t, event.id.elasticId, meta)
       }
@@ -60,10 +59,10 @@ class DomainElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInde
     val sharedObj = Json.obj(
       idKey            -> Json.fromString(id.qualifyAsString),
       revKey           -> Json.fromLong(rev),
-      orgKey           -> id.orgId.qualify.jsonLd,
+      orgKey           -> Json.fromString(id.orgId.qualifyAsString),
       nameKey          -> Json.fromString(id.id),
-      updatedAtTimeKey -> meta.instant.jsonLd,
-      rdfTypeKey       -> "Domain".qualify.jsonLd
+      updatedAtTimeKey -> Json.fromString(meta.instant.toString),
+      rdfTypeKey       -> Json.fromString("Domain".qualifyAsString)
     )
 
     val deprecatedObj = deprecated

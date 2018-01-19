@@ -23,7 +23,6 @@ import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
@@ -81,17 +80,17 @@ class ContextElasticIndexerSpec
                            meta: Meta,
                            firstReqMeta: Meta): Json = {
     Json.obj(
-      createdAtTimeKey                                 -> firstReqMeta.instant.jsonLd,
+      createdAtTimeKey                                 -> Json.fromString(firstReqMeta.instant.toString),
       idKey                                            -> Json.fromString(id.qualifyAsStringWith(orgBase)),
       "rev".qualifyAsStringWith(nexusVocBase)          -> Json.fromLong(rev),
-      "organization".qualifyAsStringWith(nexusVocBase) -> id.domainId.orgId.qualify.jsonLd,
-      "domain".qualifyAsStringWith(nexusVocBase)       -> id.domainId.qualify.jsonLd,
+      "organization".qualifyAsStringWith(nexusVocBase) -> Json.fromString(id.domainId.orgId.qualifyAsString),
+      "domain".qualifyAsStringWith(nexusVocBase)       -> Json.fromString(id.domainId.qualifyAsString),
       "name".qualifyAsStringWith(nexusVocBase)         -> Json.fromString(id.name),
       "version".qualifyAsStringWith(nexusVocBase)      -> Json.fromString(id.version.show),
       "published".qualifyAsStringWith(nexusVocBase)    -> Json.fromBoolean(published),
-      updatedAtTimeKey                                 -> meta.instant.jsonLd,
-      rdfTypeKey                                       -> "Context".qualify.jsonLd,
-      contextGroupKey                                  -> id.contextName.qualify.jsonLd,
+      updatedAtTimeKey                                 -> Json.fromString(meta.instant.toString),
+      rdfTypeKey                                       -> Json.fromString("Context".qualifyAsString),
+      contextGroupKey                                  -> Json.fromString(id.contextName.qualifyAsString),
       "deprecated".qualifyAsStringWith(nexusVocBase)   -> Json.fromBoolean(deprecated)
     )
   }
@@ -122,7 +121,8 @@ class ContextElasticIndexerSpec
       }
     }
 
-    val data = jsonContentOf("/contexts/minimal.json", replacements)
+    val data =
+      jsonContentOf("/contexts/minimal_updated.json", replacements + (Pattern.quote("{{random}}") -> genString()))
     "index a ContextUpdated event" in {
       val metaUpdated = Meta(Anonymous(), Clock.systemUTC.instant())
       val rev         = 2L
@@ -144,7 +144,7 @@ class ContextElasticIndexerSpec
         rs.results.size shouldEqual 1
         rs.results.head.source shouldEqual data
           .deepMerge(expectedJson(id, rev, deprecated = false, published = true, metaPublished, meta))
-          .deepMerge(Json.obj(publishedAtTimeKey -> metaPublished.instant.jsonLd))
+          .deepMerge(Json.obj(publishedAtTimeKey -> Json.fromString(metaPublished.instant.toString)))
       }
     }
 
@@ -157,7 +157,7 @@ class ContextElasticIndexerSpec
         rs.results.size shouldEqual 1
         rs.results.head.source shouldEqual data
           .deepMerge(expectedJson(id, rev, deprecated = true, published = true, metaUpdated, meta))
-          .deepMerge(Json.obj(publishedAtTimeKey -> metaPublished.instant.jsonLd))
+          .deepMerge(Json.obj(publishedAtTimeKey -> Json.fromString(metaPublished.instant.toString)))
       }
     }
   }

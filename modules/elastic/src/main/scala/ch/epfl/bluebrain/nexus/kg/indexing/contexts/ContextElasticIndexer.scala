@@ -10,11 +10,10 @@ import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId}
-import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
-import ch.epfl.bluebrain.nexus.kg.indexing.{BaseElasticIndexer, ElasticIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
+import ch.epfl.bluebrain.nexus.kg.indexing.{BaseElasticIndexer, ElasticIndexingSettings, PatchQuery}
 import io.circe.Json
 import journal.Logger
-import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 
 /**
   * Context incremental indexing logic that pushes data into an ElasticSearch indexer.
@@ -41,19 +40,20 @@ class ContextElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInd
     case ContextCreated(id, rev, m, value) =>
       log.debug(s"Indexing 'ContextCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val data = value removeKeys ("links") deepMerge meta deepMerge Json.obj(createdAtTimeKey -> m.instant.jsonLd)
+      val data = value removeKeys ("links") deepMerge meta deepMerge Json.obj(
+        createdAtTimeKey -> Json.fromString(m.instant.toString))
       client.create(event.id.toIndex(prefix), t, event.id.elasticId, data)
 
     case ContextUpdated(id, rev, m, value) =>
       log.debug(s"Indexing 'ContextUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val data = value removeKeys ("links") deepMerge meta
-      client.update(event.id.toIndex(prefix), t, event.id.elasticId, Json.obj("doc" -> data))
+      val query = PatchQuery.inverse(value deepMerge meta, createdAtTimeKey)
+      client.update(event.id.toIndex(prefix),t, event.id.elasticId, query)
 
     case ContextPublished(id, rev, m) =>
       log.debug(s"Indexing 'ContextPublished' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = None, published = Some(true)) deepMerge Json.obj(
-        publishedAtTimeKey                                                          -> m.instant.jsonLd)
+        publishedAtTimeKey                                                          -> Json.fromString(m.instant.toString))
       client.update(event.id.toIndex(prefix), t, event.id.elasticId, Json.obj("doc" -> meta))
 
     case ContextDeprecated(id, rev, m) =>
@@ -70,13 +70,13 @@ class ContextElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInd
     val sharedObj = Json.obj(
       idKey            -> Json.fromString(id.qualifyAsString),
       revKey           -> Json.fromLong(rev),
-      orgKey           -> id.domainId.orgId.qualify.jsonLd,
-      domainKey        -> id.domainId.qualify.jsonLd,
+      orgKey           -> Json.fromString(id.domainId.orgId.qualifyAsString),
+      domainKey        -> Json.fromString(id.domainId.qualifyAsString),
       nameKey          -> Json.fromString(id.name),
       versionKey       -> Json.fromString(id.version.show),
-      contextGroupKey  -> id.contextName.qualify.jsonLd,
-      updatedAtTimeKey -> meta.instant.jsonLd,
-      rdfTypeKey       -> "Context".qualify.jsonLd
+      contextGroupKey  -> Json.fromString(id.contextName.qualifyAsString),
+      updatedAtTimeKey -> Json.fromString(meta.instant.toString),
+      rdfTypeKey       -> Json.fromString("Context".qualifyAsString)
     )
 
     val publishedObj = published

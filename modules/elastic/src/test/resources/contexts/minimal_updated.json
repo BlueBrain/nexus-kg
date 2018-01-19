@@ -1,0 +1,15 @@
+{
+  "@context": {
+    "nexusvoc": "{{base}}/voc/nexus/core/",
+    "shapes": {
+      "@reverse": "http://www.w3.org/2000/01/rdf-schema#isDefinedBy",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "targetObjectsOf": {
+      "@id2": "sh:targetObjectsOf",
+      "@type": "@id",
+      "description": "{{random}}"
+    }
+  }
+}
