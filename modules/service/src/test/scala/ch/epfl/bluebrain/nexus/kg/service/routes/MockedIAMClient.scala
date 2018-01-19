@@ -5,7 +5,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMessage.DiscardedEntity
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
-import akka.stream.Materializer
+import akka.stream.{Materializer, StreamTcpException}
 import akka.util.ByteString
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.iam.auth.{AuthenticatedUser, User}
@@ -34,35 +34,41 @@ trait MockedIAMClient extends Resources {
     new UntypedHttpClient[Future] {
       import as.dispatcher
 
-      override def apply(req: HttpRequest): Future[HttpResponse] =
-        req
-          .header[Authorization]
-          .collect {
-            case Authorization(ValidCredentials) =>
-              if (req.uri.toString().contains("/acls/"))
-                Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAclsJson)))
-              else if (req.uri.path.toString.endsWith("/oauth2/user") && req.uri
-                         .query()
-                         .toString == "filterGroups=true")
-                Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedUserJson)))
-              else
-                Future.successful(HttpResponse(status = StatusCodes.NotFound))
+      override def apply(req: HttpRequest): Future[HttpResponse] = {
+        if (req.uri.authority.host.address() != "localhost")
+          Future.failed(new StreamTcpException(s"Tcp command failed because of ${req.uri.authority.host.address()}"))
+        else {
+          req
+            .header[Authorization]
+            .collect {
+              case Authorization(ValidCredentials) =>
+                if (req.uri.toString().contains("/acls/"))
+                  Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAclsJson)))
+                else if (req.uri.path.toString.endsWith("/oauth2/user") && req.uri
+                           .query()
+                           .toString == "filterGroups=true")
+                  Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedUserJson)))
+                else
+                  Future.successful(HttpResponse(status = StatusCodes.NotFound))
 
-            case Authorization(OAuth2BearerToken(_)) =>
-              Future.successful(
-                HttpResponse(
-                  entity = HttpEntity(
-                    ContentTypes.`application/json`,
-                    """{"code" : "UnauthorizedCaller", "description" : "The caller is not permitted to perform this request"}"""),
-                  status = StatusCodes.Unauthorized
-                ))
-          }
-          .getOrElse {
-            if (req.uri.toString().contains("/acls/"))
-              Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAuthUserJson)))
-            else
-              Http().singleRequest(req)
-          }
+              case Authorization(OAuth2BearerToken(_)) =>
+                Future.successful(
+                  HttpResponse(
+                    entity = HttpEntity(
+                      ContentTypes.`application/json`,
+                      """{"code" : "UnauthorizedCaller", "description" : "The caller is not permitted to perform this request"}"""),
+                    status = StatusCodes.Unauthorized
+                  ))
+            }
+            .getOrElse {
+              if (req.uri.toString().contains("/acls/"))
+                Future.successful(
+                  HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedAuthUserJson)))
+              else
+                Http().singleRequest(req)
+            }
+        }
+      }
 
       override def discardBytes(entity: HttpEntity): Future[DiscardedEntity] =
         Future.successful(entity.discardBytes())

@@ -7,6 +7,7 @@ import akka.http.scaladsl.server._
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.{MethodNotSupported, UnauthorizedAccess, WrongOrInvalidJson}
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.CustomAuthorizationRejection
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -45,6 +46,9 @@ object RejectionHandling {
           complete(BadRequest -> (e: CommonRejections))
         case ValidationRejection(_, Some(e: IllegalVersionFormat)) =>
           complete(BadRequest -> (e: CommonRejections))
+        case CustomAuthorizationRejection(e) =>
+        complete(InternalServerError -> (e: CommonRejections))
+
         case _: AuthorizationFailedRejection =>
           complete(Unauthorized -> (UnauthorizedAccess: HttpRejection))
       }

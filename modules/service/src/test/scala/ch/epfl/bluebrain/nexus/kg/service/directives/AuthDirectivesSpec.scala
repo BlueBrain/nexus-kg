@@ -5,19 +5,20 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
-import ch.epfl.bluebrain.nexus.commons.iam.IamUri
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.{AnonymousCaller, AuthenticatedCaller}
+import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.UnderlyingServiceError
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.service.routes.{Error, ExceptionHandling, MockedIAMClient, RejectionHandling}
 import io.circe.generic.extras.Configuration
@@ -27,6 +28,7 @@ import io.circe.{Encoder, Json}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class AuthDirectivesSpec
@@ -45,10 +47,9 @@ class AuthDirectivesSpec
   private implicit val ec     = system.dispatcher
   private implicit val config = Configuration.default.withDiscriminator("type")
   private implicit val mt     = ActorMaterializer()
-  implicit val cl             = iamClient("http://localhost:8080")
   private implicit val iamUri = IamUri("http://localhost:8080")
 
-  private def route(perm: Permission)(implicit cred: Option[OAuth2BearerToken]) = {
+  private def route(perm: Permission)(implicit cred: Option[OAuth2BearerToken], iamClient: IamClient[Future]) = {
     (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
       RejectionHandling.rejectionHandler(ErrorContext))) {
       (get & authorizeResource(DomainId(OrgId(s"org-${genString()}"), s"dom-${genString()}"), perm)) {
@@ -57,7 +58,7 @@ class AuthDirectivesSpec
     }
   }
 
-  private def route()(implicit cred: Option[OAuth2BearerToken]) = {
+  private def route()(implicit cred: Option[OAuth2BearerToken], iamClient: IamClient[Future]) = {
     (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
       RejectionHandling.rejectionHandler(ErrorContext))) {
       (get & authenticateCaller) { caller =>
@@ -69,12 +70,20 @@ class AuthDirectivesSpec
     PatienceConfig(3 seconds, 100 milliseconds)
 
   "An AuthorizationDirectives" should {
+    implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
     "return unathorized when the request contains an invalid token" in {
       implicit val cred: Option[OAuth2BearerToken] = Some(OAuth2BearerToken("invalid"))
       Get("/organizations/org") ~> route() ~> check {
         status shouldEqual StatusCodes.Unauthorized
         responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+      }
+    }
+
+    "return internal server error when the underlying service is down" in {
+      Get("/organizations/org") ~> route()(Some(ValidCredentials), iamClient("http://other.domain:8080")) ~> check {
+        status shouldEqual StatusCodes.InternalServerError
+        responseAs[Error].code shouldEqual classNameOf[UnderlyingServiceError.type]
       }
     }
 
