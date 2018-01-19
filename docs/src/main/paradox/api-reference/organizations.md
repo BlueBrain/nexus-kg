@@ -70,7 +70,7 @@ Request
 Response
 :   @@snip [existing-organization.json](../assets/api-reference/organizations/existing-organization.json)
 
-### Fetch an organization revision
+#### Fetch a specific organization revision
 
 ```
 GET /v0/organizations/{name}?rev={rev}
@@ -83,6 +83,21 @@ Request
 Response
 :   @@snip [existing-organization.json](../assets/api-reference/organizations/existing-organization.json)
 
+#### Fetch an organization in a specific format
+
+```
+GET /v0/organizations/{name}?format={format}
+```
+
+Supported `{format}` variants are `compacted`, `expanded`, `flattened`.
+
+#### Example
+
+Request
+:   @@snip [organization-get-rev.sh](../assets/api-reference/organizations/organization-get-format.sh)
+
+Response
+:   @@snip [existing-organization.json](../assets/api-reference/organizations/existing-organization-expanded.json)
 
 ### Deprecate an organization
 

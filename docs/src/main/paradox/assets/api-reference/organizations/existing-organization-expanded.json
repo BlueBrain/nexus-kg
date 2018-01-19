@@ -1,0 +1,20 @@
+[
+  {
+    "@id": "https://nexus.example.com/v0/organizations/myorg",
+    "https://nexus.example.com/vocabs/nexus/core/terms/v0.1.0/deprecated": [
+      {
+        "@value": false
+      }
+    ],
+    "https://nexus.example.com/vocabs/nexus/core/terms/v0.1.0/rev": [
+      {
+        "@value": 1
+      }
+    ],
+    "http://schema.org/name": [
+      {
+        "@value": "myorg"
+      }
+    ]
+  }
+]

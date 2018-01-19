@@ -71,7 +71,7 @@ Request
 Response
 :   @@snip [existing-context.json](../assets/api-reference/contexts/existing-context.json)
 
-### Fetch a context revision
+#### Fetch a specific context revision
 
 ```
 GET /v0/contexts/{orgId}/{domId}/{name}/{version}?rev={rev}
@@ -83,6 +83,22 @@ Request
 
 Response
 :   @@snip [existing-context.json](../assets/api-reference/contexts/existing-context.json)
+
+#### Fetch a context in a specific output format
+
+```
+GET /v0/contexts/{orgId}/{domId}/{name}/{version}?format={format}
+```
+
+Supported `{format}` variants are `compacted`, `expanded`, `flattened`.
+
+#### Example
+
+Request
+:   @@snip [context-get-rev.sh](../assets/api-reference/contexts/context-get-format.sh)
+
+Response
+:   @@snip [existing-context.json](../assets/api-reference/contexts/existing-context-expanded.json)
 
 
 ### Publish a context

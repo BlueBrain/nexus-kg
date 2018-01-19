@@ -67,7 +67,7 @@ Request
 Response
 :   @@snip [existing-domain.json](../assets/api-reference/domains/existing-domain.json)
 
-### Fetch a domain revision
+#### Fetch a specific domain revision
 
 ```
 GET /v0/domains/{orgId}/{domId}?rev={rev}
@@ -79,6 +79,22 @@ Request
 
 Response
 :   @@snip [existing-domain.json](../assets/api-reference/domains/existing-domain.json)
+
+#### Fetch a domain in a specific output format
+
+```
+GET /v0/domains/{orgId}/{domId}?format={format}
+```
+
+Supported `{format}` variants are `compacted`, `expanded`, `flattened`.
+
+#### Example
+
+Request
+:   @@snip [domain-get-rev.sh](../assets/api-reference/domains/domain-get-format.sh)
+
+Response
+:   @@snip [existing-domain.json](../assets/api-reference/domains/existing-domain-expanded.json)
 
 
 ### Deprecate a domain
