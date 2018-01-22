@@ -246,5 +246,5 @@ lazy val kamonDeps = Seq(
   "org.aspectj" % "aspectjweaver"          % "1.8.10" % Runtime
 )
 
-addCommandAlias("review", ";clean;coverage;scapegoat;test;coverageReport;coverageAggregate")
+addCommandAlias("review", ";clean;coverage;scapegoat;test;coverageReport;coverageAggregate;doc")
 addCommandAlias("rel", ";release with-defaults skip-tests")

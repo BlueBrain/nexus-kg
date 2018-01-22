@@ -67,7 +67,6 @@ object ElasticIds {
     * Interface syntax to expose new functionality into the generic type A
     *
     * @param id   the instance of ''A''
-    * @param ev$1 the implicitly available ''Show[A]''
     * @param T    the implicitly available ''Typeable[A]''
     * @tparam A the generic type
     */
