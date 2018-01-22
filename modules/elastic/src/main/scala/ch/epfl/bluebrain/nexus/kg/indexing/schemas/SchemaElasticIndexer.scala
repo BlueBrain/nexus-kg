@@ -1,6 +1,7 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.contexts
+package ch.epfl.bluebrain.nexus.kg.indexing.schemas
 
 import cats.MonadError
+import cats.syntax.flatMap._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
@@ -8,21 +9,23 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent._
-import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent._
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaEvent, SchemaId}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import ch.epfl.bluebrain.nexus.kg.indexing.{BaseElasticIndexer, ElasticIndexingSettings, PatchQuery}
 import io.circe.Json
 import journal.Logger
 
 /**
-  * Context incremental indexing logic that pushes data into an ElasticSearch indexer.
+  * Schema incremental indexing logic that pushes data into an ElasticSearch indexer.
   *
   * @param client   the ElasticSearch client to use for communicating with the ElasticSearch indexer
+  * @param contexts the context operation bundle
   * @param settings the indexing settings
-  * @tparam F the monadic effect type
+  * @tparam F       the monadic effect type
   */
-class ContextElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticIndexingSettings)(
+class SchemaElasticIndexer[F[_]](client: ElasticClient[F], contexts: Contexts[F], settings: ElasticIndexingSettings)(
     implicit F: MonadError[F, Throwable])
     extends BaseElasticIndexer[F](client, settings) {
 
@@ -36,33 +39,44 @@ class ContextElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInd
     * @param event the event to index
     * @return a Unit value in the ''F[_]'' context
     */
-  final def apply(event: ContextEvent): F[Unit] = event match {
-    case ContextCreated(id, rev, m, value) =>
-      log.debug(s"Indexing 'ContextCreated' event for id '${id.show}'")
+  final def apply(event: SchemaEvent): F[Unit] = event match {
+    case SchemaCreated(id, rev, m, value) =>
+      log.debug(s"Indexing 'SchemaCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val data = value removeKeys ("links") deepMerge meta deepMerge Json.obj(
-        createdAtTimeKey -> Json.fromString(m.instant.toString))
-      client.create(event.id.toIndex(prefix), t, event.id.elasticId, data)
+      createIndexIfNotExist(event.id).flatMap { _ =>
+        contexts
+          .resolve(value removeKeys ("links"))
+          .flatMap { json =>
+            val combined = json deepMerge meta deepMerge Json.obj(
+              createdAtTimeKey -> Json.fromString(m.instant.toString))
+            client.create(event.id.toIndex(prefix), t, event.id.elasticId, combined)
+          }
+      }
 
-    case ContextUpdated(id, rev, m, value) =>
-      log.debug(s"Indexing 'ContextUpdated' event for id '${id.show}'")
+    case SchemaUpdated(id, rev, m, value) =>
+      log.debug(s"Indexing 'SchemaUpdated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val query = PatchQuery.inverse(value deepMerge meta, createdAtTimeKey)
-      client.update(event.id.toIndex(prefix),t, event.id.elasticId, query)
+      contexts
+        .resolve(value removeKeys ("links"))
+        .flatMap { json =>
+          val query = PatchQuery.inverse(json deepMerge meta, createdAtTimeKey)
+          client.update(event.id.toIndex(prefix), t, event.id.elasticId, query)
+        }
 
-    case ContextPublished(id, rev, m) =>
-      log.debug(s"Indexing 'ContextPublished' event for id '${id.show}'")
+    case SchemaPublished(id, rev, m) =>
+      log.debug(s"Indexing 'SchemaPublished' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = None, published = Some(true)) deepMerge Json.obj(
         publishedAtTimeKey                                                          -> Json.fromString(m.instant.toString))
       client.update(event.id.toIndex(prefix), t, event.id.elasticId, Json.obj("doc" -> meta))
 
-    case ContextDeprecated(id, rev, m) =>
-      log.debug(s"Indexing 'ContextDeprecated' event for id '${id.show}'")
+    case SchemaDeprecated(id, rev, m) =>
+      log.debug(s"Indexing 'SchemaDeprecated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(true), published = None)
       client.update(event.id.toIndex(prefix), t, event.id.elasticId, Json.obj("doc" -> meta))
+
   }
 
-  private def buildMeta(id: ContextId,
+  private def buildMeta(id: SchemaId,
                         rev: Long,
                         meta: Meta,
                         deprecated: Option[Boolean],
@@ -74,9 +88,9 @@ class ContextElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInd
       domainKey        -> Json.fromString(id.domainId.qualifyAsString),
       nameKey          -> Json.fromString(id.name),
       versionKey       -> Json.fromString(id.version.show),
-      contextGroupKey  -> Json.fromString(id.contextName.qualifyAsString),
+      schemaGroupKey   -> Json.fromString(id.schemaName.qualifyAsString),
       updatedAtTimeKey -> Json.fromString(meta.instant.toString),
-      rdfTypeKey       -> Json.fromString("Context".qualifyAsString)
+      rdfTypeKey       -> Json.fromString("Schema".qualifyAsString)
     )
 
     val publishedObj = published
@@ -89,19 +103,19 @@ class ContextElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInd
 
     deprecatedObj deepMerge publishedObj deepMerge sharedObj
   }
-
 }
 
-object ContextElasticIndexer {
+object SchemaElasticIndexer {
 
   /**
-    * Constructs a context incremental indexer that pushes data into an ElasticSearch indexer.
+    * Constructs a schema incremental indexer that pushes data into an ElasticSearch indexer.
     *
     * @param client   the ElasticSearch client to use for communicating with the ElasticSearch indexer
+    * @param contexts the context operation bundle
     * @param settings the indexing settings
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](client: ElasticClient[F], settings: ElasticIndexingSettings)(
-      implicit F: MonadError[F, Throwable]): ContextElasticIndexer[F] =
-    new ContextElasticIndexer[F](client, settings)
+  final def apply[F[_]](client: ElasticClient[F], contexts: Contexts[F], settings: ElasticIndexingSettings)(
+      implicit F: MonadError[F, Throwable]): SchemaElasticIndexer[F] =
+    new SchemaElasticIndexer[F](client, contexts, settings)
 }

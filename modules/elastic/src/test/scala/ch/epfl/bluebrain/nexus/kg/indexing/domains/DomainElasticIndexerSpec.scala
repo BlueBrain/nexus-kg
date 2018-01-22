@@ -20,7 +20,6 @@ import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
@@ -76,14 +75,14 @@ class DomainElasticIndexerSpec
                            meta: Meta,
                            firstReqMeta: Meta): Json = {
     Json.obj(
-      createdAtTimeKey                                 -> firstReqMeta.instant.jsonLd,
+      createdAtTimeKey                                 -> Json.fromString(firstReqMeta.instant.toString),
       idKey                                            -> Json.fromString(id.qualifyAsStringWith(orgBase)),
       "rev".qualifyAsStringWith(nexusVocBase)          -> Json.fromLong(rev),
-      "organization".qualifyAsStringWith(nexusVocBase) -> id.orgId.qualify.jsonLd,
+      "organization".qualifyAsStringWith(nexusVocBase) -> Json.fromString(id.orgId.qualifyAsString),
       "name".qualifyAsStringWith(nexusVocBase)         -> Json.fromString(id.id),
       "description".qualifyAsStringWith(nexusVocBase)  -> Json.fromString(description),
-      updatedAtTimeKey                                 -> meta.instant.jsonLd,
-      rdfTypeKey                                       -> "Domain".qualify.jsonLd,
+      updatedAtTimeKey                                 -> Json.fromString(meta.instant.toString),
+      rdfTypeKey                                       -> Json.fromString("Domain".qualifyAsString),
       "deprecated".qualifyAsStringWith(nexusVocBase)   -> Json.fromBoolean(deprecated)
     )
   }

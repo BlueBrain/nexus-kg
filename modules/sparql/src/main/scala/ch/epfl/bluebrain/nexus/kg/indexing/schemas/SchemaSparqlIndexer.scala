@@ -27,13 +27,13 @@ import journal.Logger
   * @param settings the indexing settings
   * @tparam F       the monadic effect type
   */
-class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(
+class SchemaSparqlIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaSparqlIndexingSettings)(
     implicit F: MonadError[F, Throwable])
     extends BaseSparqlIndexer(settings.schemasBase, settings.nexusVocBase) {
 
-  private val log                                         = Logger[this.type]
-  private val SchemaIndexingSettings(index, _, baseNs, _) = settings
-  private val versionKey                                  = "version".qualifyAsString
+  private val log                                               = Logger[this.type]
+  private val SchemaSparqlIndexingSettings(index, _, baseNs, _) = settings
+  private val versionKey                                        = "version".qualifyAsString
 
   /**
     * Indexes the event by pushing it's json ld representation into the rdf triple store while also updating the
@@ -108,7 +108,7 @@ class SchemaIndexer[F[_]](client: SparqlClient[F], contexts: Contexts[F], settin
   }
 }
 
-object SchemaIndexer {
+object SchemaSparqlIndexer {
 
   /**
     * Constructs a schema incremental indexer that pushes data into an rdf triple store.
@@ -118,7 +118,7 @@ object SchemaIndexer {
     * @param settings the indexing settings
     * @tparam F       the monadic effect type
     */
-  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaIndexingSettings)(
-      implicit F: MonadError[F, Throwable]): SchemaIndexer[F] =
-    new SchemaIndexer[F](client, contexts, settings)
+  final def apply[F[_]](client: SparqlClient[F], contexts: Contexts[F], settings: SchemaSparqlIndexingSettings)(
+      implicit F: MonadError[F, Throwable]): SchemaSparqlIndexer[F] =
+    new SchemaSparqlIndexer[F](client, contexts, settings)
 }

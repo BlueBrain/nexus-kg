@@ -18,7 +18,6 @@ import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
@@ -69,12 +68,12 @@ class OrganizationElasticIndexerSpec
 
   private def expectedJson(id: OrgId, rev: Long, deprecated: Boolean, meta: Meta, firstReqMeta: Meta): Json = {
     Json.obj(
-      createdAtTimeKey                               -> firstReqMeta.instant.jsonLd,
+      createdAtTimeKey                               -> Json.fromString(firstReqMeta.instant.toString),
       idKey                                          -> Json.fromString(id.qualifyAsStringWith(orgBase)),
       "rev".qualifyAsStringWith(nexusVocBase)        -> Json.fromLong(rev),
       "name".qualifyAsStringWith(nexusVocBase)       -> Json.fromString(id.id),
-      updatedAtTimeKey                               -> meta.instant.jsonLd,
-      rdfTypeKey                                     -> "Organization".qualify.jsonLd,
+      updatedAtTimeKey                               -> Json.fromString(meta.instant.toString),
+      rdfTypeKey                                     -> Json.fromString("Organization".qualifyAsString),
       "deprecated".qualifyAsStringWith(nexusVocBase) -> Json.fromBoolean(deprecated)
     )
   }
@@ -94,7 +93,7 @@ class OrganizationElasticIndexerSpec
         e shouldBe a[ElasticClientError]
       }
       val rev  = 1L
-      val data = jsonContentOf("/instances/minimal.json", replacements)
+      val data = jsonContentOf("/instances/minimal_initial.json", replacements)
       indexer(OrgCreated(id, rev, meta, data)).futureValue
       eventually {
         val rs = getAll.futureValue

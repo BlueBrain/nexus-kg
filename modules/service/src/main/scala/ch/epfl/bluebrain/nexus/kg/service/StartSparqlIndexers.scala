@@ -73,13 +73,13 @@ class StartSparqlIndexers(settings: Settings,
     }
 
   private def startIndexingInstances() = {
-    val instanceIndexingSettings = InstanceIndexingSettings(settings.Sparql.Index,
-                                                            apiUri,
-                                                            settings.Sparql.Instances.GraphBaseNamespace,
-                                                            settings.Prefixes.CoreVocabulary)
+    val instanceIndexingSettings = InstanceSparqlIndexingSettings(settings.Sparql.Index,
+                                                                  apiUri,
+                                                                  settings.Sparql.Instances.GraphBaseNamespace,
+                                                                  settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[InstanceEvent](
-      InstanceIndexer[Future](sparqlClient, contexts, instanceIndexingSettings).apply _,
+      InstanceSparqlIndexer[Future](sparqlClient, contexts, instanceIndexingSettings).apply _,
       "instances-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "instance",
@@ -88,13 +88,13 @@ class StartSparqlIndexers(settings: Settings,
   }
 
   private def startIndexingSchemas() = {
-    val schemaIndexingSettings = SchemaIndexingSettings(settings.Sparql.Index,
-                                                        apiUri,
-                                                        settings.Sparql.Schemas.GraphBaseNamespace,
-                                                        settings.Prefixes.CoreVocabulary)
+    val schemaIndexingSettings = SchemaSparqlIndexingSettings(settings.Sparql.Index,
+                                                              apiUri,
+                                                              settings.Sparql.Schemas.GraphBaseNamespace,
+                                                              settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[SchemaEvent](
-      SchemaIndexer[Future](sparqlClient, contexts, schemaIndexingSettings).apply _,
+      SchemaSparqlIndexer[Future](sparqlClient, contexts, schemaIndexingSettings).apply _,
       "schemas-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "schema",

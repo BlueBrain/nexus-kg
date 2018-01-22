@@ -5,10 +5,10 @@ import ch.epfl.bluebrain.nexus.commons.test.Randomness.freePort
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.AclIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.contexts.ContextSparqlIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.DomainSparqlIndexerSpec
-import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexerSpec
+import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceSparqlIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.OrganizationSparqlIndexerSpec
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SparqlQuerySpec
-import ch.epfl.bluebrain.nexus.kg.indexing.schemas.SchemaIndexerSpec
+import ch.epfl.bluebrain.nexus.kg.indexing.schemas.SchemaSparqlIndexerSpec
 import com.bigdata.rdf.sail.webapp.NanoSparqlServer
 
 import scala.concurrent.duration._
@@ -42,8 +42,8 @@ class BlazeGraphIndexingSpec extends BlazegraphSpecLike {
   override val nestedSuites = Vector(
     new AclIndexerSpec(port),
     new ContextSparqlIndexerSpec(port),
-    new InstanceIndexerSpec(port),
-    new SchemaIndexerSpec(port),
+    new InstanceSparqlIndexerSpec(port),
+    new SchemaSparqlIndexerSpec(port),
     new DomainSparqlIndexerSpec(port),
     new OrganizationSparqlIndexerSpec(port),
     new SparqlQuerySpec(port)

@@ -46,11 +46,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.Eq
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.LiteralTerm
-import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceIndexer, InstanceIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceSparqlIndexer, InstanceSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationSparqlIndexer, OrganizationSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
-import ch.epfl.bluebrain.nexus.kg.indexing.schemas.{SchemaIndexer, SchemaIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.schemas.{SchemaSparqlIndexer, SchemaSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
@@ -93,11 +93,11 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
   val namespace = genString(length = 6)
 
-  private val settings @ InstanceIndexingSettings(_, _, _, nexusVocBase) =
-    InstanceIndexingSettings(namespace, base, s"$base/data/graphs", s"$base/voc/nexus/core")
+  private val settings @ InstanceSparqlIndexingSettings(_, _, _, nexusVocBase) =
+    InstanceSparqlIndexingSettings(namespace, base, s"$base/data/graphs", s"$base/voc/nexus/core")
 
-  private val settingsSchemas @ SchemaIndexingSettings(_, _, _, nexusVocBaseSchemas) =
-    SchemaIndexingSettings(namespace, base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
+  private val settingsSchemas @ SchemaSparqlIndexingSettings(_, _, _, nexusVocBaseSchemas) =
+    SchemaSparqlIndexingSettings(namespace, base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
   private val settingsDomains @ DomainSparqlIndexingSettings(_, _, _, nexusVocBaseDomains) =
     DomainSparqlIndexingSettings(namespace, base, s"$base/domains/graphs", s"$base/voc/nexus/core")
@@ -130,8 +130,8 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
     val client          = SparqlClient[Future](blazegraphBaseUri)
     val queryClient     = new SparqlQuery[Future](client)
-    val instanceIndexer = InstanceIndexer(client, ctxs, settings)
-    val schemaIndexer   = SchemaIndexer(client, ctxs, settingsSchemas)
+    val instanceIndexer = InstanceSparqlIndexer(client, ctxs, settings)
+    val schemaIndexer   = SchemaSparqlIndexer(client, ctxs, settingsSchemas)
     val domainIndexer   = DomainSparqlIndexer(client, settingsDomains)
     val orgIndexer      = OrganizationSparqlIndexer(client, ctxs, settingsOrgs)
     val aclIndexer      = AclIndexer(client, settingsAcls)

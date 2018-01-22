@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.indexing.organizations
 
 import cats.MonadError
 import cats.syntax.flatMap._
-import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
@@ -11,11 +10,11 @@ import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
+
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDeprecated, OrgUpdated}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgEvent, OrgId}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
-import ch.epfl.bluebrain.nexus.kg.indexing.{BaseElasticIndexer, ElasticIndexingSettings}
+import ch.epfl.bluebrain.nexus.kg.indexing.{BaseElasticIndexer, ElasticIndexingSettings, PatchQuery}
 import io.circe.Json
 import journal.Logger
 
@@ -48,9 +47,9 @@ class OrganizationElasticIndexer[F[_]](client: ElasticClient[F],
       createIndexIfNotExist(event.id).flatMap { _ =>
         contexts
           .resolve(value removeKeys ("links"))
-          .map(_ deepMerge meta)
           .flatMap { json =>
-            val jsonWithMeta = json deepMerge Json.obj(createdAtTimeKey -> m.instant.jsonLd)
+            val jsonWithMeta = json deepMerge meta deepMerge Json.obj(
+              createdAtTimeKey -> Json.fromString(m.instant.toString))
             client.create(event.id.toIndex(prefix), t, event.id.elasticId, jsonWithMeta)
           }
       }
@@ -60,9 +59,9 @@ class OrganizationElasticIndexer[F[_]](client: ElasticClient[F],
       val meta = buildMeta(id, rev, m, deprecated = Some(false))
       contexts
         .resolve(value removeKeys ("links"))
-        .map(_ deepMerge meta)
         .flatMap { json =>
-          client.update(event.id.toIndex(prefix), t, event.id.elasticId, Json.obj("doc" -> json))
+          val query = PatchQuery.inverse(json deepMerge meta, createdAtTimeKey)
+          client.update(event.id.toIndex(prefix), t, event.id.elasticId, query)
         }
 
     case OrgDeprecated(id, rev, m) =>
@@ -76,8 +75,8 @@ class OrganizationElasticIndexer[F[_]](client: ElasticClient[F],
       idKey            -> Json.fromString(id.qualifyAsString),
       revKey           -> Json.fromLong(rev),
       nameKey          -> Json.fromString(id.id),
-      updatedAtTimeKey -> meta.instant.jsonLd,
-      rdfTypeKey       -> "Organization".qualify.jsonLd
+      updatedAtTimeKey -> Json.fromString(meta.instant.toString),
+      rdfTypeKey       -> Json.fromString("Organization".qualifyAsString)
     )
 
     val deprecatedObj = deprecated

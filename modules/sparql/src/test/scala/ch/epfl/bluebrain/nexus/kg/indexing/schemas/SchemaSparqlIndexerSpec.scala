@@ -35,8 +35,8 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 @DoNotDiscover
-class SchemaIndexerSpec(blazegraphPort: Int)
-    extends TestKit(ActorSystem("SchemaIndexerSpec"))
+class SchemaSparqlIndexerSpec(blazegraphPort: Int)
+    extends TestKit(ActorSystem("SchemaSparqlIndexerSpec"))
     with IndexerFixture
     with WordSpecLike
     with Matchers
@@ -64,8 +64,8 @@ class SchemaIndexerSpec(blazegraphPort: Int)
   private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  private val settings @ SchemaIndexingSettings(index, schemasBase, _, nexusVocBase) =
-    SchemaIndexingSettings(genString(length = 6), base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
+  private val settings @ SchemaSparqlIndexingSettings(index, schemasBase, _, nexusVocBase) =
+    SchemaSparqlIndexingSettings(genString(length = 6), base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](nexusVocBase)
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
@@ -119,12 +119,12 @@ class SchemaIndexerSpec(blazegraphPort: Int)
     )
   }
 
-  "A SchemaIndexer" should {
+  "A SchemaSparqlIndexer" should {
 
     val client = SparqlClient[Future](blazegraphBaseUri)
 
     val (ctxs, replacements) = createContext(base)
-    val indexer              = SchemaIndexer(client, ctxs, settings)
+    val indexer              = SchemaSparqlIndexer(client, ctxs, settings)
 
     val id   = SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0))
     val meta = Meta(Anonymous(), Clock.systemUTC.instant())

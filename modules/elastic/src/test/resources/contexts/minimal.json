@@ -8,7 +8,8 @@
     },
     "targetObjectsOf": {
       "@id": "sh:targetObjectsOf",
-      "@type": "@id"
+      "@type": "@id",
+      "description": "{{random}}"
     },
     "in": {
       "@id": "sh:in",

@@ -36,7 +36,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
 }
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
-import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceIndexingSettings
+import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceSparqlIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
@@ -116,8 +116,11 @@ class InstanceRoutesSpec
     val unpublished = schemas.create(schemaId, schemaJson)(caller).futureValue
     val _           = schemas.publish(schemaId, unpublished.rev)(caller).futureValue
 
-    private val InstanceIndexingSettings(index, _, _, nexusVocBase) =
-      InstanceIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
+    private val InstanceSparqlIndexingSettings(index, _, _, nexusVocBase) =
+      InstanceSparqlIndexingSettings(genString(length = 6),
+                                     baseUri,
+                                     s"$baseUri/data/graphs",
+                                     s"$baseUri/voc/nexus/core")
 
     val querySettings                                 = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
     implicit val filteringSettings: FilteringSettings = FilteringSettings(nexusVocBase, nexusVocBase)
