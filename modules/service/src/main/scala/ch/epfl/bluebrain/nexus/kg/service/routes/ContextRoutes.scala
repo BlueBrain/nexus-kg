@@ -225,6 +225,8 @@ object ContextRoutes {
 class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context => ContextId)
     extends RoutesEncoder[ContextId, ContextRef, Context](base, prefixes) {
 
+  private val excluded = List(prefixes.CoreContext.context, prefixes.StandardsContext.context)
+
   implicit val contextRefEncoder: Encoder[ContextRef] = refEncoder.mapJson(_.addCoreContext)
 
   implicit val contextEncoder: Encoder[Context] = Encoder.encodeJson.contramap { ctx =>
@@ -237,7 +239,7 @@ class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context
           JsonLDKeys.nxvPublished  -> Json.fromBoolean(ctx.published)
         )
       )
-    if (ctx.id.qualify == prefixes.CoreContext.context)
+    if (excluded.contains(ctx.id.qualify))
       ctx.value.deepMerge(meta)
     else
       ctx.value.deepMerge(meta).addCoreContext
