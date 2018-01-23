@@ -2,16 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.regex.Pattern.quote
 
-import akka.http.scaladsl.model.StatusCodes
 import cats.MonadError
 import cats.instances.string._
-import cats.syntax.applicativeError._
 import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.types.ConcurrentSetBuilder
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.core.collection.ConcurrentSetBuilder
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
@@ -59,16 +56,13 @@ private[indexing] abstract class BaseElasticIndexer[F[_]](client: ElasticClient[
     *
     * @param id        the id for which the index is going to be created
     * @param converter the mapper between id and index
-    * @tparam A the generit type of the id
+    * @tparam A the generic type of the id
     */
   def createIndexIfNotExist[A](id: A)(implicit converter: ElasticIndexerId[A]): F[Unit] = {
     val index = id.toIndex(prefix)
-    if (!indices(index)) {
-      client.existsIndex(index).recoverWith {
-        case ElasticClientError(StatusCodes.NotFound, _) =>
-          client.createIndex(index, indexJson).map(_ => indices += index)
-        case other => F.raiseError(other)
-      }
-    } else F.pure(())
+    if (!indices(index))
+      client.createIndexIfNotExist(index, indexJson).map(_ => indices += index)
+    else
+      F.pure(())
   }
 }
