@@ -54,7 +54,7 @@ class AclIndexerSpec(blazegraphPort: Int)
   }
 
   override implicit val patienceConfig: PatienceConfig =
-    PatienceConfig(3 seconds, 100 milliseconds)
+    PatienceConfig(6 seconds, 300 milliseconds)
 
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
   private implicit val mt: ActorMaterializer        = ActorMaterializer()
