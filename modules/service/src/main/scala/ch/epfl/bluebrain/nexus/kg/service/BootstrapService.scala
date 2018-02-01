@@ -18,7 +18,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryCli
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
-import ch.epfl.bluebrain.nexus.commons.iam.acls.AccessControlList
+import ch.epfl.bluebrain.nexus.commons.iam.acls.FullAccessControlList
 import ch.epfl.bluebrain.nexus.commons.iam.auth.User
 import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
 import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
@@ -182,7 +182,7 @@ object BootstrapService {
     implicit val identityDecoder = JsonLdSerialization.identityDecoder
     implicit val iamUri          = IamUri(baseIamUri)
     implicit val config          = Configuration.default.withDiscriminator("@type")
-    implicit val aclCl           = HttpClient.withAkkaUnmarshaller[AccessControlList]
+    implicit val aclCl           = HttpClient.withAkkaUnmarshaller[FullAccessControlList]
     implicit val userCl          = HttpClient.withAkkaUnmarshaller[User]
     IamClient()
   }
