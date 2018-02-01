@@ -2,21 +2,21 @@
   "@context": {
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     "prov": "http://www.w3.org/ns/prov#",
-    "bbpprod": "{{base}}/voc/bbp/productionentity/core/",
-    "bbpagent": "{{base}}/voc/bbp/agent/core/"
+    "bbpprod": "{{base-uri}}/voc/bbp/productionentity/core/",
+    "bbpagent": "{{base-uri}}/voc/bbp/agent/core/"
   },
   "filter": {
     "op": "and",
     "value": [
       {
-        "path": "<{{base}}/voc/nexus/core/schema> / <{{base}}/voc/nexus/core/schemaGroup>",
+        "path": "<{{vocab}}schema> / <{{vocab}}schemaGroup>",
         "op": "eq",
-        "value": "{{base}}/bbp/experiment/subject"
+        "value": "{{base-uri}}/bbp/experiment/subject"
       },
       {
         "path": "prov:wasDerivedFrom",
         "op": "eq",
-        "value": "{{base}}/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90"
+        "value": "{{base-uri}}/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90"
       },
       {
         "path": "nxv:rev",

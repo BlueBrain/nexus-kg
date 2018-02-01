@@ -194,11 +194,11 @@ class InstanceIntegrationSpec(
       "list instances with filter on 'desc' path" in {
         val (instanceId, json) = instances.head
         val desc               = json.hcursor.get[String]("nexusvoc:desc").toOption.getOrElse("")
-        val uriFilter = URLEncoder.encode(
-          s"""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}, "filter": {"path": "http://localhost/v0/voc/nexus/core/desc", "op": "eq", "value": "$desc"} } """,
-          "UTF-8"
-        )
-        val path = s"/data?filter=$uriFilter"
+        val uriContext         = URLEncoder.encode("""{"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}""", "UTF-8")
+        val uriFilter =
+          URLEncoder.encode(s"""{"path": "http://localhost/v0/voc/nexus/core/desc", "op": "eq", "value": "$desc"}""",
+                            "UTF-8")
+        val path = s"/data?context=$uriContext&filter=$uriFilter"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType

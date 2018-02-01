@@ -3,18 +3,32 @@ package ch.epfl.bluebrain.nexus.kg.service.directives
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.Sort.OrderType
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
+import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
+import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
-import ch.epfl.bluebrain.nexus.kg.service.routes.{Error, ExceptionHandling, RejectionHandling}
+import ch.epfl.bluebrain.nexus.kg.service.routes.{
+  Error,
+  ExceptionHandling,
+  RejectionHandling,
+  baseUri,
+  contextJson,
+  filteringSettings
+}
+import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
+import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.generic.auto._
 import org.scalatest.{Matchers, WordSpecLike}
 
+import scala.concurrent.Future
 class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matchers {
 
   private case class Response(pagination: Pagination,
@@ -23,7 +37,17 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
                               fields: Set[String],
                               sort: SortList)
 
-  private def route(implicit qs: QuerySettings, fs: FilteringSettings) = {
+  implicit val filterDecoder = Filter.filterDecoder(contextJson)
+
+  private val orgAgg =
+    MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+  private val orgs         = Organizations(orgAgg)
+  private val domAgg       = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+  private val doms         = Domains(domAgg, orgs)
+  private val ctxAgg       = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+  private implicit val ctx = Contexts(ctxAgg, doms, baseUri.toString())
+
+  private def route(implicit qs: QuerySettings) = {
     (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
       RejectionHandling.rejectionHandler(ErrorContext))) {
       (get & searchQueryParams) { (pagination, _, qOpt, deprecatedOpt, fields, sort) =>
@@ -33,9 +57,9 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
   }
 
   "A searchQueryParams directive" should {
-    val base        = "http://localhost"
-    implicit val fs = FilteringSettings(s"$base/voc/nexus/core", s"$base/voc/nexus/search")
-    implicit val qs = QuerySettings(Pagination(0, 20), 100, "index", fs.nexusBaseVoc, base, s"$base/acls/graph")
+    val base = "http://localhost"
+    implicit val qs =
+      QuerySettings(Pagination(0, 20), 100, "index", filteringSettings.nexusBaseVoc, base, s"$base/acls/graph")
 
     "extract default page when not provided" in {
       Get("/") ~> route ~> check {

@@ -173,11 +173,11 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
       }
 
       "list schemas with filter of type owl:Ontology1" in {
-        val uriFilter = URLEncoder.encode(
-          s"""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#", "owl": "http://www.w3.org/2002/07/owl#"}, "filter": {"path": "rdf:type", "op": "eq", "value": "owl:Ontology1"} }""",
-          "UTF-8"
-        )
-        val path = s"/schemas/rand?filter=$uriFilter&size=10"
+        val uriContext = URLEncoder.encode(
+          """{"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#", "owl": "http://www.w3.org/2002/07/owl#"}""",
+          "UTF-8")
+        val uriFilter = URLEncoder.encode(s"""{"path": "rdf:type", "op": "eq", "value": "owl:Ontology1"}""", "UTF-8")
+        val path      = s"/schemas/rand?context=$uriContext&filter=$uriFilter&size=10"
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK

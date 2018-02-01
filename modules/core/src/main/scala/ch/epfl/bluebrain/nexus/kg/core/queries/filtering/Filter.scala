@@ -1,14 +1,14 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.filtering
+package ch.epfl.bluebrain.nexus.kg.core.queries.filtering
 
 import java.io.ByteArrayInputStream
 
 import akka.http.scaladsl.model.Uri
 import cats.Eval
 import cats.syntax.either._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr._
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op._
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath._
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term._
 import io.circe._
 import org.apache.jena.graph.{Graph, Node}
 import org.apache.jena.rdf.model._
@@ -28,32 +28,16 @@ final case class Filter(expr: Expr)
 object Filter {
 
   /**
-    * Builds the default context for filters based on the provided settings.
-    *
-    * @param settings the settings to be used
-    */
-  final def defaultContext(settings: FilteringSettings): Json =
-    Json.obj(
-      "nxv"    -> Json.fromString(s"${settings.nexusBaseVoc}/"),
-      "nxs"    -> Json.fromString(s"${settings.nexusSearchVoc}/"),
-      "filter" -> Json.fromString("nxs:filter"),
-      "path"   -> Json.fromString("nxs:path"),
-      "value"  -> Json.fromString("nxs:value"),
-      "op"     -> Json.fromString("nxs:operator")
-    )
-
-  /**
     * A filter decoder implementation that traverses the json tree and builds the filter expressions.
     *
     * @param settings the filtering settings
     */
-  final implicit def filterDecoder(implicit settings: FilteringSettings): Decoder[Filter] = {
-    val defaultCtx = defaultContext(settings)
-    val voc        = s"${settings.nexusSearchVoc}/"
+  final def filterDecoder(context: Json)(implicit settings: FilteringSettings): Decoder[Filter] = {
+    val voc        = s"${settings.nexusBaseVoc}"
     val filterProp = ResourceFactory.createProperty(voc, "filter")
     val pathProp   = ResourceFactory.createProperty(voc, "path")
     val valueProp  = ResourceFactory.createProperty(voc, "value")
-    val opProp     = ResourceFactory.createProperty(voc, "operator")
+    val opProp     = ResourceFactory.createProperty(voc, "op")
 
     def objectsOfProperty(graph: Graph, node: Node, prop: Property): List[Node] =
       graph.find(node, prop.asNode(), Node.ANY).asScala.map(_.getObject).toList
@@ -255,20 +239,17 @@ object Filter {
     }
 
     Decoder.instance { hcursor =>
-      val json  = hcursor.value
-      val str   = json.deepMerge(Json.obj("@context" -> defaultCtx)).noSpaces
+      val json  = Json.obj("filter" -> hcursor.value) deepMerge Json.obj("@context" -> context)
       val model = ModelFactory.createDefaultModel()
-      RDFDataMgr.read(model, new ByteArrayInputStream(str.getBytes), Lang.JSONLD)
-      val graph = model.getGraph
-
-      val filters      = objectsOfProperty(graph, Node.ANY, filterProp)
-      val filterCursor = hcursor.downField("filter")
+      RDFDataMgr.read(model, new ByteArrayInputStream(json.noSpaces.getBytes), Lang.JSONLD)
+      val graph   = model.getGraph
+      val filters = objectsOfProperty(graph, Node.ANY, filterProp)
       filters match {
-        case head :: Nil => decodeExpr(model.getGraph, head, filterCursor).value.map(expr => Filter(expr))
+        case head :: Nil => decodeExpr(model.getGraph, head, hcursor).value.map(expr => Filter(expr))
         case _ :: _ =>
-          Left(DecodingFailure("A single filter value accepted", filterCursor.history))
+          Left(DecodingFailure("A single filter value accepted", hcursor.history))
         case Nil =>
-          Left(DecodingFailure("A filter value is required", filterCursor.history))
+          Left(DecodingFailure("A filter value is required", hcursor.history))
       }
     }
   }

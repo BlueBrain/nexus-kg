@@ -46,8 +46,22 @@ lazy val docs = project
     }
   )
 
+lazy val schemas = project
+  .in(file("modules/kg-schemas"))
+  .settings(common)
+  .enablePlugins(WorkbenchPlugin)
+  .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
+  .settings(
+    name := "kg-schemas",
+    moduleName := "kg-schemas",
+    libraryDependencies ++= Seq(
+      commonsSchemas
+    )
+  )
+
 lazy val core = project
   .in(file("modules/core"))
+  .dependsOn(schemas)
   .settings(common)
   .settings(
     name := "kg-core",
@@ -62,22 +76,11 @@ lazy val core = project
       "io.circe"           %% "circe-optics" % circeVersion,
       "io.circe"           %% "circe-parser" % circeVersion,
       "io.verizon.journal" %% "core" % journalVersion,
+      "org.apache.jena"    % "jena-arq" % jenaVersion,
+      "org.apache.jena"    % "jena-querybuilder" % jenaVersion,
       "org.scalatest"      %% "scalatest" % scalaTestVersion % Test,
       "com.typesafe.akka"  %% "akka-http-testkit" % akkaHttpVersion % Test,
       "com.typesafe.akka"  %% "akka-testkit" % akkaVersion % Test
-    )
-  )
-
-lazy val schemas = project
-  .in(file("modules/kg-schemas"))
-  .settings(common)
-  .enablePlugins(WorkbenchPlugin)
-  .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
-  .settings(
-    name := "kg-schemas",
-    moduleName := "kg-schemas",
-    libraryDependencies ++= Seq(
-      commonsSchemas
     )
   )
 
@@ -100,8 +103,6 @@ lazy val sparql = project
       "io.circe"                   %% "circe-core"         % circeVersion,
       "io.circe"                   %% "circe-parser"       % circeVersion,
       "io.verizon.journal"         %% "core"               % journalVersion,
-      "org.apache.jena"            % "jena-arq"            % jenaVersion,
-      "org.apache.jena"            % "jena-querybuilder"   % jenaVersion,
       "com.blazegraph"             % "blazegraph-jar"      % blazegraphVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion % Test,
       "com.fasterxml.jackson.core" % "jackson-core"        % jacksonVersion % Test,
@@ -125,16 +126,14 @@ lazy val elastic = project
       commonsTest  % Test,
       elasticEmbed % Test,
       elasticClient,
-      "com.typesafe.akka"  %% "akka-stream"      % akkaVersion,
-      "com.typesafe.akka"  %% "akka-http"        % akkaHttpVersion,
-      "de.heikoseeberger"  %% "akka-http-circe"  % akkaHttpCirceVersion,
-      "io.circe"           %% "circe-core"       % circeVersion,
-      "io.circe"           %% "circe-parser"     % circeVersion,
-      "io.verizon.journal" %% "core"             % journalVersion,
-      "org.apache.jena"    % "jena-arq"          % jenaVersion,
-      "org.apache.jena"    % "jena-querybuilder" % jenaVersion,
-      "com.typesafe.akka"  %% "akka-testkit"     % akkaVersion % Test,
-      "org.scalatest"      %% "scalatest"        % scalaTestVersion % Test
+      "com.typesafe.akka"  %% "akka-stream"     % akkaVersion,
+      "com.typesafe.akka"  %% "akka-http"       % akkaHttpVersion,
+      "de.heikoseeberger"  %% "akka-http-circe" % akkaHttpCirceVersion,
+      "io.circe"           %% "circe-core"      % circeVersion,
+      "io.circe"           %% "circe-parser"    % circeVersion,
+      "io.verizon.journal" %% "core"            % journalVersion,
+      "com.typesafe.akka"  %% "akka-testkit"    % akkaVersion % Test,
+      "org.scalatest"      %% "scalatest"       % scalaTestVersion % Test
     )
   )
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
@@ -153,8 +152,8 @@ lazy val service = project
       iamCommons,
       commonsService,
       sourcingAkka,
+      commonsTest,
       sourcingMem                  % Test,
-      commonsTest                  % Test,
       "ch.megard"                  %% "akka-http-cors" % akkaHttpCorsVersion,
       "ch.qos.logback"             % "logback-classic" % logbackVersion,
       "com.typesafe.akka"          %% "akka-slf4j" % akkaVersion,

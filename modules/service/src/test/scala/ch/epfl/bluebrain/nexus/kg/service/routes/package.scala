@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.service
 import java.util.regex.Pattern
 
 import _root_.io.circe.Json
+import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.commons.types.Version
@@ -10,13 +11,21 @@ import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.kgOrderedKeys
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
 package object routes {
-  private val replacements = Map(Pattern.quote("{{base}}") -> "http://localhost/v0")
+
+  val baseUri = Uri("http://localhost/v0")
+
+  val nexusBaseVoc: Uri = s"https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/"
+  val contextJson = jsonContentOf("/schemas/nexus/core/search/search_expanded.json",
+                                  Map(Pattern.quote("{{vocab}}") -> nexusBaseVoc.toString))
+  implicit val filteringSettings = FilteringSettings(nexusBaseVoc, contextJson)
+  private val replacements       = Map(Pattern.quote("{{base}}") -> "http://localhost/v0")
 
   implicit val orderedKeys: OrderedKeys = kgOrderedKeys
 

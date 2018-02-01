@@ -23,7 +23,6 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
@@ -69,16 +68,16 @@ class SchemaRoutesSpec
       schemaJsonObject.add("@context", jsonContext)
     )
 
-    val shapeNodeShape = jsonContentOf("/int-value-shape-nodeshape.json")
-    val orgAgg         = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs           = Organizations(orgAgg)
-    val domAgg         = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
-    val doms           = Domains(domAgg, orgs)
-    val ctxAgg         = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
-    val contexts       = Contexts(ctxAgg, doms, baseUri.toString())
-    val schAgg         = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
-    val schemas        = Schemas(schAgg, doms, contexts, baseUri.toString)
-    implicit val clock = Clock.systemUTC
+    val shapeNodeShape    = jsonContentOf("/int-value-shape-nodeshape.json")
+    val orgAgg            = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs              = Organizations(orgAgg)
+    val domAgg            = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms              = Domains(domAgg, orgs)
+    val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
+    val schAgg            = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
+    val schemas           = Schemas(schAgg, doms, contexts, baseUri.toString)
+    implicit val clock    = Clock.systemUTC
 
     val caller = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
@@ -88,11 +87,10 @@ class SchemaRoutesSpec
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
-    val querySettings                                 = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri, s"$baseUri/acls/graph")
-    implicit val filteringSettings: FilteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl: IamClient[Future]                = iamClient("http://localhost:8080")
+    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri, s"$baseUri/acls/graph")
+    implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
-    val route = SchemaRoutes(schemas, contexts, sparqlClient, querySettings, baseUri).routes
+    val route = SchemaRoutes(schemas, sparqlClient, querySettings, baseUri).routes
 
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 
@@ -296,8 +294,6 @@ class SchemaRoutesSpec
 }
 
 object SchemaRoutesSpec {
-  private val baseUri = Uri("http://localhost/v0")
-
   import cats.syntax.show._
 
   private def schemaRefAsJson(ref: SchemaRef) =

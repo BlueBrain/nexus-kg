@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
@@ -38,21 +38,18 @@ import scala.concurrent.{ExecutionContext, Future}
   * Http route definitions for domain specific functionality.
   *
   * @param domains           the domain operation bundle
-  * @param contexts          the context operation bundle
   * @param domainQueries     query builder for domains
   * @param base              the service public uri + prefix
-  * @param prefixes          the service context URIs
   */
-final class DomainRoutes(domains: Domains[Future],
-                         contexts: Contexts[Future],
-                         domainQueries: FilterQueries[Future, DomainId],
-                         base: Uri)(implicit querySettings: QuerySettings,
-                                    filteringSettings: FilteringSettings,
-                                    iamClient: IamClient[Future],
-                                    ec: ExecutionContext,
-                                    clock: Clock,
-                                    orderedKeys: OrderedKeys,
-                                    prefixes: PrefixUris)
+final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[Future, DomainId], base: Uri)(
+    implicit contexts: Contexts[Future],
+    querySettings: QuerySettings,
+    filteringSettings: FilteringSettings,
+    iamClient: IamClient[Future],
+    ec: ExecutionContext,
+    clock: Clock,
+    orderedKeys: OrderedKeys,
+    prefixes: PrefixUris)
     extends DefaultRouteHandling(contexts) {
 
   private implicit val _                              = (entity: Domain) => entity.id
@@ -142,27 +139,23 @@ object DomainRoutes {
     * Constructs a new ''DomainRoutes'' instance that defines the http routes specific to domains.
     *
     * @param domains       the domain operation bundle
-    * @param contexts      the context operation bundle
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
-    * @param prefixes      the service context URIs
     * @return a new ''DomainRoutes'' instance
     */
-  final def apply(domains: Domains[Future],
-                  contexts: Contexts[Future],
-                  client: SparqlClient[Future],
-                  querySettings: QuerySettings,
-                  base: Uri)(implicit
-                             ec: ExecutionContext,
-                             iamClient: IamClient[Future],
-                             filteringSettings: FilteringSettings,
-                             clock: Clock,
-                             orderedKeys: OrderedKeys,
-                             prefixes: PrefixUris): DomainRoutes = {
+  final def apply(domains: Domains[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
+      implicit
+      contexts: Contexts[Future],
+      ec: ExecutionContext,
+      iamClient: IamClient[Future],
+      filteringSettings: FilteringSettings,
+      clock: Clock,
+      orderedKeys: OrderedKeys,
+      prefixes: PrefixUris): DomainRoutes = {
     implicit val qs: QuerySettings = querySettings
     val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
-    new DomainRoutes(domains, contexts, domainQueries, base)
+    new DomainRoutes(domains, domainQueries, base)
   }
 }
 

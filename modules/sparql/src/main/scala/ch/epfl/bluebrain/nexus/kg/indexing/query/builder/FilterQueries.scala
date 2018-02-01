@@ -4,18 +4,19 @@ import akka.http.scaladsl.model.Uri
 import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, _}
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextName
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.{And, Eq}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.{LiteralTerm, UriTerm}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Expr, Filter, Op}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{And, Eq}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.{LiteralTerm, UriTerm}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, Filter, Op}
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries.{domExpr, _}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 
@@ -53,7 +54,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
   def list(filter: Filter, pagination: Pagination, term: Option[String], sort: SortList)(
       implicit Q: ConfiguredQualifier[Id],
       caller: Caller): F[QueryResults[Id]] = {
-    val query = FilteredQuery[Id](Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term, sort)
+    val query =
+      FilteredQuery[Id](filtering.Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term, sort)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -99,7 +101,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
       implicit Q: ConfiguredQualifier[Id],
       schemaNameFilter: SchemaNameFilterExpr[Id],
       caller: Caller): F[QueryResults[Id]] =
-    list(Filter(schemaNameFilter(schemaName)) and filter.expr, pagination, term, sort)
+    list(filtering.Filter(schemaNameFilter(schemaName)) and filter.expr, pagination, term, sort)
 
   /**
     * Lists all ids in the system within the specified context and that have the specified context name that match
@@ -148,7 +150,12 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
       implicit Q: ConfiguredQualifier[Id],
       caller: Caller): F[QueryResults[Id]] = {
     val query = FilteredQuery
-      .outgoing[Id](id.qualify, Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term, sort)
+      .outgoing[Id](id.qualify,
+                    filtering.Filter(typeExpr.apply) and filter.expr,
+                    pagination,
+                    caller.identities,
+                    term,
+                    sort)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 
@@ -164,7 +171,12 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F], querySettings: QueryS
       implicit Q: ConfiguredQualifier[Id],
       caller: Caller): F[QueryResults[Id]] = {
     val query = FilteredQuery
-      .incoming[Id](id.qualify, Filter(typeExpr.apply) and filter.expr, pagination, caller.identities, term, sort)
+      .incoming[Id](id.qualify,
+                    filtering.Filter(typeExpr.apply) and filter.expr,
+                    pagination,
+                    caller.identities,
+                    term,
+                    sort)
     queryClient[Id](querySettings.index, query, scored = term.isDefined)
   }
 

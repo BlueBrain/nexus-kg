@@ -18,7 +18,6 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
@@ -60,17 +59,16 @@ class DomainRoutesSpec
       .create(orgId, Json.obj("key" -> Json.fromString(genString())))(CallerCtx(clock, AnonymousCaller(Anonymous())))
       .futureValue
 
-    val sparqlUri                  = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab                      = baseUri.copy(path = baseUri.path / "core")
-    val querySettings              = QuerySettings(Pagination(0L, 20), 100, "domain-index", vocab, baseUri, s"$baseUri/acls/graph")
-    implicit val filteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl                = iamClient("http://localhost:8080")
+    val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
+    val vocab         = baseUri.copy(path = baseUri.path / "core")
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, "domain-index", vocab, baseUri, s"$baseUri/acls/graph")
+    implicit val cl   = iamClient("http://localhost:8080")
 
-    val ctxAgg   = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
-    val contexts = Contexts(ctxAgg, doms, baseUri.toString())
+    val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route        = DomainRoutes(doms, contexts, sparqlClient, querySettings, baseUri).routes
+    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
 
     createNexusContexts(orgs, doms, contexts)(caller)
 
@@ -168,7 +166,6 @@ class DomainRoutesSpec
 }
 
 object DomainRoutesSpec {
-  private val baseUri      = Uri("http://localhost/v0")
   private implicit val _   = (entity: Domain) => entity.id
   implicit val domsEncoder = new DomainCustomEncoders(baseUri, prefixes)
 }

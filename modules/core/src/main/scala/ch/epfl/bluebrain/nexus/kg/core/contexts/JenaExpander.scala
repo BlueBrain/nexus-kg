@@ -12,8 +12,8 @@ import org.apache.jena.rdf.model.{Model, ModelFactory}
 import org.apache.jena.riot.RDFFormat._
 import org.apache.jena.riot.system.RiotLib
 import org.apache.jena.riot.{Lang, RDFDataMgr, RDFFormat}
-
 import scala.util.{Failure, Success, Try}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.JenaExpander._
 
 /**
   * Utility class to format JSON-LD payloads using Jena.
@@ -34,7 +34,7 @@ class JenaExpander[F[_]](contexts: Contexts[F])(implicit F: MonadError[F, Throwa
   def apply(value: String, json: Json): F[String] = {
     contexts.resolve(json).map { expanded =>
       val m = createModel(expanded)
-      expand(value, m)
+      JenaExpander.expand(value, m)
     }
   }
 
@@ -60,15 +60,6 @@ class JenaExpander[F[_]](contexts: Contexts[F])(implicit F: MonadError[F, Throwa
     }
   }
 
-  private def createModel(json: Json): Model = {
-    val model = ModelFactory.createDefaultModel()
-    RDFDataMgr.read(model, new ByteArrayInputStream(json.noSpaces.getBytes), Lang.JSONLD)
-    model
-  }
-
-  private def expand(value: String, model: Model): String =
-    model.expandPrefix(value)
-
   private def expand(m: Model, f: RDFFormat): F[Json] = {
     val out = new ByteArrayOutputStream()
     Try {
@@ -89,4 +80,28 @@ class JenaExpander[F[_]](contexts: Contexts[F])(implicit F: MonadError[F, Throwa
     )
   }
 
+}
+
+object JenaExpander {
+
+  private[contexts] def expand(value: String, model: Model): String =
+    model.expandPrefix(value)
+
+  private[contexts] def createModel(json: Json): Model = {
+    val model = ModelFactory.createDefaultModel()
+    RDFDataMgr.read(model, new ByteArrayInputStream(json.noSpaces.getBytes), Lang.JSONLD)
+    model
+  }
+
+  /**
+    * Expands a single JSON-LD ''value'' given the provided context.
+    *
+    * @param value the string to expand
+    * @param json the resolved json context
+    * @return the expanded string
+    */
+  def expand(value: String, json: Json): String = {
+    val m = createModel(Json.obj("@context" -> json))
+    expand(value, m)
+  }
 }

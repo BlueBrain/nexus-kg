@@ -46,9 +46,9 @@ class ContextElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInd
 
     case ContextUpdated(id, rev, m, value) =>
       log.debug(s"Indexing 'ContextUpdated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
+      val meta  = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
       val query = PatchQuery.inverse(value deepMerge meta, createdAtTimeKey)
-      client.update(event.id.toIndex(prefix),t, event.id.elasticId, query)
+      client.update(event.id.toIndex(prefix), t, event.id.elasticId, query)
 
     case ContextPublished(id, rev, m) =>
       log.debug(s"Indexing 'ContextPublished' event for id '${id.show}'")

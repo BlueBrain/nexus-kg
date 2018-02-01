@@ -4,11 +4,16 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive, Directive1, MalformedQueryParamRejection}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.WrongOrInvalidJson
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
+import ch.epfl.bluebrain.nexus.kg.core.contexts.JenaExpander._
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalFilterFormat, IllegalOutputFormat}
-import io.circe.parser.decode
-import io.circe.{DecodingFailure, ParsingFailure}
+import io.circe.parser.{decode, _}
+import io.circe.{DecodingFailure, Json, ParsingFailure}
+
+import scala.concurrent.Future
+import scala.util.Success
 
 /**
   * Collection of query specific directives.
@@ -26,11 +31,41 @@ trait QueryDirectives {
     }
 
   /**
+    * Extracts the ''context'' query param from the request.
+    */
+  def context(implicit fs: FilteringSettings, ctxs: Contexts[Future]): Directive1[Json] = {
+
+    def resolveContext(context: Json = Json.obj()): Directive1[Json] =
+      onComplete(ctxs.resolve(context.deepMerge(fs.ctx))).flatMap {
+        case Success(expanded) => provide(expanded)
+        case _ =>
+          reject(
+            MalformedQueryParamRejection("context",
+                                         "IllegalContextExpansion",
+                                         Some(WrongOrInvalidJson(Some("The context resolution did not succeed")))))
+      }
+
+    parameter('context.?).flatMap {
+      case Some(contextString) =>
+        parse(contextString) match {
+          case Left(_: ParsingFailure) =>
+            reject(
+              MalformedQueryParamRejection("context",
+                                           "IllegalContextFormat",
+                                           Some(WrongOrInvalidJson(Some("The context format is invalid")))))
+          case Right(context) => resolveContext(context)
+        }
+      case None => resolveContext()
+    }
+  }
+
+  /**
     * Extracts the ''filter'' query param from the request.
     *
-    * @param fs the preconfigured filtering settings
+    * @param ctx the context to apply for the filter
     */
-  def filtered(implicit fs: FilteringSettings): Directive1[Option[Filter]] =
+  def filtered(ctx: Json)(implicit fs: FilteringSettings): Directive1[Option[Filter]] = {
+    implicit val _ = Filter.filterDecoder(ctx)
     parameter('filter.?).flatMap {
       case Some(filterString) =>
         decode[Filter](filterString) match {
@@ -50,6 +85,7 @@ trait QueryDirectives {
       case None =>
         provide(None)
     }
+  }
 
   /**
     * Extracts the ''q'' query param from the request. This param will be used as a full text search
@@ -91,19 +127,24 @@ trait QueryDirectives {
   /**
     * Extracts the ''sort'' query param from the request.
     */
-  def sort: Directive1[SortList] = parameter('sort.?).flatMap {
-    case Some(v) => provide(SortList(v.split(",").map(Sort(_)).toList))
-    case None    => provide(SortList.Empty)
-  }
+  def sort(ctx: Json): Directive1[SortList] =
+    parameter('sort.?).flatMap {
+      case Some(v) =>
+        provide(
+          SortList(v.split(",").map(Sort(_)).map { case Sort(order, value) => Sort(order, expand(value, ctx)) }.toList))
+      case None => provide(SortList.Empty)
+    }
 
   /**
     * Extracts the ''fields'' query param from the request.
     */
-  def fields: Directive1[Set[String]] = parameter('fields.?).flatMap {
-    case Some(field) => provide(field.split(",").map(_.trim).filterNot(_.isEmpty).toSet)
-    case None        => provide(Set.empty[String])
+  def fields(ctx: Json): Directive1[Set[String]] =
+    parameter('fields.?).flatMap {
+      case Some(field) =>
+        provide(field.split(",").map(_.trim).filterNot(_.isEmpty).map(field => expand(field, ctx)).toSet)
+      case None => provide(Set.empty[String])
 
-  }
+    }
 
   /**
     * Extracts the query parameters defined for search requests or set them to preconfigured values
@@ -112,10 +153,11 @@ trait QueryDirectives {
     * @param qs the preconfigured query settings
     * @param fs the preconfigured filtering settings
     */
-  def searchQueryParams(implicit qs: QuerySettings, fs: FilteringSettings)
+  def searchQueryParams(implicit qs: QuerySettings, fs: FilteringSettings, ctxs: Contexts[Future])
     : Directive[(Pagination, Option[Filter], Option[String], Option[Boolean], Set[String], SortList)] =
-    paginated & filtered & q & deprecated & fields & sort
-
+    context.flatMap { jsonCtx =>
+      paginated & filtered(jsonCtx) & q & deprecated & fields(jsonCtx) & sort(jsonCtx)
+    }
 }
 
 object QueryDirectives extends QueryDirectives

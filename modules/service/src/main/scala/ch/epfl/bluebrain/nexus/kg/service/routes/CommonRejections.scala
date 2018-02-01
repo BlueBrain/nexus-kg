@@ -11,7 +11,7 @@ sealed trait CommonRejections extends Rejection
 object CommonRejections {
 
   /**
-    * Signals the inability to parse a json structure into a [[ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter]]
+    * Signals the inability to parse a json structure into a [[ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter]]
     * instance.
     *
     * @param message a human readable description of the cause

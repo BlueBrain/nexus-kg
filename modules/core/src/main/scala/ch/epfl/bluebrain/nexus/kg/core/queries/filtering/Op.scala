@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.filtering
+package ch.epfl.bluebrain.nexus.kg.core.queries.filtering
 
 /**
   * Enumeration type for all filtering operations.
