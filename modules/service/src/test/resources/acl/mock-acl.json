@@ -1,6 +1,7 @@
 {
   "acl" : [
     {
+      "path" : "/kg",
       "identity" : {
         "@id" : "localhost:8080/v0/realms/realms/BBP/groups/group1",
         "realm" : "BBP",
