@@ -35,7 +35,6 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
   SchemaIsNotPublished
 }
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceSparqlIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
@@ -98,7 +97,7 @@ class InstanceRoutesSpec
     val doms                                            = Domains(domAgg, orgs)
     val schAgg                                          = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
     val ctxAgg                                          = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
-    val contexts                                        = Contexts(ctxAgg, doms, baseUri.toString())
+    implicit val contexts                               = Contexts(ctxAgg, doms, baseUri.toString())
     val schemas                                         = Schemas(schAgg, doms, contexts, baseUri.toString())
     val validator                                       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch))
     val instAgg                                         = MemoryAggregate("instances")(Instances.initial, Instances.next, Instances.eval).toF[Future]
@@ -122,9 +121,8 @@ class InstanceRoutesSpec
                                      s"$baseUri/data/graphs",
                                      s"$baseUri/voc/nexus/core")
 
-    val querySettings                                 = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
-    implicit val filteringSettings: FilteringSettings = FilteringSettings(nexusVocBase, nexusVocBase)
-    val baseUUID                                      = UUID.randomUUID().toString.toLowerCase().dropRight(2)
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
+    val baseUUID      = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
 
@@ -132,7 +130,7 @@ class InstanceRoutesSpec
 
     implicit val cl = iamClient("http://localhost:8080")
 
-    val route       = InstanceRoutes(instances, contexts, client, querySettings, baseUri).routes
+    val route       = InstanceRoutes(instances, client, querySettings, baseUri).routes
     val value       = genJson()
     val baseEncoder = new BaseEncoder(prefixes)
 
@@ -305,24 +303,24 @@ class InstanceRoutesSpec
     }
 
     "reject the request with 400 for outgoing links incorrect filter format" in new Context {
-      private val filter = URLEncoder.encode("""{"filter": {}}""", "UTF-8")
+      private val filter = URLEncoder.encode("""{}""", "UTF-8")
       private val path =
         s"""/data/${instanceRef.id.show}/outgoing?filter=$filter"""
       Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         val json: Json = responseAs[Json]
-        json.hcursor.get[String]("field") shouldEqual Right("DownField(filter)/DownField(op)")
+        json.hcursor.get[String]("field") shouldEqual Right("DownField(op)")
       }
     }
 
     "reject the request with 400 for incoming links with incorrect filter format" in new Context {
-      private val filter = URLEncoder.encode("""{"filter": {}}""", "UTF-8")
+      private val filter = URLEncoder.encode("""{}""", "UTF-8")
       private val path =
         s"""/data/${instanceRef.id.show}/incoming?filter=$filter"""
       Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
         val json: Json = responseAs[Json]
-        json.hcursor.get[String]("field") shouldEqual Right("DownField(filter)/DownField(op)")
+        json.hcursor.get[String]("field") shouldEqual Right("DownField(op)")
       }
     }
 
@@ -567,8 +565,6 @@ class InstanceRoutesSpec
 }
 
 object InstanceRoutesSpec {
-  private val base       = Uri("http://localhost")
-  private val baseUri    = base.copy(path = base.path / "v0")
   private val contextUri = prefixes.CoreContext
 
   import cats.syntax.show._

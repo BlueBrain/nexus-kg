@@ -22,10 +22,11 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSc
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId, ShapeRef}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.LiteralTerm
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Expr, FilteringSettings, Op}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.LiteralTerm
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{FilteringSettings, Op}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
@@ -48,21 +49,20 @@ import scala.concurrent.{ExecutionContext, Future}
   * Http route definitions for schema specific functionality.
   *
   * @param schemas           the schemas operation bundle
-  * @param contexts          the context operation bundle
   * @param schemaQueries     query builder for schemas
   * @param base              the service public uri + prefix
   * @param prefixes          the service context URIs
   */
-class SchemaRoutes(schemas: Schemas[Future],
-                   contexts: Contexts[Future],
-                   schemaQueries: FilterQueries[Future, SchemaId],
-                   base: Uri)(implicit querySettings: QuerySettings,
-                              filteringSettings: FilteringSettings,
-                              iamClient: IamClient[Future],
-                              ec: ExecutionContext,
-                              clock: Clock,
-                              orderedKeys: OrderedKeys,
-                              prefixes: PrefixUris)
+class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future, SchemaId], base: Uri)(
+    implicit
+    contexts: Contexts[Future],
+    querySettings: QuerySettings,
+    filteringSettings: FilteringSettings,
+    iamClient: IamClient[Future],
+    ec: ExecutionContext,
+    clock: Clock,
+    orderedKeys: OrderedKeys,
+    prefixes: PrefixUris)
     extends DefaultRouteHandling(contexts) {
   private implicit val schemaIdExtractor = (entity: Schema) => entity.id
   private implicit val shapeIdExtractor  = (entity: Shape) => entity.id
@@ -216,28 +216,25 @@ object SchemaRoutes {
     * Constructs a new ''SchemaRoutes'' instance that defines the http routes specific to schemas.
     *
     * @param schemas       the schemas operation bundle
-    * @param context       the context operation bundle
     * @param client        the sparql client
     * @param querySettings query parameters form settings
     * @param base          the service public uri + prefix
     * @param prefixes      the service context URIs
     * @return a new ''SchemaRoutes'' instance
     */
-  final def apply(schemas: Schemas[Future],
-                  contexts: Contexts[Future],
-                  client: SparqlClient[Future],
-                  querySettings: QuerySettings,
-                  base: Uri)(implicit
-                             ec: ExecutionContext,
-                             iamClient: IamClient[Future],
-                             filteringSettings: FilteringSettings,
-                             clock: Clock,
-                             orderedKeys: OrderedKeys,
-                             prefixes: PrefixUris): SchemaRoutes = {
+  final def apply(schemas: Schemas[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
+      implicit
+      contexts: Contexts[Future],
+      ec: ExecutionContext,
+      iamClient: IamClient[Future],
+      filteringSettings: FilteringSettings,
+      clock: Clock,
+      orderedKeys: OrderedKeys,
+      prefixes: PrefixUris): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client), querySettings)
-    new SchemaRoutes(schemas, contexts, schemaQueries, base)
+    new SchemaRoutes(schemas, schemaQueries, base)
   }
 
   /**

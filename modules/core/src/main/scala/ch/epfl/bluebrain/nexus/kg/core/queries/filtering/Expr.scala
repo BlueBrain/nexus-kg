@@ -1,7 +1,7 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.filtering
+package ch.epfl.bluebrain.nexus.kg.core.queries.filtering
 
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.{ComparisonOp, LogicalOp}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.TermCollection
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op._
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.TermCollection
 
 /**
   * Enumeration type for all filtering expressions.

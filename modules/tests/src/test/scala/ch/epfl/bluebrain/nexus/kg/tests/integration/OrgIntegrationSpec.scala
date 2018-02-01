@@ -179,11 +179,9 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
       }
 
       "list organizations with filter on 'path' organization " in {
-        val uriFilter = URLEncoder.encode(
-          s"""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}, "filter": {"path": "${"name".qualify}", "op": "eq", "value": "nexus"} } """,
-          "UTF-8"
-        )
-        val path = s"/organizations?filter=$uriFilter"
+        val uriContext = URLEncoder.encode("""{"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}""", "UTF-8")
+        val uriFilter  = URLEncoder.encode(s"""{"path": "${"name".qualify}", "op": "eq", "value": "nexus"}""", "UTF-8")
+        val path       = s"/organizations?context=$uriContext&filter=$uriFilter"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType

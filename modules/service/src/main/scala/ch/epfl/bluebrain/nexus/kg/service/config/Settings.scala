@@ -175,12 +175,10 @@ class Settings(config: Config) extends Extension {
     /**
       * The nexus core vocabulary prefix.
       */
-    val CoreVocabulary = Uri(ns.getString("prefixes.core-vocabulary"))
-
-    /**
-      * The nexus search vocabulary prefix.
-      */
-    val SearchVocabulary = Uri(ns.getString("prefixes.search-vocabulary"))
+    val CoreVocabulary = {
+      val uri: Uri = ns.getString("prefixes.core-vocabulary")
+      if (uri.path.endsWithSlash) uri else Uri(s"$uri/")
+    }
   }
 
   object Pagination {
@@ -350,7 +348,6 @@ object Settings extends ExtensionId[Settings] with ExtensionIdProvider {
     def DistributionContext: ContextUri
     def ErrorContext: ContextUri
     def CoreVocabulary: Uri
-    def SearchVocabulary: Uri
   }
 
 }

@@ -32,7 +32,7 @@ class ExpanderSpec
     with Resources
     with ScalaFutures {
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 milliseconds)
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 300 milliseconds)
 
   "An Expander" should {
     import system.dispatcher
@@ -51,15 +51,19 @@ class ExpanderSpec
     Await.result(orgs.create(OrgId("nexus"), Json.obj()), 1 second)
     Await.result(doms.create(DomainId(OrgId("nexus"), "core"), "something"), 1 second)
     Await.result(contexts.create(ContextId(DomainId(OrgId("nexus"), "core"), "standards", Version(0, 1, 0)), standards),
-                 1 second)
+                 3 second)
     Await.result(contexts.publish(ContextId(DomainId(OrgId("nexus"), "core"), "standards", Version(0, 1, 0)), 1L),
-                 1 second)
+                 3 second)
     Await.result(contexts.create(ContextId(DomainId(OrgId("nexus"), "core"), "links", Version(0, 1, 0)), links),
-                 1 second)
-    Await.result(contexts.publish(ContextId(DomainId(OrgId("nexus"), "core"), "links", Version(0, 1, 0)), 1L), 1 second)
+                 3 second)
+    Await.result(contexts.publish(ContextId(DomainId(OrgId("nexus"), "core"), "links", Version(0, 1, 0)), 1L), 3 second)
 
     "expand the string context" in {
-      expander("nxv:Instance", context).futureValue shouldEqual "https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Instance"
+      val instanceExpander = expander("nxv:Instance", context).futureValue
+      instanceExpander shouldEqual "https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Instance"
+      val nxvContext = Json.obj("nxv" -> Json.fromString("https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/"))
+      JenaExpander.expand("nxv:Instance", nxvContext) shouldEqual instanceExpander
+
       expander("rdf:type", context).futureValue shouldEqual "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
       expander("http://www.w3.org/1999/02/22-rdf-syntax-ns#type", context).futureValue shouldEqual "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
       expander("http://www.w3.org/1999/02/22-rdf-syntax-ns#type", Json.obj()).futureValue shouldEqual "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"

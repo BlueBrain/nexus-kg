@@ -20,7 +20,6 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
@@ -47,24 +46,23 @@ class OrganizationRoutesSpec
     with MockedIAMClient {
 
   "An OrganizationRoutes" should {
-    val agg      = MemoryAggregate("orgs")(initial, next, eval).toF[Future]
-    val orgs     = Organizations(agg)
-    val domAgg   = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
-    val doms     = Domains(domAgg, orgs)
-    val ctxAgg   = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
-    val contexts = Contexts(ctxAgg, doms, baseUri.toString())
+    val agg               = MemoryAggregate("orgs")(initial, next, eval).toF[Future]
+    val orgs              = Organizations(agg)
+    val domAgg            = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms              = Domains(domAgg, orgs)
+    val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
 
-    val sparqlUri                                     = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab                                         = baseUri.copy(path = baseUri.path / "core")
-    val querySettings                                 = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri, s"$baseUri/acls/graph")
-    implicit val filteringSettings: FilteringSettings = FilteringSettings(vocab, vocab)
-    implicit val cl: IamClient[Future]                = iamClient("http://localhost:8080")
-    implicit val clock: Clock                         = Clock.systemUTC
-    val caller                                        = CallerCtx(clock, AnonymousCaller(Anonymous()))
+    val sparqlUri                      = Uri("http://localhost:9999/bigdata/sparql")
+    val vocab                          = baseUri.copy(path = baseUri.path / "core")
+    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri, s"$baseUri/acls/graph")
+    implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
+    implicit val clock: Clock          = Clock.systemUTC
+    val caller                         = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
     val route =
-      OrganizationRoutes(orgs, contexts, sparqlClient, querySettings, baseUri).routes
+      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
 
     val id          = OrgId(genString(length = 3))
     val json        = Json.obj("key" -> Json.fromString(genString(length = 8)))
@@ -188,7 +186,6 @@ class OrganizationRoutesSpec
 }
 
 object OrganizationRoutesSpec {
-  private val baseUri = Uri("http://localhost/v0")
 
   private def orgRefAsJson(ref: OrgRef) = Json.obj(
     "@context" -> Json.fromString(prefixes.CoreContext.toString),

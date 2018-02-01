@@ -1,8 +1,10 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.filtering
+package ch.epfl.bluebrain.nexus.kg.core.queries.filtering
 
 import java.io.ByteArrayInputStream
 
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.{
+import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixUri._
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.{
   AlternativeSeqPath,
   InversePath,
   NegatedSeqPath,
@@ -18,8 +20,6 @@ import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.riot.{Lang, RDFDataMgr}
 import org.apache.jena.sparql.path.PathParser
 import org.scalatest.{Inspectors, Matchers, TryValues, WordSpecLike}
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixUri._
-import cats.syntax.show._
 
 class PropPathSpec extends WordSpecLike with Matchers with Inspectors with TryValues {
 

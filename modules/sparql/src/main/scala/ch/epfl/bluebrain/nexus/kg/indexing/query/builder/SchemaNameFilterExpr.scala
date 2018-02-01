@@ -5,11 +5,11 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.Eq
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.{SeqPath, UriPath}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.UriTerm
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.Eq
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.{SeqPath, UriPath}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.UriTerm
 
 /**
   * Defines the creation of an expression to target specific schema names.

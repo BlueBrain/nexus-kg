@@ -13,23 +13,27 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.NoopExpr
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.{Filter, FilteringSettings}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.NoopExpr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import ch.epfl.bluebrain.nexus.kg.core.ConfiguredQualifier
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
+import io.circe.Json
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilteredQuerySpec._
 
 class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with EitherValues {
 
-  private val base         = "http://localhost/v0"
-  private val replacements = Map(Pattern.quote("{{base}}") -> base)
-  private implicit val filteringSettings @ FilteringSettings(nexusBaseVoc, nexusSearchVoc) =
-    FilteringSettings(s"$base/voc/nexus/core", s"$base/voc/nexus/search")
+  private val base              = "http://localhost/v0"
+  private val nexusBaseVoc: Uri = s"https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/"
+  private val replacements =
+    Map(Pattern.quote("{{base-uri}}") -> base, Pattern.quote("{{vocab}}") -> nexusBaseVoc.toString())
+  private val context                    = jsonContentOf("/schemas/nexus/core/search/search_expanded.json", replacements)
+  private implicit val filteringSettings = FilteringSettings(nexusBaseVoc, context)
   private implicit val qSettings =
-    QuerySettings(Pagination(0, 10), 10, "index", s"$base/voc/nexus/core", s"$base", s"$base/acls/graphs")
+    QuerySettings(Pagination(0, 10), 10, "index", nexusBaseVoc, s"$base", s"$base/acls/graphs")
 
-  private val (nxv, _)                                              = (Uri(s"$nexusBaseVoc/"), Uri(s"$nexusSearchVoc/"))
   private val prov                                                  = Uri("http://www.w3.org/ns/prov#")
   private val rdf                                                   = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
   private val bbpprod                                               = Uri(s"$base/voc/bbp/productionentity/core/")
@@ -57,24 +61,24 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |
              |?s ?p ?o .
              |
-             |?s <http://localhost/v0/voc/nexus/core/organization> ?orgId
-             |GRAPH <${qSettings.aclGraph}> { {<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/organization> ?orgId
+             |GRAPH <${qSettings.aclGraph}> { {<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}}
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>}}
              |  }
              |
              |} AS %resultSet
@@ -100,27 +104,29 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       "using a filter" in {
         val json =
           jsonContentOf("/query/builder/filter-only.json", replacements)
-        val filter = json.as[Filter].right.value
+        val (filterJson, cxtJson) = contextAndFilter(json)
+        implicit val _            = Filter.filterDecoder(cxtJson)
+        val filter                = filterJson.as[Filter].right.value
         val expectedWhere =
           s"""
-             |?s <${nxv}schema>/<${nxv}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
+             |?s <${nexusBaseVoc}schema>/<${nexusBaseVoc}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
-             |?s <${nxv}rev> ?var_1 .
+             |?s <${nexusBaseVoc}rev> ?var_1 .
              |FILTER ( ?var_1 <= 5 )
              |
-             |OPTIONAL { ?s <${nxv}version> ?var_2 . }
-             |OPTIONAL { ?s <${nxv}version> ?var_3 . }
+             |OPTIONAL { ?s <${nexusBaseVoc}version> ?var_2 . }
+             |OPTIONAL { ?s <${nexusBaseVoc}version> ?var_3 . }
              |FILTER ( ?var_2 = "v1.0.0" || ?var_3 = "v1.0.1" )
              |
-             |?s <${nxv}deprecated> ?var_4 .
+             |?s <${nexusBaseVoc}deprecated> ?var_4 .
              |?s <${rdf}type> ?var_5 .
              |FILTER ( ?var_4 != false && ?var_5 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
              |
-             |?s <${nxv}version> ?var_6 .
-             |?s <${nxv}rev> ?var_7 .
+             |?s <${nexusBaseVoc}version> ?var_6 .
+             |?s <${nexusBaseVoc}rev> ?var_7 .
              |FILTER NOT EXISTS {
-             |?s <${nxv}version> ?var_6 .
-             |?s <${nxv}rev> ?var_7 .
+             |?s <${nexusBaseVoc}version> ?var_6 .
+             |?s <${nexusBaseVoc}rev> ?var_7 .
              |FILTER ( ?var_6 = "v1.0.2" || ?var_7 <= 2 )
              |}
              |
@@ -134,45 +140,45 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |}
              |
              |OPTIONAL{?s <http://localhost/v0/createdAtTime> ?sort0}
-             |?s <http://localhost/v0/voc/nexus/core/domain> ?domainId .
-             |?s <http://localhost/v0/voc/nexus/core/organization> ?orgId .
-             |?s <http://localhost/v0/voc/nexus/core/schema> ?schemaId .
-             |?s <http://localhost/v0/voc/nexus/core/schema>/<http://localhost/v0/voc/nexus/core/schemaGroup> ?schemaGroupId
-             |GRAPH <${qSettings.aclGraph}> { {<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/domain> ?domainId .
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/organization> ?orgId .
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/schema> ?schemaId .
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/schema>/<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/schemaGroup> ?schemaGroupId
+             |GRAPH <${qSettings.aclGraph}> { {<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?schemaId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?schemaId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?schemaGroupId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?schemaGroupId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?schemaId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?schemaId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?schemaGroupId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?schemaGroupId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?schemaId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?schemaId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?schemaGroupId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}}""".stripMargin
+             |?schemaGroupId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>}}""".stripMargin
         val expected =
           s"""
              |PREFIX bds: <${bdsUri.toString()}>
@@ -211,8 +217,10 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       "using a filter with a term" in {
         val json =
           jsonContentOf("/query/builder/filter-only.json", replacements)
-        val filter = json.as[Filter].right.value
-        val term   = "subject"
+        val (filterJson, cxtJson) = contextAndFilter(json)
+        implicit val _            = Filter.filterDecoder(cxtJson)
+        val filter                = filterJson.as[Filter].right.value
+        val term                  = "subject"
 
         val expectedWhere =
           s"""
@@ -222,24 +230,24 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?matchedValue bds:rank ?pos .
              |FILTER ( !isBlank(?s) )
              |
-             |?s <${nxv}schema>/<${nxv}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
+             |?s <${nexusBaseVoc}schema>/<${nexusBaseVoc}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
-             |?s <${nxv}rev> ?var_1 .
+             |?s <${nexusBaseVoc}rev> ?var_1 .
              |FILTER ( ?var_1 <= 5 )
              |
-             |OPTIONAL { ?s <${nxv}version> ?var_2 . }
-             |OPTIONAL { ?s <${nxv}version> ?var_3 . }
+             |OPTIONAL { ?s <${nexusBaseVoc}version> ?var_2 . }
+             |OPTIONAL { ?s <${nexusBaseVoc}version> ?var_3 . }
              |FILTER ( ?var_2 = "v1.0.0" || ?var_3 = "v1.0.1" )
              |
-             |?s <${nxv}deprecated> ?var_4 .
+             |?s <${nexusBaseVoc}deprecated> ?var_4 .
              |?s <${rdf}type> ?var_5 .
              |FILTER ( ?var_4 != false && ?var_5 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
              |
-             |?s <${nxv}version> ?var_6 .
-             |?s <${nxv}rev> ?var_7 .
+             |?s <${nexusBaseVoc}version> ?var_6 .
+             |?s <${nexusBaseVoc}rev> ?var_7 .
              |FILTER NOT EXISTS {
-             |?s <${nxv}version> ?var_6 .
-             |?s <${nxv}rev> ?var_7 .
+             |?s <${nexusBaseVoc}version> ?var_6 .
+             |?s <${nexusBaseVoc}rev> ?var_7 .
              |FILTER ( ?var_6 = "v1.0.2" || ?var_7 <= 2 )
              |}
              |
@@ -253,38 +261,38 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |}
              |
              |
-             |?s <http://localhost/v0/voc/nexus/core/schemaGroup> ?schemaGroupId .
-             |?s <http://localhost/v0/voc/nexus/core/domain> ?domainId .
-             |?s <http://localhost/v0/voc/nexus/core/organization> ?orgId
-             |GRAPH <${qSettings.aclGraph}> { {<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/schemaGroup> ?schemaGroupId .
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/domain> ?domainId .
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/organization> ?orgId
+             |GRAPH <${qSettings.aclGraph}> { {<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?schemaGroupId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?schemaGroupId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?schemaGroupId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?schemaGroupId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?schemaGroupId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}}""".stripMargin.trim
+             |?schemaGroupId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>}}""".stripMargin.trim
         val expected =
           s"""
              |PREFIX bds: <${bdsUri.toString()}>
@@ -318,32 +326,34 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       "selecting the outgoing links" in {
         val json =
           jsonContentOf("/query/builder/filter-only.json", replacements)
+        val (filterJson, cxtJson) = contextAndFilter(json)
+        implicit val _            = Filter.filterDecoder(cxtJson)
         val thisId =
           Uri(s"http://localhost/v0/bbp/experiment/subject/v0.1.0/theid")
-        val targetFilter = json.as[Filter].right.value
+        val targetFilter = filterJson.as[Filter].right.value
         val expectedWhere =
           s"""
              |?ss ?p ?s .
              |FILTER ( ?ss = <${thisId.toString}> )
              |
-             |?s <${nxv}schema>/<${nxv}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
+             |?s <${nexusBaseVoc}schema>/<${nexusBaseVoc}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
-             |?s <${nxv}rev> ?var_1 .
+             |?s <${nexusBaseVoc}rev> ?var_1 .
              |FILTER ( ?var_1 <= 5 )
              |
-             |OPTIONAL { ?s <${nxv}version> ?var_2 . }
-             |OPTIONAL { ?s <${nxv}version> ?var_3 . }
+             |OPTIONAL { ?s <${nexusBaseVoc}version> ?var_2 . }
+             |OPTIONAL { ?s <${nexusBaseVoc}version> ?var_3 . }
              |FILTER ( ?var_2 = "v1.0.0" || ?var_3 = "v1.0.1" )
              |
-             |?s <${nxv}deprecated> ?var_4 .
+             |?s <${nexusBaseVoc}deprecated> ?var_4 .
              |?s <${rdf}type> ?var_5 .
              |FILTER ( ?var_4 != false && ?var_5 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
              |
-             |?s <${nxv}version> ?var_6 .
-             |?s <${nxv}rev> ?var_7 .
+             |?s <${nexusBaseVoc}version> ?var_6 .
+             |?s <${nexusBaseVoc}rev> ?var_7 .
              |FILTER NOT EXISTS {
-             |?s <${nxv}version> ?var_6 .
-             |?s <${nxv}rev> ?var_7 .
+             |?s <${nexusBaseVoc}version> ?var_6 .
+             |?s <${nexusBaseVoc}rev> ?var_7 .
              |FILTER ( ?var_6 = "v1.0.2" || ?var_7 <= 2 )
              |}
              |
@@ -356,31 +366,31 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |FILTER ( ?var_8 = <${bbpagent}sy> || ?var_9 = <${bbpagent}dmontero> )
              |}
              |
-             |?s <http://localhost/v0/voc/nexus/core/domain> ?domainId .
-             |?s <http://localhost/v0/voc/nexus/core/organization> ?orgId
-             |GRAPH <${qSettings.aclGraph}> { {<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/domain> ?domainId .
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/organization> ?orgId
+             |GRAPH <${qSettings.aclGraph}> { {<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?orgId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |?orgId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?domainId <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}}""".stripMargin.trim
+             |?domainId <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>}}""".stripMargin.trim
         val expected =
           s"""
              |PREFIX bds: <${bdsUri.toString()}>
@@ -415,32 +425,34 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
       "selecting the incoming links" in {
         val json =
           jsonContentOf("/query/builder/filter-only.json", replacements)
+        val (filterJson, cxtJson) = contextAndFilter(json)
+        implicit val _            = Filter.filterDecoder(cxtJson)
         val thisId =
           Uri(s"http://localhost/v0/bbp/experiment/subject/v0.1.0/theid")
-        val targetFilter = json.as[Filter].right.value
+        val targetFilter = filterJson.as[Filter].right.value
         val expectedWhere =
           s"""
              |?s ?p ?o .
              |FILTER ( ?o = <$thisId> )
              |
-             |?s <${nxv}schema>/<${nxv}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
+             |?s <${nexusBaseVoc}schema>/<${nexusBaseVoc}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
-             |?s <${nxv}rev> ?var_1 .
+             |?s <${nexusBaseVoc}rev> ?var_1 .
              |FILTER ( ?var_1 <= 5 )
              |
-             |OPTIONAL { ?s <${nxv}version> ?var_2 . }
-             |OPTIONAL { ?s <${nxv}version> ?var_3 . }
+             |OPTIONAL { ?s <${nexusBaseVoc}version> ?var_2 . }
+             |OPTIONAL { ?s <${nexusBaseVoc}version> ?var_3 . }
              |FILTER ( ?var_2 = "v1.0.0" || ?var_3 = "v1.0.1" )
              |
-             |?s <${nxv}deprecated> ?var_4 .
+             |?s <${nexusBaseVoc}deprecated> ?var_4 .
              |?s <${rdf}type> ?var_5 .
              |FILTER ( ?var_4 != false && ?var_5 IN (<${prov}Entity>, <${bbpprod}Circuit>) )
              |
-             |?s <${nxv}version> ?var_6 .
-             |?s <${nxv}rev> ?var_7 .
+             |?s <${nexusBaseVoc}version> ?var_6 .
+             |?s <${nexusBaseVoc}rev> ?var_7 .
              |FILTER NOT EXISTS {
-             |?s <${nxv}version> ?var_6 .
-             |?s <${nxv}rev> ?var_7 .
+             |?s <${nexusBaseVoc}version> ?var_6 .
+             |?s <${nexusBaseVoc}rev> ?var_7 .
              |FILTER ( ?var_6 = "v1.0.2" || ?var_7 <= 2 )
              |}
              |
@@ -454,17 +466,17 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |}
              |
              |
-             |GRAPH <${qSettings.aclGraph}> { {<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |GRAPH <${qSettings.aclGraph}> { {<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/users/alice>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/realms/BBP/groups/group1>
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/groups/group1>
              |}UNION{
-             |<http://localhost/v0/voc/nexus/core/root> <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>
+             |<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>
              |}UNION{
-             |?s <http://localhost/v0/voc/nexus/core/read> <http://localhost/prefix/anonymous>}}""".stripMargin.trim
+             |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/anonymous>}}""".stripMargin.trim
         val expected =
           s"""
              |PREFIX bds: <${bdsUri.toString()}>
@@ -498,4 +510,16 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
     }
   }
 
+}
+
+object FilteredQuerySpec {
+  private[builder] def contextAndFilter(filterWithContext: Json)(
+      implicit filteringSettings: FilteringSettings): (Json, Json) = {
+    val filter = filterWithContext.hcursor.get[Json]("filter").toOption.getOrElse(Json.obj())
+    val ctx = filterWithContext.hcursor
+      .get[Json]("@context")
+      .map(_.deepMerge(filteringSettings.ctx))
+      .getOrElse(filteringSettings.ctx)
+    filter -> ctx
+  }
 }

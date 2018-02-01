@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import java.net.URLEncoder
+import java.util.regex.Pattern
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{StatusCodes, Uri}
@@ -73,19 +74,32 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
       "list all domains sorted in creation order" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           val rdfType = PrefixMapping.rdfTypeKey.replace("#", "%23")
-          val uri =
-            s"/domains?sort=-${prefixes.CoreVocabulary}/createdAtTime,$rdfType,http://localhost/something/that/does/exist"
-          Get(uri) ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults =
-              UnscoredQueryResults(domains.size.toLong, domains.takeRight(10).reverse.map(UnscoredQueryResult(_)))
-            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
-                                      "self" -> s"$apiUri$uri",
-                                      "next" -> s"$apiUri$uri&from=10&size=10")
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+          val simpleCtx =
+            URLEncoder.encode(Json.obj("nxx" -> Json.fromString(prefixes.CoreVocabulary.toString)).noSpaces, "UTF-8")
+          val uris = List(
+            s"/domains?sort=-${prefixes.CoreVocabulary}createdAtTime,$rdfType,http://localhost/something/that/does/exist",
+            "/domains?sort=-nxv:createdAtTime,rdf:type",
+            s"/domains?context=$simpleCtx&sort=-nxx:createdAtTime,rdf:type"
+          )
+          forAll(uris) {
+            case uri =>
+              Get(uri) ~> addCredentials(ValidCredentials) ~> route ~> check {
+                status shouldEqual StatusCodes.OK
+                contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+                val expectedResults =
+                  UnscoredQueryResults(domains.size.toLong, domains.takeRight(10).reverse.map(UnscoredQueryResult(_)))
+                val expectedLinks = Links(
+                  "@context" -> s"${prefixes.LinksContext}",
+                  "self"     -> s"$apiUri$uri",
+                  "next" -> s"$apiUri$uri&from=10&size=10"
+                    .replaceAll(Pattern.quote("%3A"), ":")
+                    .replaceAll(Pattern.quote("%2F"), "/")
+                )
+                contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+                responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+              }
           }
+
         }
       }
 
@@ -179,13 +193,12 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
       }
 
       "list domains with filter of description" in {
-        val domainId = domains(7)
+        val domainId   = domains(7)
+        val uriContext = URLEncoder.encode("""{"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}""", "UTF-8")
         val uriFilter = URLEncoder.encode(
-          s"""{"@context": {"rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}, "filter": {"path": "${"description".qualify}", "op": "eq", "value": "${descriptionOf(
-            domainId)}"} } """,
-          "UTF-8"
-        )
-        val path = s"/domains/rand?filter=$uriFilter"
+          s"""{"path": "${"description".qualify}", "op": "eq", "value": "${descriptionOf(domainId)}"}""",
+          "UTF-8")
+        val path = s"/domains/rand?context=$uriContext&filter=$uriFilter"
         Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
           status shouldEqual StatusCodes.OK
           contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType

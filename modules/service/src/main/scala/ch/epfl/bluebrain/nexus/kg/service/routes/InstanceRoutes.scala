@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
@@ -46,15 +46,15 @@ import scala.concurrent.{ExecutionContext, Future}
   * Http route definitions for instance specific functionality.
   *
   * @param instances         the instances operation bundle
-  * @param contexts          the contexts operation bundle
   * @param instanceQueries   query builder for schemas
   * @param base              the service public uri + prefix
   * @param prefixes          the service context URIs
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
-                     contexts: Contexts[Future],
                      instanceQueries: FilterQueries[Future, InstanceId],
-                     base: Uri)(implicit querySettings: QuerySettings,
+                     base: Uri)(implicit
+                                contexts: Contexts[Future],
+                                querySettings: QuerySettings,
                                 filteringSettings: FilteringSettings,
                                 iamClient: IamClient[Future],
                                 ec: ExecutionContext,
@@ -239,10 +239,10 @@ object InstanceRoutes {
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
-                  contexts: Contexts[Future],
                   client: SparqlClient[Future],
                   querySettings: QuerySettings,
                   base: Uri)(implicit
+                             contexts: Contexts[Future],
                              ec: ExecutionContext,
                              iamClient: IamClient[Future],
                              filteringSettings: FilteringSettings,
@@ -251,7 +251,7 @@ object InstanceRoutes {
                              prefixes: PrefixUris): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
-    new InstanceRoutes(instances, contexts, instanceQueries, base)
+    new InstanceRoutes(instances, instanceQueries, base)
   }
 
 }

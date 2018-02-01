@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service
 
 import java.time.Clock
+import java.util.regex.Pattern
 
 import akka.actor.{ActorSystem, AddressFromURIString}
 import akka.cluster.Cluster
@@ -25,14 +26,15 @@ import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPr
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.instances.Instances
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.AttachmentLocation
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaImportResolver, Schemas}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
@@ -81,11 +83,12 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
   private implicit val prefixes: PrefixUris     = settings.Prefixes
 
   private val apis = uriPrefix(apiUri) {
-    OrganizationRoutes(orgs, contexts, sparqlClient, querySettings, apiUri).routes ~
-      DomainRoutes(doms, contexts, sparqlClient, querySettings, apiUri).routes ~
-      SchemaRoutes(schemas, contexts, sparqlClient, querySettings, apiUri).routes ~
-      ContextRoutes(contexts, sparqlClient, querySettings, apiUri).routes ~
-      InstanceRoutes(instances, contexts, sparqlClient, querySettings, apiUri).routes
+    implicit val ctxs = contexts
+    OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri).routes ~
+      DomainRoutes(doms, sparqlClient, querySettings, apiUri).routes ~
+      SchemaRoutes(schemas, sparqlClient, querySettings, apiUri).routes ~
+      ContextRoutes(sparqlClient, querySettings, apiUri).routes ~
+      InstanceRoutes(instances, sparqlClient, querySettings, apiUri).routes
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)
 
@@ -148,7 +151,8 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     (orgs, doms, schemas, contexts, instances)
   }
 
-  def joinCluster(): Unit  = cluster.joinSeedNodes(seeds.toList)
+  def joinCluster(): Unit = cluster.joinSeedNodes(seeds.toList)
+
   def leaveCluster(): Unit = cluster.leave(cluster.selfAddress)
 }
 
@@ -213,7 +217,13 @@ object BootstrapService {
       settings.Sparql.Acls.GraphBaseNamespace
     )
 
-    implicit val filteringSettings: FilteringSettings =
-      FilteringSettings(settings.Prefixes.CoreVocabulary, settings.Prefixes.SearchVocabulary)
+    private[service] implicit val filteringSettings: FilteringSettings =
+      FilteringSettings(
+        settings.Prefixes.CoreVocabulary,
+        jsonContentOf("/schemas/nexus/core/search/search_expanded.json",
+                      Map(Pattern.quote("{{vocab}}") -> settings.Prefixes.CoreVocabulary.toString()))
+      )
+
   }
+
 }

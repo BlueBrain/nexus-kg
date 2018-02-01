@@ -34,7 +34,8 @@ object PatchQuery {
     val (prefix, sufix) = keepKeys.zipWithIndex.foldLeft(StringBuilder.newBuilder -> StringBuilder.newBuilder) {
       case ((p, s), (key, index)) =>
         val variable = s"var$index"
-        (p.append(s"""Object $variable = ctx._source.get("$key");""")) -> (s.append(s"""if($variable != null) ctx._source.put("$key", $variable);"""))
+        (p.append(s"""Object $variable = ctx._source.get("$key");""")) -> (s.append(
+          s"""if($variable != null) ctx._source.put("$key", $variable);"""))
     }
     val script = s"""$prefix ctx._source = params.value; $sufix"""
     Json.obj("script" -> Json.obj("source" -> Json.fromString(script), "params" -> Json.obj("value" -> json)))

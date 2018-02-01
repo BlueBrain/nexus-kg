@@ -1,12 +1,13 @@
-package ch.epfl.bluebrain.nexus.kg.indexing.filtering
+package ch.epfl.bluebrain.nexus.kg.core.queries.filtering
 
 import akka.http.scaladsl.model.Uri
 import cats.syntax.show._
 import cats.{Eval, Show}
 import ch.epfl.bluebrain.nexus.commons.types.Err
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath._
-import org.apache.jena.sparql.path._
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath._
 import org.apache.jena.graph.Node
+import org.apache.jena.sparql.path._
+
 import scala.collection.JavaConverters._
 import scala.util.Try
 

@@ -39,13 +39,13 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, SchemaDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainSparqlIndexer, DomainSparqlIndexingSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Expr.ComparisonExpr
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Filter
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Op.Eq
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.PropPath.UriPath
-import ch.epfl.bluebrain.nexus.kg.indexing.filtering.Term.LiteralTerm
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.Eq
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.LiteralTerm
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceSparqlIndexer, InstanceSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationSparqlIndexer, OrganizationSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries

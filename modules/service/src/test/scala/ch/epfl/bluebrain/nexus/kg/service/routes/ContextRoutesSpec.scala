@@ -67,13 +67,13 @@ class ContextRoutesSpec
       "@context" -> Json.arr(contextJsonObject("@context").getOrElse(Json.obj()),
                              Json.fromString(prefixes.CoreContext.toString)))
 
-    val orgAgg         = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs           = Organizations(orgAgg)
-    val domAgg         = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
-    val doms           = Domains(domAgg, orgs)
-    val ctxAgg         = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
-    val contexts       = Contexts(ctxAgg, doms, baseUri.toString())
-    implicit val clock = Clock.systemUTC
+    val orgAgg            = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs              = Organizations(orgAgg)
+    val domAgg            = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms              = Domains(domAgg, orgs)
+    val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
+    implicit val clock    = Clock.systemUTC
 
     val caller = CallerCtx(clock, AnonymousCaller(Anonymous()))
     val orgRef = Await.result(orgs.create(OrgId(genString(length = 3)), Json.obj())(caller), 2 seconds)
@@ -87,7 +87,7 @@ class ContextRoutesSpec
     val vocab         = baseUri.copy(path = baseUri.path / "core")
     val querySettings = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri, s"$baseUri/acls/graph")
 
-    val route = ContextRoutes(contexts, sparql, querySettings, baseUri).routes
+    val route = ContextRoutes(sparql, querySettings, baseUri).routes
 
     val contextId = ContextId(domRef.id, genString(length = 8), genVersion())
 
@@ -269,8 +269,6 @@ class ContextRoutesSpec
 }
 
 object ContextRoutesSpec {
-
-  private val baseUri = Uri("http://localhost/v0")
 
   private def contextRefAsJson(ref: ContextRef) =
     Json.obj(
