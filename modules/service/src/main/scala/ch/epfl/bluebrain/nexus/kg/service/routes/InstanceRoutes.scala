@@ -38,7 +38,7 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
-import kamon.akka.http.KamonTraceDirectives.traceName
+import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -72,7 +72,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
     (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
       val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
       implicit val _ = (id: InstanceId) => instances.fetch(id)
-      traceName("searchInstances") {
+      operationName("searchInstances") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           instanceQueries.list(filter, pagination, termOpt, sort).buildResponse(fields, base, prefixes, pagination)
         } ~
@@ -124,14 +124,14 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
       (pathEndOrSingleSlash & get & authorizeResource(instanceId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            traceName("getInstanceRevision") {
+            operationName("getInstanceRevision") {
               onSuccess(instances.fetch(instanceId, rev)) {
                 case Some(instance) => formatOutput(instance, format)
                 case None           => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            traceName("getInstance") {
+            operationName("getInstance") {
               onSuccess(instances.fetch(instanceId)) {
                 case Some(instance) => formatOutput(instance, format)
                 case None           => complete(StatusCodes.NotFound)
@@ -142,7 +142,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
         path("attachment") {
           (pathEndOrSingleSlash & get & authorizeResource(Path(s"${instanceId.show}/attachment"), Read)) {
             parameter('rev.as[Long].?) { revOpt =>
-              traceName("getInstanceAttachment") {
+              operationName("getInstanceAttachment") {
                 val result = revOpt match {
                   case Some(rev) => instances.fetchAttachment(instanceId, rev)
                   case None      => instances.fetchAttachment(instanceId)
@@ -165,7 +165,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
     (extractSchemaId & pathEndOrSingleSlash & post) { schemaId =>
       entity(as[Json]) { json =>
         (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
-          traceName("createInstance") {
+          operationName("createInstance") {
             onSuccess(instances.create(schemaId, json)) { ref =>
               complete(StatusCodes.Created -> ref)
             }
@@ -177,7 +177,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
         pathEndOrSingleSlash {
           (put & entity(as[Json]) & parameter('rev.as[Long])) { (json, rev) =>
             (authenticateCaller & authorizeResource(instanceId, Write)) { implicit caller =>
-              traceName("updateInstance") {
+              operationName("updateInstance") {
                 onSuccess(instances.update(instanceId, rev, json)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
@@ -186,7 +186,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
           } ~
             (delete & parameter('rev.as[Long])) { rev =>
               (authenticateCaller & authorizeResource(instanceId, Write)) { implicit caller =>
-                traceName("deprecateInstance") {
+                operationName("deprecateInstance") {
                   onSuccess(instances.deprecate(instanceId, rev)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
@@ -200,7 +200,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
               (authenticateCaller & authorizeResource(resource, Write)) { implicit caller =>
                 fileUpload("file") {
                   case (metadata, byteSource) =>
-                    traceName("createInstanceAttachment") {
+                    operationName("createInstanceAttachment") {
                       onSuccess(instances
                         .createAttachment(instanceId, rev, metadata.fileName, metadata.contentType.value, byteSource)) {
                         info =>
@@ -212,7 +212,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
             } ~
               (delete & parameter('rev.as[Long])) { rev =>
                 (authenticateCaller & authorizeResource(resource, Write)) { implicit caller =>
-                  traceName("removeInstanceAttachment") {
+                  operationName("removeInstanceAttachment") {
                     onSuccess(instances.removeAttachment(instanceId, rev)) { ref =>
                       complete(StatusCodes.OK -> ref)
                     }

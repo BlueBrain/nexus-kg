@@ -62,7 +62,7 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
       val filter =
         filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
       implicit val _ = (id: DomainId) => domains.fetch(id)
-      traceName("searchDomains") {
+      operationName("searchDomains") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           domainQueries
             .list(filter, pagination, termOpt, sort)
@@ -83,14 +83,14 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
       (get & authorizeResource(domainId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            traceName("getDomainRevision") {
+            operationName("getDomainRevision") {
               onSuccess(domains.fetch(domainId, rev)) {
                 case Some(domain) => formatOutput(domain, format)
                 case None         => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            traceName("getDomain") {
+            operationName("getDomain") {
               onSuccess(domains.fetch(domainId)) {
                 case Some(domain) => formatOutput(domain, format)
                 case None         => complete(StatusCodes.NotFound)
@@ -104,7 +104,7 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
     (extractDomainId & pathEndOrSingleSlash) { domainId =>
       (put & entity(as[DomainDescription])) { desc =>
         (authenticateCaller & authorizeResource(domainId, Write)) { implicit caller =>
-          traceName("createDomain") {
+          operationName("createDomain") {
             onSuccess(domains.create(domainId, desc.description)) { ref =>
               complete(StatusCodes.Created -> ref)
             }
@@ -113,7 +113,7 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
       } ~
         (delete & parameter('rev.as[Long])) { rev =>
           (authenticateCaller & authorizeResource(domainId, Write)) { implicit caller =>
-            traceName("deprecateDomain") {
+            operationName("deprecateDomain") {
               onSuccess(domains.deprecate(domainId, rev)) { ref =>
                 complete(StatusCodes.OK -> ref)
               }

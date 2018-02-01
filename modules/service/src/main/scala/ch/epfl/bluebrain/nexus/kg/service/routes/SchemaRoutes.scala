@@ -83,7 +83,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
       parameter('published.as[Boolean].?) { publishedOpt =>
         val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
         implicit val _ = (id: SchemaId) => schemas.fetch(id)
-        traceName("searchSchemas") {
+        operationName("searchSchemas") {
           (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
             schemaQueries.list(filter, pagination, termOpt, sort).buildResponse(fields, base, prefixes, pagination)
           } ~
@@ -117,14 +117,14 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
       (pathEndOrSingleSlash & get & authorizeResource(schemaId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            traceName("getSchemaRevision") {
+            operationName("getSchemaRevision") {
               onSuccess(schemas.fetch(schemaId, rev)) {
                 case Some(schema) => formatOutput(schema, format)
                 case None         => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            traceName("getSchema") {
+            operationName("getSchema") {
               onSuccess(schemas.fetch(schemaId)) {
                 case Some(schema) => formatOutput(schema, format)
                 case None         => complete(StatusCodes.NotFound)
@@ -137,14 +137,14 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
           (pathEndOrSingleSlash & get & authorizeResource(shapeId, Read) & format) { format =>
             parameter('rev.as[Long].?) {
               case Some(rev) =>
-                traceName("getSchemaShapeRevision") {
+                operationName("getSchemaShapeRevision") {
                   onSuccess(schemas.fetchShape(schemaId, fragment, rev)) {
                     case Some(shape) => formatOutput(shape, format)
                     case None        => complete(StatusCodes.NotFound)
                   }
                 }
               case None =>
-                traceName("getSchemaShape") {
+                operationName("getSchemaShape") {
                   onSuccess(schemas.fetchShape(schemaId, fragment)) {
                     case Some(shape) => formatOutput(shape, format)
                     case None        => complete(StatusCodes.NotFound)
@@ -162,13 +162,13 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
           (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
             parameter('rev.as[Long].?) {
               case Some(rev) =>
-                traceName("updateSchema") {
+                operationName("updateSchema") {
                   onSuccess(schemas.update(schemaId, rev, json)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
                 }
               case None =>
-                traceName("createSchema") {
+                operationName("createSchema") {
                   onSuccess(schemas.create(schemaId, json)) { ref =>
                     complete(StatusCodes.Created -> ref)
                   }
@@ -178,7 +178,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
         } ~
           (delete & parameter('rev.as[Long])) { rev =>
             (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
-              traceName("deprecateSchema") {
+              operationName("deprecateSchema") {
                 onSuccess(schemas.deprecate(schemaId, rev)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
@@ -190,7 +190,7 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
           (pathEndOrSingleSlash & patch & entity(as[SchemaConfig]) & parameter('rev.as[Long])) { (cfg, rev) =>
             (authenticateCaller & authorizeResource(schemaId, Publish)) { implicit caller =>
               if (cfg.published) {
-                traceName("publishSchema") {
+                operationName("publishSchema") {
                   onSuccess(schemas.publish(schemaId, rev)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }

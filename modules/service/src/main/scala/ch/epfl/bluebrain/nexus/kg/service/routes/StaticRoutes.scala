@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.StaticRoutes.ServiceDescription
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives._
-import kamon.akka.http.KamonTraceDirectives.traceName
+import kamon.akka.http.KamonTraceDirectives.operationName
 
 /**
   * Http route definitions that have constant outcomes per runtime.
@@ -23,7 +23,7 @@ class StaticRoutes(settings: Settings) {
 
   private def serviceDescriptionRoute = pathEndOrSingleSlash {
     get {
-      traceName("serviceDescription") {
+      operationName("serviceDescription") {
         complete(StatusCodes.OK -> desc)
       }
     }
