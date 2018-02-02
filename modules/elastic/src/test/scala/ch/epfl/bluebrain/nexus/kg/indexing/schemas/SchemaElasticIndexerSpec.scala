@@ -33,6 +33,7 @@ import org.scalatest.concurrent.{Eventually, ScalaFutures}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 
 class SchemaElasticIndexerSpec
     extends ElasticServer
@@ -118,9 +119,9 @@ class SchemaElasticIndexerSpec
       eventually {
         val rs = getAll.futureValue
         rs.results.size shouldEqual 1
-        val json = ctxs.resolve(data).futureValue
-        rs.results.head.source shouldEqual json.deepMerge(
-          expectedJson(id, rev, deprecated = false, published = false, meta, meta))
+        rs.results.head.source shouldEqual data
+          .deepMerge(expectedJson(id, rev, deprecated = false, published = false, meta, meta))
+          .removeKeys("@context")
         client.existsIndex(indexId).futureValue shouldEqual (())
       }
     }
@@ -133,9 +134,9 @@ class SchemaElasticIndexerSpec
       eventually {
         val rs = getAll.futureValue
         rs.results.size shouldEqual 1
-        val json = ctxs.resolve(data).futureValue
-        rs.results.head.source shouldEqual json.deepMerge(
-          expectedJson(id, rev, deprecated = false, published = false, metaUpdated, meta))
+        rs.results.head.source shouldEqual data
+          .deepMerge(expectedJson(id, rev, deprecated = false, published = false, metaUpdated, meta))
+          .removeKeys("@context")
       }
     }
     val metaPublished = Meta(Anonymous(), Clock.systemUTC.instant())
@@ -146,10 +147,10 @@ class SchemaElasticIndexerSpec
       eventually {
         val rs = getAll.futureValue
         rs.results.size shouldEqual 1
-        val json = ctxs.resolve(data).futureValue
-        rs.results.head.source shouldEqual json
+        rs.results.head.source shouldEqual data
           .deepMerge(expectedJson(id, rev, deprecated = false, published = true, metaPublished, meta))
           .deepMerge(Json.obj(publishedAtTimeKey -> Json.fromString(metaPublished.instant.toString)))
+          .removeKeys("@context")
       }
     }
 
@@ -160,10 +161,10 @@ class SchemaElasticIndexerSpec
       eventually {
         val rs = getAll.futureValue
         rs.results.size shouldEqual 1
-        val json = ctxs.resolve(data).futureValue
-        rs.results.head.source shouldEqual json
+        rs.results.head.source shouldEqual data
           .deepMerge(expectedJson(id, rev, deprecated = true, published = true, metaUpdated, meta))
           .deepMerge(Json.obj(publishedAtTimeKey -> Json.fromString(metaPublished.instant.toString)))
+          .removeKeys("@context")
       }
     }
   }

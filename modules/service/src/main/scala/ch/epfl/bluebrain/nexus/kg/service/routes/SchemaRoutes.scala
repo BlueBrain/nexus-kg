@@ -6,22 +6,30 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.stream.Materializer
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withAkkaUnmarshaller}
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
+import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.ShapeId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, Schemas}
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.kg.query.schemas.SchemasElasticQueries
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
@@ -31,8 +39,8 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.{Publish, SchemaCo
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.{SchemaCustomEncoders, ShapeCustomEncoders}
-import io.circe.Json
 import io.circe.generic.auto._
+import io.circe.{Decoder, Json}
 import kamon.akka.http.KamonTraceDirectives._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -45,16 +53,17 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param base              the service public uri + prefix
   * @param prefixes          the service context URIs
   */
-class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future, SchemaId], base: Uri)(
-    implicit
-    contexts: Contexts[Future],
-    querySettings: QuerySettings,
-    filteringSettings: FilteringSettings,
-    iamClient: IamClient[Future],
-    ec: ExecutionContext,
-    clock: Clock,
-    orderedKeys: OrderedKeys,
-    prefixes: PrefixUris)
+class SchemaRoutes(schemas: Schemas[Future],
+                   schemaQueries: FilterQueries[Future, SchemaId],
+                   schemasElasticQueries: SchemasElasticQueries[Future],
+                   base: Uri)(implicit contexts: Contexts[Future],
+                              querySettings: QuerySettings,
+                              filteringSettings: FilteringSettings,
+                              iamClient: IamClient[Future],
+                              ec: ExecutionContext,
+                              clock: Clock,
+                              orderedKeys: OrderedKeys,
+                              prefixes: PrefixUris)
     extends DefaultRouteHandling(contexts) {
 
   private implicit val coreContext: ContextUri              = prefixes.CoreContext
@@ -72,23 +81,55 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
 
       operationName("searchSchemas") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-          schemaQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+          (query.filter, query.q, query.sort) match {
+            case (Filter.Empty, None, SortList.Empty) =>
+              schemasElasticQueries
+                .list(pagination, query.deprecated, query.published)
+                .buildResponse(query.fields, base, prefixes, pagination)
+            case _ =>
+              schemaQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+          }
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
             authenticateCaller.apply { implicit caller =>
-              schemaQueries.list(orgId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+              (query.filter, query.q, query.sort) match {
+                case (Filter.Empty, None, SortList.Empty) =>
+                  schemasElasticQueries
+                    .list(pagination, orgId, query.deprecated, query.published)
+                    .buildResponse(query.fields, base, prefixes, pagination)
+                case _ =>
+                  schemaQueries
+                    .list(orgId, query, pagination)
+                    .buildResponse(query.fields, base, prefixes, pagination)
+              }
             }
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
             authenticateCaller.apply { implicit caller =>
-              schemaQueries.list(domainId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+              (query.filter, query.q, query.sort) match {
+                case (Filter.Empty, None, SortList.Empty) =>
+                  schemasElasticQueries
+                    .list(pagination, domainId, query.deprecated, query.published)
+                    .buildResponse(query.fields, base, prefixes, pagination)
+                case _ =>
+                  schemaQueries
+                    .list(domainId, query, pagination)
+                    .buildResponse(query.fields, base, prefixes, pagination)
+              }
             }
           } ~
           (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
             authenticateCaller.apply { implicit caller =>
-              schemaQueries
-                .list(schemaName, query, pagination)
-                .buildResponse(query.fields, base, prefixes, pagination)
+              (query.filter, query.q, query.sort) match {
+                case (Filter.Empty, None, SortList.Empty) =>
+                  schemasElasticQueries
+                    .list(pagination, schemaName, query.deprecated, query.published)
+                    .buildResponse(query.fields, base, prefixes, pagination)
+                case _ =>
+                  schemaQueries
+                    .list(schemaName, query, pagination)
+                    .buildResponse(query.fields, base, prefixes, pagination)
+              }
             }
           }
       }
@@ -198,19 +239,31 @@ object SchemaRoutes {
     * @param prefixes      the service context URIs
     * @return a new ''SchemaRoutes'' instance
     */
-  final def apply(schemas: Schemas[Future], client: SparqlClient[Future], querySettings: QuerySettings, base: Uri)(
-      implicit
-      contexts: Contexts[Future],
-      ec: ExecutionContext,
-      iamClient: IamClient[Future],
-      filteringSettings: FilteringSettings,
-      clock: Clock,
-      orderedKeys: OrderedKeys,
-      prefixes: PrefixUris): SchemaRoutes = {
+  final def apply(schemas: Schemas[Future],
+                  client: SparqlClient[Future],
+                  elasticClient: ElasticClient[Future],
+                  elasticSettings: ElasticIndexingSettings,
+                  querySettings: QuerySettings,
+                  base: Uri)(implicit
+                             contexts: Contexts[Future],
+                             ec: ExecutionContext,
+                             mt: Materializer,
+                             cl: UntypedHttpClient[Future],
+                             iamClient: IamClient[Future],
+                             filteringSettings: FilteringSettings,
+                             clock: Clock,
+                             orderedKeys: OrderedKeys,
+                             prefixes: PrefixUris): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client))
-    new SchemaRoutes(schemas, schemaQueries, base)
+
+    implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId]     = Qualifier.configured[SchemaId](elasticSettings.base)
+    implicit val D: Decoder[QueryResults[SchemaId]]                   = ElasticDecoder[SchemaId]
+    implicit val rsSearch: HttpClient[Future, QueryResults[SchemaId]] = withAkkaUnmarshaller[QueryResults[SchemaId]]
+    val schemasElasticQueries                                         = SchemasElasticQueries(elasticClient, elasticSettings)
+
+    new SchemaRoutes(schemas, schemaQueries, schemasElasticQueries, base)
   }
 
   /**

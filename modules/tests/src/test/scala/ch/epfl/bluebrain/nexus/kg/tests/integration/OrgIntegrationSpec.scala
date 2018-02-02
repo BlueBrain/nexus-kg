@@ -15,11 +15,10 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
 import ch.epfl.bluebrain.nexus.commons.iam.acls._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization}
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.AclIndexer
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
@@ -83,84 +82,18 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         }
       }
 
-      "list organizations" in {
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/organizations") ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults =
-              UnscoredQueryResults(orgs.length.toLong, orgs.map {
-                UnscoredQueryResult(_)
-              })
-            val expectedLinks =
-              Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
-        }
-      }
-
-      "list organizations with all the fields" in {
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/organizations?fields=all") ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults =
-              UnscoredQueryResults(orgs.length.toLong, orgs.map { id =>
-                UnscoredQueryResult(idsPayload(id))
-              })
-            val expectedLinks =
-              Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations?fields=all"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
-        }
-      }
-
-      "list organizations with pagination" in {
-        val pagination = Pagination(1L, 1)
-        val path =
-          s"/organizations?from=${pagination.from}&size=${pagination.size}"
+      "list organization with full text search" in {
 
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
+          val path = s"/organizations?q=${orgs.head.id}"
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
-              UnscoredQueryResults(orgs.length.toLong, List(UnscoredQueryResult(orgs(1))))
-            val expectedLinks = Links(
-              "@context" -> s"${prefixes.LinksContext}",
-              "self"     -> s"$apiUri$path",
-              "previous" -> s"$apiUri$path".replace("from=1", "from=0"),
-              "next"     -> s"$apiUri$path".replace("from=1", "from=2")
-            )
+              ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, orgs.head)))
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
-        }
-      }
-
-      "output the correct total even when the from query parameter is out of scope" in {
-        val pagination = Pagination(0L, 5)
-        val path       = s"/organizations?size=${pagination.size}&from=100"
-        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-          val expectedResults =
-            UnscoredQueryResults(orgs.length.toLong, List.empty[UnscoredQueryResult[OrgId]])
-          val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
-                                    "self"     -> s"$apiUri$path",
-                                    "previous" -> s"$apiUri$path".replace("from=100", s"from=0"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-        }
-      }
-
-      "list organization with full text search" in {
-        val path = s"/organizations?q=${orgs.head.id}"
-        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-          val expectedResults =
-            ScoredQueryResults(1L, 1F, List(ScoredQueryResult(1F, orgs.head)))
-          val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -192,28 +125,6 @@ class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclInd
         }
       }
 
-      "list organizations with deprecation" in {
-        Get(s"/organizations?deprecated=false") ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-          val expectedResults =
-            UnscoredQueryResults(orgs.length.toLong, orgs.map {
-              UnscoredQueryResult(_)
-            })
-          val expectedLinks =
-            Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations?deprecated=false"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-        }
-        Get(s"/organizations?deprecated=true") ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-          val expectedResults =
-            UnscoredQueryResults(0, List.empty[UnscoredQueryResult[OrgId]])
-          val expectedLinks =
-            Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations?deprecated=true"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-        }
-      }
     }
   }
 }

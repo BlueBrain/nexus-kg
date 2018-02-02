@@ -10,7 +10,6 @@ import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
-import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
@@ -56,21 +55,6 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
               status shouldEqual StatusCodes.Created
               responseAs[Json] shouldEqual DomainRef(domainId, 1L).asJson.addCoreContext
             }
-        }
-      }
-
-      "list all domains" in {
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/domains") ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults =
-              UnscoredQueryResults(domains.size.toLong, domains.take(10).map(UnscoredQueryResult(_)))
-            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
-                                      "self" -> s"$apiUri/domains",
-                                      "next" -> s"$apiUri/domains?from=10&size=10")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
         }
       }
 
@@ -138,54 +122,6 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
               }
             }
           }
-        }
-      }
-
-      "list domains on organization nexus" in {
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/domains/nexus") ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults =
-              UnscoredQueryResults(5L, domains.filter(_.orgId.id == "nexus").map(UnscoredQueryResult(_)))
-            val expectedLinks =
-              Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/domains/nexus"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
-        }
-      }
-
-      "list domains on organization rand with pagination" in {
-        val pagination = Pagination(0L, 5)
-        val path       = s"/domains/rand?size=${pagination.size}"
-
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults = UnscoredQueryResults(randDomains.length.toLong,
-                                                       randDomains.map(UnscoredQueryResult(_)).take(pagination.size))
-            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
-                                      "self" -> s"$apiUri$path",
-                                      "next" -> s"$apiUri$path&from=5")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
-        }
-      }
-
-      "output the correct total even when the from query parameter is out of scope" in {
-        val pagination = Pagination(0L, 5)
-        val path       = s"/domains/rand?size=${pagination.size}&from=100"
-        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-          val expectedResults =
-            UnscoredQueryResults(randDomains.length.toLong, List.empty[UnscoredQueryResult[DomainId]])
-          val expectedLinks =
-            Links("@context" -> s"${prefixes.LinksContext}",
-                  "self"     -> s"$apiUri$path",
-                  "previous" -> s"$apiUri$path".replace("from=100", s"from=${randDomains.length - 5}"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -281,18 +217,6 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
         }
       }
 
-      "list domains on organization nexus and deprecated" in {
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/domains/nexus?deprecated=false") ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults = UnscoredQueryResults(3L, domains.slice(2, 5).map(UnscoredQueryResult(_)))
-            val expectedLinks =
-              Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/domains/nexus?deprecated=false"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
-        }
-      }
     }
   }
 

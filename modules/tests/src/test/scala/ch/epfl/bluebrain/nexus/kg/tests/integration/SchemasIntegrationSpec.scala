@@ -10,11 +10,10 @@ import akka.stream.ActorMaterializer
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef}
-import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
+import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
@@ -65,72 +64,18 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
         }
       }
 
-      "list all schemas" in {
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(s"/schemas") ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults = UnscoredQueryResults(schemas.length.toLong, schemas.take(10).map {
-              case (schemaId, _) => UnscoredQueryResult(schemaId)
-            })
-            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
-                                      "self" -> s"$apiUri/schemas",
-                                      "next" -> s"$apiUri/schemas?from=10&size=10")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
-        }
-      }
-
-      "list schemas on organization rand with pagination retrieve all fields" in {
-        val pagination = Pagination(0L, 5)
-        val path       = s"/schemas/rand?size=${pagination.size}&fields=all"
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-            val expectedResults = UnscoredQueryResults(
-              (schemas.length - 3 * 5).toLong,
-              schemas
-                .collect { case (schemaId @ SchemaId(DomainId(orgId, _), _, _), _) if orgId.id == "rand" => schemaId }
-                .map(id => UnscoredQueryResult(idsPayload(id)))
-                .take(pagination.size)
-            )
-            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
-                                      "self" -> s"$apiUri$path",
-                                      "next" -> s"$apiUri$path&from=5")
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
-        }
-      }
-
-      "output the correct total even when the from query parameter is out of scope" in {
-        val pagination = Pagination(0L, 5)
-        val path       = s"/schemas/rand?size=${pagination.size}&from=100"
+      "list schemas on organization nexus with full text search" in {
+        val (schemaId, _) = schemas.head
+        val path          = s"/schemas/nexus?q=${schemaId.name}"
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
             val expectedResults =
-              UnscoredQueryResults((schemas.length - 3 * 5).toLong, List.empty[UnscoredQueryResult[SchemaId]])
-            val expectedLinks =
-              Links("@context" -> s"${prefixes.LinksContext}",
-                    "self"     -> s"$apiUri$path",
-                    "previous" -> s"$apiUri$path".replace("from=100", s"from=${(schemas.length - 3 * 5) - 5}"))
+              ScoredQueryResults(3L, 1F, schemas.take(3).map { case (id, _) => ScoredQueryResult(1F, id) })
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
-        }
-      }
-
-      "list schemas on organization nexus with full text search" in {
-        val (schemaId, _) = schemas.head
-        val path          = s"/schemas/nexus?q=${schemaId.name}"
-        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-          val expectedResults =
-            ScoredQueryResults(3L, 1F, schemas.take(3).map { case (id, _) => ScoredQueryResult(1F, id) })
-          val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
@@ -145,29 +90,6 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
             Links("@context" -> s"${prefixes.LinksContext}",
                   "self"     -> s"$apiUri$path",
                   "previous" -> s"$apiUri$path".replace("from=200", "from=0"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-        }
-      }
-
-      "list schemas on organization nexus and domain development" in {
-        val path = s"/schemas/nexus/development"
-        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.OK
-          val expectedResults =
-            UnscoredQueryResults(3L, schemas.take(3).map { case (schemaId, _) => UnscoredQueryResult(schemaId) })
-          val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-        }
-      }
-
-      "list schemas on organization nexus and domain development and specific schema name" in {
-        val (schemaId, _) = schemas.head
-        val path          = s"/schemas/${schemaId.schemaName.show}"
-        Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.OK
-          val expectedResults =
-            UnscoredQueryResults(3L, schemas.take(3).map { case (id, _) => UnscoredQueryResult(id) })
-          val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
@@ -210,19 +132,6 @@ class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(im
         }
       }
 
-      "list schemas on organizations rand and deprecated" in {
-        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-          val (schemaId, _) = schemas.head
-          val path          = s"/schemas/${schemaId.schemaName.show}?deprecated=false"
-          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
-            status shouldEqual StatusCodes.OK
-            val expectedResults =
-              UnscoredQueryResults(2L, schemas.slice(1, 3).map { case (id, _) => UnscoredQueryResult(id) })
-            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
-            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
-          }
-        }
-      }
     }
   }
 }

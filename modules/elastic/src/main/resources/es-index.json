@@ -1,6 +1,17 @@
 {
   "mappings": {
     "{{type}}": {
+      "properties": {
+        "{{rdfType}}": {"type": "keyword"},
+        "{{contextGroup}}": {"type": "keyword"},
+        "{{organization}}": {"type": "keyword"},
+        "{{domain}}": {"type": "keyword"},
+        "{{schema}}": {"type": "keyword"},
+        "{{schemaGroup}}": {"type": "keyword"},
+        "{{deprecated}": {"type": "boolean"},
+        "{{published}}": {"type": "boolean"},
+        "@id": {"type": "keyword"}
+      }
     }
   }
 }
