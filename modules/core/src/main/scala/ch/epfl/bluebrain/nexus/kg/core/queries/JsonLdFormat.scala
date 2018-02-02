@@ -1,5 +1,6 @@
-package ch.epfl.bluebrain.nexus.kg.service.directives
+package ch.epfl.bluebrain.nexus.kg.core.queries
 
+import io.circe.{Decoder, Encoder}
 import org.apache.jena.riot.RDFFormat
 
 /**
@@ -23,5 +24,19 @@ object JsonLdFormat {
   final case object Expanded extends JenaJsonLdFormat(RDFFormat.JSONLD_EXPAND_FLAT)
 
   final case object Flattened extends JenaJsonLdFormat(RDFFormat.JSONLD_FLATTEN_FLAT)
+
+  def fromString(value: String): Option[JsonLdFormat] = value match {
+    case "compacted" => Some(Compacted)
+    case "expanded"  => Some(Expanded)
+    case "flattened" => Some(Flattened)
+    case "default"   => Some(Default)
+    case _           => None
+  }
+
+  implicit final val formatDecoder: Decoder[JsonLdFormat] =
+    Decoder.decodeString.emap(v => fromString(v).toRight(s"Could not find JsonLdFormat for '$v'"))
+
+  implicit final val formatEncoder: Encoder[JsonLdFormat] =
+    Encoder.encodeString.contramap(_.toString.toLowerCase())
 
 }

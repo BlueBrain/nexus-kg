@@ -31,7 +31,7 @@ object CommonRejections {
 
   /**
     * Signals the inability to convert the requested output format into a valid
-    * [[ch.epfl.bluebrain.nexus.kg.service.directives.JsonLdFormat]]
+    * [[ch.epfl.bluebrain.nexus.kg.core.queries.JsonLdFormat]]
     *
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))

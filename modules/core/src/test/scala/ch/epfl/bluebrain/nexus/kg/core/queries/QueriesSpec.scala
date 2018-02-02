@@ -1,85 +1,89 @@
 package ch.epfl.bluebrain.nexus.kg.core.queries
 
-import java.time.Clock
-import java.util.UUID
-import java.util.regex.Pattern
-
-import cats.instances.try_._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
-import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
+import akka.actor.ActorSystem
+import akka.cluster.Cluster
+import akka.http.scaladsl.model.Uri
+import akka.testkit.TestKit
+import cats.instances.future._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
-import ch.epfl.bluebrain.nexus.kg.core.queries.Queries._
+import ch.epfl.bluebrain.nexus.kg.core.cache.CacheAkka.CacheSettings
+import ch.epfl.bluebrain.nexus.kg.core.cache.{Cache, CacheAkka}
+import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries.QueryRejection._
-import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
-import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
-import io.circe.Json
-import org.scalatest.{Inspectors, Matchers, TryValues, WordSpecLike}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.Eq
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.LiteralTerm
+import org.scalatest._
+import org.scalatest.concurrent.ScalaFutures
+import scala.concurrent.Future
+import scala.concurrent.duration._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
+class QueriesSpec
+    extends TestKit(ActorSystem("QueriesSpec"))
+    with WordSpecLike
+    with Matchers
+    with ScalaFutures
+    with BeforeAndAfterAll
+    with CancelAfterFailure
+    with Inspectors
+    with Assertions {
 
-import scala.util.{Random, Try}
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 100 millis)
 
-class QueriesSpec extends WordSpecLike with Matchers with Inspectors with TryValues with Randomness with Resources {
-
-  private def genId(): QueryId = QueryId(UUID.randomUUID().toString.toLowerCase())
-
-  private def genJson(resource: String): Json = {
-    val queries = List("/queries/query-simple.json", "/queries/query-filter.json", "/queries/query-sort.json")
-    jsonContentOf(Random.shuffle(queries).head,
-                  Map(Pattern.quote("{{resource}}")   -> resource,
-                      Pattern.quote(""""{{from}}"""") -> "0",
-                      Pattern.quote(""""{{size}}"""") -> "10"))
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    Cluster(system).join(Cluster(system).selfAddress)
   }
 
-  private implicit val clock: Clock   = Clock.systemUTC
-  private implicit val caller: Caller = AnonymousCaller(Anonymous())
+  override protected def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
+
+  private val nexusBaseVoc: Uri = s"https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/"
+  import system.dispatcher
 
   "A Queries instance" should {
-    val agg     = MemoryAggregate("queries")(initial, next, eval).toF[Try]
-    val queries = Queries(agg)
+    val cache: Cache[Future, Query] = CacheAkka[Query]("some", CacheSettings())
+    val queries                     = Queries(cache)
+    val defaultQuery                = QueryPayload()
+    val queryFilter =
+      QueryPayload(filter = Filter(ComparisonExpr(Eq, UriPath(s"${nexusBaseVoc}deprecated"), LiteralTerm("false"))))
 
-    "create a new query" in {
-      val json = genJson("instances")
-      queries.create(json).success.value.rev shouldEqual 1L
+    var defaultQueryId = QueryId("")
+    var queryFilterId  = QueryId("")
+    var list           = List.empty[Query]
+
+    "create queries" in {
+      defaultQueryId = queries.create(/, defaultQuery).futureValue
+      queryFilterId = queries.create("a" / "b", queryFilter).futureValue
+      list = List(Query(defaultQueryId, /, defaultQuery), Query(queryFilterId, "a" / "b", queryFilter))
     }
 
-    "update a new query" in {
-      val json  = genJson("contexts")
-      val json2 = genJson("schemas")
-      val ref   = queries.create(json).success.value
-      queries.update(ref.id, 1, json2).success.value shouldEqual QueryRef(ref.id, 2L)
-      queries.fetch(ref.id).success.value shouldEqual Some(Query(ref.id, 2L, json2))
+    "get queries" in {
+      forAll(list) {
+        case q @ Query(id, _, _) => queries.fetch(id).futureValue shouldEqual Some(q)
+      }
     }
 
-    "fetch old revision of a query" in {
-      val json  = genJson("domains")
-      val json2 = genJson("organizations")
-      val ref   = queries.create(json).success.value
-      queries.update(ref.id, 1, json2).success.value shouldEqual QueryRef(ref.id, 2L)
-      queries.fetch(ref.id).success.value shouldEqual Some(Query(ref.id, 2L, json2))
-      queries.fetch(ref.id, 1L).success.value shouldEqual Some(Query(ref.id, 1L, json))
+    "return None when fetching a query that does not exist" in {
+      queries.fetch(QueryId("not_exist")).futureValue shouldEqual None
+    }
+    val defaultQueryUpdated = QueryPayload(q = Some("text"), deprecated = Some(false), resource = QueryResource.Domains)
+
+    "update a query" in {
+      queries.update(defaultQueryId, defaultQueryUpdated).futureValue shouldEqual defaultQueryId
+
+      queries.fetch(defaultQueryId).futureValue shouldEqual Some(Query(defaultQueryId, /, defaultQueryUpdated))
     }
 
-    "return None when fetching a revision that does not exist" in {
-      val json = genJson("instances")
-      val ref  = queries.create(json).success.value
-      queries.fetch(ref.id, 4L).success.value shouldEqual None
-    }
+    "prevent updating a query that does not exist" in {
+      whenReady(queries.update(QueryId("some"), defaultQueryUpdated).failed) { e =>
+        e shouldEqual CommandRejected(QueryDoesNotExist)
+      }
 
-    "prevent update on missing query" in {
-      val json = genJson("instances")
-      queries.update(genId(), 0L, json).failure.exception shouldEqual CommandRejected(QueryDoesNotExist)
-    }
-
-    "prevent update with incorrect rev" in {
-      val json = genJson("instances")
-      val ref  = queries.create(json).success.value
-      queries.update(ref.id, 2L, json).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
-    }
-
-    "return a None when fetching a query that doesn't exists" in {
-      queries.fetch(genId()).success.value shouldEqual None
     }
   }
 }

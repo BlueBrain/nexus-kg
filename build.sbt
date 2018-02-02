@@ -16,16 +16,19 @@ val blazegraphVersion               = "2.1.4"
 val jacksonVersion                  = "2.8.10"
 val scalaTestVersion                = "3.0.4"
 
-lazy val sourcingCore   = nexusDep("sourcing-core", commonsVersion)
-lazy val sourcingAkka   = nexusDep("sourcing-akka", commonsVersion)
-lazy val sourcingMem    = nexusDep("sourcing-mem", commonsVersion)
-lazy val commonsService = nexusDep("commons-service", commonsVersion)
-lazy val commonsSchemas = nexusDep("commons-schemas", commonsVersion)
-lazy val commonsTest    = nexusDep("commons-test", commonsVersion)
-lazy val shaclValidator = nexusDep("shacl-validator", commonsVersion)
-lazy val sparqlClient   = nexusDep("sparql-client", commonsVersion)
-lazy val elasticClient  = nexusDep("elastic-client", commonsVersion)
-lazy val elasticEmbed   = nexusDep("elastic-server-embed", commonsVersion)
+lazy val akkaClusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion
+lazy val sourcingCore        = nexusDep("sourcing-core", commonsVersion)
+lazy val sourcingAkka        = nexusDep("sourcing-akka", commonsVersion)
+lazy val sourcingMem         = nexusDep("sourcing-mem", commonsVersion)
+lazy val commonsService      = nexusDep("commons-service", commonsVersion)
+lazy val commonsSchemas      = nexusDep("commons-schemas", commonsVersion)
+lazy val commonsTest         = nexusDep("commons-test", commonsVersion)
+lazy val shaclValidator      = nexusDep("shacl-validator", commonsVersion)
+lazy val sparqlClient        = nexusDep("sparql-client", commonsVersion)
+lazy val elasticClient       = nexusDep("elastic-client", commonsVersion)
+lazy val elasticEmbed        = nexusDep("elastic-server-embed", commonsVersion)
+lazy val commonsQueryTypes   = nexusDep("commons-query-types", commonsVersion)
+lazy val asm                 = "org.ow2.asm" % "asm" % "5.1"
 
 lazy val iamCommons = nexusDep("iam", commonsVersion)
 
@@ -70,6 +73,8 @@ lazy val core = project
       iamCommons,
       sourcingCore,
       shaclValidator,
+      commonsQueryTypes,
+      akkaClusterSharding,
       sourcingMem          % Test,
       commonsTest          % Test,
       "io.circe"           %% "circe-core" % circeVersion,
@@ -123,6 +128,7 @@ lazy val elastic = project
       iamCommons,
       sourcingCore,
       sourcingMem  % Test,
+      asm          % Test,
       commonsTest  % Test,
       elasticEmbed % Test,
       elasticClient,

@@ -17,8 +17,8 @@ import akka.http.scaladsl.server.{AuthorizationFailedRejection, Route}
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.{OrderedKeys, jsonLdMarshaller}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{Contexts, JenaExpander}
+import ch.epfl.bluebrain.nexus.kg.core.queries.{JenaJsonLdFormat, JsonLdFormat}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
-import ch.epfl.bluebrain.nexus.kg.service.directives.{JenaJsonLdFormat, JsonLdFormat}
 import io.circe.Encoder
 
 import scala.concurrent.{ExecutionContext, Future}

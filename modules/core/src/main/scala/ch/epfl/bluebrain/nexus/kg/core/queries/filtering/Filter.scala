@@ -27,6 +27,8 @@ final case class Filter(expr: Expr)
 
 object Filter {
 
+  val Empty = Filter(NoopExpr)
+
   /**
     * A filter decoder implementation that traverses the json tree and builds the filter expressions.
     *
