@@ -9,7 +9,7 @@ val catsVersion                     = "1.0.1"
 val circeVersion                    = "0.9.0"
 val logbackVersion                  = "1.2.3"
 val journalVersion                  = "3.0.19"
-val commonsVersion                  = "0.7.0"
+val commonsVersion                  = "0.7.1"
 val metricsCoreVersion              = "3.2.6"
 val jenaVersion                     = "3.6.0"
 val blazegraphVersion               = "2.1.4"
@@ -148,7 +148,9 @@ lazy val service = project
   .settings(
     name := "kg-service",
     moduleName := "kg-service",
-    libraryDependencies ++= kamonDeps ++ Seq(
+    resolvers += Resolver
+      .bintrayRepo("kamon-io", "releases"), // TODO: remove once artifacts are synced to maven central
+    libraryDependencies ++= Seq(
       iamCommons,
       commonsService,
       sourcingAkka,
@@ -181,12 +183,7 @@ lazy val service = project
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
   // tests reduces false negatives.
   .settings(parallelExecution in Test := false)
-  .settings(
-    bashScriptExtraDefines ++= Seq(
-      """addJava "-javaagent:$lib_dir/org.aspectj.aspectjweaver-1.8.10.jar"""",
-      """addJava "-javaagent:$lib_dir/io.kamon.sigar-loader-1.6.6-rev002.jar""""
-    )
-  )
+
 lazy val tests = project
   .in(file("modules/tests"))
   .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
@@ -233,17 +230,5 @@ lazy val packagingSettings = packageName in Docker := "kg"
 def nexusDep(name: String, version: String): ModuleID =
   "ch.epfl.bluebrain.nexus" %% name % version
 
-lazy val kamonDeps = Seq(
-  "io.kamon"    %% "kamon-core"            % "0.6.7",
-  "io.kamon"    %% "kamon-akka-http"       % "0.6.8",
-  "io.kamon"    %% "kamon-statsd"          % "0.6.7" % Runtime,
-  "io.kamon"    %% "kamon-system-metrics"  % "0.6.7" % Runtime,
-  "io.kamon"    %% "kamon-akka-2.5"        % "0.6.8" % Runtime,
-  "io.kamon"    %% "kamon-akka-remote-2.4" % "0.6.7" % Runtime,
-  "io.kamon"    %% "kamon-autoweave"       % "0.6.5" % Runtime,
-  "io.kamon"    % "sigar-loader"           % "1.6.6-rev002" % Runtime,
-  "org.aspectj" % "aspectjweaver"          % "1.8.10" % Runtime
-)
-
-addCommandAlias("review", ";clean;coverage;scapegoat;test;coverageReport;coverageAggregate;doc")
+addCommandAlias("review", ";clean;scalafmtSbtCheck;coverage;scapegoat;test;coverageReport;coverageAggregate;doc")
 addCommandAlias("rel", ";release with-defaults skip-tests")

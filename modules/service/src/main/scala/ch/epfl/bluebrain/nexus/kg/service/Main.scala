@@ -20,7 +20,7 @@ object Main {
 
   @SuppressWarnings(Array("UnusedMethodParameter"))
   def main(args: Array[String]): Unit = {
-    Kamon.start()
+    Kamon.loadReportersFromConfig()
     val config   = ConfigFactory.load()
     val settings = new Settings(config)
 
@@ -55,7 +55,7 @@ object Main {
     bootstrap.joinCluster()
     as.registerOnTermination {
       bootstrap.leaveCluster()
-      Kamon.shutdown()
+      Kamon.stopAllReporters()
     }
 
     // attempt to leave the cluster before shutting down

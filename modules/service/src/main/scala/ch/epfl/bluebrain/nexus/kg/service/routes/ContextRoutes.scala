@@ -37,7 +37,7 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.Publish
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.generic.auto._
 import io.circe.{Encoder, Json, Printer}
-import kamon.akka.http.KamonTraceDirectives.traceName
+import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -77,13 +77,13 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
           (authenticateCaller & authorizeResource(contextId, Write)) { implicit caller =>
             parameter('rev.as[Long].?) {
               case Some(rev) =>
-                traceName("updateContext") {
+                operationName("updateContext") {
                   onSuccess(contexts.update(contextId, rev, json)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
                 }
               case None =>
-                traceName("createContext") {
+                operationName("createContext") {
                   onSuccess(contexts.create(contextId, json)) { ref =>
                     complete(StatusCodes.Created -> ref)
 
@@ -95,7 +95,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
         } ~
           (delete & parameter('rev.as[Long])) { rev =>
             (authenticateCaller & authorizeResource(contextId, Write)) { implicit caller =>
-              traceName("deprecateContext") {
+              operationName("deprecateContext") {
                 onSuccess(contexts.deprecate(contextId, rev)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
@@ -107,7 +107,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
           (pathEndOrSingleSlash & patch & entity(as[ContextConfig]) & parameter('rev.as[Long])) { (cfg, rev) =>
             (authenticateCaller & authorizeResource(contextId, Publish)) { implicit caller =>
               if (cfg.published) {
-                traceName("publishSchema") {
+                operationName("publishSchema") {
                   onSuccess(contexts.publish(contextId, rev)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
@@ -124,14 +124,14 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
       (pathEndOrSingleSlash & get & authorizeResource(contextId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            traceName("getContextRevision") {
+            operationName("getContextRevision") {
               onSuccess(contexts.fetch(contextId, rev)) {
                 case Some(context) => formatOutput(context, format)
                 case None          => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            traceName("getContext") {
+            operationName("getContext") {
               onSuccess(contexts.fetch(contextId)) {
                 case Some(context) => formatOutput(context, format)
                 case None          => complete(StatusCodes.NotFound)
@@ -146,7 +146,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
     (get & context) { ctx =>
       (get & paginated & deprecated & published & fields(ctx) & sort(ctx)) {
         (pagination, deprecatedOpt, publishedOpt, fields, sort) =>
-          traceName("searchContexts") {
+          operationName("searchContexts") {
             val filter     = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
             implicit val _ = (id: ContextId) => contexts.fetch(id)
             (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>

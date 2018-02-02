@@ -28,7 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
 import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import io.circe.{Encoder, Json}
-import kamon.akka.http.KamonTraceDirectives.traceName
+import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -59,7 +59,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
-      (traceName("searchOrganizations") & authenticateCaller) { implicit caller =>
+      (operationName("searchOrganizations") & authenticateCaller) { implicit caller =>
         val filter =
           filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
         implicit val _ = (id: OrgId) => orgs.fetch(id)
@@ -74,14 +74,14 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
       (get & authorizeResource(orgId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            traceName("getOrganizationRevision") {
+            operationName("getOrganizationRevision") {
               onSuccess(orgs.fetch(orgId, rev)) {
                 case Some(org) => formatOutput(org, format)
                 case None      => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            traceName("getOrganization") {
+            operationName("getOrganization") {
               onSuccess(orgs.fetch(orgId)) {
                 case Some(org) => formatOutput(org, format)
                 case None      => complete(StatusCodes.NotFound)
@@ -97,13 +97,13 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
         (authenticateCaller & authorizeResource(orgId, Write)) { implicit caller =>
           parameter('rev.as[Long].?) {
             case Some(rev) =>
-              traceName("updateOrganization") {
+              operationName("updateOrganization") {
                 onSuccess(orgs.update(orgId, rev, json)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
               }
             case None =>
-              traceName("createOrganization") {
+              operationName("createOrganization") {
                 onSuccess(orgs.create(orgId, json)) { ref =>
                   complete(StatusCodes.Created -> ref)
                 }
@@ -113,7 +113,7 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
       } ~
         (delete & parameter('rev.as[Long])) { rev =>
           (authenticateCaller & authorizeResource(orgId, Write)) { implicit caller =>
-            traceName("deprecateOrganization") {
+            operationName("deprecateOrganization") {
               onSuccess(orgs.deprecate(orgId, rev)) { ref =>
                 complete(StatusCodes.OK -> ref)
               }
