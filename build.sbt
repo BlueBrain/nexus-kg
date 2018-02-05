@@ -15,7 +15,7 @@ val jenaVersion                     = "3.6.0"
 val blazegraphVersion               = "2.1.4"
 val jacksonVersion                  = "2.8.10"
 val scalaTestVersion                = "3.0.4"
-val asmVersion                      = "35.1"
+val asmVersion                      = "5.1"
 
 lazy val akkaClusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion
 lazy val sourcingCore        = nexusDep("sourcing-core", commonsVersion)
