@@ -58,9 +58,6 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
     Json.obj(
       "query" -> Json.obj(
         "bool" -> Json.obj(
-          "must" -> Json.obj(
-            "match_all" -> Json.obj()
-          ),
           "filter" -> Json.obj(
             "bool" -> Json.obj(
               "must" -> filterTerms
