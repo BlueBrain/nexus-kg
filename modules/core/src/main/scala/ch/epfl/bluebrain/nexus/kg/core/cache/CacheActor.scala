@@ -32,7 +32,7 @@ class CacheActor[Value: Typeable](passivationTimeout: FiniteDuration) extends Ac
           log.debug("Cached key '{}' found with value  '{}'", k, v)
         case None =>
           log.debug("Cached key '{}' not found. Proceed to update pasivation timeout to 10 sec", k)
-          context.setReceiveTimeout(10 seconds)
+          context.setReceiveTimeout(3 seconds)
       }
       sender() ! value
 
@@ -40,7 +40,7 @@ class CacheActor[Value: Typeable](passivationTimeout: FiniteDuration) extends Ac
       Value.cast(v) match {
         case Some(cache) =>
           value = Some(cache)
-          sender() ! true
+          sender() ! Ack(k)
           log.debug("Added to cache key '{}' with value '{}'", k, cache)
         case None =>
           log.error("Received a value '{}' incompatible with the expected type '{}'", v, Value.describe)
@@ -50,7 +50,7 @@ class CacheActor[Value: Typeable](passivationTimeout: FiniteDuration) extends Ac
     case Remove(k) =>
       log.debug("Received a delete message for to cached key '{}'. Proceed to stop actor", k)
       value = None
-      sender() ! true
+      sender() ! Ack(k)
       context.stop(self)
 
   }
@@ -94,6 +94,12 @@ object CacheActor {
       * @tparam Value the generic type of the value stored on this actor
       */
     final case class Put[Value](key: String, value: Value) extends Protocol
+
+    /**
+      * Positive return message
+      * @param key the returned key
+      */
+    final case class Ack(key: String) extends Protocol
   }
 
 }

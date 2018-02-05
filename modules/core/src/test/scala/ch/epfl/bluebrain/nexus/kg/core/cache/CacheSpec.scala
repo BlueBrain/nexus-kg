@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.core.cache
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import akka.testkit.TestKit
-import ch.epfl.bluebrain.nexus.kg.core.cache.CacheAkka.CacheSettings
+import ch.epfl.bluebrain.nexus.kg.core.cache.ShardedCache.CacheSettings
 import ch.epfl.bluebrain.nexus.kg.core.cache.CacheError.EmptyKey
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
@@ -29,7 +29,7 @@ class CacheSpec
     super.afterAll()
   }
 
-  private val cache: Cache[Future, Int] = CacheAkka[Int]("some", CacheSettings())
+  private val cache: Cache[Future, Int] = ShardedCache[Int]("some", CacheSettings())
 
   "A Cache" should {
 

@@ -15,6 +15,7 @@ val jenaVersion                     = "3.6.0"
 val blazegraphVersion               = "2.1.4"
 val jacksonVersion                  = "2.8.10"
 val scalaTestVersion                = "3.0.4"
+val asmVersion                      = "35.1"
 
 lazy val akkaClusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion
 lazy val sourcingCore        = nexusDep("sourcing-core", commonsVersion)
@@ -28,7 +29,7 @@ lazy val sparqlClient        = nexusDep("sparql-client", commonsVersion)
 lazy val elasticClient       = nexusDep("elastic-client", commonsVersion)
 lazy val elasticEmbed        = nexusDep("elastic-server-embed", commonsVersion)
 lazy val commonsQueryTypes   = nexusDep("commons-query-types", commonsVersion)
-lazy val asm                 = "org.ow2.asm" % "asm" % "5.1"
+lazy val asm                 = "org.ow2.asm" % "asm" % asmVersion
 
 lazy val iamCommons = nexusDep("iam", commonsVersion)
 

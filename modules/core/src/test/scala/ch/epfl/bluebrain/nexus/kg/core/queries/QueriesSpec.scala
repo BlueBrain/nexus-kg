@@ -6,8 +6,8 @@ import akka.http.scaladsl.model.Uri
 import akka.testkit.TestKit
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
-import ch.epfl.bluebrain.nexus.kg.core.cache.CacheAkka.CacheSettings
-import ch.epfl.bluebrain.nexus.kg.core.cache.{Cache, CacheAkka}
+import ch.epfl.bluebrain.nexus.kg.core.cache.ShardedCache.CacheSettings
+import ch.epfl.bluebrain.nexus.kg.core.cache.{Cache, ShardedCache}
 import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries.QueryRejection._
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
@@ -46,7 +46,7 @@ class QueriesSpec
   import system.dispatcher
 
   "A Queries instance" should {
-    val cache: Cache[Future, Query] = CacheAkka[Query]("some", CacheSettings())
+    val cache: Cache[Future, Query] = ShardedCache[Query]("some", CacheSettings())
     val queries                     = Queries(cache)
     val defaultQuery                = QueryPayload()
     val queryFilter =

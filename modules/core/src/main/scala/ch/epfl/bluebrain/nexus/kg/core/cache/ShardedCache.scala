@@ -22,14 +22,14 @@ import scala.util.control.NonFatal
   * @param logger the logger
   * @tparam Value the generic type of the values stored on the Cache
   */
-class CacheAkka[Value](ref: ActorRef, logger: LoggingAdapter)(implicit ec: ExecutionContext, tm: Timeout)
+class ShardedCache[Value](ref: ActorRef, logger: LoggingAdapter)(implicit ec: ExecutionContext, tm: Timeout)
     extends Cache[Future, Value] {
 
   def put(k: String, v: Value): Future[Unit] =
     if (k.isEmpty) Future.failed(EmptyKey)
     else
       ref ? Put(k, v) recoverWith recover(k, "put") flatMap {
-        case true      => Future.successful(())
+        case Ack(_)    => Future.successful(())
         case TypeError => Future.failed(TypeError)
         case other =>
           logger.error("Unexpected reply '{}' from the underlying actor while caching a key '{}' with the value '{}'",
@@ -43,7 +43,8 @@ class CacheAkka[Value](ref: ActorRef, logger: LoggingAdapter)(implicit ec: Execu
     if (k.isEmpty) Future.failed(EmptyKey)
     else
       ref ? Get(k) recoverWith recover(k, "get") flatMap {
-        case (valueOpt: Option[Value]) => Future.successful(valueOpt)
+        case (valueOpt: Some[Value]) => Future.successful(valueOpt: Option[Value])
+        case (None)                  => Future.successful(None: Option[Value])
         case other =>
           logger.error("Unexpected reply '{}' from the underlying actor while getting the value for the key '{}'",
                        other,
@@ -55,7 +56,7 @@ class CacheAkka[Value](ref: ActorRef, logger: LoggingAdapter)(implicit ec: Execu
     if (k.isEmpty) Future.failed(EmptyKey)
     else
       ref ? Remove(k) recoverWith recover(k, "remove") flatMap {
-        case true => Future.successful(())
+        case Ack(_) => Future.successful(())
         case other =>
           logger.error("Unexpected reply '{}' from the underlying actor while removing the value of a key '{}'",
                        other,
@@ -76,7 +77,7 @@ class CacheAkka[Value](ref: ActorRef, logger: LoggingAdapter)(implicit ec: Execu
 
 }
 
-object CacheAkka {
+object ShardedCache {
 
   /**
     * Data type to represent general settings for the akka based cache implementation.
@@ -114,6 +115,6 @@ object CacheAkka {
     val ref = ClusterSharding(as)
       .start(name, props, ClusterShardingSettings(as), entityExtractor, shardExtractor(settings.shards))
 
-    new CacheAkka(ref, Logging(as, s"CacheAkka-$name"))
+    new ShardedCache(ref, Logging(as, s"CacheAkka-$name"))
   }
 }
