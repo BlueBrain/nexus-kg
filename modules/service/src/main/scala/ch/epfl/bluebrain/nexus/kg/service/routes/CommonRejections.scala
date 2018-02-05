@@ -11,18 +11,6 @@ sealed trait CommonRejections extends Rejection
 object CommonRejections {
 
   /**
-    * Signals the inability to parse a json structure into a [[ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter]]
-    * instance.
-    *
-    * @param message a human readable description of the cause
-    * @param field   the offending field
-    */
-  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class IllegalFilterFormat(override val message: String, field: String)
-      extends Err(message)
-      with CommonRejections
-
-  /**
     * Signals the inability to convert a path segment into a [[ch.epfl.bluebrain.nexus.commons.types.Version]]
     *
     */
@@ -30,12 +18,10 @@ object CommonRejections {
   final case class IllegalVersionFormat(override val message: String) extends Err(message) with CommonRejections
 
   /**
-    * Signals the inability to convert the requested output format into a valid
-    * [[ch.epfl.bluebrain.nexus.kg.core.queries.JsonLdFormat]]
-    *
+    * Signals the inability to convert the requested query parameter.
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class IllegalOutputFormat(override val message: String) extends Err(message) with CommonRejections
+  final case class IllegalParam(override val message: String) extends Err(message) with CommonRejections
 
   /**
     * Signals the inability to connect to an underlying service to perform a request

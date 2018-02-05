@@ -69,51 +69,44 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
-      val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+    (get & paramsToQuery) { (pagination, query) =>
       implicit val _ = (id: InstanceId) => instances.fetch(id)
       operationName("searchInstances") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-          instanceQueries.list(filter, pagination, termOpt, sort).buildResponse(fields, base, prefixes, pagination)
+          instanceQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
             authenticateCaller.apply { implicit caller =>
-              instanceQueries
-                .list(orgId, filter, pagination, termOpt, sort)
-                .buildResponse(fields, base, prefixes, pagination)
+              instanceQueries.list(orgId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
             }
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
             authenticateCaller.apply { implicit caller =>
-              instanceQueries
-                .list(domainId, filter, pagination, termOpt, sort)
-                .buildResponse(fields, base, prefixes, pagination)
+              instanceQueries.list(domainId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
             }
           } ~
           (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
             authenticateCaller.apply { implicit caller =>
               instanceQueries
-                .list(schemaName, filter, pagination, termOpt, sort)
-                .buildResponse(fields, base, prefixes, pagination)
+                .list(schemaName, query, pagination)
+                .buildResponse(query.fields, base, prefixes, pagination)
             }
           } ~
           (extractSchemaId & pathEndOrSingleSlash) { schemaId =>
             authenticateCaller.apply { implicit caller =>
-              instanceQueries
-                .list(schemaId, filter, pagination, termOpt, sort)
-                .buildResponse(fields, base, prefixes, pagination)
+              instanceQueries.list(schemaId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
             }
           } ~
           extractInstanceId { instanceId =>
             (path("outgoing") & authenticateCaller) { implicit caller =>
               instanceQueries
-                .outgoing(instanceId, filter, pagination, termOpt, sort)
-                .buildResponse(fields, base, prefixes, pagination)
+                .outgoing(instanceId, query, pagination)
+                .buildResponse(query.fields, base, prefixes, pagination)
             } ~
               (path("incoming") & authenticateCaller) { implicit caller =>
                 instanceQueries
-                  .incoming(instanceId, filter, pagination, termOpt, sort)
-                  .buildResponse(fields, base, prefixes, pagination)
+                  .incoming(instanceId, query, pagination)
+                  .buildResponse(query.fields, base, prefixes, pagination)
               }
           }
       }
@@ -250,7 +243,7 @@ object InstanceRoutes {
                              orderedKeys: OrderedKeys,
                              prefixes: PrefixUris): InstanceRoutes = {
     implicit val qs: QuerySettings = querySettings
-    val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client), querySettings)
+    val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client))
     new InstanceRoutes(instances, instanceQueries, base)
   }
 

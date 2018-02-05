@@ -11,5 +11,8 @@ final case class Field(value: String)
 
 object Field {
   val Empty                           = Field("")
+  val All                             = Field("all")
   implicit val showField: Show[Field] = Show.show(_.value)
+
+  implicit def fromString(value: String): Field = Field(value)
 }

@@ -58,14 +58,10 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (pathEndOrSingleSlash & get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
+    (pathEndOrSingleSlash & get & paramsToQuery) { (pagination, query) =>
       (operationName("searchOrganizations") & authenticateCaller) { implicit caller =>
-        val filter =
-          filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
         implicit val _ = (id: OrgId) => orgs.fetch(id)
-        orgQueries
-          .list(filter, pagination, termOpt, sort)
-          .buildResponse(fields, base, prefixes, pagination)
+        orgQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
       }
     }
 
@@ -149,7 +145,7 @@ object OrganizationRoutes {
 
     implicit val qs: QuerySettings = querySettings
     val orgQueries =
-      FilterQueries[Future, OrgId](SparqlQuery[Future](client), querySettings)
+      FilterQueries[Future, OrgId](SparqlQuery[Future](client))
     new OrganizationRoutes(orgs, orgQueries, base)
   }
 }

@@ -1,0 +1,9 @@
+{
+  "q": "someText",
+  "resource": "schemas",
+  "deprecated": false,
+  "published": false,
+  "format": "expanded",
+  "fields": [ "all" ],
+  "sort": [ "-nxv:createdAtTime"]
+}

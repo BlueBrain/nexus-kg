@@ -4,18 +4,24 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import akka.http.scaladsl.model.Uri
 import cats.Show
+import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.ConfiguredQualifier
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.{And, _}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Expr, Filter, Term}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Expr, Filter, Op, Term}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SortListSparql._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 
 /**
   * Describes paginated queries based on filters.
@@ -26,21 +32,43 @@ object FilteredQuery {
     * Constructs a Blazegraph query based on the provided filter and pagination settings that also computes the total
     * number of results.  The filter is applied on the subjects.
     *
-    * @param filter     the filter on which the query is based on
+    * @param query      the query payload used to build the Sparql query
     * @param pagination the pagination settings for the generated query
     * @param identities the [[Identity]] list that will be checked for read permissions on a particular resource
-    * @param term       the optional full text search term
-    * @param sort       the sorting values
     * @return a Blazegraph query based on the provided filter and pagination settings
     */
-  def apply[Id](
-      filter: Filter,
-      pagination: Pagination,
-      identities: Set[Identity],
-      term: Option[String] = None,
-      sort: SortList = SortList.Empty)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
-    applyWithWhere(buildWhereFrom(filter.expr), pagination, term, identities, sort)
+  def apply[Id](query: QueryPayload, pagination: Pagination, identities: Set[Identity])(
+      implicit Q: ConfiguredQualifier[String],
+      aclExpr: AclSparqlExpr[Id],
+      typeExpr: TypeFilterExpr[Id],
+      querySettings: QuerySettings): String = {
+    applyWithWhere(buildWhereFrom(addToFilter(query.filter, query.deprecated, query.published).expr),
+                   pagination,
+                   query.q,
+                   identities,
+                   query.sort)
   }
+
+  private[query] def deprecated(deprecatedOps: Option[Boolean], baseVoc: Uri): Filter =
+    Filter(fieldOrNoop("deprecated", deprecatedOps, baseVoc))
+
+  private[query] def published(publishedOps: Option[Boolean], baseVoc: Uri): Filter =
+    Filter(fieldOrNoop("published", publishedOps, baseVoc))
+
+  private def fieldOrNoop(name: String, field: Option[Boolean], baseVoc: Uri): Expr =
+    field
+      .map { value =>
+        ComparisonExpr(Op.Eq, UriPath(name.qualifyWith(baseVoc)), LiteralTerm(value.toString))
+      }
+      .getOrElse(NoopExpr)
+
+  private def addToFilter[Id](filter: Filter, depOpt: Option[Boolean], pubOpt: Option[Boolean])(
+      implicit Q: ConfiguredQualifier[String],
+      typeExpr: TypeFilterExpr[Id],
+      querySettings: QuerySettings) =
+    Filter(typeExpr.apply) and filter.expr and deprecated(depOpt, querySettings.nexusVocBase).expr and published(
+      pubOpt,
+      querySettings.nexusVocBase).expr
 
   private def applyWithWhere[Id](
       where: String,
@@ -85,54 +113,47 @@ object FilteredQuery {
     * Constructs a Blazegraph query based on the provided filters and pagination settings that also computes the total
     * number of results.
     *
-    * @param thisSubject  the qualified uri of the subject to be selected
-    * @param targetFilter the filter to be applied to filter the objects
-    * @param pagination   the pagination settings for the generated query
-    * @param identities   the [[Identity]] list that will be checked for read permissions on a particular resource
-    * @param term         the optional full text search term
-    * @param sort         the sorting values
+    * @param query       the query payload used to build the Sparql query
+    * @param thisSubject the qualified uri of the subject to be selected
+    * @param pagination  the pagination settings for the generated query
+    * @param identities  the [[Identity]] list that will be checked for read permissions on a particular resource
     */
-  def outgoing[Id](
-      thisSubject: Uri,
-      targetFilter: Filter,
-      pagination: Pagination,
-      identities: Set[Identity],
-      term: Option[String] = None,
-      sort: SortList = SortList.Empty)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
+  def outgoing[Id](query: QueryPayload, thisSubject: Uri, pagination: Pagination, identities: Set[Identity])(
+      implicit Q: ConfiguredQualifier[String],
+      aclExpr: AclSparqlExpr[Id],
+      typeExpr: TypeFilterExpr[Id],
+      querySettings: QuerySettings): String = {
+    val filter = addToFilter(query.filter, query.deprecated, query.published).expr
     val where =
       s"""
-         |?ss ?p ?$subject .
-         |FILTER ( ?ss = <$thisSubject> )
-         |${buildWhereFrom(targetFilter.expr)}
+         |<$thisSubject> ?p ?$subject .
+         |${buildWhereFrom(filter)}
        """.stripMargin.trim
-    applyWithWhere(where, pagination, term, identities, sort)
+    applyWithWhere(where, pagination, query.q, identities, query.sort)
   }
 
   /**
     * Constructs a Blazegraph query based on the provided filters and pagination settings that also computes the total
     * number of results.
     *
-    * @param thisObject   the qualified uri of the object to be selected
-    * @param sourceFilter the filter to be applied to filter the subjects
-    * @param pagination   the pagination settings for the generated query
-    * @param identities   the [[Identity]] list that will be checked for read permissions on a particular resource
-    * @param term         the optional full text search term
-    * @param sort         the sorting values
+    * @param query      the query payload used to build the Sparql query
+    * @param thisObject the qualified uri of the object to be selected
+    * @param pagination the pagination settings for the generated query
+    * @param identities the [[Identity]] list that will be checked for read permissions on a particular resource
     */
-  def incoming[Id](
-      thisObject: Uri,
-      sourceFilter: Filter,
-      pagination: Pagination,
-      identities: Set[Identity],
-      term: Option[String] = None,
-      sort: SortList = SortList.Empty)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
+  def incoming[Id](query: QueryPayload, thisObject: Uri, pagination: Pagination, identities: Set[Identity])(
+      implicit Q: ConfiguredQualifier[String],
+      aclExpr: AclSparqlExpr[Id],
+      typeExpr: TypeFilterExpr[Id],
+      querySettings: QuerySettings): String = {
+    val filter = addToFilter(query.filter, query.deprecated, query.published).expr
+
     val where =
       s"""
-         |?$subject ?p ?o .
-         |FILTER ( ?o = <$thisObject> )
-         |${buildWhereFrom(sourceFilter.expr)}
+         |?$subject ?p <$thisObject> .
+         |${buildWhereFrom(filter)}
        """.stripMargin.trim
-    applyWithWhere(where, pagination, term, identities, sort)
+    applyWithWhere(where, pagination, query.q, identities, query.sort)
   }
 
   private final case class Stmt(stmt: String, filter: Option[String])
@@ -255,7 +276,7 @@ object FilteredQuery {
           case ((stmts, str), e: ComparisonExpr)       => (stmts :+ compExpr(e, allowDirectFilter), str)
           case ((stmts, str), e: InExpr)               => (stmts :+ inExpr(e), str)
           case ((stmts, str), l @ LogicalExpr(And, _)) => (stmts, str.append(fromExpr(l, allowDirectFilter)))
-          case ((stmts, str), l: LogicalExpr)          => (stmts, str.append(fromExpr(l, false)))
+          case ((stmts, str), l: LogicalExpr)          => (stmts, str.append(fromExpr(l, allowDirectFilter = false)))
           case ((stmts, str), NoopExpr)                => (stmts, str)
         }
         fromStmts(And, statements) + builder.mkString

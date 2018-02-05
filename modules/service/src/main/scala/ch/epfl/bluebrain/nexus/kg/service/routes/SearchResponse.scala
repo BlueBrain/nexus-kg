@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.{OrderedKeys, marshallerHttp}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.core.queries.Field
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
@@ -47,7 +48,7 @@ trait SearchResponse {
       * @param pagination the pagination values
       */
     @SuppressWarnings(Array("MaxParameters"))
-    def buildResponse[Entity](fields: Set[String], base: Uri, prefixes: PrefixUris, pagination: Pagination)(
+    def buildResponse[Entity](fields: Set[Field], base: Uri, prefixes: PrefixUris, pagination: Pagination)(
         implicit
         f: Id => Future[Option[Entity]],
         ec: ExecutionContext,
@@ -57,7 +58,7 @@ trait SearchResponse {
         Se: Encoder[ScoredQueryResult[Entity]],
         L: Encoder[Links],
         orderedKeys: OrderedKeys): Route = {
-      if (fields.contains("all")) {
+      if (fields.contains(Field.All)) {
         qr.flatMap { q =>
             q.results
               .foldLeft(Future(List.empty[QueryResult[Entity]])) { (acc, current) =>

@@ -58,21 +58,15 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
-      val filter =
-        filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase)
+    (get & paramsToQuery) { (pagination, query) =>
       implicit val _ = (id: DomainId) => domains.fetch(id)
       operationName("searchDomains") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-          domainQueries
-            .list(filter, pagination, termOpt, sort)
-            .buildResponse(fields, base, prefixes, pagination)
+          domainQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
             authenticateCaller.apply { implicit caller =>
-              domainQueries
-                .list(orgId, filter, pagination, termOpt, sort)
-                .buildResponse(fields, base, prefixes, pagination)
+              domainQueries.list(orgId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
             }
           }
       }
@@ -154,7 +148,7 @@ object DomainRoutes {
       orderedKeys: OrderedKeys,
       prefixes: PrefixUris): DomainRoutes = {
     implicit val qs: QuerySettings = querySettings
-    val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client), querySettings)
+    val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client))
     new DomainRoutes(domains, domainQueries, base)
   }
 }
