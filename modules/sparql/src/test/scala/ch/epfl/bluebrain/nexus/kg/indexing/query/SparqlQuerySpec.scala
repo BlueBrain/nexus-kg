@@ -39,6 +39,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, SchemaDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainSparqlIndexer, DomainSparqlIndexingSettings}
@@ -49,7 +50,6 @@ import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.LiteralTerm
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceSparqlIndexer, InstanceSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationSparqlIndexer, OrganizationSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.{SchemaSparqlIndexer, SchemaSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
@@ -57,6 +57,7 @@ import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilteredQuery._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -182,9 +183,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
       // run the query
       val pagination             = Pagination(0L, 100)
       implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base, aclBaseNs)
-      val q                      = FilterQueries[Future, InstanceId](queryClient, querySettings)
+      val q                      = FilterQueries[Future, InstanceId](queryClient)
 
-      val result = q.list(filterNoDepr, pagination, Some("random"), SortList.Empty).futureValue
+      val result = q.list(QueryPayload(filter = filterNoDepr, q = Some("random")), pagination).futureValue
       result
         .asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]]
         .maxScore shouldEqual 1F
@@ -193,8 +194,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       result.results.map(_.source.schemaId.version.patch.toDouble shouldEqual 2.0 +- 2.0)
 
       val pagination2 = Pagination(100L, 100)
-      val result2 =
-        q.list(filterNoDepr, pagination2, Some("random"), SortList.Empty).futureValue
+      val result2     = q.list(QueryPayload(filter = filterNoDepr, q = Some("random")), pagination2).futureValue
       result2
         .asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]]
         .maxScore shouldEqual 1F
@@ -221,9 +221,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       val pagination             = Pagination(0L, 100)
       implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBaseOrgs, base, aclBaseNs)
-      val q                      = FilterQueries[Future, OrgId](queryClient, querySettings)
+      val q                      = FilterQueries[Future, OrgId](queryClient)
 
-      val result = q.list(filterNoDepr, pagination, None, SortList.Empty).futureValue
+      val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
       result.total shouldEqual 0L
       result.results.size shouldEqual 0
     }
@@ -237,25 +237,24 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       val pagination             = Pagination(0L, 100)
       implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBaseOrgs, base, aclBaseNs)
-      val q                      = FilterQueries[Future, OrgId](queryClient, querySettings)
+      val q                      = FilterQueries[Future, OrgId](queryClient)
 
-      val result = q.list(filterNoDepr, pagination, None, SortList.Empty).futureValue
+      val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
       result.total shouldEqual 3L
       result.results.size shouldEqual 3
       result.results.map(_.source.id) shouldEqual List("org0", "org1", "org2")
 
       val result2 =
-        q.list(Filter(ComparisonExpr(Eq, UriPath("name" qualify), LiteralTerm(""""org0""""))),
-                pagination,
-                None,
-                SortList.Empty)
+        q.list(QueryPayload(filter = Filter(ComparisonExpr(Eq, UriPath("name" qualify), LiteralTerm(""""org0"""")))),
+                pagination)
           .futureValue
       result2.total shouldEqual 1L
       result2.results.size shouldEqual 1
       result2.results.head.source shouldEqual OrgId("org0")
 
       val result3 = q
-        .list(filterNoDepr, pagination, None, SortList(List(Sort(s"-$nexusVocBaseOrgs/createdAtTime"))))
+        .list(QueryPayload(filter = filterNoDepr, sort = SortList(List(Sort(s"-$nexusVocBaseOrgs/createdAtTime")))),
+              pagination)
         .futureValue
       result3.total shouldEqual 3L
       result3.results.size shouldEqual 3
@@ -290,10 +289,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
       val pagination = Pagination(0L, 100)
       implicit val querySettings =
         QuerySettings(pagination, 100, namespace, nexusVocBaseDomains, base, aclBaseNs)
-      val q = FilterQueries[Future, DomainId](queryClient, querySettings)
+      val q = FilterQueries[Future, DomainId](queryClient)
 
-      val result =
-        q.list(filterNoDepr, pagination, None, SortList.Empty).futureValue
+      val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
       result.total shouldEqual 5L
       result.results.size shouldEqual 5
       result.results.foreach(r => {
@@ -307,8 +305,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
                                     meta)).futureValue
       }
 
-      val result2 =
-        q.list(filterNoDepr, pagination, None, SortList.Empty).futureValue
+      val result2 = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
       result2.total shouldEqual 7L
       result2.results.size shouldEqual 7
       result2.results.foreach(r => {
@@ -343,11 +340,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
       val pagination = Pagination(0L, 100)
       implicit val querySettings =
         QuerySettings(pagination, 100, namespace, nexusVocBaseSchemas, base, aclBaseNs)
-      val q = FilterQueries[Future, SchemaId](queryClient, querySettings)
+      val q = FilterQueries[Future, SchemaId](queryClient)
 
-      val result = q
-        .list(DomainId(OrgId("org0"), "dom0"), filterNoDepr, pagination, None, SortList.Empty)
-        .futureValue
+      val result = q.list(DomainId(OrgId("org0"), "dom0"), QueryPayload(filter = filterNoDepr), pagination).futureValue
       result.total shouldEqual 5L
       result.results.size shouldEqual 5
 
@@ -358,18 +353,14 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       aclIndexer(PermissionsCleared("kg" / "org0", meta)).futureValue
 
-      val result2 = q
-        .list(DomainId(OrgId("org0"), "core"), filterNoDepr, pagination, None, SortList.Empty)
-        .futureValue
+      val result2 = q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
 
       result2.total shouldEqual 0L
       result2.results.size shouldEqual 0
 
       aclIndexer(PermissionsAdded("kg" / "org0" / "core" / "name", AccessControlList(group -> Permissions(Read)), meta)).futureValue
 
-      val result3 = q
-        .list(DomainId(OrgId("org0"), "core"), filterNoDepr, pagination, None, SortList.Empty)
-        .futureValue
+      val result3 = q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
 
       result3.total shouldEqual 5L
       result3.results.size shouldEqual 5
@@ -417,16 +408,16 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       val pagination             = Pagination(3L, 3)
       implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base, aclBaseNs)
-      val q                      = FilterQueries[Future, InstanceId](queryClient, querySettings)
+      val q                      = FilterQueries[Future, InstanceId](queryClient)
 
-      val res = q.list(schemaName, filterNoDepr, pagination, None, SortList.Empty).futureValue
+      val res = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
       res.total shouldEqual 0L
 
       aclIndexer(PermissionsAdded("kg" / "org0" / "dom0" / schemaName.name,
                                   AccessControlList(group -> Permissions(Read)),
                                   meta)).futureValue
 
-      val result = q.list(schemaName, filterNoDepr, pagination, None, SortList.Empty).futureValue
+      val result = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
       result.total shouldEqual 5L
       result.results.size shouldEqual 2
       result.results.foreach(r => {
@@ -436,7 +427,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       })
 
       val pagination2 = Pagination(10L, 8)
-      val result2     = q.list(schemaName, filterNoDepr, pagination2, None, SortList.Empty).futureValue
+      val result2     = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination2).futureValue
       result2.total shouldEqual 5L
       result2.results.size shouldEqual 0
     }

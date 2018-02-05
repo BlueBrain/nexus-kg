@@ -7,7 +7,6 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
-import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
@@ -15,18 +14,13 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.CannotUnpublishSchema
 import ch.epfl.bluebrain.nexus.kg.core.schemas.shapes.{Shape, ShapeId, ShapeRef}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.LiteralTerm
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{FilteringSettings, Op}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
@@ -66,8 +60,6 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
     extends DefaultRouteHandling(contexts) {
   private implicit val schemaIdExtractor = (entity: Schema) => entity.id
   private implicit val shapeIdExtractor  = (entity: Shape) => entity.id
-  private implicit val sQualifier: ConfiguredQualifier[String] =
-    Qualifier.configured[String](querySettings.nexusVocBase)
 
   private implicit val coreContext: ContextUri              = prefixes.CoreContext
   private implicit val schemaEncoders: SchemaCustomEncoders = new SchemaCustomEncoders(base, prefixes)
@@ -79,36 +71,29 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
   private val exceptionHandler = ExceptionHandling.exceptionHandler(prefixes.ErrorContext)
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & searchQueryParams) { (pagination, filterOpt, termOpt, deprecatedOpt, fields, sort) =>
-      parameter('published.as[Boolean].?) { publishedOpt =>
-        val filter     = filterFrom(deprecatedOpt, filterOpt, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
-        implicit val _ = (id: SchemaId) => schemas.fetch(id)
-        operationName("searchSchemas") {
-          (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-            schemaQueries.list(filter, pagination, termOpt, sort).buildResponse(fields, base, prefixes, pagination)
-          } ~
-            (extractOrgId & pathEndOrSingleSlash) { orgId =>
-              authenticateCaller.apply { implicit caller =>
-                schemaQueries
-                  .list(orgId, filter, pagination, termOpt, sort)
-                  .buildResponse(fields, base, prefixes, pagination)
-              }
-            } ~
-            (extractDomainId & pathEndOrSingleSlash) { domainId =>
-              authenticateCaller.apply { implicit caller =>
-                schemaQueries
-                  .list(domainId, filter, pagination, termOpt, sort)
-                  .buildResponse(fields, base, prefixes, pagination)
-              }
-            } ~
-            (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
-              authenticateCaller.apply { implicit caller =>
-                schemaQueries
-                  .list(schemaName, filter, pagination, termOpt, sort)
-                  .buildResponse(fields, base, prefixes, pagination)
-              }
+    (get & paramsToQuery) { (pagination, query) =>
+      implicit val _ = (id: SchemaId) => schemas.fetch(id)
+      operationName("searchSchemas") {
+        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
+          schemaQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+        } ~
+          (extractOrgId & pathEndOrSingleSlash) { orgId =>
+            authenticateCaller.apply { implicit caller =>
+              schemaQueries.list(orgId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
             }
-        }
+          } ~
+          (extractDomainId & pathEndOrSingleSlash) { domainId =>
+            authenticateCaller.apply { implicit caller =>
+              schemaQueries.list(domainId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+            }
+          } ~
+          (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
+            authenticateCaller.apply { implicit caller =>
+              schemaQueries
+                .list(schemaName, query, pagination)
+                .buildResponse(query.fields, base, prefixes, pagination)
+            }
+          }
       }
     }
 
@@ -202,12 +187,6 @@ class SchemaRoutes(schemas: Schemas[Future], schemaQueries: FilterQueries[Future
     }
 
   def routes: Route = combinedRoutesFor("schemas")
-
-  private def publishedExpr(published: Option[Boolean]): Option[Expr] =
-    published.map { value =>
-      val pub = "published".qualify
-      ComparisonExpr(Op.Eq, UriPath(pub), LiteralTerm(value.toString))
-    }
 }
 
 object SchemaRoutes {
@@ -233,7 +212,7 @@ object SchemaRoutes {
       prefixes: PrefixUris): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
-    val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client), querySettings)
+    val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client))
     new SchemaRoutes(schemas, schemaQueries, base)
   }
 

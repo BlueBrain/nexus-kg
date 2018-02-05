@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
-import ch.epfl.bluebrain.nexus.kg.core.queries.JsonLdFormat
+import ch.epfl.bluebrain.nexus.kg.core.queries.{Field, JsonLdFormat}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
@@ -35,7 +35,7 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
   private case class Response(pagination: Pagination,
                               qOpt: Option[String],
                               deprecatedOpt: Option[Boolean],
-                              fields: Set[String],
+                              fields: Set[Field],
                               sort: SortList)
 
   implicit val filterDecoder = Filter.filterDecoder(contextJson)
@@ -51,8 +51,8 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
   private def route(implicit qs: QuerySettings) = {
     (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
       RejectionHandling.rejectionHandler(ErrorContext))) {
-      (get & searchQueryParams) { (pagination, _, qOpt, deprecatedOpt, fields, sort) =>
-        complete(Response(pagination, qOpt, deprecatedOpt, fields, sort))
+      (get & paramsToQuery) { (pagination, query) =>
+        complete(Response(pagination, query.q, query.deprecated, query.fields, query.sort))
       }
     }
   }
@@ -144,8 +144,8 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
     "reject when an invalid JSON-LD output format is provided" in {
       Get("/?format=foobar") ~> resourceRoute ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error] shouldEqual Error("IllegalOutputFormat",
-                                            Some("Unsupported JSON-LD output formats: 'foobar'"),
+        responseAs[Error] shouldEqual Error("IllegalParam",
+                                            Some("Could not find JsonLdFormat for 'foobar'"),
                                             "http://localhost/v0/contexts/nexus/core/error/v0.1.0")
       }
     }

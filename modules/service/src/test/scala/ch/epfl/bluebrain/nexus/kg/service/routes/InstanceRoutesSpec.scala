@@ -308,8 +308,9 @@ class InstanceRoutesSpec
         s"""/data/${instanceRef.id.show}/outgoing?filter=$filter"""
       Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        val json: Json = responseAs[Json]
-        json.hcursor.get[String]("field") shouldEqual Right("DownField(op)")
+        responseAs[Error] shouldEqual Error("IllegalParam",
+                                            Some("A filter expression must always define an 'op' value: DownField(op)"),
+                                            "http://localhost/v0/contexts/nexus/core/error/v0.1.0")
       }
     }
 
@@ -319,8 +320,9 @@ class InstanceRoutesSpec
         s"""/data/${instanceRef.id.show}/incoming?filter=$filter"""
       Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        val json: Json = responseAs[Json]
-        json.hcursor.get[String]("field") shouldEqual Right("DownField(op)")
+        responseAs[Error] shouldEqual Error("IllegalParam",
+                                            Some("A filter expression must always define an 'op' value: DownField(op)"),
+                                            "http://localhost/v0/contexts/nexus/core/error/v0.1.0")
       }
     }
 
