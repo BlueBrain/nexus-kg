@@ -5,7 +5,7 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextId
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr
@@ -40,6 +40,11 @@ object TypeFilterExpr {
   }
 
   implicit val schemaFilterExpr = new TypeFilterExpr[SchemaId] {
+    override def apply(implicit Q: ConfiguredQualifier[String]) =
+      ComparisonExpr(Eq, UriPath(rdfTypeKey), UriTerm("Schema".qualify))
+  }
+
+  implicit val schemaNameFilterExpr = new TypeFilterExpr[SchemaName] {
     override def apply(implicit Q: ConfiguredQualifier[String]) =
       ComparisonExpr(Eq, UriPath(rdfTypeKey), UriTerm("Schema".qualify))
   }

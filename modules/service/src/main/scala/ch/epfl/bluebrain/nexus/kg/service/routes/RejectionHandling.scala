@@ -31,10 +31,8 @@ object RejectionHandling {
       .handle {
         case MalformedQueryParamRejection(_, _, Some(e: WrongOrInvalidJson)) =>
           complete(BadRequest -> (e: HttpRejection))
-        case MalformedQueryParamRejection(_, _, Some(e: IllegalFilterFormat)) =>
-          complete(BadRequest -> (e: CommonRejections))
-        case MalformedQueryParamRejection(_, _, Some(e: IllegalOutputFormat)) =>
-          complete(BadRequest -> (e: CommonRejections))
+        case MalformedQueryParamRejection(_, _, Some(err)) =>
+          complete(BadRequest -> (IllegalParam(err.getMessage): CommonRejections))
         case ValidationRejection(_, Some(e: IllegalVersionFormat)) =>
           complete(BadRequest -> (e: CommonRejections))
         case CustomAuthorizationRejection(e) =>

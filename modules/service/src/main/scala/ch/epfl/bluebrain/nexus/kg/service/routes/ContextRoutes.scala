@@ -8,21 +8,16 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.instances.future._
-import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection.CannotUnpublishContext
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Expr, FilteringSettings, Op}
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.LiteralTerm
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
@@ -64,7 +59,6 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
     with QueryDirectives {
 
   private implicit val _                                      = (entity: Context) => entity.id
-  private implicit val qualifier: ConfiguredQualifier[String] = Qualifier.configured[String](querySettings.nexusVocBase)
   private implicit val contextEncoders: ContextCustomEncoders = new ContextCustomEncoders(base, prefixes)
   import contextEncoders._
 
@@ -143,47 +137,33 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
   }
 
   override protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (get & context) { ctx =>
-      (get & paginated & deprecated & published & fields(ctx) & sort(ctx)) {
-        (pagination, deprecatedOpt, publishedOpt, fields, sort) =>
-          operationName("searchContexts") {
-            val filter     = filterFrom(deprecatedOpt, None, querySettings.nexusVocBase) and publishedExpr(publishedOpt)
-            implicit val _ = (id: ContextId) => contexts.fetch(id)
-            (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
-              contextQueries.list(filter, pagination, None, sort).buildResponse(fields, base, prefixes, pagination)
-            } ~
-              (extractOrgId & pathEndOrSingleSlash) { orgId =>
-                authenticateCaller.apply { implicit caller =>
-                  contextQueries
-                    .list(orgId, filter, pagination, None, sort)
-                    .buildResponse(fields, base, prefixes, pagination)
-                }
-              } ~
-              (extractDomainId & pathEndOrSingleSlash) { domainId =>
-                authenticateCaller.apply { implicit caller =>
-                  contextQueries
-                    .list(domainId, filter, pagination, None, sort)
-                    .buildResponse(fields, base, prefixes, pagination)
-                }
-              } ~
-              (extractContextName & pathEndOrSingleSlash) { contextName =>
-                authenticateCaller.apply { implicit caller =>
-                  contextQueries
-                    .list(contextName, filter, pagination, None, sort)
-                    .buildResponse(fields, base, prefixes, pagination)
-                }
-              }
+    (get & paramsToQuery) { (pagination, query) =>
+      operationName("searchContexts") {
+        implicit val _ = (id: ContextId) => contexts.fetch(id)
+        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
+          contextQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+        } ~
+          (extractOrgId & pathEndOrSingleSlash) { orgId =>
+            authenticateCaller.apply { implicit caller =>
+              contextQueries.list(orgId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+            }
+          } ~
+          (extractDomainId & pathEndOrSingleSlash) { domainId =>
+            authenticateCaller.apply { implicit caller =>
+              contextQueries.list(domainId, query, pagination).buildResponse(query.fields, base, prefixes, pagination)
+            }
+          } ~
+          (extractContextName & pathEndOrSingleSlash) { contextName =>
+            authenticateCaller.apply { implicit caller =>
+              contextQueries
+                .list(contextName, query, pagination)
+                .buildResponse(query.fields, base, prefixes, pagination)
+            }
           }
       }
     }
 
   def routes: Route = combinedRoutesFor("contexts")
-
-  private def publishedExpr(published: Option[Boolean]): Option[Expr] =
-    published.map { value =>
-      val pub = "published".qualify
-      ComparisonExpr(Op.Eq, UriPath(pub), LiteralTerm(value.toString))
-    }
 
 }
 
@@ -209,7 +189,7 @@ object ContextRoutes {
       prefixes: PrefixUris): ContextRoutes = {
 
     implicit val qs: QuerySettings = querySettings
-    val contextQueries             = FilterQueries[Future, ContextId](SparqlQuery[Future](client), querySettings)
+    val contextQueries             = FilterQueries[Future, ContextId](SparqlQuery[Future](client))
     new ContextRoutes(contextQueries, base)
   }
 

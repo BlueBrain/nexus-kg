@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{Anonymous, GroupRe
 import ch.epfl.bluebrain.nexus.commons.iam.identity.IdentityId
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -18,10 +18,12 @@ import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
 import ch.epfl.bluebrain.nexus.kg.core.ConfiguredQualifier
+import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
 import io.circe.Json
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilteredQuerySpec._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.TypeFilterExpr._
 
 class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with EitherValues {
 
@@ -59,7 +61,10 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  SELECT DISTINCT ?s
              |  WHERE {
              |
-             |?s ?p ?o .
+             |
+             |?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Domain> .
+             |
+             |
              |
              |?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/organization> ?orgId
              |GRAPH <${qSettings.aclGraph}> { {<https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/root> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/read> <http://localhost/prefix/realms/BBP/users/alice>
@@ -97,7 +102,8 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery[DomainId](Filter(NoopExpr), pagination, identities = identities)
+        val result =
+          FilteredQuery[DomainId](QueryPayload(filter = Filter(NoopExpr)), pagination, identities = identities)
         result shouldEqual expected
       }
 
@@ -109,6 +115,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
         val filter                = filterJson.as[Filter].right.value
         val expectedWhere =
           s"""
+             |?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Instance> .
              |?s <${nexusBaseVoc}schema>/<${nexusBaseVoc}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
              |?s <${nexusBaseVoc}rev> ?var_1 .
@@ -206,11 +213,10 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery[InstanceId](filter,
-                                               pagination,
-                                               identities = identities,
-                                               None,
-                                               SortList(List(Sort(s"$base/createdAtTime"))))
+        val result =
+          FilteredQuery[InstanceId](QueryPayload(filter = filter, sort = SortList(List(Sort(s"$base/createdAtTime")))),
+                                    pagination,
+                                    identities = identities)
         result shouldEqual expected
       }
 
@@ -230,6 +236,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |?matchedValue bds:rank ?pos .
              |FILTER ( !isBlank(?s) )
              |
+             |?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Schema> .
              |?s <${nexusBaseVoc}schema>/<${nexusBaseVoc}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
              |?s <${nexusBaseVoc}rev> ?var_1 .
@@ -319,7 +326,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |ORDER BY DESC(?score)""".stripMargin
-        val result = FilteredQuery[SchemaId](filter, pagination, identities, Some("subject"))
+        val result = FilteredQuery[SchemaId](QueryPayload(filter = filter, q = Some("subject")), pagination, identities)
         result shouldEqual expected
       }
 
@@ -333,9 +340,10 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
         val targetFilter = filterJson.as[Filter].right.value
         val expectedWhere =
           s"""
-             |?ss ?p ?s .
-             |FILTER ( ?ss = <${thisId.toString}> )
              |
+             |<$thisId> ?p ?s .
+             |
+             |?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Schema> .
              |?s <${nexusBaseVoc}schema>/<${nexusBaseVoc}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
              |?s <${nexusBaseVoc}rev> ?var_1 .
@@ -418,7 +426,8 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery.outgoing[SchemaName](thisId, targetFilter, pagination, identities = identities)
+        val result = FilteredQuery
+          .outgoing[SchemaName](QueryPayload(filter = targetFilter), thisId, pagination, identities = identities)
         result shouldEqual expected
       }
 
@@ -432,9 +441,10 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
         val targetFilter = filterJson.as[Filter].right.value
         val expectedWhere =
           s"""
-             |?s ?p ?o .
-             |FILTER ( ?o = <$thisId> )
              |
+             |?s ?p <$thisId> .
+             |
+             |?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Organization> .
              |?s <${nexusBaseVoc}schema>/<${nexusBaseVoc}schemaGroup> <http://localhost/v0/bbp/experiment/subject> .
              |?s <${prov}wasDerivedFrom> <http://localhost/v0/bbp/experiment/subject/v0.1.0/073b4529-83a8-4776-a5a7-676624bfad90> .
              |?s <${nexusBaseVoc}rev> ?var_1 .
@@ -504,7 +514,8 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |  }
              |}
              |""".stripMargin
-        val result = FilteredQuery.incoming[OrgId](thisId, targetFilter, pagination, identities = identities)
+        val result = FilteredQuery
+          .incoming[OrgId](QueryPayload(filter = targetFilter), thisId, pagination, identities = identities)
         result shouldEqual expected
       }
     }

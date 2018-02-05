@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
-import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
@@ -76,8 +75,9 @@ class RejectionHandlingSpec
       val filter = URLEncoder.encode(s"""{"a": "b"}""", "UTF-8")
       Get(s"/organizations?filter=$filter") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[IllegalFilterFormat.type]
-        responseAs[Error].`@context` shouldEqual prefixes.ErrorContext.toString
+        responseAs[Error] shouldEqual Error("IllegalParam",
+                                            Some("A filter expression must always define an 'op' value: DownField(op)"),
+                                            "http://localhost/v0/contexts/nexus/core/error/v0.1.0")
       }
     }
 

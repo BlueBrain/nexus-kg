@@ -1,0 +1,16 @@
+{
+  "@context": {
+    "prov": "http://www.w3.org/ns/prov#",
+    "some": "http://example.com/prov#"
+  },
+  "filter": {
+    "op": "eq",
+    "path": "prov:startedAtTime",
+    "value": "2017-10-07T16:00:00-05:00"
+  },
+  "resource": "instances",
+  "deprecated": true,
+  "published": true,
+  "format": "compacted",
+  "sort": [ "-some:createdAtTime"]
+}
