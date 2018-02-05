@@ -32,7 +32,7 @@ class CacheActor[Value: Typeable](passivationTimeout: FiniteDuration) extends Ac
           log.debug("Cached key '{}' found with value  '{}'", k, v)
         case None =>
           log.debug("Cached key '{}' not found. Proceed to update pasivation timeout to 10 sec", k)
-          context.setReceiveTimeout(3 seconds)
+          context.parent ! Passivate(stopMessage = PoisonPill)
       }
       sender() ! value
 
