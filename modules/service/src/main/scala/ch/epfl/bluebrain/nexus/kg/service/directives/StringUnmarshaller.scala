@@ -28,7 +28,7 @@ object StringUnmarshaller {
     * @param f the function to convert from String => `Json`
     * @return unmarshaller for `A`
     */
-  implicit final def unmarshaller[A](f: (String => Either[Throwable, Json]))(
+  def unmarshaller[A](f: (String => Either[Throwable, Json]))(
       implicit dec: Decoder[A]): FromStringUnmarshaller[A] =
     Unmarshaller.strict[String, A] {
       case "" => throw Unmarshaller.NoContentException

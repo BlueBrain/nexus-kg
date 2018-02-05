@@ -33,8 +33,6 @@ object RejectionHandling {
           complete(BadRequest -> (e: HttpRejection))
         case MalformedQueryParamRejection(_, _, Some(err)) =>
           complete(BadRequest -> (IllegalParam(err.getMessage): CommonRejections))
-        case MalformedQueryParamRejection(_, _, _) =>
-          complete(BadRequest -> (IllegalParam(""): CommonRejections))
         case ValidationRejection(_, Some(e: IllegalVersionFormat)) =>
           complete(BadRequest -> (e: CommonRejections))
         case CustomAuthorizationRejection(e) =>

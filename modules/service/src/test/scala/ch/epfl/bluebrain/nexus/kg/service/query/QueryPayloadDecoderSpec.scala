@@ -55,8 +55,7 @@ class QueryPayloadDecoderSpec
         sort = SortList(List(Sort(s"-${nexusBaseVoc}createdAtTime")))
       ),
       queryFilterJson -> QueryPayload(
-        `@context` = Json.obj("some" -> Json.fromString("http://www.w3.org/ns/prov#"),
-                              "some" -> Json.fromString("http://example.com/prov#")),
+        `@context` = Json.obj("some" -> Json.fromString("http://example.com/prov#")),
         filter = filter,
         deprecated = Some(true),
         published = Some(true),

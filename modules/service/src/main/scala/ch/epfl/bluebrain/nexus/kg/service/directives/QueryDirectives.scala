@@ -113,27 +113,15 @@ trait QueryDirectives {
     context.flatMap { jsonCtx =>
       val queryDec = QueryPayloadDecoder(jsonCtx)
       import queryDec._
-      filtered.flatMap { filter =>
-        q.flatMap { query =>
-          deprecated.flatMap { deprecate =>
-            published.flatMap { publish =>
-              fields.flatMap { fieldSet =>
-                sort.flatMap { sortList =>
-                  paginated.map { page =>
-                    (page,
-                     (QueryPayload(`@context` = jsonCtx,
-                                   filter = filter,
-                                   q = query,
-                                   deprecated = deprecate,
-                                   published = publish,
-                                   fields = fieldSet,
-                                   sort = sortList)))
-                  }
-                }
-              }
-            }
-          }
-        }
+      (filtered & q & deprecated & published & fields & sort & paginated).tmap {
+        case (filter, query, deprecate, publish, fieldSet, sortList, page) =>
+          page -> QueryPayload(`@context` = jsonCtx,
+                               filter = filter,
+                               q = query,
+                               deprecated = deprecate,
+                               published = publish,
+                               fields = fieldSet,
+                               sort = sortList)
       }
     }
 
