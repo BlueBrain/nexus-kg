@@ -6,6 +6,7 @@ import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.WrongOrInvalidJson
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.contexts.JenaExpander._
+import ch.epfl.bluebrain.nexus.kg.core.queries.JsonLdFormat
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalFilterFormat, IllegalOutputFormat}
@@ -112,11 +113,9 @@ trait QueryDirectives {
     parameter('format.as[String].?).flatMap {
       case None => provide(JsonLdFormat.Default)
       case Some(format) =>
-        format match {
-          case "compacted" => provide(JsonLdFormat.Compacted)
-          case "expanded"  => provide(JsonLdFormat.Expanded)
-          case "flattened" => provide(JsonLdFormat.Flattened)
-          case _ =>
+        JsonLdFormat.fromString(format) match {
+          case Some(fmt) => provide(fmt)
+          case None =>
             reject(
               MalformedQueryParamRejection("format",
                                            "IllegalOutputFormat",

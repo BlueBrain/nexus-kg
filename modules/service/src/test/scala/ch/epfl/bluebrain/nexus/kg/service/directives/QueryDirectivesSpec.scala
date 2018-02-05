@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
+import ch.epfl.bluebrain.nexus.kg.core.queries.JsonLdFormat
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
