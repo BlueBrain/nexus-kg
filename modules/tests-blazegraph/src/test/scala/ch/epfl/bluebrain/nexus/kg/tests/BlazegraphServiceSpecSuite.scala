@@ -21,7 +21,7 @@ import cats.instances.future._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
-class ServiceSpecSuite
+class BlazegraphServiceSpecSuite
     extends Suites
     with SequentialNestedSuiteExecution
     with BeforeAndAfterAll
@@ -50,11 +50,11 @@ class ServiceSpecSuite
   }
 
   override val nestedSuites = Vector(
-    new OrgIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, aclIndexer),
-    new DomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
-    new ContextsIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
-    new SchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
-    new InstanceIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, bootstrap.instances)
+    new BlazegraphOrgIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, aclIndexer),
+    new BlazegraphDomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
+    new BlazegraphContextsIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
+    new BlazegraphSchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
+    new BlazegraphInstanceIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, bootstrap.instances)
   )
 
   override def run(testName: Option[String], args: Args): Status = super.run(testName, args)

@@ -32,7 +32,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
 @DoNotDiscover
-class InstanceIntegrationSpec(
+class BlazegraphInstanceIntegrationSpec(
     apiUri: Uri,
     prefixes: PrefixUris,
     route: Route,

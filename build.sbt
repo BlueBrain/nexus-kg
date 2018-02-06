@@ -141,7 +141,8 @@ lazy val elastic = project
       "io.verizon.journal" %% "core"            % journalVersion,
       "com.typesafe.akka"  %% "akka-testkit"    % akkaVersion % Test,
       "org.scalatest"      %% "scalatest"       % scalaTestVersion % Test
-    )
+    ),
+    Test / fork := true
   )
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
   // tests reduces false negatives.
@@ -191,17 +192,49 @@ lazy val service = project
   // tests reduces false negatives.
   .settings(parallelExecution in Test := false)
 
-lazy val tests = project
-  .in(file("modules/tests"))
+lazy val testsBlazegraph = project
+  .in(file("modules/tests-blazegraph"))
   .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
   .settings(common)
   .settings(
-    name := "kg-tests",
-    moduleName := "kg-tests",
+    name := "kg-tests-blazegraph",
+    moduleName := "kg-tests-blazegraph",
     libraryDependencies ++= Seq(
       commonsTest         % Test,
       "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion % Test
-    )
+    ),
+    Test / fork := true
+  )
+  // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
+  // tests reduces false negatives.
+  .settings(parallelExecution in Test := false)
+
+lazy val testsElastic = project
+  .in(file("modules/tests-elastic"))
+  .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
+  .settings(common)
+  .settings(
+    name := "kg-tests-elastic",
+    moduleName := "kg-tests-elastic",
+    libraryDependencies ++= Seq(
+      commonsTest                  % Test,
+      "io.netty"                   % "netty" % "3.10.6.Final" % Test,
+      "com.fasterxml.jackson.core" % "jackson-core" % "2.8.10" % Test,
+      "com.fasterxml.jackson.core" % "jackson-databind" % "2.8.10" % Test,
+      "com.fasterxml.jackson.core" % "jackson-annotations" % "2.8.10" % Test,
+      "org.apache.lucene"          % "lucene-core" % "7.1.0",
+      "org.elasticsearch"          % "elasticsearch" % "6.1.2",
+      "org.elasticsearch.plugin"   % "transport-netty4-client" % "6.1.2",
+      "com.typesafe.akka"          %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion % Test,
+    ),
+    dependencyOverrides ++= Seq(
+      "com.fasterxml.jackson.core" % "jackson-core"        % "2.8.10" % Test,
+      "com.fasterxml.jackson.core" % "jackson-databind"    % "2.8.10" % Test,
+      "com.fasterxml.jackson.core" % "jackson-annotations" % "2.8.10" % Test,
+      "org.elasticsearch"          % "elasticsearch"       % "6.1.2",
+      "org.apache.lucene"          % "lucene-core"         % "7.1.0"
+    ),
+    Test / fork := true
   )
   // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
   // tests reduces false negatives.
@@ -214,7 +247,7 @@ lazy val root = project
     name := "kg",
     moduleName := "kg"
   )
-  .aggregate(docs, core, sparql, elastic, service, tests, schemas)
+  .aggregate(docs, core, sparql, elastic, service, testsBlazegraph, testsElastic, schemas)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {})
 

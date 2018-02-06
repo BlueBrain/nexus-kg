@@ -33,7 +33,7 @@ import scala.collection.mutable.Map
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
 @DoNotDiscover
-class OrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclIndexer: AclIndexer[Future])(
+class BlazegraphOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclIndexer: AclIndexer[Future])(
     implicit
     as: ActorSystem,
     ec: ExecutionContextExecutor,

@@ -16,10 +16,10 @@ import io.circe.{Encoder, Json}
 import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
-class ContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(implicit
-                                                                               as: ActorSystem,
-                                                                               ec: ExecutionContextExecutor,
-                                                                               mt: ActorMaterializer)
+class BlazegraphContextsIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(implicit
+                                                                                         as: ActorSystem,
+                                                                                         ec: ExecutionContextExecutor,
+                                                                                         mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._

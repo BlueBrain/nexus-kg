@@ -28,10 +28,10 @@ import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
-class SchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(implicit
-                                                                              as: ActorSystem,
-                                                                              ec: ExecutionContextExecutor,
-                                                                              mt: ActorMaterializer)
+class BlazegraphSchemasIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(implicit
+                                                                                        as: ActorSystem,
+                                                                                        ec: ExecutionContextExecutor,
+                                                                                        mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._
