@@ -50,7 +50,8 @@ class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)
         val downloadURL = Json.obj(downloadUrlKey -> Json.fromString(s"${ref.id.qualifyAsString}/attachment"))
         refEncoder
           .apply(ref)
-          .deepMerge(Json.obj(JsonLDKeys.distribution -> Json.arr(attachment.asJson.addDistributionContext deepMerge downloadURL)))
+          .deepMerge(Json.obj(
+            JsonLDKeys.distribution -> Json.arr(attachment.asJson.addDistributionContext deepMerge downloadURL)))
 
       case None =>
         refEncoder
