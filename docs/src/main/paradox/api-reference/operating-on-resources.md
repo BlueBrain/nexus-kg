@@ -139,7 +139,7 @@ GET /v0/{collection_address}
 - `{full_text_search_query}`: String - can be provided to select only the resources in the collection that have
 attribute values matching (containing) the provided token; when this field is provided the results will also include
 score values for each result
-- `{context}`: JsonLd - can be provided to define extra prefix mappings. By default, the search core context will be used. If this filed is provided, its content will be merged with the search core context.
+- `{context}`: JsonLd - can be provided to define extra prefix mappings. By default, the search core context will be used. If this field is provided, its content will be merged with the search core context.
 - `{filter}`: JsonLd - a filtering expression in JSON-LD format (the structure of the filter is explained below)
 - `{fields}`: a comma separated list of fields which are going to be retrieved as a result. The reserved keyword `all` retrieves all the fields.
 - `{sort}`: a comma separated list of fields (absolute qualified URIs) which are going to be used to order the results. Prefixing a field with `-` will result into descending ordering on that field while prefixing it with `+` results in ascending ordering. When no prefix is set, the default behaviour is to assume ascending ordering.

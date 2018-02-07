@@ -33,7 +33,7 @@ The json payload is defined as...
 
 ... where all of the query parameters are individually optional.
 
-- `@context`: JsonLd - can be provided to define extra prefix mappings. By default, the search core context will be used. If this filed is provided, its content will be merged with the search core context.
+- `@context`: JsonLd - can be provided to define extra prefix mappings. By default, the search core context will be used. If this field is provided, its content will be merged with the search core context.
 - `filter`: Filter - can provide the filtering expression, explained [here](./operating-on-resources.html#filter-expressions)
 - `q`: String - can be provided to select only the resources in the collection that have
        attribute values matching (containing) the provided token; when this field is provided the results will also include
