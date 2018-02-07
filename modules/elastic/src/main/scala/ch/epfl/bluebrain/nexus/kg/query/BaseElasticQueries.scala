@@ -98,8 +98,6 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
   protected def schemaGroupTerm(schemaName: SchemaName): Json =
     term("schemaGroup".qualifyAsString, schemaName.qualifyAsString)
 
-
-
   private def matchAllQuery(filterTerms: Json) =
     Json.obj(
       "query" -> Json.obj(
@@ -115,7 +113,6 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
 
   private def orgTerm(orgId: OrgId): Json          = term("organization".qualifyAsString, orgId.qualifyAsString)
   private def domainTerm(domainId: DomainId): Json = term("domain".qualifyAsString, domainId.qualifyAsString)
-
 
   /**
     * List all objects of a given type

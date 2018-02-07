@@ -19,10 +19,12 @@ object ElasticIdDecoder {
     Decoder.decodeJson.emap { json =>
       json.hcursor
         .get[String]("@id")
-        .toOption
-        .flatMap(_.unqualify[A])
-        .map(Right(_))
-        .getOrElse(Left(s"Couldn't decode ${T.describe} from '@id' in ${json.noSpaces}"))
+        .flatMap { id =>
+          id.unqualify[A].toRight(s"Couldn't unqualify ${T.describe} from 'id' in ${json.noSpaces}")
+        }
+        .left
+        .map(_ => s"Couldn't decode ${T.describe} from '@id' in ${json.noSpaces}")
+
     }
 
 }

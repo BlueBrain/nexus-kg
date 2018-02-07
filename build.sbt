@@ -16,6 +16,10 @@ val blazegraphVersion               = "2.1.4"
 val jacksonVersion                  = "2.8.10"
 val scalaTestVersion                = "3.0.4"
 val asmVersion                      = "5.1"
+val nettyElasticTestsVersion        = "3.10.6.Final"
+val jacksonElasticTestsVersion      = "2.8.10"
+val luceneElasticTestsVersion       = "7.1.0"
+val ESElasticTestsVersion           = "6.1.2"
 
 lazy val akkaClusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion
 lazy val sourcingCore        = nexusDep("sourcing-core", commonsVersion)
@@ -218,21 +222,21 @@ lazy val testsElastic = project
     moduleName := "kg-tests-elastic",
     libraryDependencies ++= Seq(
       commonsTest                  % Test,
-      "io.netty"                   % "netty" % "3.10.6.Final" % Test,
-      "com.fasterxml.jackson.core" % "jackson-core" % "2.8.10" % Test,
-      "com.fasterxml.jackson.core" % "jackson-databind" % "2.8.10" % Test,
-      "com.fasterxml.jackson.core" % "jackson-annotations" % "2.8.10" % Test,
-      "org.apache.lucene"          % "lucene-core" % "7.1.0",
-      "org.elasticsearch"          % "elasticsearch" % "6.1.2",
-      "org.elasticsearch.plugin"   % "transport-netty4-client" % "6.1.2",
+      "io.netty"                   % "netty" % nettyElasticTestsVersion % Test,
+      "com.fasterxml.jackson.core" % "jackson-core" % jacksonElasticTestsVersion % Test,
+      "com.fasterxml.jackson.core" % "jackson-databind" % jacksonElasticTestsVersion % Test,
+      "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonElasticTestsVersion % Test,
+      "org.apache.lucene"          % "lucene-core" % luceneElasticTestsVersion,
+      "org.elasticsearch"          % "elasticsearch" % ESElasticTestsVersion,
+      "org.elasticsearch.plugin"   % "transport-netty4-client" % ESElasticTestsVersion,
       "com.typesafe.akka"          %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion % Test,
     ),
     dependencyOverrides ++= Seq(
-      "com.fasterxml.jackson.core" % "jackson-core"        % "2.8.10" % Test,
-      "com.fasterxml.jackson.core" % "jackson-databind"    % "2.8.10" % Test,
-      "com.fasterxml.jackson.core" % "jackson-annotations" % "2.8.10" % Test,
-      "org.elasticsearch"          % "elasticsearch"       % "6.1.2",
-      "org.apache.lucene"          % "lucene-core"         % "7.1.0"
+      "com.fasterxml.jackson.core" % "jackson-core"        % jacksonElasticTestsVersion % Test,
+      "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonElasticTestsVersion % Test,
+      "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonElasticTestsVersion % Test,
+      "org.elasticsearch"          % "elasticsearch"       % ESElasticTestsVersion,
+      "org.apache.lucene"          % "lucene-core"         % luceneElasticTestsVersion
     ),
     Test / fork := true
   )

@@ -23,6 +23,7 @@ class OrganizationsElasticQueries[F[_]](elasticClient: ElasticClient[F], setting
 }
 
 object OrganizationsElasticQueries {
+
   /**
     * Constructs new `OrganizationsElasticQueries` instance
     * @param elasticClient  Elastic Search client

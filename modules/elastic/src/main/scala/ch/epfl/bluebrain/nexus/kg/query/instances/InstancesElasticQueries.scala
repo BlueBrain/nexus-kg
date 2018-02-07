@@ -64,6 +64,7 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
 }
 
 object InstancesElasticQueries {
+
   /**
     * Constructs new `InstancesElasticQueries` instance
     * @param elasticClient  Elastic Search client
