@@ -10,7 +10,8 @@
         "{{schemaGroup}}": {"type": "keyword"},
         "{{deprecated}": {"type": "boolean"},
         "{{published}}": {"type": "boolean"},
-        "@id": {"type": "keyword"}
+        "@id": {"type": "keyword"},
+        "@type": {"type": "keyword"}
       }
     }
   }
