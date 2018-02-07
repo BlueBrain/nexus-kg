@@ -1,0 +1,2 @@
+curl -XPOST -H "Content-Type: application/json" 'https://nexus.example.com/v0/data?from=20&size=20
+     -d '{"filter":{"op":"lt","path":"nxv:rev","value":3}, "resource": "instances", "deprecated": "true"}'

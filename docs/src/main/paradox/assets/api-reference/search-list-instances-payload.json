@@ -1,0 +1,13 @@
+{
+  "q": "test",
+  "filter": {
+    "op": "lt",
+    "path": "nxv:rev",
+    "value": 3
+  },
+  "resource": "instances",
+  "deprecated": "true",
+  "sort": [
+    "-nxv:createdAtTime"
+  ]
+}
