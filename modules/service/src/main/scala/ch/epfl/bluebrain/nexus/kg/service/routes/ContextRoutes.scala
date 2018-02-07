@@ -45,12 +45,13 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Http route definitions for context specific functionality
   *
-  * @param contextQueries query builder for contexts
-  * @param base           the service public uri + prefix
-  * @param prefixes       the service context URIs
-  * @param iamClient      IAM client
-  * @param ec             execution context
-  * @param clock          the clock used to issue instants
+  * @param contextQueries         query builder for contexts
+  * @param contextsElasticQueries Elastic search client for schemas
+  * @param base                   the service public uri + prefix
+  * @param prefixes               the service context URIs
+  * @param iamClient              IAM client
+  * @param ec                     execution context
+  * @param clock                  the clock used to issue instants
   */
 class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
                     contextsElasticQueries: ContextsElasticQueries[Future],
@@ -211,11 +212,15 @@ object ContextRoutes {
   /**
     * Constructs a new ''ContextRoutes'' instance that defines the the http routes specific to contexts.
     *
-    * @param base      the service public uri + prefix
-    * @param prefixes  the service context URIs
-    * @param iamClient IAM client
-    * @param ec        execution context
-    * @param clock     the clock used to issue instants
+    * @param client          the sparql client
+    * @param elasticClient   Elastic Search client
+    * @param elasticSettings Elastic Search settings
+    * @param querySettings   query parameters form settings
+    * @param base            the service public uri + prefix
+    * @param prefixes        the service context URIs
+    * @param iamClient       IAM client
+    * @param ec              execution context
+    * @param clock           the clock used to issue instants
     * @return a new ''ContextRoutes'' instance
     */
   final def apply(client: SparqlClient[Future],

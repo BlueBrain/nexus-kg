@@ -8,6 +8,13 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
 
+/**
+  * Elastic Search queries for Organizations
+  * @param elasticClient  Elastic Search client
+  * @param settings       Elastic Search settings
+  * @param rs             HTTP client
+  * @tparam F             the monadic effect type
+  */
 class OrganizationsElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
     implicit
     rs: HttpClient[F, QueryResults[OrgId]])
@@ -16,6 +23,14 @@ class OrganizationsElasticQueries[F[_]](elasticClient: ElasticClient[F], setting
 }
 
 object OrganizationsElasticQueries {
+  /**
+    * Constructs new `OrganizationsElasticQueries` instance
+    * @param elasticClient  Elastic Search client
+    * @param settings       Elastic Search settings
+    * @param rs             HTTP client
+    * @tparam F             the monadic effect type
+    * @return new `OrganizationsElasticQueries` instance
+    */
   def apply[F[_]](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
       implicit
       rs: HttpClient[F, QueryResults[OrgId]]): OrganizationsElasticQueries[F] =

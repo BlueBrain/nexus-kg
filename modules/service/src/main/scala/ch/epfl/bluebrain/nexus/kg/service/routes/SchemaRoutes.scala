@@ -48,10 +48,11 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Http route definitions for schema specific functionality.
   *
-  * @param schemas           the schemas operation bundle
-  * @param schemaQueries     query builder for schemas
-  * @param base              the service public uri + prefix
-  * @param prefixes          the service context URIs
+  * @param schemas               the schemas operation bundle
+  * @param schemaQueries         query builder for schemas
+  * @param schemasElasticQueries Elastic search client for schemas
+  * @param base                  the service public uri + prefix
+  * @param prefixes              the service context URIs
   */
 class SchemaRoutes(schemas: Schemas[Future],
                    schemaQueries: FilterQueries[Future, SchemaId],
@@ -232,11 +233,13 @@ object SchemaRoutes {
   /**
     * Constructs a new ''SchemaRoutes'' instance that defines the http routes specific to schemas.
     *
-    * @param schemas       the schemas operation bundle
-    * @param client        the sparql client
-    * @param querySettings query parameters form settings
-    * @param base          the service public uri + prefix
-    * @param prefixes      the service context URIs
+    * @param schemas         the schemas operation bundle
+    * @param client          the sparql client
+    * @param querySettings   query parameters form settings
+    * @param elasticClient   Elastic Search client
+    * @param elasticSettings Elastic Search settings
+    * @param base            the service public uri + prefix
+    * @param prefixes        the service context URIs
     * @return a new ''SchemaRoutes'' instance
     */
   final def apply(schemas: Schemas[Future],

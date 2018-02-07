@@ -10,6 +10,13 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
 import io.circe.Json
 
+/**
+  * Elastic Search queries for instances
+  * @param elasticClient  Elastic Search client
+  * @param settings       Elastic Search settings
+  * @param rs             HTTP client
+  * @tparam F             the monadic effect type
+  */
 class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
     implicit
     rs: HttpClient[F, QueryResults[InstanceId]])
@@ -17,6 +24,15 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
 
   private def schemaTerm(schemaId: SchemaId): Json = term("schema".qualifyAsString, schemaId.qualifyAsString)
 
+  /**
+    * List all instances within a schema name
+    * @param pagination   pagination object
+    * @param schemaName   schema name
+    * @param deprecated   boolean to decide whether to filter deprecated objects
+    * @param published    boolean to decide whether to filter published objects
+    * @return query results
+    *
+    */
   def list(pagination: Pagination,
            schemaName: SchemaName,
            deprecated: Option[Boolean],
@@ -26,6 +42,15 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
       sort = defaultSort)
   }
 
+  /**
+    * List all schemas within a schema ID
+    * @param pagination   pagination object
+    * @param schemaId     schema ID
+    * @param deprecated   boolean to decide whether to filter deprecated objects
+    * @param published    boolean to decide whether to filter published objects
+    * @return query results
+    *
+    */
   def list(pagination: Pagination,
            schemaId: SchemaId,
            deprecated: Option[Boolean],
@@ -39,6 +64,14 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
 }
 
 object InstancesElasticQueries {
+  /**
+    * Constructs new `InstancesElasticQueries` instance
+    * @param elasticClient  Elastic Search client
+    * @param settings       Elastic Search settings
+    * @param rs             HTTP client
+    * @tparam F             the monadic effect type
+    * @return new `InstancesElasticQueries` instance
+    */
   def apply[F[_]](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
       implicit
       rs: HttpClient[F, QueryResults[InstanceId]]): InstancesElasticQueries[F] =

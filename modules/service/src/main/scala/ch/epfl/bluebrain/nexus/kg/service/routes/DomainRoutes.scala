@@ -44,9 +44,10 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Http route definitions for domain specific functionality.
   *
-  * @param domains           the domain operation bundle
-  * @param domainQueries     query builder for domains
-  * @param base              the service public uri + prefix
+  * @param domains               the domain operation bundle
+  * @param domainQueries         query builder for domains
+  * @param domainsElasticQueries Elastic search client for domains
+  * @param base                  the service public uri + prefix
   */
 final class DomainRoutes(domains: Domains[Future],
                          domainQueries: FilterQueries[Future, DomainId],
@@ -158,10 +159,12 @@ object DomainRoutes {
   /**
     * Constructs a new ''DomainRoutes'' instance that defines the http routes specific to domains.
     *
-    * @param domains       the domain operation bundle
-    * @param client        the sparql client
-    * @param querySettings query parameters form settings
-    * @param base          the service public uri + prefix
+    * @param domains         the domain operation bundle
+    * @param client          the sparql client
+    * @param elasticClient   Elastic Search client
+    * @param elasticSettings Elastic Search settings
+    * @param querySettings   query parameters form settings
+    * @param base            the service public uri + prefix
     * @return a new ''DomainRoutes'' instance
     */
   final def apply(domains: Domains[Future],

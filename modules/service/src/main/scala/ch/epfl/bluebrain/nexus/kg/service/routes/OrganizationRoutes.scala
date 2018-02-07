@@ -44,6 +44,7 @@ import scala.concurrent.{ExecutionContext, Future}
   *
   * @param orgs              the organization operation bundle
   * @param orgQueries        query builder for organizations
+  * @param orgElasticQueries Elastic search client for organizations
   * @param base              the service public uri + prefix
   * @param prefixes          the service context URIs
   */
@@ -142,11 +143,13 @@ object OrganizationRoutes {
   /**
     * Constructs a new ''OrganizationRoutes'' instance that defines the http routes specific to organizations.
     *
-    * @param orgs          the organization operation bundle
-    * @param client        the sparql client
-    * @param querySettings query parameters form settings
-    * @param base          the service public uri + prefix
-    * @param prefixes      the service context URIs
+    * @param orgs            the organization operation bundle
+    * @param client          the sparql client
+    * @param elasticClient   Elastic Search client
+    * @param elasticSettings Elastic Search settings
+    * @param querySettings   query parameters form settings
+    * @param base            the service public uri + prefix
+    * @param prefixes        the service context URIs
     * @return a new ''OrganizationRoutes'' instance
     */
   final def apply(orgs: Organizations[Future],

@@ -8,6 +8,13 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
 
+/**
+  * Elastic Search queries for domains
+  * @param elasticClient  Elastic Search client
+  * @param settings       Elastic Search settings
+  * @param rs             HTTP client
+  * @tparam F             the monadic effect type
+  */
 class DomainsElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
     implicit
     rs: HttpClient[F, QueryResults[DomainId]])
@@ -16,6 +23,15 @@ class DomainsElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: Ela
 }
 
 object DomainsElasticQueries {
+
+  /**
+    * Constructs new `DomainsElasticQueries` instance
+    * @param elasticClient  Elastic Search client
+    * @param settings       Elastic Search settings
+    * @param rs             HTTP client
+    * @tparam F             the monadic effect type
+    * @return new `DomainsElasticQueries` instance
+    */
   def apply[F[_]](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
       implicit
       rs: HttpClient[F, QueryResults[DomainId]]): DomainsElasticQueries[F] =

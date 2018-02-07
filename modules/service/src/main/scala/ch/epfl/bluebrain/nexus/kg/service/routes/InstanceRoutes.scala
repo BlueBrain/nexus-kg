@@ -46,10 +46,11 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Http route definitions for instance specific functionality.
   *
-  * @param instances         the instances operation bundle
-  * @param instanceQueries   query builder for schemas
-  * @param base              the service public uri + prefix
-  * @param prefixes          the service context URIs
+  * @param instances               the instances operation bundle
+  * @param instanceQueries         query builder for schemas
+  * @param instancesElasticQueries Elastic search client for instances
+  * @param base                    the service public uri + prefix
+  * @param prefixes                the service context URIs
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
@@ -269,12 +270,14 @@ object InstanceRoutes {
   /**
     * Constructs a new ''InstanceRoutes'' instance that defines the http routes specific to instances.
     *
-    * @param instances     the instances operation bundle
-    * @param contexts      the context operation bundle
-    * @param client        the sparql client
-    * @param querySettings query parameters form settings
-    * @param base          the service public uri + prefix
-    * @param prefixes      the service context URIs
+    * @param instances       the instances operation bundle
+    * @param contexts        the context operation bundle
+    * @param client          the sparql client
+    * @param elasticClient   Elastic Search client
+    * @param elasticSettings Elastic Search settings
+    * @param querySettings   query parameters form settings
+    * @param base            the service public uri + prefix
+    * @param prefixes        the service context URIs
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],

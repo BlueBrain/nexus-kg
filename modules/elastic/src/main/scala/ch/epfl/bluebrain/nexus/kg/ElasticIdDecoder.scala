@@ -7,6 +7,14 @@ import shapeless.Typeable
 
 object ElasticIdDecoder {
 
+  /**
+    * Create and implicit ID decoder which will try to decode `A` from `@id` field in JSON object using
+    * `ConfiguredQualifier[A]`
+    * @param Q    ConfiguredQualifier for A
+    * @param T    Typeable for A
+    * @tparam A   type of object to be decooded
+    * @return     `Deocder` for `S`
+    */
   final implicit def elasticIdDecoder[A](implicit Q: ConfiguredQualifier[A], T: Typeable[A]): Decoder[A] =
     Decoder.decodeJson.emap { json =>
       json.hcursor
