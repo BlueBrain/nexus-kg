@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.core.queries.Field
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.query.LinksQueryResults
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval
 import io.circe.Encoder
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -50,7 +51,7 @@ trait SearchResponse {
     @SuppressWarnings(Array("MaxParameters"))
     def buildResponse[Entity](fields: Set[Field], base: Uri, prefixes: PrefixUris, pagination: Pagination)(
         implicit
-        f: Id => Future[Option[Entity]],
+        f: IdToEntityRetrieval[Id, Entity],
         ec: ExecutionContext,
         R: Encoder[UnscoredQueryResult[Id]],
         S: Encoder[ScoredQueryResult[Id]],

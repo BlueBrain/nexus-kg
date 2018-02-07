@@ -24,6 +24,14 @@ object CommonRejections {
   final case class IllegalParam(override val message: String) extends Err(message) with CommonRejections
 
   /**
+    * Signals the inability to convert the requested payload.
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case class IllegalPayload(override val message: String, details: Option[String])
+      extends Err(message)
+      with CommonRejections
+
+  /**
     * Signals the inability to connect to an underlying service to perform a request
     *
     * @param message a human readable description of the cause

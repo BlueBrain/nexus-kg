@@ -14,20 +14,19 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
-import io.circe.{Encoder, Json}
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.OrgCustomEncoders
+import io.circe.Json
 import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -52,15 +51,15 @@ final class OrganizationRoutes(orgs: Organizations[Future], orgQueries: FilterQu
     prefixes: PrefixUris)
     extends DefaultRouteHandling(contexts) {
 
-  private implicit val _                           = (entity: Organization) => entity.id
   private implicit val coreContext: ContextUri     = prefixes.CoreContext
   private implicit val encoders: OrgCustomEncoders = new OrgCustomEncoders(base, prefixes)
   import encoders._
+  private implicit val _ = orgIdToEntityRetrieval(orgs)
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (pathEndOrSingleSlash & get & paramsToQuery) { (pagination, query) =>
       (operationName("searchOrganizations") & authenticateCaller) { implicit caller =>
-        implicit val _ = (id: OrgId) => orgs.fetch(id)
+        implicit val _ = orgIdToEntityRetrieval(orgs)
         orgQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
       }
     }
@@ -147,22 +146,5 @@ object OrganizationRoutes {
     val orgQueries =
       FilterQueries[Future, OrgId](SparqlQuery[Future](client))
     new OrganizationRoutes(orgs, orgQueries, base)
-  }
-}
-
-class OrgCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Organization => OrgId)
-    extends RoutesEncoder[OrgId, OrgRef, Organization](base, prefixes) {
-
-  implicit val orgRefEncoder: Encoder[OrgRef] = refEncoder
-
-  implicit val orgEncoder: Encoder[Organization] = Encoder.encodeJson.contramap { org =>
-    val meta = refEncoder
-      .apply(OrgRef(org.id, org.rev))
-      .deepMerge(idWithLinksEncoder(org.id))
-      .deepMerge(
-        Json.obj(
-          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(org.deprecated)
-        ))
-    org.value.deepMerge(meta)
   }
 }

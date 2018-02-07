@@ -1,0 +1,7 @@
+{
+  "@context": {
+    "nxx": "{{CoreVocabulary}}"
+  },
+  "sort" : ["-nxx:createdAtTime", "rdf:type"],
+  "resource": "domains"
+}

@@ -35,6 +35,8 @@ object RejectionHandling {
           complete(BadRequest -> (IllegalParam(err.getMessage): CommonRejections))
         case ValidationRejection(_, Some(e: IllegalVersionFormat)) =>
           complete(BadRequest -> (e: CommonRejections))
+        case ValidationRejection(_, Some(e: IllegalPayload)) =>
+          complete(BadRequest -> (e: CommonRejections))
         case CustomAuthorizationRejection(e) =>
           complete(InternalServerError -> (e: CommonRejections))
         case _: AuthorizationFailedRejection =>

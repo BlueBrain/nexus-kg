@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 
 import java.time.Clock
 
-import akka.http.scaladsl.marshalling.ToEntityMarshaller
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
@@ -14,26 +13,23 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
-import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId, ContextRef, Contexts}
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection.CannotUnpublishContext
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{FilteringSettings}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.Publish
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.ContextCustomEncoders
+import io.circe.Json
 import io.circe.generic.auto._
-import io.circe.{Encoder, Json, Printer}
 import kamon.akka.http.KamonTraceDirectives.operationName
-
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -58,7 +54,6 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
     extends DefaultRouteHandling(contexts)
     with QueryDirectives {
 
-  private implicit val _                                      = (entity: Context) => entity.id
   private implicit val contextEncoders: ContextCustomEncoders = new ContextCustomEncoders(base, prefixes)
   import contextEncoders._
 
@@ -139,7 +134,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId], base: Uri)
   override protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & paramsToQuery) { (pagination, query) =>
       operationName("searchContexts") {
-        implicit val _ = (id: ContextId) => contexts.fetch(id)
+        implicit val _ = contextIdToEntityRetrieval(contexts)
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           contextQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
         } ~
@@ -200,37 +195,4 @@ object ContextRoutes {
     */
   final case class ContextConfig(published: Boolean)
 
-}
-
-class ContextCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Context => ContextId)
-    extends RoutesEncoder[ContextId, ContextRef, Context](base, prefixes) {
-
-  implicit val contextRefEncoder: Encoder[ContextRef] = refEncoder.mapJson(_.addCoreContext)
-
-  implicit val contextEncoder: Encoder[Context] = Encoder.encodeJson.contramap { ctx =>
-    val meta = refEncoder
-      .apply(ContextRef(ctx.id, ctx.rev))
-      .deepMerge(idWithLinksEncoder(ctx.id))
-      .deepMerge(
-        Json.obj(
-          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(ctx.deprecated),
-          JsonLDKeys.nxvPublished  -> Json.fromBoolean(ctx.published)
-        )
-      )
-    if (ctx.id.qualify == prefixes.CoreContext.context)
-      ctx.value.deepMerge(meta)
-    else
-      ctx.value.deepMerge(meta).addCoreContext
-  }
-
-  /**
-    * Custom marshaller that doesn't inject the context into the JSON-LD payload.
-    *
-    * @return a [[Context]] marshaller
-    */
-  implicit def marshallerHttp(implicit
-                              encoder: Encoder[Context],
-                              printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
-                              keys: OrderedKeys = OrderedKeys()): ToEntityMarshaller[Context] =
-    jsonLdMarshaller.compose(encoder.apply)
 }

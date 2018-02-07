@@ -14,22 +14,20 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{authenticateCaller, _}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutes.DomainDescription
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.DomainCustomEncoders
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
 import io.circe.generic.auto._
-import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -52,14 +50,13 @@ final class DomainRoutes(domains: Domains[Future], domainQueries: FilterQueries[
     prefixes: PrefixUris)
     extends DefaultRouteHandling(contexts) {
 
-  private implicit val _                              = (entity: Domain) => entity.id
   private implicit val coreContext: ContextUri        = prefixes.CoreContext
   private implicit val encoders: DomainCustomEncoders = new DomainCustomEncoders(base, prefixes)
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & paramsToQuery) { (pagination, query) =>
-      implicit val _ = (id: DomainId) => domains.fetch(id)
+      implicit val _ = domainIdToEntityRetrieval(domains)
       operationName("searchDomains") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           domainQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
@@ -150,22 +147,5 @@ object DomainRoutes {
     implicit val qs: QuerySettings = querySettings
     val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client))
     new DomainRoutes(domains, domainQueries, base)
-  }
-}
-
-class DomainCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Domain => DomainId)
-    extends RoutesEncoder[DomainId, DomainRef, Domain](base, prefixes) {
-
-  implicit val domainRefEncoder: Encoder[DomainRef] = refEncoder
-
-  implicit def domainEncoder: Encoder[Domain] = Encoder.encodeJson.contramap { domain =>
-    refEncoder
-      .apply(DomainRef(domain.id, domain.rev))
-      .deepMerge(idWithLinksEncoder(domain.id))
-      .deepMerge(
-        Json.obj(
-          JsonLDKeys.nxvDeprecated  -> Json.fromBoolean(domain.deprecated),
-          JsonLDKeys.nxvDescription -> Json.fromString(domain.description)
-        ))
   }
 }

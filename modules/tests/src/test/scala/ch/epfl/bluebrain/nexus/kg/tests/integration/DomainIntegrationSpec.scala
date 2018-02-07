@@ -9,6 +9,7 @@ import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
@@ -23,6 +24,7 @@ import io.circe.Json
 import io.circe.syntax._
 import org.scalatest._
 import org.scalatest.time.{Seconds, Span}
+import Pattern.quote
 
 import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
@@ -32,7 +34,8 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
                                                                              as: ActorSystem,
                                                                              ec: ExecutionContextExecutor,
                                                                              mt: ActorMaterializer)
-    extends BootstrapIntegrationSpec(apiUri, prefixes) {
+    extends BootstrapIntegrationSpec(apiUri, prefixes)
+    with Resources {
 
   import BootstrapIntegrationSpec._
   import domsEncoders._
@@ -92,14 +95,49 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
                   "@context" -> s"${prefixes.LinksContext}",
                   "self"     -> s"$apiUri$uri",
                   "next" -> s"$apiUri$uri&from=10&size=10"
-                    .replaceAll(Pattern.quote("%3A"), ":")
-                    .replaceAll(Pattern.quote("%2F"), "/")
+                    .replaceAll(quote("%3A"), ":")
+                    .replaceAll(quote("%2F"), "/")
                 )
                 contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
                 responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
               }
           }
 
+        }
+      }
+
+      "list all domains sorted in creation order using stored query" in {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
+          val queries = List(
+            jsonContentOf(
+              "/query/query-sort.json",
+              scala.collection.immutable.Map(quote("{{CoreVocabulary}}") -> prefixes.CoreVocabulary.toString)),
+            jsonContentOf(
+              "/query/query-sort-context.json",
+              scala.collection.immutable.Map(quote("{{CoreVocabulary}}") -> prefixes.CoreVocabulary.toString))
+          )
+          forAll(queries) { query =>
+            Post("/queries", query) ~> addCredentials(ValidCredentials) ~> route ~> check {
+              status shouldEqual StatusCodes.PermanentRedirect
+              val location = header("Location").get.value()
+              location should startWith(s"$apiUri/queries/")
+              location should endWith(s"?from=0&size=10")
+              val path = location.replace(apiUri.toString, "")
+              Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
+                status shouldEqual StatusCodes.OK
+                contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+                val expectedResults =
+                  UnscoredQueryResults(domains.size.toLong, domains.takeRight(10).reverse.map(UnscoredQueryResult(_)))
+                val expectedLinks = Links(
+                  "@context" -> s"${prefixes.LinksContext}",
+                  "self"     -> s"$apiUri$path",
+                  "next"     -> s"""$apiUri${path.replace("from=0", "from=10")}"""
+                )
+                contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+                responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+              }
+            }
+          }
         }
       }
 
@@ -206,6 +244,30 @@ class DomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(imp
             UnscoredQueryResults(1L, List(UnscoredQueryResult(domainId)))
           val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
           responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+        }
+      }
+
+      "list domains with filter of description using stored query" in {
+        val domainId = domains(7)
+        val query = jsonContentOf(
+          "/query/query-filter.json",
+          scala.collection.immutable.Map(quote("{{description_path}}")  -> "description".qualifyAsString,
+                                         quote("{{description_value}}") -> descriptionOf(domainId))
+        )
+        Post("/queries/rand", query) ~> addCredentials(ValidCredentials) ~> route ~> check {
+          status shouldEqual StatusCodes.PermanentRedirect
+          val location = header("Location").get.value()
+          location should startWith(s"$apiUri/queries/")
+          location should endWith(s"?from=0&size=10")
+          val path = location.replace(apiUri.toString, "")
+          Get(path) ~> addCredentials(ValidCredentials) ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+            val expectedResults =
+              UnscoredQueryResults(1L, List(UnscoredQueryResult(domainId)))
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri$path"))
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+          }
         }
       }
 
