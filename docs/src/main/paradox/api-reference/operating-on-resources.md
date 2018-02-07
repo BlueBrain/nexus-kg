@@ -119,10 +119,77 @@ DELETE /v0/{address}?rev={previous_rev}
 All collection resources support full text search with filtering and pagination and present a consistent data model
 as the result envelope.
 
-General form:
+### Using POST queries
+
+```
+POST /v0/{collection_address}?from={from}&size={size}
+{...}
+```
+... where all of the query parameters are individually optional.
+
+- `{collection_address}` is the selected collection to list, filter or search; for example: `/v0/data`, `/v0/schemas`,
+`/v0/data/myorg/mydomain`
+- `{from}`: Number - is the parameter that describes the offset for the current query; defaults to `0`
+- `{size}`: Number - is the parameter that limits the number of results; defaults to `20`
+
+The json payload is defined as...
+```
+{
+  "@context": { ... },
+  "filter": { ... },
+  "q": "fullTextSearchQuery",
+  "resource": "instances|schemas|contexts|domains|organizations",
+  "deprecated": false|true,
+  "published": false|true,
+  "format": "compacted|expanded|flattened|framed|default",
+  "fields": [ "uri1", ..., "uriN"],
+  "sort": [ "uri1", ..., "uriN" ]
+}
+```
+
+... where all of the query parameters are individually optional.
+
+- `@context`: JsonLd - can be provided to define extra prefix mappings. By default, the search core context will be used. If this filed is provided, its content will be merged with the search core context.
+- `filter`: Filter - can provide the filtering expression, explained [here](#filter-expressions)
+- `q`: String - can be provided to select only the resources in the collection that have
+       attribute values matching (containing) the provided token; when this field is provided the results will also include
+       score values for each result
+- `resource`: String - can be provided to define the target type of resource. Default value: instances
+- `deprecated`: Boolean - can be provided to filter the resulting resources based on their deprecation status
+- `published`: Boolean - can be provided to filter the resulting resources based on their published status
+- `format`: String - can be provided to define the output format of the response. Default value: default
+- `fields`: List[String] - can be provided to define which fields to show in the response. The reserved keyword `all` retrieves all the fields.
+- `sort`: List[String] - can be provided to define the sorting criteria of the results. fields to show in the response.
+          Prefixing a field with `-` will result into descending ordering on that field while prefixing it with `+` results in ascending ordering. When no prefix is set, the default behaviour is to assume ascending ordering..
+
+Filtering example while listing:
+
+List Instances
+: @@snip [list-instances-post.txt](../assets/api-reference/list-instances-post.txt) { type=shell }
+
+List Instances Payload
+: @@snip [list-instances-payload.json](../assets/api-reference/list-instances-payload.json)
+
+List Instances Response
+:   @@snip [instance-list.json](../assets/api-reference/instance-list.json)
+
+Filtering example while searching (notice the additional score related fields):
+
+Search and Filter Instances
+: @@snip [search-list-instances-post.txt](../assets/api-reference/search-list-instances-post.txt) { type=shell }
+
+Search and Filter Instances Payload
+: @@snip [search-list-instances-payload.json](../assets/api-reference/search-list-instances-payload.json)
+
+Search and Filter Instances Response
+:   @@snip [instance-list.json](../assets/api-reference/instance-search-list.json)
+
+### Using GET and query parameters
+
 ```
 GET /v0/{collection_address}
       ?q={full_text_search_query}
+      &context={context}
       &filter={filter}
       &fields={fields}
       &sort={sort}
@@ -137,9 +204,10 @@ GET /v0/{collection_address}
 - `{full_text_search_query}`: String - can be provided to select only the resources in the collection that have
 attribute values matching (containing) the provided token; when this field is provided the results will also include
 score values for each result
+- `{context}`: JsonLd - can be provided to define extra prefix mappings. By default, the search core context will be used. If this filed is provided, its content will be merged with the search core context.
 - `{filter}`: JsonLd - a filtering expression in JSON-LD format (the structure of the filter is explained below)
 - `{fields}`: a comma separated list of fields which are going to be retrieved as a result. The reserved keyword `all` retrieves all the fields.
-- `{sort}`: a comma separated list of fields (absolute qualified URIs) which are going to be used to order the results. Prefixing a field with `-` will result into descending ordering on that field while prefixing it with `+` results in ascending ordering. When no prefix is set, the default behaviour is to assume ascending ordering..
+- `{sort}`: a comma separated list of fields (absolute qualified URIs) which are going to be used to order the results. Prefixing a field with `-` will result into descending ordering on that field while prefixing it with `+` results in ascending ordering. When no prefix is set, the default behaviour is to assume ascending ordering.
 - `{from}`: Number - is the parameter that describes the offset for the current query; defaults to `0`
 - `{size}`: Number - is the parameter that limits the number of results; defaults to `20`
 - `{deprecated}`: Boolean - can be used to filter the resulting resources based on their deprecation status
@@ -185,34 +253,21 @@ logicalExpr     = json {
 
 filterExpr      = logicalExpr | comparisonExpr
 
-filter          = json {
-                      "@context": {...},
-                      "filter": filterExpr
-                    }
+json {
+  "@context": {...},
+  "filter": filterExpr
+}
 ```
 ... which roughly means:
 
 - a filter is a json-ld document
-- with a user defined context
 - that describes a filter value as a filter expression
 - a filter expression is either a comparison expression or a logical expression
 - a comparison expression contains a path property (a uri or a [property path](https://www.w3.org/TR/sparql11-query/#propertypaths)), the value to compare and an
   operator which describes how to compare that value
 - a logical expression contains a collection of filter expressions joined together through a logical operator
 
-Before evaluating the filter, the json-ld document is provided with an additional default context that overrides any
-user defined values in case of collisions:
-```
-{
-  "@context": {
-    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
-    "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
-    "path": "nxs:path",
-    "op": "nxs:operator",
-    "value": "nxs:value",
-    "filter": "nxs:filter"
-  }
-}
+
 ```
 
 Example filters:
