@@ -18,26 +18,20 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceId, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
-import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.JsonLDKeys
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.InstanceCustomEncoders
+import io.circe.Json
 import io.circe.generic.auto._
-import io.circe.syntax._
-import io.circe.{Encoder, Json}
 import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -63,14 +57,13 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                                 prefixes: PrefixUris)
     extends DefaultRouteHandling(contexts) {
 
-  private implicit val _                                = (entity: Instance) => entity.id
   private implicit val encoders: InstanceCustomEncoders = new InstanceCustomEncoders(base, prefixes)
   private implicit val coreContext: ContextUri          = prefixes.CoreContext
   import encoders._
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & paramsToQuery) { (pagination, query) =>
-      implicit val _ = (id: InstanceId) => instances.fetch(id)
+      implicit val _ = instanceIdToEntityRetrieval(instances)
       operationName("searchInstances") {
         (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
           instanceQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
@@ -245,59 +238,6 @@ object InstanceRoutes {
     implicit val qs: QuerySettings = querySettings
     val instanceQueries            = FilterQueries[Future, InstanceId](SparqlQuery[Future](client))
     new InstanceRoutes(instances, instanceQueries, base)
-  }
-
-}
-
-class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)(implicit E: Instance => InstanceId)
-    extends RoutesEncoder[InstanceId, InstanceRef, Instance](base, prefixes) {
-
-  implicit val qualifierSchema: ConfiguredQualifier[SchemaId] = Qualifier.configured[SchemaId](base)
-
-  implicit val instanceEncoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
-    val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
-    val ours        = instance.attachment.map(_.asJson.addDistributionContext).toList
-    val theirs      = instance.value.asObject.flatMap(_.apply(JsonLDKeys.distribution)).toList
-    val merged      = ours ++ theirs
-
-    val meta = refEncoder
-      .apply(instanceRef)
-      .deepMerge(instanceIdWithLinksEncoder(instance.id))
-      .deepMerge(if (merged.isEmpty) {
-        Json.obj(
-          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated)
-        )
-      } else {
-        Json.obj(
-          JsonLDKeys.nxvDeprecated -> Json.fromBoolean(instance.deprecated),
-          JsonLDKeys.distribution  -> Json.fromValues(merged)
-        )
-      })
-
-    instance.value.deepMerge(meta)
-  }
-
-  implicit val instanceRefEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
-    ref.attachment match {
-      case Some(attachment) =>
-        refEncoder
-          .apply(ref)
-          .deepMerge(Json.obj(JsonLDKeys.distribution -> Json.arr(attachment.asJson.addDistributionContext)))
-
-      case None =>
-        refEncoder
-          .apply(ref)
-    }
-  }
-
-  implicit val instanceIdWithLinksEncoder: Encoder[InstanceId] = Encoder.encodeJson.contramap { instanceId =>
-    val linksJson = Links(
-      "self"     -> instanceId.qualify,
-      "schema"   -> instanceId.schemaId.qualify,
-      "outgoing" -> s"${instanceId.qualifyAsString}/outgoing",
-      "incoming" -> s"${instanceId.qualifyAsString}/incoming"
-    ).asJson
-    idWithLinksEncoder.apply(instanceId) deepMerge Json.obj("links" -> linksJson)
   }
 
 }

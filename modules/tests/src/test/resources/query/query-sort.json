@@ -1,0 +1,4 @@
+{
+  "sort" : ["-nxv:createdAtTime", "rdf:type"],
+  "resource": "domains"
+}

@@ -11,15 +11,15 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.core.contexts.{Context, ContextId}
-import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId}
-import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId}
-import ch.epfl.bluebrain.nexus.kg.core.ConfiguredQualifier
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextId
+import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
+import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.routes.SchemaRoutes.SchemaConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes._
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders._
 import io.circe._
 import io.circe.generic.semiauto._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
@@ -58,11 +58,6 @@ abstract class BootstrapIntegrationSpec(apiUri: Uri, prefixes: PrefixUris)(impli
 
   implicit val schemaConfig: Encoder[SchemaConfig]    = deriveEncoder[SchemaConfig]
   implicit val qualifier: ConfiguredQualifier[String] = Qualifier.configured[String](prefixes.CoreVocabulary)
-  private implicit val domainIdExtractor              = (entity: Domain) => entity.id
-  private implicit val orgIdExtractor                 = (entity: Organization) => entity.id
-  private implicit val schemaIdExtractor              = (entity: Schema) => entity.id
-  private implicit val contextIdExtractor             = (entity: Context) => entity.id
-  private implicit val instanceIdExtractor            = (entity: Instance) => entity.id
 
   val orgsEncoders     = new OrgCustomEncoders(apiUri, prefixes)
   val domsEncoders     = new DomainCustomEncoders(apiUri, prefixes)

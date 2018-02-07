@@ -5,6 +5,9 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextId
+import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.Eq
@@ -37,5 +40,20 @@ object SchemaNameFilterExpr {
     override def apply(schemaName: SchemaName)(implicit Q: ConfiguredQualifier[String],
                                                schemaNameQ: ConfiguredQualifier[SchemaName]) =
       ComparisonExpr(Eq, SeqPath(UriPath("schema" qualify), UriPath(schemaGroupKey)), UriTerm(schemaName qualify))
+  }
+
+  implicit val orgFilterExpr = new SchemaNameFilterExpr[OrgId] {
+    override def apply(schemaName: SchemaName)(implicit Q: ConfiguredQualifier[String],
+                                               schemaNameQ: ConfiguredQualifier[SchemaName]): Expr = Expr.NoopExpr
+  }
+
+  implicit val domainFilterExpr = new SchemaNameFilterExpr[DomainId] {
+    override def apply(schemaName: SchemaName)(implicit Q: ConfiguredQualifier[String],
+                                               schemaNameQ: ConfiguredQualifier[SchemaName]): Expr = Expr.NoopExpr
+  }
+
+  implicit val contextFilterExpr = new SchemaNameFilterExpr[ContextId] {
+    override def apply(schemaName: SchemaName)(implicit Q: ConfiguredQualifier[String],
+                                               schemaNameQ: ConfiguredQualifier[SchemaName]): Expr = Expr.NoopExpr
   }
 }

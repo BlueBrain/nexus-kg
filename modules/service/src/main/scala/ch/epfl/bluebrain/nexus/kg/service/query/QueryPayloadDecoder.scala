@@ -58,7 +58,14 @@ object QueryPayloadDecoder {
     */
   final def apply(ctx: Json)(implicit fs: FilteringSettings): QueryPayloadDecoder = new QueryPayloadDecoder(ctx)
 
-  final def resolveContext(context: Json)(implicit fs: FilteringSettings, ctxs: Contexts[Future]): Future[Json] =
+  /**
+    * Resolves the context merging the @context inside the provided ''json'' with the context in ''fs''
+    *
+    * @param json the json which may contain a ''@context'' value
+    */
+  final def resolveContext(json: Json)(implicit fs: FilteringSettings, ctxs: Contexts[Future]): Future[Json] = {
+    val context = json.hcursor.get[Json]("@context").getOrElse(Json.obj())
     ctxs.resolve(context.deepMerge(fs.ctx))
+  }
 
 }

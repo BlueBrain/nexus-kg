@@ -59,14 +59,14 @@ class QueryPayloadDecoderSpec
         filter = filter,
         deprecated = Some(true),
         published = Some(true),
-        format = JsonLdFormat.Expanded,
+        format = JsonLdFormat.Compacted,
         sort = SortList(List(Sort(s"-http://example.com/prov#createdAtTime")))
       )
     )
     "be decoded properly from json" in {
       forAll(list) {
         case (json, model) =>
-          QueryPayloadDecoder.resolveContext(json.hcursor.get[Json]("@context").getOrElse(Json.obj())).map { ctx =>
+          QueryPayloadDecoder.resolveContext(json).map { ctx =>
             val decoders = QueryPayloadDecoder(ctx)
             import decoders._
             json.as[QueryPayload] shouldEqual model

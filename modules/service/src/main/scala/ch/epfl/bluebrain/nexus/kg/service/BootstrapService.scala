@@ -28,11 +28,14 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.kg.core.cache.ShardedCache.CacheSettings
+import ch.epfl.bluebrain.nexus.kg.core.cache.{Cache, ShardedCache}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.instances.Instances
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.AttachmentLocation
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
+import ch.epfl.bluebrain.nexus.kg.core.queries.{Queries, Query}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
@@ -41,6 +44,7 @@ import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes._
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.GroupedIdsToEntityRetrieval
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
@@ -75,20 +79,21 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   val elasticClient = ElasticClient[Future](settings.Elastic.BaseUri, elasticQueryClient)
 
-  val (orgs, doms, schemas, contexts, instances) = operations()
+  val (orgs, doms, schemas, contexts, instances, queries) = operations()
 
   private implicit val iamC: IamClient[Future]  = iamClient(settings.IAM.BaseUri)
   private implicit val clock: Clock             = Clock.systemUTC
   private implicit val orderedKeys: OrderedKeys = kgOrderedKeys
   private implicit val prefixes: PrefixUris     = settings.Prefixes
-
+  private val idsToEntities                     = new GroupedIdsToEntityRetrieval(instances, schemas, contexts, doms, orgs)
   private val apis = uriPrefix(apiUri) {
     implicit val ctxs = contexts
     OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri).routes ~
       DomainRoutes(doms, sparqlClient, querySettings, apiUri).routes ~
       SchemaRoutes(schemas, sparqlClient, querySettings, apiUri).routes ~
       ContextRoutes(sparqlClient, querySettings, apiUri).routes ~
-      InstanceRoutes(instances, sparqlClient, querySettings, apiUri).routes
+      InstanceRoutes(instances, sparqlClient, querySettings, apiUri).routes ~
+      QueryRoutes(queries, sparqlClient, querySettings, idsToEntities, apiUri).routes
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)
 
@@ -148,7 +153,9 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch))
     implicit val instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]] =
       Instances(instancesAgg, schemas, contexts, validator, inFileProcessor)
-    (orgs, doms, schemas, contexts, instances)
+    val cache: Cache[Future, Query] = ShardedCache[Query]("queries", CacheSettings())
+    val queries: Queries[Future]    = Queries(cache)
+    (orgs, doms, schemas, contexts, instances, queries)
   }
 
   def joinCluster(): Unit = cluster.joinSeedNodes(seeds.toList)

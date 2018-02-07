@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.directives
 
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive, Directive1, MalformedQueryParamRejection}
+import akka.http.scaladsl.server.{Directive, Directive1, MalformedQueryParamRejection, ValidationRejection}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.WrongOrInvalidJson
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
@@ -11,16 +11,40 @@ import ch.epfl.bluebrain.nexus.kg.core.queries.{Field, JsonLdFormat}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.directives.StringUnmarshaller._
 import ch.epfl.bluebrain.nexus.kg.service.query.QueryPayloadDecoder
+import ch.epfl.bluebrain.nexus.kg.service.query.QueryPayloadDecoder._
+import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalPayload
 import io.circe.parser._
 import io.circe.{Decoder, Json}
 
 import scala.concurrent.Future
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 /**
   * Collection of query specific directives.
   */
 trait QueryDirectives {
+
+  def queryEntity(implicit fs: FilteringSettings, ctxs: Contexts[Future]): Directive1[QueryPayload] = {
+    import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
+    entity(as[Json]).flatMap { json =>
+      onComplete(resolveContext(json)) flatMap {
+        case Success(jsonCtx) =>
+          val queryDec = QueryPayloadDecoder(jsonCtx)
+          import queryDec._
+          json.as[QueryPayload] match {
+            case Right(query) => provide(query)
+            case Left(err) =>
+              reject(
+                ValidationRejection("Error converting json to query",
+                                    Some(IllegalPayload("Error converting json to query", Some(err.message)))))
+          }
+        case Failure(_) =>
+          reject(
+            ValidationRejection("The context resolution did not succeed",
+                                Some(IllegalPayload("The context resolution did not succeed", None))))
+      }
+    }
+  }
 
   /**
     * Extracts pagination specific query params from the request or defaults to the preconfigured values.

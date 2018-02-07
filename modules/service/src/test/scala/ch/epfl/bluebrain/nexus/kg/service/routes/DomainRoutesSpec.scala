@@ -23,6 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.routes.DomainRoutesSpec._
 import ch.epfl.bluebrain.nexus.kg.service.routes.Error.classNameOf
+import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.DomainCustomEncoders
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.Json
