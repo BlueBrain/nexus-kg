@@ -439,6 +439,7 @@ class InstanceRoutesSpec
           .deepMerge(Json.obj("distribution" -> Json.arr(
             Json.obj(
               "@context"         -> Json.fromString(prefixes.DistributionContext.toString),
+              downloadUrlKey     -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}/attachment"),
               "originalFileName" -> Json.fromString(filename),
               "mediaType"        -> Json.fromString(ContentTypes.`text/csv(UTF-8)`.toString),
               "contentSize"      -> Size(value = size).asJson,
@@ -579,7 +580,11 @@ object InstanceRoutesSpec {
         "nxv:rev"  -> Json.fromLong(ref.rev),
         "distribution" ->
           Json.arr(
-            attachment.asJson.deepMerge(Json.obj("@context" -> Json.fromString(prefixes.DistributionContext.toString))))
+            attachment.asJson.deepMerge(
+              Json.obj(
+                "@context"     -> Json.fromString(prefixes.DistributionContext.toString),
+                downloadUrlKey -> Json.fromString(s"$baseUri/data/${ref.id.show}/attachment")
+              )))
       )
     case None =>
       Json.obj(

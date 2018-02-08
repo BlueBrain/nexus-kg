@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.service.routes.encoders
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment.downloadUrlKey
 import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
@@ -21,7 +22,8 @@ class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)
 
   implicit val instanceEncoder: Encoder[Instance] = Encoder.encodeJson.contramap { instance =>
     val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
-    val ours        = instance.attachment.map(_.asJson.addDistributionContext).toList
+    val downloadURL = Json.obj("downloadURL" -> Json.fromString(s"${instance.id.qualifyAsString}/attachment"))
+    val ours        = instance.attachment.map(_.asJson.addDistributionContext deepMerge downloadURL).toList
     val theirs      = instance.value.asObject.flatMap(_.apply(JsonLDKeys.distribution)).toList
     val merged      = ours ++ theirs
 
@@ -45,9 +47,11 @@ class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)
   implicit val instanceRefEncoder: Encoder[InstanceRef] = Encoder.encodeJson.contramap { ref =>
     ref.attachment match {
       case Some(attachment) =>
+        val downloadURL = Json.obj(downloadUrlKey -> Json.fromString(s"${ref.id.qualifyAsString}/attachment"))
         refEncoder
           .apply(ref)
-          .deepMerge(Json.obj(JsonLDKeys.distribution -> Json.arr(attachment.asJson.addDistributionContext)))
+          .deepMerge(Json.obj(
+            JsonLDKeys.distribution -> Json.arr(attachment.asJson.addDistributionContext deepMerge downloadURL)))
 
       case None =>
         refEncoder
