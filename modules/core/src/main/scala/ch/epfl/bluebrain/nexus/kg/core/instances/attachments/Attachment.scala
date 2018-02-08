@@ -2,6 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.core.instances.attachments
 
 object Attachment {
 
+  val downloadUrlKey = "downloadURL"
+
   /**
     * Holds all the metadata information related to an attachment.
     *
