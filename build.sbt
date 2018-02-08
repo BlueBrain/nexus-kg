@@ -9,7 +9,7 @@ val catsVersion                     = "1.0.1"
 val circeVersion                    = "0.9.0"
 val logbackVersion                  = "1.2.3"
 val journalVersion                  = "3.0.19"
-val commonsVersion                  = "0.7.2"
+val commonsVersion                  = "0.7.3"
 val metricsCoreVersion              = "3.2.6"
 val jenaVersion                     = "3.6.0"
 val blazegraphVersion               = "2.1.4"
@@ -155,8 +155,6 @@ lazy val service = project
   .settings(
     name := "kg-service",
     moduleName := "kg-service",
-    resolvers += Resolver
-      .bintrayRepo("kamon-io", "releases"), // TODO: remove once artifacts are synced to maven central
     libraryDependencies ++= Seq(
       iamCommons,
       commonsService,
@@ -220,7 +218,7 @@ lazy val noPublish = Seq(publishLocal := {}, publish := {})
 
 lazy val common = Seq(
   scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
-  workbenchVersion := "0.2.2",
+  workbenchVersion := "0.3.0",
   homepage := Some(url("https://github.com/BlueBrain/nexus-kg")),
   licenses := Seq("Apache-2.0" -> url("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")),
   scmInfo := Some(

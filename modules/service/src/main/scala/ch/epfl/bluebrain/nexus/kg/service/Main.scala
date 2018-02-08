@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import com.typesafe.config.ConfigFactory
 import kamon.Kamon
+import kamon.system.SystemMetrics
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
@@ -20,6 +21,7 @@ object Main {
 
   @SuppressWarnings(Array("UnusedMethodParameter"))
   def main(args: Array[String]): Unit = {
+    SystemMetrics.startCollecting()
     Kamon.loadReportersFromConfig()
     val config   = ConfigFactory.load()
     val settings = new Settings(config)
@@ -56,6 +58,7 @@ object Main {
     as.registerOnTermination {
       bootstrap.leaveCluster()
       Kamon.stopAllReporters()
+      SystemMetrics.stopCollecting()
     }
 
     // attempt to leave the cluster before shutting down
