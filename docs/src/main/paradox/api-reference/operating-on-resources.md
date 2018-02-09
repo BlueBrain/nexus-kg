@@ -116,13 +116,15 @@ DELETE /v0/{address}?rev={previous_rev}
 
 ## Search and filtering
 
-All collection resources support full text search with filtering and pagination and present a consistent data model
-as the result envelope.
+The search and filtering is managed by its own main resource, found in [queries](./queries.md). Alternatively, you can use
+the GET verb and the `{collection_address}` endpoints to perform searches. However, for complex queries the [queries](./queries.md) resource is recommended.
 
-General form:
+### GET search and filtering
+
 ```
 GET /v0/{collection_address}
       ?q={full_text_search_query}
+      &context={context}
       &filter={filter}
       &fields={fields}
       &sort={sort}
@@ -137,9 +139,10 @@ GET /v0/{collection_address}
 - `{full_text_search_query}`: String - can be provided to select only the resources in the collection that have
 attribute values matching (containing) the provided token; when this field is provided the results will also include
 score values for each result
+- `{context}`: JsonLd - can be provided to define extra prefix mappings. By default, the search core context will be used. If this field is provided, its content will be merged with the search core context.
 - `{filter}`: JsonLd - a filtering expression in JSON-LD format (the structure of the filter is explained below)
 - `{fields}`: a comma separated list of fields which are going to be retrieved as a result. The reserved keyword `all` retrieves all the fields.
-- `{sort}`: a comma separated list of fields (absolute qualified URIs) which are going to be used to order the results. Prefixing a field with `-` will result into descending ordering on that field while prefixing it with `+` results in ascending ordering. When no prefix is set, the default behaviour is to assume ascending ordering..
+- `{sort}`: a comma separated list of fields (absolute qualified URIs) which are going to be used to order the results. Prefixing a field with `-` will result into descending ordering on that field while prefixing it with `+` results in ascending ordering. When no prefix is set, the default behaviour is to assume ascending ordering.
 - `{from}`: Number - is the parameter that describes the offset for the current query; defaults to `0`
 - `{size}`: Number - is the parameter that limits the number of results; defaults to `20`
 - `{deprecated}`: Boolean - can be used to filter the resulting resources based on their deprecation status
@@ -185,34 +188,21 @@ logicalExpr     = json {
 
 filterExpr      = logicalExpr | comparisonExpr
 
-filter          = json {
-                      "@context": {...},
-                      "filter": filterExpr
-                    }
+json {
+  "@context": {...},
+  "filter": filterExpr
+}
 ```
 ... which roughly means:
 
 - a filter is a json-ld document
-- with a user defined context
 - that describes a filter value as a filter expression
 - a filter expression is either a comparison expression or a logical expression
 - a comparison expression contains a path property (a uri or a [property path](https://www.w3.org/TR/sparql11-query/#propertypaths)), the value to compare and an
   operator which describes how to compare that value
 - a logical expression contains a collection of filter expressions joined together through a logical operator
 
-Before evaluating the filter, the json-ld document is provided with an additional default context that overrides any
-user defined values in case of collisions:
-```
-{
-  "@context": {
-    "nxv": "https://nexus.example.com/v0/voc/nexus/core/",
-    "nxs": "https://nexus.example.com/v0/voc/nexus/search/",
-    "path": "nxs:path",
-    "op": "nxs:operator",
-    "value": "nxs:value",
-    "filter": "nxs:filter"
-  }
-}
+
 ```
 
 Example filters:
