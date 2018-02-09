@@ -23,12 +23,27 @@ GET /v0/{address}
 ```
 GET /v0/{address}?rev={rev}
 ```
-... where `rev` is the revision number, starting at `1`.
+... where `{rev}` is the revision number, starting at `1`.
 
 #### Status Codes
 
 - **200 OK**: the resource revision is found and returned successfully
 - **404 Not Found**: the resource revision was not found
+
+### Fetch a resource in a specific output format
+
+```
+GET /v0/{address}?format={format}
+```
+... where supported `{format}` variants are `compacted`, `expanded` and `flattened`.
+See the [JSON-LD](https://json-ld.org/spec/latest/json-ld/#expanded-document-form)
+specifications for more details.
+
+#### Status Codes
+
+- **200 OK**: the resource revision is found and returned successfully
+- **404 Not Found**: the resource was not found
+
 
 ### Fetch a resource history
 
@@ -61,7 +76,7 @@ For a collection resources:
 POST /v0/{collection_address}
 {...}
 ```
-... where `collection_address` is the address of the collection the resource belongs to.
+... where `{collection_address}` is the address of the collection the resource belongs to.
 
 #### Status Codes
 
@@ -296,7 +311,7 @@ information in certain scenarios.
 
 ## Resource discovery
 
-We use HATEOAS[https://en.wikipedia.org/wiki/HATEOAS] to provide resource discovery through the `links` array. 
+We use [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS) to provide resource discovery through the `links` array.
 
 It comprises a list of objects with two fields: `rel` and `href`. 
 Each of those objects can be translated as *'the current resource has a relationship of type `rel` with the resource `href`'*

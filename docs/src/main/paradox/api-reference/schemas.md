@@ -73,7 +73,7 @@ Request
 Response
 :   @@snip [existing-schema.json](../assets/api-reference/schemas/existing-schema.json)
 
-### Fetch a schema revision
+#### Fetch a specific schema revision
 
 ```
 GET /v0/schemas/{orgId}/{domId}/{name}/{version}?rev={rev}
@@ -85,6 +85,22 @@ Request
 
 Response
 :   @@snip [existing-schema.json](../assets/api-reference/schemas/existing-schema.json)
+
+#### Fetch a schema in a specific output format
+
+```
+GET /v0/schemas/{orgId}/{domId}/{name}/{version}?format={format}
+```
+
+Supported `{format}` variants are `compacted`, `expanded`, `flattened`.
+
+#### Example
+
+Request
+:   @@snip [schema-get-rev.sh](../assets/api-reference/schemas/schema-get-format.sh)
+
+Response
+:   @@snip [existing-schema.json](../assets/api-reference/schemas/existing-schema-expanded.json)
 
 
 ### Publish a schema
