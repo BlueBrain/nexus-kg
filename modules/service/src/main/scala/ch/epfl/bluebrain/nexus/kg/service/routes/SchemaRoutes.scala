@@ -5,7 +5,7 @@ import java.time.Clock
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{PathMatchers, Route}
 import akka.stream.Materializer
 import cats.instances.future._
 import cats.syntax.show._
@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withA
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path./
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{Path, Permission}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -83,7 +83,7 @@ class SchemaRoutes(schemas: Schemas[Future],
       implicit val schemaIdExtractor = schemaIdToEntityRetrieval(schemas)
 
       operationName("searchSchemas") {
-        (pathEndOrSingleSlash & getAcls(/)) { implicit acls =>
+        (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls =>
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               schemasElasticQueries
@@ -94,7 +94,7 @@ class SchemaRoutes(schemas: Schemas[Future],
           }
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            getAcls(Path(orgId.show)).apply { implicit acls =>
+            getAcls(orgId.show / "*").apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   schemasElasticQueries
@@ -158,7 +158,7 @@ class SchemaRoutes(schemas: Schemas[Future],
             }
         }
       } ~
-        pathPrefix("shapes" / Segment) { fragment =>
+        pathPrefix("shapes" / PathMatchers.Segment) { fragment =>
           val shapeId = ShapeId(schemaId, fragment)
           (pathEndOrSingleSlash & get & authorizeResource(shapeId, Read) & format) { format =>
             parameter('rev.as[Long].?) {

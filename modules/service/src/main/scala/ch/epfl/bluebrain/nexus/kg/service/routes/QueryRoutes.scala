@@ -10,7 +10,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path.{/, toInternal}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.Version
@@ -131,12 +131,12 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
 
                     case (orgId :: Nil) =>
                       val id = OrgId(orgId)
-                      getAcls(Path(id.show)).apply { implicit acls =>
+                      getAcls(id.show / "*").apply { implicit acls =>
                         queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
                       }
 
                     case Nil =>
-                      getAcls(/).apply { implicit acls =>
+                      getAcls("*" / "*").apply { implicit acls =>
                         queries.list(body, pagination).buildResponse(body.fields, base, prefixes, pagination)
                       }
 

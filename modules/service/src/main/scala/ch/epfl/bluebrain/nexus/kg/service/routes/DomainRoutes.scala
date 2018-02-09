@@ -14,8 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withA
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path./
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
@@ -73,7 +72,7 @@ final class DomainRoutes(domains: Domains[Future],
     (get & paramsToQuery) { (pagination, query) =>
       implicit val _ = domainIdToEntityRetrieval(domains)
       operationName("searchDomains") {
-        (pathEndOrSingleSlash & getAcls(/)) { implicit acls =>
+        (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls =>
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               domainsElasticQueries
@@ -86,7 +85,7 @@ final class DomainRoutes(domains: Domains[Future],
           }
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            getAcls(Path(orgId.show)).apply { implicit acls =>
+            getAcls(orgId.show / "*").apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   domainsElasticQueries

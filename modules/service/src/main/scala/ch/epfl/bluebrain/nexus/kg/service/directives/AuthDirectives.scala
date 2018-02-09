@@ -32,7 +32,7 @@ trait AuthDirectives {
     */
   def authorizeResource(resource: Path, perm: Permission)(implicit iamClient: IamClient[Future],
                                                           cred: Option[OAuth2BearerToken]): Directive0 =
-    getAcls(prefix ++ resource).flatMap { acls =>
+    getAcls(resource).flatMap { acls =>
       if (acls.hasAnyPermission(Permissions(perm))) pass
       else reject(AuthorizationFailedRejection)
     }
@@ -44,7 +44,7 @@ trait AuthDirectives {
     */
   def getAcls(resource: Path)(implicit iamClient: IamClient[Future],
                               cred: Option[OAuth2BearerToken]): Directive1[FullAccessControlList] =
-    onComplete(iamClient.getAcls(resource, self = true, parents = true)).flatMap {
+    onComplete(iamClient.getAcls(prefix ++ resource, self = true, parents = true)).flatMap {
       case Success(acls)               => provide(acls)
       case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
       case Failure(err)                => reject(authorizationRejection(err))

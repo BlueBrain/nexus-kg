@@ -74,7 +74,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
     (get & paramsToQuery) { (pagination, query) =>
       implicit val _ = instanceIdToEntityRetrieval(instances)
       operationName("searchInstances") {
-        (pathEndOrSingleSlash & getAcls(/)) { implicit acls =>
+        (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls =>
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               instancesElasticQueries
@@ -85,7 +85,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
           }
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            getAcls(Path(orgId.show)).apply { implicit acls =>
+            getAcls(orgId.show / "*").apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   instancesElasticQueries
