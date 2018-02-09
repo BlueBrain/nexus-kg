@@ -1,0 +1,1 @@
+curl -XGET 'https://nexus.example.com/v0/queries/563bf55e-0c1a-11e8-ba89-0ed5f89f718b?from=20&size=20
