@@ -8,12 +8,14 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.Materializer
 import cats.instances.future._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withAkkaUnmarshaller}
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path./
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{Path, Permission}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
@@ -81,7 +83,7 @@ class SchemaRoutes(schemas: Schemas[Future],
       implicit val schemaIdExtractor = schemaIdToEntityRetrieval(schemas)
 
       operationName("searchSchemas") {
-        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
+        (pathEndOrSingleSlash & getAcls(/)) { implicit acls =>
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               schemasElasticQueries
@@ -92,7 +94,7 @@ class SchemaRoutes(schemas: Schemas[Future],
           }
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(Path(orgId.show)).apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   schemasElasticQueries
@@ -106,7 +108,7 @@ class SchemaRoutes(schemas: Schemas[Future],
             }
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(Path(domainId.show)).apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   schemasElasticQueries
@@ -120,7 +122,7 @@ class SchemaRoutes(schemas: Schemas[Future],
             }
           } ~
           (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(Path(schemaName.domainId.show)).apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   schemasElasticQueries

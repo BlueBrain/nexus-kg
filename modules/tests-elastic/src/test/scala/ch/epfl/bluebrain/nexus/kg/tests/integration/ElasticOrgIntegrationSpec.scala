@@ -11,6 +11,9 @@ import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
@@ -24,10 +27,11 @@ import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
-class ElasticOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(implicit
-                                                                                 as: ActorSystem,
-                                                                                 ec: ExecutionContextExecutor,
-                                                                                 mt: ActorMaterializer)
+class ElasticOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(
+    implicit
+    as: ActorSystem,
+    ec: ExecutionContextExecutor,
+    mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._

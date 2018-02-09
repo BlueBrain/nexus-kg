@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.Uri
 import cats.Show
 import cats.instances.string._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.ConfiguredQualifier
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
@@ -34,18 +33,15 @@ object FilteredQuery {
     *
     * @param query      the query payload used to build the Sparql query
     * @param pagination the pagination settings for the generated query
-    * @param identities the [[Identity]] list that will be checked for read permissions on a particular resource
     * @return a Blazegraph query based on the provided filter and pagination settings
     */
-  def apply[Id](query: QueryPayload, pagination: Pagination, identities: Set[Identity])(
+  def apply[Id](query: QueryPayload, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[String],
-      aclExpr: AclSparqlExpr[Id],
       typeExpr: TypeFilterExpr[Id],
       querySettings: QuerySettings): String = {
     applyWithWhere(buildWhereFrom(addToFilter(query.filter, query.deprecated, query.published).expr),
                    pagination,
                    query.q,
-                   identities,
                    query.sort)
   }
 
@@ -74,8 +70,7 @@ object FilteredQuery {
       where: String,
       pagination: Pagination,
       term: Option[String],
-      identities: Set[Identity],
-      sort: SortList)(implicit Q: ConfiguredQualifier[String], aclExpr: AclSparqlExpr[Id]): String = {
+      sort: SortList): String = {
     val (selectTotal, selectWith, selectSubQuery) = buildSelectsFrom(term, sort)
     val (orderByUnion, orderByTotal)              = buildOrderByFrom(term, sort)
 
@@ -88,7 +83,6 @@ object FilteredQuery {
        |${buildWhereFrom(term)}
        |$where
        |${sort.toTriples}
-       |${aclExpr(identities)}
        |  }
        |${buildGroupByFrom(term)}
        |} AS %resultSet
@@ -116,11 +110,9 @@ object FilteredQuery {
     * @param query       the query payload used to build the Sparql query
     * @param thisSubject the qualified uri of the subject to be selected
     * @param pagination  the pagination settings for the generated query
-    * @param identities  the [[Identity]] list that will be checked for read permissions on a particular resource
     */
-  def outgoing[Id](query: QueryPayload, thisSubject: Uri, pagination: Pagination, identities: Set[Identity])(
+  def outgoing[Id](query: QueryPayload, thisSubject: Uri, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[String],
-      aclExpr: AclSparqlExpr[Id],
       typeExpr: TypeFilterExpr[Id],
       querySettings: QuerySettings): String = {
     val filter = addToFilter(query.filter, query.deprecated, query.published).expr
@@ -129,7 +121,7 @@ object FilteredQuery {
          |<$thisSubject> ?p ?$subject .
          |${buildWhereFrom(filter)}
        """.stripMargin.trim
-    applyWithWhere(where, pagination, query.q, identities, query.sort)
+    applyWithWhere(where, pagination, query.q, query.sort)
   }
 
   /**
@@ -139,11 +131,9 @@ object FilteredQuery {
     * @param query      the query payload used to build the Sparql query
     * @param thisObject the qualified uri of the object to be selected
     * @param pagination the pagination settings for the generated query
-    * @param identities the [[Identity]] list that will be checked for read permissions on a particular resource
     */
-  def incoming[Id](query: QueryPayload, thisObject: Uri, pagination: Pagination, identities: Set[Identity])(
+  def incoming[Id](query: QueryPayload, thisObject: Uri, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[String],
-      aclExpr: AclSparqlExpr[Id],
       typeExpr: TypeFilterExpr[Id],
       querySettings: QuerySettings): String = {
     val filter = addToFilter(query.filter, query.deprecated, query.published).expr
@@ -153,7 +143,7 @@ object FilteredQuery {
          |?$subject ?p <$thisObject> .
          |${buildWhereFrom(filter)}
        """.stripMargin.trim
-    applyWithWhere(where, pagination, query.q, identities, query.sort)
+    applyWithWhere(where, pagination, query.q, query.sort)
   }
 
   private final case class Stmt(stmt: String, filter: Option[String])

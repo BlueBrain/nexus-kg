@@ -1,7 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.query.builder
 
+import cats.MonadError
 import cats.instances.string._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Permissions}
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, _}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
@@ -18,6 +19,8 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 
 /**
   * Collection of queries.
@@ -29,7 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
   */
 class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySettings: QuerySettings,
                                                            typeExpr: TypeFilterExpr[Id],
-                                                           aclExpr: AclSparqlExpr[Id]) {
+                                                           F: MonadError[F, Throwable]) {
   private implicit val stringQualifier: ConfiguredQualifier[String] =
     Qualifier.configured[String](querySettings.nexusVocBase)
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId] = Qualifier.configured[OrgId](querySettings.base)
@@ -42,6 +45,11 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
   private implicit val contextNameQualifier: ConfiguredQualifier[ContextName] =
     Qualifier.configured[ContextName](querySettings.base)
 
+  private def noPermissionsOrElse(acls: FullAccessControlList)(other: () => F[QueryResults[Id]]): F[QueryResults[Id]] =
+    if (acls.hasAnyPermission(Permissions(Read))) {
+      other()
+    } else F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[Id]]))
+
   /**
     * Lists all ids in the system that match the given filter.
     *
@@ -49,10 +57,11 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     * @param pagination the pagination values
     */
   def list(query: QueryPayload, pagination: Pagination)(implicit Q: ConfiguredQualifier[Id],
-                                                        caller: Caller): F[QueryResults[Id]] = {
-    val queryString = FilteredQuery[Id](query, pagination, caller.identities)
-    queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
-  }
+                                                        acls: FullAccessControlList): F[QueryResults[Id]] =
+    noPermissionsOrElse(acls) { () =>
+      val queryString = FilteredQuery[Id](query.copy(filter = query.filter and RestrictionExpr(acls)), pagination)
+      queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
+    }
 
   /**
     * Lists all ids in the system within the specified organization that match the given filter.
@@ -61,8 +70,9 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     * @param query      the query payload to be applied
     * @param pagination the pagination values
     */
-  def list(org: OrgId, query: QueryPayload, pagination: Pagination)(implicit Q: ConfiguredQualifier[Id],
-                                                                    caller: Caller): F[QueryResults[Id]] = {
+  def list(org: OrgId, query: QueryPayload, pagination: Pagination)(
+      implicit Q: ConfiguredQualifier[Id],
+      acls: FullAccessControlList): F[QueryResults[Id]] = {
     val filter = Filter(ComparisonExpr(Eq, UriPath("organization" qualify), UriTerm(org qualify)))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -74,8 +84,9 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     * @param query      the query payload to be applied
     * @param pagination the pagination values
     */
-  def list(dom: DomainId, query: QueryPayload, pagination: Pagination)(implicit Q: ConfiguredQualifier[Id],
-                                                                       caller: Caller): F[QueryResults[Id]] = {
+  def list(dom: DomainId, query: QueryPayload, pagination: Pagination)(
+      implicit Q: ConfiguredQualifier[Id],
+      acls: FullAccessControlList): F[QueryResults[Id]] = {
     val filter = Filter(ComparisonExpr(Eq, UriPath("domain" qualify), UriTerm(dom qualify)))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -91,7 +102,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
   def list(schemaName: SchemaName, query: QueryPayload, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[Id],
       schemaNameFilter: SchemaNameFilterExpr[Id],
-      caller: Caller): F[QueryResults[Id]] = {
+      acls: FullAccessControlList): F[QueryResults[Id]] = {
     val filter = Filter(schemaNameFilter(schemaName))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -106,7 +117,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     */
   def list(contextName: ContextName, query: QueryPayload, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[Id],
-      caller: Caller): F[QueryResults[Id]] = {
+      acls: FullAccessControlList): F[QueryResults[Id]] = {
     val filter = Filter(ComparisonExpr(Eq, UriPath(contextGroupKey), UriTerm(contextName qualify)))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -118,8 +129,9 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     * @param query      the query payload to be applied
     * @param pagination the pagination values
     */
-  def list(schema: SchemaId, query: QueryPayload, pagination: Pagination)(implicit Q: ConfiguredQualifier[Id],
-                                                                          caller: Caller): F[QueryResults[Id]] = {
+  def list(schema: SchemaId, query: QueryPayload, pagination: Pagination)(
+      implicit Q: ConfiguredQualifier[Id],
+      acls: FullAccessControlList): F[QueryResults[Id]] = {
     val filter = Filter(ComparisonExpr(Eq, UriPath("schema" qualify), UriTerm(schema qualify)))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -132,11 +144,12 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     * @param pagination the pagination values
     */
   def outgoing(id: Id, query: QueryPayload, pagination: Pagination)(implicit Q: ConfiguredQualifier[Id],
-                                                                    caller: Caller): F[QueryResults[Id]] = {
-    val queryString = FilteredQuery
-      .outgoing[Id](query, id.qualify, pagination, caller.identities)
-    queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
-  }
+                                                                    acls: FullAccessControlList): F[QueryResults[Id]] =
+    noPermissionsOrElse(acls) { () =>
+      val queryString = FilteredQuery
+        .outgoing[Id](query, id.qualify, pagination)
+      queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
+    }
 
   /**
     * Lists all incoming ids linked to the id identified by ''id'' that match the given filter.
@@ -146,11 +159,12 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     * @param pagination the pagination values
     */
   def incoming(id: Id, query: QueryPayload, pagination: Pagination)(implicit Q: ConfiguredQualifier[Id],
-                                                                    caller: Caller): F[QueryResults[Id]] = {
-    val queryString = FilteredQuery
-      .incoming[Id](query, id.qualify, pagination, caller.identities)
-    queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
-  }
+                                                                    acls: FullAccessControlList): F[QueryResults[Id]] =
+    noPermissionsOrElse(acls) { () =>
+      val queryString = FilteredQuery
+        .incoming[Id](query, id.qualify, pagination)
+      queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
+    }
 
 }
 
@@ -167,8 +181,7 @@ object FilterQueries {
     */
   final def apply[F[_], Id](queryClient: SparqlQuery[F])(implicit
                                                          querySettings: QuerySettings,
-                                                         typeExpr: TypeFilterExpr[Id],
-                                                         aclExpr: AclSparqlExpr[Id]): FilterQueries[F, Id] =
+                                                         typeExpr: TypeFilterExpr[Id], F: MonadError[F, Throwable]): FilterQueries[F, Id] =
     new FilterQueries(queryClient)
 
   /**

@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withA
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path./
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
@@ -27,7 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.query.organizations.OrganizationsElasticQueries
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{getAcls, _}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.directives.ResourceDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
@@ -68,7 +69,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (pathEndOrSingleSlash & get & paramsToQuery) { (pagination, query) =>
-      (operationName("searchOrganizations") & authenticateCaller) { implicit caller =>
+      (operationName("searchOrganizations") & getAcls(/)) { implicit acls =>
         (query.filter, query.q, query.sort) match {
           case (Filter.Empty, None, SortList.Empty) =>
             orgElasticQueries

@@ -11,8 +11,11 @@ import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withAkkaUnmarshaller}
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path./
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
@@ -148,7 +151,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
     (get & paramsToQuery) { (pagination, query) =>
       operationName("searchContexts") {
         implicit val _ = contextIdToEntityRetrieval(contexts)
-        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
+        (pathEndOrSingleSlash & getAcls(/)) { implicit acls =>
           query.sort match {
             case SortList.Empty =>
               contextsElasticQueries
@@ -159,7 +162,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
           }
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(Path(orgId.show)).apply { implicit acls =>
               query.sort match {
                 case SortList.Empty =>
                   contextsElasticQueries
@@ -173,7 +176,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
             }
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(Path(domainId.show)).apply { implicit acls =>
               query.sort match {
                 case SortList.Empty =>
                   contextsElasticQueries
@@ -187,7 +190,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
             }
           } ~
           (extractContextName & pathEndOrSingleSlash) { contextName =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(Path(contextName.domainId.show)).apply { implicit acls =>
               query.sort match {
                 case SortList.Empty =>
                   contextsElasticQueries

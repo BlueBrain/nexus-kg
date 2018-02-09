@@ -10,7 +10,7 @@ import akka.http.scaladsl.server.{AuthorizationFailedRejection, _}
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
-import ch.epfl.bluebrain.nexus.commons.iam.acls.{Path, Permission, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Path, Permission, Permissions}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives._
@@ -32,11 +32,22 @@ trait AuthDirectives {
     */
   def authorizeResource(resource: Path, perm: Permission)(implicit iamClient: IamClient[Future],
                                                           cred: Option[OAuth2BearerToken]): Directive0 =
-    onComplete(iamClient.getAcls(prefix ++ resource, self = true, parents = true)).flatMap {
-      case Success(acls) if (acls.hasAnyPermission(Permissions(perm))) => pass
-      case Success(_)                                                  => reject(AuthorizationFailedRejection)
-      case Failure(UnauthorizedAccess)                                 => reject(AuthorizationFailedRejection)
-      case Failure(err)                                                => reject(authorizationRejection(err))
+    getAcls(prefix ++ resource).flatMap { acls =>
+      if (acls.hasAnyPermission(Permissions(perm))) pass
+      else reject(AuthorizationFailedRejection)
+    }
+
+  /**
+    * Get the ACLs on the path ''resource'' for the caller associated with ''cred''.
+    *
+    * @param resource the path which the caller wants to access
+    */
+  def getAcls(resource: Path)(implicit iamClient: IamClient[Future],
+                              cred: Option[OAuth2BearerToken]): Directive1[FullAccessControlList] =
+    onComplete(iamClient.getAcls(resource, self = true, parents = true)).flatMap {
+      case Success(acls)               => provide(acls)
+      case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
+      case Failure(err)                => reject(authorizationRejection(err))
     }
 
   /**

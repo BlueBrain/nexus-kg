@@ -13,12 +13,10 @@ import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.{PermissionsAdded, PermissionsCleared}
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
-import ch.epfl.bluebrain.nexus.commons.iam.acls.{AccessControlList, Meta, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.{Own, Read, Write}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Meta, Path, Permissions}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{GroupRef, UserRef}
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{Anonymous, GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.{Identity, IdentityId}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -28,7 +26,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.ScoredQueryResul
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.ScoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
@@ -36,28 +34,27 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent.{OrgCreated, OrgDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, SchemaDeprecated}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
-import ch.epfl.bluebrain.nexus.kg.indexing.acls.{AclIndexer, AclIndexingSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainSparqlIndexer, DomainSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.Eq
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.LiteralTerm
+import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.{SchemaCreated, SchemaDeprecated}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
+import ch.epfl.bluebrain.nexus.kg.indexing.domains.{DomainSparqlIndexer, DomainSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceSparqlIndexer, InstanceSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationSparqlIndexer, OrganizationSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilteredQuery._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.{SchemaSparqlIndexer, SchemaSparqlIndexingSettings}
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilteredQuery._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -72,7 +69,9 @@ class SparqlQuerySpec(blazegraphPort: Int)
     with Randomness
     with Resources
     with Inspectors
-    with BeforeAndAfterAll {
+    with BeforeAndAfterAll
+    with CancelAfterFailure
+    with Assertions {
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -106,9 +105,6 @@ class SparqlQuerySpec(blazegraphPort: Int)
   private val settingsOrgs @ OrganizationSparqlIndexingSettings(_, _, _, nexusVocBaseOrgs) =
     OrganizationSparqlIndexingSettings(namespace, base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
-  private val settingsAcls @ AclIndexingSettings(_, _, aclBaseNs, _) =
-    AclIndexingSettings(namespace, base, s"$base/acls/graphs", s"$base/voc/nexus/core")
-
   private implicit val instanceQualifier: ConfiguredQualifier[InstanceId] = Qualifier.configured[InstanceId](base)
   private implicit val schemasQualifier: ConfiguredQualifier[SchemaId]    = Qualifier.configured[SchemaId](base)
   private implicit val domainsQualifier: ConfiguredQualifier[DomainId]    = Qualifier.configured[DomainId](base)
@@ -119,6 +115,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
   private implicit val caller: AuthenticatedCaller =
     AuthenticatedCaller(None, Set[Identity](UserRef(IdentityId(s"$base/realms/BBP/users/1234")), group))
 
+  private val ownReadWrite = Permissions(Own, Read, Write)
   "A SparqlQuery" should {
     val orgsAgg = MemoryAggregate("org")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
 
@@ -135,7 +132,6 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val schemaIndexer   = SchemaSparqlIndexer(client, ctxs, settingsSchemas)
     val domainIndexer   = DomainSparqlIndexer(client, settingsDomains)
     val orgIndexer      = OrganizationSparqlIndexer(client, ctxs, settingsOrgs)
-    val aclIndexer      = AclIndexer(client, settingsAcls)
 
     val orgRef    = orgs.create(OrgId(genId()), genJson()).futureValue
     val domRef    = doms.create(DomainId(orgRef.id, genId()), "domain").futureValue
@@ -154,43 +150,34 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
     "perform a data full text search" in {
       client.createIndex(namespace, properties).futureValue
+      implicit val acls = FullAccessControlList((Anonymous(), Path("/kg/org/dom"), Permissions(Read)))
 
       // index 5 matching instances
-      (0 until 4).foreach { idx =>
+      (0 until 5).foreach { idx =>
         val version = Version(1, 0, idx)
         val id =
           InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", version), UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-        aclIndexer(
-          PermissionsAdded("kg" / "org" / "dom" / "name" / version.show,
-                           AccessControlList(group -> Permissions(Read)),
-                           meta)).futureValue
-      }
-
-      (4 until 5).foreach { idx =>
-        val id =
-          InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
       }
 
       // index 5 not matching instances
       (5 until 10).foreach { idx =>
         val id =
-          InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
+          InstanceId(SchemaId(DomainId(OrgId("org"), "dom2"), "name", Version(1, 0, idx)), UUID.randomUUID().toString)
         instanceIndexer(InstanceCreated(id, rev, meta, unmatched)).futureValue
       }
 
       // run the query
       val pagination             = Pagination(0L, 100)
-      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base, aclBaseNs)
+      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base)
       val q                      = FilterQueries[Future, InstanceId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr, q = Some("random")), pagination).futureValue
       result
         .asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]]
         .maxScore shouldEqual 1F
-      result.total shouldEqual 4L
-      result.results.size shouldEqual 4
+      result.total shouldEqual 5L
+      result.results.size shouldEqual 5
       result.results.map(_.source.schemaId.version.patch.toDouble shouldEqual 2.0 +- 2.0)
 
       val pagination2 = Pagination(100L, 100)
@@ -198,7 +185,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       result2
         .asInstanceOf[ScoredQueryResults[ScoredQueryResult[String]]]
         .maxScore shouldEqual 1F
-      result2.total shouldEqual 4L
+      result2.total shouldEqual 5L
       result2.results.size shouldEqual 0
     }
 
@@ -207,10 +194,12 @@ class SparqlQuerySpec(blazegraphPort: Int)
       (0 until 5).foreach { idx =>
         val id = OrgId(s"org$idx")
         orgIndexer(OrgCreated(id, rev, meta.copy(instant = Clock.systemUTC.instant()), data)).futureValue
-        aclIndexer(PermissionsAdded("kg" / s"org${idx}",
-                                    AccessControlList(UserRef("BBP", "1234") -> Permissions(Read)),
-                                    meta)).futureValue
       }
+      implicit val acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org1"), Permissions(Write)),
+        (Anonymous(), Path("/kg/org2"), Permissions(Write)),
+        (Anonymous(), Path("/kg/org3"), Permissions(Write))
+      )
 
       // index 5 not matching organizations
       (5 until 10).foreach { idx =>
@@ -220,7 +209,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       }
 
       val pagination             = Pagination(0L, 100)
-      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBaseOrgs, base, aclBaseNs)
+      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBaseOrgs, base)
       val q                      = FilterQueries[Future, OrgId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
@@ -230,16 +219,19 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
     "perform organizations listing search" in {
 
-      // index 3 matching organizations ACLs
-      (0 until 3).foreach { idx =>
-        aclIndexer(PermissionsAdded("kg" / s"org${idx}", AccessControlList(group -> Permissions(Read)), meta)).futureValue
-      }
+      implicit val acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org2"), ownReadWrite)
+      )
 
       val pagination             = Pagination(0L, 100)
-      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBaseOrgs, base, aclBaseNs)
+      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBaseOrgs, base)
       val q                      = FilterQueries[Future, OrgId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
+      println("hereeeeeeeeeeeeee")
+      Thread.sleep(300*1000)
       result.total shouldEqual 3L
       result.results.size shouldEqual 3
       result.results.map(_.source.id) shouldEqual List("org0", "org1", "org2")
@@ -262,6 +254,12 @@ class SparqlQuerySpec(blazegraphPort: Int)
     }
 
     "perform domains listing search" in {
+
+      implicit var acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org2"), ownReadWrite)
+      )
 
       val description = genString()
       // index 5 matching domains and 5 other matching domains which do not have permissions
@@ -288,7 +286,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       // run the query
       val pagination = Pagination(0L, 100)
       implicit val querySettings =
-        QuerySettings(pagination, 100, namespace, nexusVocBaseDomains, base, aclBaseNs)
+        QuerySettings(pagination, 100, namespace, nexusVocBaseDomains, base)
       val q = FilterQueries[Future, DomainId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
@@ -299,137 +297,163 @@ class SparqlQuerySpec(blazegraphPort: Int)
         r.source.orgId shouldEqual OrgId("org0")
       })
 
+      acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org2"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
+      )
+
       (0 until 2).foreach { idx =>
-        aclIndexer(PermissionsAdded("kg" / "org3" / s"domain${idx}",
-                                    AccessControlList(group -> Permissions(Read)),
-                                    meta)).futureValue
+        val result2 = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
+        result2.total shouldEqual 7L
+        result2.results.size shouldEqual 7
+        result2.results.foreach(r => {
+          r.source.id should startWith("domain")
+          r.source.orgId should (equal(OrgId("org0")) or equal(OrgId("org3")))
+        })
+
       }
 
-      val result2 = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
-      result2.total shouldEqual 7L
-      result2.results.size shouldEqual 7
-      result2.results.foreach(r => {
-        r.source.id should startWith("domain")
-        r.source.orgId should (equal(OrgId("org0")) or equal(OrgId("org3")))
-      })
+      "perform schemas listing search" in {
 
-    }
+        implicit var acls = FullAccessControlList(
+          (Anonymous(), Path("/kg/org0"), ownReadWrite),
+          (Anonymous(), Path("/kg/org1"), ownReadWrite),
+          (Anonymous(), Path("/kg/org2"), ownReadWrite),
+          (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+          (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
+        )
+        // index 5 matching schemas
+        (0 until 5).foreach { idx =>
+          val id = SchemaId(DomainId(OrgId("org0"), "dom0"), genString(), Version(1, 0, idx))
+          schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
+        }
 
-    "perform schemas listing search" in {
+        // index 5 not matching schemas
+        (5 until 10).foreach { idx =>
+          val id = SchemaId(DomainId(OrgId("org0"), "dom0"), genString(), Version(1, 0, idx))
+          schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
+          schemaIndexer(SchemaDeprecated(id, rev, meta)).futureValue
+        }
 
-      // index 5 matching schemas
-      (0 until 5).foreach { idx =>
-        val id = SchemaId(DomainId(OrgId("org0"), "dom0"), genString(), Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
+        // index other 5 not matching schemas
+        (10 until 15).foreach { idx =>
+          val id =
+            SchemaId(DomainId(OrgId("org0"), "core"), "name", Version(1, 0, idx))
+          schemaIndexer(SchemaCreated(id, rev, meta, unmatched)).futureValue
+        }
+
+        val pagination = Pagination(0L, 100)
+        implicit val querySettings =
+          QuerySettings(pagination, 100, namespace, nexusVocBaseSchemas, base)
+        val q = FilterQueries[Future, SchemaId](queryClient)
+
+        val result =
+          q.list(DomainId(OrgId("org0"), "dom0"), QueryPayload(filter = filterNoDepr), pagination).futureValue
+        result.total shouldEqual 5L
+        result.results.size shouldEqual 5
+
+        result.results.foreach(r => {
+          r.source.version.patch.toDouble shouldEqual 2.5 +- 2.5
+          r.source.domainId shouldEqual DomainId(OrgId("org0"), "dom0")
+        })
+
+        acls = FullAccessControlList(
+          (Anonymous(), Path("/kg/org1"), ownReadWrite),
+          (Anonymous(), Path("/kg/org2"), ownReadWrite),
+          (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+          (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
+        )
+        val result2 =
+          q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
+
+        result2.total shouldEqual 0L
+        result2.results.size shouldEqual 0
+
+        val result3 =
+          q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
+
+        result3.total shouldEqual 5L
+        result3.results.size shouldEqual 5
+
+        result3.results.foreach(r => {
+          r.source.version.patch.toDouble shouldEqual 12.5 +- 2.5
+          r.source.domainId shouldEqual DomainId(OrgId("org0"), "core")
+        })
       }
 
-      // index 5 not matching schemas
-      (5 until 10).foreach { idx =>
-        val id = SchemaId(DomainId(OrgId("org0"), "dom0"), genString(), Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
-        schemaIndexer(SchemaDeprecated(id, rev, meta)).futureValue
+      "perform instances listing search" in {
+        implicit var acls = FullAccessControlList(
+          (Anonymous(), Path("/kg/org1"), ownReadWrite),
+          (Anonymous(), Path("/kg/org2"), ownReadWrite),
+          (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+          (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
+        )
+        val domainId   = DomainId(OrgId("org0"), "dom0")
+        val schemaName = SchemaName(domainId, genString())
+        // index 5 matching instances
+        (0 until 5).foreach { idx =>
+          val schemaId = schemaName.versioned(Version(1, 0, idx))
+          schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
+          val id = InstanceId(schemaId, UUID.randomUUID().toString)
+          instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
+        }
+
+        // index 5 not matching instances
+        (5 until 10).foreach { idx =>
+          val schemaId = schemaName.versioned(Version(1, 0, idx))
+          schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
+          val id = InstanceId(schemaId, UUID.randomUUID().toString)
+          instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
+          instanceIndexer(InstanceDeprecated(id, rev + 1, meta)).futureValue
+        }
+
+        // index other 5 not matching instances
+        (10 until 15).foreach { idx =>
+          val schemaId = SchemaId(DomainId(OrgId("other"), "dom"), schemaName.name, Version(1, 0, idx))
+          schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
+          val id = InstanceId(schemaId, UUID.randomUUID().toString)
+          instanceIndexer(InstanceCreated(id, rev, meta, unmatched)).futureValue
+        }
+        // index other 5 not matching instances
+        (15 until 20).foreach { idx =>
+          val schemaId = SchemaId(domainId, genString(), Version(1, 0, idx))
+          schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
+          val id = InstanceId(schemaId, UUID.randomUUID().toString)
+          instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
+        }
+
+        val pagination             = Pagination(3L, 3)
+        implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base)
+        val q                      = FilterQueries[Future, InstanceId](queryClient)
+
+        val res = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
+        res.total shouldEqual 0L
+
+        acls = FullAccessControlList(
+          (Anonymous(), Path("/kg/org1"), ownReadWrite),
+          (Anonymous(), Path("/kg/org2"), ownReadWrite),
+          (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+          (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite),
+          (Anonymous(), Path("/kg/org0/dom0"), ownReadWrite)
+        )
+
+        val result = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
+        result.total shouldEqual 5L
+        result.results.size shouldEqual 2
+        result.results.foreach(r => {
+          r.source.schemaId.version.patch.toDouble shouldEqual 3.5 +- 0.5
+          r.source.schemaId.name shouldEqual schemaName.name
+          r.source.schemaId.domainId shouldEqual domainId
+        })
+
+        val pagination2 = Pagination(10L, 8)
+        val result2     = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination2).futureValue
+        result2.total shouldEqual 5L
+        result2.results.size shouldEqual 0
       }
-
-      // index other 5 not matching schemas
-      (10 until 15).foreach { idx =>
-        val id =
-          SchemaId(DomainId(OrgId("org0"), "core"), "name", Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(id, rev, meta, unmatched)).futureValue
-      }
-
-      val pagination = Pagination(0L, 100)
-      implicit val querySettings =
-        QuerySettings(pagination, 100, namespace, nexusVocBaseSchemas, base, aclBaseNs)
-      val q = FilterQueries[Future, SchemaId](queryClient)
-
-      val result = q.list(DomainId(OrgId("org0"), "dom0"), QueryPayload(filter = filterNoDepr), pagination).futureValue
-      result.total shouldEqual 5L
-      result.results.size shouldEqual 5
-
-      result.results.foreach(r => {
-        r.source.version.patch.toDouble shouldEqual 2.5 +- 2.5
-        r.source.domainId shouldEqual DomainId(OrgId("org0"), "dom0")
-      })
-
-      aclIndexer(PermissionsCleared("kg" / "org0", meta)).futureValue
-
-      val result2 = q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
-
-      result2.total shouldEqual 0L
-      result2.results.size shouldEqual 0
-
-      aclIndexer(PermissionsAdded("kg" / "org0" / "core" / "name", AccessControlList(group -> Permissions(Read)), meta)).futureValue
-
-      val result3 = q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
-
-      result3.total shouldEqual 5L
-      result3.results.size shouldEqual 5
-
-      result3.results.foreach(r => {
-        r.source.version.patch.toDouble shouldEqual 12.5 +- 2.5
-        r.source.domainId shouldEqual DomainId(OrgId("org0"), "core")
-      })
-    }
-
-    "perform instances listing search" in {
-      val domainId   = DomainId(OrgId("org0"), "dom0")
-      val schemaName = SchemaName(domainId, genString())
-      // index 5 matching instances
-      (0 until 5).foreach { idx =>
-        val schemaId = schemaName.versioned(Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
-        val id = InstanceId(schemaId, UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-      }
-
-      // index 5 not matching instances
-      (5 until 10).foreach { idx =>
-        val schemaId = schemaName.versioned(Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
-        val id = InstanceId(schemaId, UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-        instanceIndexer(InstanceDeprecated(id, rev + 1, meta)).futureValue
-      }
-
-      // index other 5 not matching instances
-      (10 until 15).foreach { idx =>
-        val schemaId = SchemaId(DomainId(OrgId("other"), "dom"), schemaName.name, Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
-        val id = InstanceId(schemaId, UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, meta, unmatched)).futureValue
-      }
-      // index other 5 not matching instances
-      (15 until 20).foreach { idx =>
-        val schemaId = SchemaId(domainId, genString(), Version(1, 0, idx))
-        schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
-        val id = InstanceId(schemaId, UUID.randomUUID().toString)
-        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-      }
-
-      val pagination             = Pagination(3L, 3)
-      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base, aclBaseNs)
-      val q                      = FilterQueries[Future, InstanceId](queryClient)
-
-      val res = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
-      res.total shouldEqual 0L
-
-      aclIndexer(PermissionsAdded("kg" / "org0" / "dom0" / schemaName.name,
-                                  AccessControlList(group -> Permissions(Read)),
-                                  meta)).futureValue
-
-      val result = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
-      result.total shouldEqual 5L
-      result.results.size shouldEqual 2
-      result.results.foreach(r => {
-        r.source.schemaId.version.patch.toDouble shouldEqual 3.5 +- 0.5
-        r.source.schemaId.name shouldEqual schemaName.name
-        r.source.schemaId.domainId shouldEqual domainId
-      })
-
-      val pagination2 = Pagination(10L, 8)
-      val result2     = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination2).futureValue
-      result2.total shouldEqual 5L
-      result2.results.size shouldEqual 0
     }
   }
 }

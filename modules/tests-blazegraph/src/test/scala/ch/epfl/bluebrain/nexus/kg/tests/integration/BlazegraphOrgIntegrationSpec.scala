@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import java.net.URLEncoder
-import java.time.Instant
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{StatusCodes, Uri}
@@ -9,17 +8,11 @@ import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Event.PermissionsAdded
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
-import ch.epfl.bluebrain.nexus.commons.iam.acls._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization}
-import ch.epfl.bluebrain.nexus.kg.indexing.acls.AclIndexer
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.io.PrinterSettings._
@@ -30,10 +23,10 @@ import org.scalatest._
 import org.scalatest.time.{Seconds, Span}
 
 import scala.collection.mutable.Map
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
-class BlazegraphOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route, aclIndexer: AclIndexer[Future])(
+class BlazegraphOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(
     implicit
     as: ActorSystem,
     ec: ExecutionContextExecutor,
@@ -44,10 +37,6 @@ class BlazegraphOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Rou
   import orgsEncoders._
 
   "A OrganizationRoutes" when {
-    val meta = Meta(mockedUser.identities.find {
-      case _: UserRef => true
-      case _          => false
-    }.get, Instant.ofEpochMilli(0L))
 
     "performing integration tests" should {
       val idsPayload = Map[OrgId, Organization]()
@@ -67,17 +56,6 @@ class BlazegraphOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Rou
           Get(s"/organizations/${orgId.show}") ~> addCredentials(ValidCredentials) ~> route ~> check {
             status shouldEqual StatusCodes.OK
             contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
-          }
-        }
-      }
-
-      "add read permissions for root level" in {
-        forAll(orgs) { orgId =>
-          eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
-            aclIndexer(
-              PermissionsAdded("kg" / orgId.id,
-                               AccessControlList(mockedUser.identities.map(AccessControl(_, Permissions(Read)))),
-                               meta)).futureValue
           }
         }
       }
