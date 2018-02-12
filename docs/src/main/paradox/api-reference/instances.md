@@ -90,7 +90,7 @@ Request
 Response
 :   @@snip [existing-instance.json](../assets/api-reference/instances/existing-instance.json)
 
-### Fetch an instance revision
+#### Fetch a specific instance revision
 
 ```
 GET /v0/data/{orgId}/{domId}/{name}/{version}/{id}?rev={rev}
@@ -102,6 +102,22 @@ Request
 
 Response
 :   @@snip [existing-instance.json](../assets/api-reference/instances/existing-instance.json)
+
+#### Fetch an instance in a specific output format
+
+```
+GET /v0/data/{orgId}/{domId}/{name}/{version}/{id}?format={format}
+```
+
+Supported `{format}` variants are `compacted`, `expanded`, `flattened`.
+
+#### Example
+
+Request
+:   @@snip [instance-get-rev.sh](../assets/api-reference/instances/instance-get-format.sh)
+
+Response
+:   @@snip [existing-instance.json](../assets/api-reference/instances/existing-instance-expanded.json)
 
 ### Fetch an instance's attachment
 
