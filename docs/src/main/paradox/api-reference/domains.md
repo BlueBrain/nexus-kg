@@ -33,27 +33,6 @@ Payload
 Response
 :   @@snip [domain-ref-new.json](../assets/api-reference/domains/domain-ref-new.json)
 
-### Update a domain
-
-```
-PUT /v0/domains/{orgId}/{domId}?rev={previous_rev}
-{...}
-```
-... where `{previous_rev}` is the last known revision number for the domain.
-
-The json value contains the key `description` with it's value.
-
-#### Example
-
-Request
-:   @@snip [domain-update.sh](../assets/api-reference/domains/domain-update.sh)
-
-Payload
-:   @@snip [domain-update.json](../assets/api-reference/domains/domain-update.json)
-
-Response
-:   @@snip [domain-ref.json](../assets/api-reference/domains/domain-ref.json)
-
 ### Fetch a domain
 
 ```
