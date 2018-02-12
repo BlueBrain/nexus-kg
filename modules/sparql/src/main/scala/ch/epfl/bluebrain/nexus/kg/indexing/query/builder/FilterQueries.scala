@@ -46,9 +46,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     Qualifier.configured[ContextName](querySettings.base)
 
   private def noPermissionsOrElse(acls: FullAccessControlList)(other: () => F[QueryResults[Id]]): F[QueryResults[Id]] =
-    if (acls.hasAnyPermission(Permissions(Read))) {
-      other()
-    } else F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[Id]]))
+    if (acls.hasAnyPermission(Permissions(Read))) other()
+    else F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[Id]]))
 
   /**
     * Lists all ids in the system that match the given filter.

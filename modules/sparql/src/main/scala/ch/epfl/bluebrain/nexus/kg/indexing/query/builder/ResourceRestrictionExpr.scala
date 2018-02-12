@@ -78,7 +78,6 @@ private class RestrictionExprAncestor[Id] extends ResourceRestrictionExpr[Id] {
       implicit def caseDomId: Case.Aux[DomainId, Option[Expr]] =
         at(dom => Some(ComparisonExpr(Op.Eq, UriPath("domain".qualify), UriTerm(dom.qualify))))
     }
-
     id.fold(expr)
   }
 }
@@ -91,10 +90,6 @@ object ResourceRestrictionExpr {
   final implicit val restrictionExprContextId: ResourceRestrictionExpr[ContextId] = new RestrictionExprAncestor()
 
   final implicit val restrictionExprDomainId: ResourceRestrictionExpr[DomainId] =
-    /**
-      * Implementation of an expression filter where the domain exists directly on the resource
-      * and the organization is linked to the resource through a relationship
-      */
     new ResourceRestrictionExpr[DomainId] {
       override def mapToExpr(id: Ids)(implicit Q: ConfiguredQualifier[String],
                                       orgQ: ConfiguredQualifier[OrgId],
@@ -106,28 +101,22 @@ object ResourceRestrictionExpr {
           implicit def caseDomId: Case.Aux[DomainId, Option[Expr]] =
             at(dom => Some(ComparisonExpr(Op.Eq, SubjectPath, UriTerm(dom.qualify))))
         }
-
         id.fold(expr)
       }
     }
 
-  final implicit val restrictionExprOrgId: ResourceRestrictionExpr[OrgId] =
-    /**
-      * Implementation of an expression filter where the organization exists directly on the resource
-      */
-    new ResourceRestrictionExpr[OrgId] {
+  final implicit val restrictionExprOrgId: ResourceRestrictionExpr[OrgId] = new ResourceRestrictionExpr[OrgId] {
 
-      override def mapToExpr(id: Ids)(implicit Q: ConfiguredQualifier[String],
-                                      orgQ: ConfiguredQualifier[OrgId],
-                                      domQ: ConfiguredQualifier[DomainId]): Option[Expr] = {
-        object expr extends Poly1 {
-          implicit def caseRoot: Case.Aux[Root.type, Option[Expr]] = at(_ => Some(NoopExpr))
-          implicit def caseOrgId: Case.Aux[OrgId, Option[Expr]] =
-            at(org => Some(ComparisonExpr(Op.Eq, SubjectPath, UriTerm(org.qualify))))
-          implicit def caseDomId: Case.Aux[DomainId, Option[Expr]] = at(_ => None)
-        }
-
-        id.fold(expr)
+    override def mapToExpr(id: Ids)(implicit Q: ConfiguredQualifier[String],
+                                    orgQ: ConfiguredQualifier[OrgId],
+                                    domQ: ConfiguredQualifier[DomainId]): Option[Expr] = {
+      object expr extends Poly1 {
+        implicit def caseRoot: Case.Aux[Root.type, Option[Expr]] = at(_ => Some(NoopExpr))
+        implicit def caseOrgId: Case.Aux[OrgId, Option[Expr]] =
+          at(org => Some(ComparisonExpr(Op.Eq, SubjectPath, UriTerm(org.qualify))))
+        implicit def caseDomId: Case.Aux[DomainId, Option[Expr]] = at(_ => None)
       }
+      id.fold(expr)
     }
+  }
 }
