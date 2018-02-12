@@ -57,9 +57,10 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     * @param pagination the pagination values
     */
   def list(query: QueryPayload, pagination: Pagination)(implicit Q: ConfiguredQualifier[Id],
-                                                        acls: FullAccessControlList): F[QueryResults[Id]] =
+                                                        acls: FullAccessControlList,
+                                                        restriction: ResourceRestrictionExpr[Id]): F[QueryResults[Id]] =
     noPermissionsOrElse(acls) { () =>
-      val queryString = FilteredQuery[Id](query.copy(filter = query.filter and RestrictionExpr(acls)), pagination)
+      val queryString = FilteredQuery[Id](query.copy(filter = query.filter and restriction(acls)), pagination)
       queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
     }
 
@@ -72,7 +73,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     */
   def list(org: OrgId, query: QueryPayload, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[Id],
-      acls: FullAccessControlList): F[QueryResults[Id]] = {
+      acls: FullAccessControlList,
+      restriction: ResourceRestrictionExpr[Id]): F[QueryResults[Id]] = {
     val filter = Filter(ComparisonExpr(Eq, UriPath("organization" qualify), UriTerm(org qualify)))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -86,7 +88,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     */
   def list(dom: DomainId, query: QueryPayload, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[Id],
-      acls: FullAccessControlList): F[QueryResults[Id]] = {
+      acls: FullAccessControlList,
+      restriction: ResourceRestrictionExpr[Id]): F[QueryResults[Id]] = {
     val filter = Filter(ComparisonExpr(Eq, UriPath("domain" qualify), UriTerm(dom qualify)))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -102,7 +105,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
   def list(schemaName: SchemaName, query: QueryPayload, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[Id],
       schemaNameFilter: SchemaNameFilterExpr[Id],
-      acls: FullAccessControlList): F[QueryResults[Id]] = {
+      acls: FullAccessControlList,
+      restriction: ResourceRestrictionExpr[Id]): F[QueryResults[Id]] = {
     val filter = Filter(schemaNameFilter(schemaName))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -117,7 +121,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     */
   def list(contextName: ContextName, query: QueryPayload, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[Id],
-      acls: FullAccessControlList): F[QueryResults[Id]] = {
+      acls: FullAccessControlList,
+      restriction: ResourceRestrictionExpr[Id]): F[QueryResults[Id]] = {
     val filter = Filter(ComparisonExpr(Eq, UriPath(contextGroupKey), UriTerm(contextName qualify)))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -131,7 +136,8 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     */
   def list(schema: SchemaId, query: QueryPayload, pagination: Pagination)(
       implicit Q: ConfiguredQualifier[Id],
-      acls: FullAccessControlList): F[QueryResults[Id]] = {
+      acls: FullAccessControlList,
+      restriction: ResourceRestrictionExpr[Id]): F[QueryResults[Id]] = {
     val filter = Filter(ComparisonExpr(Eq, UriPath("schema" qualify), UriTerm(schema qualify)))
     list(query.copy(filter = filter and query.filter.expr), pagination)
   }
@@ -181,7 +187,8 @@ object FilterQueries {
     */
   final def apply[F[_], Id](queryClient: SparqlQuery[F])(implicit
                                                          querySettings: QuerySettings,
-                                                         typeExpr: TypeFilterExpr[Id], F: MonadError[F, Throwable]): FilterQueries[F, Id] =
+                                                         typeExpr: TypeFilterExpr[Id],
+                                                         F: MonadError[F, Throwable]): FilterQueries[F, Id] =
     new FilterQueries(queryClient)
 
   /**

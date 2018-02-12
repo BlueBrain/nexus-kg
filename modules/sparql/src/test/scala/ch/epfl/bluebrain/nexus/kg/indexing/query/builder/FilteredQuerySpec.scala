@@ -11,7 +11,10 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.NoopExpr
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.{ComparisonExpr, LogicalExpr, NoopExpr}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.{Eq, Or}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.{UriPath, SubjectPath}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.UriTerm
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
@@ -381,6 +384,54 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
              |""".stripMargin
         val result = FilteredQuery
           .incoming[OrgId](QueryPayload(filter = targetFilter), thisId, pagination)
+        result shouldEqual expected
+      }
+
+      "filter with variables" in {
+        val orgExprAncestors =
+          ComparisonExpr(Eq,
+                         UriPath("https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/organization"),
+                         UriTerm("http://localhost/v0/org"))
+
+        val domExpr1 = ComparisonExpr(Eq, SubjectPath, UriTerm(Uri("http://localhost/v0/org/dom")))
+        val domExpr2 = ComparisonExpr(Eq, SubjectPath, UriTerm(Uri("http://localhost/v0/org/dom2")))
+
+        val f      = Filter(LogicalExpr(Or, List(domExpr1, domExpr2, orgExprAncestors)))
+        val result = FilteredQuery[DomainId](QueryPayload(filter = f), pagination)
+        val expected =
+          """
+            |PREFIX bds: <http://www.bigdata.com/rdf/search#>
+            |SELECT DISTINCT ?total ?s
+            |WITH {
+            |  SELECT DISTINCT ?s
+            |  WHERE {
+            |
+            |
+            |?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Domain> .
+            |
+            |
+            |OPTIONAL { ?s <https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/organization> ?var_1 . }
+            |FILTER ( ?s = <http://localhost/v0/org/dom> || ?s = <http://localhost/v0/org/dom2> || ?var_1 = <http://localhost/v0/org> )
+            |
+            |
+            |  }
+            |
+            |} AS %resultSet
+            |WHERE {
+            |  {
+            |    SELECT (COUNT(DISTINCT ?s) AS ?total)
+            |    WHERE { INCLUDE %resultSet }
+            |  }
+            |  UNION
+            |  {
+            |    SELECT *
+            |    WHERE { INCLUDE %resultSet }
+            |    ORDER BY ?s
+            |    LIMIT 17
+            |    OFFSET 13
+            |  }
+            |}
+            |""".stripMargin
         result shouldEqual expected
       }
     }

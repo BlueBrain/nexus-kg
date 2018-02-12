@@ -49,13 +49,13 @@ import ch.epfl.bluebrain.nexus.kg.indexing.instances.{InstanceSparqlIndexer, Ins
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations.{OrganizationSparqlIndexer, OrganizationSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilterQueries
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.FilteredQuery._
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.ResourceRestrictionExpr._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.{SchemaSparqlIndexer, SchemaSparqlIndexingSettings}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
@@ -230,8 +230,6 @@ class SparqlQuerySpec(blazegraphPort: Int)
       val q                      = FilterQueries[Future, OrgId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
-      println("hereeeeeeeeeeeeee")
-      Thread.sleep(300*1000)
       result.total shouldEqual 3L
       result.results.size shouldEqual 3
       result.results.map(_.source.id) shouldEqual List("org0", "org1", "org2")
@@ -315,145 +313,153 @@ class SparqlQuerySpec(blazegraphPort: Int)
         })
 
       }
+    }
 
-      "perform schemas listing search" in {
+    "perform schemas listing search" in {
 
-        implicit var acls = FullAccessControlList(
-          (Anonymous(), Path("/kg/org0"), ownReadWrite),
-          (Anonymous(), Path("/kg/org1"), ownReadWrite),
-          (Anonymous(), Path("/kg/org2"), ownReadWrite),
-          (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
-          (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
-        )
-        // index 5 matching schemas
-        (0 until 5).foreach { idx =>
-          val id = SchemaId(DomainId(OrgId("org0"), "dom0"), genString(), Version(1, 0, idx))
-          schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
-        }
-
-        // index 5 not matching schemas
-        (5 until 10).foreach { idx =>
-          val id = SchemaId(DomainId(OrgId("org0"), "dom0"), genString(), Version(1, 0, idx))
-          schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
-          schemaIndexer(SchemaDeprecated(id, rev, meta)).futureValue
-        }
-
-        // index other 5 not matching schemas
-        (10 until 15).foreach { idx =>
-          val id =
-            SchemaId(DomainId(OrgId("org0"), "core"), "name", Version(1, 0, idx))
-          schemaIndexer(SchemaCreated(id, rev, meta, unmatched)).futureValue
-        }
-
-        val pagination = Pagination(0L, 100)
-        implicit val querySettings =
-          QuerySettings(pagination, 100, namespace, nexusVocBaseSchemas, base)
-        val q = FilterQueries[Future, SchemaId](queryClient)
-
-        val result =
-          q.list(DomainId(OrgId("org0"), "dom0"), QueryPayload(filter = filterNoDepr), pagination).futureValue
-        result.total shouldEqual 5L
-        result.results.size shouldEqual 5
-
-        result.results.foreach(r => {
-          r.source.version.patch.toDouble shouldEqual 2.5 +- 2.5
-          r.source.domainId shouldEqual DomainId(OrgId("org0"), "dom0")
-        })
-
-        acls = FullAccessControlList(
-          (Anonymous(), Path("/kg/org1"), ownReadWrite),
-          (Anonymous(), Path("/kg/org2"), ownReadWrite),
-          (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
-          (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
-        )
-        val result2 =
-          q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
-
-        result2.total shouldEqual 0L
-        result2.results.size shouldEqual 0
-
-        val result3 =
-          q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
-
-        result3.total shouldEqual 5L
-        result3.results.size shouldEqual 5
-
-        result3.results.foreach(r => {
-          r.source.version.patch.toDouble shouldEqual 12.5 +- 2.5
-          r.source.domainId shouldEqual DomainId(OrgId("org0"), "core")
-        })
+      implicit var acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org2"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
+      )
+      // index 5 matching schemas
+      (0 until 5).foreach { idx =>
+        val id = SchemaId(DomainId(OrgId("org0"), "dom0"), genString(), Version(1, 0, idx))
+        schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
       }
 
-      "perform instances listing search" in {
-        implicit var acls = FullAccessControlList(
-          (Anonymous(), Path("/kg/org1"), ownReadWrite),
-          (Anonymous(), Path("/kg/org2"), ownReadWrite),
-          (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
-          (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
-        )
-        val domainId   = DomainId(OrgId("org0"), "dom0")
-        val schemaName = SchemaName(domainId, genString())
-        // index 5 matching instances
-        (0 until 5).foreach { idx =>
-          val schemaId = schemaName.versioned(Version(1, 0, idx))
-          schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
-          val id = InstanceId(schemaId, UUID.randomUUID().toString)
-          instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-        }
-
-        // index 5 not matching instances
-        (5 until 10).foreach { idx =>
-          val schemaId = schemaName.versioned(Version(1, 0, idx))
-          schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
-          val id = InstanceId(schemaId, UUID.randomUUID().toString)
-          instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-          instanceIndexer(InstanceDeprecated(id, rev + 1, meta)).futureValue
-        }
-
-        // index other 5 not matching instances
-        (10 until 15).foreach { idx =>
-          val schemaId = SchemaId(DomainId(OrgId("other"), "dom"), schemaName.name, Version(1, 0, idx))
-          schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
-          val id = InstanceId(schemaId, UUID.randomUUID().toString)
-          instanceIndexer(InstanceCreated(id, rev, meta, unmatched)).futureValue
-        }
-        // index other 5 not matching instances
-        (15 until 20).foreach { idx =>
-          val schemaId = SchemaId(domainId, genString(), Version(1, 0, idx))
-          schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
-          val id = InstanceId(schemaId, UUID.randomUUID().toString)
-          instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
-        }
-
-        val pagination             = Pagination(3L, 3)
-        implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base)
-        val q                      = FilterQueries[Future, InstanceId](queryClient)
-
-        val res = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
-        res.total shouldEqual 0L
-
-        acls = FullAccessControlList(
-          (Anonymous(), Path("/kg/org1"), ownReadWrite),
-          (Anonymous(), Path("/kg/org2"), ownReadWrite),
-          (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
-          (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite),
-          (Anonymous(), Path("/kg/org0/dom0"), ownReadWrite)
-        )
-
-        val result = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
-        result.total shouldEqual 5L
-        result.results.size shouldEqual 2
-        result.results.foreach(r => {
-          r.source.schemaId.version.patch.toDouble shouldEqual 3.5 +- 0.5
-          r.source.schemaId.name shouldEqual schemaName.name
-          r.source.schemaId.domainId shouldEqual domainId
-        })
-
-        val pagination2 = Pagination(10L, 8)
-        val result2     = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination2).futureValue
-        result2.total shouldEqual 5L
-        result2.results.size shouldEqual 0
+      // index 5 not matching schemas
+      (5 until 10).foreach { idx =>
+        val id = SchemaId(DomainId(OrgId("org0"), "dom0"), genString(), Version(1, 0, idx))
+        schemaIndexer(SchemaCreated(id, rev, meta, data)).futureValue
+        schemaIndexer(SchemaDeprecated(id, rev, meta)).futureValue
       }
+
+      // index other 5 not matching schemas
+      (10 until 15).foreach { idx =>
+        val id =
+          SchemaId(DomainId(OrgId("org0"), "core"), "name", Version(1, 0, idx))
+        schemaIndexer(SchemaCreated(id, rev, meta, unmatched)).futureValue
+      }
+
+      val pagination = Pagination(0L, 100)
+      implicit val querySettings =
+        QuerySettings(pagination, 100, namespace, nexusVocBaseSchemas, base)
+      val q = FilterQueries[Future, SchemaId](queryClient)
+
+      val result =
+        q.list(DomainId(OrgId("org0"), "dom0"), QueryPayload(filter = filterNoDepr), pagination).futureValue
+      result.total shouldEqual 5L
+      result.results.size shouldEqual 5
+
+      result.results.foreach(r => {
+        r.source.version.patch.toDouble shouldEqual 2.5 +- 2.5
+        r.source.domainId shouldEqual DomainId(OrgId("org0"), "dom0")
+      })
+
+      acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org2"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
+      )
+      val result2 =
+        q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
+
+      result2.total shouldEqual 0L
+      result2.results.size shouldEqual 0
+
+      acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org0/core"), ownReadWrite),
+        (Anonymous(), Path("/kg/org1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org2"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
+      )
+
+      val result3 =
+        q.list(DomainId(OrgId("org0"), "core"), QueryPayload(filter = filterNoDepr), pagination).futureValue
+
+      result3.total shouldEqual 5L
+      result3.results.size shouldEqual 5
+
+      result3.results.foreach(r => {
+        r.source.version.patch.toDouble shouldEqual 12.5 +- 2.5
+        r.source.domainId shouldEqual DomainId(OrgId("org0"), "core")
+      })
+    }
+
+    "perform instances listing search" in {
+      implicit var acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org2"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite)
+      )
+      val domainId   = DomainId(OrgId("org0"), "dom0")
+      val schemaName = SchemaName(domainId, genString())
+      // index 5 matching instances
+      (0 until 5).foreach { idx =>
+        val schemaId = schemaName.versioned(Version(1, 0, idx))
+        schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
+        val id = InstanceId(schemaId, UUID.randomUUID().toString)
+        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
+      }
+
+      // index 5 not matching instances
+      (5 until 10).foreach { idx =>
+        val schemaId = schemaName.versioned(Version(1, 0, idx))
+        schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
+        val id = InstanceId(schemaId, UUID.randomUUID().toString)
+        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
+        instanceIndexer(InstanceDeprecated(id, rev + 1, meta)).futureValue
+      }
+
+      // index other 5 not matching instances
+      (10 until 15).foreach { idx =>
+        val schemaId = SchemaId(DomainId(OrgId("other"), "dom"), schemaName.name, Version(1, 0, idx))
+        schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
+        val id = InstanceId(schemaId, UUID.randomUUID().toString)
+        instanceIndexer(InstanceCreated(id, rev, meta, unmatched)).futureValue
+      }
+      // index other 5 not matching instances
+      (15 until 20).foreach { idx =>
+        val schemaId = SchemaId(domainId, genString(), Version(1, 0, idx))
+        schemaIndexer(SchemaCreated(schemaId, rev, meta, data)).futureValue
+        val id = InstanceId(schemaId, UUID.randomUUID().toString)
+        instanceIndexer(InstanceCreated(id, rev, meta, data)).futureValue
+      }
+
+      val pagination             = Pagination(3L, 3)
+      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base)
+      val q                      = FilterQueries[Future, InstanceId](queryClient)
+
+      val res = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
+      res.total shouldEqual 0L
+
+      acls = FullAccessControlList(
+        (Anonymous(), Path("/kg/org1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org2"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain0"), ownReadWrite),
+        (Anonymous(), Path("/kg/org3/domain1"), ownReadWrite),
+        (Anonymous(), Path("/kg/org0/dom0"), ownReadWrite)
+      )
+
+      val result = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue
+      result.total shouldEqual 5L
+      result.results.size shouldEqual 2
+      result.results.foreach(r => {
+        r.source.schemaId.version.patch.toDouble shouldEqual 3.5 +- 0.5
+        r.source.schemaId.name shouldEqual schemaName.name
+        r.source.schemaId.domainId shouldEqual domainId
+      })
+
+      val pagination2 = Pagination(10L, 8)
+      val result2     = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination2).futureValue
+      result2.total shouldEqual 5L
+      result2.results.size shouldEqual 0
     }
   }
 }

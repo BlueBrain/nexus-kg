@@ -316,14 +316,6 @@ class Settings(config: Config) extends Extension {
       */
     val BaseUri = Uri(ns.getString("iam.base-uri"))
   }
-
-  object Kafka {
-
-    /**
-      * Name of the Kafka topic where ACL events are published by the IAM service
-      */
-    val Topic = ns.getString("kafka.permissions-topic")
-  }
 }
 
 object Settings extends ExtensionId[Settings] with ExtensionIdProvider {

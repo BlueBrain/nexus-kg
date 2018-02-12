@@ -27,11 +27,10 @@ import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContextExecutor
 
 @DoNotDiscover
-class ElasticOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(
-    implicit
-    as: ActorSystem,
-    ec: ExecutionContextExecutor,
-    mt: ActorMaterializer)
+class ElasticOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)(implicit
+                                                                          as: ActorSystem,
+                                                                          ec: ExecutionContextExecutor,
+                                                                          mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._

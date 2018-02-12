@@ -12,9 +12,9 @@ import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.{ComparisonExpr, InExpr, LogicalExpr, NoopExpr}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Op.{And, _}
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.UriPath
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.PropPath.{UriPath, SubjectPath}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Term.{LiteralTerm, TermCollection, UriTerm}
-import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Expr, Filter, Op, Term}
+import ch.epfl.bluebrain.nexus.kg.core.queries.filtering._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.PrefixUri._
@@ -35,10 +35,9 @@ object FilteredQuery {
     * @param pagination the pagination settings for the generated query
     * @return a Blazegraph query based on the provided filter and pagination settings
     */
-  def apply[Id](query: QueryPayload, pagination: Pagination)(
-      implicit Q: ConfiguredQualifier[String],
-      typeExpr: TypeFilterExpr[Id],
-      querySettings: QuerySettings): String = {
+  def apply[Id](query: QueryPayload, pagination: Pagination)(implicit Q: ConfiguredQualifier[String],
+                                                             typeExpr: TypeFilterExpr[Id],
+                                                             querySettings: QuerySettings): String = {
     applyWithWhere(buildWhereFrom(addToFilter(query.filter, query.deprecated, query.published).expr),
                    pagination,
                    query.q,
@@ -66,11 +65,10 @@ object FilteredQuery {
       pubOpt,
       querySettings.nexusVocBase).expr
 
-  private def applyWithWhere[Id](
-      where: String,
-      pagination: Pagination,
-      term: Option[String],
-      sort: SortList): String = {
+  private def applyWithWhere[Id](where: String,
+                                 pagination: Pagination,
+                                 term: Option[String],
+                                 sort: SortList): String = {
     val (selectTotal, selectWith, selectSubQuery) = buildSelectsFrom(term, sort)
     val (orderByUnion, orderByTotal)              = buildOrderByFrom(term, sort)
 
@@ -146,7 +144,7 @@ object FilteredQuery {
     applyWithWhere(where, pagination, query.q, query.sort)
   }
 
-  private final case class Stmt(stmt: String, filter: Option[String])
+  private final case class Stmt(stmt: Option[String], filter: Option[String])
 
   private def buildSelectsFrom(term: Option[String], sort: SortList): (String, String, String) = {
     term
@@ -198,25 +196,28 @@ object FilteredQuery {
       val InExpr(path, TermCollection(terms)) = expr
       val stmt                                = s"?$subject ${path.show} $variable ."
       val filter                              = terms.map(_.show).mkString(s"$variable IN (", ", ", ")")
-      Stmt(stmt, Some(filter))
+      Stmt(Some(stmt), Some(filter))
     }
 
     // ?s :p ?var .
     // FILTER ( ?var op term )
     def compExpr(expr: ComparisonExpr, allowDirectFilter: Boolean = false): Stmt = {
       expr match {
+        case ComparisonExpr(op, SubjectPath, term) =>
+          Stmt(None, Some(s"${(SubjectPath: PropPath).show} ${op.show} ${term.show}"))
+
         case ComparisonExpr(_: Eq.type, path, term: UriTerm) if allowDirectFilter =>
-          Stmt(s"?$subject ${path.show} ${term.show} .", None)
+          Stmt(Some(s"?$subject ${path.show} ${term.show} ."), None)
         case ComparisonExpr(op, path, term) =>
           val idx      = nextIdx()
           val variable = s"?${varPrefix}_$idx"
-          Stmt(s"?$subject ${path.show} $variable .", Some(s"$variable ${op.show} ${term.show}"))
+          Stmt(Some(s"?$subject ${path.show} $variable ."), Some(s"$variable ${op.show} ${term.show}"))
       }
     }
 
     def fromStmts(op: LogicalOp, stmts: Vector[Stmt]): String = op match {
       case And =>
-        val select = stmts.map(_.stmt).mkString("\n")
+        val select = stmts.collect { case Stmt(Some(stmt), _) => stmt }.mkString("\n")
         val filter = stmts.collect { case Stmt(_, Some(f)) => f }.mkString(" && ") match {
           case ""    => None
           case other => Some(other)
@@ -226,15 +227,15 @@ object FilteredQuery {
            |${filter.map(f => s"FILTER ( $f )").getOrElse("")}
            |""".stripMargin
       case Or =>
-        val select = stmts.map(v => s"OPTIONAL { ${v.stmt} }").mkString("\n")
-        val filter = stmts.collect { case Stmt(_, Some(f)) => f }.mkString(" || ")
+        val select = stmts.collect { case Stmt(Some(stmt), _) => s"OPTIONAL { ${stmt} }" }.mkString("\n")
+        val filter = stmts.collect { case Stmt(_, Some(f))    => f }.mkString(" || ")
         s"""
            |$select
            |FILTER ( $filter )
            |""".stripMargin
       case Not =>
-        val select = stmts.map(_.stmt).mkString("\n")
-        val filter = stmts.collect { case Stmt(_, Some(f)) => f }.mkString(" || ")
+        val select = stmts.collect { case Stmt(Some(stmt), _) => stmt }.mkString("\n")
+        val filter = stmts.collect { case Stmt(_, Some(f))    => f }.mkString(" || ")
         s"""
            |$select
            |FILTER NOT EXISTS {
@@ -243,9 +244,9 @@ object FilteredQuery {
            |}
            |""".stripMargin
       case Xor =>
-        val optSelect = stmts.map(v => s"OPTIONAL { ${v.stmt} }").mkString("\n")
-        val filter    = stmts.collect { case Stmt(_, Some(f)) => f }.mkString(" || ")
-        val select    = stmts.map(_.stmt).mkString("\n")
+        val optSelect = stmts.collect { case Stmt(Some(stmt), _) => s"OPTIONAL { ${stmt} }" }.mkString("\n")
+        val filter    = stmts.collect { case Stmt(_, Some(f))    => f }.mkString(" || ")
+        val select    = stmts.collect { case Stmt(Some(stmt), _) => stmt }.mkString("\n")
         s"""
            |$optSelect
            |FILTER ( $filter )
@@ -311,12 +312,13 @@ object FilteredQuery {
 
   private implicit val stmtShow: Show[Stmt] =
     Show.show {
-      case Stmt(stmt, Some(filter)) =>
+      case Stmt(Some(stmt), Some(filter)) =>
         s"""
            |$stmt
            |FILTER ( $filter )
            |""".stripMargin
-      case Stmt(stmt, None) =>
-        stmt
+      case Stmt(Some(stmt), None)   => stmt
+      case Stmt(None, Some(filter)) => s"FILTER ( $filter )"
+      case Stmt(None, None)         => ""
     }
 }

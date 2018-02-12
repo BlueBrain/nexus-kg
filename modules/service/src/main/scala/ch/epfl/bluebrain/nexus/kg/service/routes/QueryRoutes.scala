@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.core.queries.{Queries, Query, QueryId, QueryResource}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.{FilterQueries, SchemaNameFilterExpr}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.{FilterQueries, ResourceRestrictionExpr, SchemaNameFilterExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{authenticateCaller, authorizeResource, getAcls}
@@ -97,6 +97,7 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
                                                                           Se: Encoder[ScoredQueryResult[Entity]],
                                                                           schemaNameExpr: SchemaNameFilterExpr[Id],
                                                                           idToEntity: IdToEntityRetrieval[Id, Entity],
+                                                                          aclRestriction: ResourceRestrictionExpr[Id],
                                                                           L: Encoder[Links]) = {
                   path.segments match {
                     case (orgId :: domainName :: schemaName :: version :: Nil) =>

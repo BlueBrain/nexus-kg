@@ -12,8 +12,4 @@ import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
   * @param nexusVocBase the nexus core vocabulary base
   * @param base         the service public uri + prefix
   */
-final case class QuerySettings(pagination: Pagination,
-                               maxSize: Int,
-                               index: String,
-                               nexusVocBase: Uri,
-                               base: Uri)
+final case class QuerySettings(pagination: Pagination, maxSize: Int, index: String, nexusVocBase: Uri, base: Uri)
