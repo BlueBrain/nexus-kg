@@ -102,7 +102,7 @@ class QueryRoutesSpec
   private val InstanceSparqlIndexingSettings(index, _, _, nexusVocBase) =
     InstanceSparqlIndexingSettings(genString(length = 6), baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
 
-  val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
+  val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri)
 
   val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
 

@@ -4,7 +4,6 @@ val akkaHttpCorsVersion             = "0.2.2"
 val akkaPersistenceCassandraVersion = "0.55"
 val akkaPersistenceInMemVersion     = "2.5.1.1"
 val akkaHttpCirceVersion            = "1.19.0"
-val akkaStreamKafkaVersion          = "0.18"
 val catsVersion                     = "1.0.1"
 val circeVersion                    = "0.9.0"
 val logbackVersion                  = "1.2.3"
@@ -172,7 +171,6 @@ lazy val service = project
       "com.typesafe.akka"          %% "akka-http" % akkaHttpVersion,
       "com.typesafe.akka"          %% "akka-distributed-data" % akkaVersion,
       "com.typesafe.akka"          %% "akka-persistence-cassandra" % akkaPersistenceCassandraVersion,
-      "com.typesafe.akka"          %% "akka-stream-kafka" % akkaStreamKafkaVersion,
       "io.dropwizard.metrics"      % "metrics-core" % metricsCoreVersion, // for cassandra client, or fails at runtime
       "de.heikoseeberger"          %% "akka-http-circe" % akkaHttpCirceVersion,
       "io.circe"                   %% "circe-core" % circeVersion,
@@ -186,7 +184,6 @@ lazy val service = project
       "com.github.dnvriend"        %% "akka-persistence-inmemory" % akkaPersistenceInMemVersion % Test,
       "com.typesafe.akka"          %% "akka-http-testkit" % akkaHttpVersion % Test,
       "com.typesafe.akka"          %% "akka-testkit" % akkaVersion % Test,
-      "net.manub"                  %% "scalatest-embedded-kafka" % "1.0.0" % Test,
       "org.scalatest"              %% "scalatest" % scalaTestVersion % Test
     )
   )

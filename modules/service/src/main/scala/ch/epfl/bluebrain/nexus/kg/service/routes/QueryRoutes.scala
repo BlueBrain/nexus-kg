@@ -6,10 +6,11 @@ import akka.http.scaladsl.server.Directives.{path, _}
 import akka.http.scaladsl.server.directives.RouteDirectives.reject
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive1, ExceptionHandler, Route}
 import cats.instances.future._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path.toInternal
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.Version
@@ -23,10 +24,10 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organization}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.core.queries.{Queries, Query, QueryId, QueryResource}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.{FilterQueries, SchemaNameFilterExpr}
+import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.{FilterQueries, ResourceRestrictionExpr, SchemaNameFilterExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{authenticateCaller, authorizeResource}
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{authenticateCaller, authorizeResource, getAcls}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalVersionFormat
@@ -34,6 +35,7 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.QueryRoutes._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders._
 import io.circe.Encoder
+import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -58,7 +60,7 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
   private val basePath: String                   = "queries"
   private val exceptionHandler: ExceptionHandler = ExceptionHandling.exceptionHandler(prefixes.ErrorContext)
 
-  def routes = handleExceptions(exceptionHandler) {
+  def routes: Route = handleExceptions(exceptionHandler) {
     handleRejections(RejectionHandling.rejectionHandler(prefixes.ErrorContext)) {
       pathPrefix(basePath) {
         extractCredentials {
@@ -85,75 +87,91 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
         authenticateCaller.apply { implicit caller =>
           onSuccess(queries.fetch(QueryId(uuid.toString))) {
             case Some(Query(_, path, body)) =>
-              import idsToEntities._
-              def buildFromPath[Id, Entity](queries: FilterQueries[Future, Id],
-                                            contextId: Boolean = false)(implicit C: ConfiguredQualifier[Id],
-                                                                        R: Encoder[UnscoredQueryResult[Id]],
-                                                                        S: Encoder[ScoredQueryResult[Id]],
-                                                                        Re: Encoder[UnscoredQueryResult[Entity]],
-                                                                        Se: Encoder[ScoredQueryResult[Entity]],
-                                                                        schemaNameExpr: SchemaNameFilterExpr[Id],
-                                                                        idToEntity: IdToEntityRetrieval[Id, Entity],
-                                                                        L: Encoder[Links]) = {
-                path.segments match {
-                  case (orgId :: domainName :: schemaName :: version :: Nil) =>
-                    Version(version) match {
-                      case None =>
-                        exceptionHandler(CommandRejected(IllegalVersionFormat("Illegal version format")))
-                      case Some(v) =>
-                        val id = SchemaId(DomainId(OrgId(orgId), domainName), schemaName, v)
+              operationName(s"search${body.resource}") {
+                import idsToEntities._
+                def buildFromPath[Id, Entity](queries: FilterQueries[Future, Id],
+                                              contextId: Boolean = false)(implicit C: ConfiguredQualifier[Id],
+                                                                          R: Encoder[UnscoredQueryResult[Id]],
+                                                                          S: Encoder[ScoredQueryResult[Id]],
+                                                                          Re: Encoder[UnscoredQueryResult[Entity]],
+                                                                          Se: Encoder[ScoredQueryResult[Entity]],
+                                                                          schemaNameExpr: SchemaNameFilterExpr[Id],
+                                                                          idToEntity: IdToEntityRetrieval[Id, Entity],
+                                                                          aclRestriction: ResourceRestrictionExpr[Id],
+                                                                          L: Encoder[Links]) = {
+                  path.segments match {
+                    case (orgId :: domainName :: schemaName :: version :: Nil) =>
+                      Version(version) match {
+                        case None =>
+                          exceptionHandler(CommandRejected(IllegalVersionFormat("Illegal version format")))
+                        case Some(v) =>
+                          val id = SchemaId(DomainId(OrgId(orgId), domainName), schemaName, v)
+                          getAcls(Path(id.domainId.show)).apply { implicit acls =>
+                            queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
+                          }
+                      }
+
+                    case (orgId :: domainName :: name :: Nil) =>
+                      if (contextId) {
+                        val id = ContextName(DomainId(OrgId(orgId), domainName), name)
+                        getAcls(Path(id.domainId.show)).apply { implicit acls =>
+                          queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
+                        }
+                      } else {
+                        val id = SchemaName(DomainId(OrgId(orgId), domainName), name)
+                        getAcls(Path(id.domainId.show)).apply { implicit acls =>
+                          queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
+                        }
+                      }
+
+                    case (orgId :: domainName :: Nil) =>
+                      val id = DomainId(OrgId(orgId), domainName)
+                      getAcls(Path(id.show)).apply { implicit acls =>
                         queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
-                    }
+                      }
 
-                  case (orgId :: domainName :: name :: Nil) =>
-                    if (contextId) {
-                      val id = ContextName(DomainId(OrgId(orgId), domainName), name)
-                      queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
-                    } else {
-                      val id = SchemaName(DomainId(OrgId(orgId), domainName), name)
-                      queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
-                    }
+                    case (orgId :: Nil) =>
+                      val id = OrgId(orgId)
+                      getAcls(id.show / "*").apply { implicit acls =>
+                        queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
+                      }
 
-                  case (orgId :: domainName :: Nil) =>
-                    val id = DomainId(OrgId(orgId), domainName)
-                    queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
+                    case Nil =>
+                      getAcls("*" / "*").apply { implicit acls =>
+                        queries.list(body, pagination).buildResponse(body.fields, base, prefixes, pagination)
+                      }
 
-                  case (orgId :: Nil) =>
-                    val id = OrgId(orgId)
-                    queries.list(id, body, pagination).buildResponse(body.fields, base, prefixes, pagination)
-
-                  case Nil => queries.list(body, pagination).buildResponse(body.fields, base, prefixes, pagination)
-
-                  case _ => complete(StatusCodes.NotFound)
+                    case _ => complete(StatusCodes.NotFound)
+                  }
                 }
-              }
 
-              body.resource match {
-                case QueryResource.Organizations =>
-                  val enc = new OrgCustomEncoders(base, prefixes)
-                  import enc._
-                  buildFromPath[OrgId, Organization](FilterQueries[Future, OrgId](client))
+                body.resource match {
+                  case QueryResource.Organizations =>
+                    val enc = new OrgCustomEncoders(base, prefixes)
+                    import enc._
+                    buildFromPath[OrgId, Organization](FilterQueries[Future, OrgId](client))
 
-                case QueryResource.Domains =>
-                  val enc = new DomainCustomEncoders(base, prefixes)
-                  import enc._
-                  buildFromPath[DomainId, Domain](FilterQueries[Future, DomainId](client))
+                  case QueryResource.Domains =>
+                    val enc = new DomainCustomEncoders(base, prefixes)
+                    import enc._
+                    buildFromPath[DomainId, Domain](FilterQueries[Future, DomainId](client))
 
-                case QueryResource.Schemas =>
-                  val enc = new SchemaCustomEncoders(base, prefixes)
-                  import enc._
-                  buildFromPath[SchemaId, Schema](FilterQueries[Future, SchemaId](client))
+                  case QueryResource.Schemas =>
+                    val enc = new SchemaCustomEncoders(base, prefixes)
+                    import enc._
+                    buildFromPath[SchemaId, Schema](FilterQueries[Future, SchemaId](client))
 
-                case QueryResource.Contexts =>
-                  val enc = new ContextCustomEncoders(base, prefixes)
-                  import enc._
-                  buildFromPath[ContextId, Context](FilterQueries[Future, ContextId](client), contextId = true)
+                  case QueryResource.Contexts =>
+                    val enc = new ContextCustomEncoders(base, prefixes)
+                    import enc._
+                    buildFromPath[ContextId, Context](FilterQueries[Future, ContextId](client), contextId = true)
 
-                case QueryResource.Instances =>
-                  val enc = new InstanceCustomEncoders(base, prefixes)
-                  import enc._
-                  buildFromPath[InstanceId, Instance](FilterQueries[Future, InstanceId](client))
+                  case QueryResource.Instances =>
+                    val enc = new InstanceCustomEncoders(base, prefixes)
+                    import enc._
+                    buildFromPath[InstanceId, Instance](FilterQueries[Future, InstanceId](client))
 
+                }
               }
             case None =>
               complete(StatusCodes.NotFound)
@@ -187,8 +205,8 @@ object QueryRoutes {
                              filteringSettings: FilteringSettings,
                              orderedKeys: OrderedKeys,
                              prefixes: PrefixUris): QueryRoutes = {
-    implicit val qs: QuerySettings = querySettings
-    implicit val queryClient       = SparqlQuery[Future](client)
+    implicit val qs: QuerySettings                = querySettings
+    implicit val queryClient: SparqlQuery[Future] = SparqlQuery[Future](client)
     new QueryRoutes(queries, idsToEntities, base)
   }
 

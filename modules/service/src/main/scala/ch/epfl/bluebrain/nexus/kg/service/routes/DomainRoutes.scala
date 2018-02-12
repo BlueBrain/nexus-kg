@@ -8,11 +8,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.Materializer
 import cats.instances.future._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withAkkaUnmarshaller}
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
@@ -70,7 +72,7 @@ final class DomainRoutes(domains: Domains[Future],
     (get & paramsToQuery) { (pagination, query) =>
       implicit val _ = domainIdToEntityRetrieval(domains)
       operationName("searchDomains") {
-        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
+        (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls =>
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               domainsElasticQueries
@@ -83,7 +85,7 @@ final class DomainRoutes(domains: Domains[Future],
           }
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(orgId.show / "*").apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   domainsElasticQueries

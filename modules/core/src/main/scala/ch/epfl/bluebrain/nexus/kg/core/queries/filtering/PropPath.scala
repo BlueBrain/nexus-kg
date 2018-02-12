@@ -23,6 +23,12 @@ object PropPath extends PropPathBuilder {
   final case class UriPath(value: Uri) extends PropPath
 
   /**
+    * Path property which represents the subject.
+    *
+    */
+  final case object SubjectPath extends PropPath
+
+  /**
     * Inverse path (object to subject). Sparql expression: ^value
     *
     * @param value the URI
@@ -83,6 +89,7 @@ object PropPath extends PropPathBuilder {
   private implicit val showUriPath: Show[Uri] = Show.show(uri => s"<$uri>")
 
   implicit val showPath: Show[PropPath] = Show.show[PropPath] {
+    case SubjectPath                       => "?s"
     case UriPath(uri)                      => uri.show
     case InversePath(uri)                  => s"^${uri.show}"
     case GroupPath(uri)                    => s"(${uri.show})"

@@ -226,8 +226,7 @@ object BootstrapService {
       settings.Pagination.MaxSize,
       settings.Sparql.Index,
       settings.Prefixes.CoreVocabulary,
-      apiUri,
-      settings.Sparql.Acls.GraphBaseNamespace
+      apiUri
     )
 
     private[service] implicit val filteringSettings: FilteringSettings =

@@ -89,7 +89,7 @@ class SchemaRoutesSpec
 
     val sparqlClient = SparqlClient[Future](sparqlUri)
 
-    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri, s"$baseUri/acls/graph")
+    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri)
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
     val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)

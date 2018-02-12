@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
@@ -40,7 +41,6 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.InstanceCustomEncoders
 import io.circe.generic.auto._
 import io.circe.{Decoder, Json}
 import kamon.akka.http.KamonTraceDirectives.operationName
-
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -74,7 +74,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
     (get & paramsToQuery) { (pagination, query) =>
       implicit val _ = instanceIdToEntityRetrieval(instances)
       operationName("searchInstances") {
-        (pathEndOrSingleSlash & authenticateCaller) { implicit caller =>
+        (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls =>
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               instancesElasticQueries
@@ -85,7 +85,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
           }
         } ~
           (extractOrgId & pathEndOrSingleSlash) { orgId =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(orgId.show / "*").apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   instancesElasticQueries
@@ -96,11 +96,10 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                     .list(orgId, query, pagination)
                     .buildResponse(query.fields, base, prefixes, pagination)
               }
-
             }
           } ~
           (extractDomainId & pathEndOrSingleSlash) { domainId =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(Path(domainId.show)).apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   instancesElasticQueries
@@ -111,7 +110,6 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                     .list(domainId, query, pagination)
                     .buildResponse(query.fields, base, prefixes, pagination)
               }
-
             }
           } ~
           (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
@@ -121,7 +119,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                   .list(pagination, schemaName, query.deprecated, None)
                   .buildResponse(query.fields, base, prefixes, pagination)
               case _ =>
-                authenticateCaller.apply { implicit caller =>
+                getAcls(Path(schemaName.domainId.show)).apply { implicit acls =>
                   instanceQueries
                     .list(schemaName, query, pagination)
                     .buildResponse(query.fields, base, prefixes, pagination)
@@ -130,7 +128,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
             }
           } ~
           (extractSchemaId & pathEndOrSingleSlash) { schemaId =>
-            authenticateCaller.apply { implicit caller =>
+            getAcls(Path(schemaId.domainId.show)).apply { implicit acls =>
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   instancesElasticQueries
@@ -141,16 +139,15 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                     .list(schemaId, query, pagination)
                     .buildResponse(query.fields, base, prefixes, pagination)
               }
-
             }
           } ~
           extractInstanceId { instanceId =>
-            (path("outgoing") & authenticateCaller) { implicit caller =>
+            (path("outgoing") & getAcls(Path(instanceId.schemaId.domainId.show))) { implicit acls =>
               instanceQueries
                 .outgoing(instanceId, query, pagination)
                 .buildResponse(query.fields, base, prefixes, pagination)
             } ~
-              (path("incoming") & authenticateCaller) { implicit caller =>
+              (path("incoming") & getAcls(Path(instanceId.schemaId.domainId.show))) { implicit acls =>
                 instanceQueries
                   .incoming(instanceId, query, pagination)
                   .buildResponse(query.fields, base, prefixes, pagination)

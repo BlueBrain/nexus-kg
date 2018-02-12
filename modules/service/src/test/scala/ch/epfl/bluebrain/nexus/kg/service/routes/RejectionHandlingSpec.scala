@@ -50,7 +50,7 @@ class RejectionHandlingSpec
 
     val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
     val vocab         = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri, s"$baseUri/acls/graph")
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri)
 
     val elasticIndexingSettings = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
     val sparqlClient            = SparqlClient[Future](sparqlUri)

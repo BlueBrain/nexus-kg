@@ -123,7 +123,7 @@ class InstanceRoutesSpec
                                      s"$baseUri/data/graphs",
                                      s"$baseUri/voc/nexus/core")
 
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri)
     val baseUUID      = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
