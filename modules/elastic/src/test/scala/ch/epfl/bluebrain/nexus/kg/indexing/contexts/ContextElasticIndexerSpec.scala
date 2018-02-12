@@ -5,6 +5,7 @@ import java.util.regex.Pattern
 
 import akka.testkit.TestKit
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import cats.instances.string._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
@@ -115,8 +116,10 @@ class ContextElasticIndexerSpec
       eventually {
         val rs = getAll.futureValue
         rs.results.size shouldEqual 1
-        rs.results.head.source shouldEqual data.deepMerge(
-          expectedJson(id, rev, deprecated = false, published = false, meta, meta))
+        rs.results.head.source shouldEqual data
+          .deepMerge(expectedJson(id, rev, deprecated = false, published = false, meta, meta))
+          .removeKeys("@context")
+
         client.existsIndex(indexId).futureValue shouldEqual (())
       }
     }
@@ -130,8 +133,9 @@ class ContextElasticIndexerSpec
       eventually {
         val rs = getAll.futureValue
         rs.results.size shouldEqual 1
-        rs.results.head.source shouldEqual data.deepMerge(
-          expectedJson(id, rev, deprecated = false, published = false, metaUpdated, meta))
+        rs.results.head.source shouldEqual data
+          .deepMerge(expectedJson(id, rev, deprecated = false, published = false, metaUpdated, meta))
+          .removeKeys("@context")
       }
     }
 
@@ -145,6 +149,7 @@ class ContextElasticIndexerSpec
         rs.results.head.source shouldEqual data
           .deepMerge(expectedJson(id, rev, deprecated = false, published = true, metaPublished, meta))
           .deepMerge(Json.obj(publishedAtTimeKey -> Json.fromString(metaPublished.instant.toString)))
+          .removeKeys("@context")
       }
     }
 
@@ -158,6 +163,7 @@ class ContextElasticIndexerSpec
         rs.results.head.source shouldEqual data
           .deepMerge(expectedJson(id, rev, deprecated = true, published = true, metaUpdated, meta))
           .deepMerge(Json.obj(publishedAtTimeKey -> Json.fromString(metaPublished.instant.toString)))
+          .removeKeys("@context")
       }
     }
   }

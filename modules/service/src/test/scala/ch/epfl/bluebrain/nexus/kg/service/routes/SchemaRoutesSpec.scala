@@ -7,6 +7,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
@@ -23,6 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaRef, Schemas}
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
@@ -90,7 +92,13 @@ class SchemaRoutesSpec
     val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri, s"$baseUri/acls/graph")
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
-    val route = SchemaRoutes(schemas, sparqlClient, querySettings, baseUri).routes
+    val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
+    val elasticQueryClient = ElasticQueryClient[Future](sparqlUri)
+
+    val elasticClient = ElasticClient[Future](sparqlUri, elasticQueryClient)
+
+    val route =
+      SchemaRoutes(schemas, sparqlClient, elasticClient, indexingSettings, querySettings, baseUri).routes
 
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 

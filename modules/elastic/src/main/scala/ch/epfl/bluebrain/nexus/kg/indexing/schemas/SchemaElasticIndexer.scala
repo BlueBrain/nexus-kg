@@ -48,7 +48,7 @@ class SchemaElasticIndexer[F[_]](client: ElasticClient[F], contexts: Contexts[F]
           .resolve(value removeKeys ("links"))
           .flatMap { json =>
             val combined = json deepMerge meta deepMerge Json.obj(
-              createdAtTimeKey -> Json.fromString(m.instant.toString))
+              createdAtTimeKey -> Json.fromString(m.instant.toString)) removeKeys "@context"
             client.create(event.id.toIndex(prefix), t, event.id.elasticId, combined)
           }
       }
@@ -59,7 +59,7 @@ class SchemaElasticIndexer[F[_]](client: ElasticClient[F], contexts: Contexts[F]
       contexts
         .resolve(value removeKeys ("links"))
         .flatMap { json =>
-          val query = PatchQuery.inverse(json deepMerge meta, createdAtTimeKey)
+          val query = PatchQuery.inverse(json deepMerge meta removeKeys "@context", createdAtTimeKey)
           client.update(event.id.toIndex(prefix), t, event.id.elasticId, query)
         }
 
