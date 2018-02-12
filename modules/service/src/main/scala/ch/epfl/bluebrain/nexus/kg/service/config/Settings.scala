@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit._
 
 import akka.actor._
 import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import com.typesafe.config.Config
 
@@ -234,6 +235,14 @@ class Settings(config: Config) extends Extension {
       * The index name (namespace) for indexing.
       */
     val Index = ns.getString("sparql.index")
+
+    /**
+      * The optional basic auth credentials required to access the sparql endpoint
+      */
+    val Credentials: Option[BasicHttpCredentials] = for {
+      username <- Try(ns.getString("sparql.username")).toOption
+      password <- Try(ns.getString("sparql.password")).toOption
+    } yield BasicHttpCredentials(username, password)
 
     object Domains {
 

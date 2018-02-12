@@ -74,7 +74,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     else baseUri.copy(path = baseUri.path / settings.Http.Prefix)
   // $COVERAGE-ON$
 
-  val sparqlClient = SparqlClient[Future](settings.Sparql.BaseUri)
+  val sparqlClient = SparqlClient[Future](settings.Sparql.BaseUri, settings.Sparql.Credentials)
 
   val elasticQueryClient = ElasticQueryClient[Future](settings.Elastic.BaseUri)
 
