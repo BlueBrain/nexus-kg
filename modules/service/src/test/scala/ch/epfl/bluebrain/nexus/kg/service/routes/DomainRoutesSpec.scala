@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
@@ -18,6 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{Domain, DomainId, DomainRef, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
@@ -62,14 +64,20 @@ class DomainRoutesSpec
 
     val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
     val vocab         = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, "domain-index", vocab, baseUri, s"$baseUri/acls/graph")
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, "domain-index", vocab, baseUri)
     implicit val cl   = iamClient("http://localhost:8080")
 
     val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
     implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
 
-    val sparqlClient = SparqlClient[Future](sparqlUri)
-    val route        = DomainRoutes(doms, sparqlClient, querySettings, baseUri).routes
+    val sparqlClient       = SparqlClient[Future](sparqlUri)
+    val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
+    val elasticQueryClient = ElasticQueryClient[Future](sparqlUri)
+
+    val elasticClient = ElasticClient[Future](sparqlUri, elasticQueryClient)
+
+    val route =
+      DomainRoutes(doms, sparqlClient, elasticClient, indexingSettings, querySettings, baseUri).routes
 
     createNexusContexts(orgs, doms, contexts)(caller)
 

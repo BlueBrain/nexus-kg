@@ -38,6 +38,7 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
 import ch.epfl.bluebrain.nexus.kg.core.queries.{Queries, Query}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaImportResolver, Schemas}
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
@@ -85,14 +86,19 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
   private implicit val clock: Clock             = Clock.systemUTC
   private implicit val orderedKeys: OrderedKeys = kgOrderedKeys
   private implicit val prefixes: PrefixUris     = settings.Prefixes
-  private val idsToEntities                     = new GroupedIdsToEntityRetrieval(instances, schemas, contexts, doms, orgs)
+  private val elasticSettings = ElasticIndexingSettings(settings.Elastic.IndexPrefix,
+                                                        settings.Elastic.Type,
+                                                        apiUri,
+                                                        settings.Prefixes.CoreVocabulary)
+
+  private val idsToEntities = new GroupedIdsToEntityRetrieval(instances, schemas, contexts, doms, orgs)
   private val apis = uriPrefix(apiUri) {
     implicit val ctxs = contexts
-    OrganizationRoutes(orgs, sparqlClient, querySettings, apiUri).routes ~
-      DomainRoutes(doms, sparqlClient, querySettings, apiUri).routes ~
-      SchemaRoutes(schemas, sparqlClient, querySettings, apiUri).routes ~
-      ContextRoutes(sparqlClient, querySettings, apiUri).routes ~
-      InstanceRoutes(instances, sparqlClient, querySettings, apiUri).routes ~
+    OrganizationRoutes(orgs, sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~
+      DomainRoutes(doms, sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~
+      SchemaRoutes(schemas, sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~
+      ContextRoutes(sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~
+      InstanceRoutes(instances, sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~
       QueryRoutes(queries, sparqlClient, querySettings, idsToEntities, apiUri).routes
   }
   private val static = uriPrefix(baseUri)(StaticRoutes().routes)
@@ -220,8 +226,7 @@ object BootstrapService {
       settings.Pagination.MaxSize,
       settings.Sparql.Index,
       settings.Prefixes.CoreVocabulary,
-      apiUri,
-      settings.Sparql.Acls.GraphBaseNamespace
+      apiUri
     )
 
     private[service] implicit val filteringSettings: FilteringSettings =

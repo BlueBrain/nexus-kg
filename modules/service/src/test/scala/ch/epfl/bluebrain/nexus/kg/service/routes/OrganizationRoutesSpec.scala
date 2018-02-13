@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
@@ -20,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, OrgRef, Organization, Organizations}
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
@@ -55,14 +57,18 @@ class OrganizationRoutesSpec
 
     val sparqlUri                      = Uri("http://localhost:9999/bigdata/sparql")
     val vocab                          = baseUri.copy(path = baseUri.path / "core")
-    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri, s"$baseUri/acls/graph")
+    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri)
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
     implicit val clock: Clock          = Clock.systemUTC
     val caller                         = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
-    val sparqlClient = SparqlClient[Future](sparqlUri)
+    val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
+    val sparqlClient       = SparqlClient[Future](sparqlUri)
+    val elasticQueryClient = ElasticQueryClient[Future](sparqlUri)
+
+    val elasticClient = ElasticClient[Future](sparqlUri, elasticQueryClient)
     val route =
-      OrganizationRoutes(orgs, sparqlClient, querySettings, baseUri).routes
+      OrganizationRoutes(orgs, sparqlClient, elasticClient, indexingSettings, querySettings, baseUri).routes
 
     val id          = OrgId(genString(length = 3))
     val json        = Json.obj("key" -> Json.fromString(genString(length = 8)))
