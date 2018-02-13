@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.query.organizations
 
 import java.util.regex.Pattern.quote
 
+import cats.instances.future._
 import cats.syntax.show._
 import akka.http.scaladsl.client.RequestBuilding._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
@@ -44,7 +45,7 @@ class OrganizationsElasticQueriesSpec extends QueryFixture[OrgId] {
 
       var i = 0L
       orgIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = organizationQueries.list(Pagination(i, pageSize), None, None).futureValue
+        val results = organizationQueries.list(Pagination(i, pageSize), None, None, defaultAcls).futureValue
         results.total shouldEqual orgs.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -57,7 +58,7 @@ class OrganizationsElasticQueriesSpec extends QueryFixture[OrgId] {
 
       var i = 0L
       orgIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = organizationQueries.list(Pagination(i, pageSize), Some(true), None).futureValue
+        val results = organizationQueries.list(Pagination(i, pageSize), Some(true), None, defaultAcls).futureValue
         results.total shouldEqual orgIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -70,7 +71,7 @@ class OrganizationsElasticQueriesSpec extends QueryFixture[OrgId] {
 
       var i = 0L
       orgIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = organizationQueries.list(Pagination(i, pageSize), Some(false), None).futureValue
+        val results = organizationQueries.list(Pagination(i, pageSize), Some(false), None, defaultAcls).futureValue
         results.total shouldEqual orgIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size

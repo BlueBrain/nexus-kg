@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.query.contexts
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.client.RequestBuilding.Post
+import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
@@ -54,7 +55,7 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
     "list all contexts with pagination" in {
       var i = 0L
       contextIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = contextQueries.list(Pagination(i, pageSize), None, None).futureValue
+        val results = contextQueries.list(Pagination(i, pageSize), None, None, defaultAcls).futureValue
         results.total shouldEqual contexts.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -67,7 +68,7 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
         case (org, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = contextQueries.list(Pagination(i, pageSize), org, None, None).futureValue
+            val results = contextQueries.list(Pagination(i, pageSize), org, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -82,7 +83,7 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = contextQueries.list(Pagination(i, pageSize), dom, None, None).futureValue
+            val results = contextQueries.list(Pagination(i, pageSize), dom, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -97,7 +98,7 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = contextQueries.list(Pagination(i, pageSize), name, None, None).futureValue
+            val results = contextQueries.list(Pagination(i, pageSize), name, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size

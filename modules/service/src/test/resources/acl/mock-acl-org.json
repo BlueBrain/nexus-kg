@@ -1,0 +1,19 @@
+{
+  "acl" : [
+    {
+      "path" : "/kg/{{org}}",
+      "identity" : {
+        "@id" : "localhost:8080/v0/realms/realms/BBP/groups/group1",
+        "realm" : "BBP",
+        "group" : "group1",
+        "@type" : "GroupRef"
+      },
+      "permissions" : [
+        "own",
+        "read",
+        "write",
+        "publish"
+      ]
+    }
+  ]
+}

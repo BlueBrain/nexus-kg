@@ -4,7 +4,11 @@ import java.util.UUID
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.client.RequestBuilding.Post
+import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Path, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
@@ -63,7 +67,7 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
     "list all instances with pagination" in {
       var i = 0L
       instanceIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = instanceQueries.list(Pagination(i, pageSize), None, None).futureValue
+        val results = instanceQueries.list(Pagination(i, pageSize), None, None, defaultAcls).futureValue
         results.total shouldEqual instances.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -73,7 +77,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
     "list all deprecated instances with pagination" in {
       var i = 0L
       deprecatedIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = instanceQueries.list(Pagination(i, pageSize), Some(true), None).futureValue
+        val results =
+          instanceQueries.list(Pagination(i, pageSize), Some(true), None, defaultAcls).futureValue
         results.total shouldEqual deprecatedIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -83,7 +88,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
     "list all non deprecated instances with pagination" in {
       var i = 0L
       nonDeprecatedIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = instanceQueries.list(Pagination(i, pageSize), Some(false), None).futureValue
+        val results =
+          instanceQueries.list(Pagination(i, pageSize), Some(false), None, defaultAcls).futureValue
         results.total shouldEqual nonDeprecatedIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -96,7 +102,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (org, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), org, None, None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), org, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -111,7 +118,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (org, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), org, Some(true), None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), org, Some(true), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -126,7 +134,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (org, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), org, Some(false), None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), org, Some(false), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -141,7 +150,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), dom, None, None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), dom, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -156,7 +166,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), dom, Some(true), None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), dom, Some(true), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -171,7 +182,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), dom, Some(false), None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), dom, Some(false), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -186,7 +198,7 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), name, None, None).futureValue
+            val results = instanceQueries.list(Pagination(i, pageSize), name, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -201,7 +213,7 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), name, Some(true), None).futureValue
+            val results = instanceQueries.list(Pagination(i, pageSize), name, Some(true), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -216,7 +228,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), name, Some(false), None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), name, Some(false), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -231,7 +244,7 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (schemaId, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), schemaId, None, None).futureValue
+            val results = instanceQueries.list(Pagination(i, pageSize), schemaId, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -246,11 +259,11 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (schemaId, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), schemaId, Some(true), None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), schemaId, Some(true), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
-
           }
       }
     }
@@ -261,7 +274,8 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
         case (schemaId, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = instanceQueries.list(Pagination(i, pageSize), schemaId, Some(false), None).futureValue
+            val results =
+              instanceQueries.list(Pagination(i, pageSize), schemaId, Some(false), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -269,5 +283,84 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
           }
       }
     }
+
+    "return 0 instances when user has no permissions " in {
+      val results = instanceQueries.list(Pagination(0, pageSize), None, None, FullAccessControlList()).futureValue
+      results.total shouldEqual 0
+      results.results.size shouldEqual 0
+    }
+
+    "return only instances for organization the user has permissions for" in {
+      val orgId: OrgId  = instanceIds.head.schemaId.domainId.orgId
+      val acls          = FullAccessControlList((Identity.Anonymous(), Path(s"/kg/${orgId.show}"), Permissions(Read)))
+      val expectedTotal = instanceIds.count(_.schemaId.domainId.orgId == orgId)
+      val results       = instanceQueries.list(Pagination(0, pageSize), None, None, acls).futureValue
+      results.total shouldEqual expectedTotal
+    }
+
+    "return only instances for domain the user has permissions for" in {
+      val domId: DomainId = instanceIds.head.schemaId.domainId
+      val acls            = FullAccessControlList((Identity.Anonymous(), Path(s"/kg/${domId.show}"), Permissions(Read)))
+      val expectedTotal   = instanceIds.count(_.schemaId.domainId == domId)
+      val results         = instanceQueries.list(Pagination(0, pageSize), None, None, acls).futureValue
+      results.total shouldEqual expectedTotal
+    }
+
+    "return only instances for domain and organization the user has permissions for" in {
+      val orgId: OrgId    = instanceIds.head.schemaId.domainId.orgId
+      val domId: DomainId = instanceIds.last.schemaId.domainId
+      val acls = FullAccessControlList(
+        (Identity.Anonymous(), Path(s"/kg/${domId.show}"), Permissions(Read)),
+        (Identity.Anonymous(), Path(s"/kg/${orgId.show}"), Permissions(Read))
+      )
+      val expectedTotal = instanceIds.count(instanceId =>
+        instanceId.schemaId.domainId == domId || instanceId.schemaId.domainId.orgId == orgId)
+      val results = instanceQueries.list(Pagination(0, pageSize), None, None, acls).futureValue
+      results.total shouldEqual expectedTotal
+    }
+
+    "return 0 if the user has no permissions for a given organization" in {
+      val orgId: OrgId  = instanceIds.head.schemaId.domainId.orgId
+      val orgId2: OrgId = instanceIds.last.schemaId.domainId.orgId
+      val acls = FullAccessControlList(
+        (Identity.Anonymous(), Path(s"/kg/${orgId2.show}"), Permissions(Read))
+      )
+      val results = instanceQueries.list(Pagination(0, pageSize), orgId, None, None, acls).futureValue
+      results.total shouldEqual 0
+    }
+
+    "return 0 if the user has no permissions for a given domain" in {
+      val domainId: DomainId  = instanceIds.head.schemaId.domainId
+      val domainId2: DomainId = instanceIds.last.schemaId.domainId
+      val acls = FullAccessControlList(
+        (Identity.Anonymous(), Path(s"/kg/${domainId2.show}"), Permissions(Read))
+      )
+      val results = instanceQueries.list(Pagination(0, pageSize), domainId, None, None, acls).futureValue
+      results.total shouldEqual 0
+    }
+
+    "return correct count if the user has permissions for organization and domain within that organization" in {
+      val domainId: DomainId = instanceIds.head.schemaId.domainId
+      val acls = FullAccessControlList(
+        (Identity.Anonymous(), Path(s"/kg/${domainId.show}"), Permissions(Read)),
+        (Identity.Anonymous(), Path(s"/kg/${domainId.orgId.show}"), Permissions(Read))
+      )
+
+      val expectedTotal = instanceIds.count(_.schemaId.domainId.orgId == domainId.orgId)
+      val results       = instanceQueries.list(Pagination(0, pageSize), domainId.orgId, None, None, acls).futureValue
+      results.total shouldEqual expectedTotal
+    }
+
+    "return 0 if the user has no permissions for domain in which the schema is nested" in {
+      val schemaId: SchemaId  = instanceIds.head.schemaId
+      val schemaId2: SchemaId = instanceIds.last.schemaId
+      val acls = FullAccessControlList(
+        (Identity.Anonymous(), Path(s"/kg/${schemaId2.domainId.show}"), Permissions(Read))
+      )
+      val results = instanceQueries.list(Pagination(0, pageSize), schemaId, None, None, acls).futureValue
+      results.total shouldEqual 0
+    }
+
   }
+
 }

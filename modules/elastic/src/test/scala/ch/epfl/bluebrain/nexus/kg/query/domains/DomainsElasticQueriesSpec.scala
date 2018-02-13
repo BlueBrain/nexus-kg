@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.query.domains
 
 import java.util.regex.Pattern.quote
 
+import cats.instances.future._
 import cats.syntax.show._
 import akka.http.scaladsl.client.RequestBuilding.Post
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
@@ -47,7 +48,7 @@ class DomainsElasticQueriesSpec extends QueryFixture[DomainId] {
       val domIds = doms.keys.map(_._1).toList.sorted
       var i      = 0L
       domIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = domainsQueries.list(Pagination(i, pageSize), None, None).futureValue
+        val results = domainsQueries.list(Pagination(i, pageSize), None, None, defaultAcls).futureValue
         results.total shouldEqual domIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -58,7 +59,7 @@ class DomainsElasticQueriesSpec extends QueryFixture[DomainId] {
       val domIds = doms.keys.filterNot(_._2).map(_._1).toList.sorted
       var i      = 0L
       domIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = domainsQueries.list(Pagination(i, pageSize), Some(false), None).futureValue
+        val results = domainsQueries.list(Pagination(i, pageSize), Some(false), None, defaultAcls).futureValue
         results.total shouldEqual domIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -69,7 +70,7 @@ class DomainsElasticQueriesSpec extends QueryFixture[DomainId] {
       val domIds = doms.keys.filter(_._2).map(_._1).toList.sorted
       var i      = 0L
       domIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = domainsQueries.list(Pagination(i, pageSize), Some(true), None).futureValue
+        val results = domainsQueries.list(Pagination(i, pageSize), Some(true), None, defaultAcls).futureValue
         results.total shouldEqual domIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -83,7 +84,7 @@ class DomainsElasticQueriesSpec extends QueryFixture[DomainId] {
         case (org, ds) =>
           var i = 0L
           ds.sliding(pageSize, pageSize).foreach { ids =>
-            val results = domainsQueries.list(Pagination(i, pageSize), org, None, None).futureValue
+            val results = domainsQueries.list(Pagination(i, pageSize), org, None, None, defaultAcls).futureValue
             results.total shouldEqual ds.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -99,7 +100,7 @@ class DomainsElasticQueriesSpec extends QueryFixture[DomainId] {
         case (org, ds) =>
           var i = 0L
           ds.sliding(pageSize, pageSize).foreach { ids =>
-            val results = domainsQueries.list(Pagination(i, pageSize), org, Some(true), None).futureValue
+            val results = domainsQueries.list(Pagination(i, pageSize), org, Some(true), None, defaultAcls).futureValue
             results.total shouldEqual ds.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -115,7 +116,7 @@ class DomainsElasticQueriesSpec extends QueryFixture[DomainId] {
         case (org, ds) =>
           var i = 0L
           ds.sliding(pageSize, pageSize).foreach { ids =>
-            val results = domainsQueries.list(Pagination(i, pageSize), org, Some(false), None).futureValue
+            val results = domainsQueries.list(Pagination(i, pageSize), org, Some(false), None, defaultAcls).futureValue
             results.total shouldEqual ds.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size

@@ -16,6 +16,9 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping.rdfTypeKey
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Path => IAMPath, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
@@ -93,4 +96,5 @@ trait QueryFixture[Id]
     )
   )
 
+  val defaultAcls = FullAccessControlList((Identity.Anonymous(), IAMPath./("kg"), Permissions(Read)))
 }

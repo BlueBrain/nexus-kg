@@ -1,9 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.query
 
+import cats.MonadError
 import cats.instances.string._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults, Sort, SortList}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Path, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search._
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping.rdfTypeKey
@@ -24,7 +28,8 @@ import io.circe.Json
   */
 abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
     implicit
-    rs: HttpClient[F, QueryResults[Id]]) {
+    rs: HttpClient[F, QueryResults[Id]],
+    F: MonadError[F, Throwable]) {
 
   val ElasticIndexingSettings(_, _, base, baseVoc) = settings
   protected val defaultSort                        = SortList(List(Sort(Sort.OrderType.Asc, "@id")))
@@ -57,11 +62,12 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
 
   /**
     * Embed given `terms` inside a Elasitc Search Query and add RDF type term
+    * @param acls   list of access controls to restrict the query
     * @param terms  filter terms
     * @return `Json` object representing the query
     */
-  protected def query(terms: Json*): Json = {
-    matchAllQuery(Json.arr(terms :+ term(rdfTypeKey, rdfType): _*))
+  protected def query(acls: FullAccessControlList, terms: Json*): Json = {
+    matchAllQuery(terms :+ term(rdfTypeKey, rdfType), aclsToFilter(acls))
   }
 
   /**
@@ -98,31 +104,68 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
   protected def schemaGroupTerm(schemaName: SchemaName): Json =
     term("schemaGroup".qualifyAsString, schemaName.qualifyAsString)
 
-  private def matchAllQuery(filterTerms: Json) =
+  private def matchAllQuery(filterTerms: Seq[Json], aclTerms: Option[Json]) =
     Json.obj(
       "query" -> Json.obj(
         "bool" -> Json.obj(
           "filter" -> Json.obj(
             "bool" -> Json.obj(
-              "must" -> filterTerms
+              "must" -> Json.arr(filterTerms ++ aclTerms: _*)
             )
           )
         )
       )
     )
 
+  private val kgRoot                               = "kg"
+  private val rootPath                             = Path(s"/$kgRoot")
+  private val readPermission                       = Read
   private def orgTerm(orgId: OrgId): Json          = term("organization".qualifyAsString, orgId.qualifyAsString)
   private def domainTerm(domainId: DomainId): Json = term("domain".qualifyAsString, domainId.qualifyAsString)
+
+  private def aclsToFilter(acls: FullAccessControlList): Option[Json] = {
+
+    if (acls.toPathMap.getOrElse(rootPath, Permissions.empty).contains(readPermission)) {
+      None
+    } else {
+      val terms = acls.toPathMap
+        .filter { case (_, permissions) => permissions.contains(readPermission) }
+        .flatMap {
+          case (path, _) =>
+            path.segments match {
+              case `kgRoot` :: orgId :: domId :: Nil => Some(domainTerm(DomainId(OrgId(orgId), domId)))
+              case `kgRoot` :: orgId :: Nil          => Some(orgTerm(OrgId(orgId)))
+              case _                                 => None
+            }
+        }
+        .toSeq
+      Some(
+        Json.obj(
+          "bool" -> Json.obj(
+            "should" -> Json.arr(terms: _*)
+          )
+        )
+      )
+    }
+  }
 
   /**
     * List all objects of a given type
     * @param pagination   pagination object
     * @param deprecated   boolean to decide whether to filter deprecated objects
     * @param published    boolean to decide whether to filter published objects
+    * @param acls         list of access controls to restrict the query
     * @return query results
     */
-  def list(pagination: Pagination, deprecated: Option[Boolean], published: Option[Boolean]): F[QueryResults[Id]] = {
-    elasticClient.search[Id](query(termsFrom(deprecated, published): _*))(pagination, sort = defaultSort)
+  def list(pagination: Pagination,
+           deprecated: Option[Boolean],
+           published: Option[Boolean],
+           acls: FullAccessControlList): F[QueryResults[Id]] = {
+    if (acls.hasAnyPermission(Permissions(Read))) {
+      elasticClient.search[Id](query(acls, termsFrom(deprecated, published): _*))(pagination, sort = defaultSort)
+    } else {
+      F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[Id]]))
+    }
   }
 
   /**
@@ -131,15 +174,18 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
     * @param orgId        organization ID
     * @param deprecated   boolean to decide whether to filter deprecated objects
     * @param published    boolean to decide whether to filter published objects
+    * @param acls         list of access controls to restrict the query
     * @return query results
     *
     */
   def list(pagination: Pagination,
            orgId: OrgId,
            deprecated: Option[Boolean],
-           published: Option[Boolean]): F[QueryResults[Id]] = {
-    elasticClient.search[Id](query(termsFrom(deprecated, published) :+ orgTerm(orgId): _*))(pagination,
-                                                                                            sort = defaultSort)
+           published: Option[Boolean],
+           acls: FullAccessControlList): F[QueryResults[Id]] = {
+    val _ = acls.acl
+    elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ orgTerm(orgId): _*))(pagination,
+                                                                                                  sort = defaultSort)
   }
 
   /**
@@ -148,15 +194,19 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
     * @param domainId     domain ID
     * @param deprecated   boolean to decide whether to filter deprecated objects
     * @param published    boolean to decide whether to filter published objects
+    * @param acls         list of access controls to restrict the query
     * @return query results
     *
     */
   def list(pagination: Pagination,
            domainId: DomainId,
            deprecated: Option[Boolean],
-           published: Option[Boolean]): F[QueryResults[Id]] = {
-    elasticClient.search[Id](query(termsFrom(deprecated, published) :+ domainTerm(domainId): _*))(pagination,
-                                                                                                  sort = defaultSort)
+           published: Option[Boolean],
+           acls: FullAccessControlList): F[QueryResults[Id]] = {
+    val _ = acls.acl
+    elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ domainTerm(domainId): _*))(pagination,
+                                                                                                        sort =
+                                                                                                          defaultSort)
   }
 
 }

@@ -1,7 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.query.schemas
 
+import cats.MonadError
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.iam.acls.FullAccessControlList
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
@@ -17,7 +19,8 @@ import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
   */
 class SchemasElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
     implicit
-    rs: HttpClient[F, QueryResults[SchemaId]])
+    rs: HttpClient[F, QueryResults[SchemaId]],
+    F: MonadError[F, Throwable])
     extends BaseElasticQueries[F, SchemaId](elasticClient, settings) {
 
   protected override val rdfType = "Schema".qualifyAsString
@@ -28,14 +31,16 @@ class SchemasElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: Ela
     * @param schemaName   schema name
     * @param deprecated   boolean to decide whether to filter deprecated objects
     * @param published    boolean to decide whether to filter published objects
+    * @param acls         list of access controls to restrict the query
     * @return query results
     *
     */
   def list(pagination: Pagination,
            schemaName: SchemaName,
            deprecated: Option[Boolean],
-           published: Option[Boolean]): F[QueryResults[SchemaId]] = {
-    elasticClient.search[SchemaId](query(termsFrom(deprecated, published) :+ schemaGroupTerm(schemaName): _*))(
+           published: Option[Boolean],
+           acls: FullAccessControlList): F[QueryResults[SchemaId]] = {
+    elasticClient.search[SchemaId](query(acls, termsFrom(deprecated, published) :+ schemaGroupTerm(schemaName): _*))(
       pagination,
       sort = defaultSort)
   }
@@ -54,7 +59,8 @@ object SchemasElasticQueries {
     */
   def apply[F[_]](elasticClient: ElasticClient[F], settings: ElasticIndexingSettings)(
       implicit
-      rs: HttpClient[F, QueryResults[SchemaId]]): SchemasElasticQueries[F] = {
+      rs: HttpClient[F, QueryResults[SchemaId]],
+      F: MonadError[F, Throwable]): SchemasElasticQueries[F] = {
     new SchemasElasticQueries(elasticClient, settings)
   }
 }
