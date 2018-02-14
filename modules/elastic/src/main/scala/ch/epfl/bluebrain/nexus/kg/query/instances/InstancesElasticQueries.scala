@@ -46,7 +46,7 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
                     acls: FullAccessControlList): F[QueryResults[InstanceId]] = {
     if (hasReadPermissionsFor(domainId, acls)) {
       elasticClient.search[InstanceId](
-        query(acls, termsFrom(deprecated, published) :+ domainTerm(domainId): _*),
+        query(acls, termsFrom(deprecated, published): _*),
         Set(ElasticIds.domainInstancesIndex(prefix, domainId)))(pagination, sort = defaultSort)
     } else {
       F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[InstanceId]]))
