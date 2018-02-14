@@ -73,7 +73,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
         (query.filter, query.q, query.sort) match {
           case (Filter.Empty, None, SortList.Empty) =>
             orgElasticQueries
-              .list(pagination, query.deprecated, None)
+              .list(pagination, query.deprecated, None, acls)
               .buildResponse(query.fields, base, prefixes, pagination)
           case _ =>
             orgQueries

@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.query.schemas
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.client.RequestBuilding.Post
+import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
@@ -10,6 +11,8 @@ import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import ch.epfl.bluebrain.nexus.kg.query.QueryFixture
 import io.circe.{Decoder, Json}
 
@@ -46,10 +49,10 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    elasticClient.createIndex("schemas", mapping).futureValue
+    elasticClient.createIndex(ElasticIds.schemasIndex(elasticPrefix), mapping).futureValue
     schemas.foreach {
       case ((schemaId, _, _), schemaJson) =>
-        elasticClient.create("schemas", "doc", s"schemaid_${schemaId.show}", schemaJson).futureValue
+        elasticClient.create(schemaId.toIndex(elasticPrefix), "doc", schemaId.elasticId, schemaJson).futureValue
     }
     val _ = untypedHttpClient(Post(refreshUri)).futureValue
   }
@@ -58,7 +61,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
     "list all schemas with pagination" in {
       var i = 0L
       schemaIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = schemaQueries.list(Pagination(i, pageSize), None, None).futureValue
+        val results = schemaQueries.list(Pagination(i, pageSize), None, None, defaultAcls).futureValue
         results.total shouldEqual schemas.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -71,7 +74,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (org, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), org, None, None).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), org, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -86,7 +89,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), dom, None, None).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), dom, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -102,7 +105,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), dom, Some(true), None).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), dom, Some(true), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -119,7 +122,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), dom, None, Some(true)).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), dom, None, Some(true), defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -135,7 +138,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), dom, Some(false), None).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), dom, Some(false), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -152,7 +155,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), dom, None, Some(false)).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), dom, None, Some(false), defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -167,7 +170,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), name, None, None).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), name, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -183,7 +186,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), name, None, Some(true)).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), name, None, Some(true), defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -199,7 +202,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), name, Some(true), None).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), name, Some(true), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -215,7 +218,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), name, Some(false), None).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), name, Some(false), None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -231,7 +234,7 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = schemaQueries.list(Pagination(i, pageSize), name, None, Some(false)).futureValue
+            val results = schemaQueries.list(Pagination(i, pageSize), name, None, Some(false), defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size

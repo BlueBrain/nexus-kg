@@ -78,7 +78,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               instancesElasticQueries
-                .list(pagination, query.deprecated, None)
+                .list(pagination, query.deprecated, None, acls)
                 .buildResponse(query.fields, base, prefixes, pagination)
             case _ =>
               instanceQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
@@ -89,7 +89,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   instancesElasticQueries
-                    .list(pagination, orgId, query.deprecated, None)
+                    .list(pagination, orgId, query.deprecated, None, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   instanceQueries
@@ -103,7 +103,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   instancesElasticQueries
-                    .list(pagination, domainId, query.deprecated, None)
+                    .list(pagination, domainId, query.deprecated, None, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   instanceQueries
@@ -113,17 +113,17 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
             }
           } ~
           (extractSchemaName & pathEndOrSingleSlash) { schemaName =>
-            (query.filter, query.q, query.sort) match {
-              case (Filter.Empty, None, SortList.Empty) =>
-                instancesElasticQueries
-                  .list(pagination, schemaName, query.deprecated, None)
-                  .buildResponse(query.fields, base, prefixes, pagination)
-              case _ =>
-                getAcls(Path(schemaName.domainId.show)).apply { implicit acls =>
+            getAcls(Path(schemaName.domainId.show)).apply { implicit acls =>
+              (query.filter, query.q, query.sort) match {
+                case (Filter.Empty, None, SortList.Empty) =>
+                  instancesElasticQueries
+                    .list(pagination, schemaName, query.deprecated, None, acls)
+                    .buildResponse(query.fields, base, prefixes, pagination)
+                case _ =>
                   instanceQueries
                     .list(schemaName, query, pagination)
                     .buildResponse(query.fields, base, prefixes, pagination)
-                }
+              }
 
             }
           } ~
@@ -132,7 +132,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   instancesElasticQueries
-                    .list(pagination, schemaId, query.deprecated, None)
+                    .list(pagination, schemaId, query.deprecated, None, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   instanceQueries

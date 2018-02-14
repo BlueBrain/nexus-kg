@@ -2,11 +2,17 @@ package ch.epfl.bluebrain.nexus.kg.query.organizations
 
 import java.util.regex.Pattern.quote
 
+import cats.instances.future._
 import cats.syntax.show._
 import akka.http.scaladsl.client.RequestBuilding._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Path, Permissions}
+import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import ch.epfl.bluebrain.nexus.kg.query.QueryFixture
 import io.circe.{Decoder, Json}
 
@@ -28,10 +34,10 @@ class OrganizationsElasticQueriesSpec extends QueryFixture[OrgId] {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    elasticClient.createIndex("organizations", mapping).futureValue
+    elasticClient.createIndex(ElasticIds.organizationsIndex(elasticPrefix), mapping).futureValue
     orgs.foreach {
       case ((orgId, _), orgJson) =>
-        elasticClient.create("organizations", "doc", s"orgid_${orgId.show}", orgJson).futureValue
+        elasticClient.create(orgId.toIndex(elasticPrefix), "doc", orgId.elasticId, orgJson).futureValue
     }
     val _ = untypedHttpClient(Post(refreshUri)).futureValue
   }
@@ -44,11 +50,27 @@ class OrganizationsElasticQueriesSpec extends QueryFixture[OrgId] {
 
       var i = 0L
       orgIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = organizationQueries.list(Pagination(i, pageSize), None, None).futureValue
+        val results = organizationQueries.list(Pagination(i, pageSize), None, None, defaultAcls).futureValue
         results.total shouldEqual orgs.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
       }
+    }
+
+    "list only organizations the user has access to" in {
+
+      val orgIds: List[OrgId] = orgs.keys.map(_._1).toList.sorted
+      val orgId1              = orgIds.head
+      val orgId2              = orgIds.last
+
+      val acls = FullAccessControlList(
+        (Identity.Anonymous(), Path(s"/kg/${orgId2.show}"), Permissions(Read)),
+        (Identity.Anonymous(), Path(s"/kg/${orgId1.show}"), Permissions(Read))
+      )
+
+      val results = organizationQueries.list(Pagination(0, pageSize), None, None, acls).futureValue
+      results.total shouldEqual 2
+      results.results.map(_.source) shouldEqual Seq(orgId1, orgId2)
     }
 
     "list deprecated organizations with pagination" in {
@@ -57,7 +79,7 @@ class OrganizationsElasticQueriesSpec extends QueryFixture[OrgId] {
 
       var i = 0L
       orgIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = organizationQueries.list(Pagination(i, pageSize), Some(true), None).futureValue
+        val results = organizationQueries.list(Pagination(i, pageSize), Some(true), None, defaultAcls).futureValue
         results.total shouldEqual orgIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -70,7 +92,7 @@ class OrganizationsElasticQueriesSpec extends QueryFixture[OrgId] {
 
       var i = 0L
       orgIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = organizationQueries.list(Pagination(i, pageSize), Some(false), None).futureValue
+        val results = organizationQueries.list(Pagination(i, pageSize), Some(false), None, defaultAcls).futureValue
         results.total shouldEqual orgIds.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size

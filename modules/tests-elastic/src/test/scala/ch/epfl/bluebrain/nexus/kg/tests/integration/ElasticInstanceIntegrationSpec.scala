@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.tests.integration
 import java.time.Clock
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Source
@@ -91,6 +92,37 @@ class ElasticInstanceIntegrationSpec(
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/data",
                                       "next" -> s"$apiUri/data?from=10&size=10")
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+          }
+        }
+      }
+
+      "list all instances for user only with access to rand organization" in {
+        eventually(timeout(Span(indexTimeout + 5, Seconds)), interval(Span(1, Seconds))) {
+          Get(s"/data") ~> addCredentials(OAuth2BearerToken("org-rand")) ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+            val expectedResults =
+              UnscoredQueryResults(randInstances.length.toLong,
+                                   randInstances.map { case (id, _) => UnscoredQueryResult(id) }.take(10))
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
+                                      "self" -> s"$apiUri/data",
+                                      "next" -> s"$apiUri/data?from=10&size=10")
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+          }
+        }
+      }
+
+      "list all instances for user only with access to a domain " in {
+        val domainId = schemas.head._1.domainId
+        eventually(timeout(Span(indexTimeout + 5, Seconds)), interval(Span(1, Seconds))) {
+          Get(s"/data") ~> addCredentials(OAuth2BearerToken(s"domain-${domainId.show}")) ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+            val resultInstances = instances.map(_._1).filter(id => id.schemaId.domainId == domainId)
+            val expectedResults =
+              UnscoredQueryResults(resultInstances.length.toLong, resultInstances.map(UnscoredQueryResult(_)).take(10))
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> s"$apiUri/data")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }

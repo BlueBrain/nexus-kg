@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withA
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Path}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -151,11 +151,11 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
     (get & paramsToQuery) { (pagination, query) =>
       operationName("searchContexts") {
         implicit val _ = contextIdToEntityRetrieval(contexts)
-        (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls =>
+        (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls: FullAccessControlList =>
           query.sort match {
             case SortList.Empty =>
               contextsElasticQueries
-                .list(pagination, query.deprecated, query.published)
+                .list(pagination, query.deprecated, query.published, acls)
                 .buildResponse(query.fields, base, prefixes, pagination)
             case _ =>
               contextQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
@@ -166,7 +166,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
               query.sort match {
                 case SortList.Empty =>
                   contextsElasticQueries
-                    .list(pagination, orgId, query.deprecated, query.published)
+                    .list(pagination, orgId, query.deprecated, query.published, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   contextQueries
@@ -180,7 +180,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
               query.sort match {
                 case SortList.Empty =>
                   contextsElasticQueries
-                    .list(pagination, domainId, query.deprecated, query.published)
+                    .list(pagination, domainId, query.deprecated, query.published, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   contextQueries
@@ -194,7 +194,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
               query.sort match {
                 case SortList.Empty =>
                   contextsElasticQueries
-                    .list(pagination, contextName, query.deprecated, query.published)
+                    .list(pagination, contextName, query.deprecated, query.published, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   contextQueries
