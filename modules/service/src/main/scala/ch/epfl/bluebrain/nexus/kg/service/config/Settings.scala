@@ -30,6 +30,7 @@ class Settings(config: Config) extends Extension {
     loadConfigOrThrow[RuntimeConfig](config, "app.runtime"),
     loadConfigOrThrow[ClusterConfig](config, "app.cluster"),
     loadConfigOrThrow[PersistenceConfig](config, "app.persistence"),
+    loadConfigOrThrow[OperationsConfig](config, "app.operations"),
     loadConfigOrThrow[ProjectsConfig](config, "app.projects"),
     loadConfigOrThrow[SchemasConfig](config, "app.schemas"),
     loadConfigOrThrow[InstancesConfig](config, "app.instances"),

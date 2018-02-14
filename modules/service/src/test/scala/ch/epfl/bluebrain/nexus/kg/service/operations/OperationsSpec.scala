@@ -9,12 +9,13 @@ import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.service.CallerCtx._
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.service.Fault.CommandRejected
+import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig.OperationsConfig
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.Agg
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.service.operations.OperationsSpec._
+import ch.epfl.bluebrain.nexus.kg.service.refs.RevisionedRef
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
-import com.github.ghik.silencer.silent
 import io.circe.Json
 import journal.Logger
 import org.scalatest.{Inspectors, Matchers, TryValues, WordSpecLike}
@@ -33,10 +34,9 @@ class OperationsSpec extends WordSpecLike with Matchers with Inspectors with Try
   private implicit val clock  = Clock.systemUTC
 
   trait Context {
-
-    val agg        = MemoryAggregate("operations")(ResourceState.Initial, TestOperations.next, TestOperations.eval).toF[Try]
-    val operations = TestOperations(agg)
-
+    implicit val opConfig = OperationsConfig(10)
+    val agg               = MemoryAggregate("operations")(ResourceState.Initial, TestOperations.next, TestOperations.eval).toF[Try]
+    val operations        = TestOperations(agg)
   }
 
   "A Resource instance" should {
@@ -44,24 +44,30 @@ class OperationsSpec extends WordSpecLike with Matchers with Inspectors with Try
     "create a new resource" in new Context {
       val id   = Id(genName())
       val json = genJson()
-      operations.create(id, json).success.value shouldEqual RevisionedRef[Id](id, 1L)
+      operations.create(id, json).success.value shouldEqual RevisionedRef(id, 1L)
       operations.fetch(id).success.value shouldEqual Some(Res(id, 1L, json, deprecated = false))
+    }
+
+    "reject creating a new resource with longer than allowed length" in new Context {
+      val id   = Id(genName() + genName())
+      val json = genJson()
+      operations.create(id, json).failure.exception shouldEqual CommandRejected(InvalidId(id))
     }
 
     "update a resource" in new Context {
       val id          = Id(genName())
       val json        = genJson()
       val jsonUpdated = genJson()
-      operations.create(id, json).success.value shouldEqual RevisionedRef[Id](id, 1L)
-      operations.update(id, 1L, jsonUpdated).success.value shouldEqual RevisionedRef[Id](id, 2L)
+      operations.create(id, json).success.value shouldEqual RevisionedRef(id, 1L)
+      operations.update(id, 1L, jsonUpdated).success.value shouldEqual RevisionedRef(id, 2L)
       operations.fetch(id).success.value shouldEqual Some(Res(id, 2L, jsonUpdated, deprecated = false))
     }
 
     "deprecate a resource" in new Context {
       val id   = Id(genName())
       val json = genJson()
-      operations.create(id, json).success.value shouldEqual RevisionedRef[Id](id, 1L)
-      operations.deprecate(id, 1L).success.value shouldEqual RevisionedRef[Id](id, 2L)
+      operations.create(id, json).success.value shouldEqual RevisionedRef(id, 1L)
+      operations.deprecate(id, 1L).success.value shouldEqual RevisionedRef(id, 2L)
       operations.fetch(id).success.value shouldEqual Some(Res(id, 2L, json, deprecated = true))
     }
 
@@ -84,27 +90,27 @@ class OperationsSpec extends WordSpecLike with Matchers with Inspectors with Try
     "prevent double deprecations" in new Context {
       val id   = Id(genName())
       val json = genJson()
-      operations.create(id, json).success.value shouldEqual RevisionedRef[Id](id, 1L)
-      operations.deprecate(id, 1L).success.value shouldEqual RevisionedRef[Id](id, 2L)
+      operations.create(id, json).success.value shouldEqual RevisionedRef(id, 1L)
+      operations.deprecate(id, 1L).success.value shouldEqual RevisionedRef(id, 2L)
       operations.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(ResourceIsDeprecated)
     }
 
     "prevent update when deprecated" in new Context {
       val id = Id(genName())
-      operations.create(id, genJson()).success.value shouldEqual RevisionedRef[Id](id, 1L)
-      operations.deprecate(id, 1L).success.value shouldEqual RevisionedRef[Id](id, 2L)
+      operations.create(id, genJson()).success.value shouldEqual RevisionedRef(id, 1L)
+      operations.deprecate(id, 1L).success.value shouldEqual RevisionedRef(id, 2L)
       operations.update(id, 2L, genJson()).failure.exception shouldEqual CommandRejected(ResourceIsDeprecated)
     }
 
     "prevent update with incorrect rev" in new Context {
       val id = Id(genName())
-      operations.create(id, genJson()).success.value shouldEqual RevisionedRef[Id](id, 1L)
+      operations.create(id, genJson()).success.value shouldEqual RevisionedRef(id, 1L)
       operations.update(id, 2L, genJson()).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
     }
 
     "prevent deprecate with incorrect rev" in new Context {
       val id = Id(genName())
-      operations.create(id, genJson()).success.value shouldEqual RevisionedRef[Id](id, 1L)
+      operations.create(id, genJson()).success.value shouldEqual RevisionedRef(id, 1L)
       operations.deprecate(id, 2L).failure.exception shouldEqual CommandRejected(IncorrectRevisionProvided)
     }
 
@@ -122,20 +128,18 @@ object OperationsSpec {
   case class Res(id: Id, rev: Long, value: Json, deprecated: Boolean)
   private implicit val showId: Show[Id] = Show.show(_.value)
 
-  class TestOperations(agg: Agg[Try, Id]) extends Operations[Try, Id, Json](agg, logger) {
+  class TestOperations(agg: Agg[Try, Id])(implicit config: OperationsConfig)
+      extends Operations[Try, Id, Json](agg, logger) {
 
     override type Resource = Res
 
     override implicit def buildResource(c: ResourceState.Current[Id, Json]): Resource =
       Res(c.id, c.rev, c.value, c.deprecated)
-
-    @silent
-    override def validate(id: Id, value: Json): Try[Unit] = Try(())
   }
 
   object TestOperations {
 
-    final def apply(agg: Agg[Try, Id]): TestOperations = new TestOperations(agg)
+    final def apply(agg: Agg[Try, Id])(implicit config: OperationsConfig): TestOperations = new TestOperations(agg)
 
     private[operations] val logger = Logger[this.type]
 

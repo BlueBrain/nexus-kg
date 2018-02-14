@@ -1,18 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.service.operations
 
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceCommand.{
-  CreateResource,
-  DeprecateResource,
-  UpdateResource
-}
-import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceEvent.{
-  ResourceCreated,
-  ResourceDeprecated,
-  ResourceUpdated
-}
-import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.{ResourceCommand, ResourceEvent, ResourceRejection}
+import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceCommand.{CreateResource, DeprecateResource, UpdateResource}
+import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceEvent.{ResourceCreated, ResourceDeprecated, ResourceUpdated}
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceRejection._
+import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.{ResourceCommand, ResourceEvent, ResourceRejection}
 import shapeless.Typeable
 
 sealed trait ResourceState extends Product with Serializable

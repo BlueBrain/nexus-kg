@@ -1,28 +1,26 @@
 package ch.epfl.bluebrain.nexus.kg.service.contexts
 
 import cats.MonadError
+import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig.OperationsConfig
 import ch.epfl.bluebrain.nexus.kg.service.contexts.Contexts._
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.Agg
 import ch.epfl.bluebrain.nexus.kg.service.operations.{Operations, ResourceState}
-import com.github.ghik.silencer.silent
 import io.circe.Json
 import journal.Logger
 
-class Contexts[F[_]](agg: Agg[F, ContextId])(implicit F: MonadError[F, Throwable])
+class Contexts[F[_]](agg: Agg[F, ContextId])(implicit F: MonadError[F, Throwable], config: OperationsConfig)
     extends Operations[F, ContextId, Json](agg, logger) {
 
   override type Resource = Context
 
   override implicit def buildResource(c: ResourceState.Current[ContextId, Json]): Resource =
     Context(c.id, c.rev, c.value, c.deprecated)
-
-  @silent
-  override def validate(id: ContextId, value: Json): F[Unit] = F.pure(())
 }
 
 object Contexts {
 
-  final def apply[F[_]](agg: Agg[F, ContextId])(implicit F: MonadError[F, Throwable]): Contexts[F] =
+  final def apply[F[_]](agg: Agg[F, ContextId])(implicit F: MonadError[F, Throwable],
+                                                config: OperationsConfig): Contexts[F] =
     new Contexts[F](agg)
 
   private[contexts] val logger = Logger[this.type]

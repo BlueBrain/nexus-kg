@@ -10,15 +10,17 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
   * Case class which aggregates the configuration parameters
   *
   * @param description the service description namespace
-  * @param instance the service instance specific settings
-  * @param http the HTTP binding settings
-  * @param runtime the service runtime settings
-  * @param cluster the cluster specific settings
+  * @param instance    the service instance specific settings
+  * @param http        the HTTP binding settings
+  * @param runtime     the service runtime settings
+  * @param cluster     the cluster specific settings
   * @param persistence the persistence settings
-  * @param projects the project specific settings
-  * @param schemas the schema specific settings
-  * @param instances the instance specific settings
-  * @param prefixes the collection of prefixes used throughout the service
+  * @param projects    the project specific settings
+  * @param schemas     the schema specific settings
+  * @param instances   the instance specific settings
+  * @param operations  the nundle operations settings
+  * @param prefixes    the collection of prefixes used throughout the service
+  * @param iam         IAM connection settings
   */
 final case class AppConfig(description: DescriptionConfig,
                            instance: InstanceConfig,
@@ -26,6 +28,7 @@ final case class AppConfig(description: DescriptionConfig,
                            runtime: RuntimeConfig,
                            cluster: ClusterConfig,
                            persistence: PersistenceConfig,
+                           operations: OperationsConfig,
                            projects: ProjectsConfig,
                            schemas: SchemasConfig,
                            instances: InstancesConfig,
@@ -55,6 +58,8 @@ object AppConfig {
   }
 
   final case class PersistenceConfig(journalPlugin: String, snapshotStorePlugin: String, queryJournalPlugin: String)
+
+  final case class OperationsConfig(nameMaxLength: Int)
 
   final case class ProjectsConfig(passivationTimeout: Duration)
 

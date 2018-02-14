@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.service.operations
+package ch.epfl.bluebrain.nexus.kg.service.refs
 
 trait RevisionedRef[Id] extends Ref[Id] {
   def rev: Long

@@ -31,6 +31,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with ScalatestRouteTest {
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
 
+      appConfig.operations shouldEqual OperationsConfig(32)
       appConfig.projects shouldEqual ProjectsConfig(10 minutes)
 
       appConfig.schemas shouldEqual SchemasConfig(3 minutes)

@@ -8,22 +8,34 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.types.Rejection
 import ch.epfl.bluebrain.nexus.kg.service.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.service.Fault.{CommandRejected, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig.OperationsConfig
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceCommand._
+import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceRejection.InvalidId
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations._
 import ch.epfl.bluebrain.nexus.kg.service.operations.ResourceState._
+import ch.epfl.bluebrain.nexus.kg.service.refs.RevisionedRef
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
+import com.github.ghik.silencer.silent
 import journal.Logger
 import shapeless.{Typeable, the}
 
 abstract class Operations[F[_], Id: Show: Typeable, V: Typeable](agg: Agg[F, Id], logger: Logger)(
-    implicit F: MonadError[F, Throwable]) {
+    implicit F: MonadError[F, Throwable],
+    config: OperationsConfig) {
 
   type Resource
-
   private val V  = the[Typeable[V]]
   private val Id = the[Typeable[Id]]
 
-  def validate(id: Id, value: V): F[Unit]
+  @silent
+  def validate(id: Id, value: V): F[Unit] =
+    if (id.show.length > config.nameMaxLength) {
+      logger.debug(s"Validation of id '$id' failed. Id length is longer than ${config.nameMaxLength}")
+      F.raiseError(CommandRejected(InvalidId(id)))
+    } else {
+      logger.debug(s"Validation of id '$id' succeeded")
+      F.pure(())
+    }
 
   implicit def buildResource(c: Current[Id, V]): Resource
 
