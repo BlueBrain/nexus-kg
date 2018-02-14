@@ -166,6 +166,22 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
     }
   }
 
+  protected def hasReadPermissionsFor(domainId: DomainId, acls: FullAccessControlList): Boolean = {
+    acls.toPathMap
+      .filter { case (_, permissions) => permissions.contains(readPermission) }
+      .map {
+        case (path, _) =>
+          path.segments match {
+            case `kgRoot` :: Nil                                     => true
+            case `kgRoot` :: domainId.orgId.id :: Nil                => true
+            case `kgRoot` :: domainId.orgId.id :: domainId.id :: Nil => true
+            case _                                                   => false
+          }
+      }
+      .exists(b => b)
+
+  }
+
   /**
     * List all objects of a given type
     * @param pagination   pagination object
@@ -201,14 +217,18 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[Id]] = {
-    val _ = acls.acl
-    elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ orgTerm(orgId): _*), Set(index))(
-      pagination,
-      sort = defaultSort)
+    if (acls.hasAnyPermission(Permissions(Read))) {
+      elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ orgTerm(orgId): _*), Set(index))(
+        pagination,
+        sort = defaultSort)
+    } else {
+      F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[Id]]))
+    }
   }
 
   /**
     * List all objects of a given type within a domain
+    *
     * @param pagination   pagination object
     * @param domainId     domain ID
     * @param deprecated   boolean to decide whether to filter deprecated objects
@@ -222,10 +242,13 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[Id]] = {
-    val _ = acls.acl
-    elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ domainTerm(domainId): _*), Set(index))(
-      pagination,
-      sort = defaultSort)
+    if (hasReadPermissionsFor(domainId, acls)) {
+      elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ domainTerm(domainId): _*), Set(index))(
+        pagination,
+        sort = defaultSort)
+    } else {
+      F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[Id]]))
+    }
   }
 
 }

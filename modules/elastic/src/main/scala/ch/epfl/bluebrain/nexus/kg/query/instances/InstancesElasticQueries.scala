@@ -4,8 +4,10 @@ import cats.MonadError
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.FullAccessControlList
-import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIds, ElasticIndexingSettings}
@@ -28,6 +30,30 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
   private def schemaTerm(schemaId: SchemaId): Json = term("schema".qualifyAsString, schemaId.qualifyAsString)
 
   /**
+    * List all objects of a given type within a domain
+    * @param pagination   pagination object
+    * @param domainId     domain ID
+    * @param deprecated   boolean to decide whether to filter deprecated objects
+    * @param published    boolean to decide whether to filter published objects
+    * @param acls         list of access controls to restrict the query
+    * @return query results
+    *
+    */
+  override def list(pagination: Pagination,
+                    domainId: DomainId,
+                    deprecated: Option[Boolean],
+                    published: Option[Boolean],
+                    acls: FullAccessControlList): F[QueryResults[InstanceId]] = {
+    if (hasReadPermissionsFor(domainId, acls)) {
+      elasticClient.search[InstanceId](
+        query(acls, termsFrom(deprecated, published) :+ domainTerm(domainId): _*),
+        Set(ElasticIds.domainInstancesIndex(prefix, domainId)))(pagination, sort = defaultSort)
+    } else {
+      F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[InstanceId]]))
+    }
+  }
+
+  /**
     * List all instances within a schema name
     * @param pagination   pagination object
     * @param schemaName   schema name
@@ -42,8 +68,13 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[InstanceId]] = {
-    elasticClient.search[InstanceId](query(acls, termsFrom(deprecated, published) :+ schemaGroupTerm(schemaName): _*),
-                                     Set(index))(pagination, sort = defaultSort)
+    if (hasReadPermissionsFor(schemaName.domainId, acls)) {
+      elasticClient.search[InstanceId](
+        query(acls, termsFrom(deprecated, published) :+ schemaGroupTerm(schemaName): _*),
+        Set(ElasticIds.domainInstancesIndex(prefix, schemaName.domainId)))(pagination, sort = defaultSort)
+    } else {
+      F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[InstanceId]]))
+    }
   }
 
   /**
@@ -61,14 +92,19 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[InstanceId]] = {
-    elasticClient.search[InstanceId](query(acls, termsFrom(deprecated, published) :+ schemaTerm(schemaId): _*),
-                                     Set(index))(pagination, sort = defaultSort)
+    if (hasReadPermissionsFor(schemaId.domainId, acls)) {
+      elasticClient.search[InstanceId](
+        query(acls, termsFrom(deprecated, published) :+ schemaTerm(schemaId): _*),
+        Set(ElasticIds.domainInstancesIndex(prefix, schemaId.domainId)))(pagination, sort = defaultSort)
+    } else {
+      F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[InstanceId]]))
+    }
   }
 
   override protected val rdfType: String = "Instance".qualifyAsString
 
   /**
-    * Index used for searching
+    * Default index used for searching
     */
   override protected val index: String = s"${ElasticIds.instancesIndexPrefix(prefix)}_*"
 }

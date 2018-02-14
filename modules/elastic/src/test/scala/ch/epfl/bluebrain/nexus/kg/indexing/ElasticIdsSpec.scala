@@ -12,24 +12,23 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
 class ElasticIdsSpec extends WordSpecLike with Matchers with Inspectors with Randomness {
-  private val Slash = "%2f"
 
   "An ElasticIds" should {
 
     "convert ids into ElasticSearch ids" in {
       OrgId("one").elasticId shouldEqual "orgid_one"
-      DomainId(OrgId("one"), "two").elasticId shouldEqual s"domainid_one${Slash}two"
-      SchemaId(DomainId(OrgId("one"), "two"), "name", Version(1, 0, 0)).elasticId shouldEqual s"schemaid_one${Slash}two${Slash}name${Slash}v1.0.0"
+      DomainId(OrgId("one"), "two").elasticId shouldEqual s"domainid_one/two"
+      SchemaId(DomainId(OrgId("one"), "two"), "name", Version(1, 0, 0)).elasticId shouldEqual s"schemaid_one/two/name/v1.0.0"
     }
 
     "convert ids into ElasticSearch index ids" in {
       val prefix = "some"
-      OrgId("one").toIndex(prefix) shouldEqual "some_orgid_one"
-      DomainId(OrgId("one"), "two").toIndex(prefix) shouldEqual s"some_domainid_one${Slash}two"
+      OrgId("one").toIndex(prefix) shouldEqual s"${prefix}_organizations"
+      DomainId(OrgId("one"), "two").toIndex(prefix) shouldEqual s"${prefix}_domains"
       SchemaId(DomainId(OrgId("one"), "two"), "name", Version(1, 0, 0))
-        .toIndex(prefix) shouldEqual s"some_domainid_one${Slash}two"
+        .toIndex(prefix) shouldEqual s"${prefix}_schemas"
       InstanceId(SchemaId(DomainId(OrgId("one"), "two"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
-        .toIndex(prefix) shouldEqual s"some_domainid_one${Slash}two"
+        .toIndex(prefix) shouldEqual s"${prefix}_instances_domainid_one_two"
     }
   }
 }

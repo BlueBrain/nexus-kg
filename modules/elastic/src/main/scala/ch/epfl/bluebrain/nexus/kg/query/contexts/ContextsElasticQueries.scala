@@ -4,7 +4,8 @@ import cats.MonadError
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.FullAccessControlList
-import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
@@ -42,8 +43,13 @@ class ContextsElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: El
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[ContextId]] = {
-    elasticClient.search[ContextId](query(acls, termsFrom(deprecated, published) :+ contextGroupTerm(contextName): _*),
-                                    Set(index))(pagination, sort = defaultSort)
+    if (hasReadPermissionsFor(contextName.domainId, acls)) {
+      elasticClient.search[ContextId](
+        query(acls, termsFrom(deprecated, published) :+ contextGroupTerm(contextName): _*),
+        Set(index))(pagination, sort = defaultSort)
+    } else {
+      F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[ContextId]]))
+    }
   }
 
   override protected val rdfType: String = "Context".qualifyAsString

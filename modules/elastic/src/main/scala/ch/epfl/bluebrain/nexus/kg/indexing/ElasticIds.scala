@@ -33,6 +33,9 @@ object ElasticIds {
   def schemasIndex(prefix: String): String         = elasticId("schemas", prefix)
   def instancesIndexPrefix(prefix: String): String = s"${prefix}_instances"
 
+  def domainInstancesIndex(prefix: String, domainId: DomainId): String =
+    elasticId(domainId, instancesIndexPrefix(prefix))
+
   implicit val orgElasticIndexer = new ElasticIndexerId[OrgId] {
     override def apply(id: OrgId, prefix: String): String = organizationsIndex(prefix)
   }
@@ -51,7 +54,7 @@ object ElasticIds {
 
   implicit val instanceElasticIndexer = new ElasticIndexerId[InstanceId] {
     override def apply(id: InstanceId, prefix: String): String =
-      elasticId(id.schemaId.domainId, instancesIndexPrefix(prefix))
+      domainInstancesIndex(prefix, id.schemaId.domainId)
   }
 
   private def elasticId[A: Show](id: A, prefix: String)(implicit T: Typeable[A]): String =
