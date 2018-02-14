@@ -1,6 +1,0 @@
-{
-  "@context": {
-    "schema": "http://schema.org/"
-  },
-  "schema:name": "myorg"
-}
