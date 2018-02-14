@@ -11,6 +11,8 @@ import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import ch.epfl.bluebrain.nexus.kg.query.QueryFixture
 import io.circe.{Decoder, Json}
 
@@ -47,10 +49,10 @@ class SchemasElasticQueriesSpec extends QueryFixture[SchemaId] {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    elasticClient.createIndex("schemas", mapping).futureValue
+    elasticClient.createIndex(ElasticIds.schemasIndex(elasticPrefix), mapping).futureValue
     schemas.foreach {
       case ((schemaId, _, _), schemaJson) =>
-        elasticClient.create("schemas", "doc", s"schemaid_${schemaId.show}", schemaJson).futureValue
+        elasticClient.create(schemaId.toIndex(elasticPrefix), "doc", schemaId.elasticId, schemaJson).futureValue
     }
     val _ = untypedHttpClient(Post(refreshUri)).futureValue
   }

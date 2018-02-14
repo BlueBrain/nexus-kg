@@ -1,7 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import java.net.URLEncoder
-
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextId
@@ -29,28 +27,36 @@ trait ElasticIndexerId[A] {
 
 object ElasticIds {
 
+  def organizationsIndex(prefix: String): String = elasticId("organizations", prefix)
+  def domainsIndex(prefix: String): String       = elasticId("domains", prefix)
+  def contextsIndex(prefix: String): String      = elasticId("contexts", prefix)
+  def schemasIndex(prefix: String): String       = elasticId("schemas", prefix)
+
   implicit val orgElasticIndexer = new ElasticIndexerId[OrgId] {
-    override def apply(id: OrgId, prefix: String): String = elasticId(id, prefix)
+    override def apply(id: OrgId, prefix: String): String = organizationsIndex(prefix)
   }
 
   implicit val domainElasticIndexer = new ElasticIndexerId[DomainId] {
-    override def apply(id: DomainId, prefix: String): String = elasticId(id, prefix)
+    override def apply(id: DomainId, prefix: String): String = domainsIndex(prefix)
   }
 
   implicit val schemaElasticIndexer = new ElasticIndexerId[SchemaId] {
-    override def apply(id: SchemaId, prefix: String): String = domainElasticIndexer(id.domainId, prefix)
+    override def apply(id: SchemaId, prefix: String): String = schemasIndex(prefix)
   }
 
   implicit val contextElasticIndexer = new ElasticIndexerId[ContextId] {
-    override def apply(id: ContextId, prefix: String): String = domainElasticIndexer(id.domainId, prefix)
+    override def apply(id: ContextId, prefix: String): String = contextsIndex(prefix)
   }
 
   implicit val instanceElasticIndexer = new ElasticIndexerId[InstanceId] {
-    override def apply(id: InstanceId, prefix: String): String = domainElasticIndexer(id.schemaId.domainId, prefix)
+    override def apply(id: InstanceId, prefix: String): String = elasticId(id.schemaId.domainId, s"${prefix}_instances")
   }
 
   private def elasticId[A: Show](id: A, prefix: String)(implicit T: Typeable[A]): String =
-    prefix + "_" + T.describe.toLowerCase + "_" + URLEncoder.encode(id.show, "UTF-8").toLowerCase
+    prefix + "_" + T.describe.toLowerCase + "_" + id.show.replace("/", "_")
+
+  private def elasticId(index: String, prefix: String): String =
+    prefix + "_" + index
 
   /**
     * Interface syntax to expose new functionality into the generic type A
@@ -75,7 +81,7 @@ object ElasticIds {
     /**
       * Converts this ''id'' to a uniquely valid ElasticSearch id
       */
-    def elasticId: String = T.describe.toLowerCase + "_" + URLEncoder.encode(id.show, "UTF-8").toLowerCase
+    def elasticId: String = T.describe.toLowerCase + "_" + id.show
   }
 
 }

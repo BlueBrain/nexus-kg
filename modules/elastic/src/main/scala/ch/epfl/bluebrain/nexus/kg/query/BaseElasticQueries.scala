@@ -117,11 +117,23 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
       )
     )
 
-  private val kgRoot                               = "kg"
-  private val rootPath                             = Path(s"/$kgRoot")
-  private val readPermission                       = Read
-  private def orgTerm(orgId: OrgId): Json          = term("organization".qualifyAsString, orgId.qualifyAsString)
-  private def domainTerm(domainId: DomainId): Json = term("domain".qualifyAsString, domainId.qualifyAsString)
+  private val kgRoot         = "kg"
+  private val rootPath       = Path(s"/$kgRoot")
+  private val readPermission = Read
+
+  /**
+    * Generate filter term for organization
+    * @param orgId  organization ID
+    * @return JSON object representing the filter
+    */
+  protected def orgTerm(orgId: OrgId): Json = term("organization".qualifyAsString, orgId.qualifyAsString)
+
+  /**
+    * Generate filter term for domain
+    * @param domainId domain ID
+    * @return JSON object representing the filter
+    */
+  protected def domainTerm(domainId: DomainId): Json = term("domain".qualifyAsString, domainId.qualifyAsString)
 
   private def aclsToFilter(acls: FullAccessControlList): Option[Json] = {
 

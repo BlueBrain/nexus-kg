@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
@@ -75,6 +76,22 @@ class ElasticOrgIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Route)
           }
         }
       }
+
+      "list organizations user has access to" in {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
+          val org = orgs.head
+          Get(s"/organizations") ~> addCredentials(OAuth2BearerToken(s"org-${org.show}")) ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+            val expectedResults =
+              UnscoredQueryResults(1, List(UnscoredQueryResult(org)))
+            val expectedLinks =
+              Links("@context" -> s"${prefixes.LinksContext}", "self" -> Uri(s"$apiUri/organizations"))
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+          }
+        }
+      }
+
       "list organizations with all the fields" in {
         eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
           Get(s"/organizations?fields=all") ~> addCredentials(ValidCredentials) ~> route ~> check {

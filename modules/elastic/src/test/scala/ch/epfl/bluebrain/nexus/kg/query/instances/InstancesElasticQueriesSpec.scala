@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import ch.epfl.bluebrain.nexus.kg.query.QueryFixture
 import io.circe.{Decoder, Json}
 
@@ -55,10 +56,11 @@ class InstancesElasticQueriesSpec extends QueryFixture[InstanceId] {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    elasticClient.createIndex("instances", mapping).futureValue
+    val domains = instances.keys.map(_._1).groupBy(_.schemaId.domainId).mapValues(_.head).values
+    domains.foreach(id => elasticClient.createIndex(id.toIndex(elasticPrefix), mapping).futureValue)
     instances.foreach {
       case ((instanceId, _), instanceJson) =>
-        elasticClient.create("instances", "doc", s"instanceid_${instanceId.show}", instanceJson).futureValue
+        elasticClient.create(instanceId.toIndex(elasticPrefix), "doc", instanceId.elasticId, instanceJson).futureValue
     }
     val _ = untypedHttpClient(Post(refreshUri)).futureValue
   }

@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
+import io.circe.Json
 
 /**
   * Elastic Search queries for domains
@@ -22,6 +23,8 @@ class DomainsElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: Ela
     F: MonadError[F, Throwable])
     extends BaseElasticQueries[F, DomainId](elasticClient, settings) {
   override protected val rdfType: String = "Domain".qualifyAsString
+
+  override protected def domainTerm(domainId: DomainId): Json = term("@id", domainId.qualifyAsString)
 }
 
 object DomainsElasticQueries {

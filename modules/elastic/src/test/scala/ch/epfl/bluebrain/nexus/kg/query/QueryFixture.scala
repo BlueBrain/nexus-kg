@@ -48,7 +48,7 @@ trait QueryFixture[Id]
     PatienceConfig(6 seconds, 300 milliseconds)
 
   val base = s"http://$localhost:8080/v0"
-  val settings @ ElasticIndexingSettings(_, _, _, nexusVocBase) =
+  val settings @ ElasticIndexingSettings(elasticPrefix, _, _, nexusVocBase) =
     ElasticIndexingSettings(genString(length = 6),
                             genString(length = 6),
                             base,

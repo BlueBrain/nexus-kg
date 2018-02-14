@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
+import io.circe.Json
 
 /**
   * Elastic Search queries for Organizations
@@ -22,6 +23,8 @@ class OrganizationsElasticQueries[F[_]](elasticClient: ElasticClient[F], setting
     F: MonadError[F, Throwable])
     extends BaseElasticQueries[F, OrgId](elasticClient, settings) {
   override protected val rdfType: String = "Organization".qualifyAsString
+
+  override protected def orgTerm(orgId: OrgId): Json = term("@id", orgId.qualifyAsString)
 }
 
 object OrganizationsElasticQueries {
