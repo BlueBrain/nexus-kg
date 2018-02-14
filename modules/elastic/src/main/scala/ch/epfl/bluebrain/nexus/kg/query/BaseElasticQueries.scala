@@ -31,8 +31,8 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
     rs: HttpClient[F, QueryResults[Id]],
     F: MonadError[F, Throwable]) {
 
-  val ElasticIndexingSettings(_, _, base, baseVoc) = settings
-  protected val defaultSort                        = SortList(List(Sort(Sort.OrderType.Asc, "@id")))
+  val ElasticIndexingSettings(prefix, _, base, baseVoc) = settings
+  protected val defaultSort                             = SortList(List(Sort(Sort.OrderType.Asc, "@id")))
 
   implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
   implicit val domainIdQualifier: ConfiguredQualifier[DomainId]     = Qualifier.configured[DomainId](base)
@@ -41,6 +41,11 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
   implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](baseVoc)
   val deprecatedKey: String                                         = "deprecated".qualifyAsString
   val publishedKey: String                                          = "published".qualifyAsString
+
+  /**
+    * Index used for searching
+    */
+  protected val index: String
 
   /**
     * RDF type used to filter entities
@@ -174,7 +179,8 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[Id]] = {
     if (acls.hasAnyPermission(Permissions(Read))) {
-      elasticClient.search[Id](query(acls, termsFrom(deprecated, published): _*))(pagination, sort = defaultSort)
+      elasticClient
+        .search[Id](query(acls, termsFrom(deprecated, published): _*), Set(index))(pagination, sort = defaultSort)
     } else {
       F.pure(UnscoredQueryResults(0L, List.empty[QueryResult[Id]]))
     }
@@ -196,8 +202,9 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[Id]] = {
     val _ = acls.acl
-    elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ orgTerm(orgId): _*))(pagination,
-                                                                                                  sort = defaultSort)
+    elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ orgTerm(orgId): _*), Set(index))(
+      pagination,
+      sort = defaultSort)
   }
 
   /**
@@ -216,9 +223,9 @@ abstract class BaseElasticQueries[F[_], Id](elasticClient: ElasticClient[F], set
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[Id]] = {
     val _ = acls.acl
-    elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ domainTerm(domainId): _*))(pagination,
-                                                                                                        sort =
-                                                                                                          defaultSort)
+    elasticClient.search[Id](query(acls, termsFrom(deprecated, published) :+ domainTerm(domainId): _*), Set(index))(
+      pagination,
+      sort = defaultSort)
   }
 
 }

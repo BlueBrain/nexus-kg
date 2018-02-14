@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
+import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIds, ElasticIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
 import io.circe.Json
 
@@ -42,15 +42,18 @@ class ContextsElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: El
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[ContextId]] = {
-    elasticClient.search[ContextId](query(acls, termsFrom(deprecated, published) :+ contextGroupTerm(contextName): _*))(
-      pagination,
-      sort = defaultSort)
+    elasticClient.search[ContextId](query(acls, termsFrom(deprecated, published) :+ contextGroupTerm(contextName): _*),
+                                    Set(index))(pagination, sort = defaultSort)
   }
 
   override protected val rdfType: String = "Context".qualifyAsString
   private def contextGroupTerm(contextName: ContextName): Json =
     term("contextGroup".qualifyAsString, contextName.qualifyAsString)
 
+  /**
+    * Index used for searching
+    */
+  override protected val index: String = ElasticIds.contextsIndex(prefix)
 }
 
 object ContextsElasticQueries {

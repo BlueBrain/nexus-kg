@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
+import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIds, ElasticIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
 import io.circe.Json
 
@@ -42,9 +42,8 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[InstanceId]] = {
-    elasticClient.search[InstanceId](query(acls, termsFrom(deprecated, published) :+ schemaGroupTerm(schemaName): _*))(
-      pagination,
-      sort = defaultSort)
+    elasticClient.search[InstanceId](query(acls, termsFrom(deprecated, published) :+ schemaGroupTerm(schemaName): _*),
+                                     Set(index))(pagination, sort = defaultSort)
   }
 
   /**
@@ -62,12 +61,16 @@ class InstancesElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: E
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[InstanceId]] = {
-    elasticClient.search[InstanceId](query(acls, termsFrom(deprecated, published) :+ schemaTerm(schemaId): _*))(
-      pagination,
-      sort = defaultSort)
+    elasticClient.search[InstanceId](query(acls, termsFrom(deprecated, published) :+ schemaTerm(schemaId): _*),
+                                     Set(index))(pagination, sort = defaultSort)
   }
 
   override protected val rdfType: String = "Instance".qualifyAsString
+
+  /**
+    * Index used for searching
+    */
+  override protected val index: String = s"${ElasticIds.instancesIndexPrefix(prefix)}_*"
 }
 
 object InstancesElasticQueries {

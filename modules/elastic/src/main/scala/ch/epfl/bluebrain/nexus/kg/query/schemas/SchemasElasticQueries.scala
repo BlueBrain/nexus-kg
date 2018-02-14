@@ -7,7 +7,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.FullAccessControlList
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
+import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIds, ElasticIndexingSettings}
 import ch.epfl.bluebrain.nexus.kg.query.BaseElasticQueries
 
 /**
@@ -40,11 +40,14 @@ class SchemasElasticQueries[F[_]](elasticClient: ElasticClient[F], settings: Ela
            deprecated: Option[Boolean],
            published: Option[Boolean],
            acls: FullAccessControlList): F[QueryResults[SchemaId]] = {
-    elasticClient.search[SchemaId](query(acls, termsFrom(deprecated, published) :+ schemaGroupTerm(schemaName): _*))(
-      pagination,
-      sort = defaultSort)
+    elasticClient.search[SchemaId](query(acls, termsFrom(deprecated, published) :+ schemaGroupTerm(schemaName): _*),
+                                   Set(index))(pagination, sort = defaultSort)
   }
 
+  /**
+    * Index used for searching
+    */
+  override protected val index: String = ElasticIds.schemasIndex(prefix)
 }
 
 object SchemasElasticQueries {

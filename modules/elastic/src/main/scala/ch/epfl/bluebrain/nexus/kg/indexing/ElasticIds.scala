@@ -27,10 +27,11 @@ trait ElasticIndexerId[A] {
 
 object ElasticIds {
 
-  def organizationsIndex(prefix: String): String = elasticId("organizations", prefix)
-  def domainsIndex(prefix: String): String       = elasticId("domains", prefix)
-  def contextsIndex(prefix: String): String      = elasticId("contexts", prefix)
-  def schemasIndex(prefix: String): String       = elasticId("schemas", prefix)
+  def organizationsIndex(prefix: String): String   = elasticId("organizations", prefix)
+  def domainsIndex(prefix: String): String         = elasticId("domains", prefix)
+  def contextsIndex(prefix: String): String        = elasticId("contexts", prefix)
+  def schemasIndex(prefix: String): String         = elasticId("schemas", prefix)
+  def instancesIndexPrefix(prefix: String): String = s"${prefix}_instances"
 
   implicit val orgElasticIndexer = new ElasticIndexerId[OrgId] {
     override def apply(id: OrgId, prefix: String): String = organizationsIndex(prefix)
@@ -49,7 +50,8 @@ object ElasticIds {
   }
 
   implicit val instanceElasticIndexer = new ElasticIndexerId[InstanceId] {
-    override def apply(id: InstanceId, prefix: String): String = elasticId(id.schemaId.domainId, s"${prefix}_instances")
+    override def apply(id: InstanceId, prefix: String): String =
+      elasticId(id.schemaId.domainId, instancesIndexPrefix(prefix))
   }
 
   private def elasticId[A: Show](id: A, prefix: String)(implicit T: Typeable[A]): String =
