@@ -8,11 +8,12 @@
         "{{domain}}": {"type": "keyword"},
         "{{schema}}": {"type": "keyword"},
         "{{schemaGroup}}": {"type": "keyword"},
-        "{{deprecated}": {"type": "boolean"},
+        "{{deprecated}}": {"type": "boolean"},
         "{{published}}": {"type": "boolean"},
         "@id": {"type": "keyword"},
         "@type": {"type": "keyword"}
-      }
+      },
+      "dynamic": false
     }
   }
 }

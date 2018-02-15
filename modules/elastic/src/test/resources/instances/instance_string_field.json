@@ -1,0 +1,21 @@
+{
+  "@context": [
+    "{{base}}/contexts/{{context}}",
+    {
+      "nxv": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/",
+      "links": {
+        "@id": "nxv:links"
+      },
+      "outgoing": {
+        "@id": "nxv:outgoing",
+        "@type": "@id"
+      },
+      "incoming": {
+        "@id": "nxv:incoming",
+        "@type": "@id"
+      }
+    }
+  ],
+  "@id": "https://example.epfl.ch/fake",
+  "foo" : "bar"
+}
