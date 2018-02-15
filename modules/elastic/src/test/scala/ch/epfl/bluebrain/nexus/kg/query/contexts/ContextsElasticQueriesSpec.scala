@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.query.contexts
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.client.RequestBuilding.Post
+import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
@@ -10,6 +11,8 @@ import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, ContextName}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import ch.epfl.bluebrain.nexus.kg.query.QueryFixture
 import io.circe.{Decoder, Json}
 
@@ -42,10 +45,10 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    elasticClient.createIndex("contexts", mapping).futureValue
+    elasticClient.createIndex(ElasticIds.contextsIndex(elasticPrefix), mapping).futureValue
     contexts.foreach {
       case (contextId, contextJson) =>
-        elasticClient.create("contexts", "doc", s"contextid_${contextId.show}", contextJson).futureValue
+        elasticClient.create(contextId.toIndex(elasticPrefix), "doc", contextId.elasticId, contextJson).futureValue
     }
     val _ = untypedHttpClient(Post(refreshUri)).futureValue
   }
@@ -54,7 +57,7 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
     "list all contexts with pagination" in {
       var i = 0L
       contextIds.sliding(pageSize, pageSize).foreach { ids =>
-        val results = contextQueries.list(Pagination(i, pageSize), None, None).futureValue
+        val results = contextQueries.list(Pagination(i, pageSize), None, None, defaultAcls).futureValue
         results.total shouldEqual contexts.size
         results.results.map(_.source) shouldEqual ids
         i = i + ids.size
@@ -67,7 +70,7 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
         case (org, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = contextQueries.list(Pagination(i, pageSize), org, None, None).futureValue
+            val results = contextQueries.list(Pagination(i, pageSize), org, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -82,7 +85,7 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
         case (dom, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = contextQueries.list(Pagination(i, pageSize), dom, None, None).futureValue
+            val results = contextQueries.list(Pagination(i, pageSize), dom, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size
@@ -97,7 +100,7 @@ class ContextsElasticQueriesSpec extends QueryFixture[ContextId] {
         case (name, cs) =>
           var i = 0L
           cs.sliding(pageSize, pageSize).foreach { ids =>
-            val results = contextQueries.list(Pagination(i, pageSize), name, None, None).futureValue
+            val results = contextQueries.list(Pagination(i, pageSize), name, None, None, defaultAcls).futureValue
             results.total shouldEqual cs.size
             results.results.map(_.source) shouldEqual ids
             i = i + ids.size

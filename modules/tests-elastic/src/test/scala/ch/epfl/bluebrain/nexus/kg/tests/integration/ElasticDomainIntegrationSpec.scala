@@ -1,9 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.tests.integration
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
@@ -61,6 +63,20 @@ class ElasticDomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: Rou
             val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}",
                                       "self" -> s"$apiUri/domains",
                                       "next" -> s"$apiUri/domains?from=10&size=10")
+            responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+          }
+        }
+      }
+
+      "list a domain user has access to" in {
+        eventually(timeout(Span(indexTimeout, Seconds)), interval(Span(1, Seconds))) {
+          val randDomain = randDomains.head
+          Get(s"/domains") ~> addCredentials(OAuth2BearerToken(s"domain-${randDomain.show}")) ~> route ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+            val expectedResults =
+              UnscoredQueryResults(1, List(UnscoredQueryResult(randDomain)))
+            val expectedLinks = Links("@context" -> s"${prefixes.LinksContext}", "self" -> s"$apiUri/domains")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
         }

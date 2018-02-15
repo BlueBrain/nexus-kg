@@ -87,7 +87,7 @@ class SchemaRoutes(schemas: Schemas[Future],
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               schemasElasticQueries
-                .list(pagination, query.deprecated, query.published)
+                .list(pagination, query.deprecated, query.published, acls)
                 .buildResponse(query.fields, base, prefixes, pagination)
             case _ =>
               schemaQueries.list(query, pagination).buildResponse(query.fields, base, prefixes, pagination)
@@ -98,7 +98,7 @@ class SchemaRoutes(schemas: Schemas[Future],
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   schemasElasticQueries
-                    .list(pagination, orgId, query.deprecated, query.published)
+                    .list(pagination, orgId, query.deprecated, query.published, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   schemaQueries
@@ -112,7 +112,7 @@ class SchemaRoutes(schemas: Schemas[Future],
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   schemasElasticQueries
-                    .list(pagination, domainId, query.deprecated, query.published)
+                    .list(pagination, domainId, query.deprecated, query.published, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   schemaQueries
@@ -126,7 +126,7 @@ class SchemaRoutes(schemas: Schemas[Future],
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   schemasElasticQueries
-                    .list(pagination, schemaName, query.deprecated, query.published)
+                    .list(pagination, schemaName, query.deprecated, query.published, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   schemaQueries

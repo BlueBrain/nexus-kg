@@ -76,7 +76,7 @@ final class DomainRoutes(domains: Domains[Future],
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
               domainsElasticQueries
-                .list(pagination, query.deprecated, None)
+                .list(pagination, query.deprecated, None, acls)
                 .buildResponse(query.fields, base, prefixes, pagination)
             case _ =>
               domainQueries
@@ -89,7 +89,7 @@ final class DomainRoutes(domains: Domains[Future],
               (query.filter, query.q, query.sort) match {
                 case (Filter.Empty, None, SortList.Empty) =>
                   domainsElasticQueries
-                    .list(pagination, orgId, query.deprecated, None)
+                    .list(pagination, orgId, query.deprecated, None, acls)
                     .buildResponse(query.fields, base, prefixes, pagination)
                 case _ =>
                   domainQueries
