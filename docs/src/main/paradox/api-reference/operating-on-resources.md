@@ -241,7 +241,7 @@ Property path with context
 
 The response to any search requests follows the described format:
 
-```json
+
 {
   "total": {hits},
   "maxScore": {max_score},
