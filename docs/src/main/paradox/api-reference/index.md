@@ -1,6 +1,7 @@
 @@@ index
 
 * [operating on resources](operating-on-resources.md)
+* [queries](queries.md)
 * [organizations](organizations.md)
 * [domains](domains.md)
 * [contexts](contexts.md)
