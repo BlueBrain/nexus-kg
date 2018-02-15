@@ -131,7 +131,7 @@ DELETE /v0/{address}?rev={previous_rev}
 
 ## Search and filtering
 
-The search and filtering is managed by its own main resource, found in [queries](./queries.md). Alternatively, you can use
+The search and filtering is managed by its own main resource, found in @ref:[queries](./queries.md). Alternatively, you can use
 the GET verb and the `{collection_address}` endpoints to perform searches. However, for complex queries the [queries](./queries.md) resource is recommended.
 
 ### GET search and filtering
@@ -241,7 +241,7 @@ Property path with context
 
 The response to any search requests follows the described format:
 
-```json
+
 {
   "total": {hits},
   "maxScore": {max_score},

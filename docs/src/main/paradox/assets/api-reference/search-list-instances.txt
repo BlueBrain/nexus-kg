@@ -1,4 +1,4 @@
 curl -XGET 'https://nexus.example.com/v0/data
      ?from=0&size=1
      &q=test
-     &filter={"filter":{"op":"gte","path":"nxv:rev","value":2}}'
+     &filter={"op":"gte","path":"nxv:rev","value":2}'
