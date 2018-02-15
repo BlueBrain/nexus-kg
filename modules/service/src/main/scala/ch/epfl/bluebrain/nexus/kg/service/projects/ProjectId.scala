@@ -1,11 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.service.projects
 
 import cats.Show
+import ch.epfl.bluebrain.nexus.kg.service.types.Named
 import io.circe.{Decoder, Encoder}
 
 import scala.util.matching.Regex
 
-final case class ProjectId(value: String)
+final case class ProjectId(name: String) extends Named
 
 object ProjectId {
   val regex: Regex = "([a-zA-Z0-9]+)".r
@@ -15,8 +16,8 @@ object ProjectId {
     case _         => None
   }
 
-  final implicit val projectIdShow: Show[ProjectId]       = Show.show(_.value)
-  final implicit val projectIdEncoder: Encoder[ProjectId] = Encoder.encodeString.contramap(_.value)
+  final implicit val projectIdShow: Show[ProjectId]       = Show.show(_.name)
+  final implicit val projectIdEncoder: Encoder[ProjectId] = Encoder.encodeString.contramap(_.name)
   final implicit val projectIdDecoder: Decoder[ProjectId] =
     Decoder.decodeString.emap(apply(_).toRight("Unable to decode value into a ProjectId"))
 

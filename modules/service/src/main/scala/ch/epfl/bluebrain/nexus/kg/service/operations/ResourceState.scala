@@ -1,8 +1,16 @@
 package ch.epfl.bluebrain.nexus.kg.service.operations
 
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceCommand.{CreateResource, DeprecateResource, UpdateResource}
-import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceEvent.{ResourceCreated, ResourceDeprecated, ResourceUpdated}
+import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceCommand.{
+  CreateResource,
+  DeprecateResource,
+  UpdateResource
+}
+import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceEvent.{
+  ResourceCreated,
+  ResourceDeprecated,
+  ResourceUpdated
+}
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.{ResourceCommand, ResourceEvent, ResourceRejection}
 import shapeless.Typeable
@@ -23,8 +31,9 @@ object ResourceState {
       value <- V.cast(value)
     } yield (id -> value)
 
-  def next[Id: Typeable, V: Typeable](state: ResourceState, event: ResourceEvent[Id]): ResourceState =
-    (state, event) match {
+  def next[Id: Typeable, V: Typeable, StoredResEvent](state: ResourceState, event: StoredResEvent)(
+      implicit f: StoredResEvent => ResourceEvent[Id]): ResourceState =
+    (state, event: ResourceEvent[Id]) match {
       case (Initial, ResourceCreated(id, rev, meta, value)) =>
         Current(id, rev, meta, value, deprecated = false)
       // $COVERAGE-OFF$
@@ -38,33 +47,35 @@ object ResourceState {
         cast[Id, V](c).map(casted => casted.copy(rev = rev, meta = meta, deprecated = true)).getOrElse(state)
     }
 
-  def eval[Id: Typeable, V: Typeable](state: ResourceState,
-                                      cmd: ResourceCommand[Id]): Either[ResourceRejection, ResourceEvent[Id]] = {
+  def eval[Id: Typeable, V: Typeable, StoredResEvent](state: ResourceState, cmd: ResourceCommand[Id])(
+      implicit f: ResourceEvent[Id] => Option[StoredResEvent]): Either[ResourceRejection, StoredResEvent] = {
 
-    def createResource(c: CreateResource[_, _]): Either[ResourceRejection, ResourceEvent[Id]] = state match {
+    def createResource(c: CreateResource[_, _]): Either[ResourceRejection, StoredResEvent] = state match {
       case Initial =>
         cast[Id, V](c.id, c.value)
-          .map[ResourceEvent[Id]] { case (id, value) => ResourceCreated(id, 1L, c.meta, value) }
+          .flatMap[StoredResEvent] { case (id, value) => ResourceCreated(id, 1L, c.meta, value) }
           .toRight(UnexpectedCasting)
       case _ => Left(ResourceAlreadyExists)
     }
 
-    def updateResource(c: UpdateResource[_, _]): Either[ResourceRejection, ResourceEvent[Id]] = state match {
+    def updateResource(c: UpdateResource[_, _]): Either[ResourceRejection, StoredResEvent] = state match {
       case Initial                                  => Left(ResourceDoesNotExists)
       case Current(_, rev, _, _, _) if rev != c.rev => Left(IncorrectRevisionProvided)
       case Current(_, _, _, _, true)                => Left(ResourceIsDeprecated)
       case s: Current[_, _] =>
         cast[Id, V](s)
-          .map(casted => ResourceUpdated(casted.id, casted.rev + 1, c.meta, c.value))
+          .flatMap[StoredResEvent](casted => ResourceUpdated(casted.id, casted.rev + 1, c.meta, c.value))
           .toRight(UnexpectedCasting)
     }
 
-    def deprecateResource(c: DeprecateResource[_, _]): Either[ResourceRejection, ResourceEvent[Id]] = state match {
+    def deprecateResource(c: DeprecateResource[_, _]): Either[ResourceRejection, StoredResEvent] = state match {
       case Initial                                  => Left(ResourceDoesNotExists)
       case Current(_, rev, _, _, _) if rev != c.rev => Left(IncorrectRevisionProvided)
       case Current(_, _, _, _, true)                => Left(ResourceIsDeprecated)
       case s: Current[_, _] =>
-        cast[Id, V](s).map(casted => ResourceDeprecated(casted.id, casted.rev + 1, c.meta)).toRight(UnexpectedCasting)
+        cast[Id, V](s)
+          .flatMap[StoredResEvent](casted => ResourceDeprecated(casted.id, casted.rev + 1, c.meta))
+          .toRight(UnexpectedCasting)
     }
 
     cmd match {

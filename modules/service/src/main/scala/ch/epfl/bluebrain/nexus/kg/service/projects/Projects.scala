@@ -4,12 +4,13 @@ import cats.MonadError
 import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig.OperationsConfig
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.Agg
 import ch.epfl.bluebrain.nexus.kg.service.operations.{Operations, ResourceState}
+import ch.epfl.bluebrain.nexus.kg.service.projects.ProjectEvent.Value
 import ch.epfl.bluebrain.nexus.kg.service.projects.Projects._
-import io.circe.Json
 import journal.Logger
 
-class Projects[F[_]](agg: Agg[F, ProjectId])(implicit F: MonadError[F, Throwable], config: OperationsConfig)
-    extends Operations[F, ProjectId, Value](agg, logger) {
+class Projects[F[_]](agg: Agg[F, ProjectId, ProjectEvent])(implicit F: MonadError[F, Throwable],
+                                                           config: OperationsConfig)
+    extends Operations[F, ProjectId, Value, ProjectEvent](agg, logger) {
 
   override type Resource = Project
 
@@ -18,18 +19,17 @@ class Projects[F[_]](agg: Agg[F, ProjectId])(implicit F: MonadError[F, Throwable
 }
 
 object Projects {
-  final def apply[F[_]](agg: Agg[F, ProjectId])(implicit F: MonadError[F, Throwable],
-                                                config: OperationsConfig): Projects[F] =
+  final def apply[F[_]](agg: Agg[F, ProjectId, ProjectEvent])(implicit F: MonadError[F, Throwable],
+                                                              config: OperationsConfig): Projects[F] =
     new Projects[F](agg)
 
   private[projects] val logger = Logger[this.type]
-  final case class Value(context: Json, config: Project.Config)
 
-  def next(state: ResourceState, event: Operations.ResourceEvent[ProjectId]): ResourceState =
-    ResourceState.next[ProjectId, Json](state, event)
+  def next(state: ResourceState, event: ProjectEvent): ResourceState =
+    ResourceState.next[ProjectId, Value, ProjectEvent](state, event)
 
-  def eval(state: ResourceState, cmd: Operations.ResourceCommand[ProjectId])
-    : Either[Operations.ResourceRejection, Operations.ResourceEvent[ProjectId]] =
-    ResourceState.eval[ProjectId, Json](state, cmd)
+  def eval(state: ResourceState,
+           cmd: Operations.ResourceCommand[ProjectId]): Either[Operations.ResourceRejection, ProjectEvent] =
+    ResourceState.eval[ProjectId, Value, ProjectEvent](state, cmd)
 
 }

@@ -3,11 +3,12 @@ package ch.epfl.bluebrain.nexus.kg.service.contexts
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.service.projects.ProjectId
+import ch.epfl.bluebrain.nexus.kg.service.types.Named
 import io.circe.{Decoder, Encoder}
 
 import scala.util.matching.Regex
 
-final case class ContextId(projectId: ProjectId, name: String)
+final case class ContextId(projectId: ProjectId, name: String) extends Named
 
 object ContextId {
   private val regex: Regex     = s"${ProjectId.regex.regex}/([a-zA-Z0-9]+)".r
@@ -24,7 +25,7 @@ object ContextId {
   }
 
   final implicit val schemaIdShow: Show[ContextId] = Show.show {
-    case ContextId(projectId, name) => s"${projectId.value}/$name"
+    case ContextId(projectId, name) => s"${projectId.name}/$name"
   }
 
   final implicit val schemaIdIdEncoder: Encoder[ContextId] = Encoder.encodeString.contramap(_.show)

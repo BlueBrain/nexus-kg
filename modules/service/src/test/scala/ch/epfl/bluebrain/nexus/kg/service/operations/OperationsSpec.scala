@@ -2,12 +2,11 @@ package ch.epfl.bluebrain.nexus.kg.service.operations
 
 import java.time.Clock
 
-import cats.Show
 import cats.instances.try_._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.service.CallerCtx._
 import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.kg.service.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.service.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig.OperationsConfig
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.Agg
@@ -124,12 +123,10 @@ class OperationsSpec extends WordSpecLike with Matchers with Inspectors with Try
 
 object OperationsSpec {
   import TestOperations._
-  case class Id(value: String)
   case class Res(id: Id, rev: Long, value: Json, deprecated: Boolean)
-  private implicit val showId: Show[Id] = Show.show(_.value)
 
-  class TestOperations(agg: Agg[Try, Id])(implicit config: OperationsConfig)
-      extends Operations[Try, Id, Json](agg, logger) {
+  class TestOperations(agg: Agg[Try, Id, ResourceTestEvent])(implicit config: OperationsConfig)
+      extends Operations[Try, Id, Json, ResourceTestEvent](agg, logger) {
 
     override type Resource = Res
 
@@ -139,17 +136,18 @@ object OperationsSpec {
 
   object TestOperations {
 
-    final def apply(agg: Agg[Try, Id])(implicit config: OperationsConfig): TestOperations = new TestOperations(agg)
+    final def apply(agg: Agg[Try, Id, ResourceTestEvent])(implicit config: OperationsConfig): TestOperations =
+      new TestOperations(agg)
 
     private[operations] val logger = Logger[this.type]
 
-    private[operations] def next(state: ResourceState, event: Operations.ResourceEvent[Id]): ResourceState =
-      ResourceState.next[Id, Json](state, event)
+    private[operations] def next(state: ResourceState, event: ResourceTestEvent): ResourceState =
+      ResourceState.next[Id, Json, ResourceTestEvent](state, event)
 
     private[operations] def eval(
         state: ResourceState,
-        cmd: Operations.ResourceCommand[Id]): Either[Operations.ResourceRejection, Operations.ResourceEvent[Id]] =
-      ResourceState.eval[Id, Json](state, cmd)
+        cmd: Operations.ResourceCommand[Id]): Either[Operations.ResourceRejection, ResourceTestEvent] =
+      ResourceState.eval[Id, Json, ResourceTestEvent](state, cmd)
 
   }
 }

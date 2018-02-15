@@ -1,8 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.operations
 
-import cats.syntax.flatMap._
-import cats.syntax.functor._
-import cats.syntax.show._
+import cats.syntax.all._
 import cats.{MonadError, Show}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.types.Rejection
@@ -10,18 +8,21 @@ import ch.epfl.bluebrain.nexus.kg.service.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.service.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig.OperationsConfig
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceCommand._
-import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceRejection.InvalidId
+import ch.epfl.bluebrain.nexus.kg.service.operations.Operations.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.service.operations.Operations._
 import ch.epfl.bluebrain.nexus.kg.service.operations.ResourceState._
 import ch.epfl.bluebrain.nexus.kg.service.refs.RevisionedRef
+import ch.epfl.bluebrain.nexus.kg.service.types.{Named, Revisioned}
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import com.github.ghik.silencer.silent
 import journal.Logger
 import shapeless.{Typeable, the}
 
-abstract class Operations[F[_], Id: Show: Typeable, V: Typeable](agg: Agg[F, Id], logger: Logger)(
-    implicit F: MonadError[F, Throwable],
-    config: OperationsConfig) {
+abstract class Operations[F[_], Id: Show: Typeable, V: Typeable, StoredResEvent <: Revisioned](
+    agg: Agg[F, Id, StoredResEvent],
+    logger: Logger)(implicit F: MonadError[F, Throwable],
+                    f: StoredResEvent => ResourceEvent[Id],
+                    config: OperationsConfig) {
 
   type Resource
   private val V  = the[Typeable[V]]
@@ -29,12 +30,27 @@ abstract class Operations[F[_], Id: Show: Typeable, V: Typeable](agg: Agg[F, Id]
 
   @silent
   def validate(id: Id, value: V): F[Unit] =
-    if (id.show.length > config.nameMaxLength) {
-      logger.debug(s"Validation of id '$id' failed. Id length is longer than ${config.nameMaxLength}")
-      F.raiseError(CommandRejected(InvalidId(id)))
-    } else {
-      logger.debug(s"Validation of id '$id' succeeded")
-      F.pure(())
+    validate(id)
+
+  def validate(id: Id): F[Unit] =
+    id match {
+      case namedId: Named =>
+        if (namedId.name.length > config.nameMaxLength) {
+          logger.debug(s"Validation of id '$id' failed. Id length is longer than ${config.nameMaxLength}")
+          F.raiseError(CommandRejected(InvalidId(id)))
+        } else {
+          logger.debug(s"Validation of id '$id' succeeded")
+          F.pure(())
+        }
+      case _ =>
+        F.pure(())
+    }
+
+  def validateUnlocked(id: Id): F[Unit] =
+    agg.currentState(id.show) flatMap {
+      case Initial                   => F.raiseError(CommandRejected(ParentResourceDoesNotExists))
+      case Current(_, _, _, _, true) => F.raiseError(CommandRejected(ResourceIsDeprecated))
+      case _                         => F.pure(())
     }
 
   implicit def buildResource(c: Current[Id, V]): Resource
@@ -53,6 +69,12 @@ abstract class Operations[F[_], Id: Show: Typeable, V: Typeable](agg: Agg[F, Id]
 
   def deprecate(id: Id, rev: Long)(implicit ctx: CallerCtx): F[RevisionedRef[Id]] =
     evaluate(DeprecateResource(id, rev, ctx.meta), "Deprecate resource").map(current => RevisionedRef(id, current.rev))
+
+  def fetchValue(id: Id): F[Option[V]] =
+    agg.currentState(id.show).flatMap {
+      case Initial           => F.pure(None)
+      case c: Current[Id, V] => cast(c).map(casted => Some(casted.value))
+    }
 
   def fetch(id: Id): F[Option[Resource]] =
     agg.currentState(id.show).flatMap {
@@ -77,7 +99,7 @@ abstract class Operations[F[_], Id: Show: Typeable, V: Typeable](agg: Agg[F, Id]
 
   private def stateAt(id: Id, rev: Long): F[ResourceState] =
     agg.foldLeft[ResourceState](id.show, Initial) {
-      case (state, ev) if ev.rev <= rev => next[Id, V](state, ev)
+      case (state, ev) if ev.rev <= rev => next[Id, V, StoredResEvent](state, ev)
       case (state, _)                   => state
     }
 
@@ -103,9 +125,9 @@ abstract class Operations[F[_], Id: Show: Typeable, V: Typeable](agg: Agg[F, Id]
 
 object Operations {
 
-  type Agg[F[_], Id] = Aggregate[F] {
+  type Agg[F[_], Id, StoredResEvent] = Aggregate[F] {
     type Identifier = String
-    type Event      = ResourceEvent[Id]
+    type Event      = StoredResEvent
     type State      = ResourceState
     type Command    = ResourceCommand[Id]
     type Rejection  = ResourceRejection
@@ -123,9 +145,8 @@ object Operations {
     final case class DeprecateResource[Id, V](id: Id, rev: Long, meta: Meta)        extends ResourceCommand[Id]
   }
 
-  trait ResourceEvent[Id] extends Product with Serializable {
+  sealed trait ResourceEvent[Id] extends Product with Serializable with Revisioned {
     def id: Id
-    def rev: Long
     def meta: Meta
   }
 
@@ -142,6 +163,7 @@ object Operations {
     final case object ResourceAlreadyExists                                  extends ResourceRejection
     final case object UnexpectedCasting                                      extends ResourceRejection
     final case object ResourceDoesNotExists                                  extends ResourceRejection
+    final case object ParentResourceDoesNotExists                            extends ResourceRejection
     final case object ResourceIsDeprecated                                   extends ResourceRejection
     final case object IncorrectRevisionProvided                              extends ResourceRejection
     final case class InvalidId[Id](id: Id)                                   extends ResourceRejection
