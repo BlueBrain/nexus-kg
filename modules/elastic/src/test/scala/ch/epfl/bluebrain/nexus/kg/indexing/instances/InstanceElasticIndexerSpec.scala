@@ -223,5 +223,24 @@ class InstanceElasticIndexerSpec
         rs.results.head.source shouldEqual json.deepMerge(expectedJson(id, rev, deprecated = true, metaUpdated, meta))
       }
     }
+
+    "index two objects with one field with two different types" in {
+      val id1   = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
+      val id2   = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
+
+
+      val rev  = 1L
+      val data1 = jsonContentOf("/instances/instance_string_field.json", replacements + ("random" -> "updated"))
+      val data2 = jsonContentOf("/instances/instance_object_field.json", replacements + ("random" -> "updated"))
+
+      indexer(InstanceCreated(id1, rev, meta, data1)).futureValue
+      indexer(InstanceCreated(id2, rev, meta, data2)).futureValue
+
+      eventually {
+        val rs = getAll.futureValue
+        rs.results.size shouldEqual 3
+      }
+
+    }
   }
 }

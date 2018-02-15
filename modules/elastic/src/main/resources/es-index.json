@@ -12,7 +12,8 @@
         "{{published}}": {"type": "boolean"},
         "@id": {"type": "keyword"},
         "@type": {"type": "keyword"}
-      }
+      },
+      "dynamic": false
     }
   }
 }
