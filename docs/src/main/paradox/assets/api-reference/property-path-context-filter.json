@@ -1,8 +1,0 @@
-{
-  "@context": "https://nexus.example.com/v0/contexts/nexus/core/resource",
-  "filter": {
-    "path": "nxv:domain / nxv:description",
-    "op": "eq",
-    "value": "Some description"
-  }
-}

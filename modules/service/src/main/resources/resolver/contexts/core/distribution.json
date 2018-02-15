@@ -1,0 +1,17 @@
+{
+  "@context": [
+    "{{base}}/contexts/core/standards",
+    {
+      "originalFileName": {
+        "@id": "nxv:originalFileName"
+      },
+      "downloadURL": {
+        "@id": "schema:downloadURL",
+        "@type": "@id"
+      },
+      "accessURL": {
+        "@id": "schema:accessURL"
+      }
+    }
+  ]
+}

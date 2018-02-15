@@ -1,3 +1,0 @@
-curl -XGET 'https://nexus.example.com/v0/data
-      ?from=20&size=20&deprecated=true
-      &filter={"filter":{"op":"lt","path":"nxv:rev","value":3}}'

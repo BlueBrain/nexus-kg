@@ -1,5 +1,0 @@
-{
-  "@context": "https://nexus.example.com/v0/contexts/nexus/core/error",
-  "code": "<a machine readable unique code>",
-  "message": "<a human readable description of the error>"
-}

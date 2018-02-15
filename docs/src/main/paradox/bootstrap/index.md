@@ -1,3 +1,0 @@
-# Bootstrapping the service
-
-TBD
