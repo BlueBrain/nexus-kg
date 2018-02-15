@@ -13,9 +13,9 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
@@ -94,6 +94,38 @@ class ElasticInstanceIntegrationSpec(
                                       "next" -> s"$apiUri/data?from=10&size=10")
             responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
           }
+        }
+      }
+
+      "return empty list for organization that doesn't exist" in {
+        Get(s"/data/fakeorg") ~> addCredentials(ValidCredentials) ~> route ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+          val expectedResults = UnscoredQueryResults(0, List.empty[UnscoredQueryResult[InstanceId]])
+          val expectedLinks   = Links("@context" -> s"${prefixes.LinksContext}", "self" -> s"$apiUri/data/fakeorg")
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+        }
+      }
+
+      "return empty list for organization and domain that doesn't exist" in {
+        Get(s"/data/fakeorg/fakedomain") ~> addCredentials(ValidCredentials) ~> route ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+          val expectedResults = ScoredQueryResults(0, 0.0f, List.empty[QueryResult[InstanceId]])
+          val expectedLinks =
+            Links("@context" -> s"${prefixes.LinksContext}", "self" -> s"$apiUri/data/fakeorg/fakedomain")
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
+        }
+      }
+
+      "return empty list for domain that doesn't" in {
+        Get(s"/data/rand/fakedomain") ~> addCredentials(ValidCredentials) ~> route ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
+          val expectedResults = ScoredQueryResults(0, 0.0f, List.empty[QueryResult[InstanceId]])
+          val expectedLinks =
+            Links("@context" -> s"${prefixes.LinksContext}", "self" -> s"$apiUri/data/rand/fakedomain")
+          responseAs[Json] shouldEqual LinksQueryResults(expectedResults, expectedLinks).asJson.addSearchContext
         }
       }
 
