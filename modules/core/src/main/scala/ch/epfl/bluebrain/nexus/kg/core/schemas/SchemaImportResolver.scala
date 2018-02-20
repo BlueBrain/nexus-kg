@@ -20,13 +20,15 @@ import scala.collection.JavaConverters._
 /**
   * A transitive ''ImportResolver'' implementation that ensures schema imports are known uris within a published state.
   *
-  * @param baseUri      the base uri of the system
-  * @param schemaLoader function that allows dynamic schema lookup in the system
-  * @param F            a MonadError typeclass instance for ''F[_]''
-  * @tparam F           the monadic effect type
+  * @param baseUri          the base uri of the system
+  * @param schemaLoader     function that allows dynamic schema lookup in the system
+  * @param contextResolver  function that allows dynamic context resolution
+  * @param F                a MonadError typeclass instance for ''F[_]''
+  * @tparam F               the monadic effect type
   */
-class SchemaImportResolver[F[_]](baseUri: String, schemaLoader: SchemaId => F[Option[Schema]])(
-    implicit F: MonadError[F, Throwable])
+class SchemaImportResolver[F[_]](baseUri: String,
+                                 schemaLoader: SchemaId => F[Option[Schema]],
+                                 contextResolver: Json => F[Json])(implicit F: MonadError[F, Throwable])
     extends ImportResolver[F] {
 
   private val schemaBaseUri              = s"$baseUri/schemas"
@@ -37,7 +39,7 @@ class SchemaImportResolver[F[_]](baseUri: String, schemaLoader: SchemaId => F[Op
     def inner(loaded: Map[SchemaId, ShaclSchema], toLoad: Set[SchemaId]): F[Set[ShaclSchema]] = {
       val batch = toLoad.foldLeft(List.empty[F[(SchemaId, Option[Schema])]]) {
         case (acc, id) if loaded.contains(id) => acc
-        case (acc, id)                        => schemaLoader(id).map(opt => (id, opt)) :: acc
+        case (acc, id)                        => loadSchema(id).map(opt => (id, opt)) :: acc
       }
       if (batch.isEmpty) F.pure(loaded.values.toSet)
       else {
@@ -58,6 +60,13 @@ class SchemaImportResolver[F[_]](baseUri: String, schemaLoader: SchemaId => F[Op
     lookupImports(schema.value) match {
       case Left(ill)  => F.raiseError(ill)
       case Right(ids) => inner(Map.empty, ids)
+    }
+  }
+
+  private def loadSchema(id: SchemaId): F[Option[Schema]] = {
+    schemaLoader(id).flatMap {
+      case Some(schema) => contextResolver(schema.value).map(resolved => Some(schema.copy(value = resolved)))
+      case None         => F.pure(None)
     }
   }
 
@@ -131,12 +140,13 @@ object SchemaImportResolver {
   /**
     * Constructs a transitive ''ImportResolver'' that ensures schema imports are known uris within a published state.
     *
-    * @param baseUri      the base uri of the system
-    * @param schemaLoader function that allows dynamic schema lookup in the system
-    * @param F            a MonadError typeclass instance for ''F[_]''
-    * @tparam F           the monadic effect type
+    * @param baseUri          the base uri of the system
+    * @param schemaLoader     function that allows dynamic schema lookup in the system
+    * @param contextResolver  function that allows dynamic context resolution
+    * @param F                a MonadError typeclass instance for ''F[_]''
+    * @tparam F               the monadic effect type
     */
-  final def apply[F[_]](baseUri: String, schemaLoader: SchemaId => F[Option[Schema]])(
+  final def apply[F[_]](baseUri: String, schemaLoader: SchemaId => F[Option[Schema]], contextResolver: Json => F[Json])(
       implicit F: MonadError[F, Throwable]): SchemaImportResolver[F] =
-    new SchemaImportResolver[F](baseUri, schemaLoader)
+    new SchemaImportResolver[F](baseUri, schemaLoader, contextResolver)
 }
