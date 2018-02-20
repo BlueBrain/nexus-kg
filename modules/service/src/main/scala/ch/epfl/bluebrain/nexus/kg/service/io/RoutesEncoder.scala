@@ -79,7 +79,7 @@ abstract class RoutesEncoder[Id, Reference, Entity](base: Uri, prefixes: PrefixU
       )
     }
 
-  private def selfLink(id: Id): Links = Links("self" -> id.qualify)
+  protected def selfLink(id: Id): Links = Links("self" -> id.qualify)
 
 }
 
