@@ -35,8 +35,8 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
 import ch.epfl.bluebrain.nexus.kg.core.instances.Instances
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.AttachmentLocation
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
-import ch.epfl.bluebrain.nexus.kg.core.queries.{Queries, Query}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
+import ch.epfl.bluebrain.nexus.kg.core.queries.{Queries, Query}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaImportResolver, Schemas}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
@@ -156,7 +156,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     val doms      = Domains(domsAgg, orgs)
     val contexts  = Contexts(ctxAgg, doms, apiUri.toString())
     val schemas   = Schemas(schemasAgg, doms, contexts, apiUri.toString())
-    val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch))
+    val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch, contexts.resolve))
     implicit val instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]] =
       Instances(instancesAgg, schemas, contexts, validator, inFileProcessor)
     val cache: Cache[Future, Query] = ShardedCache[Query]("queries", CacheSettings())

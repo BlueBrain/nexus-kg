@@ -86,7 +86,7 @@ class QueryRoutesSpec
   val ctxAgg                                          = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
   implicit val contexts                               = Contexts(ctxAgg, doms, baseUri.toString())
   val schemas                                         = Schemas(schAgg, doms, contexts, baseUri.toString())
-  val validator                                       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch))
+  val validator                                       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve))
   val instAgg                                         = MemoryAggregate("instances")(Instances.initial, Instances.next, Instances.eval).toF[Future]
   implicit val fa: RelativeAttachmentLocation[Future] = RelativeAttachmentLocation[Future](settings)
   val inFileProcessor                                 = AkkaInOutFileStream(settings)

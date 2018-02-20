@@ -225,11 +225,12 @@ class InstanceElasticIndexerSpec
     }
 
     "index two objects with one field with two different types" in {
-      val id1   = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
-      val id2   = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
+      val id1 =
+        InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
+      val id2 =
+        InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
 
-
-      val rev  = 1L
+      val rev   = 1L
       val data1 = jsonContentOf("/instances/instance_string_field.json", replacements + ("random" -> "updated"))
       val data2 = jsonContentOf("/instances/instance_object_field.json", replacements + ("random" -> "updated"))
 

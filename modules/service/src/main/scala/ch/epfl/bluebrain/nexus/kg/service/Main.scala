@@ -7,6 +7,7 @@ import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import com.github.jsonldjava.core.DocumentLoader
 import com.typesafe.config.ConfigFactory
 import kamon.Kamon
 import kamon.system.SystemMetrics
@@ -33,6 +34,7 @@ object Main {
 
     val logger = Logging(as, getClass)
 
+    System.setProperty(DocumentLoader.DISALLOW_REMOTE_CONTEXT_LOADING, "true")
     val bootstrap = BootstrapService(settings)
     bootstrap.cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")

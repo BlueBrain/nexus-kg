@@ -30,7 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.{JsonLDKeys, linksEncoder}
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec._
@@ -57,6 +57,14 @@ class ContextRoutesSpec
 
   private implicit val mt: ActorMaterializer        = ActorMaterializer()(system)
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
+  private val linksContext = Json.obj(
+    JsonLDKeys.`@context` -> Json.obj(
+      "self" -> Json.obj(
+        JsonLDKeys.`@id` -> Json.fromString("nxv:self"),
+        "@type"          -> Json.fromString(JsonLDKeys.`@id`)
+      )
+    )
+  )
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
@@ -135,10 +143,9 @@ class ContextRoutesSpec
         contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"     -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
-            "nxv:rev" -> Json.fromLong(1L),
-            "links" -> Links("@context" -> s"${prefixes.LinksContext}",
-                             "self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson,
+            "@id"            -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
+            "nxv:rev"        -> Json.fromLong(1L),
+            "links"          -> Links("self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson.deepMerge(linksContext),
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published"  -> Json.fromBoolean(false)
           )
@@ -197,10 +204,9 @@ class ContextRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"     -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
-            "nxv:rev" -> Json.fromLong(1L),
-            "links" -> Links("@context" -> s"${prefixes.LinksContext}",
-                             "self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson,
+            "@id"            -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
+            "nxv:rev"        -> Json.fromLong(1L),
+            "links"          -> Links("self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson.deepMerge(linksContext),
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published"  -> Json.fromBoolean(false)
           )

@@ -36,7 +36,7 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
 
   private val logger = Logger[this.type]
 
-  private val validator = ShaclValidator[F](SchemaImportResolver[F](baseUri, self.fetch))
+  private val validator = ShaclValidator[F](SchemaImportResolver[F](baseUri, self.fetch, ctxs.resolve))
 
   private def validateId(id: SchemaId): F[Unit] = {
     logger.debug(s"Validating id '$id'")
