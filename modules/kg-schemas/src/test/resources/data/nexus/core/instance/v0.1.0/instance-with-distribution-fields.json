@@ -1,11 +1,11 @@
 {
-  "@context": "{{base}}/contexts/nexus/core/resource/v0.1.0",
-  "@type":"nxv:Instance",
-  "@id":"{{base}}/data/orgId/domainId/schema/v0.1.0/aab2fb8f-2c77-4dfa-84aa-383768832f3e",
-  "nxv:rev":1,
+  "@context": "{{base}}/contexts/nexus/core/resource/v0.3.0",
+  "@type": "nxv:Instance",
+  "@id": "{{base}}/data/orgId/domainId/schema/v0.1.0/aab2fb8f-2c77-4dfa-84aa-383768832f3e",
+  "nxv:rev": 1,
   "nxv:published": true,
   "nxv:deprecated": false,
-  "distribution":[
+  "distribution": [
     {
       "@context": {
         "schema": "http://schema.org/",
@@ -62,8 +62,7 @@
   ],
   "links": [
     {
-      "@context":
-      {
+      "@context": {
         "self": {
           "@id": "nxv:self",
           "@type": "@id"
