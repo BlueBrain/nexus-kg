@@ -7,7 +7,7 @@
   ],
   "@type": "nxv:Schema",
   "imports": [
-    "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0"
+    "{{base}}/schemas/nexus/schemaorgsh/quantitativevalue/v0.1.0"
   ],
   "shapes": [
     {
@@ -15,12 +15,13 @@
       "@type": "sh:NodeShape",
       "and": [
         {
-          "node": "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0/shapes/QuantitativeValueShape"
+          "node": "{{base}}/schemas/nexus/schemaorgsh/quantitativevalue/v0.1.0/shapes/QuantitativeValueShape"
         },
         {
           "property": [
             {
               "path": "schema:value",
+              "name":"Value",
               "minInclusive": 0,
               "minCount": 1,
               "maxCount": 1
@@ -28,7 +29,6 @@
             {
               "path": "schema:unitCode",
               "name": "Unit",
-              "datatype": "xsd:anyURI",
               "minCount": 1,
               "maxCount": 1
             }
