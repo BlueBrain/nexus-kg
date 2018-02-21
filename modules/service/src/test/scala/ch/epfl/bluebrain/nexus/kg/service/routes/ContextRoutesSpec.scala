@@ -8,6 +8,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.{ActorMaterializer, Materializer}
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
@@ -25,10 +26,11 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecate
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
-import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.linksEncoder
+import ch.epfl.bluebrain.nexus.kg.service.io.RoutesEncoder.{JsonLDKeys, linksEncoder}
 import ch.epfl.bluebrain.nexus.kg.service.prefixes
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutes.ContextConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes.ContextRoutesSpec._
@@ -55,6 +57,14 @@ class ContextRoutesSpec
 
   private implicit val mt: ActorMaterializer        = ActorMaterializer()(system)
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
+  private val linksContext = Json.obj(
+    JsonLDKeys.`@context` -> Json.obj(
+      "self" -> Json.obj(
+        JsonLDKeys.`@id` -> Json.fromString("nxv:self"),
+        "@type"          -> Json.fromString(JsonLDKeys.`@id`)
+      )
+    )
+  )
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
@@ -84,10 +94,15 @@ class ContextRoutesSpec
     val sparql                         = sparqlClient()
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
-    val vocab         = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri, s"$baseUri/acls/graph")
+    val vocab              = baseUri.copy(path = baseUri.path / "core")
+    val querySettings      = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri)
+    val sparqlUri          = Uri("http://localhost:9999/bigdata/sparql")
+    val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
+    val elasticQueryClient = ElasticQueryClient[Future](sparqlUri)
 
-    val route = ContextRoutes(sparql, querySettings, baseUri).routes
+    val elasticClient = ElasticClient[Future](sparqlUri, elasticQueryClient)
+
+    val route = ContextRoutes(sparql, elasticClient, indexingSettings, querySettings, baseUri).routes
 
     val contextId = ContextId(domRef.id, genString(length = 8), genVersion())
 
@@ -128,10 +143,9 @@ class ContextRoutesSpec
         contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"     -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
-            "nxv:rev" -> Json.fromLong(1L),
-            "links" -> Links("@context" -> s"${prefixes.LinksContext}",
-                             "self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson,
+            "@id"            -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
+            "nxv:rev"        -> Json.fromLong(1L),
+            "links"          -> Links("self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson.deepMerge(linksContext),
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published"  -> Json.fromBoolean(false)
           )
@@ -190,10 +204,9 @@ class ContextRoutesSpec
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json
           .obj(
-            "@id"     -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
-            "nxv:rev" -> Json.fromLong(1L),
-            "links" -> Links("@context" -> s"${prefixes.LinksContext}",
-                             "self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson,
+            "@id"            -> Json.fromString(s"$baseUri/contexts/${contextId.show}"),
+            "nxv:rev"        -> Json.fromLong(1L),
+            "links"          -> Links("self" -> Uri(s"$baseUri/contexts/${contextId.show}")).asJson.deepMerge(linksContext),
             "nxv:deprecated" -> Json.fromBoolean(false),
             "nxv:published"  -> Json.fromBoolean(false)
           )

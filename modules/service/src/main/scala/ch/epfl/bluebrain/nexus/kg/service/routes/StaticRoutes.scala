@@ -31,19 +31,22 @@ class StaticRoutes(settings: Settings) {
 
   private def docsRoute =
     pathPrefix("docs") {
-      pathEndOrSingleSlash {
-        extractUri { uri =>
-          redirect(uri.copy(path = stripTrailingSlashes(uri.path) / "kg" / "index.html"), StatusCodes.MovedPermanently)
-        }
-      } ~
-        pathPrefix("kg") {
-          pathEndOrSingleSlash {
-            redirectToTrailingSlashIfMissing(StatusCodes.MovedPermanently) {
-              getFromResource("docs/index.html")
-            }
-          } ~
-            getFromResourceDirectory("docs")
-        }
+      operationName("getDocumentation") {
+        pathEndOrSingleSlash {
+          extractUri { uri =>
+            redirect(uri.copy(path = stripTrailingSlashes(uri.path) / "kg" / "index.html"),
+                     StatusCodes.MovedPermanently)
+          }
+        } ~
+          pathPrefix("kg") {
+            pathEndOrSingleSlash {
+              redirectToTrailingSlashIfMissing(StatusCodes.MovedPermanently) {
+                getFromResource("docs/index.html")
+              }
+            } ~
+              getFromResourceDirectory("docs")
+          }
+      }
     }
 
   def routes: Route = serviceDescriptionRoute ~ docsRoute

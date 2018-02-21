@@ -1,6 +1,6 @@
 {
   "@context": [
-    "{{base}}/contexts/nexus/core/schema/v0.1.0",
+    "{{base}}/contexts/nexus/core/schema/v0.2.0",
     {
       "this": "{{base}}/schemas/nexus/core/digest/v0.1.0/shapes/"
     }

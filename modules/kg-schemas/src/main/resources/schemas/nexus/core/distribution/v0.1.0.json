@@ -1,6 +1,6 @@
 {
   "@context": [
-    "{{base}}/contexts/nexus/core/schema/v0.1.0",
+    "{{base}}/contexts/nexus/core/schema/v0.2.0",
     {
       "this": "{{base}}/schemas/nexus/core/distribution/v0.1.0/shapes/"
     }
@@ -18,16 +18,12 @@
         {
           "or": [
             {
-              "property": [
-                {
-                  "path": "schema:downloadURL",
-                  "name": "Download URL",
-                  "description": "When followed this link leads to the actual data.",
-                  "nodeKind": "sh:IRI",
-                  "minCount": 1,
-                  "maxCount": 1
-                }
-              ]
+              "path": "schema:downloadURL",
+              "name": "Download URL",
+              "description": "When followed this link leads to the actual data.",
+              "nodeKind": "sh:IRI",
+              "minCount": 1,
+              "maxCount": 1
             },
             {
               "path": "schema:accessURL",

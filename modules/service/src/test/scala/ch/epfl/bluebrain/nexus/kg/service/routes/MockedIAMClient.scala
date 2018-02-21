@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.util.regex.Pattern
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMessage.DiscardedEntity
@@ -29,6 +31,10 @@ trait MockedIAMClient extends Resources {
   private val mockedAclsJson     = jsonContentOf("/acl/mock-acl.json").noSpaces
   private val mockedUserJson     = jsonContentOf("/acl/mock-user.json").noSpaces
   private val mockedAuthUserJson = jsonContentOf("/acl/mock-auth.json").noSpaces
+  private def mockedAclsJsonForOrg(org: String): String =
+    jsonContentOf("/acl/mock-acl-org.json", Map(Pattern.quote("{{org}}") -> org)).noSpaces
+  private def mockedAclsJsonForDomain(domain: String): String =
+    jsonContentOf("/acl/mock-acl-domain.json", Map(Pattern.quote("{{domain}}") -> domain)).noSpaces
 
   implicit def fixedClient(implicit as: ActorSystem, mt: Materializer): UntypedHttpClient[Future] =
     new UntypedHttpClient[Future] {
@@ -50,6 +56,16 @@ trait MockedIAMClient extends Resources {
                   Future.successful(HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, mockedUserJson)))
                 else
                   Future.successful(HttpResponse(status = StatusCodes.NotFound))
+
+              case Authorization(OAuth2BearerToken(token)) if token.startsWith("org-") =>
+                Future.successful(
+                  HttpResponse(entity =
+                    HttpEntity(ContentTypes.`application/json`, mockedAclsJsonForOrg(token.stripPrefix("org-")))))
+
+              case Authorization(OAuth2BearerToken(token)) if token.startsWith("domain-") =>
+                Future.successful(
+                  HttpResponse(entity =
+                    HttpEntity(ContentTypes.`application/json`, mockedAclsJsonForDomain(token.stripPrefix("domain-")))))
 
               case Authorization(OAuth2BearerToken(_)) =>
                 Future.successful(

@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIds._
 import io.circe.Json
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping.rdfTypeKey
 
 /**
   * Base incremental indexing logic that pushes data into an ElasticSearch indexer.
@@ -47,8 +48,21 @@ private[indexing] abstract class BaseElasticIndexer[F[_]](client: ElasticClient[
   val domainKey: String     = "domain".qualifyAsString
   val schemaKey: String     = "schema".qualifyAsString
 
-  private lazy val indexJson: Json = jsonContentOf("/es-index.json", Map(quote("{{type}}") -> t))
-  private val indices              = ConcurrentSetBuilder[String]()
+  private lazy val indexJson: Json = jsonContentOf(
+    "/es-index.json",
+    Map(
+      quote("{{type}}")         -> t,
+      quote("{{rdfType}}")      -> rdfTypeKey,
+      quote("{{contextGroup}}") -> "contextGroup".qualifyAsString,
+      quote("{{organization}}") -> orgKey,
+      quote("{{domain}}")       -> domainKey,
+      quote("{{schema}}")       -> schemaKey,
+      quote("{{schemaGroup}}")  -> "schemaGroup".qualifyAsString,
+      quote("{{deprecated}}")   -> deprecatedKey,
+      quote("{{published}}")    -> publishedKey
+    )
+  )
+  private val indices = ConcurrentSetBuilder[String]()
 
   /**
     * Creates an index for the provided ''id'' when this does not exist on the cached ''indices''

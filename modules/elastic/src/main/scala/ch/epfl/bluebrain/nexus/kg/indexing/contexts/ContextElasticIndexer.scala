@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.contexts
 
 import cats.MonadError
 import cats.syntax.show._
+import cats.syntax.flatMap._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
@@ -40,14 +41,16 @@ class ContextElasticIndexer[F[_]](client: ElasticClient[F], settings: ElasticInd
     case ContextCreated(id, rev, m, value) =>
       log.debug(s"Indexing 'ContextCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val data = value removeKeys ("links") deepMerge meta deepMerge Json.obj(
+      val data = value removeKeys ("links", "@context") deepMerge meta deepMerge Json.obj(
         createdAtTimeKey -> Json.fromString(m.instant.toString))
-      client.create(event.id.toIndex(prefix), t, event.id.elasticId, data)
+      createIndexIfNotExist(event.id).flatMap { _ =>
+        client.create(event.id.toIndex(prefix), t, event.id.elasticId, data)
+      }
 
     case ContextUpdated(id, rev, m, value) =>
       log.debug(s"Indexing 'ContextUpdated' event for id '${id.show}'")
       val meta  = buildMeta(id, rev, m, deprecated = Some(false), published = Some(false))
-      val query = PatchQuery.inverse(value deepMerge meta, createdAtTimeKey)
+      val query = PatchQuery.inverse(value deepMerge meta removeKeys "@context", createdAtTimeKey)
       client.update(event.id.toIndex(prefix), t, event.id.elasticId, query)
 
     case ContextPublished(id, rev, m) =>

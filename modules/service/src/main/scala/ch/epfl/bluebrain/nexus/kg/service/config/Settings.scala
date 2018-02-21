@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit._
 
 import akka.actor._
 import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import com.typesafe.config.Config
 
@@ -235,6 +236,14 @@ class Settings(config: Config) extends Extension {
       */
     val Index = ns.getString("sparql.index")
 
+    /**
+      * The optional basic auth credentials required to access the sparql endpoint
+      */
+    val Credentials: Option[BasicHttpCredentials] = for {
+      username <- Try(ns.getString("sparql.username")).toOption
+      password <- Try(ns.getString("sparql.password")).toOption
+    } yield BasicHttpCredentials(username, password)
+
     object Domains {
 
       /**
@@ -273,14 +282,6 @@ class Settings(config: Config) extends Extension {
         * The base namespace for instance named graphs.
         */
       val GraphBaseNamespace = Uri(ns.getString("sparql.instances.graph-base-namespace"))
-    }
-
-    object Acls {
-
-      /**
-        * The base namespace for instance named graphs.
-        */
-      val GraphBaseNamespace = Uri(ns.getString("sparql.acls.graph-base-namespace"))
     }
 
   }
@@ -323,14 +324,6 @@ class Settings(config: Config) extends Extension {
       * IAM service base URI
       */
     val BaseUri = Uri(ns.getString("iam.base-uri"))
-  }
-
-  object Kafka {
-
-    /**
-      * Name of the Kafka topic where ACL events are published by the IAM service
-      */
-    val Topic = ns.getString("kafka.permissions-topic")
   }
 }
 

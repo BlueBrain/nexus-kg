@@ -13,6 +13,7 @@ import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
@@ -35,6 +36,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
   SchemaIsNotPublished
 }
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, Schemas}
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceSparqlIndexingSettings
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.BootstrapService.iamClient
@@ -99,7 +101,7 @@ class InstanceRoutesSpec
     val ctxAgg                                          = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
     implicit val contexts                               = Contexts(ctxAgg, doms, baseUri.toString())
     val schemas                                         = Schemas(schAgg, doms, contexts, baseUri.toString())
-    val validator                                       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch))
+    val validator                                       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve))
     val instAgg                                         = MemoryAggregate("instances")(Instances.initial, Instances.next, Instances.eval).toF[Future]
     implicit val fa: RelativeAttachmentLocation[Future] = RelativeAttachmentLocation[Future](settings)
     val inFileProcessor                                 = AkkaInOutFileStream(settings)
@@ -121,16 +123,21 @@ class InstanceRoutesSpec
                                      s"$baseUri/data/graphs",
                                      s"$baseUri/voc/nexus/core")
 
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri, s"$baseUri/acls/graph")
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri)
     val baseUUID      = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
 
     val client = SparqlClient[Future](sparqlUri)
 
-    implicit val cl = iamClient("http://localhost:8080")
+    implicit val cl        = iamClient("http://localhost:8080")
+    val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
+    val elasticQueryClient = ElasticQueryClient[Future](sparqlUri)
 
-    val route       = InstanceRoutes(instances, client, querySettings, baseUri).routes
+    val elasticClient = ElasticClient[Future](sparqlUri, elasticQueryClient)
+
+    val route =
+      InstanceRoutes(instances, client, elasticClient, indexingSettings, querySettings, baseUri).routes
     val value       = genJson()
     val baseEncoder = new BaseEncoder(prefixes)
 
