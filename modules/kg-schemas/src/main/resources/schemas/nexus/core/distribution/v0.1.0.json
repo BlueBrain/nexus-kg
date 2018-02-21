@@ -18,16 +18,12 @@
         {
           "or": [
             {
-              "property": [
-                {
-                  "path": "schema:downloadURL",
-                  "name": "Download URL",
-                  "description": "When followed this link leads to the actual data.",
-                  "nodeKind": "sh:IRI",
-                  "minCount": 1,
-                  "maxCount": 1
-                }
-              ]
+              "path": "schema:downloadURL",
+              "name": "Download URL",
+              "description": "When followed this link leads to the actual data.",
+              "nodeKind": "sh:IRI",
+              "minCount": 1,
+              "maxCount": 1
             },
             {
               "path": "schema:accessURL",

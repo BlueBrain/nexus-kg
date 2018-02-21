@@ -1,17 +1,16 @@
 {
-  "@context":"{{base}}/contexts/nexus/core/resource/v0.1.0",
+  "@context": "{{base}}/contexts/nexus/core/resource/v0.3.0",
   "@id": "{{base}}/data/orgId/domainId/domainId/v0.0.1/d76df1e4-d57f-4614-b18c-a378087e524f",
   "nxv:rev": 1,
   "nxv:deprecated": false,
   "links": [
     {
-      "@context":
-        {
-          "self": {
-            "@id": "nxv:self",
-            "@type": "@id"
-          }
-        },
+      "@context": {
+        "self": {
+          "@id": "nxv:self",
+          "@type": "@id"
+        }
+      },
       "self": "{{base}}/data/orgId/domainId/domainId/v0.0.1/d76df1e4-d57f-4614-b18c-a378087e524f?rev=1"
     }
   ]

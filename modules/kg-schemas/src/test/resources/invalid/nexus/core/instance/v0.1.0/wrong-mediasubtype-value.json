@@ -1,7 +1,7 @@
 {
-  "@context": "{{base}}/contexts/nexus/core/resource/v0.1.0",
-  "@type":"nxv:Instance",
-  "distribution":[
+  "@context": "{{base}}/contexts/nexus/core/resource/v0.3.0",
+  "@type": "nxv:Instance",
+  "distribution": [
     {
       "@context": {
         "schema": "http://schema.org/",

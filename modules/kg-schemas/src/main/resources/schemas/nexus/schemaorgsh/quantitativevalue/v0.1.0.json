@@ -2,7 +2,7 @@
   "@context": [
     "{{base}}/contexts/nexus/core/schema/v0.2.0",
     {
-      "this": "{{base}}/schemas/nexus/schemaorg/quantitativevalue/v0.1.0/shapes/"
+      "this": "{{base}}/schemas/nexus/schemaorgsh/quantitativevalue/v0.1.0/shapes/"
     }
   ],
   "@type": "nxv:Schema",
@@ -16,9 +16,9 @@
           "path": "schema:unitCode",
           "name": "Unit Code",
           "description": "The unit of measurement given using the UN/CEFACT Common Code (3 characters) or a URL. Other codes than the UN/CEFACT Common Code may be used with a prefix followed by a colon.",
-          "or": [
+          "xone": [
             {
-              "datatype": "xsd:anyURI"
+              "nodeKind": "sh:IRI"
             },
             {
               "datatype": "xsd:string"
