@@ -218,7 +218,7 @@ json {
 - a logical expression contains a collection of filter expressions joined together through a logical operator
 
 
-```
+
 
 Example filters:
 
@@ -241,7 +241,7 @@ Property path with context
 
 The response to any search requests follows the described format:
 
-
+```
 {
   "total": {hits},
   "maxScore": {max_score},
