@@ -232,7 +232,7 @@ object BootstrapService {
     private[service] implicit val filteringSettings: FilteringSettings =
       FilteringSettings(
         settings.Prefixes.CoreVocabulary,
-        jsonContentOf("/schemas/nexus/core/search/search_expanded.json",
+        jsonContentOf("/contexts/nexus/core/search/search_expanded.json",
                       Map(Pattern.quote("{{vocab}}") -> settings.Prefixes.CoreVocabulary.toString()))
       )
 

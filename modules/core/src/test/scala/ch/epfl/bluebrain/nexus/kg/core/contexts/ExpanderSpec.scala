@@ -61,7 +61,8 @@ class ExpanderSpec
     "expand the string context" in {
       val instanceExpander = expander("nxv:Instance", context).futureValue
       instanceExpander shouldEqual "https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/Instance"
-      val nxvContext = Json.obj("nxv" -> Json.fromString("https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/"))
+      val nxvContext = Json.obj(
+        "@context" -> Json.obj("nxv" -> Json.fromString("https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/")))
       JenaExpander.expand("nxv:Instance", nxvContext) shouldEqual instanceExpander
 
       expander("rdf:type", context).futureValue shouldEqual "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"

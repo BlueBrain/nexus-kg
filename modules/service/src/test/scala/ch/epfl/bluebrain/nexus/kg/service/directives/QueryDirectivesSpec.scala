@@ -1,18 +1,26 @@
 package ch.epfl.bluebrain.nexus.kg.service.directives
 
+import java.net.URLEncoder
+import java.time.Clock
+
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
+import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.Sort.OrderType
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping
-import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
-import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
-import ch.epfl.bluebrain.nexus.kg.core.queries.{Field, JsonLdFormat}
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Filter
+import ch.epfl.bluebrain.nexus.kg.core.queries.{Field, JsonLdFormat}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.prefixes.ErrorContext
@@ -26,13 +34,18 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.{
 }
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
+import io.circe.Json
 import io.circe.generic.auto._
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Matchers, WordSpecLike}
 
 import scala.concurrent.Future
-class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matchers {
+class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matchers with Resources with ScalaFutures {
 
-  private case class Response(pagination: Pagination,
+  private val defaultContext = contextJson
+  private val addedContext   = jsonContentOf("/query/added-context.json")
+  private case class Response(`@context`: Json,
+                              pagination: Pagination,
                               qOpt: Option[String],
                               deprecatedOpt: Option[Boolean],
                               fields: Set[Field],
@@ -48,11 +61,23 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
   private val ctxAgg       = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
   private implicit val ctx = Contexts(ctxAgg, doms, baseUri.toString())
 
+  private val orgId      = OrgId("org")
+  private val domainId   = DomainId(orgId, "dom")
+  private val contextId  = ContextId(domainId, "context", Version(0, 0, 1))
+  private val contextUri = s"${baseUri.toString()}/contexts/${contextId.show}"
+
+  implicit val callerCtx = CallerCtx(Clock.systemUTC(), AnonymousCaller("http://iam.com/v0"))
+
+  orgs.create(orgId, Json.obj()).futureValue
+  doms.create(domainId, "dom").futureValue
+  ctx.create(contextId, addedContext).futureValue
+  ctx.publish(contextId, 1).futureValue
+
   private def route(implicit qs: QuerySettings) = {
     (handleExceptions(ExceptionHandling.exceptionHandler(ErrorContext)) & handleRejections(
       RejectionHandling.rejectionHandler(ErrorContext))) {
       (get & paramsToQuery) { (pagination, query) =>
-        complete(Response(pagination, query.q, query.deprecated, query.fields, query.sort))
+        complete(Response(query.`@context`, pagination, query.q, query.deprecated, query.fields, query.sort))
       }
     }
   }
@@ -64,31 +89,47 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
 
     "extract default page when not provided" in {
       Get("/") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(qs.pagination, None, None, Set.empty, SortList.Empty)
+        responseAs[Response] shouldEqual Response(defaultContext, qs.pagination, None, None, Set.empty, SortList.Empty)
       }
     }
 
     "extract provided page" in {
       Get("/?from=1&size=30") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(Pagination(1L, 30), None, None, Set.empty, SortList.Empty)
+        responseAs[Response] shouldEqual Response(defaultContext,
+                                                  Pagination(1L, 30),
+                                                  None,
+                                                  None,
+                                                  Set.empty,
+                                                  SortList.Empty)
       }
     }
 
     "extract 0 when size and from are negative" in {
       Get("/?from=-1&size=-30") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(Pagination(0L, 1), None, None, Set.empty, SortList.Empty)
+        responseAs[Response] shouldEqual Response(defaultContext,
+                                                  Pagination(0L, 1),
+                                                  None,
+                                                  None,
+                                                  Set.empty,
+                                                  SortList.Empty)
       }
     }
 
     "extract maximum page size when provided is greater" in {
       Get("/?from=1&size=300") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(Pagination(1L, 100), None, None, Set.empty, SortList.Empty)
+        responseAs[Response] shouldEqual Response(defaultContext,
+                                                  Pagination(1L, 100),
+                                                  None,
+                                                  None,
+                                                  Set.empty,
+                                                  SortList.Empty)
       }
     }
 
     "extract deprecated and q query params when provided" in {
       Get("/?deprecated=false&q=something") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(qs.pagination,
+        responseAs[Response] shouldEqual Response(defaultContext,
+                                                  qs.pagination,
                                                   Some("something"),
                                                   Some(false),
                                                   Set.empty,
@@ -98,7 +139,8 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
 
     "extract fields, pagination, q and deprecated when provided" in {
       Get("/?deprecated=true&q=something&from=1&size=30&fields=one,two,three,,") ~> route ~> check {
-        responseAs[Response] shouldEqual Response(Pagination(1L, 30),
+        responseAs[Response] shouldEqual Response(defaultContext,
+                                                  Pagination(1L, 30),
                                                   Some("something"),
                                                   Some(true),
                                                   Set("one", "two", "three"),
@@ -110,7 +152,42 @@ class QueryDirectivesSpec extends WordSpecLike with ScalatestRouteTest with Matc
       Get(s"/?sort=$base/createdAtTime,${rdfType},,,") ~> route ~> check {
         val expectedSort =
           SortList(List(Sort(OrderType.Asc, s"$base/createdAtTime"), Sort(OrderType.Asc, PrefixMapping.rdfTypeKey)))
-        responseAs[Response] shouldEqual Response(qs.pagination, None, None, Set.empty, expectedSort)
+        responseAs[Response] shouldEqual Response(defaultContext, qs.pagination, None, None, Set.empty, expectedSort)
+      }
+    }
+
+    "resolve context when specified as URL" in {
+      Get(s"/?context=${URLEncoder.encode(contextUri, "UTF-8")}") ~> route ~> check {
+        responseAs[Response] shouldEqual Response(addedContext deepMerge defaultContext,
+                                                  qs.pagination,
+                                                  None,
+                                                  None,
+                                                  Set.empty,
+                                                  SortList.Empty)
+      }
+    }
+
+    "merge context when specified as JSON object" in {
+      Get(s"/?context=${URLEncoder.encode(addedContext.hcursor.get[Json]("@context").getOrElse(Json.obj()).noSpaces,
+                                          "UTF-8")}") ~> route ~> check {
+        responseAs[Response] shouldEqual Response(addedContext deepMerge defaultContext,
+                                                  qs.pagination,
+                                                  None,
+                                                  None,
+                                                  Set.empty,
+                                                  SortList.Empty)
+      }
+    }
+
+    "resolve context when specified as JSON object" in {
+      val nestedContext = Json.arr(Json.fromString(contextUri))
+      Get(s"/?context=${URLEncoder.encode(nestedContext.noSpaces, "UTF-8")}") ~> route ~> check {
+        responseAs[Response] shouldEqual Response(addedContext deepMerge defaultContext,
+                                                  qs.pagination,
+                                                  None,
+                                                  None,
+                                                  Set.empty,
+                                                  SortList.Empty)
       }
     }
   }

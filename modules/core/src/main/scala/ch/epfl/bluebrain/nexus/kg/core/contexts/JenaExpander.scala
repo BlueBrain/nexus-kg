@@ -101,7 +101,7 @@ object JenaExpander {
     * @return the expanded string
     */
   def expand(value: String, json: Json): String = {
-    val m = createModel(Json.obj("@context" -> json))
+    val m = createModel(json)
     expand(value, m)
   }
 }

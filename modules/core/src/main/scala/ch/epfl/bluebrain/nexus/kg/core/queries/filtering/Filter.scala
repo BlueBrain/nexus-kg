@@ -241,7 +241,7 @@ object Filter {
     }
 
     Decoder.instance { hcursor =>
-      val json  = Json.obj("filter" -> hcursor.value) deepMerge Json.obj("@context" -> context)
+      val json  = Json.obj("filter" -> hcursor.value) deepMerge context
       val model = ModelFactory.createDefaultModel()
       RDFDataMgr.read(model, new ByteArrayInputStream(json.noSpaces.getBytes), Lang.JSONLD)
       val graph   = model.getGraph

@@ -19,7 +19,7 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
   private val replacements = Map(Pattern.quote("{{base}}") -> base)
 
   val nexusBaseVoc: Uri = s"https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/"
-  private val context = jsonContentOf("/schemas/nexus/core/search/search_expanded.json",
+  private val context = jsonContentOf("/contexts/nexus/core/search/search_expanded.json",
                                       Map(Pattern.quote("{{vocab}}") -> nexusBaseVoc.toString))
   private implicit val filteringSettings = FilteringSettings(nexusBaseVoc, context)
 
@@ -432,10 +432,7 @@ class FilterSpec extends WordSpecLike with Matchers with Resources with EitherVa
 object FilterSpec {
   def contextAndFilter(filterWithContext: Json)(implicit filteringSettings: FilteringSettings): (Json, Json) = {
     val filter = filterWithContext.hcursor.get[Json]("filter").toOption.getOrElse(Json.obj())
-    val ctx = filterWithContext.hcursor
-      .get[Json]("@context")
-      .map(_.deepMerge(filteringSettings.ctx))
-      .getOrElse(filteringSettings.ctx)
+    val ctx    = filterWithContext deepMerge filteringSettings.ctx
     filter -> ctx
   }
 
