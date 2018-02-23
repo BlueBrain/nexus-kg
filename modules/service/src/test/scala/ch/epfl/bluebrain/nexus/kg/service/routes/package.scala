@@ -22,7 +22,7 @@ package object routes {
   val baseUri = Uri("http://localhost/v0")
 
   val nexusBaseVoc: Uri = s"https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/"
-  val contextJson = jsonContentOf("/schemas/nexus/core/search/search_expanded.json",
+  val contextJson = jsonContentOf("/contexts/nexus/core/search/search_expanded.json",
                                   Map(Pattern.quote("{{vocab}}") -> nexusBaseVoc.toString))
   implicit val filteringSettings = FilteringSettings(nexusBaseVoc, contextJson)
   private val replacements       = Map(Pattern.quote("{{base}}") -> "http://localhost/v0")

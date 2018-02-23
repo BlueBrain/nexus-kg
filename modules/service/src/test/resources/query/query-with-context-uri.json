@@ -1,0 +1,13 @@
+{
+  "@context": "http://localhost/v0/contexts/org/dom/context/v0.0.1",
+  "filter": {
+    "op": "eq",
+    "path": "prov:startedAtTime",
+    "value": "2017-10-07T16:00:00-05:00"
+  },
+  "resource": "instances",
+  "deprecated": true,
+  "published": true,
+  "format": "compacted",
+  "sort": [ "-some:createdAtTime"]
+}

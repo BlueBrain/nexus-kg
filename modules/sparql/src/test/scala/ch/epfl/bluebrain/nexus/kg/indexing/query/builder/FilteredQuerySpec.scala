@@ -30,7 +30,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
   private val nexusBaseVoc: Uri = s"https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/"
   private val replacements =
     Map(Pattern.quote("{{base-uri}}") -> base, Pattern.quote("{{vocab}}") -> nexusBaseVoc.toString())
-  private val context                    = jsonContentOf("/schemas/nexus/core/search/search_expanded.json", replacements)
+  private val context                    = jsonContentOf("/contexts/nexus/core/search/search_expanded.json", replacements)
   private implicit val filteringSettings = FilteringSettings(nexusBaseVoc, context)
   private implicit val qSettings         = QuerySettings(Pagination(0, 10), 10, "index", nexusBaseVoc, s"$base")
 
@@ -443,10 +443,7 @@ object FilteredQuerySpec {
   private[builder] def contextAndFilter(filterWithContext: Json)(
       implicit filteringSettings: FilteringSettings): (Json, Json) = {
     val filter = filterWithContext.hcursor.get[Json]("filter").toOption.getOrElse(Json.obj())
-    val ctx = filterWithContext.hcursor
-      .get[Json]("@context")
-      .map(_.deepMerge(filteringSettings.ctx))
-      .getOrElse(filteringSettings.ctx)
+    val ctx    = filterWithContext deepMerge filteringSettings.ctx
     filter -> ctx
   }
 }

@@ -14,14 +14,15 @@ import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.cache.ShardedCache.CacheSettings
 import ch.epfl.bluebrain.nexus.kg.core.cache.{Cache, ShardedCache}
-import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
-import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
+import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
+import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.instances.Instances
-import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
+import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries._
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.Expr.ComparisonExpr
@@ -114,6 +115,19 @@ class QueryRoutesSpec
 
   val baseEncoder = new BaseEncoder(prefixes)
 
+  private val orgId     = OrgId("org")
+  private val domainId  = DomainId(orgId, "dom")
+  private val contextId = ContextId(domainId, "context", Version(0, 0, 1))
+
+  val addedContext = jsonContentOf("/query/added-context.json")
+
+  implicit val callerCtx = CallerCtx(Clock.systemUTC(), AnonymousCaller("http://iam.com/v0"))
+
+  orgs.create(orgId, Json.obj()).futureValue
+  doms.create(domainId, "dom").futureValue
+  contexts.create(contextId, addedContext).futureValue
+  contexts.publish(contextId, 1).futureValue
+
   "An QueryRoutes" should {
 
     val queryJson       = jsonContentOf("/query/query-full-text.json")
@@ -181,5 +195,52 @@ class QueryRoutesSpec
       }
     }
 
+    "store a query with resolved context as URI" in {
+      val queryJsonWithContext = jsonContentOf("/query/query-with-context-uri.json")
+      val queryModelWithContext = QueryPayload(
+        `@context` = addedContext.hcursor.get[Json]("@context").getOrElse(Json.obj()) deepMerge queryExpandedContext,
+        filter = filter,
+        deprecated = Some(true),
+        published = Some(true),
+        format = JsonLdFormat.Compacted,
+        sort = SortList(List(Sort(s"-http://example.com/prov#createdAtTime")))
+      )
+
+      Post("/queries/org/dom", queryJsonWithContext) ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.PermanentRedirect
+        val location = header("Location").get.value()
+        location should startWith(s"$baseUri/queries/")
+        location should endWith(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}")
+        val queryId = QueryId(
+          location
+            .replace(s"$baseUri/queries/", "")
+            .replace(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}", ""))
+        queries.fetch(queryId).futureValue.get shouldEqual Query(queryId, "org" / "dom", queryModelWithContext)
+      }
+    }
+
+    "store a query with resolved context as array" in {
+      val queryJsonWithContext = jsonContentOf("/query/query-with-context-array.json")
+      val queryModelWithContext = QueryPayload(
+        `@context` = addedContext.hcursor.get[Json]("@context").getOrElse(Json.obj()) deepMerge queryExpandedContext,
+        filter = filter,
+        deprecated = Some(true),
+        published = Some(true),
+        format = JsonLdFormat.Compacted,
+        sort = SortList(List(Sort(s"-http://example.com/prov#createdAtTime")))
+      )
+
+      Post("/queries/org/dom", queryJsonWithContext) ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.PermanentRedirect
+        val location = header("Location").get.value()
+        location should startWith(s"$baseUri/queries/")
+        location should endWith(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}")
+        val queryId = QueryId(
+          location
+            .replace(s"$baseUri/queries/", "")
+            .replace(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}", ""))
+        queries.fetch(queryId).futureValue.get shouldEqual Query(queryId, "org" / "dom", queryModelWithContext)
+      }
+    }
   }
 }

@@ -66,7 +66,7 @@ class QueryPayloadDecoderSpec
     "be decoded properly from json" in {
       forAll(list) {
         case (json, model) =>
-          QueryPayloadDecoder.resolveContext(json).map { ctx =>
+          ctx.resolve(json).map { ctx =>
             val decoders = QueryPayloadDecoder(ctx)
             import decoders._
             json.as[QueryPayload] shouldEqual model

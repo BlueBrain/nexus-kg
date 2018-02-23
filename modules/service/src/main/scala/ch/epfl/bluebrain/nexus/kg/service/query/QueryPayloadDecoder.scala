@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.query
 
 import ch.epfl.bluebrain.nexus.commons.types.search.{Sort, SortList}
-import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.contexts.JenaExpander.expand
 import ch.epfl.bluebrain.nexus.kg.core.queries.JsonLdFormat._
 import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
@@ -9,8 +8,6 @@ import ch.epfl.bluebrain.nexus.kg.core.queries.QueryResource._
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.core.queries.{Field, JsonLdFormat, QueryResource}
 import io.circe.{Decoder, Json}
-
-import scala.concurrent.Future
 
 /**
   * Provides the decoder for [[QueryPayload]] and all the composed decoders.
@@ -45,7 +42,16 @@ class QueryPayloadDecoder(ctx: Json)(implicit fs: FilteringSettings) {
         fields     <- hc.downField("fields").as[Option[Set[Field]]].map(_ getOrElse Set.empty[Field])
         sort       <- hc.downField("sort").as[Option[SortList]].map(_ getOrElse SortList.Empty)
 
-      } yield (QueryPayload(ctx, filter, q, deprecated, published, format, resource, fields, sort))
+      } yield
+        (QueryPayload(ctx.hcursor.get[Json]("@context").getOrElse(Json.obj()),
+                      filter,
+                      q,
+                      deprecated,
+                      published,
+                      format,
+                      resource,
+                      fields,
+                      sort))
     }
 }
 
@@ -57,15 +63,5 @@ object QueryPayloadDecoder {
     * @param ctx the provided context
     */
   final def apply(ctx: Json)(implicit fs: FilteringSettings): QueryPayloadDecoder = new QueryPayloadDecoder(ctx)
-
-  /**
-    * Resolves the context merging the @context inside the provided ''json'' with the context in ''fs''
-    *
-    * @param json the json which may contain a ''@context'' value
-    */
-  final def resolveContext(json: Json)(implicit fs: FilteringSettings, ctxs: Contexts[Future]): Future[Json] = {
-    val context = json.hcursor.get[Json]("@context").getOrElse(Json.obj())
-    ctxs.resolve(context.deepMerge(fs.ctx))
-  }
 
 }

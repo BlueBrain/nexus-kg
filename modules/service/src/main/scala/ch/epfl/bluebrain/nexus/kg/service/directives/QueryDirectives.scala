@@ -4,6 +4,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive, Directive1, MalformedQueryParamRejection, ValidationRejection}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.WrongOrInvalidJson
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, SortList}
+import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Filter, FilteringSettings}
@@ -11,7 +12,6 @@ import ch.epfl.bluebrain.nexus.kg.core.queries.{Field, JsonLdFormat}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.QuerySettings
 import ch.epfl.bluebrain.nexus.kg.service.directives.StringUnmarshaller._
 import ch.epfl.bluebrain.nexus.kg.service.query.QueryPayloadDecoder
-import ch.epfl.bluebrain.nexus.kg.service.query.QueryPayloadDecoder._
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalPayload
 import io.circe.parser._
 import io.circe.{Decoder, Json}
@@ -27,9 +27,9 @@ trait QueryDirectives {
   def queryEntity(implicit fs: FilteringSettings, ctxs: Contexts[Future]): Directive1[QueryPayload] = {
     import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
     entity(as[Json]).flatMap { json =>
-      onComplete(resolveContext(json)) flatMap {
+      onComplete(ctxs.resolve(json)) flatMap {
         case Success(jsonCtx) =>
-          val queryDec = QueryPayloadDecoder(jsonCtx)
+          val queryDec = QueryPayloadDecoder(jsonCtx deepMerge fs.ctx)
           import queryDec._
           json.as[QueryPayload] match {
             case Right(query) => provide(query)
@@ -38,6 +38,11 @@ trait QueryDirectives {
                 ValidationRejection("Error converting json to query",
                                     Some(IllegalPayload("Error converting json to query", Some(err.message)))))
           }
+        case Failure(CommandRejected(contextRejection)) =>
+          reject(
+            ValidationRejection(
+              "The context resolution did not succeed",
+              Some(IllegalPayload(s"The context resolution did not succeed: $contextRejection", None))))
         case Failure(_) =>
           reject(
             ValidationRejection("The context resolution did not succeed",
@@ -62,16 +67,30 @@ trait QueryDirectives {
   def context(implicit fs: FilteringSettings, ctxs: Contexts[Future]): Directive1[Json] = {
 
     def resolveContext(context: Json): Directive1[Json] =
-      onComplete(ctxs.resolve(context.deepMerge(fs.ctx))).flatMap {
-        case Success(expanded) => provide(expanded)
+      onComplete(ctxs.resolve(context)).flatMap {
+        case Success(expanded) => {
+          provide(expanded deepMerge fs.ctx)
+        }
+        case Failure(CommandRejected(contextRejection)) =>
+          reject(
+            ValidationRejection(
+              "The context resolution did not succeed",
+              Some(IllegalPayload(s"The context resolution did not succeed: $contextRejection", None))))
         case _ =>
           reject(
-            MalformedQueryParamRejection("context",
-                                         "IllegalContextExpansion",
-                                         Some(WrongOrInvalidJson(Some("The context resolution did not succeed")))))
+            MalformedQueryParamRejection(
+              "context",
+              "IllegalContextExpansion",
+              Some(WrongOrInvalidJson(
+                Some("The context must be a valid JSON or a URI for context managed in this platform")))))
       }
 
-    parameter('context.as[Json] ? Json.obj()).flatMap(resolveContext)
+    parameter('context.as[String] ? Json.obj().noSpaces).flatMap { contextParam =>
+      parse(contextParam) match {
+        case Right(ctxJson) => resolveContext(Json.obj("@context" -> ctxJson))
+        case Left(_)        => resolveContext(Json.obj("@context" -> Json.fromString(contextParam)))
+      }
+    }
   }
 
   /**
@@ -139,13 +158,14 @@ trait QueryDirectives {
       import queryDec._
       (filtered & q & deprecated & published & fields & sort & paginated).tmap {
         case (filter, query, deprecate, publish, fieldSet, sortList, page) =>
-          page -> QueryPayload(`@context` = jsonCtx,
-                               filter = filter,
-                               q = query,
-                               deprecated = deprecate,
-                               published = publish,
-                               fields = fieldSet,
-                               sort = sortList)
+          (page,
+           QueryPayload(`@context` = jsonCtx,
+                        filter = filter,
+                        q = query,
+                        deprecated = deprecate,
+                        published = publish,
+                        fields = fieldSet,
+                        sort = sortList))
       }
     }
 

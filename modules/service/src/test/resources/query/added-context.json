@@ -1,0 +1,6 @@
+{
+  "@context": {
+    "test": "http://example.com/test#",
+    "some": "http://example.com/prov#"
+  }
+}
