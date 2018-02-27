@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.routes.StaticRoutes.ServiceDescription
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
-import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives._
+import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import kamon.akka.http.KamonTraceDirectives.operationName
 
 /**

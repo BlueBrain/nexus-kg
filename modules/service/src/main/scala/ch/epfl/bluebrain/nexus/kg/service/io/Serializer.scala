@@ -4,8 +4,8 @@ import ch.epfl.bluebrain.nexus.kg.core.domains._
 import ch.epfl.bluebrain.nexus.kg.core.instances._
 import ch.epfl.bluebrain.nexus.kg.core.organizations._
 import ch.epfl.bluebrain.nexus.kg.core.schemas._
-import ch.epfl.bluebrain.nexus.commons.service.io.AkkaCoproductSerializer
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent
+import ch.epfl.bluebrain.nexus.service.serialization.AkkaCoproductSerializer
 import io.circe.java8.time._
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._

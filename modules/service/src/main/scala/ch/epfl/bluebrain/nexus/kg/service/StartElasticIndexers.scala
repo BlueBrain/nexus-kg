@@ -7,7 +7,6 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent
@@ -20,6 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.instances.InstanceElasticIndexer
 import ch.epfl.bluebrain.nexus.kg.indexing.organizations._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas.SchemaElasticIndexer
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
 
 import scala.concurrent.{ExecutionContext, Future}
 
