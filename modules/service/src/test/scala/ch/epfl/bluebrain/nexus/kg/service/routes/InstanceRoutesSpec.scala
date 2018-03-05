@@ -8,6 +8,7 @@ import java.util.regex.Pattern
 import java.util.{Comparator, UUID}
 
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.ByteString
@@ -492,9 +493,11 @@ class InstanceRoutesSpec
       }
 
       //Fetch latest
-      Get(s"/data/${instanceRef.id.show}/attachment?rev") ~> addCredentials(ValidCredentials) ~> route ~> check {
+      Get(s"/data/${instanceRef.id.show}/attachment") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
         contentType shouldEqual ContentTypes.`text/csv(UTF-8)`
+        header("Content-Disposition") shouldEqual Some(
+          RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename2"))
         responseEntity.dataBytes
           .toMat(digestSink)(Keep.right)
           .run()
@@ -507,6 +510,8 @@ class InstanceRoutesSpec
       //Fetch specific review
       Get(s"/data/${instanceRef.id.show}/attachment?rev=2") ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.OK
+        header("Content-Disposition") shouldEqual Some(
+          RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename"))
         contentType shouldEqual ContentTypes.`text/csv(UTF-8)`
         responseEntity.dataBytes
           .toMat(digestSink)(Keep.right)
