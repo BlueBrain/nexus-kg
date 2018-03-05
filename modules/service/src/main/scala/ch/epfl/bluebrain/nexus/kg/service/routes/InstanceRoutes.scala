@@ -1,9 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
+import java.net.URLEncoder
 import java.time.Clock
 
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.headers.{OAuth2BearerToken, RawHeader}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Source
@@ -24,6 +25,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
+import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceId, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
@@ -41,7 +43,9 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.InstanceCustomEncoders
 import io.circe.generic.auto._
 import io.circe.{Decoder, Json}
 import kamon.akka.http.KamonTraceDirectives.operationName
+
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 /**
   * Http route definitions for instance specific functionality.
@@ -188,7 +192,10 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                   case Some((info, source)) =>
                     val ct =
                       ContentType.parse(info.mediaType).getOrElse(ContentTypes.`application/octet-stream`)
-                    complete(HttpEntity(ct, info.contentSize.value, source))
+                    val filename = encodedFilenameOrElse(info, "attachment")
+                    respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename")) {
+                      complete(HttpEntity(ct, info.contentSize.value, source))
+                    }
                   case None =>
                     complete(StatusCodes.NotFound)
                 }
@@ -197,6 +204,9 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
           }
         }
     }
+
+  private def encodedFilenameOrElse(info: Attachment.Info, value: => String): String =
+    Try(URLEncoder.encode(info.originalFileName, "UTF-8")).getOrElse(value)
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractSchemaId & pathEndOrSingleSlash & post) { schemaId =>
