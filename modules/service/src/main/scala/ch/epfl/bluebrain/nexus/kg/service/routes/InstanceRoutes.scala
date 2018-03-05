@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import java.net.URLDecoder
+import java.net.{URLDecoder, URLEncoder}
 import java.time.Clock
 
 import akka.http.scaladsl.model._
@@ -192,7 +192,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                   case Some((info, source)) =>
                     val ct =
                       ContentType.parse(info.mediaType).getOrElse(ContentTypes.`application/octet-stream`)
-                    val filename = decodedFilenameOrElse(info, "attachment")
+                    val filename = encodedFilenameOrElse(info, "attachment")
                     respondWithHeaders(RawHeader(s"Content-Disposition", s"attachment; filename*= UTF-8''$filename")) {
                       complete(HttpEntity(ct, info.contentSize.value, source))
                     }
@@ -205,8 +205,8 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
         }
     }
 
-  private def decodedFilenameOrElse(info: Attachment.Info, value: => String): String =
-    Try(URLDecoder.decode(info.originalFileName, "UTF-8")).getOrElse(value)
+  private def encodedFilenameOrElse(info: Attachment.Info, value: => String): String =
+    Try(URLEncoder.encode(info.originalFileName, "UTF-8")).getOrElse(value)
 
   protected def writeRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (extractSchemaId & pathEndOrSingleSlash & post) { schemaId =>
