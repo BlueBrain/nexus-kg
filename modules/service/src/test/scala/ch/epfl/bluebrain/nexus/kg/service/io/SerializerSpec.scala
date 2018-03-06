@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.io
 
+import java.nio.charset.StandardCharsets
 import java.time.Clock
 import java.util.UUID
 
@@ -18,7 +19,6 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent.SchemaCreated
 import ch.epfl.bluebrain.nexus.kg.core.schemas._
 import ch.epfl.bluebrain.nexus.kg.service.io.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.service.io.SerializerSpec.DataAndJson
-import ch.epfl.bluebrain.nexus.commons.service.io.UTF8
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, ContextId}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent.ContextCreated
 import io.circe.Json
@@ -80,7 +80,7 @@ class SerializerSpec extends WordSpecLike with Matchers with Inspectors with Sca
         forAll(results) {
           case DataAndJson(event, json, _) =>
             val serializer = findConcreteSerializer[EventSerializer](event)
-            new String(serializer.toBinary(event), UTF8) shouldEqual json
+            new String(serializer.toBinary(event), StandardCharsets.UTF_8) shouldEqual json
         }
       }
 
@@ -88,7 +88,7 @@ class SerializerSpec extends WordSpecLike with Matchers with Inspectors with Sca
         forAll(results) {
           case DataAndJson(event, json, manifest) =>
             val serializer = findConcreteSerializer[EventSerializer](event)
-            serializer.fromBinary(json.getBytes(UTF8), manifest) shouldEqual event
+            serializer.fromBinary(json.getBytes(StandardCharsets.UTF_8), manifest) shouldEqual event
         }
       }
     }

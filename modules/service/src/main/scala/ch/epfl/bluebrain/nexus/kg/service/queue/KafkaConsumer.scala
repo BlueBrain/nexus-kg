@@ -13,9 +13,9 @@ import akka.persistence.query.Sequence
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
 import akka.util.Timeout
-import ch.epfl.bluebrain.nexus.commons.service.persistence.IndexFailuresLog
-import ch.epfl.bluebrain.nexus.commons.service.retryer.RetryOps._
-import ch.epfl.bluebrain.nexus.commons.service.retryer.RetryStrategy.{Backoff => BackoffStrategy}
+import ch.epfl.bluebrain.nexus.service.indexer.persistence.IndexFailuresLog
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryOps._
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.{Backoff => BackoffStrategy}
 import io.circe._
 import io.circe.parser._
 import journal.Logger

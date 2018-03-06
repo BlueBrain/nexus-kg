@@ -11,7 +11,6 @@ import akka.kafka.ConsumerSettings
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{Event => AclEvent}
 import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
-import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent
@@ -26,6 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.organizations._
 import ch.epfl.bluebrain.nexus.kg.indexing.schemas._
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.queue.KafkaConsumer
+import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
 import org.apache.kafka.common.serialization.StringDeserializer
 
 import scala.collection.JavaConverters._

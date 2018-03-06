@@ -5,8 +5,6 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
-import ch.epfl.bluebrain.nexus.commons.service.directives.ErrorDirectives._
-import ch.epfl.bluebrain.nexus.commons.service.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.core.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextRejection
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection
@@ -16,6 +14,8 @@ import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.{IllegalParam, IllegalVersionFormat}
 import ch.epfl.bluebrain.nexus.kg.service.routes.ExceptionHandling.InternalError
+import ch.epfl.bluebrain.nexus.service.http.directives.ErrorDirectives._
+import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import journal.Logger

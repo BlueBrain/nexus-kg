@@ -22,7 +22,6 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.FullAccessControlList
 import ch.epfl.bluebrain.nexus.commons.iam.auth.User
 import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
 import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
-import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -45,6 +44,7 @@ import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
 import ch.epfl.bluebrain.nexus.kg.service.instances.attachments.{AkkaInOutFileStream, RelativeAttachmentLocation}
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.GroupedIdsToEntityRetrieval
+import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
