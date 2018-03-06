@@ -62,6 +62,7 @@ lazy val schemas = project
   .settings(
     name := "kg-schemas",
     moduleName := "kg-schemas",
+    resolvers += Resolver.bintrayRepo("bogdanromanx", "maven"),
     libraryDependencies ++= Seq(
       commonsSchemas
     )
