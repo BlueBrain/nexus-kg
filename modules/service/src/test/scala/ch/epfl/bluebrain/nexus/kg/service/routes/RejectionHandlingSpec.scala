@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.{ContentTypes, HttpEntity, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -47,6 +48,7 @@ class RejectionHandlingSpec
     val id                = genString(length = 5)
     implicit val cl       = iamClient("http://localhost:8080")
     implicit val clock    = Clock.systemUTC
+    implicit val tracing  = TracingDirectives()
 
     val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
     val vocab         = baseUri.copy(path = baseUri.path / "core")

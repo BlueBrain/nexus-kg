@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryCli
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -51,12 +52,13 @@ class DomainRoutesSpec
     val domAgg = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
     val doms   = Domains(domAgg, orgs)
 
-    val orgId          = OrgId(genString(length = 5))
-    val id             = DomainId(orgId, genString(length = 8))
-    val description    = genString(length = 32)
-    val json           = Json.obj("description" -> Json.fromString(description))
-    implicit val clock = Clock.systemUTC
-    val caller         = CallerCtx(clock, AnonymousCaller(Anonymous()))
+    val orgId            = OrgId(genString(length = 5))
+    val id               = DomainId(orgId, genString(length = 8))
+    val description      = genString(length = 32)
+    val json             = Json.obj("description" -> Json.fromString(description))
+    implicit val clock   = Clock.systemUTC
+    implicit val tracing = TracingDirectives()
+    val caller           = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     orgs
       .create(orgId, Json.obj("key" -> Json.fromString(genString())))(CallerCtx(clock, AnonymousCaller(Anonymous())))

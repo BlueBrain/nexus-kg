@@ -1,3 +1,28 @@
+/*
+scalafmt: {
+  style = defaultWithAlign
+  maxColumn = 150
+  align.tokens = [
+    { code = "=>", owner = "Case" }
+    { code = "?", owner = "Case" }
+    { code = "extends", owner = "Defn.(Class|Trait|Object)" }
+    { code = "//", owner = ".*" }
+    { code = "{", owner = "Template" }
+    { code = "}", owner = "Template" }
+    { code = ":=", owner = "Term.ApplyInfix" }
+    { code = "++=", owner = "Term.ApplyInfix" }
+    { code = "+=", owner = "Term.ApplyInfix" }
+    { code = "%", owner = "Term.ApplyInfix" }
+    { code = "%%", owner = "Term.ApplyInfix" }
+    { code = "%%%", owner = "Term.ApplyInfix" }
+    { code = "->", owner = "Term.ApplyInfix" }
+    { code = "?", owner = "Term.ApplyInfix" }
+    { code = "<-", owner = "Enumerator.Generator" }
+    { code = "?", owner = "Enumerator.Generator" }
+    { code = "=", owner = "(Enumerator.Val|Defn.(Va(l|r)|Def|Type))" }
+  ]
+}
+ */
 val akkaVersion                     = "2.5.9"
 val akkaHttpVersion                 = "10.0.11"
 val akkaHttpCorsVersion             = "0.2.2"
@@ -8,7 +33,7 @@ val catsVersion                     = "1.0.1"
 val circeVersion                    = "0.9.0"
 val logbackVersion                  = "1.2.3"
 val journalVersion                  = "3.0.19"
-val commonsVersion                  = "0.7.6"
+val commonsVersion                  = "0.7.9"
 val metricsCoreVersion              = "3.2.6"
 val jenaVersion                     = "3.6.0"
 val blazegraphVersion               = "2.1.4"
@@ -25,6 +50,7 @@ lazy val sourcingCore        = nexusDep("sourcing-core", commonsVersion)
 lazy val sourcingAkka        = nexusDep("sourcing-akka", commonsVersion)
 lazy val sourcingMem         = nexusDep("sourcing-mem", commonsVersion)
 lazy val commonsService      = nexusDep("commons-service", commonsVersion)
+lazy val commonsKamon        = nexusDep("commons-kamon", commonsVersion)
 lazy val commonsSchemas      = nexusDep("commons-schemas", commonsVersion)
 lazy val commonsTest         = nexusDep("commons-test", commonsVersion)
 lazy val shaclValidator      = nexusDep("shacl-validator", commonsVersion)
@@ -39,11 +65,11 @@ lazy val iamCommons = nexusDep("iam", commonsVersion)
 lazy val docs = project
   .in(file("docs"))
   .enablePlugins(ParadoxPlugin)
-  .settings(common, noPublish)
+  .settings(noPublish)
   .settings(
-    name := "kg-docs",
-    moduleName := "kg-docs",
-    paradoxTheme := Some(builtinParadoxTheme("generic")),
+    name                         := "kg-docs",
+    moduleName                   := "kg-docs",
+    paradoxTheme                 := Some(builtinParadoxTheme("generic")),
     paradoxProperties in Compile ++= Map("extref.service.base_url" -> "../"),
     target in (Compile, paradox) := (resourceManaged in Compile).value / "docs",
     resourceGenerators in Compile += {
@@ -55,12 +81,12 @@ lazy val docs = project
 
 lazy val schemas = project
   .in(file("modules/kg-schemas"))
-  .settings(common)
   .enablePlugins(WorkbenchPlugin)
   .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
   .settings(
-    name := "kg-schemas",
+    name       := "kg-schemas",
     moduleName := "kg-schemas",
+    resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
     libraryDependencies ++= Seq(
       commonsSchemas
     )
@@ -69,9 +95,8 @@ lazy val schemas = project
 lazy val core = project
   .in(file("modules/core"))
   .dependsOn(schemas)
-  .settings(common)
   .settings(
-    name := "kg-core",
+    name       := "kg-core",
     moduleName := "kg-core",
     libraryDependencies ++= Seq(
       iamCommons,
@@ -96,9 +121,8 @@ lazy val core = project
 lazy val sparql = project
   .in(file("modules/sparql"))
   .dependsOn(core)
-  .settings(common)
   .settings(
-    name := "kg-sparql",
+    name       := "kg-sparql",
     moduleName := "kg-sparql",
     libraryDependencies ++= Seq(
       iamCommons,
@@ -124,9 +148,8 @@ lazy val sparql = project
 lazy val elastic = project
   .in(file("modules/elastic"))
   .dependsOn(core)
-  .settings(common)
   .settings(
-    name := "kg-elastic",
+    name       := "kg-elastic",
     moduleName := "kg-elastic",
     libraryDependencies ++= Seq(
       iamCommons,
@@ -155,13 +178,14 @@ lazy val service = project
   .in(file("modules/service"))
   .dependsOn(core % "test->test;compile->compile", sparql, elastic, docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
-  .settings(common, buildInfoSettings, packagingSettings, noCoverage)
+  .settings(buildInfoSettings, packagingSettings, noCoverage)
   .settings(
-    name := "kg-service",
+    name       := "kg-service",
     moduleName := "kg-service",
     libraryDependencies ++= Seq(
       iamCommons,
       commonsService,
+      commonsKamon,
       sourcingAkka,
       commonsTest,
       sourcingMem                  % Test,
@@ -194,9 +218,8 @@ lazy val service = project
 lazy val testsBlazegraph = project
   .in(file("modules/tests-blazegraph"))
   .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
-  .settings(common)
   .settings(
-    name := "kg-tests-blazegraph",
+    name       := "kg-tests-blazegraph",
     moduleName := "kg-tests-blazegraph",
     libraryDependencies ++= Seq(
       commonsTest         % Test,
@@ -211,9 +234,8 @@ lazy val testsBlazegraph = project
 lazy val testsElastic = project
   .in(file("modules/tests-elastic"))
   .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
-  .settings(common)
   .settings(
-    name := "kg-tests-elastic",
+    name       := "kg-tests-elastic",
     moduleName := "kg-tests-elastic",
     libraryDependencies ++= Seq(
       commonsTest                  % Test,
@@ -224,7 +246,7 @@ lazy val testsElastic = project
       "org.apache.lucene"          % "lucene-core" % luceneElasticTestsVersion,
       "org.elasticsearch"          % "elasticsearch" % ESElasticTestsVersion,
       "org.elasticsearch.plugin"   % "transport-netty4-client" % ESElasticTestsVersion,
-      "com.typesafe.akka"          %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion % Test,
+      "com.typesafe.akka"          %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion % Test
     ),
     dependencyOverrides ++= Seq(
       "com.fasterxml.jackson.core" % "jackson-core"        % jacksonElasticTestsVersion % Test,
@@ -241,22 +263,36 @@ lazy val testsElastic = project
 
 lazy val root = project
   .in(file("."))
-  .settings(common, noPublish)
+  .settings(noPublish)
   .settings(
-    name := "kg",
+    name       := "kg",
     moduleName := "kg"
   )
   .aggregate(docs, core, sparql, elastic, service, testsBlazegraph, testsElastic, schemas)
 
-lazy val noPublish = Seq(publishLocal := {}, publish := {})
+lazy val noPublish = Seq(
+  publishLocal    := {},
+  publish         := {},
+  publishArtifact := false
+)
 
-lazy val common = Seq(
-  scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
-  workbenchVersion := "0.3.0",
-  homepage := Some(url("https://github.com/BlueBrain/nexus-kg")),
-  licenses := Seq("Apache-2.0" -> url("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")),
-  scmInfo := Some(
-    ScmInfo(url("https://github.com/BlueBrain/nexus-kg"), "scm:git:git@github.com:BlueBrain/nexus-kg.git"))
+inThisBuild(
+  Seq(
+    workbenchVersion := "0.3.0",
+    homepage         := Some(url("https://github.com/BlueBrain/nexus-kg")),
+    licenses         := Seq("Apache-2.0" -> url("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")),
+    scmInfo          := Some(ScmInfo(url("https://github.com/BlueBrain/nexus-kg"), "scm:git:git@github.com:BlueBrain/nexus-kg.git")),
+    developers := List(
+      Developer("bogdanromanx", "Bogdan Roman", "noreply@epfl.ch", url("https://bluebrain.epfl.ch/")),
+      Developer("hygt", "Henry Genet", "noreply@epfl.ch", url("https://bluebrain.epfl.ch/")),
+      Developer("umbreak", "Didac Montero Mendez", "noreply@epfl.ch", url("https://bluebrain.epfl.ch/")),
+      Developer("wwajerowicz", "Wojtek Wajerowicz", "noreply@epfl.ch", url("https://bluebrain.epfl.ch/"))
+    ),
+    // These are the sbt-release-early settings to configure
+    releaseEarlyWith              := BintrayPublisher,
+    releaseEarlyNoGpg             := true,
+    releaseEarlyEnableSyncToMaven := false
+  )
 )
 
 lazy val noCoverage = Seq(coverageFailOnMinimum := false)
@@ -266,8 +302,6 @@ lazy val buildInfoSettings =
 
 lazy val packagingSettings = packageName in Docker := "kg"
 
-def nexusDep(name: String, version: String): ModuleID =
-  "ch.epfl.bluebrain.nexus" %% name % version
+def nexusDep(name: String, version: String): ModuleID = "ch.epfl.bluebrain.nexus" %% name % version
 
-addCommandAlias("review", ";clean;scalafmtSbtCheck;coverage;scapegoat;test;coverageReport;coverageAggregate;doc")
-addCommandAlias("rel", ";release with-defaults skip-tests")
+addCommandAlias("review", ";clean;scalafmtCheck;scalafmtSbtCheck;coverage;scapegoat;test;coverageReport;coverageAggregate;doc")

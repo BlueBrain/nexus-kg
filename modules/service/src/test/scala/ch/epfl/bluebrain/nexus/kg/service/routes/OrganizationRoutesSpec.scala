@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -60,6 +61,7 @@ class OrganizationRoutesSpec
     val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri)
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
     implicit val clock: Clock          = Clock.systemUTC
+    implicit val tracing               = TracingDirectives()
     val caller                         = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)

@@ -8,15 +8,16 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.Materializer
 import cats.instances.future._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{UntypedHttpClient, withAkkaUnmarshaller}
-import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
-import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Path}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Path}
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
@@ -41,7 +42,6 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.ContextCustomEncoders
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
 import io.circe.generic.auto._
 import io.circe.{Decoder, Json}
-import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -66,7 +66,8 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
                                ec: ExecutionContext,
                                clock: Clock,
                                orderedKeys: OrderedKeys,
-                               prefixes: PrefixUris)
+                               prefixes: PrefixUris,
+                               tracing: TracingDirectives)
     extends DefaultRouteHandling(contexts)
     with QueryDirectives {
 
@@ -82,13 +83,13 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
           (authenticateCaller & authorizeResource(contextId, Write)) { implicit caller =>
             parameter('rev.as[Long].?) {
               case Some(rev) =>
-                operationName("updateContext") {
+                tracing.trace("updateContext") {
                   onSuccess(contexts.update(contextId, rev, json)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
                 }
               case None =>
-                operationName("createContext") {
+                tracing.trace("createContext") {
                   onSuccess(contexts.create(contextId, json)) { ref =>
                     complete(StatusCodes.Created -> ref)
 
@@ -100,7 +101,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
         } ~
           (delete & parameter('rev.as[Long])) { rev =>
             (authenticateCaller & authorizeResource(contextId, Write)) { implicit caller =>
-              operationName("deprecateContext") {
+              tracing.trace("deprecateContext") {
                 onSuccess(contexts.deprecate(contextId, rev)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
@@ -112,7 +113,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
           (pathEndOrSingleSlash & patch & entity(as[ContextConfig]) & parameter('rev.as[Long])) { (cfg, rev) =>
             (authenticateCaller & authorizeResource(contextId, Publish)) { implicit caller =>
               if (cfg.published) {
-                operationName("publishSchema") {
+                tracing.trace("publishSchema") {
                   onSuccess(contexts.publish(contextId, rev)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
@@ -129,14 +130,14 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
       (pathEndOrSingleSlash & get & authorizeResource(contextId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            operationName("getContextRevision") {
+            tracing.trace("getContextRevision") {
               onSuccess(contexts.fetch(contextId, rev)) {
                 case Some(context) => formatOutput(context, format)
                 case None          => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            operationName("getContext") {
+            tracing.trace("getContext") {
               onSuccess(contexts.fetch(contextId)) {
                 case Some(context) => formatOutput(context, format)
                 case None          => complete(StatusCodes.NotFound)
@@ -149,7 +150,7 @@ class ContextRoutes(contextQueries: FilterQueries[Future, ContextId],
 
   override protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & paramsToQuery) { (pagination, query) =>
-      operationName("searchContexts") {
+      tracing.trace("searchContexts") {
         implicit val _ = contextIdToEntityRetrieval(contexts)
         (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls: FullAccessControlList =>
           query.sort match {
@@ -238,7 +239,8 @@ object ContextRoutes {
                              cl: UntypedHttpClient[Future],
                              clock: Clock,
                              orderedKeys: OrderedKeys,
-                             prefixes: PrefixUris): ContextRoutes = {
+                             prefixes: PrefixUris,
+                             tracing: TracingDirectives): ContextRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val contextQueries             = FilterQueries[Future, ContextId](SparqlQuery[Future](client))

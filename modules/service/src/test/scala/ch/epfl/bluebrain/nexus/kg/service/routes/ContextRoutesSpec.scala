@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
@@ -57,6 +58,7 @@ class ContextRoutesSpec
 
   private implicit val mt: ActorMaterializer        = ActorMaterializer()(system)
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
+  private implicit val tracing: TracingDirectives   = TracingDirectives()
   private val linksContext = Json.obj(
     JsonLDKeys.`@context` -> Json.obj(
       "self" -> Json.obj(

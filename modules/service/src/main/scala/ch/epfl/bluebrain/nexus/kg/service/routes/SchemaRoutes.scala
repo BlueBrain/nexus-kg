@@ -15,8 +15,9 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.{Path, Permission}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
+import ch.epfl.bluebrain.nexus.commons.iam.acls.{Path, Permission}
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
 import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
@@ -43,7 +44,6 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.{SchemaCustomEncoders, ShapeCustomEncoders}
 import io.circe.generic.auto._
 import io.circe.{Decoder, Json}
-import kamon.akka.http.KamonTraceDirectives._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -66,7 +66,8 @@ class SchemaRoutes(schemas: Schemas[Future],
                               ec: ExecutionContext,
                               clock: Clock,
                               orderedKeys: OrderedKeys,
-                              prefixes: PrefixUris)
+                              prefixes: PrefixUris,
+                              tracing: TracingDirectives)
     extends DefaultRouteHandling(contexts) {
 
   private implicit val coreContext: ContextUri              = prefixes.CoreContext
@@ -82,7 +83,7 @@ class SchemaRoutes(schemas: Schemas[Future],
     (get & paramsToQuery) { (pagination, query) =>
       implicit val schemaIdExtractor = schemaIdToEntityRetrieval(schemas)
 
-      operationName("searchSchemas") {
+      tracing.trace("searchSchemas") {
         (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls =>
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
@@ -143,14 +144,14 @@ class SchemaRoutes(schemas: Schemas[Future],
       (pathEndOrSingleSlash & get & authorizeResource(schemaId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            operationName("getSchemaRevision") {
+            tracing.trace("getSchemaRevision") {
               onSuccess(schemas.fetch(schemaId, rev)) {
                 case Some(schema) => formatOutput(schema, format)
                 case None         => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            operationName("getSchema") {
+            tracing.trace("getSchema") {
               onSuccess(schemas.fetch(schemaId)) {
                 case Some(schema) => formatOutput(schema, format)
                 case None         => complete(StatusCodes.NotFound)
@@ -163,14 +164,14 @@ class SchemaRoutes(schemas: Schemas[Future],
           (pathEndOrSingleSlash & get & authorizeResource(shapeId, Read) & format) { format =>
             parameter('rev.as[Long].?) {
               case Some(rev) =>
-                operationName("getSchemaShapeRevision") {
+                tracing.trace("getSchemaShapeRevision") {
                   onSuccess(schemas.fetchShape(schemaId, fragment, rev)) {
                     case Some(shape) => formatOutput(shape, format)
                     case None        => complete(StatusCodes.NotFound)
                   }
                 }
               case None =>
-                operationName("getSchemaShape") {
+                tracing.trace("getSchemaShape") {
                   onSuccess(schemas.fetchShape(schemaId, fragment)) {
                     case Some(shape) => formatOutput(shape, format)
                     case None        => complete(StatusCodes.NotFound)
@@ -188,13 +189,13 @@ class SchemaRoutes(schemas: Schemas[Future],
           (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
             parameter('rev.as[Long].?) {
               case Some(rev) =>
-                operationName("updateSchema") {
+                tracing.trace("updateSchema") {
                   onSuccess(schemas.update(schemaId, rev, json)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
                 }
               case None =>
-                operationName("createSchema") {
+                tracing.trace("createSchema") {
                   onSuccess(schemas.create(schemaId, json)) { ref =>
                     complete(StatusCodes.Created -> ref)
                   }
@@ -204,7 +205,7 @@ class SchemaRoutes(schemas: Schemas[Future],
         } ~
           (delete & parameter('rev.as[Long])) { rev =>
             (authenticateCaller & authorizeResource(schemaId, Write)) { implicit caller =>
-              operationName("deprecateSchema") {
+              tracing.trace("deprecateSchema") {
                 onSuccess(schemas.deprecate(schemaId, rev)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
@@ -216,7 +217,7 @@ class SchemaRoutes(schemas: Schemas[Future],
           (pathEndOrSingleSlash & patch & entity(as[SchemaConfig]) & parameter('rev.as[Long])) { (cfg, rev) =>
             (authenticateCaller & authorizeResource(schemaId, Publish)) { implicit caller =>
               if (cfg.published) {
-                operationName("publishSchema") {
+                tracing.trace("publishSchema") {
                   onSuccess(schemas.publish(schemaId, rev)) { ref =>
                     complete(StatusCodes.OK -> ref)
                   }
@@ -258,7 +259,8 @@ object SchemaRoutes {
                              filteringSettings: FilteringSettings,
                              clock: Clock,
                              orderedKeys: OrderedKeys,
-                             prefixes: PrefixUris): SchemaRoutes = {
+                             prefixes: PrefixUris,
+                             tracing: TracingDirectives): SchemaRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val schemaQueries              = FilterQueries[Future, SchemaId](SparqlQuery[Future](client))

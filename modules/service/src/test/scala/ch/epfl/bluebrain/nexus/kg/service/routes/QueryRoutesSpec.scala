@@ -10,6 +10,7 @@ import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -64,6 +65,7 @@ class QueryRoutesSpec
     with MockedIAMClient
     with BeforeAndAfterAll {
 
+  private implicit val tracing: TracingDirectives      = TracingDirectives()
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
   override protected def beforeAll(): Unit = {
