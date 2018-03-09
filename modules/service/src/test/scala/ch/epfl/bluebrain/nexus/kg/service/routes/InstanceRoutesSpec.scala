@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryCli
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -74,6 +75,7 @@ class InstanceRoutesSpec
 
   trait Context extends ScalaFutures {
 
+    private implicit val tracing: TracingDirectives      = TracingDirectives()
     override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
     def genSchema(): Json = Json.obj()

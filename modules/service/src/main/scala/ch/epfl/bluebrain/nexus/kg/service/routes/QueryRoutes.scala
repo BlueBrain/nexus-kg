@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
@@ -35,7 +36,6 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.QueryRoutes._
 import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders._
 import io.circe.Encoder
-import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -55,7 +55,8 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
     iamClient: IamClient[Future],
     ec: ExecutionContext,
     orderedKeys: OrderedKeys,
-    prefixes: PrefixUris) {
+    prefixes: PrefixUris,
+    tracing: TracingDirectives) {
 
   private val basePath: String                   = "queries"
   private val exceptionHandler: ExceptionHandler = ExceptionHandling.exceptionHandler(prefixes.ErrorContext)
@@ -87,7 +88,7 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
         authenticateCaller.apply { implicit caller =>
           onSuccess(queries.fetch(QueryId(uuid.toString))) {
             case Some(Query(_, path, body)) =>
-              operationName(s"search${body.resource}") {
+              tracing.trace(s"search${body.resource}") {
                 import idsToEntities._
                 def buildFromPath[Id, Entity](queries: FilterQueries[Future, Id],
                                               contextId: Boolean = false)(implicit C: ConfiguredQualifier[Id],
@@ -204,7 +205,8 @@ object QueryRoutes {
                              iamClient: IamClient[Future],
                              filteringSettings: FilteringSettings,
                              orderedKeys: OrderedKeys,
-                             prefixes: PrefixUris): QueryRoutes = {
+                             prefixes: PrefixUris,
+                             tracing: TracingDirectives): QueryRoutes = {
     implicit val qs: QuerySettings                = querySettings
     implicit val queryClient: SparqlQuery[Future] = SparqlQuery[Future](client)
     new QueryRoutes(queries, idsToEntities, base)

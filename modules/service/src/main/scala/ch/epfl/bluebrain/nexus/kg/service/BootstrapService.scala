@@ -22,6 +22,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.FullAccessControlList
 import ch.epfl.bluebrain.nexus.commons.iam.auth.User
 import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
 import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -82,10 +83,11 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   val (orgs, doms, schemas, contexts, instances, queries) = operations()
 
-  private implicit val iamC: IamClient[Future]  = iamClient(settings.IAM.BaseUri)
-  private implicit val clock: Clock             = Clock.systemUTC
-  private implicit val orderedKeys: OrderedKeys = kgOrderedKeys
-  private implicit val prefixes: PrefixUris     = settings.Prefixes
+  private implicit val iamC: IamClient[Future]    = iamClient(settings.IAM.BaseUri)
+  private implicit val clock: Clock               = Clock.systemUTC
+  private implicit val orderedKeys: OrderedKeys   = kgOrderedKeys
+  private implicit val prefixes: PrefixUris       = settings.Prefixes
+  private implicit val tracing: TracingDirectives = TracingDirectives()
   private val elasticSettings = ElasticIndexingSettings(settings.Elastic.IndexPrefix,
                                                         settings.Elastic.Type,
                                                         apiUri,
