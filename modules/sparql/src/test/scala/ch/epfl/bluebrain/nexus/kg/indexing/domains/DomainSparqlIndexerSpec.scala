@@ -8,22 +8,21 @@ import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.instances.future._
 import cats.instances.string._
-import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
+import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent.{DomainCreated, DomainDeprecated}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -61,15 +60,16 @@ class DomainSparqlIndexerSpec(blazegraphPort: Int)
 
   private val base         = s"http://$localhost/v0"
   private val baseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
+  private val namespace    = genString(length = 6)
 
-  private val settings @ DomainSparqlIndexingSettings(index, domainsBase, _, nexusVocBase) =
-    DomainSparqlIndexingSettings(genString(length = 6), base, s"$base/domains/graphs", s"$base/voc/nexus/core")
+  private val settings @ DomainSparqlIndexingSettings(domainsBase, _, nexusVocBase) =
+    DomainSparqlIndexingSettings(base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]   = Qualifier.configured[OrgId](base)
 
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
-    client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
+    client.query("SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
         val obj = {
           val node = qs.get("?o")
@@ -99,7 +99,7 @@ class DomainSparqlIndexerSpec(blazegraphPort: Int)
   }
 
   "A DomainSparqlIndexer" should {
-    val client  = SparqlClient[Future](baseUri)
+    val client  = BlazegraphClient[Future](baseUri, namespace, None)
     val indexer = DomainSparqlIndexer(client, settings)
 
     val id = DomainId(OrgId("org"), "dom")
@@ -108,7 +108,7 @@ class DomainSparqlIndexerSpec(blazegraphPort: Int)
     val meta        = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
 
     "index a DomainCreated event" in {
-      client.createIndex(index, properties).futureValue
+      client.createNamespace(properties).futureValue
       val rev = 1L
       indexer(DomainCreated(id, rev, meta, description)).futureValue
       val rs = triples(client).futureValue

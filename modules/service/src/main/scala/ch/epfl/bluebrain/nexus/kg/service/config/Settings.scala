@@ -234,7 +234,7 @@ class Settings(config: Config) extends Extension {
     /**
       * The index name (namespace) for indexing.
       */
-    val Index = ns.getString("sparql.index")
+    val Namespace = ns.getString("sparql.index")
 
     /**
       * The optional basic auth credentials required to access the sparql endpoint

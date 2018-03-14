@@ -12,14 +12,14 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.commons.test._
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
-import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
-import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgEvent._
+import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
 import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
@@ -58,17 +58,15 @@ class OrganizationSparqlIndexerSpec(blazegraphPort: Int)
 
   private val base              = s"http://$localhost/v0"
   private val blazegraphBaseUri = s"http://$localhost:$blazegraphPort/blazegraph"
+  private val namespace         = genString(length = 6)
 
-  private val settings @ OrganizationSparqlIndexingSettings(index, orgBase, _, nexusVocBase) =
-    OrganizationSparqlIndexingSettings(genString(length = 6),
-                                       base,
-                                       s"$base/organizations/graphs",
-                                       s"$base/voc/nexus/core")
+  private val settings @ OrganizationSparqlIndexingSettings(orgBase, _, nexusVocBase) =
+    OrganizationSparqlIndexingSettings(base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String] = Qualifier.configured[String](nexusVocBase)
 
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
-    client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
+    client.query("SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
         val obj = {
           val node = qs.get("?o")
@@ -102,14 +100,14 @@ class OrganizationSparqlIndexerSpec(blazegraphPort: Int)
 
     val (ctxs, replacements) = createContext(base)
 
-    val client  = SparqlClient[Future](blazegraphBaseUri)
+    val client  = BlazegraphClient[Future](blazegraphBaseUri, namespace, None)
     val indexer = OrganizationSparqlIndexer(client, ctxs, settings)
 
     val id   = OrgId(genString(length = 4))
     val meta = Meta(Anonymous(), Clock.systemUTC.instant())
 
     "index a OrgCreated event" in {
-      client.createIndex(index, properties).futureValue
+      client.createNamespace(properties).futureValue
       val rev  = 1L
       val data = jsonContentOf("/instances/minimal.json", replacements)
       indexer(OrgCreated(id, rev, meta, data)).futureValue

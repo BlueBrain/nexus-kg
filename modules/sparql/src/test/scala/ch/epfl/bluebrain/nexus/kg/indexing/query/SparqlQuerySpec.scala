@@ -18,8 +18,8 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.{FullAccessControlList, Meta, Pa
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.{Anonymous, GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.commons.iam.identity.{Identity, IdentityId}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.ScoredQueryResult
@@ -56,6 +56,7 @@ import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
@@ -91,19 +92,19 @@ class SparqlQuerySpec(blazegraphPort: Int)
   private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
 
-  val namespace = genString(length = 6)
+  private val namespace = genString(length = 6)
 
-  private val settings @ InstanceSparqlIndexingSettings(_, _, _, nexusVocBase) =
-    InstanceSparqlIndexingSettings(namespace, base, s"$base/data/graphs", s"$base/voc/nexus/core")
+  private val settings @ InstanceSparqlIndexingSettings(_, _, nexusVocBase) =
+    InstanceSparqlIndexingSettings(base, s"$base/data/graphs", s"$base/voc/nexus/core")
 
-  private val settingsSchemas @ SchemaSparqlIndexingSettings(_, _, _, nexusVocBaseSchemas) =
-    SchemaSparqlIndexingSettings(namespace, base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
+  private val settingsSchemas @ SchemaSparqlIndexingSettings(_, _, nexusVocBaseSchemas) =
+    SchemaSparqlIndexingSettings(base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
-  private val settingsDomains @ DomainSparqlIndexingSettings(_, _, _, nexusVocBaseDomains) =
-    DomainSparqlIndexingSettings(namespace, base, s"$base/domains/graphs", s"$base/voc/nexus/core")
+  private val settingsDomains @ DomainSparqlIndexingSettings(_, _, nexusVocBaseDomains) =
+    DomainSparqlIndexingSettings(base, s"$base/domains/graphs", s"$base/voc/nexus/core")
 
-  private val settingsOrgs @ OrganizationSparqlIndexingSettings(_, _, _, nexusVocBaseOrgs) =
-    OrganizationSparqlIndexingSettings(namespace, base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
+  private val settingsOrgs @ OrganizationSparqlIndexingSettings(_, _, nexusVocBaseOrgs) =
+    OrganizationSparqlIndexingSettings(base, s"$base/organizations/graphs", s"$base/voc/nexus/core")
 
   private implicit val instanceQualifier: ConfiguredQualifier[InstanceId] = Qualifier.configured[InstanceId](base)
   private implicit val schemasQualifier: ConfiguredQualifier[SchemaId]    = Qualifier.configured[SchemaId](base)
@@ -126,7 +127,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val doms = Domains(domAgg, orgs)
     val ctxs = Contexts(ctxsAgg, doms, base.toString)
 
-    val client          = SparqlClient[Future](blazegraphBaseUri)
+    val client          = BlazegraphClient[Future](blazegraphBaseUri, namespace, None)
     val queryClient     = new SparqlQuery[Future](client)
     val instanceIndexer = InstanceSparqlIndexer(client, ctxs, settings)
     val schemaIndexer   = SchemaSparqlIndexer(client, ctxs, settingsSchemas)
@@ -149,7 +150,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
     val meta                 = Meta(group, Clock.systemUTC.instant())
 
     "perform a data full text search" in {
-      client.createIndex(namespace, properties).futureValue
+      client.createNamespace(properties).futureValue
       implicit val acls = FullAccessControlList((Anonymous(), Path("/kg/org/dom"), Permissions(Read)))
 
       // index 5 matching instances
@@ -169,7 +170,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       // run the query
       val pagination             = Pagination(0L, 100)
-      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base)
+      implicit val querySettings = QuerySettings(pagination, 100, nexusVocBase, base)
       val q                      = FilterQueries[Future, InstanceId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr, q = Some("random")), pagination).futureValue
@@ -209,7 +210,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       }
 
       val pagination             = Pagination(0L, 100)
-      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBaseOrgs, base)
+      implicit val querySettings = QuerySettings(pagination, 100, nexusVocBaseOrgs, base)
       val q                      = FilterQueries[Future, OrgId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
@@ -226,7 +227,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       )
 
       val pagination             = Pagination(0L, 100)
-      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBaseOrgs, base)
+      implicit val querySettings = QuerySettings(pagination, 100, nexusVocBaseOrgs, base)
       val q                      = FilterQueries[Future, OrgId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
@@ -284,7 +285,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       // run the query
       val pagination = Pagination(0L, 100)
       implicit val querySettings =
-        QuerySettings(pagination, 100, namespace, nexusVocBaseDomains, base)
+        QuerySettings(pagination, 100, nexusVocBaseDomains, base)
       val q = FilterQueries[Future, DomainId](queryClient)
 
       val result = q.list(QueryPayload(filter = filterNoDepr), pagination).futureValue
@@ -346,7 +347,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
 
       val pagination = Pagination(0L, 100)
       implicit val querySettings =
-        QuerySettings(pagination, 100, namespace, nexusVocBaseSchemas, base)
+        QuerySettings(pagination, 100, nexusVocBaseSchemas, base)
       val q = FilterQueries[Future, SchemaId](queryClient)
 
       val result =
@@ -433,7 +434,7 @@ class SparqlQuerySpec(blazegraphPort: Int)
       }
 
       val pagination             = Pagination(3L, 3)
-      implicit val querySettings = QuerySettings(pagination, 100, namespace, nexusVocBase, base)
+      implicit val querySettings = QuerySettings(pagination, 100, nexusVocBase, base)
       val q                      = FilterQueries[Future, InstanceId](queryClient)
 
       val res = q.list(schemaName, QueryPayload(filter = filterNoDepr), pagination).futureValue

@@ -1,12 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.indexing.instances
 
+import akka.http.scaladsl.model.Uri
 import cats.MonadError
 import cats.syntax.flatMap._
-import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.commons.iam.acls
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{PatchStrategy, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceEvent, InstanceId}
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.indexing.BaseSparqlIndexer
-import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import io.circe.Json
 import journal.Logger
 
@@ -35,8 +34,8 @@ class InstanceSparqlIndexer[F[_]](client: SparqlClient[F],
                                   settings: InstanceSparqlIndexingSettings)(implicit F: MonadError[F, Throwable])
     extends BaseSparqlIndexer(settings.instanceBase, settings.nexusVocBase) {
 
-  private val log                                                    = Logger[this.type]
-  private val InstanceSparqlIndexingSettings(index, base, baseNs, _) = settings
+  private val log                                             = Logger[this.type]
+  private val InstanceSparqlIndexingSettings(base, baseNs, _) = settings
 
   // instance vocabulary
   private val uuidKey = "uuid".qualifyAsString
@@ -58,67 +57,51 @@ class InstanceSparqlIndexer[F[_]](client: SparqlClient[F],
   final def apply(event: InstanceEvent): F[Unit] = event match {
     case InstanceCreated(id, rev, m, value) =>
       log.debug(s"Indexing 'InstanceCreated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, m, deprecated = false)
-      contexts
-        .resolve(value removeKeys ("links"))
-        .map(_ deepMerge meta)
-        .flatMap { json =>
-          val combinedJson = buildCombined(Json.obj(createdAtTimeKey -> m.instant.jsonLd) deepMerge json, id)
-          client.createGraph(index, id qualifyWith baseNs, combinedJson)
-        }
+      contexts.resolve(value removeKeys "links").flatMap { resolved =>
+        val meta            = buildMeta(id, rev, m, deprecated = false)
+        val data            = resolved deepMerge meta deepMerge Json.obj(createdAtTimeKey -> m.instant.jsonLd)
+        val withSchemaGroup = graphWithSchemaGroup(data, id)
+        client.replace(id qualifyWith baseNs, withSchemaGroup)
+      }
 
     case InstanceUpdated(id, rev, m, value) =>
       log.debug(s"Indexing 'InstanceUpdated' event for id '${id.show}'")
-      val meta = buildMeta(id, rev, m, deprecated = false)
-      contexts
-        .resolve(value removeKeys ("links"))
-        .map(_ deepMerge meta)
-        .flatMap { json =>
-          val removeQuery = PatchQuery.inverse(id qualifyWith baseNs,
-                                               createdAtTimeKey,
-                                               schemaGroupKey,
-                                               originalFileNameKey,
-                                               mediaTypeKey,
-                                               contentSizeKey,
-                                               digestAlgoKey,
-                                               digestKey)
-          client.patchGraph(index, id qualifyWith baseNs, removeQuery, json)
-        }
+      contexts.resolve(value removeKeys "links").flatMap { resolved =>
+        val meta = buildMeta(id, rev, m, deprecated = false)
+        val data = resolved deepMerge meta
+        val retainPredicates = Set[Uri](createdAtTimeKey,
+                                        schemaGroupKey,
+                                        originalFileNameKey,
+                                        mediaTypeKey,
+                                        contentSizeKey,
+                                        digestAlgoKey,
+                                        digestKey)
+        val strategy = PatchStrategy.removeButPredicates(retainPredicates)
+        client.patch(id qualifyWith baseNs, data, strategy)
+      }
 
     case InstanceDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'InstanceDeprecated' event for id '${id.show}'")
-      val meta        = buildDeprecatedMeta(id, rev, m)
-      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, deprecatedKey, updatedAtTimeKey)
-      client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
+      val meta             = buildDeprecatedMeta(id, rev, m)
+      val retainPredicates = Set[Uri](revKey, deprecatedKey, updatedAtTimeKey)
+      val strategy         = PatchStrategy.removePredicates(retainPredicates)
+      client.patch(id qualifyWith baseNs, meta, strategy)
 
     case InstanceAttachmentCreated(id, rev, m, attachmentMeta) =>
       log.debug(s"Indexing 'InstanceAttachmentCreated' event for id '${id.show}'")
       val meta = buildAttachmentMeta(id, rev, attachmentMeta, m)
-      val removeQuery = PatchQuery(id,
-                                   id qualifyWith baseNs,
-                                   originalFileNameKey,
-                                   mediaTypeKey,
-                                   contentSizeKey,
-                                   digestAlgoKey,
-                                   digestKey,
-                                   revKey,
-                                   updatedAtTimeKey)
-      client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
+      val removePredicates =
+        Set[Uri](originalFileNameKey, mediaTypeKey, contentSizeKey, digestAlgoKey, digestKey, revKey, updatedAtTimeKey)
+      val strategy = PatchStrategy.removePredicates(removePredicates)
+      client.patch(id qualifyWith baseNs, meta, strategy)
 
     case InstanceAttachmentRemoved(id, rev, m) =>
       log.debug(s"Indexing 'InstanceAttachmentRemoved' event for id '${id.show}'")
       val meta = buildRevMeta(id, rev, m)
-      val removeQuery =
-        PatchQuery(id,
-                   id qualifyWith baseNs,
-                   revKey,
-                   updatedAtTimeKey,
-                   originalFileNameKey,
-                   mediaTypeKey,
-                   contentSizeKey,
-                   digestAlgoKey,
-                   digestKey)
-      client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
+      val removePredicates =
+        Set[Uri](originalFileNameKey, mediaTypeKey, contentSizeKey, digestAlgoKey, digestKey, revKey, updatedAtTimeKey)
+      val strategy = PatchStrategy.removePredicates(removePredicates)
+      client.patch(id qualifyWith baseNs, meta, strategy)
   }
 
   private def buildMeta(id: InstanceId, rev: Long, meta: acls.Meta, deprecated: Boolean): Json =
@@ -131,7 +114,7 @@ class InstanceSparqlIndexer[F[_]](client: SparqlClient[F],
       rdfTypeKey    -> "Instance".qualify.jsonLd
     ) deepMerge buildRevMeta(id, rev, meta)
 
-  private def buildCombined(data: Json, id: InstanceId): Json =
+  private def graphWithSchemaGroup(data: Json, id: InstanceId): Json =
     Json.obj(
       graphKey -> Json.arr(data,
                            Json.obj(

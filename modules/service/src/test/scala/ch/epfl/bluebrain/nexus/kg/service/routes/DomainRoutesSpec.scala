@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryCli
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -51,26 +52,27 @@ class DomainRoutesSpec
     val domAgg = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
     val doms   = Domains(domAgg, orgs)
 
-    val orgId          = OrgId(genString(length = 5))
-    val id             = DomainId(orgId, genString(length = 8))
-    val description    = genString(length = 32)
-    val json           = Json.obj("description" -> Json.fromString(description))
-    implicit val clock = Clock.systemUTC
-    val caller         = CallerCtx(clock, AnonymousCaller(Anonymous()))
+    val orgId            = OrgId(genString(length = 5))
+    val id               = DomainId(orgId, genString(length = 8))
+    val description      = genString(length = 32)
+    val json             = Json.obj("description" -> Json.fromString(description))
+    implicit val clock   = Clock.systemUTC
+    implicit val tracing = TracingDirectives()
+    val caller           = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     orgs
       .create(orgId, Json.obj("key" -> Json.fromString(genString())))(CallerCtx(clock, AnonymousCaller(Anonymous())))
       .futureValue
 
-    val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
+    val sparqlUri     = Uri(s"http://localhost:9999/bigdata/namespaces/${genString(length = 8)}/sparql")
     val vocab         = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, "domain-index", vocab, baseUri)
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, vocab, baseUri)
     implicit val cl   = iamClient("http://localhost:8080")
 
     val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
     implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
 
-    val sparqlClient       = SparqlClient[Future](sparqlUri)
+    val sparqlClient       = SparqlClient[Future](sparqlUri, None)
     val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
     val elasticQueryClient = ElasticQueryClient[Future](sparqlUri)
 

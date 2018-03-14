@@ -15,10 +15,11 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
-import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
+import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
+import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent._
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceId
@@ -26,10 +27,9 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaName}
-import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
-import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
-import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
+import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.IndexerFixture
+import ch.epfl.bluebrain.nexus.kg.indexing.query.SearchVocab.SelectTerms._
 import org.apache.jena.query.ResultSet
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -66,9 +66,10 @@ class InstanceSparqlIndexerSpec(blazegraphPort: Int)
 
   private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
+  private val namespace              = genString(length = 6)
 
-  private val settings @ InstanceSparqlIndexingSettings(index, instanceBase, _, nexusVocBase) =
-    InstanceSparqlIndexingSettings(genString(length = 6), base, s"$base/data/graphs", s"$base/voc/nexus/core")
+  private val settings @ InstanceSparqlIndexingSettings(instanceBase, baseNs, nexusVocBase) =
+    InstanceSparqlIndexingSettings(base, s"$base/data/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](nexusVocBase)
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
@@ -76,8 +77,8 @@ class InstanceSparqlIndexerSpec(blazegraphPort: Int)
   private implicit val schemaIdQualifier: ConfiguredQualifier[SchemaId]     = Qualifier.configured[SchemaId](base)
   private implicit val schemaNameQualifier: ConfiguredQualifier[SchemaName] = Qualifier.configured[SchemaName](base)
 
-  private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
-    client.query(index, s"SELECT * WHERE { ?s ?p ?o }").map { rs =>
+  private def triples(id: InstanceId, client: SparqlClient[Future]): Future[List[(String, String, String)]] =
+    client.query(s"SELECT * WHERE { GRAPH <${id qualifyWith baseNs}> { ?s ?p ?o } }").map { rs =>
       rs.asScala.toList.map { qs =>
         val obj = {
           val node = qs.get("?o")
@@ -131,7 +132,7 @@ class InstanceSparqlIndexerSpec(blazegraphPort: Int)
 
   "An InstanceSparqlIndexer" should {
 
-    val client = SparqlClient[Future](blazegraphBaseUri)
+    val client = BlazegraphClient[Future](blazegraphBaseUri, namespace, None)
 
     val (ctxs, replacements) = createContext(base)
 
@@ -141,13 +142,13 @@ class InstanceSparqlIndexerSpec(blazegraphPort: Int)
     val id   = InstanceId(SchemaId(DomainId(OrgId("org"), "dom"), "name", Version(1, 0, 0)), UUID.randomUUID().toString)
 
     "index an InstanceCreated event" in {
-      client.createIndex(index, properties).futureValue
+      client.createNamespace(properties).futureValue
       val rev  = 1L
       val data = jsonContentOf("/instances/minimal.json", replacements)
       indexer(InstanceCreated(id, rev, meta, data)).futureValue
-      val rs = triples(client).futureValue
-      rs.size shouldEqual 11
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "random", meta, meta)
+      val rs       = triples(id, client).futureValue
+      val expected = expectedTriples(id, rev, deprecated = false, "random", meta, meta)
+      rs should contain theSameElementsAs expected
     }
 
     "index an InstanceUpdated event" in {
@@ -155,9 +156,9 @@ class InstanceSparqlIndexerSpec(blazegraphPort: Int)
       val rev         = 2L
       val data        = jsonContentOf("/instances/minimal_platform_fields.json", replacements + ("random" -> "updated"))
       indexer(InstanceUpdated(id, rev, metaUpdated, data)).futureValue
-      val rs = triples(client).futureValue
-      rs.size shouldEqual 11
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", metaUpdated, meta)
+      val rs       = triples(id, client).futureValue
+      val expected = expectedTriples(id, rev, deprecated = false, "updated", metaUpdated, meta)
+      rs should contain theSameElementsAs expected
     }
 
     "index an InstanceAttachmentCreated" in {
@@ -166,40 +167,40 @@ class InstanceSparqlIndexerSpec(blazegraphPort: Int)
       val attMeta =
         Attachment.Meta("uri", Info("filename", "contenttype", Size("byte", 1024L), Digest("SHA-256", "asd123")))
       indexer(InstanceAttachmentCreated(id, rev, metaUpdated, attMeta)).futureValue
-      val rs = triples(client).futureValue
-      rs.size shouldEqual 16
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta, metaUpdated, meta)
+      val rs       = triples(id, client).futureValue
+      val expected = expectedTriples(id, rev, deprecated = false, "updated", attMeta, metaUpdated, meta)
+      rs should contain theSameElementsAs expected
     }
 
     "index a subsequent InstanceAttachmentCreated" in {
-      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+      val metaUpdated = Meta(UserRef("realm", "sub:12345"), Clock.systemUTC.instant())
       val rev         = 4L
       val attMeta =
         Attachment.Meta(
           "uri",
           Info("filename-update", "contenttype-updated", Size("byte", 1025L), Digest("SHA-256", "asd1234")))
       indexer(InstanceAttachmentCreated(id, rev, metaUpdated, attMeta)).futureValue
-      val rs = triples(client).futureValue
-      rs.size shouldEqual 16
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", attMeta, metaUpdated, meta)
+      val rs       = triples(id, client).futureValue
+      val expected = expectedTriples(id, rev, deprecated = false, "updated", attMeta, metaUpdated, meta)
+      rs should contain theSameElementsAs expected
     }
 
     "index an InstanceAttachmentRemoved" in {
       val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
       val rev         = 5L
       indexer(InstanceAttachmentRemoved(id, rev, metaUpdated)).futureValue
-      val rs = triples(client).futureValue
-      rs.size shouldEqual 11
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = false, "updated", metaUpdated, meta)
+      val rs       = triples(id, client).futureValue
+      val expected = expectedTriples(id, rev, deprecated = false, "updated", metaUpdated, meta)
+      rs should contain theSameElementsAs expected
     }
 
     "index an InstanceDeprecated event" in {
-      val metaUpdated = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
+      val metaUpdated = Meta(UserRef("realm", "sub:12346"), Clock.systemUTC.instant())
       val rev         = 6L
       indexer(InstanceDeprecated(id, rev, metaUpdated)).futureValue
-      val rs = triples(client).futureValue
-      rs.size shouldEqual 11
-      rs.toSet shouldEqual expectedTriples(id, rev, deprecated = true, "updated", metaUpdated, meta)
+      val rs       = triples(id, client).futureValue
+      val expected = expectedTriples(id, rev, deprecated = true, "updated", metaUpdated, meta)
+      rs should contain theSameElementsAs expected
     }
   }
 }

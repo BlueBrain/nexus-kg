@@ -22,10 +22,11 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.FullAccessControlList
 import ch.epfl.bluebrain.nexus.commons.iam.auth.User
 import ch.epfl.bluebrain.nexus.commons.iam.io.serialization.JsonLdSerialization
 import ch.epfl.bluebrain.nexus.commons.iam.{IamClient, IamUri}
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.core.cache.ShardedCache.CacheSettings
@@ -74,7 +75,8 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
     else baseUri.copy(path = baseUri.path / settings.Http.Prefix)
   // $COVERAGE-ON$
 
-  val sparqlClient = SparqlClient[Future](settings.Sparql.BaseUri, settings.Sparql.Credentials)
+  val sparqlClient =
+    BlazegraphClient[Future](settings.Sparql.BaseUri, settings.Sparql.Namespace, settings.Sparql.Credentials)
 
   val elasticQueryClient = ElasticQueryClient[Future](settings.Elastic.BaseUri)
 
@@ -82,10 +84,11 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   val (orgs, doms, schemas, contexts, instances, queries) = operations()
 
-  private implicit val iamC: IamClient[Future]  = iamClient(settings.IAM.BaseUri)
-  private implicit val clock: Clock             = Clock.systemUTC
-  private implicit val orderedKeys: OrderedKeys = kgOrderedKeys
-  private implicit val prefixes: PrefixUris     = settings.Prefixes
+  private implicit val iamC: IamClient[Future]    = iamClient(settings.IAM.BaseUri)
+  private implicit val clock: Clock               = Clock.systemUTC
+  private implicit val orderedKeys: OrderedKeys   = kgOrderedKeys
+  private implicit val prefixes: PrefixUris       = settings.Prefixes
+  private implicit val tracing: TracingDirectives = TracingDirectives()
   private val elasticSettings = ElasticIndexingSettings(settings.Elastic.IndexPrefix,
                                                         settings.Elastic.Type,
                                                         apiUri,
@@ -224,7 +227,6 @@ object BootstrapService {
     lazy val querySettings = QuerySettings(
       Pagination(settings.Pagination.From, settings.Pagination.Size),
       settings.Pagination.MaxSize,
-      settings.Sparql.Index,
       settings.Prefixes.CoreVocabulary,
       apiUri
     )

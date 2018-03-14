@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.{ContentTypes, HttpEntity, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -37,23 +38,24 @@ class RejectionHandlingSpec
     with MockedIAMClient {
 
   "A RejectionHandling" should {
-    val baseUri           = Uri("http://localhost/v0")
-    val orgAgg            = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs              = Organizations(orgAgg)
-    val domAgg            = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
-    val doms              = Domains(domAgg, orgs)
-    val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
-    implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
-    val id                = genString(length = 5)
-    implicit val cl       = iamClient("http://localhost:8080")
-    implicit val clock    = Clock.systemUTC
+    val baseUri                             = Uri("http://localhost/v0")
+    val orgAgg                              = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs                                = Organizations(orgAgg)
+    val domAgg                              = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms                                = Domains(domAgg, orgs)
+    val ctxAgg                              = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    implicit val contexts                   = Contexts(ctxAgg, doms, baseUri.toString())
+    val id                                  = genString(length = 5)
+    implicit val cl                         = iamClient("http://localhost:8080")
+    implicit val clock                      = Clock.systemUTC
+    implicit val tracing: TracingDirectives = TracingDirectives()
 
-    val sparqlUri     = Uri("http://localhost:9999/bigdata/sparql")
+    val sparqlUri     = Uri(s"http://localhost:9999/bigdata/namespaces/${genString(length = 8)}/sparql")
     val vocab         = baseUri.copy(path = baseUri.path / "core")
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri)
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, vocab, baseUri)
 
     val elasticIndexingSettings = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
-    val sparqlClient            = SparqlClient[Future](sparqlUri)
+    val sparqlClient            = SparqlClient[Future](sparqlUri, None)
     val elasticQueryClient      = ElasticQueryClient[Future](sparqlUri)
 
     val elasticClient = ElasticClient[Future](sparqlUri, elasticQueryClient)

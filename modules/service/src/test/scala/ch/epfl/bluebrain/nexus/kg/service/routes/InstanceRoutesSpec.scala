@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryCli
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
@@ -108,8 +109,9 @@ class InstanceRoutesSpec
     val inFileProcessor                                 = AkkaInOutFileStream(settings)
     val instances                                       = Instances(instAgg, schemas, contexts, validator, inFileProcessor)
 
-    implicit val clock = Clock.systemUTC
-    val caller         = CallerCtx(clock, AnonymousCaller(Anonymous()))
+    implicit val tracing: TracingDirectives = TracingDirectives()
+    implicit val clock                      = Clock.systemUTC
+    val caller                              = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     val orgRef   = orgs.create(OrgId(genString(length = 3)), Json.obj())(caller).futureValue
     val domRef   = doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller).futureValue
@@ -118,18 +120,15 @@ class InstanceRoutesSpec
     val unpublished = schemas.create(schemaId, schemaJson)(caller).futureValue
     val _           = schemas.publish(schemaId, unpublished.rev)(caller).futureValue
 
-    private val InstanceSparqlIndexingSettings(index, _, _, nexusVocBase) =
-      InstanceSparqlIndexingSettings(genString(length = 6),
-                                     baseUri,
-                                     s"$baseUri/data/graphs",
-                                     s"$baseUri/voc/nexus/core")
+    private val InstanceSparqlIndexingSettings(_, _, nexusVocBase) =
+      InstanceSparqlIndexingSettings(baseUri, s"$baseUri/data/graphs", s"$baseUri/voc/nexus/core")
 
-    val querySettings = QuerySettings(Pagination(0L, 20), 100, index, nexusVocBase, baseUri)
+    val querySettings = QuerySettings(Pagination(0L, 20), 100, nexusVocBase, baseUri)
     val baseUUID      = UUID.randomUUID().toString.toLowerCase().dropRight(2)
 
-    val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
+    val sparqlUri = Uri(s"http://localhost:9999/bigdata/namespaces/${genString(length = 8)}/sparql")
 
-    val client = SparqlClient[Future](sparqlUri)
+    val client = SparqlClient[Future](sparqlUri, None)
 
     implicit val cl        = iamClient("http://localhost:8080")
     val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)

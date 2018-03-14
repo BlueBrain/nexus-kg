@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
@@ -39,7 +40,6 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.DomainCustomEncoders
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
 import io.circe.Decoder
 import io.circe.generic.auto._
-import kamon.akka.http.KamonTraceDirectives._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -61,7 +61,8 @@ final class DomainRoutes(domains: Domains[Future],
                                     ec: ExecutionContext,
                                     clock: Clock,
                                     orderedKeys: OrderedKeys,
-                                    prefixes: PrefixUris)
+                                    prefixes: PrefixUris,
+                                    tracing: TracingDirectives)
     extends DefaultRouteHandling(contexts) {
 
   private implicit val coreContext: ContextUri        = prefixes.CoreContext
@@ -71,7 +72,7 @@ final class DomainRoutes(domains: Domains[Future],
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (get & paramsToQuery) { (pagination, query) =>
       implicit val _ = domainIdToEntityRetrieval(domains)
-      operationName("searchDomains") {
+      tracing.trace("searchDomains") {
         (pathEndOrSingleSlash & getAcls("*" / "*")) { implicit acls =>
           (query.filter, query.q, query.sort) match {
             case (Filter.Empty, None, SortList.Empty) =>
@@ -106,14 +107,14 @@ final class DomainRoutes(domains: Domains[Future],
       (get & authorizeResource(domainId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            operationName("getDomainRevision") {
+            tracing.trace("getDomainRevision") {
               onSuccess(domains.fetch(domainId, rev)) {
                 case Some(domain) => formatOutput(domain, format)
                 case None         => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            operationName("getDomain") {
+            tracing.trace("getDomain") {
               onSuccess(domains.fetch(domainId)) {
                 case Some(domain) => formatOutput(domain, format)
                 case None         => complete(StatusCodes.NotFound)
@@ -127,7 +128,7 @@ final class DomainRoutes(domains: Domains[Future],
     (extractDomainId & pathEndOrSingleSlash) { domainId =>
       (put & entity(as[DomainDescription])) { desc =>
         (authenticateCaller & authorizeResource(domainId, Write)) { implicit caller =>
-          operationName("createDomain") {
+          tracing.trace("createDomain") {
             onSuccess(domains.create(domainId, desc.description)) { ref =>
               complete(StatusCodes.Created -> ref)
             }
@@ -136,7 +137,7 @@ final class DomainRoutes(domains: Domains[Future],
       } ~
         (delete & parameter('rev.as[Long])) { rev =>
           (authenticateCaller & authorizeResource(domainId, Write)) { implicit caller =>
-            operationName("deprecateDomain") {
+            tracing.trace("deprecateDomain") {
               onSuccess(domains.deprecate(domainId, rev)) { ref =>
                 complete(StatusCodes.OK -> ref)
               }
@@ -183,7 +184,8 @@ object DomainRoutes {
                              filteringSettings: FilteringSettings,
                              clock: Clock,
                              orderedKeys: OrderedKeys,
-                             prefixes: PrefixUris): DomainRoutes = {
+                             prefixes: PrefixUris,
+                             tracing: TracingDirectives): DomainRoutes = {
     implicit val qs: QuerySettings = querySettings
     val domainQueries              = FilterQueries[Future, DomainId](SparqlQuery[Future](client))
 
