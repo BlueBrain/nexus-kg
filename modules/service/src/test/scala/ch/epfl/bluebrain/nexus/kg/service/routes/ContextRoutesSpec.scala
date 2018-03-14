@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
@@ -66,6 +67,7 @@ class ContextRoutesSpec
     )
   )
 
+  private implicit val tracing: TracingDirectives      = TracingDirectives()
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 100 millis)
 
   "ContextRoutes" should {
@@ -95,7 +97,7 @@ class ContextRoutesSpec
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
     val vocab              = baseUri.copy(path = baseUri.path / "core")
-    val querySettings      = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri)
+    val querySettings      = QuerySettings(Pagination(0L, 20), 100, vocab, baseUri)
     val sparqlUri          = Uri("http://localhost:9999/bigdata/sparql")
     val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
     val elasticQueryClient = ElasticQueryClient[Future](sparqlUri)
@@ -295,7 +297,7 @@ object ContextRoutesSpec {
                              mt: Materializer): SparqlClient[Future] = {
     import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
     val sparqlUri = Uri("http://localhost:9999/bigdata/sparql")
-    SparqlClient[Future](sparqlUri)
+    SparqlClient[Future](sparqlUri, None)
 
   }
 }

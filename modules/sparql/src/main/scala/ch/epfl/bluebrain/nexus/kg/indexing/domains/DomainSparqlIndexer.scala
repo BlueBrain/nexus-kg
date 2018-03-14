@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing.domains
 
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{PatchStrategy, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.JsonLDKeys._
 import ch.epfl.bluebrain.nexus.kg.core.IndexingVocab.PrefixMapping._
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
@@ -10,7 +10,6 @@ import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent._
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainEvent, DomainId}
 import ch.epfl.bluebrain.nexus.kg.core.ld.JsonLdOps._
 import ch.epfl.bluebrain.nexus.kg.indexing.BaseSparqlIndexer
-import ch.epfl.bluebrain.nexus.kg.indexing.query.PatchQuery
 import io.circe.Json
 import journal.Logger
 
@@ -19,13 +18,12 @@ import journal.Logger
   *
   * @param client   the SPARQL client to use for communicating with the rdf triple store
   * @param settings the indexing settings
-  * @tparam F the monadic effect type
   */
 class DomainSparqlIndexer[F[_]](client: SparqlClient[F], settings: DomainSparqlIndexingSettings)
     extends BaseSparqlIndexer(settings.domainBase, settings.nexusVocBase) {
 
-  private val log                                               = Logger[this.type]
-  private val DomainSparqlIndexingSettings(index, _, baseNs, _) = settings
+  private val log    = Logger[this.type]
+  private val baseNs = settings.domainBaseNs
 
   private val descriptionKey = "description".qualifyAsString
 
@@ -34,20 +32,19 @@ class DomainSparqlIndexer[F[_]](client: SparqlClient[F], settings: DomainSparqlI
     * existing triples.
     *
     * @param event the event to index
-    * @return a Unit value in the ''F[_]'' context
     */
   final def apply(event: DomainEvent): F[Unit] = event match {
     case DomainCreated(id, rev, m, description) =>
       log.debug(s"Indexing 'DomainCreated' event for id '${id.show}'")
       val meta = buildMeta(id, rev, m, Some(description), deprecated = Some(false)) deepMerge Json.obj(
         createdAtTimeKey -> m.instant.jsonLd)
-      client.createGraph(index, id qualifyWith baseNs, meta)
+      client.replace(id qualifyWith baseNs, meta)
 
     case DomainDeprecated(id, rev, m) =>
       log.debug(s"Indexing 'DomainDeprecated' event for id '${id.show}'")
-      val meta        = buildMeta(id, rev, m, None, deprecated = Some(true))
-      val removeQuery = PatchQuery(id, id qualifyWith baseNs, revKey, deprecatedKey, updatedAtTimeKey)
-      client.patchGraph(index, id qualifyWith baseNs, removeQuery, meta)
+      val meta     = buildMeta(id, rev, m, None, deprecated = Some(true))
+      val strategy = PatchStrategy.removePredicates(Set(revKey, deprecatedKey, updatedAtTimeKey))
+      client.patch(id qualifyWith baseNs, meta, strategy)
   }
 
   private def buildMeta(id: DomainId,

@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
@@ -70,16 +71,17 @@ class SchemaRoutesSpec
       schemaJsonObject.add("@context", jsonContext)
     )
 
-    val shapeNodeShape    = jsonContentOf("/int-value-shape-nodeshape.json")
-    val orgAgg            = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs              = Organizations(orgAgg)
-    val domAgg            = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
-    val doms              = Domains(domAgg, orgs)
-    val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
-    implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
-    val schAgg            = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
-    val schemas           = Schemas(schAgg, doms, contexts, baseUri.toString)
-    implicit val clock    = Clock.systemUTC
+    val shapeNodeShape                      = jsonContentOf("/int-value-shape-nodeshape.json")
+    val orgAgg                              = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs                                = Organizations(orgAgg)
+    val domAgg                              = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms                                = Domains(domAgg, orgs)
+    val ctxAgg                              = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    implicit val contexts                   = Contexts(ctxAgg, doms, baseUri.toString())
+    val schAgg                              = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
+    val schemas                             = Schemas(schAgg, doms, contexts, baseUri.toString)
+    implicit val clock                      = Clock.systemUTC
+    implicit val tracing: TracingDirectives = TracingDirectives()
 
     val caller = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
@@ -87,9 +89,9 @@ class SchemaRoutesSpec
     val domRef =
       Await.result(doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller), 2 seconds)
 
-    val sparqlClient = SparqlClient[Future](sparqlUri)
+    val sparqlClient = SparqlClient[Future](sparqlUri, None)
 
-    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "some-index", vocab, baseUri)
+    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, vocab, baseUri)
     implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
 
     val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)

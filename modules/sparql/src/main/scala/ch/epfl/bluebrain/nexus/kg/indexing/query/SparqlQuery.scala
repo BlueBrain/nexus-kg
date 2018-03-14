@@ -29,15 +29,13 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
     * Performs a full text search query against the SPARQL endpoint producing a collection of results in the ''F[_]''
     * context.
     *
-    * @param index  the target namespace
     * @param query  the serialized SPAQRL/Blazegraph query
     * @param scored whether the query expects scored results
     * @param Q      the qualifier to map ''uri''s to ''id''s
     * @tparam A the generic type of the response
     * @return a [[QueryResults]] instance wrapped in the abstract ''F[_]'' type
     */
-  def apply[A](index: String, query: String, scored: Boolean)(
-      implicit Q: ConfiguredQualifier[A]): F[QueryResults[A]] = {
+  def apply[A](query: String, scored: Boolean)(implicit Q: ConfiguredQualifier[A]): F[QueryResults[A]] = {
     def scoredQueryResult(sol: QuerySolution): (Option[QueryResult[A]], Option[Long], Option[Float]) = {
       val queryResult = for {
         (subj, score) <- subjectScoreFrom(sol)
@@ -59,7 +57,7 @@ class SparqlQuery[F[_]](client: SparqlClient[F])(implicit F: MonadError[F, Throw
 
     log.debug(s"Running query: '$query'")
 
-    client.query(index, query).map { rs =>
+    client.query(query).map { rs =>
       val listWithTotal = rs.asScala.foldLeft[(Vector[QueryResult[A]], Long, Float)]((Vector.empty, 0L, 0F)) {
         case ((queryResults, currentTotal, currentMaxScore), sol) =>
           val (qr, total, maxScore) =

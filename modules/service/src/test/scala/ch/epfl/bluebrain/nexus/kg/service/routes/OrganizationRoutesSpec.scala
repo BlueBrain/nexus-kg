@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -55,15 +56,16 @@ class OrganizationRoutesSpec
     val ctxAgg            = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
     implicit val contexts = Contexts(ctxAgg, doms, baseUri.toString())
 
-    val sparqlUri                      = Uri("http://localhost:9999/bigdata/sparql")
-    val vocab                          = baseUri.copy(path = baseUri.path / "core")
-    val querySettings                  = QuerySettings(Pagination(0L, 20), 100, "org-index", vocab, baseUri)
-    implicit val cl: IamClient[Future] = iamClient("http://localhost:8080")
-    implicit val clock: Clock          = Clock.systemUTC
-    val caller                         = CallerCtx(clock, AnonymousCaller(Anonymous()))
+    val sparqlUri                           = Uri(s"http://localhost:9999/bigdata/namespaces/${genString(length = 8)}/sparql")
+    val vocab                               = baseUri.copy(path = baseUri.path / "core")
+    val querySettings                       = QuerySettings(Pagination(0L, 20), 100, vocab, baseUri)
+    implicit val cl: IamClient[Future]      = iamClient("http://localhost:8080")
+    implicit val clock: Clock               = Clock.systemUTC
+    implicit val tracing: TracingDirectives = TracingDirectives()
+    val caller                              = CallerCtx(clock, AnonymousCaller(Anonymous()))
 
     val indexingSettings   = ElasticIndexingSettings("", "", sparqlUri, sparqlUri)
-    val sparqlClient       = SparqlClient[Future](sparqlUri)
+    val sparqlClient       = SparqlClient[Future](sparqlUri, None)
     val elasticQueryClient = ElasticQueryClient[Future](sparqlUri)
 
     val elasticClient = ElasticClient[Future](sparqlUri, elasticQueryClient)

@@ -9,7 +9,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.service.persistence.SequentialTagIndexer
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextEvent, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainEvent
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent
@@ -30,14 +30,14 @@ import scala.concurrent.{ExecutionContext, Future}
   * instance, schema, domain, organization.
   *
   * @param settings     the app settings
-  * @param sparqlClient the SPARQL client implementation
+  * @param blazegraphClient the Blazegraph client implementation
   * @param contexts     the context operation bundle
   * @param apiUri       the service public uri + prefix
   * @param as           the implicitly available [[ActorSystem]]
   * @param ec           the implicitly available [[ExecutionContext]]
   */
 class StartSparqlIndexers(settings: Settings,
-                          sparqlClient: SparqlClient[Future],
+                          blazegraphClient: BlazegraphClient[Future],
                           contexts: Contexts[Future],
                           apiUri: Uri)(implicit
                                        as: ActorSystem,
@@ -58,21 +58,20 @@ class StartSparqlIndexers(settings: Settings,
     props.asScala.toMap
   }
 
-  private def initFunctionOf(index: String): () => Future[Unit] =
+  private def initFunction: () => Future[Unit] =
     () =>
-      sparqlClient.exists(index).flatMap {
+      blazegraphClient.namespaceExists.flatMap {
         case true  => Future.successful(())
-        case false => sparqlClient.createIndex(index, properties)
+        case false => blazegraphClient.createNamespace(properties)
     }
 
   private def startIndexingInstances() = {
-    val instanceIndexingSettings = InstanceSparqlIndexingSettings(settings.Sparql.Index,
-                                                                  apiUri,
+    val instanceIndexingSettings = InstanceSparqlIndexingSettings(apiUri,
                                                                   settings.Sparql.Instances.GraphBaseNamespace,
                                                                   settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[InstanceEvent](
-      InstanceSparqlIndexer[Future](sparqlClient, contexts, instanceIndexingSettings).apply _,
+      InstanceSparqlIndexer[Future](blazegraphClient, contexts, instanceIndexingSettings).apply _,
       "instances-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "instance",
@@ -81,13 +80,11 @@ class StartSparqlIndexers(settings: Settings,
   }
 
   private def startIndexingSchemas() = {
-    val schemaIndexingSettings = SchemaSparqlIndexingSettings(settings.Sparql.Index,
-                                                              apiUri,
-                                                              settings.Sparql.Schemas.GraphBaseNamespace,
-                                                              settings.Prefixes.CoreVocabulary)
+    val schemaIndexingSettings =
+      SchemaSparqlIndexingSettings(apiUri, settings.Sparql.Schemas.GraphBaseNamespace, settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[SchemaEvent](
-      SchemaSparqlIndexer[Future](sparqlClient, contexts, schemaIndexingSettings).apply _,
+      SchemaSparqlIndexer[Future](blazegraphClient, contexts, schemaIndexingSettings).apply _,
       "schemas-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "schema",
@@ -96,13 +93,12 @@ class StartSparqlIndexers(settings: Settings,
   }
 
   private def startIndexingContexts() = {
-    val contextsIndexingSettings = ContextSparqlIndexingSettings(settings.Sparql.Index,
-                                                                 apiUri,
+    val contextsIndexingSettings = ContextSparqlIndexingSettings(apiUri,
                                                                  settings.Sparql.Contexts.GraphBaseNamespace,
                                                                  settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[ContextEvent](
-      ContextSparqlIndexer[Future](sparqlClient, contextsIndexingSettings).apply _,
+      ContextSparqlIndexer[Future](blazegraphClient, contexts, contextsIndexingSettings).apply _,
       "contexts-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "context",
@@ -111,13 +107,11 @@ class StartSparqlIndexers(settings: Settings,
   }
 
   private def startIndexingDomains() = {
-    val domainIndexingSettings = DomainSparqlIndexingSettings(settings.Sparql.Index,
-                                                              apiUri,
-                                                              settings.Sparql.Domains.GraphBaseNamespace,
-                                                              settings.Prefixes.CoreVocabulary)
+    val domainIndexingSettings =
+      DomainSparqlIndexingSettings(apiUri, settings.Sparql.Domains.GraphBaseNamespace, settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[DomainEvent](
-      DomainSparqlIndexer[Future](sparqlClient, domainIndexingSettings).apply _,
+      DomainSparqlIndexer[Future](blazegraphClient, domainIndexingSettings).apply _,
       "domains-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "domain",
@@ -126,14 +120,13 @@ class StartSparqlIndexers(settings: Settings,
   }
 
   private def startIndexingOrgs() = {
-    val orgIndexingSettings = OrganizationSparqlIndexingSettings(settings.Sparql.Index,
-                                                                 apiUri,
+    val orgIndexingSettings = OrganizationSparqlIndexingSettings(apiUri,
                                                                  settings.Sparql.Organizations.GraphBaseNamespace,
                                                                  settings.Prefixes.CoreVocabulary)
 
     SequentialTagIndexer.start[OrgEvent](
-      initFunctionOf(settings.Sparql.Index),
-      OrganizationSparqlIndexer[Future](sparqlClient, contexts, orgIndexingSettings).apply _,
+      initFunction,
+      OrganizationSparqlIndexer[Future](blazegraphClient, contexts, orgIndexingSettings).apply _,
       "organization-to-3s",
       settings.Persistence.QueryJournalPlugin,
       "organization",
@@ -149,14 +142,16 @@ object StartSparqlIndexers {
     * Constructs a StartElasticIndexers
     *
     * @param settings     the app settings
-    * @param sparqlClient the SPARQL client implementation
+    * @param blazegraphClient the Blazegraph client implementation
     * @param apiUri       the service public uri + prefix
     */
-  final def apply(settings: Settings, sparqlClient: SparqlClient[Future], contexts: Contexts[Future], apiUri: Uri)(
-      implicit
-      as: ActorSystem,
-      ec: ExecutionContext): StartSparqlIndexers =
-    new StartSparqlIndexers(settings, sparqlClient, contexts, apiUri)
+  final def apply(settings: Settings,
+                  blazegraphClient: BlazegraphClient[Future],
+                  contexts: Contexts[Future],
+                  apiUri: Uri)(implicit
+                               as: ActorSystem,
+                               ec: ExecutionContext): StartSparqlIndexers =
+    new StartSparqlIndexers(settings, blazegraphClient, contexts, apiUri)
 
   // $COVERAGE-ON$
 }

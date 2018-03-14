@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.http.{ContextUri, HttpClient}
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
@@ -36,7 +37,6 @@ import ch.epfl.bluebrain.nexus.kg.service.routes.SearchResponse._
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.IdToEntityRetrieval._
 import ch.epfl.bluebrain.nexus.kg.service.routes.encoders.OrgCustomEncoders
 import io.circe.{Decoder, Json}
-import kamon.akka.http.KamonTraceDirectives.operationName
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -59,7 +59,8 @@ final class OrganizationRoutes(orgs: Organizations[Future],
                                           ec: ExecutionContext,
                                           clock: Clock,
                                           orderedKeys: OrderedKeys,
-                                          prefixes: PrefixUris)
+                                          prefixes: PrefixUris,
+                                          tracing: TracingDirectives)
     extends DefaultRouteHandling(contexts) {
 
   private implicit val coreContext: ContextUri     = prefixes.CoreContext
@@ -69,7 +70,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (pathEndOrSingleSlash & get & paramsToQuery) { (pagination, query) =>
-      (operationName("searchOrganizations") & getAcls(Path("*"))) { implicit acls =>
+      (tracing.trace("searchOrganizations") & getAcls(Path("*"))) { implicit acls =>
         (query.filter, query.q, query.sort) match {
           case (Filter.Empty, None, SortList.Empty) =>
             orgElasticQueries
@@ -88,14 +89,14 @@ final class OrganizationRoutes(orgs: Organizations[Future],
       (get & authorizeResource(orgId, Read) & format) { format =>
         parameter('rev.as[Long].?) {
           case Some(rev) =>
-            operationName("getOrganizationRevision") {
+            tracing.trace("getOrganizationRevision") {
               onSuccess(orgs.fetch(orgId, rev)) {
                 case Some(org) => formatOutput(org, format)
                 case None      => complete(StatusCodes.NotFound)
               }
             }
           case None =>
-            operationName("getOrganization") {
+            tracing.trace("getOrganization") {
               onSuccess(orgs.fetch(orgId)) {
                 case Some(org) => formatOutput(org, format)
                 case None      => complete(StatusCodes.NotFound)
@@ -111,13 +112,13 @@ final class OrganizationRoutes(orgs: Organizations[Future],
         (authenticateCaller & authorizeResource(orgId, Write)) { implicit caller =>
           parameter('rev.as[Long].?) {
             case Some(rev) =>
-              operationName("updateOrganization") {
+              tracing.trace("updateOrganization") {
                 onSuccess(orgs.update(orgId, rev, json)) { ref =>
                   complete(StatusCodes.OK -> ref)
                 }
               }
             case None =>
-              operationName("createOrganization") {
+              tracing.trace("createOrganization") {
                 onSuccess(orgs.create(orgId, json)) { ref =>
                   complete(StatusCodes.Created -> ref)
                 }
@@ -127,7 +128,7 @@ final class OrganizationRoutes(orgs: Organizations[Future],
       } ~
         (delete & parameter('rev.as[Long])) { rev =>
           (authenticateCaller & authorizeResource(orgId, Write)) { implicit caller =>
-            operationName("deprecateOrganization") {
+            tracing.trace("deprecateOrganization") {
               onSuccess(orgs.deprecate(orgId, rev)) { ref =>
                 complete(StatusCodes.OK -> ref)
               }
@@ -167,7 +168,8 @@ object OrganizationRoutes {
                              filteringSettings: FilteringSettings,
                              clock: Clock,
                              orderedKeys: OrderedKeys,
-                             prefixes: PrefixUris): OrganizationRoutes = {
+                             prefixes: PrefixUris,
+                             tracing: TracingDirectives): OrganizationRoutes = {
 
     implicit val qs: QuerySettings = querySettings
     val orgQueries =

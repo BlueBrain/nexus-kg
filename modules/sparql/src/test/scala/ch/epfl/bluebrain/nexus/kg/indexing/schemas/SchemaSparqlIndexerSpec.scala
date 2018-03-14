@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
@@ -63,9 +63,10 @@ class SchemaSparqlIndexerSpec(blazegraphPort: Int)
 
   private val base                   = s"http://$localhost/v0"
   private val blazegraphBaseUri: Uri = s"http://$localhost:$blazegraphPort/blazegraph"
+  private val namespace              = genString(length = 6)
 
-  private val settings @ SchemaSparqlIndexingSettings(index, schemasBase, _, nexusVocBase) =
-    SchemaSparqlIndexingSettings(genString(length = 6), base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
+  private val settings @ SchemaSparqlIndexingSettings(schemasBase, _, nexusVocBase) =
+    SchemaSparqlIndexingSettings(base, s"$base/schemas/graphs", s"$base/voc/nexus/core")
 
   private implicit val stringQualifier: ConfiguredQualifier[String]         = Qualifier.configured[String](nexusVocBase)
   private implicit val orgIdQualifier: ConfiguredQualifier[OrgId]           = Qualifier.configured[OrgId](base)
@@ -77,7 +78,7 @@ class SchemaSparqlIndexerSpec(blazegraphPort: Int)
   private val shaclBase     = "http://www.w3.org/ns/shacl#"
 
   private def triples(client: SparqlClient[Future]): Future[List[(String, String, String)]] =
-    client.query(index, "SELECT * { ?s ?p ?o }").map { rs =>
+    client.query("SELECT * { ?s ?p ?o }").map { rs =>
       rs.asScala.toList.map { qs =>
         val obj = {
           val node = qs.get("?o")
@@ -121,7 +122,7 @@ class SchemaSparqlIndexerSpec(blazegraphPort: Int)
 
   "A SchemaSparqlIndexer" should {
 
-    val client = SparqlClient[Future](blazegraphBaseUri)
+    val client = BlazegraphClient[Future](blazegraphBaseUri, namespace, None)
 
     val (ctxs, replacements) = createContext(base)
     val indexer              = SchemaSparqlIndexer(client, ctxs, settings)
@@ -130,7 +131,7 @@ class SchemaSparqlIndexerSpec(blazegraphPort: Int)
     val meta = Meta(Anonymous(), Clock.systemUTC.instant())
 
     "index a SchemaCreated event" in {
-      client.createIndex(index, properties).futureValue
+      client.createNamespace(properties).futureValue
       val rev  = 1L
       val data = jsonContentOf("/schemas/minimal.json", replacements)
       indexer(SchemaCreated(id, rev, meta, data)).futureValue

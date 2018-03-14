@@ -60,7 +60,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
                                                         restriction: ResourceRestrictionExpr[Id]): F[QueryResults[Id]] =
     noPermissionsOrElse(acls) { () =>
       val queryString = FilteredQuery[Id](query.copy(filter = query.filter and restriction(acls)), pagination)
-      queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
+      queryClient[Id](queryString, scored = query.q.isDefined)
     }
 
   /**
@@ -153,7 +153,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     noPermissionsOrElse(acls) { () =>
       val queryString = FilteredQuery
         .outgoing[Id](query, id.qualify, pagination)
-      queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
+      queryClient[Id](queryString, scored = query.q.isDefined)
     }
 
   /**
@@ -168,7 +168,7 @@ class FilterQueries[F[_], Id](queryClient: SparqlQuery[F])(implicit querySetting
     noPermissionsOrElse(acls) { () =>
       val queryString = FilteredQuery
         .incoming[Id](query, id.qualify, pagination)
-      queryClient[Id](querySettings.index, queryString, scored = query.q.isDefined)
+      queryClient[Id](queryString, scored = query.q.isDefined)
     }
 
 }

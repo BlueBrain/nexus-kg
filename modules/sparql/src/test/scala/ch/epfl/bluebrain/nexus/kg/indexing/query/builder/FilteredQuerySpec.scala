@@ -32,7 +32,7 @@ class FilteredQuerySpec extends WordSpecLike with Matchers with Resources with E
     Map(Pattern.quote("{{base-uri}}") -> base, Pattern.quote("{{vocab}}") -> nexusBaseVoc.toString())
   private val context                    = jsonContentOf("/contexts/nexus/core/search/search_expanded.json", replacements)
   private implicit val filteringSettings = FilteringSettings(nexusBaseVoc, context)
-  private implicit val qSettings         = QuerySettings(Pagination(0, 10), 10, "index", nexusBaseVoc, s"$base")
+  private implicit val qSettings         = QuerySettings(Pagination(0, 10), 10, nexusBaseVoc, s"$base")
 
   private val prov                                                  = Uri("http://www.w3.org/ns/prov#")
   private val rdf                                                   = Uri("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
