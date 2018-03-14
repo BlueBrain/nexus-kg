@@ -1,3 +1,5 @@
+def version = env.BRANCH_NAME
+
 pipeline {
     agent none
 
