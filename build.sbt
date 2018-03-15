@@ -323,9 +323,8 @@ lazy val buildInfoSettings = Seq(
 )
 
 lazy val noPublish = Seq(
-  publishLocal    := {},
-  publish         := {},
-  publishArtifact := false
+  publishLocal := {},
+  publish      := {}
 )
 
 inThisBuild(
