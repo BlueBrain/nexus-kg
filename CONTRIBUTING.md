@@ -78,7 +78,7 @@ from the main (upstream) repository:
     ```shell
     git pull --ff upstream master
     ```
-## <a name=“cla”></a> Signing the CLA
+## <a name="cla"></a> Signing the CLA
 If you are not part of the BlueBrain project, a Contributor License Agreement (CLA) must be signed for any code changes to be accepted. Please contact the BlueBrain Nexus team at [<nexus-team-email>](nexus-team-email) to get the latest CLA version and instructions.
 [nexus-team-email]: mailto:nexus@bluebrain.epfl.ch
 [github]: https://github.com/bluebrain/<component>

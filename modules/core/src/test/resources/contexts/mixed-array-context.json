@@ -1,9 +1,0 @@
-{
-  "@context": [
-    "http://localhost/v0/contexts/{{org}}/{{dom}}/{{object}}/{{ver}}",
-    "http://localhost/v0/contexts/{{org}}/{{dom}}/{{second-object}}/{{ver}}",
-    {
-      "owl": "http://www.w3.org/incorrect"
-    }
-  ]
-}

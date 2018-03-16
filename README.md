@@ -1,5 +1,5 @@
 [![Join the chat at https://gitter.im/BlueBrain/nexus](https://badges.gitter.im/BlueBrain/nexus.svg)](https://gitter.im/BlueBrain/nexus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://bbpcode.epfl.ch/ci/buildStatus/icon?job=nexus.sbt.nexus-kg)](https://bbpcode.epfl.ch/ci/job/nexus.sbt.nexus-kg)
+[![Build Status](http://jenkins.nexus.ocp.bbp.epfl.ch/buildStatus/icon?job=nexus/nexus-kg/master)](http://jenkins.nexus.ocp.bbp.epfl.ch/job/nexus/nexus-kg/master)
 [![GitHub release](https://img.shields.io/github/release/BlueBrain/nexus-kg.svg)]()
 
 # Nexus KG Service
@@ -16,4 +16,4 @@ in order to build the project, these dependencies need to be published locally.
 
 ## The service API
 
-Please refer to the [published documentation](https://bbp-nexus.epfl.ch/dev/docs/kg).
+Please refer to the [published documentation](https://bbp-nexus.epfl.ch/staging/docs/kg).

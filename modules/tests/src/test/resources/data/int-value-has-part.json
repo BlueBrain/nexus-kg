@@ -1,6 +1,0 @@
-{
-  "@context": "http://127.0.0.1:8080/contexts/{{context}}",
-  "@type": "QuantitativeValue",
-  "value": 16,
-  "nexusvoc:desc": "random"
-}

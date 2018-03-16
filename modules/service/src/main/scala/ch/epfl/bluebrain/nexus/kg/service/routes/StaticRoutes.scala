@@ -1,25 +1,24 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import akka.actor.ActorSystem
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import ch.epfl.bluebrain.nexus.kg.service.config.Settings
-import ch.epfl.bluebrain.nexus.kg.service.routes.StaticRoutes.ServiceDescription
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import io.circe.generic.auto._
-import ch.epfl.bluebrain.nexus.commons.service.directives.PrefixDirectives._
 import kamon.akka.http.KamonTraceDirectives.operationName
+import akka.http.scaladsl.model.StatusCodes
+import ch.epfl.bluebrain.nexus.kg.service.routes.StaticRoutes.ServiceDescription
+import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
+import akka.http.scaladsl.server.Directives._
+import io.circe.generic.auto._
+import akka.http.scaladsl.server.Route
+import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig.DescriptionConfig
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
 /**
   * Http route definitions that have constant outcomes per runtime.
   *
-  * @param settings the service settings
+  * @param description the application description
   */
-class StaticRoutes(settings: Settings) {
+class StaticRoutes(description: DescriptionConfig) {
 
   private val desc =
-    ServiceDescription(settings.Description.Name, settings.Description.Version, settings.Description.Environment)
+    ServiceDescription(description.name, description.version)
 
   private def serviceDescriptionRoute = pathEndOrSingleSlash {
     get {
@@ -54,18 +53,16 @@ object StaticRoutes {
   /**
     * Constructs a new ''StaticRoutes'' instance that defines the static http routes of the service.
     *
-    * @param as an implicitly available actor system
+    * @param description the application description
     * @return a new ''StaticRoutes'' instance
     */
-  final def apply()(implicit as: ActorSystem): StaticRoutes =
-    new StaticRoutes(Settings(as))
+  final def apply(description: DescriptionConfig): StaticRoutes = new StaticRoutes(description)
 
   /**
     * Local data type that wraps service information.
     *
     * @param name    the name of the service
     * @param version the version of the service
-    * @param env     the environment in which the service is run
     */
-  final case class ServiceDescription(name: String, version: String, env: String)
+  final case class ServiceDescription(name: String, version: String)
 }
