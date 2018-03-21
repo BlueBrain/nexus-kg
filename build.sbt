@@ -1,46 +1,90 @@
-val akkaVersion                     = "2.5.9"
-val akkaHttpVersion                 = "10.0.11"
-val akkaHttpCorsVersion             = "0.2.2"
-val akkaPersistenceCassandraVersion = "0.55"
-val akkaPersistenceInMemVersion     = "2.5.1.1"
-val akkaHttpCirceVersion            = "1.19.0"
-val akkaStreamKafkaVersion          = "0.18"
-val catsVersion                     = "1.0.1"
-val circeVersion                    = "0.9.0"
-val logbackVersion                  = "1.2.3"
-val journalVersion                  = "3.0.19"
-val commonsVersion                  = "0.7.4"
-val metricsCoreVersion              = "3.2.6"
-val jenaVersion                     = "3.6.0"
-val blazegraphVersion               = "2.1.4"
-val jacksonVersion                  = "2.8.10"
-val scalaTestVersion                = "3.0.4"
-val asmVersion                      = "5.1"
+/*
+scalafmt: {
+  style = defaultWithAlign
+  maxColumn = 150
+  align.tokens = [
+    { code = "=>", owner = "Case" }
+    { code = "?", owner = "Case" }
+    { code = "extends", owner = "Defn.(Class|Trait|Object)" }
+    { code = "//", owner = ".*" }
+    { code = "{", owner = "Template" }
+    { code = "}", owner = "Template" }
+    { code = ":=", owner = "Term.ApplyInfix" }
+    { code = "++=", owner = "Term.ApplyInfix" }
+    { code = "+=", owner = "Term.ApplyInfix" }
+    { code = "%", owner = "Term.ApplyInfix" }
+    { code = "%%", owner = "Term.ApplyInfix" }
+    { code = "%%%", owner = "Term.ApplyInfix" }
+    { code = "->", owner = "Term.ApplyInfix" }
+    { code = "?", owner = "Term.ApplyInfix" }
+    { code = "<-", owner = "Enumerator.Generator" }
+    { code = "?", owner = "Enumerator.Generator" }
+    { code = "=", owner = "(Enumerator.Val|Defn.(Va(l|r)|Def|Type))" }
+  ]
+}
+ */
+val commonsVersion  = "0.10.8"
+val serviceVersion  = "0.10.6"
+val sourcingVersion = "0.10.3"
 
-lazy val akkaClusterSharding = "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion
-lazy val sourcingCore        = nexusDep("sourcing-core", commonsVersion)
-lazy val sourcingAkka        = nexusDep("sourcing-akka", commonsVersion)
-lazy val sourcingMem         = nexusDep("sourcing-mem", commonsVersion)
-lazy val commonsService      = nexusDep("commons-service", commonsVersion)
-lazy val commonsSchemas      = nexusDep("commons-schemas", commonsVersion)
-lazy val commonsTest         = nexusDep("commons-test", commonsVersion)
-lazy val shaclValidator      = nexusDep("shacl-validator", commonsVersion)
-lazy val sparqlClient        = nexusDep("sparql-client", commonsVersion)
-lazy val elasticClient       = nexusDep("elastic-client", commonsVersion)
-lazy val elasticEmbed        = nexusDep("elastic-server-embed", commonsVersion)
-lazy val commonsQueryTypes   = nexusDep("commons-query-types", commonsVersion)
-lazy val asm                 = "org.ow2.asm" % "asm" % asmVersion
+val akkaVersion            = "2.5.11"
+val akkaHttpVersion        = "10.1.0"
+val akkaHttpCorsVersion    = "0.2.2"
+val akkaHttpCirceVersion   = "1.20.0"
+val akkaStreamKafkaVersion = "0.19"
 
-lazy val iamCommons = nexusDep("iam", commonsVersion)
+val catsVersion  = "1.0.1"
+val circeVersion = "0.9.2"
+
+val logbackVersion = "1.2.3"
+val journalVersion = "3.0.19"
+
+val metricsCoreVersion       = "3.2.6"
+val jenaVersion              = "3.6.0"
+val blazegraphVersion        = "2.1.4"
+val scalaTestVersion         = "3.0.5"
+val scalaTestEmbeddedVersion = "1.1.0"
+
+val pureconfigVersion = "0.9.0"
+val refinedVersion    = "0.8.7"
+
+lazy val akkaSlf4j       = "com.typesafe.akka" %% "akka-slf4j"        % akkaVersion
+lazy val akkaStreamKafka = "com.typesafe.akka" %% "akka-stream-kafka" % akkaStreamKafkaVersion
+lazy val akkaHttpCors    = "ch.megard"         %% "akka-http-cors"    % akkaHttpCorsVersion
+lazy val akkaHttp        = "com.typesafe.akka" %% "akka-http"         % akkaHttpVersion
+lazy val akkaHttpTestKit = "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion
+lazy val scalaTest       = "org.scalatest"     %% "scalatest"         % scalaTestVersion
+
+lazy val sourcingAkka = "ch.epfl.bluebrain.nexus" %% "sourcing-akka" % sourcingVersion
+lazy val sourcingCore = "ch.epfl.bluebrain.nexus" %% "sourcing-core" % sourcingVersion
+lazy val sourcingMem  = "ch.epfl.bluebrain.nexus" %% "sourcing-mem"  % sourcingVersion
+
+lazy val serviceHttp          = "ch.epfl.bluebrain.nexus" %% "service-http"          % serviceVersion
+lazy val serviceIndexing      = "ch.epfl.bluebrain.nexus" %% "service-indexing"      % serviceVersion
+lazy val serviceKamon         = "ch.epfl.bluebrain.nexus" %% "service-kamon"         % serviceVersion
+lazy val serviceSerialization = "ch.epfl.bluebrain.nexus" %% "service-serialization" % serviceVersion
+
+lazy val commonsIam        = "ch.epfl.bluebrain.nexus" %% "iam"                  % commonsVersion
+lazy val commonsQueryTypes = "ch.epfl.bluebrain.nexus" %% "commons-query-types"  % commonsVersion
+lazy val commonsSchemas    = "ch.epfl.bluebrain.nexus" %% "commons-schemas"      % commonsVersion
+lazy val commonsTest       = "ch.epfl.bluebrain.nexus" %% "commons-test"         % commonsVersion
+lazy val commonsTypes      = "ch.epfl.bluebrain.nexus" %% "commons-types"        % commonsVersion
+lazy val shaclValidator    = "ch.epfl.bluebrain.nexus" %% "shacl-validator"      % commonsVersion
+lazy val sparqlClient      = "ch.epfl.bluebrain.nexus" %% "sparql-client"        % commonsVersion
+lazy val elasticClient     = "ch.epfl.bluebrain.nexus" %% "elastic-client"       % commonsVersion
+lazy val elasticEmbed      = "ch.epfl.bluebrain.nexus" %% "elastic-server-embed" % commonsVersion
+
+lazy val pureconfig        = "com.github.pureconfig" %% "pureconfig"         % pureconfigVersion
+lazy val refined           = "eu.timepit"            %% "refined"            % refinedVersion
+lazy val refinedPureConfig = "eu.timepit"            %% "refined-pureconfig" % refinedVersion
 
 lazy val docs = project
   .in(file("docs"))
   .enablePlugins(ParadoxPlugin)
-  .settings(common, noPublish)
   .settings(
-    name := "kg-docs",
-    moduleName := "kg-docs",
-    paradoxTheme := Some(builtinParadoxTheme("generic")),
+    name                         := "kg-docs",
+    moduleName                   := "kg-docs",
+    paradoxTheme                 := Some(builtinParadoxTheme("generic")),
     paradoxProperties in Compile ++= Map("extref.service.base_url" -> "../"),
     target in (Compile, paradox) := (resourceManaged in Compile).value / "docs",
     resourceGenerators in Compile += {
@@ -50,190 +94,63 @@ lazy val docs = project
     }
   )
 
-lazy val schemas = project
-  .in(file("modules/kg-schemas"))
-  .settings(common)
-  .enablePlugins(WorkbenchPlugin)
-  .disablePlugins(ScapegoatSbtPlugin, DocumentationPlugin)
-  .settings(
-    name := "kg-schemas",
-    moduleName := "kg-schemas",
-    libraryDependencies ++= Seq(
-      commonsSchemas
-    )
-  )
-
-lazy val core = project
-  .in(file("modules/core"))
-  .dependsOn(schemas)
-  .settings(common)
-  .settings(
-    name := "kg-core",
-    moduleName := "kg-core",
-    libraryDependencies ++= Seq(
-      iamCommons,
-      sourcingCore,
-      shaclValidator,
-      commonsQueryTypes,
-      akkaClusterSharding,
-      sourcingMem          % Test,
-      commonsTest          % Test,
-      "io.circe"           %% "circe-core" % circeVersion,
-      "io.circe"           %% "circe-optics" % circeVersion,
-      "io.circe"           %% "circe-parser" % circeVersion,
-      "io.verizon.journal" %% "core" % journalVersion,
-      "org.apache.jena"    % "jena-arq" % jenaVersion,
-      "org.apache.jena"    % "jena-querybuilder" % jenaVersion,
-      "org.scalatest"      %% "scalatest" % scalaTestVersion % Test,
-      "com.typesafe.akka"  %% "akka-http-testkit" % akkaHttpVersion % Test,
-      "com.typesafe.akka"  %% "akka-testkit" % akkaVersion % Test
-    )
-  )
-
-lazy val sparql = project
-  .in(file("modules/sparql"))
-  .dependsOn(core)
-  .settings(common)
-  .settings(
-    name := "kg-sparql",
-    moduleName := "kg-sparql",
-    libraryDependencies ++= Seq(
-      iamCommons,
-      sourcingCore,
-      sourcingMem % Test,
-      commonsTest % Test,
-      sparqlClient,
-      "com.typesafe.akka"          %% "akka-stream"        % akkaVersion,
-      "com.typesafe.akka"          %% "akka-http"          % akkaHttpVersion,
-      "de.heikoseeberger"          %% "akka-http-circe"    % akkaHttpCirceVersion,
-      "io.circe"                   %% "circe-core"         % circeVersion,
-      "io.circe"                   %% "circe-parser"       % circeVersion,
-      "io.verizon.journal"         %% "core"               % journalVersion,
-      "com.blazegraph"             % "blazegraph-jar"      % blazegraphVersion % Test,
-      "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion % Test,
-      "com.fasterxml.jackson.core" % "jackson-core"        % jacksonVersion % Test,
-      "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonVersion % Test,
-      "com.typesafe.akka"          %% "akka-testkit"       % akkaVersion % Test,
-      "org.scalatest"              %% "scalatest"          % scalaTestVersion % Test
-    )
-  )
-
-lazy val elastic = project
-  .in(file("modules/elastic"))
-  .dependsOn(core)
-  .settings(common)
-  .settings(
-    name := "kg-elastic",
-    moduleName := "kg-elastic",
-    libraryDependencies ++= Seq(
-      iamCommons,
-      sourcingCore,
-      sourcingMem  % Test,
-      asm          % Test,
-      commonsTest  % Test,
-      elasticEmbed % Test,
-      elasticClient,
-      "com.typesafe.akka"  %% "akka-stream"     % akkaVersion,
-      "com.typesafe.akka"  %% "akka-http"       % akkaHttpVersion,
-      "de.heikoseeberger"  %% "akka-http-circe" % akkaHttpCirceVersion,
-      "io.circe"           %% "circe-core"      % circeVersion,
-      "io.circe"           %% "circe-parser"    % circeVersion,
-      "io.verizon.journal" %% "core"            % journalVersion,
-      "com.typesafe.akka"  %% "akka-testkit"    % akkaVersion % Test,
-      "org.scalatest"      %% "scalatest"       % scalaTestVersion % Test
-    )
-  )
-  // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
-  // tests reduces false negatives.
-  .settings(parallelExecution in Test := false)
-
 lazy val service = project
   .in(file("modules/service"))
-  .dependsOn(core % "test->test;compile->compile", sparql, elastic, docs)
+  .dependsOn(docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
-  .settings(common, buildInfoSettings, packagingSettings, noCoverage)
+  .settings(buildInfoSettings)
   .settings(
-    name := "kg-service",
+    name       := "kg-service",
     moduleName := "kg-service",
+    resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
     libraryDependencies ++= Seq(
-      iamCommons,
-      commonsService,
-      sourcingAkka,
+      akkaSlf4j,
+      akkaHttpCors,
+      pureconfig,
+      refinedPureConfig,
+      serviceHttp,
+      serviceKamon,
+      commonsIam,
+      commonsQueryTypes,
       commonsTest,
-      sourcingMem                  % Test,
-      "ch.megard"                  %% "akka-http-cors" % akkaHttpCorsVersion,
-      "ch.qos.logback"             % "logback-classic" % logbackVersion,
-      "com.typesafe.akka"          %% "akka-slf4j" % akkaVersion,
-      "com.typesafe.akka"          %% "akka-http" % akkaHttpVersion,
-      "com.typesafe.akka"          %% "akka-distributed-data" % akkaVersion,
-      "com.typesafe.akka"          %% "akka-persistence-cassandra" % akkaPersistenceCassandraVersion,
-      "com.typesafe.akka"          %% "akka-stream-kafka" % akkaStreamKafkaVersion,
-      "io.dropwizard.metrics"      % "metrics-core" % metricsCoreVersion, // for cassandra client, or fails at runtime
-      "de.heikoseeberger"          %% "akka-http-circe" % akkaHttpCirceVersion,
-      "io.circe"                   %% "circe-core" % circeVersion,
-      "io.circe"                   %% "circe-parser" % circeVersion,
-      "io.circe"                   %% "circe-generic-extras" % circeVersion,
-      "io.circe"                   %% "circe-java8" % circeVersion,
-      "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion % Test,
-      "com.fasterxml.jackson.core" % "jackson-core" % jacksonVersion % Test,
-      "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion % Test,
-      "com.blazegraph"             % "blazegraph-jar" % blazegraphVersion % Test,
-      "com.github.dnvriend"        %% "akka-persistence-inmemory" % akkaPersistenceInMemVersion % Test,
-      "com.typesafe.akka"          %% "akka-http-testkit" % akkaHttpVersion % Test,
-      "com.typesafe.akka"          %% "akka-testkit" % akkaVersion % Test,
-      "net.manub"                  %% "scalatest-embedded-kafka" % "1.0.0" % Test,
-      "org.scalatest"              %% "scalatest" % scalaTestVersion % Test
+      sourcingAkka,
+      akkaHttpTestKit % Test,
+      sourcingMem     % Test,
+      scalaTest       % Test
     )
   )
-  // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
-  // tests reduces false negatives.
-  .settings(parallelExecution in Test := false)
-
-lazy val tests = project
-  .in(file("modules/tests"))
-  .dependsOn(core % "test->test;compile->compile", service % "test->test;compile->compile")
-  .settings(common)
-  .settings(
-    name := "kg-tests",
-    moduleName := "kg-tests",
-    libraryDependencies ++= Seq(
-      commonsTest         % Test,
-      "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion % Test
-    )
-  )
-  // IMPORTANT! Jena initialization system fails miserably in concurrent scenarios. Disabling parallel execution for
-  // tests reduces false negatives.
-  .settings(parallelExecution in Test := false)
 
 lazy val root = project
   .in(file("."))
-  .settings(common, noPublish)
+  .settings(noPublish)
   .settings(
-    name := "kg",
+    name       := "kg",
     moduleName := "kg"
   )
-  .aggregate(docs, core, sparql, elastic, service, tests, schemas)
+  .aggregate(docs, service)
 
-lazy val noPublish = Seq(publishLocal := {}, publish := {})
+lazy val noPublish = Seq(publishLocal := {}, publish := {}, publishArtifact := false)
 
-lazy val common = Seq(
-  scalacOptions in (Compile, console) ~= (_ filterNot (_ == "-Xfatal-warnings")),
-  workbenchVersion := "0.3.0",
-  homepage := Some(url("https://github.com/BlueBrain/nexus-kg")),
-  licenses := Seq("Apache-2.0" -> url("https://github.com/BlueBrain/nexus-kg/blob/master/LICENSE")),
-  scmInfo := Some(
-    ScmInfo(url("https://github.com/BlueBrain/nexus-kg"), "scm:git:git@github.com:BlueBrain/nexus-kg.git"))
+inThisBuild(
+  List(
+    homepage := Some(url("https://github.com/BlueBrain/nexus-kg")),
+    licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt")),
+    scmInfo  := Some(ScmInfo(url("https://github.com/BlueBrain/nexus-kg"), "scm:git:git@github.com:BlueBrain/nexus-kg.git")),
+    developers := List(
+      Developer("bogdanromanx", "Bogdan Roman", "noreply@epfl.ch", url("https://bluebrain.epfl.ch/")),
+      Developer("hygt", "Henry Genet", "noreply@epfl.ch", url("https://bluebrain.epfl.ch/")),
+      Developer("umbreak", "Didac Montero Mendez", "noreply@epfl.ch", url("https://bluebrain.epfl.ch/")),
+      Developer("wwajerowicz", "Wojtek Wajerowicz", "noreply@epfl.ch", url("https://bluebrain.epfl.ch/"))
+    ),
+    // These are the sbt-release-early settings to configure
+    releaseEarlyWith              := BintrayPublisher,
+    releaseEarlyNoGpg             := true,
+    releaseEarlyEnableSyncToMaven := false,
+    // Jena workaround
+    parallelExecution in Test := false
+  )
 )
 
-lazy val noCoverage = Seq(coverageFailOnMinimum := false)
+lazy val buildInfoSettings = Seq(buildInfoKeys := Seq[BuildInfoKey](version), buildInfoPackage := "ch.epfl.bluebrain.nexus.kg.service.config")
 
-lazy val buildInfoSettings =
-  Seq(buildInfoKeys := Seq[BuildInfoKey](version), buildInfoPackage := "ch.epfl.bluebrain.nexus.kg.service.config")
-
-lazy val packagingSettings = packageName in Docker := "kg"
-
-def nexusDep(name: String, version: String): ModuleID =
-  "ch.epfl.bluebrain.nexus" %% name % version
-
-addCommandAlias("review", ";clean;scalafmtSbtCheck;coverage;scapegoat;test;coverageReport;coverageAggregate;doc")
-addCommandAlias("rel", ";release with-defaults skip-tests")
+addCommandAlias("review", ";clean;scalafmtSbt;scalafmtSbtCheck;coverage;scapegoat;test;coverageReport;coverageAggregate;doc")

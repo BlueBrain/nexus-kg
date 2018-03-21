@@ -1,8 +1,0 @@
-{
-  "@context": [
-    "http://localhost/v0/contexts/{{org}}/{{dom}}/{{mixed}}/{{ver}}",
-    {
-      "owl": "http://www.w3.org/2002/07/owl#"
-    }
-  ]
-}

@@ -1,8 +1,0 @@
-{
-  "@context": [
-    "http://localhost/v0/contexts/{{org}}/{{dom}}/{{third-object}}/{{ver}}",
-    {
-      "sh": "http://www.w3.org/ns/shacl#"
-    }
-  ]
-}

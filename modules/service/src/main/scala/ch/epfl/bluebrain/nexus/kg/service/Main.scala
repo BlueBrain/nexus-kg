@@ -4,14 +4,12 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings
 import com.typesafe.config.ConfigFactory
 import kamon.Kamon
 import kamon.system.SystemMetrics
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
@@ -23,34 +21,28 @@ object Main {
   def main(args: Array[String]): Unit = {
     SystemMetrics.startCollecting()
     Kamon.loadReportersFromConfig()
-    val config   = ConfigFactory.load()
-    val settings = new Settings(config)
+    val config    = ConfigFactory.load()
+    val appConfig = new Settings(config).appConfig
 
-    implicit val as                            = ActorSystem(settings.Description.ActorSystemName, config)
-    implicit val ec                            = as.dispatcher
-    implicit val mt                            = ActorMaterializer()
-    implicit val cl: UntypedHttpClient[Future] = HttpClient.akkaHttpClient
+    implicit val as = ActorSystem(appConfig.description.actorSystemName, config)
+    implicit val ec = as.dispatcher
+    implicit val mt = ActorMaterializer()
 
     val logger = Logging(as, getClass)
 
-    val bootstrap = BootstrapService(settings)
+    val bootstrap = BootstrapService(appConfig)
     bootstrap.cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
 
-      val httpBinding = {
-        Http().bindAndHandle(bootstrap.routes, settings.Http.Interface, settings.Http.Port)
-      }
+      val httpBinding = Http().bindAndHandle(bootstrap.routes, appConfig.instance.interface, appConfig.http.port)
 
-      httpBinding onComplete {
+      httpBinding.onComplete {
         case Success(binding) =>
           logger.info(s"Bound to ${binding.localAddress.getHostString}: ${binding.localAddress.getPort}")
         case Failure(th) =>
-          logger.error(th, "Failed to perform an http binding on {}:{}", settings.Http.Interface, settings.Http.Port)
+          logger.error(th, "Failed to perform an http binding on {}:{}", appConfig.http.interface, appConfig.http.port)
           Await.result(as.terminate(), 10 seconds)
       }
-
-      StartSparqlIndexers(settings, bootstrap.sparqlClient, bootstrap.contexts, bootstrap.apiUri)
-      StartElasticIndexers(settings, bootstrap.elasticClient, bootstrap.contexts, bootstrap.apiUri)
 
     }
 
