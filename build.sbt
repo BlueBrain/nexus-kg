@@ -100,7 +100,7 @@ lazy val sparqlClient      = "ch.epfl.bluebrain.nexus" %% "sparql-client"       
 lazy val docs = project
   .in(file("docs"))
   .enablePlugins(ParadoxPlugin)
-  .settings(common, noPublish)
+  .settings(common)
   .settings(
     name                         := "kg-docs",
     moduleName                   := "kg-docs",
@@ -122,7 +122,7 @@ lazy val schemas = project
   .settings(
     name                := "kg-schemas",
     moduleName          := "kg-schemas",
-    libraryDependencies += commonsSchemas,
+    libraryDependencies += commonsSchemas
   )
 
 lazy val core = project
@@ -148,7 +148,7 @@ lazy val core = project
       commonsTest     % Test,
       scalaTest       % Test,
       akkaHttpTestkit % Test,
-      akkaTestkit     % Test,
+      akkaTestkit     % Test
     ),
     Test / fork              := true,
     Test / parallelExecution := false // workaround for jena initialization
@@ -179,7 +179,7 @@ lazy val sparql = project
       jacksonCore        % Test,
       jacksonDatabind    % Test,
       scalaTest          % Test,
-      sourcingMem        % Test,
+      sourcingMem        % Test
     ),
     Test / fork              := true,
     Test / parallelExecution := false // workaround for jena initialization
@@ -207,7 +207,7 @@ lazy val elastic = project
       commonsTest  % Test,
       elasticEmbed % Test,
       scalaTest    % Test,
-      sourcingMem  % Test,
+      sourcingMem  % Test
     ),
     Test / fork              := true,
     Test / parallelExecution := false // workaround for jena initialization
@@ -249,7 +249,7 @@ lazy val service = project
       jacksonAnnotations   % Test,
       jacksonCore          % Test,
       jacksonDatabind      % Test,
-      scalaTest            % Test,
+      scalaTest            % Test
     ),
     Test / fork              := true,
     Test / parallelExecution := false // workaround for jena initialization
@@ -264,7 +264,7 @@ lazy val testsBlazegraph = project
     moduleName := "kg-tests-blazegraph",
     libraryDependencies ++= Seq(
       cassandraLauncher % Test,
-      commonsTest       % Test,
+      commonsTest       % Test
     ),
     Test / fork              := true,
     Test / parallelExecution := false // workaround for jena initialization
@@ -286,11 +286,11 @@ lazy val testsElastic = project
 //      jacksonAnnotations % Test,
 //      jacksonCore        % Test,
 //      jacksonDatabind    % Test,
-      netty % Test,
+      netty % Test
     ),
     dependencyOverrides ++= Seq(
       elasticSearch,
-      luceneCore,
+      luceneCore
 //      jacksonAnnotations % Test,
 //      jacksonCore        % Test,
 //      jacksonDatabind    % Test,
@@ -323,8 +323,9 @@ lazy val buildInfoSettings = Seq(
 )
 
 lazy val noPublish = Seq(
-  publishLocal := {},
-  publish      := {}
+  publishLocal    := {},
+  publish         := {},
+  publishArtifact := false
 )
 
 inThisBuild(
