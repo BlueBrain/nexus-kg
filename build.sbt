@@ -24,16 +24,14 @@ scalafmt: {
 }
  */
 val commonsVersion  = "0.10.8"
-val serviceVersion  = "0.10.4"
+val serviceVersion  = "0.10.6"
 val sourcingVersion = "0.10.3"
 
-val akkaVersion                     = "2.5.11"
-val akkaHttpVersion                 = "10.1.0"
-val akkaHttpCorsVersion             = "0.2.2"
-val akkaPersistenceCassandraVersion = "0.83"
-val akkaPersistenceInMemVersion     = "2.5.1.1"
-val akkaHttpCirceVersion            = "1.20.0"
-val akkaStreamKafkaVersion          = "0.19"
+val akkaVersion            = "2.5.11"
+val akkaHttpVersion        = "10.1.0"
+val akkaHttpCorsVersion    = "0.2.2"
+val akkaHttpCirceVersion   = "1.20.0"
+val akkaStreamKafkaVersion = "0.19"
 
 val catsVersion  = "1.0.1"
 val circeVersion = "0.9.2"
@@ -50,15 +48,12 @@ val scalaTestEmbeddedVersion = "1.1.0"
 val pureconfigVersion = "0.9.0"
 val refinedVersion    = "0.8.7"
 
-lazy val akkaClusterSharding      = "com.typesafe.akka" %% "akka-cluster-sharding"      % akkaVersion
-lazy val akkaSlf4j                = "com.typesafe.akka" %% "akka-slf4j"                 % akkaVersion
-lazy val akkaHttp                 = "com.typesafe.akka" %% "akka-http"                  % akkaHttpVersion
-lazy val akkaDistributedData      = "com.typesafe.akka" %% "akka-distributed-data"      % akkaVersion
-lazy val akkaPersistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % akkaPersistenceCassandraVersion
-lazy val akkaStreamKafka          = "com.typesafe.akka" %% "akka-stream-kafka"          % akkaStreamKafkaVersion
-lazy val akkaHttpCors             = "ch.megard"         %% "akka-http-cors"             % akkaHttpCorsVersion
-lazy val akkaHttpTestKit          = "com.typesafe.akka" %% "akka-http-testkit"          % akkaHttpVersion
-lazy val scalaTest                = "org.scalatest"     %% "scalatest"                  % scalaTestVersion
+lazy val akkaSlf4j       = "com.typesafe.akka" %% "akka-slf4j"        % akkaVersion
+lazy val akkaStreamKafka = "com.typesafe.akka" %% "akka-stream-kafka" % akkaStreamKafkaVersion
+lazy val akkaHttpCors    = "ch.megard"         %% "akka-http-cors"    % akkaHttpCorsVersion
+lazy val akkaHttp        = "com.typesafe.akka" %% "akka-http"         % akkaHttpVersion
+lazy val akkaHttpTestKit = "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion
+lazy val scalaTest       = "org.scalatest"     %% "scalatest"         % scalaTestVersion
 
 lazy val sourcingAkka = "ch.epfl.bluebrain.nexus" %% "sourcing-akka" % sourcingVersion
 lazy val sourcingCore = "ch.epfl.bluebrain.nexus" %% "sourcing-core" % sourcingVersion
