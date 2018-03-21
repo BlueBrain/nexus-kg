@@ -18,6 +18,7 @@ import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
   * @param appConfig the application configuration
   * @param as        the implicitly available [[ActorSystem]]
   */
+// $COVERAGE-OFF$
 class BootstrapService(appConfig: AppConfig)(implicit as: ActorSystem) {
 
   private val baseUri = appConfig.http.publicUri
@@ -55,3 +56,4 @@ object BootstrapService {
   final def apply(appConfig: AppConfig)(implicit as: ActorSystem): BootstrapService = new BootstrapService(appConfig)
 
 }
+// $COVERAGE-ON$
