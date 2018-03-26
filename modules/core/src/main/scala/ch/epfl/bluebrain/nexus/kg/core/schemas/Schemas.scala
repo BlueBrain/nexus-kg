@@ -1,10 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.core.schemas
 
 import cats.MonadError
+import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
-import cats.syntax.applicativeError._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidatorErr.{CouldNotFindImports, IllegalImportDefinition}
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ShaclSchema, ShaclValidator}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
@@ -27,16 +27,13 @@ import journal.Logger
   * @param agg     the aggregate definition
   * @param doms    the domains operations bundle
   * @param ctxs    the contexts operations bundle
-  * @param baseUri the base uri of the service
   * @param F       a MonadError typeclass instance for ''F[_]''
   * @tparam F the monadic effect type
   */
-final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Contexts[F], baseUri: String)(
+final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Contexts[F])(
     implicit F: MonadError[F, Throwable]) { self =>
 
   private val logger = Logger[this.type]
-
-  private val validator = ShaclValidator[F](SchemaImportResolver[F](baseUri, self.fetch, ctxs.resolve))
 
   private def validateId(id: SchemaId): F[Unit] = {
     logger.debug(s"Validating id '$id'")
@@ -71,7 +68,7 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     }
   }
 
-  private def validatePayload(json: Json): F[Unit] =
+  private def validatePayload(json: Json)(implicit validator: ShaclValidator[F]): F[Unit] =
     ctxs.resolve(json).flatMap { expanded =>
       validator(ShaclSchema(expanded))
         .flatMap { report =>
@@ -113,7 +110,7 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(id: SchemaId, value: Json)(implicit ctx: CallerCtx): F[SchemaRef] =
+  def create(id: SchemaId, value: Json)(implicit ctx: CallerCtx, validator: ShaclValidator[F]): F[SchemaRef] =
     for {
       _ <- validateId(id)
       _ <- doms.assertUnlocked(id.domainId)
@@ -131,7 +128,8 @@ final class Schemas[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Conte
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRef]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def update(id: SchemaId, rev: Long, value: Json)(implicit ctx: CallerCtx): F[SchemaRef] =
+  def update(id: SchemaId, rev: Long, value: Json)(implicit ctx: CallerCtx,
+                                                   validator: ShaclValidator[F]): F[SchemaRef] =
     for {
       _ <- doms.assertUnlocked(id.domainId)
       _ <- validatePayload(value)
@@ -271,13 +269,12 @@ object Schemas {
     * @param agg     the aggregate definition
     * @param doms    the domains operations bundle
     * @param ctxs    the contexts operations bundle
-    * @param baseUri the base uri of the service
     * @param F       a MonadError typeclass instance for ''F[_]''
     * @tparam F the monadic effect type
     */
-  final def apply[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Contexts[F], baseUri: String)(
+  final def apply[F[_]](agg: SchemaAggregate[F], doms: Domains[F], ctxs: Contexts[F])(
       implicit F: MonadError[F, Throwable]): Schemas[F] =
-    new Schemas[F](agg, doms, ctxs, baseUri)
+    new Schemas[F](agg, doms, ctxs)
 
   /**
     * The initial state of a schema.

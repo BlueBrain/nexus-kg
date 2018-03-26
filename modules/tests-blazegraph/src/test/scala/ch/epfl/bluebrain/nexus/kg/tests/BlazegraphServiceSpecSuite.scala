@@ -53,7 +53,11 @@ class BlazegraphServiceSpecSuite
     new BlazegraphDomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new BlazegraphContextsIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new BlazegraphSchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
-    new BlazegraphInstanceIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, bootstrap.instances)
+    new BlazegraphInstanceIntegrationSpec(bootstrap.apiUri,
+                                          settings.Prefixes,
+                                          bootstrap.routes,
+                                          bootstrap.instances,
+                                          bootstrap.validator)
   )
 
   override def run(testName: Option[String], args: Args): Status = super.run(testName, args)

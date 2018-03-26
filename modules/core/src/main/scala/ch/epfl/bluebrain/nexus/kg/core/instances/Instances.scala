@@ -25,7 +25,6 @@ import journal.Logger
   * @param agg             the aggregate definition
   * @param schemas         the schemas operations bundle
   * @param ctxs            the contexts operations bundle
-  * @param validator       shacl validator
   * @param inOutFileStream the operations on incoming and outgoing file
   * @param F               a MonadError typeclass instance for ''F[_]''
   * @param al              defines how to deal with attachment's location
@@ -37,12 +36,11 @@ final class Instances[F[_], In, Out](
     agg: InstanceAggregate[F],
     schemas: Schemas[F],
     ctxs: Contexts[F],
-    validator: ShaclValidator[F],
     inOutFileStream: InOutFileStream[F, In, Out])(implicit F: MonadError[F, Throwable], al: AttachmentLocation[F]) {
 
   private val logger = Logger[this.type]
 
-  private def validatePayload(schemaId: SchemaId, json: Json): F[Unit] = {
+  private def validatePayload(schemaId: SchemaId, json: Json)(implicit validator: ShaclValidator[F]): F[Unit] = {
     schemas.fetch(schemaId).flatMap {
       case Some(schema) =>
         ctxs.resolve(schema.value) product ctxs.resolve(json) flatMap {
@@ -84,7 +82,7 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(schemaId: SchemaId, value: Json)(implicit ctx: CallerCtx): F[InstanceRef] = {
+  def create(schemaId: SchemaId, value: Json)(implicit ctx: CallerCtx, validator: ShaclValidator[F]): F[InstanceRef] = {
     val id = InstanceId(schemaId, UUID.randomUUID().toString.toLowerCase)
     create(id, value)
   }
@@ -97,7 +95,7 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(id: InstanceId, value: Json)(implicit ctx: CallerCtx): F[InstanceRef] =
+  def create(id: InstanceId, value: Json)(implicit ctx: CallerCtx, validator: ShaclValidator[F]): F[InstanceRef] =
     for {
       _ <- schemas.assertUnlocked(id.schemaId)
       _ <- validatePayload(id.schemaId, value)
@@ -114,7 +112,8 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def update(id: InstanceId, rev: Long, value: Json)(implicit ctx: CallerCtx): F[InstanceRef] =
+  def update(id: InstanceId, rev: Long, value: Json)(implicit ctx: CallerCtx,
+                                                     validator: ShaclValidator[F]): F[InstanceRef] =
     for {
       _ <- validatePayload(id.schemaId, value)
       r <- evaluate(UpdateInstance(id, rev, ctx.meta, value), "Update instance")
@@ -283,10 +282,8 @@ object Instances {
     * @param agg             the aggregate definition
     * @param schemas         the schemas operations bundle
     * @param ctxs            the contexts operations bundle
-    * @param validator       shacl validator
     * @param inOutFileStream the operations on incoming and outgoing file
     * @param F               a MonadError typeclass instance for ''F[_]''
-    *                        al
     * @tparam F   the monadic effect type
     * @tparam In  a typeclass defining the incoming stream client -> service
     * @tparam Out a typeclass defining the outgoing stream service -> client
@@ -294,11 +291,10 @@ object Instances {
   final def apply[F[_], In, Out](agg: InstanceAggregate[F],
                                  schemas: Schemas[F],
                                  ctxs: Contexts[F],
-                                 validator: ShaclValidator[F],
                                  inOutFileStream: InOutFileStream[F, In, Out])(
       implicit F: MonadError[F, Throwable],
       al: AttachmentLocation[F]): Instances[F, In, Out] =
-    new Instances[F, In, Out](agg, schemas, ctxs, validator, inOutFileStream)
+    new Instances[F, In, Out](agg, schemas, ctxs, inOutFileStream)
 
   /**
     * The initial state of an instance.

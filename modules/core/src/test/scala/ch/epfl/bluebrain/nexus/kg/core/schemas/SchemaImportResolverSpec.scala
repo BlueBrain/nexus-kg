@@ -72,7 +72,7 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
 
   "A SchemaImportResolver" should {
     "return no imports" in {
-      val resolver = SchemaImportResolver[Try](
+      val resolver = new SchemaImportResolver[Try](
         baseUri,
         _ => Success(Some(schema(genSchemaId(), List(genSchemaId())))),
         contextResolver
@@ -91,14 +91,14 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
     "lookup imports transitively" in {
       val all      = List(leaf1, leaf2, mid1, mid2, main)
       val loader   = (id: SchemaId) => Success(all.find(_.id == id))
-      val resolver = SchemaImportResolver[Try](baseUri, loader, contextResolver)
+      val resolver = new SchemaImportResolver[Try](baseUri, loader, contextResolver)
       resolver(main.asShacl).success.value.size shouldEqual 4
     }
 
     "aggregate missing imports" in {
       val all      = List(mid1, mid2, main)
       val loader   = (id: SchemaId) => Success(all.find(_.id == id))
-      val resolver = SchemaImportResolver[Try](baseUri, loader, contextResolver)
+      val resolver = new SchemaImportResolver[Try](baseUri, loader, contextResolver)
       resolver(main.asShacl).failure.exception shouldEqual CouldNotFindImports(
         Set(
           s"$baseUri/schemas/${leaf1.id.show}",
@@ -109,7 +109,7 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
     "aggregate single batch missing imports" in {
       val all      = List(leaf1, mid1, main)
       val loader   = (id: SchemaId) => Success(all.find(_.id == id))
-      val resolver = SchemaImportResolver[Try](baseUri, loader, contextResolver)
+      val resolver = new SchemaImportResolver[Try](baseUri, loader, contextResolver)
       resolver(main.asShacl).failure.exception shouldEqual CouldNotFindImports(
         Set(
           s"$baseUri/schemas/${mid2.id.show}"
@@ -123,7 +123,7 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
                                resolveContext = true)
       val all      = List(mid1)
       val loader   = (id: SchemaId) => Success(all.find(_.id == id))
-      val resolver = SchemaImportResolver[Try](baseUri, loader, contextResolver)
+      val resolver = new SchemaImportResolver[Try](baseUri, loader, contextResolver)
       resolver(withUnknown.asShacl).failure.exception shouldEqual IllegalImportDefinition(
         Set(
           "http://localhost/a",
@@ -135,7 +135,7 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
       val withUnknown =
         jsonImportsSchema(genSchemaId(), List(Json.fromInt(12), Json.fromString("13")), resolveContext = true)
       val loader   = (_: SchemaId) => Success(None)
-      val resolver = SchemaImportResolver[Try](baseUri, loader, contextResolver)
+      val resolver = new SchemaImportResolver[Try](baseUri, loader, contextResolver)
       resolver(withUnknown.asShacl).success.value.size shouldEqual 0
     }
 
@@ -144,7 +144,7 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
         schema(genSchemaId(), List(unpublished1.id, unpublished2.id, leaf1.id), resolveContext = true)
       val all      = List(unpublished1, unpublished2, leaf1)
       val loader   = (id: SchemaId) => Success(all.find(_.id == id))
-      val resolver = SchemaImportResolver[Try](baseUri, loader, contextResolver)
+      val resolver = new SchemaImportResolver[Try](baseUri, loader, contextResolver)
       resolver(withUnpublished.asShacl).failure.exception shouldEqual CouldNotFindImports(
         Set(
           s"$baseUri/schemas/${unpublished1.id.show}",

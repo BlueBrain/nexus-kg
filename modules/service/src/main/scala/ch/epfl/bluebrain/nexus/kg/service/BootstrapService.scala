@@ -10,9 +10,7 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.Location
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.stream.scaladsl.Source
-import akka.stream.{ActorMaterializer, IOResult, Materializer}
-import akka.util.ByteString
+import akka.stream.{ActorMaterializer, Materializer}
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -29,12 +27,13 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.kg.core.AggregatedImportResolver
 import ch.epfl.bluebrain.nexus.kg.core.cache.ShardedCache.CacheSettings
 import ch.epfl.bluebrain.nexus.kg.core.cache.{Cache, ShardedCache}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.Domains
-import ch.epfl.bluebrain.nexus.kg.core.instances.Instances
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.AttachmentLocation
+import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceImportResolver, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.Organizations
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.FilteringSettings
 import ch.epfl.bluebrain.nexus.kg.core.queries.{Queries, Query}
@@ -61,6 +60,7 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
   * @param ec       the implicitly available [[ExecutionContextExecutor]]
   * @param mt       the implicitly available [[ActorMaterializer]]
   */
+// $COVERAGE-OFF$
 class BootstrapService(settings: Settings)(implicit as: ActorSystem,
                                            ec: ExecutionContextExecutor,
                                            mt: ActorMaterializer,
@@ -94,7 +94,13 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
                                                         apiUri,
                                                         settings.Prefixes.CoreVocabulary)
 
-  private val idsToEntities = new GroupedIdsToEntityRetrieval(instances, schemas, contexts, doms, orgs)
+  private val idsToEntities        = new GroupedIdsToEntityRetrieval(instances, schemas, contexts, doms, orgs)
+  private val schemaImportResolver = new SchemaImportResolver(apiUri.toString(), schemas.fetch, contexts.resolve)
+  private val instanceImportResolver =
+    new InstanceImportResolver[Future](apiUri.toString(), instances.fetch, contexts.resolve)
+  implicit val validator: ShaclValidator[Future] =
+    new ShaclValidator(AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
+
   private val apis = uriPrefix(apiUri) {
     implicit val ctxs = contexts
     OrganizationRoutes(orgs, sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~
@@ -155,13 +161,12 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
         Instances.next,
         Instances.eval)
 
-    val orgs      = Organizations(orgsAgg)
-    val doms      = Domains(domsAgg, orgs)
-    val contexts  = Contexts(ctxAgg, doms, apiUri.toString())
-    val schemas   = Schemas(schemasAgg, doms, contexts, apiUri.toString())
-    val validator = ShaclValidator[Future](SchemaImportResolver(apiUri.toString(), schemas.fetch, contexts.resolve))
-    implicit val instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]] =
-      Instances(instancesAgg, schemas, contexts, validator, inFileProcessor)
+    val orgs               = Organizations(orgsAgg)
+    val doms               = Domains(domsAgg, orgs)
+    val contexts           = Contexts(ctxAgg, doms, apiUri.toString())
+    val schemas            = Schemas(schemasAgg, doms, contexts)
+    implicit val instances = Instances(instancesAgg, schemas, contexts, inFileProcessor)
+
     val cache: Cache[Future, Query] = ShardedCache[Query]("queries", CacheSettings())
     val queries: Queries[Future]    = Queries(cache)
     (orgs, doms, schemas, contexts, instances, queries)
@@ -171,6 +176,7 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   def leaveCluster(): Unit = cluster.leave(cluster.selfAddress)
 }
+// $COVERAGE-ON$
 
 object BootstrapService {
 

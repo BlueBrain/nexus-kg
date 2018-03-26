@@ -7,12 +7,15 @@ import cats.instances.try_._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.test._
+import ch.epfl.bluebrain.nexus.kg.core.AggregatedImportResolver
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
+import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceImportResolver
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgRejection.OrgIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
@@ -22,7 +25,7 @@ import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, TryValues, WordSpecLike}
 
-import scala.util.Try
+import scala.util.{Failure, Try}
 
 //noinspection TypeAnnotation
 class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryValues with Randomness with Resources {
@@ -59,7 +62,13 @@ class SchemasSpec extends WordSpecLike with Matchers with Inspectors with TryVal
     val orgs    = Organizations(orgsAgg)
     val doms    = Domains(domAgg, orgs)
     val ctxs    = Contexts(ctxsAgg, doms, baseUri)
-    val schemas = Schemas(schemasAgg, doms, ctxs, baseUri)
+    val schemas = Schemas(schemasAgg, doms, ctxs)
+
+    val schemaImportResolver = new SchemaImportResolver(baseUri, schemas.fetch, ctxs.resolve)
+    val instanceImportResolver =
+      new InstanceImportResolver[Try](baseUri, _ => Failure(new IllegalArgumentException()), ctxs.resolve)
+    implicit val validator: ShaclValidator[Try] =
+      new ShaclValidator[Try](AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
 
     val orgRef = orgs.create(OrgId(genId()), genJson()).success.value
     val domRef =
