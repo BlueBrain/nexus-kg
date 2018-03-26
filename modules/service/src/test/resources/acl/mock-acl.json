@@ -12,7 +12,8 @@
         "own",
         "read",
         "write",
-        "publish"
+        "publish",
+        "projects/read"
       ]
     }
   ]
