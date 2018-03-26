@@ -46,7 +46,7 @@ val luceneVersion                   = "7.1.0"
 val elasticSearchVersion            = "6.1.2"
 
 // Nexus dependency versions
-val commonsVersion = "0.7.14"
+val commonsVersion = "0.7.15"
 
 // Library dependencies
 lazy val akkaClusterSharding      = "com.typesafe.akka"          %% "akka-cluster-sharding"               % akkaVersion
