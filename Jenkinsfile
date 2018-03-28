@@ -13,7 +13,7 @@ pipeline {
                     steps {
                         node("slave-sbt") {
                             checkout scm
-                            sh 'sbt clean scalafmtCheck scalafmtSbtCheck scapegoat'
+                            sh 'sbt clean scalafmtCheck scalafmtSbtCheck test:scalafmtCheck scapegoat'
                         }
                     }
                 }
@@ -21,7 +21,9 @@ pipeline {
                     steps {
                         node("slave-sbt") {
                             checkout scm
-                            sh 'sbt clean coverage test coverageReport coverageAggregate'
+                            sh "sbt clean coverage test coverageReport coverageAggregate"
+                            sh "curl -s https://codecov.io/bash >> ./coverage.sh"
+                            sh "bash ./coverage.sh -t `oc get secrets codecov-secret --template='{{.data.nexus_kg}}' | base64 -d`"
                         }
                     }
                 }
@@ -49,6 +51,19 @@ pipeline {
                     sh "mv modules/service/target/universal/kg-service-*.tgz ./kg-service.tgz"
                     sh "oc start-build kg-build --from-file=kg-service.tgz --follow"
                     openshiftTag srcStream: 'kg', srcTag: 'latest', destStream: 'kg', destTag: version.substring(1), verbose: 'false'
+                }
+            }
+        }
+        stage("Report Coverage") {
+            when {
+                expression { env.CHANGE_ID == null }
+            }
+            steps {
+                node("slave-sbt") {
+                    checkout scm
+                    sh "sbt clean coverage test coverageReport coverageAggregate"
+                    sh "curl -s https://codecov.io/bash >> ./coverage.sh"
+                    sh "bash ./coverage.sh -t `oc get secrets codecov-secret --template='{{.data.nexus_kg}}' | base64 -d`"
                 }
             }
         }
