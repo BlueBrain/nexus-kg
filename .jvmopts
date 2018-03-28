@@ -3,11 +3,6 @@
 -Xmx6G
 -XX:ReservedCodeCacheSize=350M
 -XX:+TieredCompilation
-# This crashes in some Mac
-#-XX:+UseG1GC
+-XX:+UseG1GC
 -XX:MaxMetaspaceSize=2G
 -XX:-UseGCOverheadLimit
-# effectively adds GC to Perm space
--XX:+CMSClassUnloadingEnabled
-# must be enabled for CMSClassUnloadingEnabled to work
--XX:+UseConcMarkSweepGC
