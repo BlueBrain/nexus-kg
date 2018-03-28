@@ -40,12 +40,18 @@ class AppConfigSpec extends WordSpecLike with Matchers {
 
       appConfig.admin.baseUri shouldEqual Uri("http://localhost:8080/admin")
 
-      appConfig.prefixes.coreContext shouldEqual ContextUri("http://localhost:8080/v1/contexts/nexus/core/resource/v0.1.0")
-      appConfig.prefixes.standardsContext shouldEqual ContextUri("http://localhost:8080/v1/contexts/nexus/core/standards/v0.1.0")
-      appConfig.prefixes.linksContext shouldEqual ContextUri("http://localhost:8080/v1/contexts/nexus/core/links/v0.1.0")
-      appConfig.prefixes.searchContext shouldEqual ContextUri("http://localhost:8080/v1/contexts/nexus/core/search/v0.1.0")
-      appConfig.prefixes.distributionContext shouldEqual ContextUri("http://localhost:8080/v1/contexts/nexus/core/distribution/v0.1.0")
-      appConfig.prefixes.errorContext shouldEqual ContextUri("http://localhost:8080/v1/contexts/nexus/core/error/v0.1.0")
+      appConfig.prefixes.coreContext shouldEqual ContextUri(
+        "http://localhost:8080/v1/contexts/nexus/core/resource/v0.1.0")
+      appConfig.prefixes.standardsContext shouldEqual ContextUri(
+        "http://localhost:8080/v1/contexts/nexus/core/standards/v0.1.0")
+      appConfig.prefixes.linksContext shouldEqual ContextUri(
+        "http://localhost:8080/v1/contexts/nexus/core/links/v0.1.0")
+      appConfig.prefixes.searchContext shouldEqual ContextUri(
+        "http://localhost:8080/v1/contexts/nexus/core/search/v0.1.0")
+      appConfig.prefixes.distributionContext shouldEqual ContextUri(
+        "http://localhost:8080/v1/contexts/nexus/core/distribution/v0.1.0")
+      appConfig.prefixes.errorContext shouldEqual ContextUri(
+        "http://localhost:8080/v1/contexts/nexus/core/error/v0.1.0")
       appConfig.prefixes.coreVocabulary shouldEqual Uri("http://localhost:8080/vocabs/nexus/core/terms/v0.1.0/")
     }
   }
