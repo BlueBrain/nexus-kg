@@ -47,7 +47,7 @@ pipeline {
                 node("slave-sbt") {
                     unstash name: "service"
                     sh "mv modules/service/target/universal/kg-service-*.tgz ./kg-service.tgz"
-                    sh "oc start-build kg-build --from-file=kg-service.tgz --follow"
+                    sh "oc start-build kg-v0-build --from-file=kg-service.tgz --follow"
                     openshiftTag srcStream: 'kg-v0', srcTag: 'latest', destStream: 'kg-v0', destTag: version.substring(1), verbose: 'false'
                 }
             }
