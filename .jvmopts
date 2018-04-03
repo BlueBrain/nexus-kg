@@ -5,3 +5,4 @@
 -XX:+TieredCompilation
 -XX:+UseG1GC
 -XX:MaxMetaspaceSize=2G
+-XX:-UseGCOverheadLimit

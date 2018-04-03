@@ -20,4 +20,7 @@
         <appender-ref ref="CONSOLE"/>
     </root>
 
+    <logger name="akka.remote" level="WARN" />
+    <logger name="akka.cluster" level="WARN" />
+
 </configuration>
