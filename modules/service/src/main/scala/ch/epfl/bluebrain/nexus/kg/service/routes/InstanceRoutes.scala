@@ -21,6 +21,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
+import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
@@ -60,6 +61,7 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                      instanceQueries: FilterQueries[Future, InstanceId],
                      instancesElasticQueries: InstancesElasticQueries[Future],
                      base: Uri)(implicit
+                                validator: ShaclValidator[Future],
                                 contexts: Contexts[Future],
                                 querySettings: QuerySettings,
                                 filteringSettings: FilteringSettings,
@@ -294,6 +296,7 @@ object InstanceRoutes {
                   elasticSettings: ElasticIndexingSettings,
                   querySettings: QuerySettings,
                   base: Uri)(implicit
+                             validator: ShaclValidator[Future],
                              contexts: Contexts[Future],
                              ec: ExecutionContext,
                              mt: Materializer,

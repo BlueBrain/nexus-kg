@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
 import ch.epfl.bluebrain.nexus.commons.iam.acls.{Path, Permission}
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission._
 import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
+import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResults, SortList}
 import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
@@ -59,7 +60,9 @@ import scala.concurrent.{ExecutionContext, Future}
 class SchemaRoutes(schemas: Schemas[Future],
                    schemaQueries: FilterQueries[Future, SchemaId],
                    schemasElasticQueries: SchemasElasticQueries[Future],
-                   base: Uri)(implicit contexts: Contexts[Future],
+                   base: Uri)(implicit
+                              validator: ShaclValidator[Future],
+                              contexts: Contexts[Future],
                               querySettings: QuerySettings,
                               filteringSettings: FilteringSettings,
                               iamClient: IamClient[Future],
@@ -251,6 +254,7 @@ object SchemaRoutes {
                   elasticSettings: ElasticIndexingSettings,
                   querySettings: QuerySettings,
                   base: Uri)(implicit
+                             validator: ShaclValidator[Future],
                              contexts: Contexts[Future],
                              ec: ExecutionContext,
                              mt: Materializer,

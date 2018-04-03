@@ -34,6 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param as           the implicitly available [[ActorSystem]]
   * @param ec           the implicitly available [[ExecutionContext]]
   */
+// $COVERAGE-OFF$
 class StartElasticIndexers(settings: Settings,
                            elasticClient: ElasticClient[Future],
                            contexts: Contexts[Future],
@@ -103,7 +104,6 @@ class StartElasticIndexers(settings: Settings,
 
 object StartElasticIndexers {
 
-  // $COVERAGE-OFF$
   /**
     * Constructs a StartElasticIndexers
     *
@@ -117,5 +117,5 @@ object StartElasticIndexers {
       ec: ExecutionContext): StartElasticIndexers =
     new StartElasticIndexers(settings, elasticClient, contexts, apiUri)
 
-  // $COVERAGE-ON$
 }
+// $COVERAGE-ON$

@@ -36,6 +36,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param as           the implicitly available [[ActorSystem]]
   * @param ec           the implicitly available [[ExecutionContext]]
   */
+// $COVERAGE-OFF$
 class StartSparqlIndexers(settings: Settings,
                           blazegraphClient: BlazegraphClient[Future],
                           contexts: Contexts[Future],
@@ -134,10 +135,10 @@ class StartSparqlIndexers(settings: Settings,
     )
   }
 }
+// $COVERAGE-ON$
 
 object StartSparqlIndexers {
 
-  // $COVERAGE-OFF$
   /**
     * Constructs a StartElasticIndexers
     *
@@ -153,5 +154,5 @@ object StartSparqlIndexers {
                                ec: ExecutionContext): StartSparqlIndexers =
     new StartSparqlIndexers(settings, blazegraphClient, contexts, apiUri)
 
-  // $COVERAGE-ON$
 }
+// $COVERAGE-ON$

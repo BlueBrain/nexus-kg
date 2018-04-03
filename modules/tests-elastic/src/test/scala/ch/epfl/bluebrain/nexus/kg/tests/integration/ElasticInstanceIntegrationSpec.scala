@@ -12,6 +12,7 @@ import akka.util.ByteString
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AuthenticatedCaller
+import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
@@ -39,11 +40,11 @@ class ElasticInstanceIntegrationSpec(
     apiUri: Uri,
     prefixes: PrefixUris,
     route: Route,
-    instancesService: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]])(
-    implicit
-    as: ActorSystem,
-    ec: ExecutionContextExecutor,
-    mt: ActorMaterializer)
+    instancesService: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
+    validator: ShaclValidator[Future])(implicit
+                                       as: ActorSystem,
+                                       ec: ExecutionContextExecutor,
+                                       mt: ActorMaterializer)
     extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._
@@ -70,8 +71,8 @@ class ElasticInstanceIntegrationSpec(
                   aJson deepMerge Json.obj("hasPart" -> Json.obj("@id" -> Json.fromString(prevId.qualifyAsString)))
                 case _ => aJson
               }
-              val ref = Await.result(instancesService.create(schemaId, json)(caller), 5 second)
-              idsPayload += (ref.id -> Instance(ref.id, 1L, json, None, false))
+              val ref = Await.result(instancesService.create(schemaId, json)(caller, validator), 5 second)
+              idsPayload += (ref.id -> Instance(ref.id, 1L, json, None, deprecated = false))
               (ref.id               -> json) :: acc
           }
           .sortWith(_._1.show < _._1.show)

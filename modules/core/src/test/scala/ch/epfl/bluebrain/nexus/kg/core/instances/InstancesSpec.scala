@@ -10,13 +10,14 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern.quote
 
 import cats.Show
-import cats.syntax.show._
 import cats.instances.try_._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ImportResolver, ShaclValidator}
+import ch.epfl.bluebrain.nexus.kg.core.AggregatedImportResolver
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
@@ -25,7 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.core.instances.InstancesSpec._
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment.{Digest, Info, Size}
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.{Attachment, AttachmentLocation, InOutFileStream}
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
-import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaRejection, Schemas}
+import ch.epfl.bluebrain.nexus.kg.core.schemas.{SchemaId, SchemaImportResolver, SchemaRejection, Schemas}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.Json
@@ -49,7 +50,6 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
     UUID.randomUUID().toString.toLowerCase
 
   val schemaJson = jsonContentOf("/int-value-schema.json")
-  val validator  = ShaclValidator[Try](ImportResolver.noop)
   val baseUri    = "http://localhost:8080/v0"
 
   private implicit val caller = AnonymousCaller(Anonymous())
@@ -73,8 +73,13 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
     val orgs      = Organizations(orgsAgg)
     val doms      = Domains(domAgg, orgs)
     val ctxs      = Contexts(ctxsAgg, doms, baseUri)
-    val schemas   = Schemas(schemasAgg, doms, ctxs, baseUri)
-    val instances = Instances(instAgg, schemas, ctxs, validator, inOutFileStream)
+    val schemas   = Schemas(schemasAgg, doms, ctxs)
+    val instances = Instances(instAgg, schemas, ctxs, inOutFileStream)
+
+    val schemaImportResolver   = new SchemaImportResolver(baseUri, schemas.fetch, ctxs.resolve)
+    val instanceImportResolver = new InstanceImportResolver[Try](baseUri, instances.fetch, ctxs.resolve)
+    implicit val validator: ShaclValidator[Try] =
+      new ShaclValidator[Try](AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
 
     val orgRef = orgs.create(OrgId(genId()), genJson()).success.value
     val domRef =

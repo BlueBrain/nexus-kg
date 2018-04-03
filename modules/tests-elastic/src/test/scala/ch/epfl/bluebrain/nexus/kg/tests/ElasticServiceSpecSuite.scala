@@ -62,7 +62,11 @@ class ElasticServiceSpecSuite
     new ElasticDomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new ElasticContextsIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new ElasticSchemasIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
-    new ElasticInstanceIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes, bootstrap.instances)
+    new ElasticInstanceIntegrationSpec(bootstrap.apiUri,
+                                       settings.Prefixes,
+                                       bootstrap.routes,
+                                       bootstrap.instances,
+                                       bootstrap.validator)
   )
 
   override def run(testName: Option[String], args: Args): Status = super.run(testName, args)

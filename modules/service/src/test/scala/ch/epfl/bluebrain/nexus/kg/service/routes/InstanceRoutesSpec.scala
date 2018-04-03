@@ -24,13 +24,13 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
-import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
+import ch.epfl.bluebrain.nexus.kg.core.{AggregatedImportResolver, CallerCtx}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment._
-import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
+import ch.epfl.bluebrain.nexus.kg.core.instances._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection.{
   SchemaDoesNotExist,
@@ -102,12 +102,16 @@ class InstanceRoutesSpec
     val schAgg                                          = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
     val ctxAgg                                          = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
     implicit val contexts                               = Contexts(ctxAgg, doms, baseUri.toString())
-    val schemas                                         = Schemas(schAgg, doms, contexts, baseUri.toString())
-    val validator                                       = ShaclValidator[Future](SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve))
+    val schemas                                         = Schemas(schAgg, doms, contexts)
     val instAgg                                         = MemoryAggregate("instances")(Instances.initial, Instances.next, Instances.eval).toF[Future]
     implicit val fa: RelativeAttachmentLocation[Future] = RelativeAttachmentLocation[Future](settings)
     val inFileProcessor                                 = AkkaInOutFileStream(settings)
-    val instances                                       = Instances(instAgg, schemas, contexts, validator, inFileProcessor)
+    val instances                                       = Instances(instAgg, schemas, contexts, inFileProcessor)
+    val schemaImportResolver                            = new SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve)
+    val instanceImportResolver =
+      new InstanceImportResolver[Future](baseUri.toString(), instances.fetch, contexts.resolve)
+    implicit val validator: ShaclValidator[Future] = new ShaclValidator(
+      AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
 
     implicit val tracing: TracingDirectives = TracingDirectives()
     implicit val clock                      = Clock.systemUTC
@@ -117,7 +121,7 @@ class InstanceRoutesSpec
     val domRef   = doms.create(DomainId(orgRef.id, genString(length = 5)), genString(length = 8))(caller).futureValue
     val schemaId = SchemaId(domRef.id, genString(length = 8), genVersion())
 
-    val unpublished = schemas.create(schemaId, schemaJson)(caller).futureValue
+    val unpublished = schemas.create(schemaId, schemaJson)(caller, validator).futureValue
     val _           = schemas.publish(schemaId, unpublished.rev)(caller).futureValue
 
     private val InstanceSparqlIndexingSettings(_, _, nexusVocBase) =
@@ -200,7 +204,7 @@ class InstanceRoutesSpec
 
     "reject the creation of an instance when schema is not publish" in new Context {
       val schemaId2 = SchemaId(domRef.id, genString(length = 8), genVersion())
-      schemas.create(schemaId2, schemaJson)(caller).futureValue
+      schemas.create(schemaId2, schemaJson)(caller, validator).futureValue
 
       Post(s"/data/${schemaId2.show}", value) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.BadRequest
@@ -211,7 +215,7 @@ class InstanceRoutesSpec
     "reject the creation of an instance when schema is deprecated" in new Context {
       //Create a new schema
       val schemaId2 = SchemaId(domRef.id, genString(length = 8), genVersion())
-      schemas.create(schemaId2, schemaJson)(caller).futureValue
+      schemas.create(schemaId2, schemaJson)(caller, validator).futureValue
 
       //Deprecate the new schema
       schemas.deprecate(schemaId2, 1L)(caller).futureValue
