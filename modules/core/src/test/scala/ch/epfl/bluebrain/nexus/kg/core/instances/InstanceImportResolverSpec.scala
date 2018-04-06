@@ -122,6 +122,21 @@ class InstanceImportResolverSpec extends WordSpecLike with Matchers with TryValu
         ))
     }
 
+    "ignore schemas imports" in {
+      val withUnknown =
+        uncheckedImportsInstance(
+          mid1.id,
+          List(s"$baseUri/schemas/org/dom/schema/0.1.0/name",
+               s"$baseUri/schemas/org/dom2/schema/0.1.0/name",
+               s"$baseUri/data/${mid2.id.show}"),
+          resolveContext = true
+        )
+      val all      = List(mid2, leaf1)
+      val loader   = (id: InstanceId) => Success(all.find(_.id == id))
+      val resolver = new InstanceImportResolver[Try](baseUri, loader, contextResolver)
+      resolver(withUnknown.asShacl).success.value.size shouldEqual 2
+    }
+
     "ignore incorrectly typed imports" in {
       val withUnknown =
         jsonImportsInstance(genInstanceId(), List(Json.fromInt(12), Json.fromString("13")), resolveContext = true)

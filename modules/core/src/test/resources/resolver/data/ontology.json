@@ -1,0 +1,71 @@
+{
+  "@context": {
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "nxv": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "defined": {
+      "@reverse": "rdfs:isDefinedBy",
+      "@type": "@id"
+    }
+  },
+  "@id": "{{base}}/data/nexus/core/unit/v0.1.0/62395ccd-bd3d-4fbb-8ca0-beb333d563b6",
+  "@type": "owl:Ontology",
+  "defined": [
+    {
+      "@id": "nxv:Degree",
+      "@type": [
+        "owl:Class"
+      ],
+      "rdfs:subClassOf": [
+        {
+          "@id": "nxv:TemperatureUnit"
+        }
+      ]
+    },
+    {
+      "@id": "nxv:ElectricityUnit",
+      "@type": [
+        "owl:Class"
+      ],
+      "rdfs:subClassOf": [
+        {
+          "@id": "nxv:UnitCode"
+        }
+      ]
+    },
+    {
+      "@id": "nxv:Measurement",
+      "@type": [
+        "owl:Class"
+      ]
+    },
+    {
+      "@id": "nxv:TemperatureUnit",
+      "@type": [
+        "owl:Class"
+      ],
+      "rdfs:subClassOf": [
+        {
+          "@id": "nxv:UnitCode"
+        }
+      ]
+    },
+    {
+      "@id": "nxv:UnitCode",
+      "@type": [
+        "owl:Class"
+      ]
+    },
+    {
+      "@id": "nxv:mA",
+      "@type": [
+        "owl:Class"
+      ],
+      "rdfs:subClassOf": [
+        {
+          "@id": "nxv:ElectricityUnit"
+        }
+      ]
+    }
+  ]
+}

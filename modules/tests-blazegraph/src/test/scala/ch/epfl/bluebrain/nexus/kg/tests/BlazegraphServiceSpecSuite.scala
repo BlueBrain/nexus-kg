@@ -48,6 +48,7 @@ class BlazegraphServiceSpecSuite
     StartSparqlIndexers(settings, bootstrap.sparqlClient, bootstrap.contexts, bootstrap.apiUri)
   }
 
+  implicit val instanceResolver = bootstrap.instanceImportResolver
   override val nestedSuites = Vector(
     new BlazegraphOrgIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new BlazegraphDomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),

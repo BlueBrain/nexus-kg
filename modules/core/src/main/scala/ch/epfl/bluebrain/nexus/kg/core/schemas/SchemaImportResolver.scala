@@ -24,6 +24,8 @@ class SchemaImportResolver[F[_]](baseUri: String,
 
   override def idBaseUri: String = s"$baseUri/schemas"
 
+  override def idBaseUriToIgnore: Set[String] = Set(s"$baseUri/data/")
+
   override def toId(str: String): Try[SchemaId] = SchemaId(str)
 
   override def asJson(resource: Schema): Json = resource.value

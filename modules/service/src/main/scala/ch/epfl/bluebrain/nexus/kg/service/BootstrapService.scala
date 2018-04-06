@@ -27,7 +27,6 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
-import ch.epfl.bluebrain.nexus.kg.core.AggregatedImportResolver
 import ch.epfl.bluebrain.nexus.kg.core.cache.ShardedCache.CacheSettings
 import ch.epfl.bluebrain.nexus.kg.core.cache.{Cache, ShardedCache}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
@@ -96,13 +95,13 @@ class BootstrapService(settings: Settings)(implicit as: ActorSystem,
 
   private val idsToEntities        = new GroupedIdsToEntityRetrieval(instances, schemas, contexts, doms, orgs)
   private val schemaImportResolver = new SchemaImportResolver(apiUri.toString(), schemas.fetch, contexts.resolve)
-  private val instanceImportResolver =
+  val instanceImportResolver =
     new InstanceImportResolver[Future](apiUri.toString(), instances.fetch, contexts.resolve)
-  implicit val validator: ShaclValidator[Future] =
-    new ShaclValidator(AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
+  implicit val validator: ShaclValidator[Future] = new ShaclValidator(schemaImportResolver)
 
   private val apis = uriPrefix(apiUri) {
-    implicit val ctxs = contexts
+    implicit val ctxs         = contexts
+    implicit val insImportRes = instanceImportResolver
     OrganizationRoutes(orgs, sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~
       DomainRoutes(doms, sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~
       SchemaRoutes(schemas, sparqlClient, elasticClient, elasticSettings, querySettings, apiUri).routes ~

@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.core.schemas
 
+import java.util.UUID
+
 import cats.instances.try_._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -129,6 +131,20 @@ class SchemaImportResolverSpec extends WordSpecLike with Matchers with TryValues
           "http://localhost/a",
           "http://localhost/b"
         ))
+    }
+
+    "ignore data imports" in {
+      val withUnknown =
+        uncheckedImportsSchema(
+          mid1.id,
+          List(s"$baseUri/data/org/dom/schema/0.1.0/name/${UUID.randomUUID().toString.toLowerCase()}",
+               s"$baseUri/schemas/${mid2.id.show}"),
+          resolveContext = true
+        )
+      val all      = List(mid2, leaf1)
+      val loader   = (id: SchemaId) => Success(all.find(_.id == id))
+      val resolver = new SchemaImportResolver[Try](baseUri, loader, contextResolver)
+      resolver(withUnknown.asShacl).success.value.size shouldEqual 2
     }
 
     "ignore incorrectly typed imports" in {

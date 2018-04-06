@@ -20,7 +20,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryRe
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.Qualifier._
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainId
-import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceRef, Instances}
+import ch.epfl.bluebrain.nexus.kg.core.instances._
 import ch.epfl.bluebrain.nexus.kg.core.organizations.OrgId
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaId
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
@@ -44,7 +44,8 @@ class ElasticInstanceIntegrationSpec(
     validator: ShaclValidator[Future])(implicit
                                        as: ActorSystem,
                                        ec: ExecutionContextExecutor,
-                                       mt: ActorMaterializer)
+                                       mt: ActorMaterializer,
+                                       instanceImportResolver: InstanceImportResolver[Future])
     extends BootstrapIntegrationSpec(apiUri, prefixes) {
 
   import BootstrapIntegrationSpec._
@@ -71,7 +72,8 @@ class ElasticInstanceIntegrationSpec(
                   aJson deepMerge Json.obj("hasPart" -> Json.obj("@id" -> Json.fromString(prevId.qualifyAsString)))
                 case _ => aJson
               }
-              val ref = Await.result(instancesService.create(schemaId, json)(caller, validator), 5 second)
+              val ref = Await.result(instancesService.create(schemaId, json)(caller, validator, instanceImportResolver),
+                                     5 second)
               idsPayload += (ref.id -> Instance(ref.id, 1L, json, None, deprecated = false))
               (ref.id               -> json) :: acc
           }

@@ -28,7 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
 import ch.epfl.bluebrain.nexus.kg.ElasticIdDecoder.elasticIdDecoder
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.instances.attachments.Attachment
-import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceId, Instances}
+import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceId, InstanceImportResolver, Instances}
 import ch.epfl.bluebrain.nexus.kg.core.queries.filtering.{Filter, FilteringSettings}
 import ch.epfl.bluebrain.nexus.kg.core.{ConfiguredQualifier, Qualifier}
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexingSettings
@@ -55,13 +55,13 @@ import scala.util.Try
   * @param instanceQueries         query builder for schemas
   * @param instancesElasticQueries Elastic search client for instances
   * @param base                    the service public uri + prefix
-  * @param prefixes                the service context URIs
   */
 class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
                      instanceQueries: FilterQueries[Future, InstanceId],
                      instancesElasticQueries: InstancesElasticQueries[Future],
                      base: Uri)(implicit
                                 validator: ShaclValidator[Future],
+                                instanceImportResolver: InstanceImportResolver[Future],
                                 contexts: Contexts[Future],
                                 querySettings: QuerySettings,
                                 filteringSettings: FilteringSettings,
@@ -287,7 +287,6 @@ object InstanceRoutes {
     * @param elasticSettings Elastic Search settings
     * @param querySettings   query parameters form settings
     * @param base            the service public uri + prefix
-    * @param prefixes        the service context URIs
     * @return a new ''InstanceRoutes'' instance
     */
   final def apply(instances: Instances[Future, Source[ByteString, Any], Source[ByteString, Future[IOResult]]],
@@ -297,6 +296,7 @@ object InstanceRoutes {
                   querySettings: QuerySettings,
                   base: Uri)(implicit
                              validator: ShaclValidator[Future],
+                             instanceImportResolver: InstanceImportResolver[Future],
                              contexts: Contexts[Future],
                              ec: ExecutionContext,
                              mt: Materializer,
