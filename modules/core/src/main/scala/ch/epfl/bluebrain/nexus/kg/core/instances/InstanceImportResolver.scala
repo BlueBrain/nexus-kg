@@ -22,6 +22,8 @@ class InstanceImportResolver[F[_]](baseUri: String,
 
   override val idBaseUri = s"$baseUri/data"
 
+  override def idBaseUriToIgnore: Set[String] = Set(s"$baseUri/schemas/")
+
   override def toId(str: String): Try[InstanceId] = InstanceId.apply(str)
 
   override def asJson(resource: Instance): Json = resource.value

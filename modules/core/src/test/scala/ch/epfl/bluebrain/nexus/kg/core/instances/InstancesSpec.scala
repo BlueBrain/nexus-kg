@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidator
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.kg.core.CallerCtx._
-import ch.epfl.bluebrain.nexus.kg.core.AggregatedImportResolver
 import ch.epfl.bluebrain.nexus.kg.core.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
@@ -76,10 +75,9 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
     val schemas   = Schemas(schemasAgg, doms, ctxs)
     val instances = Instances(instAgg, schemas, ctxs, inOutFileStream)
 
-    val schemaImportResolver            = new SchemaImportResolver(baseUri, schemas.fetch, ctxs.resolve)
-    implicit val instanceImportResolver = new InstanceImportResolver[Try](baseUri, instances.fetch, ctxs.resolve)
-    implicit val validator: ShaclValidator[Try] =
-      new ShaclValidator[Try](AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
+    val schemaImportResolver                    = new SchemaImportResolver(baseUri, schemas.fetch, ctxs.resolve)
+    implicit val instanceImportResolver         = new InstanceImportResolver[Try](baseUri, instances.fetch, ctxs.resolve)
+    implicit val validator: ShaclValidator[Try] = new ShaclValidator[Try](schemaImportResolver)
 
     val orgRef = orgs.create(OrgId(genId()), genJson()).success.value
     val domRef =

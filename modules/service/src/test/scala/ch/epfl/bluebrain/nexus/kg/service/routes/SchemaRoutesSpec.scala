@@ -19,11 +19,10 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.IllegalVersionFormat
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
-import ch.epfl.bluebrain.nexus.kg.core.{AggregatedImportResolver, CallerCtx}
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.DomainRejection.DomainIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
-import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceImportResolver
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaRejection._
 import ch.epfl.bluebrain.nexus.kg.core.schemas._
@@ -73,23 +72,19 @@ class SchemaRoutesSpec
       schemaJsonObject.add("@context", jsonContext)
     )
 
-    val shapeNodeShape                      = jsonContentOf("/int-value-shape-nodeshape.json")
-    val orgAgg                              = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
-    val orgs                                = Organizations(orgAgg)
-    val domAgg                              = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
-    val doms                                = Domains(domAgg, orgs)
-    val ctxAgg                              = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
-    implicit val contexts                   = Contexts(ctxAgg, doms, baseUri.toString())
-    val schAgg                              = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
-    val schemas                             = Schemas(schAgg, doms, contexts)
-    implicit val clock                      = Clock.systemUTC
-    implicit val tracing: TracingDirectives = TracingDirectives()
-    val schemaImportResolver                = new SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve)
-    val instanceImportResolver = new InstanceImportResolver[Future](baseUri.toString(),
-                                                                    _ => Future.failed(new IllegalArgumentException()),
-                                                                    contexts.resolve)
-    implicit val validator: ShaclValidator[Future] =
-      new ShaclValidator(AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
+    val shapeNodeShape                             = jsonContentOf("/int-value-shape-nodeshape.json")
+    val orgAgg                                     = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
+    val orgs                                       = Organizations(orgAgg)
+    val domAgg                                     = MemoryAggregate("dom")(Domains.initial, Domains.next, Domains.eval).toF[Future]
+    val doms                                       = Domains(domAgg, orgs)
+    val ctxAgg                                     = MemoryAggregate("contexts")(Contexts.initial, Contexts.next, Contexts.eval).toF[Future]
+    implicit val contexts                          = Contexts(ctxAgg, doms, baseUri.toString())
+    val schAgg                                     = MemoryAggregate("schemas")(Schemas.initial, Schemas.next, Schemas.eval).toF[Future]
+    val schemas                                    = Schemas(schAgg, doms, contexts)
+    implicit val clock                             = Clock.systemUTC
+    implicit val tracing: TracingDirectives        = TracingDirectives()
+    val schemaImportResolver                       = new SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve)
+    implicit val validator: ShaclValidator[Future] = new ShaclValidator(schemaImportResolver)
 
     val caller = CallerCtx(clock, AnonymousCaller(Anonymous()))
 

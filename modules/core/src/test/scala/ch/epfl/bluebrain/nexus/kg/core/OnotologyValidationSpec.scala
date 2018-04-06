@@ -1,15 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.core
 
 import java.util.regex.Pattern.quote
+
 import cats.instances.try_._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ShaclSchema, ShaclValidator}
 import ch.epfl.bluebrain.nexus.commons.test.Resources
-import ch.epfl.bluebrain.nexus.kg.core.instances.{Instance, InstanceId, InstanceImportResolver}
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaImportResolver
 import io.circe.Json
 import org.scalatest.{Matchers, TryValues, WordSpecLike}
 
-import scala.util.{Success, Try}
+import scala.util.Try
 
 class OnotologyValidationSpec extends WordSpecLike with Matchers with Resources with TryValues {
 
@@ -19,16 +19,9 @@ class OnotologyValidationSpec extends WordSpecLike with Matchers with Resources 
   private val ontology     = jsonContentOf("/resolver/data/ontology.json", replacements)
   private val schema       = jsonContentOf("/resolver/schemas/schema.json", replacements)
 
-  private val ctxResolver = (_: Json) => Try(Json.obj())
-
-  private val instanceResolver = (id: InstanceId) => Success(Some(Instance(id, 1L, ontology, deprecated = false)))
-
-  private val schemaImportResolver = new SchemaImportResolver[Try](baseUri, _ => Try(None), ctxResolver)
-  private val instanceImportResolver =
-    new InstanceImportResolver[Try](baseUri, instanceResolver, ctxResolver)
-
-  private val validator: ShaclValidator[Try] =
-    new ShaclValidator[Try](AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
+  private val ctxResolver                    = (_: Json) => Try(Json.obj())
+  private val schemaImportResolver           = new SchemaImportResolver[Try](baseUri, _ => Try(None), ctxResolver)
+  private val validator: ShaclValidator[Try] = new ShaclValidator[Try](schemaImportResolver)
 
   "An OntologyValidation" should {
 

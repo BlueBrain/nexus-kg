@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
-import ch.epfl.bluebrain.nexus.kg.core.{AggregatedImportResolver, CallerCtx}
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.contexts.Contexts
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRejection._
@@ -110,8 +110,7 @@ class InstanceRoutesSpec
     val schemaImportResolver                            = new SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve)
     implicit val instanceImportResolver =
       new InstanceImportResolver[Future](baseUri.toString(), instances.fetch, contexts.resolve)
-    implicit val validator: ShaclValidator[Future] = new ShaclValidator(
-      AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
+    implicit val validator: ShaclValidator[Future] = new ShaclValidator(schemaImportResolver)
 
     implicit val tracing: TracingDirectives = TracingDirectives()
     implicit val clock                      = Clock.systemUTC

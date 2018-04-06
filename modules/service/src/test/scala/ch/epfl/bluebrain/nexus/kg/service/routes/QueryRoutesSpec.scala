@@ -17,12 +17,12 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.types.Version
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, Sort, SortList}
-import ch.epfl.bluebrain.nexus.kg.core.{AggregatedImportResolver, CallerCtx}
+import ch.epfl.bluebrain.nexus.kg.core.CallerCtx
 import ch.epfl.bluebrain.nexus.kg.core.cache.ShardedCache.CacheSettings
 import ch.epfl.bluebrain.nexus.kg.core.cache.{Cache, ShardedCache}
 import ch.epfl.bluebrain.nexus.kg.core.contexts.{ContextId, Contexts}
 import ch.epfl.bluebrain.nexus.kg.core.domains.{DomainId, Domains}
-import ch.epfl.bluebrain.nexus.kg.core.instances.{InstanceImportResolver, Instances}
+import ch.epfl.bluebrain.nexus.kg.core.instances.Instances
 import ch.epfl.bluebrain.nexus.kg.core.organizations.{OrgId, Organizations}
 import ch.epfl.bluebrain.nexus.kg.core.queries.Query.QueryPayload
 import ch.epfl.bluebrain.nexus.kg.core.queries._
@@ -93,10 +93,8 @@ class QueryRoutesSpec
   val inFileProcessor                                 = AkkaInOutFileStream(settings)
   val instances                                       = Instances(instAgg, schemas, contexts, inFileProcessor)
 
-  val schemaImportResolver   = new SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve)
-  val instanceImportResolver = new InstanceImportResolver[Future](baseUri.toString(), instances.fetch, contexts.resolve)
-  implicit val validator: ShaclValidator[Future] = new ShaclValidator(
-    AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
+  val schemaImportResolver                       = new SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve)
+  implicit val validator: ShaclValidator[Future] = new ShaclValidator(schemaImportResolver)
 
   val groupedIds                  = new GroupedIdsToEntityRetrieval(instances, schemas, contexts, doms, orgs)
   val cache: Cache[Future, Query] = ShardedCache[Query]("some", CacheSettings())

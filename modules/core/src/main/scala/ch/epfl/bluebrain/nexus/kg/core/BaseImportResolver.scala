@@ -35,6 +35,7 @@ abstract class BaseImportResolver[F[_], Id: Show, Resource](
   private final lazy val owlImports: Property = ResourceFactory.createProperty("http://www.w3.org/2002/07/owl#imports")
 
   def idBaseUri: String
+  def idBaseUriToIgnore: Set[String]
   private lazy val idBaseUriSlashed       = s"$idBaseUri/"
   private lazy val idBaseUriSlashedLength = idBaseUriSlashed.length
 
@@ -81,10 +82,14 @@ abstract class BaseImportResolver[F[_], Id: Show, Resource](
 
   def checkImports(list: List[(Id, Option[Resource])]): Either[CouldNotFindImports, List[(Id, ShaclSchema)]] = {
     list.foldLeft[Either[CouldNotFindImports, List[(Id, ShaclSchema)]]](Right(Nil)) {
-      case (Left(CouldNotFindImports(missing)), (id, None)) => Left(CouldNotFindImports(missing + qualify(id)))
-      case (l @ Left(_), _)                                 => l
-      case (Right(_), (id, None))                           => Left(CouldNotFindImports(Set(qualify(id))))
-      case (Right(acc), (id, Some(sch)))                    => Right(id -> toShaclSchema(id, sch) :: acc)
+      case (Left(CouldNotFindImports(missing)), (id, None)) =>
+        Left(CouldNotFindImports(missing + qualify(id)))
+      case (l @ Left(_), _) =>
+        l
+      case (Right(_), (id, None)) =>
+        Left(CouldNotFindImports(Set(qualify(id))))
+      case (Right(acc), (id, Some(sch))) =>
+        Right(id -> toShaclSchema(id, sch) :: acc)
     }
   }
 
@@ -103,12 +108,14 @@ abstract class BaseImportResolver[F[_], Id: Show, Resource](
     }
   }
 
-  private def nodeToId(node: RDFNode): Either[String, Id] =
-    if (!node.isURIResource) Left(node.toString)
+  private def nodeToId(node: RDFNode): Either[Either[String, Unit], Id] =
+    if (!node.isURIResource) Left(Left(node.toString))
     else {
       val uri = node.asResource().getURI
-      if (!uri.startsWith(idBaseUriSlashed)) Left(uri)
-      else toId(uri.substring(idBaseUriSlashedLength)).toEither.left.map(_ => uri)
+      if (!uri.startsWith(idBaseUriSlashed))
+        if (idBaseUriToIgnore.exists(uri.startsWith)) Left(Right(()))
+        else Left(Left(uri))
+      else toId(uri.substring(idBaseUriSlashedLength)).toEither.left.map(_ => Left(uri))
     }
 
   private def lookupImports(json: Json): Either[IllegalImportDefinition, Set[Id]] = {
@@ -119,13 +126,14 @@ abstract class BaseImportResolver[F[_], Id: Show, Resource](
     nodes.foldLeft[Either[IllegalImportDefinition, Set[Id]]](Right(Set.empty)) {
       case (Left(IllegalImportDefinition(values)), elem) =>
         nodeToId(elem) match {
-          case Left(value) => Left(IllegalImportDefinition(values + value))
-          case Right(_)    => Left(IllegalImportDefinition(values))
+          case Left(Left(value)) => Left(IllegalImportDefinition(values + value))
+          case _                 => Left(IllegalImportDefinition(values))
         }
       case (Right(schemaIds), elem) =>
         nodeToId(elem) match {
-          case Left(value) => Left(IllegalImportDefinition(Set(value)))
-          case Right(id)   => Right(schemaIds + id)
+          case Left(Left(value)) => Left(IllegalImportDefinition(Set(value)))
+          case Left(Right(_))    => Right(schemaIds)
+          case Right(id)         => Right(schemaIds + id)
         }
     }
   }
