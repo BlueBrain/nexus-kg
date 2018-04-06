@@ -57,6 +57,7 @@ class ElasticServiceSpecSuite
     StartElasticIndexers(settings, bootstrap.elasticClient, bootstrap.contexts, bootstrap.apiUri)
   }
 
+  implicit val instanceResolver = bootstrap.instanceImportResolver
   override val nestedSuites = Vector(
     new ElasticOrgIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),
     new ElasticDomainIntegrationSpec(bootstrap.apiUri, settings.Prefixes, bootstrap.routes),

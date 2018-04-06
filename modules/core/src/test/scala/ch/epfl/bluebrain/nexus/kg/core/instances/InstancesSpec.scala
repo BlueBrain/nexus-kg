@@ -76,8 +76,8 @@ class InstancesSpec extends WordSpecLike with Matchers with Inspectors with TryV
     val schemas   = Schemas(schemasAgg, doms, ctxs)
     val instances = Instances(instAgg, schemas, ctxs, inOutFileStream)
 
-    val schemaImportResolver   = new SchemaImportResolver(baseUri, schemas.fetch, ctxs.resolve)
-    val instanceImportResolver = new InstanceImportResolver[Try](baseUri, instances.fetch, ctxs.resolve)
+    val schemaImportResolver            = new SchemaImportResolver(baseUri, schemas.fetch, ctxs.resolve)
+    implicit val instanceImportResolver = new InstanceImportResolver[Try](baseUri, instances.fetch, ctxs.resolve)
     implicit val validator: ShaclValidator[Try] =
       new ShaclValidator[Try](AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
 

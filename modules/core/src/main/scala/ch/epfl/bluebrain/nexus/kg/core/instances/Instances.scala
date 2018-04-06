@@ -40,14 +40,17 @@ final class Instances[F[_], In, Out](
 
   private val logger = Logger[this.type]
 
-  private def validatePayload(schemaId: SchemaId, json: Json)(implicit validator: ShaclValidator[F]): F[Unit] = {
+  private def validatePayload(schemaId: SchemaId, json: Json)(implicit validator: ShaclValidator[F],
+                                                              instanceImports: InstanceImportResolver[F]): F[Unit] = {
     schemas.fetch(schemaId).flatMap {
       case Some(schema) =>
         ctxs.resolve(schema.value) product ctxs.resolve(json) flatMap {
           case (s, j) =>
-            validator(ShaclSchema(s), j).flatMap { report =>
-              if (report.conforms) F.pure(())
-              else F.raiseError(CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
+            instanceImports(ShaclSchema(s)) flatMap { imports =>
+              validator(ShaclSchema(s), (imports.map(_.value) + j).toSeq: _*).flatMap { report =>
+                if (report.conforms) F.pure(())
+                else F.raiseError(CommandRejected(ShapeConstraintViolations(report.result.map(_.reason))))
+              }
             }
         }
       case None => F.raiseError(CommandRejected(SchemaRejection.SchemaDoesNotExist))
@@ -82,7 +85,9 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(schemaId: SchemaId, value: Json)(implicit ctx: CallerCtx, validator: ShaclValidator[F]): F[InstanceRef] = {
+  def create(schemaId: SchemaId, value: Json)(implicit ctx: CallerCtx,
+                                              validator: ShaclValidator[F],
+                                              instanceImports: InstanceImportResolver[F]): F[InstanceRef] = {
     val id = InstanceId(schemaId, UUID.randomUUID().toString.toLowerCase)
     create(id, value)
   }
@@ -95,7 +100,9 @@ final class Instances[F[_], In, Out](
     * @return an [[ch.epfl.bluebrain.nexus.kg.core.instances.InstanceRef]] instance wrapped in the abstract ''F[_]''
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def create(id: InstanceId, value: Json)(implicit ctx: CallerCtx, validator: ShaclValidator[F]): F[InstanceRef] =
+  def create(id: InstanceId, value: Json)(implicit ctx: CallerCtx,
+                                          validator: ShaclValidator[F],
+                                          instanceImports: InstanceImportResolver[F]): F[InstanceRef] =
     for {
       _ <- schemas.assertUnlocked(id.schemaId)
       _ <- validatePayload(id.schemaId, value)
@@ -113,7 +120,8 @@ final class Instances[F[_], In, Out](
     *         type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.Fault]] wrapped within ''F[_]'' otherwise
     */
   def update(id: InstanceId, rev: Long, value: Json)(implicit ctx: CallerCtx,
-                                                     validator: ShaclValidator[F]): F[InstanceRef] =
+                                                     validator: ShaclValidator[F],
+                                                     instanceImports: InstanceImportResolver[F]): F[InstanceRef] =
     for {
       _ <- validatePayload(id.schemaId, value)
       r <- evaluate(UpdateInstance(id, rev, ctx.meta, value), "Update instance")

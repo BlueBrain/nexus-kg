@@ -1,0 +1,12 @@
+{
+  "@context": {
+    "nxv": "https://bbp-nexus.epfl.ch/vocabs/nexus/core/terms/v0.1.0/",
+    "schema": "http://schema.org/"
+  },
+  "@id": "{{base}}/schemas/nexus/core/quantitativevalue/v0.3.0/aab2fb8f-2c77-4dfa-84aa-383768832f3e",
+  "@type": "schema:QuantitativeValue",
+  "schema:value": 2,
+  "schema:unitCode": {
+    "@id": "nxv:Degree"
+  }
+}

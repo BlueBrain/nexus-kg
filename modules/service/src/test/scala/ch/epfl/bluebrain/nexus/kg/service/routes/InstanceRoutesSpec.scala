@@ -108,7 +108,7 @@ class InstanceRoutesSpec
     val inFileProcessor                                 = AkkaInOutFileStream(settings)
     val instances                                       = Instances(instAgg, schemas, contexts, inFileProcessor)
     val schemaImportResolver                            = new SchemaImportResolver(baseUri.toString(), schemas.fetch, contexts.resolve)
-    val instanceImportResolver =
+    implicit val instanceImportResolver =
       new InstanceImportResolver[Future](baseUri.toString(), instances.fetch, contexts.resolve)
     implicit val validator: ShaclValidator[Future] = new ShaclValidator(
       AggregatedImportResolver(schemaImportResolver, instanceImportResolver))
