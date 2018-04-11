@@ -7,7 +7,7 @@ import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import akka.http.scaladsl.server.Directives._
 import io.circe.generic.auto._
 import akka.http.scaladsl.server.Route
-import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig.DescriptionConfig
+import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.DescriptionConfig
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
 /**

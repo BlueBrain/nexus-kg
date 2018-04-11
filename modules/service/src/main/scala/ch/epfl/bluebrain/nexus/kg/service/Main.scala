@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
-import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import ch.epfl.bluebrain.nexus.kg.core.config.Settings
 import com.typesafe.config.ConfigFactory
 import kamon.Kamon
 import kamon.system.SystemMetrics
