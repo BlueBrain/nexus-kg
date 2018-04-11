@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import akka.http.scaladsl.model.headers.{Location, `Content-Type`}
+import akka.http.scaladsl.model.headers.{`Content-Type`, Location}
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.kg.core.config.Settings
