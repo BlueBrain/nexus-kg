@@ -4,7 +4,6 @@ import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvi
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig._
 import com.typesafe.config.Config
 import eu.timepit.refined.pureconfig._
 import pureconfig.ConvertHelpers.catchReadError
