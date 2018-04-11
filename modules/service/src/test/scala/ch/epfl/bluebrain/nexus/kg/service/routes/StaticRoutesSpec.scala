@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import akka.http.scaladsl.model.headers.{`Content-Type`, Location}
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import ch.epfl.bluebrain.nexus.kg.core.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.routes.StaticRoutes.ServiceDescription
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._

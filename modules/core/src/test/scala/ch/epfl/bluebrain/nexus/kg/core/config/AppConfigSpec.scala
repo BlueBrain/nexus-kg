@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.service.config
+package ch.epfl.bluebrain.nexus.kg.core.config
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri

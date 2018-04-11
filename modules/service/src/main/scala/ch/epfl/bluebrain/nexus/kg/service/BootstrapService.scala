@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.headers.Location
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.service.routes._
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives.uriPrefix
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
@@ -26,7 +26,8 @@ class BootstrapService(appConfig: AppConfig)(implicit as: ActorSystem) {
   private val static = uriPrefix(baseUri)(StaticRoutes(appConfig.description).routes)
 
   private val corsSettings = CorsSettings.defaultSettings
-    .copy(allowedMethods = List(GET, PUT, POST, DELETE, OPTIONS, HEAD), exposedHeaders = List(Location.name))
+    .withAllowedMethods(List(GET, PUT, POST, DELETE, OPTIONS, HEAD))
+    .withExposedHeaders(List(Location.name))
 
   val routes: Route = handleRejections(corsRejectionHandler) {
     cors(corsSettings)(static)

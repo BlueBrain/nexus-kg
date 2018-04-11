@@ -1,11 +1,12 @@
-package ch.epfl.bluebrain.nexus.kg.service.config
+package ch.epfl.bluebrain.nexus.kg.core.config
 
 import java.nio.file.Path
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
-import ch.epfl.bluebrain.nexus.kg.service.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.service.config.BuildInfo
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.numeric.{NonNegative, Positive}
 

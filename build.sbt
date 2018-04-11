@@ -23,18 +23,18 @@ scalafmt: {
   ]
 }
  */
-val commonsVersion  = "0.10.8"
-val serviceVersion  = "0.10.6"
-val sourcingVersion = "0.10.3"
+val commonsVersion  = "0.10.9"
+val serviceVersion  = "0.10.8"
+val sourcingVersion = "0.10.4"
 
 val akkaVersion            = "2.5.11"
-val akkaHttpVersion        = "10.1.0"
-val akkaHttpCorsVersion    = "0.2.2"
+val akkaHttpVersion        = "10.1.1"
+val akkaHttpCorsVersion    = "0.3.0"
 val akkaHttpCirceVersion   = "1.20.0"
 val akkaStreamKafkaVersion = "0.19"
 
 val catsVersion  = "1.0.1"
-val circeVersion = "0.9.2"
+val circeVersion = "0.9.3"
 
 val logbackVersion = "1.2.3"
 val journalVersion = "3.0.19"
@@ -45,7 +45,7 @@ val blazegraphVersion        = "2.1.4"
 val scalaTestVersion         = "3.0.5"
 val scalaTestEmbeddedVersion = "1.1.0"
 
-val pureconfigVersion = "0.9.0"
+val pureconfigVersion = "0.9.1"
 val refinedVersion    = "0.8.7"
 
 lazy val akkaSlf4j       = "com.typesafe.akka" %% "akka-slf4j"        % akkaVersion
@@ -94,9 +94,30 @@ lazy val docs = project
     }
   )
 
+lazy val core = project
+  .in(file("modules/core"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(buildInfoSettings)
+  .settings(
+    name       := "kg-core",
+    moduleName := "kg-core",
+    resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
+    libraryDependencies ++= Seq(
+      akkaSlf4j,
+      pureconfig,
+      refinedPureConfig,
+      commonsIam,
+      commonsQueryTypes,
+      commonsTest,
+      akkaHttpTestKit % Test,
+      sourcingMem     % Test,
+      scalaTest       % Test
+    )
+  )
+
 lazy val service = project
   .in(file("modules/service"))
-  .dependsOn(docs)
+  .dependsOn(core, docs)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(buildInfoSettings)
   .settings(
@@ -127,7 +148,7 @@ lazy val root = project
     name       := "kg",
     moduleName := "kg"
   )
-  .aggregate(docs, service)
+  .aggregate(docs, core, service)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {}, publishArtifact := false)
 
