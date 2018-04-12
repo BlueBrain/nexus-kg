@@ -32,13 +32,13 @@ object Serializer {
 
   private implicit val eventDecoder: Decoder[Event] = {
     val dec = deriveDecoder[Event]
-    Decoder.decodeJson.emap { json =>
-      val result = for {
+    Decoder.instance { hc =>
+      val json = hc.value
+      for {
         key <- json.as[Key]
         combined = json deepMerge Json.obj("id" -> key.asJson)
         event <- dec(combined.hcursor)
-      } yield (event)
-      result.left.map(_.message)
+      } yield event
     }
   }
 
