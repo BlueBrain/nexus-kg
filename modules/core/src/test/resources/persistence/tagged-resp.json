@@ -1,0 +1,18 @@
+{
+  "@id": "https://bbp.epfl.ch/nexus/data/resourceName",
+  "project": "projectName",
+  "schema": "https://bbp.epfl.ch/nexus/schemas/schemaName",
+  "rev": 1,
+  "meta": {
+    "author": {
+      "id": "realms/realm/users/sub:1234",
+      "type": "UserRef"
+    },
+    "instant": "{timestamp}"
+  },
+  "name": "tagName",
+  "tags": [
+    "project"
+  ],
+  "type": "Tagged"
+}
