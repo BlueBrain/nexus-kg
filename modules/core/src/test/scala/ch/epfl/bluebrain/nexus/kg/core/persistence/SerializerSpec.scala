@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.core.persistence.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.core.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.core.resources.{Event, Key}
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.{JsonPayload, _}
-import io.circe.Json
+import io.circe.{Error, Json}
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import shapeless.Typeable
 import java.util.regex.Pattern.quote
@@ -82,6 +82,13 @@ class SerializerSpec
         val str          = jsonContentOf("/persistence/created-resp.json", rep).noSpaces
         val serializer   = findConcreteSerializer[EventSerializer](event)
         intercept[NotSerializableException](serializer.fromBinary(str.getBytes(UTF8), "other"))
+      }
+
+      "failed to decode wrong event json" in {
+        val event: Event = Created(key, 1L, meta, JsonPayload(value), tags)
+        val str          = Json.obj("key" -> Json.fromString("value")).noSpaces
+        val serializer   = findConcreteSerializer[EventSerializer](event)
+        intercept[Error](serializer.fromBinary(str.getBytes(UTF8), "event"))
       }
 
       "get the manifest of events" in {

@@ -13,7 +13,7 @@ class AppConfigSpec extends WordSpecLike with Matchers {
 
   "A pureconfig extension" should {
     "provide the appropriate config" in {
-      val appConfig = new Settings(valid).appConfig
+      val appConfig = Settings(valid).appConfig
 
       appConfig.description.name shouldEqual "kg"
 
