@@ -1,19 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.core.persistence
 
 import java.io.NotSerializableException
+import java.nio.charset.StandardCharsets.UTF_8
 
 import akka.serialization.SerializerWithStringManifest
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.kg.core.resources.{Event, Key}
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import io.circe.java8.time._
+import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.parser.decode
 import io.circe.syntax._
-import java.nio.charset.StandardCharsets.UTF_8
-
-import io.circe.generic.extras.semiauto.deriveEncoder
-import io.circe.generic.extras.semiauto.deriveDecoder
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import io.circe.{Decoder, Encoder, Json}
 
 /**
