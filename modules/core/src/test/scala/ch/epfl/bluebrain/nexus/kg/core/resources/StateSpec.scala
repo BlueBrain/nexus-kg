@@ -5,7 +5,7 @@ import java.time.Clock
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.kg.core.resources.Command._
-import ch.epfl.bluebrain.nexus.kg.core.resources.EventRejection._
+import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload._
 import ch.epfl.bluebrain.nexus.kg.core.resources.State._
 import org.scalatest.EitherValues
@@ -62,7 +62,7 @@ class StateSpec extends WordSpecLike with Matchers with Inspectors with EitherVa
 
     "reject invalid commands" in {
 
-      val mapping: List[(State, Command, EventRejection)] = List(
+      val mapping: List[(State, Command, ResourceRejection)] = List(
         (Current(key, 1L, meta, payload, Set.empty, false, Map.empty),
          Create(key, 1L, meta, payload),
          ResourceAlreadyExists),

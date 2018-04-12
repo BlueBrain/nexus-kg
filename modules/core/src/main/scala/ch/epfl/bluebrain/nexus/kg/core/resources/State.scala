@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.core.resources
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.kg.core.resources.Command._
 import ch.epfl.bluebrain.nexus.kg.core.resources.Event._
-import ch.epfl.bluebrain.nexus.kg.core.resources.EventRejection._
+import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
 
 /**
@@ -71,28 +71,28 @@ object State {
     * @param cmd   the command to be evaluated
     * @return either a rejection or emit an event
     */
-  def eval(state: State, cmd: Command): Either[EventRejection, Event] = {
+  def eval(state: State, cmd: Command): Either[ResourceRejection, Event] = {
 
-    def create(cmd: Create): Either[EventRejection, Created] =
+    def create(cmd: Create): Either[ResourceRejection, Created] =
       state match {
         case Initial => Right(Created(cmd.id, 1L, cmd.meta, cmd.value, cmd.tags))
         case _       => Left(ResourceAlreadyExists)
       }
-    def replace(cmd: Replace): Either[EventRejection, Replaced] =
+    def replace(cmd: Replace): Either[ResourceRejection, Replaced] =
       state match {
         case Initial                        => Left(ResourceDoesNotExists)
         case s: Current if s.rev != cmd.rev => Left(IncorrectRevisionProvided)
         case s: Current if s.deprecated     => Left(ResourceIsDeprecated)
         case s: Current                     => Right(Replaced(s.id, s.rev + 1, cmd.meta, cmd.value, cmd.tags))
       }
-    def tag(cmd: Tag): Either[EventRejection, Tagged] =
+    def tag(cmd: Tag): Either[ResourceRejection, Tagged] =
       state match {
         case Initial                       => Left(ResourceDoesNotExists)
         case s: Current if s.rev < cmd.rev => Left(IncorrectRevisionProvided)
         case s: Current                    => Right(Tagged(s.id, cmd.rev, cmd.meta, cmd.name, cmd.tags))
       }
 
-    def attach(cmd: Attach): Either[EventRejection, Attached] =
+    def attach(cmd: Attach): Either[ResourceRejection, Attached] =
       state match {
         case Initial                        => Left(ResourceDoesNotExists)
         case s: Current if s.rev != cmd.rev => Left(IncorrectRevisionProvided)
@@ -100,7 +100,7 @@ object State {
         case s: Current                     => Right(Attached(s.id, s.rev + 1, cmd.meta, cmd.value, cmd.tags))
       }
 
-    def unattach(cmd: Unattach): Either[EventRejection, Unattached] =
+    def unattach(cmd: Unattach): Either[ResourceRejection, Unattached] =
       state match {
         case Initial                                                 => Left(ResourceDoesNotExists)
         case s: Current if s.rev != cmd.rev                          => Left(IncorrectRevisionProvided)
@@ -109,7 +109,7 @@ object State {
         case s: Current                                              => Right(Unattached(s.id, s.rev + 1, cmd.meta, cmd.name, cmd.tags))
       }
 
-    def deprecate(cmd: Deprecate): Either[EventRejection, Deprecated] =
+    def deprecate(cmd: Deprecate): Either[ResourceRejection, Deprecated] =
       state match {
         case Initial                        => Left(ResourceDoesNotExists)
         case s: Current if s.rev != cmd.rev => Left(IncorrectRevisionProvided)
@@ -117,7 +117,7 @@ object State {
         case s: Current                     => Right(Deprecated(s.id, s.rev + 1, cmd.meta, cmd.tags))
       }
 
-    def undeprecate(cmd: Undeprecate): Either[EventRejection, Undeprecated] =
+    def undeprecate(cmd: Undeprecate): Either[ResourceRejection, Undeprecated] =
       state match {
         case Initial                        => Left(ResourceDoesNotExists)
         case s: Current if s.rev != cmd.rev => Left(IncorrectRevisionProvided)
