@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.JsonPayload
-import ch.epfl.bluebrain.nexus.kg.core.resources.{Event, Key}
+import ch.epfl.bluebrain.nexus.kg.core.resources.{Event, RepresentationId}
 import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
@@ -23,7 +23,9 @@ class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors with
     val adapter = new TaggingAdapter()
 
     val key =
-      Key("projectName", "https://bbp.epfl.ch/nexus/data/resourceName", "https://bbp.epfl.ch/nexus/schemas/schemaName")
+      RepresentationId("projectName",
+                       "https://bbp.epfl.ch/nexus/data/resourceName",
+                       "https://bbp.epfl.ch/nexus/schemas/schemaName")
     val meta  = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
     val value = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
 

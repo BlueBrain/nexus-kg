@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.core.persistence.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.core.resources.Event._
-import ch.epfl.bluebrain.nexus.kg.core.resources.{Event, Key}
+import ch.epfl.bluebrain.nexus.kg.core.resources.{Event, RepresentationId}
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.{JsonPayload, _}
 import io.circe.{Error, Json}
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
@@ -36,8 +36,10 @@ class SerializerSpec
 
   "A Serializer" when {
 
-    val key: Key =
-      Key("projectName", "https://bbp.epfl.ch/nexus/data/resourceName", "https://bbp.epfl.ch/nexus/schemas/schemaName")
+    val key: RepresentationId =
+      RepresentationId("projectName",
+                       "https://bbp.epfl.ch/nexus/data/resourceName",
+                       "https://bbp.epfl.ch/nexus/schemas/schemaName")
     val meta = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
     val tags = Set("project")
 

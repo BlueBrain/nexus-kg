@@ -29,7 +29,7 @@ object State {
     * @param deprecated  the deprecation status
     * @param tags        the key-pairs of alias names to revision numbers
     */
-  final case class Current(id: Key,
+  final case class Current(id: RepresentationId,
                            rev: Long,
                            meta: Meta,
                            value: Payload,

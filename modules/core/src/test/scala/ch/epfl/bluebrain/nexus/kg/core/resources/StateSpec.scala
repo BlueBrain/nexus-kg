@@ -19,7 +19,9 @@ class StateSpec extends WordSpecLike with Matchers with Inspectors with EitherVa
   "A State" should {
 
     val key =
-      Key("projectName", "https://bbp.epfl.ch/nexus/data/resourceName", "https://bbp.epfl.ch/nexus/schemas/schemaName")
+      RepresentationId("projectName",
+                       "https://bbp.epfl.ch/nexus/data/resourceName",
+                       "https://bbp.epfl.ch/nexus/schemas/schemaName")
     val meta        = Meta(UserRef("realm", "sub:1234"), Clock.systemUTC.instant())
     val meta2       = Meta(UserRef("realm", "sub:5678"), Clock.systemUTC.instant())
     val value       = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))

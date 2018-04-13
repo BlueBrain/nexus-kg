@@ -1,6 +1,6 @@
 {
-  "@id": "https://bbp.epfl.ch/nexus/data/resourceName",
   "project": "projectName",
+  "id": "https://bbp.epfl.ch/nexus/data/resourceName",
   "schema": "https://bbp.epfl.ch/nexus/schemas/schemaName",
   "rev": 1,
   "meta": {

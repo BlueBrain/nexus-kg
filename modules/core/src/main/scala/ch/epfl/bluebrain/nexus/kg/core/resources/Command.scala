@@ -7,7 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
   * Enumeration type for commands that apply to resources.
   */
 sealed trait Command extends Product with Serializable {
-  def id: Key
+  def id: RepresentationId
   def rev: Long
   def meta: Meta
   def tags: Set[String]
@@ -23,7 +23,8 @@ object Command {
     * @param value the payload of the resource
     * @param tags  the tags associated to this command
     */
-  final case class Create(id: Key, rev: Long, meta: Meta, value: Payload, tags: Set[String] = Set.empty) extends Command
+  final case class Create(id: RepresentationId, rev: Long, meta: Meta, value: Payload, tags: Set[String] = Set.empty)
+      extends Command
 
   /**
     * Command that signals the intent to replace the payload of a resource.
@@ -34,7 +35,7 @@ object Command {
     * @param value the payload of the resource
     * @param tags  the tags associated to this command
     */
-  final case class Replace(id: Key, rev: Long, meta: Meta, value: Payload, tags: Set[String] = Set.empty)
+  final case class Replace(id: RepresentationId, rev: Long, meta: Meta, value: Payload, tags: Set[String] = Set.empty)
       extends Command
 
   /**
@@ -45,7 +46,7 @@ object Command {
     * @param meta  the metadata associated to this command
     * @param tags  the tags associated to this command
     */
-  final case class Deprecate(id: Key, rev: Long, meta: Meta, tags: Set[String] = Set.empty) extends Command
+  final case class Deprecate(id: RepresentationId, rev: Long, meta: Meta, tags: Set[String] = Set.empty) extends Command
 
   /**
     * Command that signals the intent to un-deprecate a resource.
@@ -55,7 +56,8 @@ object Command {
     * @param meta  the metadata associated to this command
     * @param tags  the tags associated to this command
     */
-  final case class Undeprecate(id: Key, rev: Long, meta: Meta, tags: Set[String] = Set.empty) extends Command
+  final case class Undeprecate(id: RepresentationId, rev: Long, meta: Meta, tags: Set[String] = Set.empty)
+      extends Command
 
   /**
     * Command that signals the intent to tag a resource.
@@ -66,7 +68,8 @@ object Command {
     * @param name  the name of the tag
     * @param tags  the tags associated to this command
     */
-  final case class Tag(id: Key, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty) extends Command
+  final case class Tag(id: RepresentationId, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty)
+      extends Command
 
   /**
     * Command that signals the intent to add an attachment to the resource.
@@ -77,7 +80,7 @@ object Command {
     * @param value the metadata of the attachment
     * @param tags  the tags associated to this command
     */
-  final case class Attach(id: Key, rev: Long, meta: Meta, value: Attachment, tags: Set[String] = Set.empty)
+  final case class Attach(id: RepresentationId, rev: Long, meta: Meta, value: Attachment, tags: Set[String] = Set.empty)
       extends Command
 
   /**
@@ -89,5 +92,6 @@ object Command {
     * @param name the name of the attachment to be removed
     * @param tags the tags associated to this command
     */
-  final case class Unattach(id: Key, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty) extends Command
+  final case class Unattach(id: RepresentationId, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty)
+      extends Command
 }

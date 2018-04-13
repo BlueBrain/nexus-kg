@@ -44,7 +44,7 @@
             "@value": "image/png"
           }
         ],
-        "https://bbp-nexus.epfl.ch/voc/experiment/core/originalFileName": [
+        "https://bbp-nexus.epfl.ch/voc/experiment/core/filename": [
           {
             "@value": "myfile.png"
           }

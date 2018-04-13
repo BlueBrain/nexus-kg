@@ -7,7 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
   * Enumeration type for all events that are emitted for resources.
   */
 sealed trait Event extends Product with Serializable {
-  def id: Key
+  def id: RepresentationId
   def rev: Long
   def meta: Meta
   def tags: Set[String]
@@ -24,7 +24,8 @@ object Event {
     * @param value the payload of the resource
     * @param tags  the tags added to this event
     */
-  final case class Created(id: Key, rev: Long, meta: Meta, value: Payload, tags: Set[String] = Set.empty) extends Event
+  final case class Created(id: RepresentationId, rev: Long, meta: Meta, value: Payload, tags: Set[String] = Set.empty)
+      extends Event
 
   /**
     * Evidence that a resource's payload has been replaced.
@@ -35,7 +36,8 @@ object Event {
     * @param value the payload of the resource
     * @param tags  the tags added to this event
     */
-  final case class Replaced(id: Key, rev: Long, meta: Meta, value: Payload, tags: Set[String] = Set.empty) extends Event
+  final case class Replaced(id: RepresentationId, rev: Long, meta: Meta, value: Payload, tags: Set[String] = Set.empty)
+      extends Event
 
   /**
     * Evidence that a resource has been deprecated.
@@ -45,7 +47,7 @@ object Event {
     * @param meta  the metadata associated to this event
     * @param tags  the tags added to this event
     */
-  final case class Deprecated(id: Key, rev: Long, meta: Meta, tags: Set[String] = Set.empty) extends Event
+  final case class Deprecated(id: RepresentationId, rev: Long, meta: Meta, tags: Set[String] = Set.empty) extends Event
 
   /**
     * Evidence that a resource has been un-deprecated.
@@ -55,7 +57,8 @@ object Event {
     * @param meta  the metadata associated to this event
     * @param tags  the tags added to this event
     */
-  final case class Undeprecated(id: Key, rev: Long, meta: Meta, tags: Set[String] = Set.empty) extends Event
+  final case class Undeprecated(id: RepresentationId, rev: Long, meta: Meta, tags: Set[String] = Set.empty)
+      extends Event
 
   /**
     * Evidence that a resource has been tagged. This event does not increase the revision number,
@@ -67,7 +70,8 @@ object Event {
     * @param name  the name of the alias for the provided ''rev''
     * @param tags  the tags added to this event
     */
-  final case class Tagged(id: Key, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty) extends Event
+  final case class Tagged(id: RepresentationId, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty)
+      extends Event
 
   /**
     * Evidence that a resource's attachment has been added.
@@ -78,7 +82,11 @@ object Event {
     * @param value the metadata of the attachment
     * @param tags  the tags added to this event
     */
-  final case class Attached(id: Key, rev: Long, meta: Meta, value: Attachment, tags: Set[String] = Set.empty)
+  final case class Attached(id: RepresentationId,
+                            rev: Long,
+                            meta: Meta,
+                            value: Attachment,
+                            tags: Set[String] = Set.empty)
       extends Event
 
   /**
@@ -90,5 +98,6 @@ object Event {
     * @param name the name of the removed attachment
     * @param tags the tags added to this event
     */
-  final case class Unattached(id: Key, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty) extends Event
+  final case class Unattached(id: RepresentationId, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty)
+      extends Event
 }

@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Info
   * @param info    extra information about the attachment
   */
 final case class Attachment(fileUri: String, info: Info) {
-  val name: String = info.originalFileName
+  val name: String = info.filename
 }
 
 object Attachment {
@@ -23,12 +23,12 @@ object Attachment {
     * Holds all metadata information related to an attachment
     * that we want to expose through the service.
     *
-    * @param originalFileName the original filename of the attached file
+    * @param filename the original filename of the attached file
     * @param mediaType        the media type of the attached file
     * @param contentSize      the size of the attached file
     * @param digest           the digest information of the attached file
     */
-  final case class Info(originalFileName: String, mediaType: String, contentSize: Size, digest: Digest)
+  final case class Info(filename: String, mediaType: String, contentSize: Size, digest: Digest)
 
   /**
     * Digest related information of the attached file

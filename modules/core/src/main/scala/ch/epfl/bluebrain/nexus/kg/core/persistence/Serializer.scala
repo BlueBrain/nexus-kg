@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import akka.serialization.SerializerWithStringManifest
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
-import ch.epfl.bluebrain.nexus.kg.core.resources.{Event, Key}
+import ch.epfl.bluebrain.nexus.kg.core.resources.{Event, RepresentationId}
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import io.circe.java8.time._
@@ -22,25 +22,29 @@ object Serializer {
 
   private implicit val config: Configuration = Configuration.default.withDiscriminator("type")
   private final val EventName                = "event"
+  private val enc                            = deriveEncoder[Event]
+  private val dec                            = deriveDecoder[Event]
 
-  private implicit val eventEncoder: Encoder[Event] = {
-    val enc = deriveEncoder[Event]
+  private implicit val encodeReprId: Encoder[RepresentationId] =
+    Encoder.forProduct3("project", "id", "schema")(r => (r.projectRef, r.resourceId, r.schemaId))
+
+  private implicit val decodeReprId: Decoder[RepresentationId] =
+    Decoder.forProduct3("project", "id", "schema")(RepresentationId.apply)
+
+  private implicit val eventEncoder: Encoder[Event] =
     Encoder.instance { ev =>
       enc(ev).removeKeys("id") deepMerge ev.id.asJson
     }
-  }
 
-  private implicit val eventDecoder: Decoder[Event] = {
-    val dec = deriveDecoder[Event]
+  private implicit val eventDecoder: Decoder[Event] =
     Decoder.instance { hc =>
       val json = hc.value
       for {
-        key <- json.as[Key]
+        key <- json.as[RepresentationId]
         combined = json deepMerge Json.obj("id" -> key.asJson)
         event <- dec(combined.hcursor)
       } yield event
     }
-  }
 
   class EventSerializer extends SerializerWithStringManifest {
     override final def manifest(o: AnyRef): String =
@@ -65,8 +69,8 @@ object Serializer {
           }
         case _ => throw new NotSerializableException(manifest)
       }
-
-    val identifier = 1234567
+    //"nexus-json".getBytes.map(_.toInt).sum
+    val identifier = 1050
 
   }
 }
