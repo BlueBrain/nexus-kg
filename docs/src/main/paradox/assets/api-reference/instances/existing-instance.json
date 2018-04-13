@@ -27,7 +27,7 @@
   "nxv:deprecated": false,
   "distribution": [
     {
-      "originalFileName": "myfile.png",
+      "filename": "myfile.png",
       "mediaType": "image/png",
       "contentSize": {
         "unit": "byte",

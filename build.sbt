@@ -27,11 +27,12 @@ val commonsVersion  = "0.10.9"
 val serviceVersion  = "0.10.8"
 val sourcingVersion = "0.10.4"
 
-val akkaVersion            = "2.5.11"
-val akkaHttpVersion        = "10.1.1"
-val akkaHttpCorsVersion    = "0.3.0"
-val akkaHttpCirceVersion   = "1.20.0"
-val akkaStreamKafkaVersion = "0.19"
+val akkaVersion                 = "2.5.11"
+val akkaHttpVersion             = "10.1.1"
+val akkaHttpCorsVersion         = "0.3.0"
+val akkaHttpCirceVersion        = "1.20.0"
+val akkaPersistenceInMemVersion = "2.5.1.1"
+val akkaStreamKafkaVersion      = "0.19"
 
 val catsVersion  = "1.0.1"
 val circeVersion = "0.9.3"
@@ -48,21 +49,24 @@ val scalaTestEmbeddedVersion = "1.1.0"
 val pureconfigVersion = "0.9.1"
 val refinedVersion    = "0.8.7"
 
-lazy val akkaSlf4j       = "com.typesafe.akka" %% "akka-slf4j"        % akkaVersion
-lazy val akkaStreamKafka = "com.typesafe.akka" %% "akka-stream-kafka" % akkaStreamKafkaVersion
-lazy val akkaHttpCors    = "ch.megard"         %% "akka-http-cors"    % akkaHttpCorsVersion
-lazy val akkaHttp        = "com.typesafe.akka" %% "akka-http"         % akkaHttpVersion
-lazy val akkaHttpTestKit = "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion
-lazy val scalaTest       = "org.scalatest"     %% "scalatest"         % scalaTestVersion
+lazy val akkaDistributed      = "com.typesafe.akka"   %% "akka-distributed-data"     % akkaVersion
+lazy val akkaHttpCors         = "ch.megard"           %% "akka-http-cors"            % akkaHttpCorsVersion
+lazy val akkaHttp             = "com.typesafe.akka"   %% "akka-http"                 % akkaHttpVersion
+lazy val akkaHttpTestKit      = "com.typesafe.akka"   %% "akka-http-testkit"         % akkaHttpVersion
+lazy val akkaPersistence      = "com.typesafe.akka"   %% "akka-persistence"          % akkaVersion
+lazy val akkaPersistenceInMem = "com.github.dnvriend" %% "akka-persistence-inmemory" % akkaPersistenceInMemVersion
+lazy val akkaSlf4j            = "com.typesafe.akka"   %% "akka-slf4j"                % akkaVersion
+lazy val akkaStreamKafka      = "com.typesafe.akka"   %% "akka-stream-kafka"         % akkaStreamKafkaVersion
+
+lazy val scalaTest = "org.scalatest" %% "scalatest" % scalaTestVersion
 
 lazy val sourcingAkka = "ch.epfl.bluebrain.nexus" %% "sourcing-akka" % sourcingVersion
 lazy val sourcingCore = "ch.epfl.bluebrain.nexus" %% "sourcing-core" % sourcingVersion
 lazy val sourcingMem  = "ch.epfl.bluebrain.nexus" %% "sourcing-mem"  % sourcingVersion
 
-lazy val serviceHttp          = "ch.epfl.bluebrain.nexus" %% "service-http"          % serviceVersion
-lazy val serviceIndexing      = "ch.epfl.bluebrain.nexus" %% "service-indexing"      % serviceVersion
-lazy val serviceKamon         = "ch.epfl.bluebrain.nexus" %% "service-kamon"         % serviceVersion
-lazy val serviceSerialization = "ch.epfl.bluebrain.nexus" %% "service-serialization" % serviceVersion
+lazy val serviceHttp     = "ch.epfl.bluebrain.nexus" %% "service-http"     % serviceVersion
+lazy val serviceIndexing = "ch.epfl.bluebrain.nexus" %% "service-indexing" % serviceVersion
+lazy val serviceKamon    = "ch.epfl.bluebrain.nexus" %% "service-kamon"    % serviceVersion
 
 lazy val commonsIam        = "ch.epfl.bluebrain.nexus" %% "iam"                  % commonsVersion
 lazy val commonsQueryTypes = "ch.epfl.bluebrain.nexus" %% "commons-query-types"  % commonsVersion
@@ -103,15 +107,19 @@ lazy val core = project
     moduleName := "kg-core",
     resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
     libraryDependencies ++= Seq(
+      akkaPersistence,
       akkaSlf4j,
-      pureconfig,
-      refinedPureConfig,
       commonsIam,
       commonsQueryTypes,
       commonsTest,
-      akkaHttpTestKit % Test,
-      sourcingMem     % Test,
-      scalaTest       % Test
+      pureconfig,
+      refined,
+      refinedPureConfig,
+      akkaDistributed      % Test,
+      akkaHttpTestKit      % Test,
+      akkaPersistenceInMem % Test,
+      sourcingMem          % Test,
+      scalaTest            % Test
     )
   )
 
@@ -125,15 +133,16 @@ lazy val service = project
     moduleName := "kg-service",
     resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
     libraryDependencies ++= Seq(
-      akkaSlf4j,
+      akkaDistributed,
       akkaHttpCors,
+      akkaSlf4j,
+      commonsIam,
+      commonsQueryTypes,
+      commonsTest,
       pureconfig,
       refinedPureConfig,
       serviceHttp,
       serviceKamon,
-      commonsIam,
-      commonsQueryTypes,
-      commonsTest,
       sourcingAkka,
       akkaHttpTestKit % Test,
       sourcingMem     % Test,

@@ -22,7 +22,7 @@ object Main {
     SystemMetrics.startCollecting()
     Kamon.loadReportersFromConfig()
     val config    = ConfigFactory.load()
-    val appConfig = new Settings(config).appConfig
+    val appConfig = Settings(config).appConfig
 
     implicit val as = ActorSystem(appConfig.description.actorSystemName, config)
     implicit val ec = as.dispatcher

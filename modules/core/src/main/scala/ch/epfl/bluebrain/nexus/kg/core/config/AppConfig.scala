@@ -4,7 +4,9 @@ import java.nio.file.Path
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
+import ch.epfl.bluebrain.nexus.commons.iam.acls
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.kg.core.UriOps._
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.service.config.BuildInfo
 import eu.timepit.refined.api.Refined
@@ -61,5 +63,9 @@ object AppConfig {
 
   final case class SparqlConfig(baseUri: Uri, endpoint: Uri, index: String)
 
-  final case class AdminConfig(baseUri: Uri)
+  final case class AdminConfig(baseUri: Uri, projectsPath: String) {
+    val projectUri: Uri = baseUri.append(acls.Path(projectsPath))
+  }
+
+  implicit def adminConfigFromConfig(implicit config: AppConfig): AdminConfig = config.admin
 }

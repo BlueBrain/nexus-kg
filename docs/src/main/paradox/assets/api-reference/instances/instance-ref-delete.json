@@ -3,7 +3,7 @@
   "distribution": [
     {
       "@context": "https://nexus.example.com/v0/contexts/nexus/core/distribution",
-      "originalFileName": "myfile.png",
+      "filename": "myfile.png",
       "mediaType": "image/png",
       "contentSize": {
         "unit": "byte",
