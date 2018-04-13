@@ -1,0 +1,9 @@
+{
+  "rev": 1,
+  "deprecated": false,
+  "body": "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix dc: <http://purl.org/dc/elements/1.1/> .\n@prefix ex: <http://example.org/stuff/1.0/> .\n\n<http://www.w3.org/TR/rdf-syntax-grammar>\n  dc:title \"RDF/XML Syntax Specification (Revised)\" ;\n  ex:editor [\n    ex:fullname \"Dave Beckett\";\n    ex:homePage <http://purl.org/net/dajobe/>\n  ] .",
+  "format": "turtle",
+  "@id": "http://localhost/some/id",
+  "project": "http://localhost/admin/projects/project",
+  "schema": "http://localhost/some/schema"
+}
