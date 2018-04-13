@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
   */
 sealed trait Event extends Product with Serializable {
   def id: Key
+  def rev: Long
   def meta: Meta
   def tags: Set[String]
 }
