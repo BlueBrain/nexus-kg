@@ -45,7 +45,7 @@ object Settings extends ExtensionId[Settings] with ExtensionIdProvider {
 
   override def lookup(): ExtensionId[_ <: Extension] = Settings
 
-  override def createExtension(system: ExtendedActorSystem): Settings = new Settings(system.settings.config)
+  override def createExtension(system: ExtendedActorSystem): Settings = apply(system.settings.config)
 
   def apply(config: Config): Settings = new Settings(config)
 }
