@@ -115,6 +115,7 @@ lazy val core = project
       pureconfig,
       refined,
       refinedPureConfig,
+      sourcingCore,
       akkaDistributed      % Test,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,

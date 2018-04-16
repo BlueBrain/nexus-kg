@@ -31,6 +31,11 @@ object ResourceRejection {
   final case object ParentResourceDoesNotExists extends ResourceRejection
 
   /**
+    * Signals that an operation on a resource cannot be performed due to the fact that the referenced parent resource is deprecated.
+    */
+  final case object ParentResourceIsDeprecated extends ResourceRejection
+
+  /**
     * Signals that a resource update cannot be performed due its deprecation status.
     */
   final case object ResourceIsDeprecated extends ResourceRejection

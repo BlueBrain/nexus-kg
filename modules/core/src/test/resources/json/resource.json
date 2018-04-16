@@ -1,0 +1,10 @@
+{
+  "@id": "http://localhost/some/id",
+  "project": "http://localhost/admin/projects/project",
+  "schema": "http://localhost/some/schema",
+  "key": {
+    "nested": "value"
+  },
+  "rev": 1,
+  "deprecated": false
+}
