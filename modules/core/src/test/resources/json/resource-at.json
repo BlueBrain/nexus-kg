@@ -8,6 +8,7 @@
   "rev": 1,
   "distribution": [
     {
+      "uuid": "{uuid}",
       "fileUri": "uri",
       "info": {
         "filename": "filename",

@@ -9,9 +9,9 @@ import ch.epfl.bluebrain.nexus.kg.core.access.Access._
 import ch.epfl.bluebrain.nexus.kg.core.access.HasAccess
 import ch.epfl.bluebrain.nexus.kg.core.rejections.Fault.{CommandRejected, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection.ParentResourceIsDeprecated
-import ch.epfl.bluebrain.nexus.kg.core.resources.Resources.{Agg, _}
+import ch.epfl.bluebrain.nexus.kg.core.resources.Resources.Agg
 import ch.epfl.bluebrain.nexus.kg.core.resources.State.{Current, Initial}
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{Digest, Info, Size, SourceWrapper}
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Processed
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.{Attachment, AttachmentStore}
 import ch.epfl.bluebrain.nexus.kg.core.resources.{Command => Cmd, Event => Ev, State => St}
 import ch.epfl.bluebrain.nexus.kg.core.types.{CallerCtx, IdVersioned, Project}
@@ -88,38 +88,42 @@ class Resources[F[_], Type <: ResourceType, In, Out](agg: Agg[F], project: Proje
   /**
     * Attempts to add an attachment to a resource.
     *
-    * @param id            the identifier of the resource
-    * @param schema        the identifier of the schema that this resource validates against
-    * @param rev           the last known revision of the resource instance
-    * @param wrappedSource the attachment source + its metdata
-    * @param tags          the tags associated to this operation
+    * @param id         the identifier of the resource
+    * @param schema     the identifier of the schema that this resource validates against
+    * @param rev        the last known revision of the resource instance
+    * @param attachment the attachment to be processed
+    * @param source     the attachment source
+    * @param tags       the tags associated to this operation
     * @return a [[IdVersioned]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.rejections.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def attach(id: String, schema: String, rev: Long, wrappedSource: SourceWrapper[In], tags: Set[String] = Set.empty)(
-      implicit caller: CallerCtx,
-      @silent access: Type HasAccess Attach): F[IdVersioned] = {
+  def attach(id: String,
+             schema: String,
+             rev: Long,
+             attachment: Attachment.Unprocessed,
+             source: In,
+             tags: Set[String] = Set.empty)(implicit caller: CallerCtx,
+                                            @silent access: Type HasAccess Attach): F[IdVersioned] = {
     val repr = reprId(id, schema)
-    val inOutResult: F[Either[Rejection, Attachment]] = F.pure {
+    val inOutResult: F[Either[Rejection, Processed]] = F.pure {
       logger.debug(
-        s"Uploading file '${wrappedSource.filename}' with mediaType '${wrappedSource.mediaType}' to instance '$id'")
+        s"Uploading file '${attachment.name}' with mediaType '${attachment.info.mediaType}' to instance '$id'")
     } flatMap { _ =>
       projectUnlocked()
     } flatMap { _ =>
-      agg.currentState(repr.persId).map(State.eval(_, Cmd.Attach(repr, rev, caller.meta, EmptyAttachment)))
+      agg.currentState(repr.persId).map(State.eval(_, Cmd.AttachUnprocessed(repr, rev, caller.meta, attachment)))
     } flatMap {
       case Left(r)  => F.pure(Left(r))
-      case Right(_) => attachStore.save(repr, rev, wrappedSource).map(Right(_))
+      case Right(_) => attachStore.save(project.id, attachment, source).map(Right(_))
     }
     inOutResult flatMap {
       case Left(rejection) =>
         logger.error(
-          s"Error upload file '${wrappedSource.filename}' with mediaType '${wrappedSource.mediaType}' to instance '$id'. Rejection '$rejection'")
+          s"Error upload file '${attachment.name}' with mediaType '${attachment.info.mediaType}' to instance '$id'. Rejection '$rejection'")
         F.raiseError(CommandRejected(rejection))
-      case Right(attachment) =>
-        logger.debug(
-          s"Uploaded file '${wrappedSource.filename}' with mediaType '${wrappedSource.mediaType}' to instance '$id'")
-        eval(Cmd.Attach(repr, rev, caller.meta, attachment, tags + project.id), s"Attach resource '$id'")
+      case Right(at) =>
+        logger.debug(s"Uploaded file '${at.name}' with mediaType '${at.info.mediaType}' to instance '$id'")
+        eval(Cmd.Attach(repr, rev, caller.meta, at, tags + project.id), s"Attach resource '$id'")
           .map(state => IdVersioned(state.id, state.rev))
     }
   }
@@ -254,7 +258,7 @@ class Resources[F[_], Type <: ResourceType, In, Out](agg: Agg[F], project: Proje
         }
     }
 
-  private def findAttachment(attachments: Set[Attachment], name: String): F[Option[(Attachment.Info, Out)]] =
+  private def findAttachment(attachments: Set[Processed], name: String): F[Option[(Attachment.Info, Out)]] =
     attachments.find(_.name == name) match {
       case None     => F.pure(None)
       case Some(at) => attachStore.fetch(at).map(out => Some(at.info -> out))
@@ -361,7 +365,4 @@ object Resources {
   }
 
   def apply[Type <: ResourceType]: ApplyPartialResource[Type] = new ApplyPartialResource[Type]
-
-  private[resources] val EmptyAttachment = Attachment(" ", Info("", "", Size(value = 0L), Digest("", "")))
-
 }

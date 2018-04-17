@@ -2,7 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.core.resources.attachment
 
 import java.net.URI
 
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.SourceWrapper
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{Digest, Size}
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.FileStream.StoredSummary
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.LocationResolver.Location
 
 /**
@@ -35,15 +36,23 @@ trait FileStream[F[_]] {
     * Attempts to store and create metadata information which will be used by [[ch.epfl.bluebrain.nexus.kg.core.resources.State]]
     * from an incoming source of type In (which is typically a stream).
     *
-    * @param loc        the location of the attachment
-    * @param sourceMeta the source + its metadata information
-    * @return the metadata information of the source
-    *         or the appropriate Fault in the ''F'' context
+    * @param loc    the location of the attachment
+    * @param source the source
     */
-  def toSink(loc: Location, sourceMeta: SourceWrapper[In]): F[Attachment]
+  def toSink(loc: Location, source: In): F[StoredSummary]
 }
 
 object FileStream {
+
+  /**
+    * The summary after the file has been stored
+    *
+    * @param fileUri the location where the file has been stored
+    * @param size    the size of the attached file
+    * @param digest  the digest related information of the attached file
+    */
+  final case class StoredSummary(fileUri: String, size: Size, digest: Digest)
+
   type Aux[F[_], In0, Out0] = FileStream[F] {
     type In  = In0
     type Out = Out0

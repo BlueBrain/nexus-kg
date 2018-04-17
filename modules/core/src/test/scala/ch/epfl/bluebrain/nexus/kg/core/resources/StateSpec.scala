@@ -5,14 +5,13 @@ import java.time.Clock
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.kg.core.resources.Command._
-import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload._
+import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.resources.State._
-import org.scalatest.EitherValues
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Info._
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment._
 import io.circe.Json
-import org.scalatest.{Inspectors, Matchers, WordSpecLike}
+import org.scalatest.{EitherValues, Inspectors, Matchers, WordSpecLike}
 
 class StateSpec extends WordSpecLike with Matchers with Inspectors with EitherValues {
 
@@ -26,8 +25,8 @@ class StateSpec extends WordSpecLike with Matchers with Inspectors with EitherVa
     val meta2       = Meta(UserRef("realm", "sub:5678"), Clock.systemUTC.instant())
     val value       = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
     val payload     = JsonPayload(value)
-    val attachment  = Attachment("uri", Info("filename", "mediaType", Size("MB", 123L), Digest("SHA256", "ABCDEF")))
-    val attachment2 = Attachment("uri2", Info("filename2", "mediaType", Size("MB", 456L), Digest("SHA256", "FEDCBA")))
+    val attachment  = Processed("uri", Total("filename", "mediaType", Size("MB", 123L), Digest("SHA256", "ABCDEF")))
+    val attachment2 = Processed("uri2", Total("filename2", "mediaType", Size("MB", 456L), Digest("SHA256", "FEDCBA")))
 
     "evaluate a command and generate the next state" in {
 

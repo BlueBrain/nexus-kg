@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.core.resources
 
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AdminConfig
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.{JsonLDPayload, JsonPayload, TurtlePayload}
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Processed
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
@@ -20,7 +20,7 @@ import io.circe.{Encoder, Json}
 final case class Resource(id: RepresentationId,
                           rev: Long,
                           value: Payload,
-                          distribution: Set[Attachment],
+                          distribution: Set[Processed],
                           deprecated: Boolean)
 
 object Resource {

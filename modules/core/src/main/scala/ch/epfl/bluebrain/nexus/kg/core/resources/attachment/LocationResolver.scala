@@ -1,13 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.core.resources.attachment
 
 import java.io.File
-import java.net.{URI, URLEncoder}
+import java.net.URI
 import java.nio.file.{Files, Path}
 
 import cats.MonadError
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AttachmentConfig
 import ch.epfl.bluebrain.nexus.kg.core.rejections.Fault.Unexpected
-import ch.epfl.bluebrain.nexus.kg.core.resources.RepresentationId
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.LocationResolver._
 import journal.Logger
 
@@ -33,12 +32,11 @@ abstract class LocationResolver[F[_]](base: Path) {
   /**
     * Attempts to create a location for an attachment.
     *
-    * @param id       the unique representation identifier
-    * @param rev      the resources revision number
-    * @param filename the resource's attachment filename
+    * @param projectReference the project reference for this attachment
+    * @param attachment       the attachment to be stored
     * @return ''Location'' or the appropriate Fault in the ''F'' context
     */
-  def apply(id: RepresentationId, rev: Long, filename: String): F[Location]
+  def apply(projectReference: String, attachment: Attachment): F[Location]
 }
 
 object LocationResolver {
@@ -70,19 +68,19 @@ object LocationResolver {
     */
   def apply[F[_]](base: Path)(implicit F: MonadError[F, Throwable]): LocationResolver[F] =
     new LocationResolver[F](base) {
-      override def apply(id: RepresentationId, rev: Long, filename: String): F[Location] = {
-        val relativePath = {
-          val encodedFilename = URLEncoder.encode(filename, "UTF-8").toLowerCase
-          s"${id.projectRef}/${id.persId}/$rev-$encodedFilename"
-        }
+      override def apply(projectReference: String, attachment: Attachment): F[Location] = {
+        val relativePath =
+          s"${projectReference}/${attachment.uuid.takeWhile(_ != '-').mkString("/")}/${attachment.uuid}"
+
         Try {
           val attachmentPath = new File(base.toFile, relativePath).toPath
           Files.createDirectories(attachmentPath.getParent)
           Location(attachmentPath, relativePath)
         } match {
           case Failure(e) =>
-            logger.error(s"Error while trying to create the directory for id '$id'", e)
-            F.raiseError(Unexpected(s"I/O error while trying to create directory for id '$id'. '${e.getMessage}'"))
+            logger.error(s"Error while trying to create the directory for attachment '$attachment'", e)
+            F.raiseError(
+              Unexpected(s"I/O error while trying to create directory for attachment '$attachment'. '${e.getMessage}'"))
           case Success(location) => F.pure(location)
         }
       }

@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.core.resources
 
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{Processed, Unprocessed}
 
 /**
   * Enumeration type for commands that apply to resources.
@@ -80,7 +80,14 @@ object Command {
     * @param value the metadata of the attachment
     * @param tags  the tags associated to this command
     */
-  final case class Attach(id: RepresentationId, rev: Long, meta: Meta, value: Attachment, tags: Set[String] = Set.empty)
+  final case class Attach(id: RepresentationId, rev: Long, meta: Meta, value: Processed, tags: Set[String] = Set.empty)
+      extends Command
+
+  private[resources] final case class AttachUnprocessed(id: RepresentationId,
+                                                  rev: Long,
+                                                  meta: Meta,
+                                                  value: Unprocessed,
+                                                  tags: Set[String] = Set.empty)
       extends Command
 
   /**
