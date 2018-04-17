@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.core.UriOps._
   * @param schemaId   the unique identifier (inside this project) of the schema which constrains this resource. TODO: Change the type to a [IRI] or [Id]
   */
 final case class RepresentationId(projectRef: String, resourceId: String, schemaId: String) {
-  def persId: String = s"${projectRef.hashCode}${resourceId.hashCode}${schemaId.hashCode}"
+  def persId: String = s"${projectRef.hashCode.abs}${resourceId.hashCode.abs}${schemaId.hashCode.abs}"
 }
 object RepresentationId {
 

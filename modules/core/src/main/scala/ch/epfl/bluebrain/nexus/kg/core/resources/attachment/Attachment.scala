@@ -45,4 +45,14 @@ object Attachment {
     * @param value the actual value of the size of the attached file
     */
   final case class Size(unit: String = "byte", value: Long)
+
+  /**
+    * The source wrapped with its metadata
+    *
+    * @param filename  the filename of the source
+    * @param mediaType the media type of the source asserted by the client
+    * @param source    the source of data
+    * @tparam In the source type
+    */
+  final case class SourceWrapper[In](filename: String, mediaType: String, source: In)
 }

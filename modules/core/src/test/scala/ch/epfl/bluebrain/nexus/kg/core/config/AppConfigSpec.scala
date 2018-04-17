@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.core.config
 
+import java.io.File
+
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig._
@@ -32,6 +34,10 @@ class AppConfigSpec extends WordSpecLike with Matchers {
                                                           "cassandra-query-journal")
 
       appConfig.pagination shouldEqual PaginationConfig(0L, 10, 50)
+
+      val attachmentConfig = AttachmentConfig(new File("/tmp").toPath, "SHA-256")
+      appConfig.attachment shouldEqual attachmentConfig
+      implicitly[AttachmentConfig] shouldEqual attachmentConfig
 
       appConfig.admin shouldEqual AdminConfig("http://localhost:8080/admin", "projects")
       implicitly[AdminConfig] shouldEqual AdminConfig("http://localhost:8080/admin", "projects")
