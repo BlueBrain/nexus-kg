@@ -107,12 +107,11 @@ class Resources[F[_], Type <: ResourceType, In, Out](agg: Agg[F], project: Proje
     logger.debug(s"Uploading file '${attach.filename}' with mediaType '${attach.mediaType}' to instance '$id'")
     val inOutResult: F[Either[Rejection, BinaryAttributes]] =
       for {
-        _ <- projectUnlocked()
-        //TODO: Use a specialized Aggregator instead
-        rejOrEvent <- agg.currentState(repr.persId).map(State.eval(_, Cmd.AttachVerify(repr, rev, caller.meta, attach)))
+        _          <- projectUnlocked()
+        rejOrEvent <- agg.checkEval(repr.persId, Cmd.AttachVerify(repr, rev, caller.meta, attach))
         rejOrBinary <- rejOrEvent match {
-          case Left(r)  => F.pure(Left(r))
-          case Right(_) => attachStore.save(project.id, attach, source).map(Right(_))
+          case Some(r) => F.pure(Left(r))
+          case None    => attachStore.save(project.id, attach, source).map(Right(_))
         }
       } yield rejOrBinary
 

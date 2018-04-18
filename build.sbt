@@ -25,7 +25,7 @@ scalafmt: {
  */
 val commonsVersion  = "0.10.9"
 val serviceVersion  = "0.10.8"
-val sourcingVersion = "0.10.4"
+val sourcingVersion = "0.10.5"
 
 val akkaVersion                 = "2.5.12"
 val akkaHttpVersion             = "10.1.1"
