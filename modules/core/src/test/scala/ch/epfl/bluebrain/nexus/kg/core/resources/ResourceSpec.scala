@@ -1,11 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.core.resources
 
 import java.util.regex.Pattern.quote
+
 import ch.epfl.bluebrain.nexus.commons.test.{Resources => Res}
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AdminConfig
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.{JsonPayload, TurtlePayload}
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{Digest, Info, Size}
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{BinaryAttributes, Digest, Size}
 import io.circe.Json
 import io.circe.syntax._
 import org.scalatest.{EitherValues, Inspectors, Matchers, WordSpecLike}
@@ -13,10 +13,11 @@ import org.scalatest.{EitherValues, Inspectors, Matchers, WordSpecLike}
 class ResourceSpec extends WordSpecLike with Matchers with EitherValues with Res with Inspectors {
 
   private implicit val config = AdminConfig("http://localhost/admin", "projects")
+
   "A Resource" should {
     val id = RepresentationId("project", "http://localhost/some/id", "http://localhost/some/schema")
     val attachment =
-      Attachment.Processed("uri", Info.Total("filename", "mediaType", Size("MB", 123L), Digest("SHA256", "ABCDEF")))
+      BinaryAttributes("uri", "filename.txt", "text/plain", Size("MB", 123L), Digest("SHA256", "ABCDEF"))
     val jsonPayload   = Json.obj("key" -> Json.obj("nested" -> Json.fromString("value")))
     val turtlePayload = contentOf("/persistence/update.ttl")
     val list = List(

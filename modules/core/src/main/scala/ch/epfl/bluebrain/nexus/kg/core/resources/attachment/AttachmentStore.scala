@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.core.resources.attachment
 import cats.MonadError
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Processed
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
 
 /**
   * A store for attachments. It delegates the location resolution responsibility and the
@@ -26,10 +26,10 @@ class AttachmentStore[F[_], In, Out](loc: LocationResolver[F], fileStream: FileS
     * @param projectReference the project reference for this attachment
     * @param att              the attachment to be stored
     * @param source           the source
-    * @return an [[Attachment]] wrapped in the abstract ''F[_]''  type if successful,
+    * @return [[BinaryAttributes]] wrapped in the abstract ''F[_]''  type if successful,
     *         or a [[ch.epfl.bluebrain.nexus.kg.core.rejections.Fault]] wrapped within ''F[_]'' otherwise
     */
-  def save(projectReference: String, att: Attachment, source: In): F[Processed] =
+  def save(projectReference: String, att: BinaryDescription, source: In): F[BinaryAttributes] =
     loc(projectReference, att) flatMap (location => fileStream.toSink(location, source)) map (att.process(_))
 
   /**
@@ -38,7 +38,7 @@ class AttachmentStore[F[_], In, Out](loc: LocationResolver[F], fileStream: FileS
     *
     * @param attachment the attachment metadata
     */
-  def fetch(attachment: Processed): F[Out] =
+  def fetch(attachment: BinaryAttributes): F[Out] =
     fileStream.toSource(loc.absoluteUri(attachment.fileUri))
 
 }

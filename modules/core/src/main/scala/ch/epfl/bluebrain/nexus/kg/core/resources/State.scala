@@ -34,7 +34,7 @@ object State {
                            rev: Long,
                            meta: Meta,
                            value: Payload,
-                           attachments: Set[Processed],
+                           attachments: Set[BinaryAttributes],
                            deprecated: Boolean,
                            tags: Map[String, Long])
       extends State
@@ -58,9 +58,11 @@ object State {
       case (c: Current, Deprecated(_, rev, meta, _))      => c.copy(rev = rev, meta = meta, deprecated = true)
       case (c: Current, Replaced(_, rev, meta, value, _)) => c.copy(rev = rev, meta = meta, value = value)
       case (c: Current, Attached(_, rev, meta, attachment, _)) =>
-        c.copy(rev = rev, meta = meta, attachments = c.attachments.filter(_.name != attachment.name) + attachment)
+        c.copy(rev = rev,
+               meta = meta,
+               attachments = c.attachments.filter(_.filename != attachment.filename) + attachment)
       case (c: Current, Unattached(_, rev, meta, name, _)) =>
-        c.copy(rev = rev, meta = meta, attachments = c.attachments.filter(_.name != name))
+        c.copy(rev = rev, meta = meta, attachments = c.attachments.filter(_.filename != name))
     }
   }
 
@@ -102,7 +104,7 @@ object State {
         case s: Current                   => Right(Attached(s.id, s.rev + 1, c.meta, c.value, c.tags))
       }
 
-    def attachUnprocessed(c: AttachUnprocessed): Either[ResourceRejection, Attached] =
+    def attachVerify(c: AttachVerify): Either[ResourceRejection, Attached] =
       state match {
         case Initial                      => Left(ResourceDoesNotExists)
         case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
@@ -112,11 +114,11 @@ object State {
 
     def unattach(c: Unattach): Either[ResourceRejection, Unattached] =
       state match {
-        case Initial                                               => Left(ResourceDoesNotExists)
-        case s: Current if s.rev != c.rev                          => Left(IncorrectRevisionProvided)
-        case s: Current if s.deprecated                            => Left(ResourceIsDeprecated)
-        case s: Current if !s.attachments.exists(_.name == c.name) => Left(AttachmentDoesNotExists)
-        case s: Current                                            => Right(Unattached(s.id, s.rev + 1, c.meta, c.name, c.tags))
+        case Initial                                                       => Left(ResourceDoesNotExists)
+        case s: Current if s.rev != c.rev                                  => Left(IncorrectRevisionProvided)
+        case s: Current if s.deprecated                                    => Left(ResourceIsDeprecated)
+        case s: Current if !s.attachments.exists(_.filename == c.filename) => Left(AttachmentDoesNotExists)
+        case s: Current                                                    => Right(Unattached(s.id, s.rev + 1, c.meta, c.filename, c.tags))
       }
 
     def deprecate(c: Deprecate): Either[ResourceRejection, Deprecated] =
@@ -136,14 +138,14 @@ object State {
       }
 
     cmd match {
-      case cmd: Create            => create(cmd)
-      case cmd: Replace           => replace(cmd)
-      case cmd: Deprecate         => deprecate(cmd)
-      case cmd: Undeprecate       => undeprecate(cmd)
-      case cmd: Tag               => tag(cmd)
-      case cmd: Attach            => attach(cmd)
-      case cmd: AttachUnprocessed => attachUnprocessed(cmd)
-      case cmd: Unattach          => unattach(cmd)
+      case cmd: Create       => create(cmd)
+      case cmd: Replace      => replace(cmd)
+      case cmd: Deprecate    => deprecate(cmd)
+      case cmd: Undeprecate  => undeprecate(cmd)
+      case cmd: Tag          => tag(cmd)
+      case cmd: Attach       => attach(cmd)
+      case cmd: AttachVerify => attachVerify(cmd)
+      case cmd: Unattach     => unattach(cmd)
 
     }
   }

@@ -8,19 +8,15 @@
   "rev": 1,
   "distribution": [
     {
-      "uuid": "{uuid}",
-      "fileUri": "uri",
-      "info": {
-        "filename": "filename",
-        "mediaType": "mediaType",
-        "contentSize": {
-          "unit": "MB",
-          "value": 123
-        },
-        "digest": {
-          "algorithm": "SHA256",
-          "value": "ABCDEF"
-        }
+      "originalFileName": "filename.txt",
+      "mediaType": "text/plain",
+      "contentSize": {
+        "unit": "MB",
+        "value": 123
+      },
+      "digest": {
+        "algorithm": "SHA256",
+        "value": "ABCDEF"
       }
     }
   ],

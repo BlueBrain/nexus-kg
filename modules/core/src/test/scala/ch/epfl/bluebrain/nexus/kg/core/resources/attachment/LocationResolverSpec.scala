@@ -6,8 +6,7 @@ import java.nio.file.Files
 
 import cats.instances.try_._
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AttachmentConfig
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Info.Partial
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Unprocessed
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.LocationResolver.Location
 import org.scalatest.{Matchers, TryValues, WordSpecLike}
 
@@ -23,7 +22,7 @@ class LocationResolverSpec extends WordSpecLike with Matchers with TryValues {
     }
 
     "generate a location from a root path" in {
-      location("project", Unprocessed("4235902c-4236-11e8-842f-0ed5f89f718b", Partial("file.txt", "text/plain"))).success.value shouldEqual Location(
+      location("project", BinaryDescription("4235902c-4236-11e8-842f-0ed5f89f718b", "file.txt", "text/plain")).success.value shouldEqual Location(
         new File(config.volume.toFile, "project/4/2/3/5/9/0/2/c/4235902c-4236-11e8-842f-0ed5f89f718b").toPath,
         "project/4/2/3/5/9/0/2/c/4235902c-4236-11e8-842f-0ed5f89f718b"
       )

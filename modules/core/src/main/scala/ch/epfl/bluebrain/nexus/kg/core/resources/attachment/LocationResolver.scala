@@ -7,6 +7,7 @@ import java.nio.file.{Files, Path}
 import cats.MonadError
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AttachmentConfig
 import ch.epfl.bluebrain.nexus.kg.core.rejections.Fault.Unexpected
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.LocationResolver._
 import journal.Logger
 
@@ -36,7 +37,7 @@ abstract class LocationResolver[F[_]](base: Path) {
     * @param attachment       the attachment to be stored
     * @return ''Location'' or the appropriate Fault in the ''F'' context
     */
-  def apply(projectReference: String, attachment: Attachment): F[Location]
+  def apply(projectReference: String, attachment: BinaryDescription): F[Location]
 }
 
 object LocationResolver {
@@ -68,7 +69,7 @@ object LocationResolver {
     */
   def apply[F[_]](base: Path)(implicit F: MonadError[F, Throwable]): LocationResolver[F] =
     new LocationResolver[F](base) {
-      override def apply(projectReference: String, attachment: Attachment): F[Location] = {
+      override def apply(projectReference: String, attachment: BinaryDescription): F[Location] = {
         val relativePath =
           s"${projectReference}/${attachment.uuid.takeWhile(_ != '-').mkString("/")}/${attachment.uuid}"
 
@@ -79,8 +80,10 @@ object LocationResolver {
         } match {
           case Failure(e) =>
             logger.error(s"Error while trying to create the directory for attachment '$attachment'", e)
+            // $COVERAGE-OFF$
             F.raiseError(
               Unexpected(s"I/O error while trying to create directory for attachment '$attachment'. '${e.getMessage}'"))
+          // $COVERAGE-ON$
           case Success(location) => F.pure(location)
         }
       }

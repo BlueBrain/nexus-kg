@@ -5,15 +5,16 @@ import java.time.Clock
 import cats.instances.try_._
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.commons.test.Randomness._
 import ch.epfl.bluebrain.nexus.kg.core.access.Access._
 import ch.epfl.bluebrain.nexus.kg.core.access.HasAccess
 import ch.epfl.bluebrain.nexus.kg.core.rejections.Fault.CommandRejected
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.JsonPayload
 import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceType.SchemaType
+import ch.epfl.bluebrain.nexus.kg.core.resources.ResourcesSpec._
 import ch.epfl.bluebrain.nexus.kg.core.resources.State._
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment._
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Info._
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.FileStream.StoredSummary
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment._
 import ch.epfl.bluebrain.nexus.kg.core.types.CallerCtx._
@@ -25,9 +26,8 @@ import io.circe.Json
 import org.mockito.Mockito.when
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{CancelAfterFailure, Matchers, TryValues, WordSpecLike}
-import ch.epfl.bluebrain.nexus.commons.test.Randomness._
+
 import scala.util.{Failure, Success, Try}
-import ch.epfl.bluebrain.nexus.kg.core.resources.ResourcesSpec._
 
 class ResourcesSpec extends WordSpecLike with Matchers with TryValues with MockitoSugar with CancelAfterFailure {
 
@@ -43,19 +43,19 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
 
   trait Context {
     private[resources] def projectDeprecated: Boolean = false
-    private[resources] lazy val projectId             = genString()
-    private[resources] lazy val id                    = genString()
-    private[resources] lazy val schema                = genString()
+    private[resources] val projectId                  = genString()
+    private[resources] val id                         = genString()
+    private[resources] val schema                     = genString()
+
     private[resources] lazy val project =
-      Project(projectId, 1L, genProjectValue, Json.obj(), deprecated = projectDeprecated)
+      Project(projectId, 1L, genProjectValue, Json.obj(), projectDeprecated)
     private[resources] lazy val resources = Resources[SchemaType](agg, project)
-    private[resources] lazy val payload   = JsonPayload(genJson)
 
-    private[resources] lazy val at =
-      WrappedAttachment(Unprocessed("uri", Partial("filename", "mediaType")), genString())
-    private[resources] lazy val at2 =
-      WrappedAttachment(Unprocessed("uri2", Partial("filename2", "mediaType2")), genString())
-
+    private[resources] val payload = JsonPayload(genJson)
+    private[resources] val at =
+      WrappedAttachment(BinaryDescription("filename", "mediaType"), genString())
+    private[resources] val at2 =
+      WrappedAttachment(BinaryDescription("filename2", "mediaType2"), genString())
     private[resources] def reprId(id: String, schema: String) = RepresentationId(projectId, id, schema)
   }
 
@@ -202,12 +202,12 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
     "add attachments correctly" in new Context {
       private implicit val manage: SchemaType HasAccess Manage = null
       resources.create(id, schema, payload).success.value shouldEqual IdVersioned(reprId(id, schema), 1L)
-      when(attachmentStore.save(project.id, at.unprocessed, at.source)).thenReturn(Success(at.processed))
-      resources.attach(id, schema, 1L, at.unprocessed, at.source).success.value shouldEqual IdVersioned(reprId(id,
+      when(attachmentStore.save(project.id, at.description, at.source)).thenReturn(Success(at.processed))
+      resources.attach(id, schema, 1L, at.description, at.source).success.value shouldEqual IdVersioned(reprId(id,
                                                                                                                schema),
                                                                                                         2L)
-      when(attachmentStore.save(project.id, at2.unprocessed, at2.source)).thenReturn(Success(at2.processed))
-      resources.attach(id, schema, 2L, at2.unprocessed, at2.source).success.value shouldEqual IdVersioned(
+      when(attachmentStore.save(project.id, at2.description, at2.source)).thenReturn(Success(at2.processed))
+      resources.attach(id, schema, 2L, at2.description, at2.source).success.value shouldEqual IdVersioned(
         reprId(id, schema),
         3L)
       resources.fetch(id, schema).success.value shouldEqual Some(
@@ -219,12 +219,12 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
     "fetch attachments" in new Context {
       private implicit val manage: SchemaType HasAccess Manage = null
       resources.create(id, schema, payload).success.value shouldEqual IdVersioned(reprId(id, schema), 1L)
-      when(attachmentStore.save(project.id, at.unprocessed, at.source)).thenReturn(Success(at.processed))
-      resources.attach(id, schema, 1L, at.unprocessed, at.source).success.value shouldEqual IdVersioned(reprId(id,
+      when(attachmentStore.save(project.id, at.description, at.source)).thenReturn(Success(at.processed))
+      resources.attach(id, schema, 1L, at.description, at.source).success.value shouldEqual IdVersioned(reprId(id,
                                                                                                                schema),
                                                                                                         2L)
-      when(attachmentStore.save(project.id, at2.unprocessed, at2.source)).thenReturn(Success(at2.processed))
-      resources.attach(id, schema, 2L, at2.unprocessed, at2.source).success.value shouldEqual IdVersioned(
+      when(attachmentStore.save(project.id, at2.description, at2.source)).thenReturn(Success(at2.processed))
+      resources.attach(id, schema, 2L, at2.description, at2.source).success.value shouldEqual IdVersioned(
         reprId(id, schema),
         3L)
       resources.fetch(id, schema).success.value shouldEqual Some(
@@ -235,16 +235,16 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
 
       when(attachmentStore.fetch(at.processed)).thenReturn(Success(at.source))
 
-      resources.fetchAttachment(id, schema, at.unprocessed.name).success.value shouldEqual Some(
-        at.processed.info -> at.source)
+      resources.fetchAttachment(id, schema, at.processed.filename).success.value shouldEqual Some(
+        at.processed -> at.source)
 
-      resources.fetchAttachment(id, schema, 2L, at.unprocessed.name).success.value shouldEqual Some(
-        at.processed.info -> at.source)
+      resources.fetchAttachment(id, schema, 2L, at.processed.filename).success.value shouldEqual Some(
+        at.processed -> at.source)
 
       resources.tag(id, schema, 3L, "tag1").success.value shouldEqual IdVersioned(reprId(id, schema), 3L)
 
-      resources.fetchAttachment(id, schema, "tag1", at.unprocessed.name).success.value shouldEqual Some(
-        at.processed.info -> at.source)
+      resources.fetchAttachment(id, schema, "tag1", at.processed.filename).success.value shouldEqual Some(
+        at.processed -> at.source)
 
     }
 
@@ -252,23 +252,24 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
       private implicit val manage: SchemaType HasAccess Manage = null
       resources.create(id, schema, payload).success.value shouldEqual IdVersioned(reprId(id, schema), 1L)
       resources.deprecate(id, schema, 1L).success.value shouldEqual IdVersioned(reprId(id, schema), 2L)
-      resources.attach(id, schema, 2L, at.unprocessed, at.source).failure shouldEqual Failure(
+      resources.attach(id, schema, 2L, at.description, at.source).failure shouldEqual Failure(
         CommandRejected(ResourceIsDeprecated))
     }
 
     "remove attachments correctly" in new Context {
       private implicit val manage: SchemaType HasAccess Manage = null
       resources.create(id, schema, payload).success.value shouldEqual IdVersioned(reprId(id, schema), 1L)
-      when(attachmentStore.save(project.id, at.unprocessed, at.source)).thenReturn(Success(at.processed))
-      resources.attach(id, schema, 1L, at.unprocessed, at.source).success.value shouldEqual IdVersioned(reprId(id,
+      when(attachmentStore.save(project.id, at.description, at.source)).thenReturn(Success(at.processed))
+      resources.attach(id, schema, 1L, at.description, at.source).success.value shouldEqual IdVersioned(reprId(id,
                                                                                                                schema),
                                                                                                         2L)
-      when(attachmentStore.save(project.id, at2.unprocessed, at2.source)).thenReturn(Success(at2.processed))
-      resources.attach(id, schema, 2L, at2.unprocessed, at2.source).success.value shouldEqual IdVersioned(
+      when(attachmentStore.save(project.id, at2.description, at2.source)).thenReturn(Success(at2.processed))
+      resources.attach(id, schema, 2L, at2.description, at2.source).success.value shouldEqual IdVersioned(
         reprId(id, schema),
         3L)
-      resources.unattach(id, schema, 3L, at.processed.name).success.value shouldEqual IdVersioned(reprId(id, schema),
-                                                                                                  4L)
+      resources.unattach(id, schema, 3L, at.processed.filename).success.value shouldEqual IdVersioned(reprId(id,
+                                                                                                             schema),
+                                                                                                      4L)
       resources.fetch(id, schema).success.value shouldEqual Some(
         Resource(reprId(id, schema), 4L, payload, Set(at2.processed), deprecated = false))
     }
@@ -276,12 +277,12 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
     "reject remove attachments when deprecated" in new Context {
       private implicit val manage: SchemaType HasAccess Manage = null
       resources.create(id, schema, payload).success.value shouldEqual IdVersioned(reprId(id, schema), 1L)
-      when(attachmentStore.save(project.id, at.unprocessed, at.source)).thenReturn(Success(at.processed))
-      resources.attach(id, schema, 1L, at.unprocessed, at.source).success.value shouldEqual IdVersioned(reprId(id,
+      when(attachmentStore.save(project.id, at.description, at.source)).thenReturn(Success(at.processed))
+      resources.attach(id, schema, 1L, at.description, at.source).success.value shouldEqual IdVersioned(reprId(id,
                                                                                                                schema),
                                                                                                         2L)
       resources.deprecate(id, schema, 2L).success.value shouldEqual IdVersioned(reprId(id, schema), 3L)
-      resources.unattach(id, schema, 3L, at.processed.name).failure shouldEqual Failure(
+      resources.unattach(id, schema, 3L, at.processed.filename).failure shouldEqual Failure(
         CommandRejected(ResourceIsDeprecated))
     }
 
@@ -301,14 +302,14 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
     "reject attachment when project is deprecated" in new Context {
       override private[resources] def projectDeprecated        = true
       private implicit val attach: SchemaType HasAccess Attach = null
-      resources.attach(id, schema, 1L, at.unprocessed, at.source).failure shouldEqual Failure(
+      resources.attach(id, schema, 1L, at.description, at.source).failure shouldEqual Failure(
         CommandRejected(ParentResourceIsDeprecated))
     }
 
     "reject attachment removal when project is deprecated" in new Context {
       override private[resources] def projectDeprecated        = true
       private implicit val attach: SchemaType HasAccess Attach = null
-      resources.unattach(id, schema, 1L, at.processed.name).failure shouldEqual Failure(
+      resources.unattach(id, schema, 1L, at.processed.filename).failure shouldEqual Failure(
         CommandRejected(ParentResourceIsDeprecated))
     }
 
@@ -327,8 +328,8 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
 }
 
 object ResourcesSpec {
-  private[resources] case class WrappedAttachment(unprocessed: Unprocessed, source: String) {
-    val processed: Processed =
-      unprocessed.process(StoredSummary(genString(), Size("MB", genInt().toLong), Digest("SHA-256", genString())))
+  private[resources] case class WrappedAttachment(description: BinaryDescription, source: String) {
+    val processed: BinaryAttributes =
+      description.process(StoredSummary(genString(), Size("MB", genInt().toLong), Digest("SHA-256", genString())))
   }
 }

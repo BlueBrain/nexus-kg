@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.core.rejections.Fault.{CommandRejected, Unexpe
 import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection.ParentResourceIsDeprecated
 import ch.epfl.bluebrain.nexus.kg.core.resources.Resources.Agg
 import ch.epfl.bluebrain.nexus.kg.core.resources.State.{Current, Initial}
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.Processed
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.{Attachment, AttachmentStore}
 import ch.epfl.bluebrain.nexus.kg.core.resources.{Command => Cmd, Event => Ev, State => St}
 import ch.epfl.bluebrain.nexus.kg.core.types.{CallerCtx, IdVersioned, Project}
@@ -88,41 +88,41 @@ class Resources[F[_], Type <: ResourceType, In, Out](agg: Agg[F], project: Proje
   /**
     * Attempts to add an attachment to a resource.
     *
-    * @param id         the identifier of the resource
-    * @param schema     the identifier of the schema that this resource validates against
-    * @param rev        the last known revision of the resource instance
-    * @param attachment the attachment to be processed
-    * @param source     the attachment source
-    * @param tags       the tags associated to this operation
+    * @param id     the identifier of the resource
+    * @param schema the identifier of the schema that this resource validates against
+    * @param rev    the last known revision of the resource instance
+    * @param source the attachment source
+    * @param tags   the tags associated to this operation
     * @return a [[IdVersioned]] instance wrapped in the abstract ''F[_]'' type
     *         if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.rejections.Fault]] wrapped within ''F[_]'' otherwise
     */
   def attach(id: String,
              schema: String,
              rev: Long,
-             attachment: Attachment.Unprocessed,
+             attach: Attachment.BinaryDescription,
              source: In,
              tags: Set[String] = Set.empty)(implicit caller: CallerCtx,
                                             @silent access: Type HasAccess Attach): F[IdVersioned] = {
     val repr = reprId(id, schema)
-    val inOutResult: F[Either[Rejection, Processed]] = F.pure {
-      logger.debug(
-        s"Uploading file '${attachment.name}' with mediaType '${attachment.info.mediaType}' to instance '$id'")
-    } flatMap { _ =>
-      projectUnlocked()
-    } flatMap { _ =>
-      agg.currentState(repr.persId).map(State.eval(_, Cmd.AttachUnprocessed(repr, rev, caller.meta, attachment)))
-    } flatMap {
-      case Left(r)  => F.pure(Left(r))
-      case Right(_) => attachStore.save(project.id, attachment, source).map(Right(_))
-    }
+    logger.debug(s"Uploading file '${attach.filename}' with mediaType '${attach.mediaType}' to instance '$id'")
+    val inOutResult: F[Either[Rejection, BinaryAttributes]] =
+      for {
+        _ <- projectUnlocked()
+        //TODO: Use a specialized Aggregator instead
+        rejOrEvent <- agg.currentState(repr.persId).map(State.eval(_, Cmd.AttachVerify(repr, rev, caller.meta, attach)))
+        rejOrBinary <- rejOrEvent match {
+          case Left(r)  => F.pure(Left(r))
+          case Right(_) => attachStore.save(project.id, attach, source).map(Right(_))
+        }
+      } yield rejOrBinary
+
     inOutResult flatMap {
-      case Left(rejection) =>
+      case Left(r) =>
         logger.error(
-          s"Error upload file '${attachment.name}' with mediaType '${attachment.info.mediaType}' to instance '$id'. Rejection '$rejection'")
-        F.raiseError(CommandRejected(rejection))
+          s"Error upload file '${attach.filename}' with mediaType '${attach.mediaType}' to id '$id'. Rejection '$r'")
+        F.raiseError(CommandRejected(r))
       case Right(at) =>
-        logger.debug(s"Uploaded file '${at.name}' with mediaType '${at.info.mediaType}' to instance '$id'")
+        logger.debug(s"Uploaded file '${at.filename}' with mediaType '${at.mediaType}' to instance '$id'")
         eval(Cmd.Attach(repr, rev, caller.meta, at, tags + project.id), s"Attach resource '$id'")
           .map(state => IdVersioned(state.id, state.rev))
     }
@@ -210,7 +210,7 @@ class Resources[F[_], Type <: ResourceType, In, Out](agg: Agg[F], project: Proje
     */
   @SuppressWarnings(Array("PartialFunctionInsteadOfMatch"))
   def fetchAttachment(id: String, schema: String, name: String)(
-      implicit @silent access: Type HasAccess Read): F[Option[(Attachment.Info, Out)]] =
+      implicit @silent access: Type HasAccess Read): F[Option[(BinaryAttributes, Out)]] =
     agg.currentState(reprId(id, schema).persId).flatMap {
       case Initial                                => F.pure(None)
       case Current(_, _, _, _, attachments, _, _) => findAttachment(attachments, name)
@@ -223,13 +223,13 @@ class Resources[F[_], Type <: ResourceType, In, Out](agg: Agg[F], project: Proje
     * @param schema the identifier of the schema
     * @param rev    the revision attempted to be fetched
     * @param name   the attachment filename
-    * @return an optional Tuple of [[Attachment.Info]]
+    * @return an optional Tuple of [[BinaryAttributes]]
     *         and typeclass Out wrapped in the abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.rejections.Fault]]
     *         wrapped within ''F[_]'' otherwise
     */
   @SuppressWarnings(Array("PartialFunctionInsteadOfMatch"))
   def fetchAttachment(id: String, schema: String, rev: Long, name: String)(
-      implicit @silent access: Type HasAccess Read): F[Option[(Attachment.Info, Out)]] =
+      implicit @silent access: Type HasAccess Read): F[Option[(BinaryAttributes, Out)]] =
     stateAt(reprId(id, schema), rev).flatMap {
       case Current(_, `rev`, _, _, attachments, _, _) => findAttachment(attachments, name)
       case _                                          => F.pure(None)
@@ -242,13 +242,13 @@ class Resources[F[_], Type <: ResourceType, In, Out](agg: Agg[F], project: Proje
     * @param schema the identifier of the schema
     * @param tag    the tag name (linked to a revision) attempted to be fetched
     * @param name   the attachment filename
-    * @return an optional Tuple of [[Attachment.Info]]
+    * @return an optional Tuple of [[BinaryAttributes]]
     *         and typeclass Out wrapped in the abstract ''F[_]'' type if successful, or a [[ch.epfl.bluebrain.nexus.kg.core.rejections.Fault]]
     *         wrapped within ''F[_]'' otherwise
     */
   @SuppressWarnings(Array("PartialFunctionInsteadOfMatch"))
   def fetchAttachment(id: String, schema: String, tag: String, name: String)(
-      implicit @silent access: Type HasAccess Read): F[Option[(Attachment.Info, Out)]] =
+      implicit @silent access: Type HasAccess Read): F[Option[(BinaryAttributes, Out)]] =
     agg.currentState(reprId(id, schema).persId).flatMap {
       case Initial => F.pure(None)
       case c: Current =>
@@ -258,10 +258,10 @@ class Resources[F[_], Type <: ResourceType, In, Out](agg: Agg[F], project: Proje
         }
     }
 
-  private def findAttachment(attachments: Set[Processed], name: String): F[Option[(Attachment.Info, Out)]] =
-    attachments.find(_.name == name) match {
+  private def findAttachment(attachments: Set[BinaryAttributes], name: String): F[Option[(BinaryAttributes, Out)]] =
+    attachments.find(_.filename == name) match {
       case None     => F.pure(None)
-      case Some(at) => attachStore.fetch(at).map(out => Some(at.info -> out))
+      case Some(at) => attachStore.fetch(at).map(out => Some(at -> out))
     }
 
   /**

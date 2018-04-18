@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.core.resources
 
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{Processed, Unprocessed}
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
 
 /**
   * Enumeration type for commands that apply to resources.
@@ -80,25 +80,33 @@ object Command {
     * @param value the metadata of the attachment
     * @param tags  the tags associated to this command
     */
-  final case class Attach(id: RepresentationId, rev: Long, meta: Meta, value: Processed, tags: Set[String] = Set.empty)
+  final case class Attach(id: RepresentationId,
+                          rev: Long,
+                          meta: Meta,
+                          value: BinaryAttributes,
+                          tags: Set[String] = Set.empty)
       extends Command
 
-  private[resources] final case class AttachUnprocessed(id: RepresentationId,
-                                                  rev: Long,
-                                                  meta: Meta,
-                                                  value: Unprocessed,
-                                                  tags: Set[String] = Set.empty)
+  private[resources] final case class AttachVerify(id: RepresentationId,
+                                                   rev: Long,
+                                                   meta: Meta,
+                                                   value: BinaryDescription,
+                                                   tags: Set[String] = Set.empty)
       extends Command
 
   /**
     * Command that signals the intent to remove an attachment from the resource.
     *
-    * @param id   the identifier for the resource to be un-attached
-    * @param rev  the last known revision of the resource
-    * @param meta the metadata associated to this command
-    * @param name the name of the attachment to be removed
-    * @param tags the tags associated to this command
+    * @param id       the identifier for the resource to be un-attached
+    * @param rev      the last known revision of the resource
+    * @param meta     the metadata associated to this command
+    * @param filename the name of the attachment to be removed
+    * @param tags     the tags associated to this command
     */
-  final case class Unattach(id: RepresentationId, rev: Long, meta: Meta, name: String, tags: Set[String] = Set.empty)
+  final case class Unattach(id: RepresentationId,
+                            rev: Long,
+                            meta: Meta,
+                            filename: String,
+                            tags: Set[String] = Set.empty)
       extends Command
 }
