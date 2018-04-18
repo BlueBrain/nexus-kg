@@ -27,7 +27,7 @@ val commonsVersion  = "0.10.9"
 val serviceVersion  = "0.10.8"
 val sourcingVersion = "0.10.4"
 
-val akkaVersion                 = "2.5.11"
+val akkaVersion                 = "2.5.12"
 val akkaHttpVersion             = "10.1.1"
 val akkaHttpCorsVersion         = "0.3.0"
 val akkaHttpCirceVersion        = "1.20.0"
@@ -41,6 +41,7 @@ val logbackVersion = "1.2.3"
 val journalVersion = "3.0.19"
 
 val metricsCoreVersion       = "3.2.6"
+val mockitoVersion           = "2.18.0"
 val jenaVersion              = "3.6.0"
 val blazegraphVersion        = "2.1.4"
 val scalaTestVersion         = "3.0.5"
@@ -77,6 +78,7 @@ lazy val shaclValidator    = "ch.epfl.bluebrain.nexus" %% "shacl-validator"     
 lazy val sparqlClient      = "ch.epfl.bluebrain.nexus" %% "sparql-client"        % commonsVersion
 lazy val elasticClient     = "ch.epfl.bluebrain.nexus" %% "elastic-client"       % commonsVersion
 lazy val elasticEmbed      = "ch.epfl.bluebrain.nexus" %% "elastic-server-embed" % commonsVersion
+lazy val mockitoCore       = "org.mockito"             % "mockito-core"          % mockitoVersion
 
 lazy val pureconfig        = "com.github.pureconfig" %% "pureconfig"         % pureconfigVersion
 lazy val refined           = "eu.timepit"            %% "refined"            % refinedVersion
@@ -119,6 +121,7 @@ lazy val core = project
       akkaDistributed      % Test,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
+      mockitoCore          % Test,
       sourcingMem          % Test,
       scalaTest            % Test
     )

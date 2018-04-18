@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.core.resources
 
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AdminConfig
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.{JsonLDPayload, JsonPayload, TurtlePayload}
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.BinaryAttributes
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
@@ -20,10 +20,14 @@ import io.circe.{Encoder, Json}
 final case class Resource(id: RepresentationId,
                           rev: Long,
                           value: Payload,
-                          distribution: Set[Attachment],
+                          distribution: Set[BinaryAttributes],
                           deprecated: Boolean)
 
 object Resource {
+
+  private implicit val attachmentEncoder: Encoder[BinaryAttributes] =
+    Encoder.forProduct4("originalFileName", "mediaType", "contentSize", "digest")(at =>
+      (at.filename, at.mediaType, at.contentSize, at.digest))
 
   private implicit val payloadEnc: Encoder[Payload] =
     Encoder.instance {
@@ -36,9 +40,8 @@ object Resource {
   implicit def resourceEncoder(implicit config: AdminConfig): Encoder[Resource] =
     Encoder.instance {
       case Resource(id, rev, value, distribution, deprecated) =>
-        val json = id.asJson deepMerge value.asJson deepMerge Json.obj("rev" -> Json.fromLong(rev),
-                                                                       "deprecated" -> Json.fromBoolean(deprecated))
-        if (distribution.isEmpty) json
-        else json deepMerge Json.obj("distribution" -> distribution.asJson)
+        val distJson = if (distribution.isEmpty) Json.obj() else Json.obj("distribution" -> distribution.asJson)
+        val meta     = Json.obj("rev" -> Json.fromLong(rev), "deprecated" -> Json.fromBoolean(deprecated))
+        id.asJson deepMerge value.asJson deepMerge meta deepMerge distJson
     }
 }

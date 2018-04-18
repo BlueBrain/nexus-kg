@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.core.resources
 
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.BinaryAttributes
 
 /**
   * Enumeration type for all events that are emitted for resources.
@@ -85,7 +85,7 @@ object Event {
   final case class Attached(id: RepresentationId,
                             rev: Long,
                             meta: Meta,
-                            value: Attachment,
+                            value: BinaryAttributes,
                             tags: Set[String] = Set.empty)
       extends Event
 

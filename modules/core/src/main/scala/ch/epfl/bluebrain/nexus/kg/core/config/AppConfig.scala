@@ -67,5 +67,6 @@ object AppConfig {
     val projectUri: Uri = baseUri.append(acls.Path(projectsPath))
   }
 
-  implicit def adminConfigFromConfig(implicit config: AppConfig): AdminConfig = config.admin
+  implicit def adminConfigFromConfig(implicit config: AppConfig): AdminConfig     = config.admin
+  implicit def attachmentFromConfig(implicit config: AppConfig): AttachmentConfig = config.attachment
 }

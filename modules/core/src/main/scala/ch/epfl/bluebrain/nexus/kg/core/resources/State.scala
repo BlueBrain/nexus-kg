@@ -4,7 +4,8 @@ import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
 import ch.epfl.bluebrain.nexus.kg.core.resources.Command._
 import ch.epfl.bluebrain.nexus.kg.core.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment._
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.FileStream.StoredSummary
 
 /**
   * Enumeration type for possible states of a resource.
@@ -33,7 +34,7 @@ object State {
                            rev: Long,
                            meta: Meta,
                            value: Payload,
-                           attachments: Set[Attachment],
+                           attachments: Set[BinaryAttributes],
                            deprecated: Boolean,
                            tags: Map[String, Long])
       extends State
@@ -57,9 +58,11 @@ object State {
       case (c: Current, Deprecated(_, rev, meta, _))      => c.copy(rev = rev, meta = meta, deprecated = true)
       case (c: Current, Replaced(_, rev, meta, value, _)) => c.copy(rev = rev, meta = meta, value = value)
       case (c: Current, Attached(_, rev, meta, attachment, _)) =>
-        c.copy(rev = rev, meta = meta, attachments = c.attachments.filter(_.name != attachment.name) + attachment)
+        c.copy(rev = rev,
+               meta = meta,
+               attachments = c.attachments.filter(_.filename != attachment.filename) + attachment)
       case (c: Current, Unattached(_, rev, meta, name, _)) =>
-        c.copy(rev = rev, meta = meta, attachments = c.attachments.filter(_.name != name))
+        c.copy(rev = rev, meta = meta, attachments = c.attachments.filter(_.filename != name))
     }
   }
 
@@ -72,67 +75,77 @@ object State {
     * @return either a rejection or emit an event
     */
   def eval(state: State, cmd: Command): Either[ResourceRejection, Event] = {
+    val fakeSummary = StoredSummary(" ", Size(value = 0L), Digest("None", ""))
 
-    def create(cmd: Create): Either[ResourceRejection, Created] =
+    def create(c: Create): Either[ResourceRejection, Created] =
       state match {
-        case Initial => Right(Created(cmd.id, 1L, cmd.meta, cmd.value, cmd.tags))
+        case Initial => Right(Created(c.id, 1L, c.meta, c.value, c.tags))
         case _       => Left(ResourceAlreadyExists)
       }
-    def replace(cmd: Replace): Either[ResourceRejection, Replaced] =
+    def replace(c: Replace): Either[ResourceRejection, Replaced] =
       state match {
-        case Initial                        => Left(ResourceDoesNotExists)
-        case s: Current if s.rev != cmd.rev => Left(IncorrectRevisionProvided)
-        case s: Current if s.deprecated     => Left(ResourceIsDeprecated)
-        case s: Current                     => Right(Replaced(s.id, s.rev + 1, cmd.meta, cmd.value, cmd.tags))
+        case Initial                      => Left(ResourceDoesNotExists)
+        case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
+        case s: Current if s.deprecated   => Left(ResourceIsDeprecated)
+        case s: Current                   => Right(Replaced(s.id, s.rev + 1, c.meta, c.value, c.tags))
       }
-    def tag(cmd: Tag): Either[ResourceRejection, Tagged] =
+    def tag(c: Tag): Either[ResourceRejection, Tagged] =
       state match {
-        case Initial                       => Left(ResourceDoesNotExists)
-        case s: Current if s.rev < cmd.rev => Left(IncorrectRevisionProvided)
-        case s: Current                    => Right(Tagged(s.id, cmd.rev, cmd.meta, cmd.name, cmd.tags))
-      }
-
-    def attach(cmd: Attach): Either[ResourceRejection, Attached] =
-      state match {
-        case Initial                        => Left(ResourceDoesNotExists)
-        case s: Current if s.rev != cmd.rev => Left(IncorrectRevisionProvided)
-        case s: Current if s.deprecated     => Left(ResourceIsDeprecated)
-        case s: Current                     => Right(Attached(s.id, s.rev + 1, cmd.meta, cmd.value, cmd.tags))
+        case Initial                     => Left(ResourceDoesNotExists)
+        case s: Current if s.rev < c.rev => Left(IncorrectRevisionProvided)
+        case s: Current                  => Right(Tagged(s.id, c.rev, c.meta, c.name, c.tags))
       }
 
-    def unattach(cmd: Unattach): Either[ResourceRejection, Unattached] =
+    def attach(c: Attach): Either[ResourceRejection, Attached] =
       state match {
-        case Initial                                                 => Left(ResourceDoesNotExists)
-        case s: Current if s.rev != cmd.rev                          => Left(IncorrectRevisionProvided)
-        case s: Current if s.deprecated                              => Left(ResourceIsDeprecated)
-        case s: Current if !s.attachments.exists(_.name == cmd.name) => Left(AttachmentDoesNotExists)
-        case s: Current                                              => Right(Unattached(s.id, s.rev + 1, cmd.meta, cmd.name, cmd.tags))
+        case Initial                      => Left(ResourceDoesNotExists)
+        case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
+        case s: Current if s.deprecated   => Left(ResourceIsDeprecated)
+        case s: Current                   => Right(Attached(s.id, s.rev + 1, c.meta, c.value, c.tags))
       }
 
-    def deprecate(cmd: Deprecate): Either[ResourceRejection, Deprecated] =
+    def attachVerify(c: AttachVerify): Either[ResourceRejection, Attached] =
       state match {
-        case Initial                        => Left(ResourceDoesNotExists)
-        case s: Current if s.rev != cmd.rev => Left(IncorrectRevisionProvided)
-        case s: Current if s.deprecated     => Left(ResourceIsDeprecated)
-        case s: Current                     => Right(Deprecated(s.id, s.rev + 1, cmd.meta, cmd.tags))
+        case Initial                      => Left(ResourceDoesNotExists)
+        case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
+        case s: Current if s.deprecated   => Left(ResourceIsDeprecated)
+        case s: Current                   => Right(Attached(s.id, s.rev + 1, c.meta, c.value.process(fakeSummary), c.tags))
       }
 
-    def undeprecate(cmd: Undeprecate): Either[ResourceRejection, Undeprecated] =
+    def unattach(c: Unattach): Either[ResourceRejection, Unattached] =
       state match {
-        case Initial                        => Left(ResourceDoesNotExists)
-        case s: Current if s.rev != cmd.rev => Left(IncorrectRevisionProvided)
-        case s: Current if !s.deprecated    => Left(ResourceIsNotDeprecated)
-        case s: Current                     => Right(Undeprecated(s.id, s.rev + 1, cmd.meta, cmd.tags))
+        case Initial                                                       => Left(ResourceDoesNotExists)
+        case s: Current if s.rev != c.rev                                  => Left(IncorrectRevisionProvided)
+        case s: Current if s.deprecated                                    => Left(ResourceIsDeprecated)
+        case s: Current if !s.attachments.exists(_.filename == c.filename) => Left(AttachmentDoesNotExists)
+        case s: Current                                                    => Right(Unattached(s.id, s.rev + 1, c.meta, c.filename, c.tags))
+      }
+
+    def deprecate(c: Deprecate): Either[ResourceRejection, Deprecated] =
+      state match {
+        case Initial                      => Left(ResourceDoesNotExists)
+        case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
+        case s: Current if s.deprecated   => Left(ResourceIsDeprecated)
+        case s: Current                   => Right(Deprecated(s.id, s.rev + 1, c.meta, c.tags))
+      }
+
+    def undeprecate(c: Undeprecate): Either[ResourceRejection, Undeprecated] =
+      state match {
+        case Initial                      => Left(ResourceDoesNotExists)
+        case s: Current if s.rev != c.rev => Left(IncorrectRevisionProvided)
+        case s: Current if !s.deprecated  => Left(ResourceIsNotDeprecated)
+        case s: Current                   => Right(Undeprecated(s.id, s.rev + 1, c.meta, c.tags))
       }
 
     cmd match {
-      case cmd: Create      => create(cmd)
-      case cmd: Replace     => replace(cmd)
-      case cmd: Deprecate   => deprecate(cmd)
-      case cmd: Undeprecate => undeprecate(cmd)
-      case cmd: Tag         => tag(cmd)
-      case cmd: Attach      => attach(cmd)
-      case cmd: Unattach    => unattach(cmd)
+      case cmd: Create       => create(cmd)
+      case cmd: Replace      => replace(cmd)
+      case cmd: Deprecate    => deprecate(cmd)
+      case cmd: Undeprecate  => undeprecate(cmd)
+      case cmd: Tag          => tag(cmd)
+      case cmd: Attach       => attach(cmd)
+      case cmd: AttachVerify => attachVerify(cmd)
+      case cmd: Unattach     => unattach(cmd)
 
     }
   }
