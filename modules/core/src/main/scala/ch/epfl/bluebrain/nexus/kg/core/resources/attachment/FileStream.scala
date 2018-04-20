@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.core.resources.attachment
 
 import java.net.URI
 
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{Digest, Size}
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{Digest, RelativeUri, Size}
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.FileStream.StoredSummary
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.LocationResolver.Location
 
@@ -51,7 +51,7 @@ object FileStream {
     * @param size    the size of the attached file
     * @param digest  the digest related information of the attached file
     */
-  final case class StoredSummary(fileUri: String, size: Size, digest: Digest)
+  final case class StoredSummary(fileUri: RelativeUri, size: Size, digest: Digest)
 
   type Aux[F[_], In0, Out0] = FileStream[F] {
     type In  = In0

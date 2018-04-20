@@ -22,6 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.core.types.Project.{Config, ProjectValue}
 import ch.epfl.bluebrain.nexus.kg.core.types.{IdVersioned, Project}
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
+import eu.timepit.refined.auto._
 import io.circe.Json
 import org.mockito.Mockito.when
 import org.scalatest.mockito.MockitoSugar
@@ -330,6 +331,6 @@ class ResourcesSpec extends WordSpecLike with Matchers with TryValues with Mocki
 object ResourcesSpec {
   private[resources] case class WrappedAttachment(description: BinaryDescription, source: String) {
     val processed: BinaryAttributes =
-      description.process(StoredSummary(genString(), Size("MB", genInt().toLong), Digest("SHA-256", genString())))
+      description.process(StoredSummary("some", Size("MB", genInt().toLong), Digest("SHA-256", genString())))
   }
 }

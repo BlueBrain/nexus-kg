@@ -6,6 +6,7 @@ import ch.epfl.bluebrain.nexus.commons.test.{Resources => Res}
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AdminConfig
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.{JsonPayload, TurtlePayload}
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{BinaryAttributes, Digest, Size}
+import eu.timepit.refined.auto._
 import io.circe.Json
 import io.circe.syntax._
 import org.scalatest.{EitherValues, Inspectors, Matchers, WordSpecLike}

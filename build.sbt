@@ -58,6 +58,7 @@ lazy val akkaPersistence      = "com.typesafe.akka"   %% "akka-persistence"     
 lazy val akkaPersistenceInMem = "com.github.dnvriend" %% "akka-persistence-inmemory" % akkaPersistenceInMemVersion
 lazy val akkaSlf4j            = "com.typesafe.akka"   %% "akka-slf4j"                % akkaVersion
 lazy val akkaStreamKafka      = "com.typesafe.akka"   %% "akka-stream-kafka"         % akkaStreamKafkaVersion
+lazy val circeRefined         = "io.circe"            %% "circe-refined"             % circeVersion
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % scalaTestVersion
 
@@ -111,6 +112,7 @@ lazy val core = project
     libraryDependencies ++= Seq(
       akkaPersistence,
       akkaSlf4j,
+      circeRefined,
       commonsIam,
       commonsQueryTypes,
       commonsTest,

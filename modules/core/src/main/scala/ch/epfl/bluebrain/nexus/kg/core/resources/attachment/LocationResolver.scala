@@ -7,7 +7,7 @@ import java.nio.file.{Files, Path}
 import cats.MonadError
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AttachmentConfig
 import ch.epfl.bluebrain.nexus.kg.core.rejections.Fault.Unexpected
-import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.BinaryDescription
+import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{BinaryDescription, RelativeUri}
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.LocationResolver._
 import journal.Logger
 
@@ -28,7 +28,7 @@ abstract class LocationResolver[F[_]](base: Path) {
     * @param relative the relative route to an attachment
     * @return the absolute URI identifying an attachment's location
     */
-  def absoluteUri(relative: String): URI = new File(base.toFile, relative).toURI
+  def absoluteUri(relative: RelativeUri): URI = new File(base.toFile, relative.value).toURI
 
   /**
     * Attempts to create a location for an attachment.
@@ -71,7 +71,7 @@ object LocationResolver {
     new LocationResolver[F](base) {
       override def apply(projectReference: String, attachment: BinaryDescription): F[Location] = {
         val relativePath =
-          s"${projectReference}/${attachment.uuid.takeWhile(_ != '-').mkString("/")}/${attachment.uuid}"
+          s"${projectReference}/${attachment.uuid.value.takeWhile(_ != '-').mkString("/")}/${attachment.uuid}"
 
         Try {
           val attachmentPath = new File(base.toFile, relativePath).toPath

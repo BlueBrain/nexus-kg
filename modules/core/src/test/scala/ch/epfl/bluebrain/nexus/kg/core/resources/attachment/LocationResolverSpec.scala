@@ -8,6 +8,7 @@ import cats.instances.try_._
 import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig.AttachmentConfig
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.LocationResolver.Location
+import eu.timepit.refined.auto._
 import org.scalatest.{Matchers, TryValues, WordSpecLike}
 
 import scala.util.Try

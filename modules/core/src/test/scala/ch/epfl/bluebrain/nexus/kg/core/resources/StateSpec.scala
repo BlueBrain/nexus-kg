@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.core.resources.Payload._
 import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.resources.State._
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment._
+import eu.timepit.refined.auto._
 import io.circe.Json
 import org.scalatest.{EitherValues, Inspectors, Matchers, WordSpecLike}
 

@@ -6,6 +6,7 @@ import ch.epfl.bluebrain.nexus.kg.core.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment._
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.FileStream.StoredSummary
+import eu.timepit.refined.auto._
 
 /**
   * Enumeration type for possible states of a resource.
@@ -75,7 +76,7 @@ object State {
     * @return either a rejection or emit an event
     */
   def eval(state: State, cmd: Command): Either[ResourceRejection, Event] = {
-    val fakeSummary = StoredSummary(" ", Size(value = 0L), Digest("None", ""))
+    val fakeSummary = StoredSummary("fake/path", Size(value = 0L), Digest("None", ""))
 
     def create(c: Create): Either[ResourceRejection, Created] =
       state match {
