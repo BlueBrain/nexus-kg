@@ -11,7 +11,6 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.iam.IamClient
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
 import ch.epfl.bluebrain.nexus.commons.iam.acls.Path._
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Permission.Read
 import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.types.Version
@@ -28,7 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.core.schemas.{Schema, SchemaId, SchemaName}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.builder.{FilterQueries, ResourceRestrictionExpr, SchemaNameFilterExpr}
 import ch.epfl.bluebrain.nexus.kg.indexing.query.{QuerySettings, SparqlQuery}
 import ch.epfl.bluebrain.nexus.kg.service.config.Settings.PrefixUris
-import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{authenticateCaller, authorizeResource, getAcls}
+import ch.epfl.bluebrain.nexus.kg.service.directives.AuthDirectives.{authenticateCaller, getAcls}
 import ch.epfl.bluebrain.nexus.kg.service.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.service.hateoas.Links
 import ch.epfl.bluebrain.nexus.kg.service.routes.CommonRejections.IllegalVersionFormat
@@ -75,7 +74,7 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
     (post & extractResourcePath & paginated & queryEntity) { (path, pagination, query) =>
-      (authenticateCaller & authorizeResource(path, Read)) { implicit caller =>
+      authenticateCaller.apply { implicit caller =>
         onSuccess(queries.create(path, query)) { queryId =>
           val uri = base
             .copy(path = (base.path: Path) ++ Path(basePath) ++ Path(queryId.id))
