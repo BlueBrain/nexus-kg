@@ -106,6 +106,7 @@ lazy val core = project
   .enablePlugins(BuildInfoPlugin)
   .settings(buildInfoSettings)
   .settings(
+    commonTestSettings,
     name       := "kg-core",
     moduleName := "kg-core",
     resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
@@ -135,6 +136,7 @@ lazy val service = project
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(buildInfoSettings)
   .settings(
+    commonTestSettings,
     name       := "kg-service",
     moduleName := "kg-service",
     resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
@@ -167,6 +169,11 @@ lazy val root = project
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {}, publishArtifact := false)
 
+lazy val commonTestSettings = Seq(
+  Test / testOptions        += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),
+  parallelExecution in Test := false // Jena workaround
+)
+
 inThisBuild(
   List(
     homepage := Some(url("https://github.com/BlueBrain/nexus-kg")),
@@ -181,9 +188,7 @@ inThisBuild(
     // These are the sbt-release-early settings to configure
     releaseEarlyWith              := BintrayPublisher,
     releaseEarlyNoGpg             := true,
-    releaseEarlyEnableSyncToMaven := false,
-    // Jena workaround
-    parallelExecution in Test := false
+    releaseEarlyEnableSyncToMaven := false
   )
 )
 
