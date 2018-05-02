@@ -6,6 +6,7 @@ import ch.epfl.bluebrain.nexus.commons.types.Meta
 import ch.epfl.bluebrain.nexus.commons.types.identity.Identity
 import ch.epfl.bluebrain.nexus.commons.types.identity.Identity.{AuthenticatedRef, UserRef}
 import ch.epfl.bluebrain.nexus.iam.client.Caller
+
 /**
   * Context information for any operation bundle call
   *
