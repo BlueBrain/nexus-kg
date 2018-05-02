@@ -3,9 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.core.resources
 import java.time.Clock
 
 import cats.instances.try_._
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Caller.AnonymousCaller
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.commons.test.Randomness._
+import ch.epfl.bluebrain.nexus.commons.types.identity.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.iam.client.Caller.AnonymousCaller
 import ch.epfl.bluebrain.nexus.kg.core.access.Access._
 import ch.epfl.bluebrain.nexus.kg.core.access.HasAccess
 import ch.epfl.bluebrain.nexus.kg.core.rejections.Fault.CommandRejected

@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core.resources
 
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
+import ch.epfl.bluebrain.nexus.commons.types.Meta
 import ch.epfl.bluebrain.nexus.kg.core.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
 
 /**

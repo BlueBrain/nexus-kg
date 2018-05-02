@@ -3,8 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.core.persistence
 import java.time.Clock
 
 import akka.persistence.journal.Tagged
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
+import ch.epfl.bluebrain.nexus.commons.types.Meta
+import ch.epfl.bluebrain.nexus.commons.types.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.core.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload.JsonPayload
