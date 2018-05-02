@@ -23,9 +23,10 @@ scalafmt: {
   ]
 }
  */
-val commonsVersion  = "0.10.9"
-val serviceVersion  = "0.10.8"
+val commonsVersion  = "0.10.10"
+val serviceVersion  = "0.10.11"
 val sourcingVersion = "0.10.5"
+val adminVersion    = "0.1.15"
 
 val akkaVersion                 = "2.5.12"
 val akkaHttpVersion             = "10.1.1"
@@ -48,7 +49,7 @@ val scalaTestVersion         = "3.0.5"
 val scalaTestEmbeddedVersion = "1.1.0"
 
 val pureconfigVersion = "0.9.1"
-val refinedVersion    = "0.8.7"
+val refinedVersion    = "0.9.0"
 
 lazy val akkaDistributed      = "com.typesafe.akka"   %% "akka-distributed-data"     % akkaVersion
 lazy val akkaHttpCors         = "ch.megard"           %% "akka-http-cors"            % akkaHttpCorsVersion
@@ -58,6 +59,7 @@ lazy val akkaPersistence      = "com.typesafe.akka"   %% "akka-persistence"     
 lazy val akkaPersistenceInMem = "com.github.dnvriend" %% "akka-persistence-inmemory" % akkaPersistenceInMemVersion
 lazy val akkaSlf4j            = "com.typesafe.akka"   %% "akka-slf4j"                % akkaVersion
 lazy val akkaStreamKafka      = "com.typesafe.akka"   %% "akka-stream-kafka"         % akkaStreamKafkaVersion
+lazy val circeJava8           = "io.circe"            %% "circe-java8"               % circeVersion
 lazy val circeRefined         = "io.circe"            %% "circe-refined"             % circeVersion
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % scalaTestVersion
@@ -70,7 +72,7 @@ lazy val serviceHttp     = "ch.epfl.bluebrain.nexus" %% "service-http"     % ser
 lazy val serviceIndexing = "ch.epfl.bluebrain.nexus" %% "service-indexing" % serviceVersion
 lazy val serviceKamon    = "ch.epfl.bluebrain.nexus" %% "service-kamon"    % serviceVersion
 
-lazy val commonsIam        = "ch.epfl.bluebrain.nexus" %% "iam"                  % commonsVersion
+lazy val adminClient       = "ch.epfl.bluebrain.nexus" %% "admin-client"         % adminVersion
 lazy val commonsQueryTypes = "ch.epfl.bluebrain.nexus" %% "commons-query-types"  % commonsVersion
 lazy val commonsSchemas    = "ch.epfl.bluebrain.nexus" %% "commons-schemas"      % commonsVersion
 lazy val commonsTest       = "ch.epfl.bluebrain.nexus" %% "commons-test"         % commonsVersion
@@ -111,16 +113,18 @@ lazy val core = project
     moduleName := "kg-core",
     resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
     libraryDependencies ++= Seq(
+      adminClient,
       akkaPersistence,
       akkaSlf4j,
+      circeJava8,
       circeRefined,
-      commonsIam,
       commonsQueryTypes,
       commonsTest,
       pureconfig,
       refined,
       refinedPureConfig,
       sourcingCore,
+      serviceHttp,
       akkaDistributed      % Test,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
@@ -144,12 +148,10 @@ lazy val service = project
       akkaDistributed,
       akkaHttpCors,
       akkaSlf4j,
-      commonsIam,
       commonsQueryTypes,
       commonsTest,
       pureconfig,
       refinedPureConfig,
-      serviceHttp,
       serviceKamon,
       sourcingAkka,
       akkaHttpTestKit % Test,
@@ -170,7 +172,7 @@ lazy val root = project
 lazy val noPublish = Seq(publishLocal := {}, publish := {}, publishArtifact := false)
 
 lazy val commonTestSettings = Seq(
-  Test / testOptions        += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),
+  Test / testOptions        += Tests.Argument(TestFrameworks.ScalaTest, "-o", "-u", "target/test-reports"),
   parallelExecution in Test := false // Jena workaround
 )
 

@@ -2,8 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.core.resources
 
 import java.time.Clock
 
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
+import ch.epfl.bluebrain.nexus.commons.types.Meta
+import ch.epfl.bluebrain.nexus.commons.types.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.kg.core.resources.Command._
 import ch.epfl.bluebrain.nexus.kg.core.resources.Payload._
 import ch.epfl.bluebrain.nexus.kg.core.resources.ResourceRejection._

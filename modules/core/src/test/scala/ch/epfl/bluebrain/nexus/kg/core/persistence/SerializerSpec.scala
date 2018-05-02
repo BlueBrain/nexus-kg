@@ -6,8 +6,8 @@ import java.time.Clock
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Meta
-import ch.epfl.bluebrain.nexus.commons.iam.identity.Identity.UserRef
+import ch.epfl.bluebrain.nexus.commons.types.Meta
+import ch.epfl.bluebrain.nexus.commons.types.identity.Identity.UserRef
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.core.persistence.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.core.resources.Event._

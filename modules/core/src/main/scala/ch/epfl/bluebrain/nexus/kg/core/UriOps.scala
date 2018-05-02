@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.core
 
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.commons.iam.acls.Path
+import ch.epfl.bluebrain.nexus.service.http.Path
 
 object UriOps {
 
