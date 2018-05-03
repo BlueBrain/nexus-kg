@@ -18,6 +18,9 @@ trait HasAccess[T <: ResourceType, A <: Access]
 
 @SuppressWarnings(Array("UnusedMethodParameter"))
 object HasAccess {
+
+  def apply[T <: ResourceType, A <: Access](): HasAccess[T, A] = new HasAccess[T, A] {}
+
   implicit def readFromManage[T <: ResourceType](implicit @silent m: T HasAccess Manage): T HasAccess Read     = null
   implicit def writeFromManage[T <: ResourceType](implicit @silent m: T HasAccess Manage): T HasAccess Write   = null
   implicit def createFromManage[T <: ResourceType](implicit @silent m: T HasAccess Manage): T HasAccess Create = null
