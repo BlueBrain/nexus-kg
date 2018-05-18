@@ -1,1 +1,0 @@
-curl -v -XDELETE "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0?rev=3"

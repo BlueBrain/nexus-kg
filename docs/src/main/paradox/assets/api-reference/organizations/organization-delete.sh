@@ -1,1 +1,0 @@
-curl -v -XDELETE "https://nexus.example.com/v0/organizations/myorg?rev=2"

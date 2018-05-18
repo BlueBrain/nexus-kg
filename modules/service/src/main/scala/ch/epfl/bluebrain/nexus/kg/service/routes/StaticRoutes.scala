@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.service.routes
 import kamon.akka.http.KamonTraceDirectives.operationName
 import akka.http.scaladsl.model.StatusCodes
 import ch.epfl.bluebrain.nexus.kg.service.routes.StaticRoutes.ServiceDescription
-import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import akka.http.scaladsl.server.Directives._
 import io.circe.generic.auto._
 import akka.http.scaladsl.server.Route
@@ -28,24 +27,7 @@ class StaticRoutes(description: DescriptionConfig) {
     }
   }
 
-  private def docsRoute =
-    pathPrefix("docs") {
-      pathEndOrSingleSlash {
-        extractUri { uri =>
-          redirect(uri.copy(path = stripTrailingSlashes(uri.path) / "kg" / "index.html"), StatusCodes.MovedPermanently)
-        }
-      } ~
-        pathPrefix("kg") {
-          pathEndOrSingleSlash {
-            redirectToTrailingSlashIfMissing(StatusCodes.MovedPermanently) {
-              getFromResource("docs/index.html")
-            }
-          } ~
-            getFromResourceDirectory("docs")
-        }
-    }
-
-  def routes: Route = serviceDescriptionRoute ~ docsRoute
+  def routes: Route = serviceDescriptionRoute
 }
 
 object StaticRoutes {

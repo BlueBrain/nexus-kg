@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.service.routes
 
-import akka.http.scaladsl.model.headers.{`Content-Type`, Location}
-import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.kg.core.config.Settings
 import ch.epfl.bluebrain.nexus.kg.service.routes.StaticRoutes.ServiceDescription
@@ -20,27 +19,6 @@ class StaticRoutesSpec extends WordSpecLike with Matchers with ScalatestRouteTes
       Get("/") ~> StaticRoutes(description).routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[ServiceDescription] shouldEqual expected
-      }
-    }
-
-    "redirect docs to docs/kg/index.html" in {
-      Get("/docs") ~> StaticRoutes(description).routes ~> check {
-        status shouldEqual StatusCodes.MovedPermanently
-        response.header[Location].get.uri.path.toString shouldEqual "/docs/kg/index.html"
-      }
-    }
-
-    "redirect docs/kg to docs/kg/" in {
-      Get("/docs/kg") ~> StaticRoutes(description).routes ~> check {
-        status shouldEqual StatusCodes.MovedPermanently
-        response.header[Location].get.uri.path.toString shouldEqual "/docs/kg/"
-      }
-    }
-
-    "return documentation/" in {
-      Get("/docs/kg/") ~> StaticRoutes(description).routes ~> check {
-        status shouldEqual StatusCodes.OK
-        response.header[`Content-Type`].get.contentType shouldEqual ContentTypes.`text/html(UTF-8)`
       }
     }
   }

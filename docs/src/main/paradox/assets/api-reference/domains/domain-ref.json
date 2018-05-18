@@ -1,6 +1,0 @@
-{
-  "@context": "https://nexus.example.com/v0/contexts/nexus/core/resource",
-  "@id": "https://nexus.example.com/v0/domains/myorg/mydom",
-  "nxv:rev": 2,
-  "description": "Some other description"
-}

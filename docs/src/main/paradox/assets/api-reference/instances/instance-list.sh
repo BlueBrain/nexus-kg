@@ -1,1 +1,0 @@
-curl "https://nexus.example.com/v0/data?from=0&size=100"
