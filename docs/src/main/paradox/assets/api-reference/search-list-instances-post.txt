@@ -1,2 +1,0 @@
-curl -XPOST -H "Content-Type: application/json" 'https://nexus.example.com/v0/queries?from=0&size=1
-     -d '{"q" : "test","filter":{"op":"lt","path":"nxv:rev","value":3}, "resource": "instances", "deprecated": "true", "sort": ["-nxv:createdAtTime"]}'

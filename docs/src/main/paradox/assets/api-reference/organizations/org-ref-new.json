@@ -1,5 +1,0 @@
-{
-  "@context": "https://nexus.example.com/v0/contexts/nexus/core/resource",
-  "@id": "https://nexus.example.com/v0/organizations/myorg",
-  "nxv:rev": 1
-}

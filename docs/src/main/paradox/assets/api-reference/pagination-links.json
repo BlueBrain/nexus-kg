@@ -1,8 +1,0 @@
-{
-  "links": {
-    "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-    "self": "https://nexus.example.com/v0/data?q=subject&from=20&size=20",
-    "previous": "https://nexus.example.com/v0/data?q=subject&from=0&size=20",
-    "next": "https://nexus.example.com/v0/data?q=subject&from=40&size=20"
-  }
-}

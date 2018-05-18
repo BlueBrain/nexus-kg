@@ -1,2 +1,0 @@
-<https://nexus.example.com/v0/schemas/organization/domain/schema> <https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/anonymous>
-<https://nexus.example.com/v0/contexts/organization/domain/schema> <https://nexus.example.com/v0/voc/nexus/core/read> <https://nexus-iam.example.com/v0/anonymous>

@@ -87,22 +87,6 @@ lazy val pureconfig        = "com.github.pureconfig" %% "pureconfig"         % p
 lazy val refined           = "eu.timepit"            %% "refined"            % refinedVersion
 lazy val refinedPureConfig = "eu.timepit"            %% "refined-pureconfig" % refinedVersion
 
-lazy val docs = project
-  .in(file("docs"))
-  .enablePlugins(ParadoxPlugin)
-  .settings(
-    name                         := "kg-docs",
-    moduleName                   := "kg-docs",
-    paradoxTheme                 := Some(builtinParadoxTheme("generic")),
-    paradoxProperties in Compile ++= Map("extref.service.base_url" -> "../"),
-    target in (Compile, paradox) := (resourceManaged in Compile).value / "docs",
-    resourceGenerators in Compile += {
-      (paradox in Compile).map { parent =>
-        (parent ** "*").get
-      }.taskValue
-    }
-  )
-
 lazy val core = project
   .in(file("modules/core"))
   .enablePlugins(BuildInfoPlugin)
@@ -136,7 +120,7 @@ lazy val core = project
 
 lazy val service = project
   .in(file("modules/service"))
-  .dependsOn(core, docs)
+  .dependsOn(core)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(buildInfoSettings)
   .settings(
@@ -167,7 +151,7 @@ lazy val root = project
     name       := "kg",
     moduleName := "kg"
   )
-  .aggregate(docs, core, service)
+  .aggregate(core, service)
 
 lazy val noPublish = Seq(publishLocal := {}, publish := {}, publishArtifact := false)
 
