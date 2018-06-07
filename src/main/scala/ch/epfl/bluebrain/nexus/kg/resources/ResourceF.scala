@@ -22,7 +22,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   * @tparam S the schema type
   * @tparam A the resource value type
   */
-final case class Resource[P, S, A](
+final case class ResourceF[P, S, A](
     id: Id[P],
     rev: Long,
     types: Set[AbsoluteIri],

@@ -47,7 +47,7 @@ object Event {
   final case class Created(
       id: Id[ProjectRef],
       rev: Long,
-      schema: Ref[_],
+      schema: Ref,
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,

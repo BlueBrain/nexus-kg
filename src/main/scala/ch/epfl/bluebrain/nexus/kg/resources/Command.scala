@@ -47,7 +47,7 @@ object Command {
   final case class Create(
       id: Id[ProjectRef],
       rev: Long,
-      schema: Ref[_],
+      schema: Ref,
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,

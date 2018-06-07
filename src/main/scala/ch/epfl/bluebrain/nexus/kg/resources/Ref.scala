@@ -1,95 +1,47 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import cats.Show
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 /**
-  * An annotated reference.
-  *
-  * @param iri the reference identifier as an iri
-  * @param ann the annotation value
-  * @tparam A the type of the annotation
+  * A resource reference.
   */
-final case class Ref[A](iri: AbsoluteIri, ann: A) {
+sealed trait Ref extends Product with Serializable {
 
   /**
-    * Transforms the annotation with the argument ''f''.
-    *
-    * @param f  the transformation function
-    * @tparam B the resulting type of the annotation
-    * @return a new ''Ref'' value with the same ''iri'' and an annotation computed by applying the ''f'' on ''this''
-    *         annotation
+    * @return the reference identifier as an iri
     */
-  def map[B](f: A => B): Ref[B] =
-    Ref(iri, f(ann))
-
-  /**
-    * @return an unannotated reference keeping ''this'' iri value.
-    */
-  def drop: Ref[Unit] =
-    map(_ => ())
+  def iri: AbsoluteIri
 }
 
 object Ref {
 
   /**
-    * A reference annotated with a revision.
-    */
-  type Revision = Ref[Long]
-
-  object Revision {
-    final def unapply(value: Ref[_]): Option[Revision] = value match {
-      case r @ Ref(_, rev: Long) if rev >= 0 => Some(r.asInstanceOf[Revision])
-      case _                                 => None
-    }
-  }
-
-  /**
-    * A reference annotated with a string tag.
-    */
-  type Tag = Ref[String]
-
-  object Tag {
-    final def unapply(value: Ref[_]): Option[Tag] = value match {
-      case r @ Ref(_, _: String) => Some(r.asInstanceOf[Tag])
-      case _                     => None
-    }
-  }
-
-  /**
     * An unannotated reference.
+    * @param iri the reference identifier as an iri
     */
-  type Latest = Ref[Unit]
-
-  object Latest {
-    final def unapply(value: Ref[_]): Option[Latest] = value match {
-      case r @ Ref(_, _: Unit) => Some(r.asInstanceOf[Latest])
-      case _                   => None
-    }
-  }
+  final case class Latest(iri: AbsoluteIri) extends Ref
 
   /**
-    * Constructs a reference annotated with a revision.
+    * A reference annotated with a revision.
     *
     * @param iri the reference identifier as an iri
     * @param rev the reference revision
     */
-  final def revision(iri: AbsoluteIri, rev: Long): Revision =
-    Ref(iri, rev)
+  final case class Revision(iri: AbsoluteIri, rev: Long) extends Ref
 
   /**
-    * Constructs a reference annotated with a tag.
+    * A reference annotated with a tag.
     *
     * @param iri the reference identifier as an iri
     * @param tag the reference tag
     */
-  final def tag(iri: AbsoluteIri, tag: String): Tag =
-    Ref(iri, tag)
+  final case class Tag(iri: AbsoluteIri, tag: String) extends Ref
 
-  /**
-    * Constructs an unannotated reference.
-    *
-    * @param iri the reference identifier as an iri
-    */
-  final def latest(iri: AbsoluteIri): Latest =
-    Ref(iri, ())
+  final implicit val refShow: Show[Ref] = Show.show {
+    case Latest(iri)        => iri.show
+    case Tag(iri, tag)      => s"${iri.show} @ tag: '$tag'"
+    case Revision(iri, rev) => s"${iri.show} @ rev: '$rev'"
+  }
 }
