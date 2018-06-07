@@ -5,7 +5,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 /**
   * The unique id of a resource.
   *
-  * @param project the parent project reference of the resource identified by this id
-  * @param value   the unique identifier for the resource within the referenced project
+  * @param parent the parent reference of the resource identified by this id
+  * @param value  he unique identifier for the resource within the referenced parent
   */
-final case class Id(project: ProjectRef, value: AbsoluteIri)
+final case class Id[P](parent: P, value: AbsoluteIri)
