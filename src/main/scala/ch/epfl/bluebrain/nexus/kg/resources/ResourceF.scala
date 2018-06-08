@@ -2,7 +2,9 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.Instant
 
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import io.circe.Json
 
 /**
   * A resource representation.
@@ -34,4 +36,28 @@ final case class ResourceF[P, S, A](
     updatedBy: Identity,
     schema: S,
     value: A
-)
+) {
+
+  /**
+    * Applies the argument function to the resource value yielding a new resource.
+    *
+    * @param f the value mapping
+    * @tparam B the output type of the mapping
+    * @return a new resource with a mapped value
+    */
+  def map[B](f: A => B): ResourceF[P, S, B] =
+    copy(value = f(value))
+}
+
+object ResourceF {
+
+  /**
+    * A default resource value type.
+    *
+    * @param source the source value of a resource
+    * @param ctx    an expanded (flattened) context value
+    * @param graph  a graph representation of a resource
+    */
+  final case class Value(source: Json, ctx: Json, graph: Graph)
+
+}

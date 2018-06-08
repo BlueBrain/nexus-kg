@@ -1,15 +1,21 @@
 package ch.epfl.bluebrain.nexus.kg
 
-import ch.epfl.bluebrain.nexus.rdf.Graph
 import io.circe.Json
 
 package object resources {
+
+  /**
+    * A resource id rooted in a project reference.
+    */
+  type ResId = Id[ProjectRef]
+
   /**
     * Primary resource representation.
     */
-  type Resource  = ResourceF[ProjectRef, Ref, Json]
+  type Resource = ResourceF[ProjectRef, Ref, Json]
+
   /**
-    * Materialized resource representation with "flattened" context and "computed" graph
+    * Resource representation with a "source", "flattened" context and "computed" graph.
     */
-  type ResourceM = ResourceF[ProjectRef, Ref, (Json, Json, Graph)]
+  type ResourceV = ResourceF[ProjectRef, Ref, ResourceF.Value]
 }
