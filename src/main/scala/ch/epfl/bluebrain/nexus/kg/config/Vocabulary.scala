@@ -48,5 +48,7 @@ object Vocabulary {
   object owl {
     val base    = "http://www.w3.org/2002/07/owl"
     val imports = url"$base#imports"
+
+    val Ontology = url"$base#Ontology"
   }
 }

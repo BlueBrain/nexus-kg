@@ -2,11 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.Monad
 import cats.data.EitherT
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalContextValue, NotFound, UnableToSelectResourceId}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
@@ -136,11 +138,57 @@ object Resources {
       value = resourceV.value.copy(graph = resourceV.metadata(_.iri) ++ resourceV.typeGraph)
     } yield resourceV.map(_ => value)
 
-  def imports[F[_]](resource: ResourceV): EitherT[F, Rejection, Set[ResourceV]] = ???
+  /**
+    * Transitively imports resources referenced by the primary node of the resource through ''owl:imports'' if the
+    * resource has type ''owl:Ontology''.
+    *
+    * @param resource the resource for which imports are looked up
+    */
+  def imports[F[_]: Monad: Resolution](resource: ResourceV): EitherT[F, Rejection, Set[ResourceV]] = {
+    import cats.implicits._
+    def canImport(id: AbsoluteIri, g: Graph): Boolean =
+      g.cursor(id)
+        .downField(_ == rdf.tpe)
+        .values
+        .flatMap { vs =>
+          val set = vs.toSet
+          Some(set.contains(nxv.Schema) || set.contains(owl.Ontology))
+        }
+        .getOrElse(false)
+
+    def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
+      if (canImport(id, g))
+        g.objects(_ == IriNode(id), _ == owl.imports).unorderedFoldMap {
+          case IriNode(iri) => Set(Ref(iri))
+          case _            => Set.empty
+        } else Set.empty
+
+    def lookup(current: Map[Ref, ResourceV], remaining: List[Ref]): EitherT[F, Rejection, Set[ResourceV]] = {
+      def load(ref: Ref): EitherT[F, Rejection, (Ref, ResourceV)] =
+        current
+          .find(_._1 == ref)
+          .map(tuple => EitherT.rightT[F, Rejection](tuple))
+          .getOrElse(ref.resolveOr(NotFound).flatMap(r => materialize(r)).map(ref -> _))
+
+      if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
+      else {
+        val batch: EitherT[F, Rejection, List[(Ref, ResourceV)]] =
+          remaining.traverse(ref => load(ref))
+
+        batch.flatMap { list =>
+          val nextRemaining: List[Ref] = list.flatMap {
+            case (ref, res) => importsValues(ref.iri, res.value.graph).toList
+          }
+          val nextCurrent: Map[Ref, ResourceV] = current ++ list.toMap
+          lookup(nextCurrent, nextRemaining)
+        }
+      }
+    }
+    lookup(Map.empty, importsValues(resource.id.value, resource.value.graph).toList)
+  }
 
   def validate[F[_]](schema: ResourceV,
                      schemaImports: Set[ResourceV],
                      dataImports: Set[ResourceV],
                      data: Graph): EitherT[F, Rejection, Unit] = ???
-
 }
