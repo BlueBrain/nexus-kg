@@ -2,8 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.Instant
 
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, rdf}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph
+import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, Literal}
+import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import io.circe.Json
 
 /**
@@ -47,6 +52,35 @@ final case class ResourceF[P, S, A](
     */
   def map[B](f: A => B): ResourceF[P, S, B] =
     copy(value = f(value))
+
+  /**
+    * An IriNode for the @id of the resource.
+    */
+  lazy val node: IriNode = IriNode(id.value)
+
+  /**
+    * Computes the metadata graph for this resource.
+    *
+    * @param f a schema representation to an iri mapping
+    */
+  def metadata(f: S => AbsoluteIri): Graph =
+    Graph(
+      Set[Triple](
+        (node, nxv.rev, Literal(rev)),
+        (node, nxv.deprecated, false),
+        (node, nxv.createdAt, created),
+        (node, nxv.updatedAt, updated),
+        (node, nxv.createdBy, createdBy),
+        (node, nxv.updatedBy, updatedBy),
+        (node, nxv.constrainedBy, f(schema))
+      ))
+
+  /**
+    * The type graph of this resource.
+    */
+  lazy val typeGraph: Graph = types.foldLeft(Graph()) {
+    case (g, tpe) => g add (node, rdf.tpe, tpe)
+  }
 }
 
 object ResourceF {

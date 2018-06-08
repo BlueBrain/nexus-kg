@@ -25,4 +25,19 @@ object Rejection {
     */
   final case class NotFound(ref: Ref) extends Rejection(s"Resource '${ref.show}' not found.")
 
+  /**
+    * Signals that a resource has an illegal context value.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class IllegalContextValue(ref: Ref)
+      extends Rejection(s"Resource '${ref.show}' has an illegal context value.")
+
+  /**
+    * Signals that the system is unable to select a primary node from a resource graph.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class UnableToSelectResourceId(ref: Ref)
+      extends Rejection(s"Resource '${ref.show}' is not entity centric, unable to select primary node.")
 }
