@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.Monad
-import cats.data.EitherT
+import cats.data.{EitherT, OptionT}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalContextValue, NotFound, UnableToSelectResourceId}
@@ -48,6 +48,35 @@ object Resources {
       created                     <- repo.create(id, schema, types, source, identity)
     } yield created
     // format: on
+
+  /**
+    * Fetches the latest revision of a resource
+    *
+    * @param id the id of the resource
+    * @return Some(resource) in the F context when found and None in the F context when not found
+    */
+  def get[F[_]](id: ResId)(implicit repo: Repo[F]): OptionT[F, Resource] =
+    repo.get(id)
+
+  /**
+    * Fetches the provided revision of a resource
+    *
+    * @param id  the id of the resource
+    * @param rev the revision of the resource
+    * @return Some(resource) in the F context when found and None in the F context when not found
+    */
+  def get[F[_]](id: ResId, rev: Long)(implicit repo: Repo[F]): OptionT[F, Resource] =
+    repo.get(id, rev)
+
+  /**
+    * Fetches the provided tag of a resource
+    *
+    * @param id  the id of the resource
+    * @param tag the tag of the resource
+    * @return Some(resource) in the F context when found and None in the F context when not found
+    */
+  def get[F[_]](id: ResId, tag: String)(implicit repo: Repo[F]): OptionT[F, Resource] =
+    repo.get(id, tag)
 
   /**
     * Extracts the types of the graph primary node and appends them to the collection of additional types.
