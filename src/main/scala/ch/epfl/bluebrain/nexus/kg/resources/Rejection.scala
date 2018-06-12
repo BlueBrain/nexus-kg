@@ -1,13 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.types.Err
 
 /**
   * Enumeration of resource rejection types.
   *
   * @param msg a descriptive message of the rejection
   */
-sealed abstract class Rejection(val msg: String) extends Product with Serializable
+sealed abstract class Rejection(val msg: String) extends Err(msg) with Product with Serializable
 
 object Rejection {
 
