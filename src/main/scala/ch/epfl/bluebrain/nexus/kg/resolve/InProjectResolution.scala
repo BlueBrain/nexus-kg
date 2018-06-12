@@ -10,10 +10,9 @@ import ch.epfl.bluebrain.nexus.kg.resources._
   * within a given project.
   *
   * @param project the resolution scope
-  * @param repo    the implicitly available resource repository
   * @tparam F      the resolution effect type
   */
-class InProjectResolution[F[_]: Functor](project: ProjectRef)(implicit repo: Repo[F]) extends Resolution[F] {
+class InProjectResolution[F[_]: Functor: Repo](project: ProjectRef) extends Resolution[F] {
 
   override def resolve(ref: Ref): F[Option[Resource]] = ref match {
     case Latest(value)        => Resources.get(Id(project, value)).value
@@ -30,6 +29,6 @@ object InProjectResolution {
   /**
     * Constructs an [[InProjectResolution]] instance.
     */
-  def apply[F[_]](project: ProjectRef)(implicit repo: Repo[F]): InProjectResolution[F] =
-    new InProjectResolution[F](project)
+  def apply[F[_]: Functor: Repo](project: ProjectRef): InProjectResolution[F] =
+    new InProjectResolution(project)
 }
