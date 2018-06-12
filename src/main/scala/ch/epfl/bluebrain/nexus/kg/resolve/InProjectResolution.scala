@@ -16,11 +16,20 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 class InProjectResolution[F[_]: Functor](project: ProjectRef)(implicit repo: Repo[F]) extends Resolution[F] {
 
   override def resolve(ref: Ref): F[Option[Resource]] = ref match {
-    case Latest(value)        => Resources.get(Id[ProjectRef](project, value)).value
-    case Revision(value, rev) => Resources.get(Id[ProjectRef](project, value), rev).value
-    case Tag(value, tag)      => Resources.get(Id[ProjectRef](project, value), tag).value
+    case Latest(value)        => Resources.get(Id(project, value)).value
+    case Revision(value, rev) => Resources.get(Id(project, value), rev).value
+    case Tag(value, tag)      => Resources.get(Id(project, value), tag).value
   }
 
   override def resolveAll(ref: Ref): F[List[Resource]] =
     resolve(ref).map(_.toList)
+}
+
+object InProjectResolution {
+
+  /**
+    * Constructs an [[InProjectResolution]] instance.
+    */
+  def apply[F[_]](project: ProjectRef)(implicit repo: Repo[F]): InProjectResolution[F] =
+    new InProjectResolution[F](project)
 }
