@@ -25,6 +25,7 @@ scalafmt: {
  */
 
 // Dependency versions
+val commonsVersion              = "0.10.11"
 val rdfVersion                  = "0.2.0"
 val sourcingVersion             = "0.10.5"
 val akkaVersion                 = "2.5.12"
@@ -45,11 +46,13 @@ val scalaTestVersion            = "3.0.5"
 // Dependencies modules
 lazy val rdfCore              = "ch.epfl.bluebrain.nexus" %% "rdf-core"                   % rdfVersion
 lazy val rdfJena              = "ch.epfl.bluebrain.nexus" %% "rdf-jena"                   % rdfVersion
+lazy val rdfAkka              = "ch.epfl.bluebrain.nexus" %% "rdf-akka"                   % rdfVersion
 lazy val rdfCirce             = "ch.epfl.bluebrain.nexus" %% "rdf-circe"                  % rdfVersion
 lazy val rdfNexus             = "ch.epfl.bluebrain.nexus" %% "rdf-nexus"                  % rdfVersion
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"              % sourcingVersion
 lazy val sourcingAkka         = "ch.epfl.bluebrain.nexus" %% "sourcing-akka"              % sourcingVersion
 lazy val sourcingMem          = "ch.epfl.bluebrain.nexus" %% "sourcing-mem"               % sourcingVersion
+lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
 lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"      % akkaVersion
 lazy val akkaHttp             = "com.typesafe.akka"       %% "akka-http"                  % akkaHttpVersion
@@ -75,6 +78,7 @@ lazy val kg = project
     name       := "kg",
     moduleName := "kg",
     libraryDependencies ++= Seq(
+      rdfAkka,
       rdfCore,
       rdfCirce,
       rdfJena,
@@ -90,6 +94,7 @@ lazy val kg = project
       logbackClassic,
       monixTail,
       pureconfig,
+      sparqlClient,
       akkaPersistenceInMem % Test,
       scalaTest            % Test
     )
