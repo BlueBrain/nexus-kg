@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.{EitherT, OptionT}
-import cats.{Applicative, Monad, MonadError}
+import cats.{Applicative, Monad}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -35,7 +35,7 @@ object Resources {
       schema: Ref,
       additionalTypes: Set[AbsoluteIri],
       source: Json
-  )(implicit repo: Repo[F], identity: Identity, F: MonadError[F, Throwable]): EitherT[F, Rejection, Resource] =
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     // format: off
     for {
       value       <- materialize[F](id, source)
@@ -288,6 +288,7 @@ object Resources {
     if (report.conforms) EitherT.rightT(())
     else EitherT.leftT(InvalidResource(schema.id.ref, report))
   }
+
   private case class SchemaContext(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
 }
 
