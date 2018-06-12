@@ -39,7 +39,7 @@ object Resources {
     for {
       value       <- materialize[F](id, source)
       graph       = value.graph
-      resolved    <- resolveWithImports(schema)
+      resolved    <- schemaContext(schema)
       _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
       types       = joinTypes(graph, additionalTypes)
       created     <- repo.create(id, schema, types, source)
@@ -92,10 +92,10 @@ object Resources {
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     // format: off
     for {
-      resource <- get(id, rev).toRight(NotFound(id.ref))
+      resource    <- get(id, rev).toRight(NotFound(id.ref))
       value       <- materialize[F](id, source)
       graph       = value.graph
-      resolved    <- resolveWithImports(resource.schema)
+      resolved    <- schemaContext(resource.schema)
       _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
       types       = joinTypes(graph, additionalTypes)
       updated     <- repo.update(id, rev, types, source)
@@ -114,7 +114,7 @@ object Resources {
     repo.deprecate(id, rev)
 
   /**
-    * Tags a resource. This operation alias the provided ''targetRev'' with the  provided ''tag''
+    * Tags a resource. This operation aliases the provided ''targetRev'' with the  provided ''tag''.
     *
     * @param id        the id of the resource
     * @param rev       the last known revision of the resource
@@ -127,15 +127,18 @@ object Resources {
       identity: Identity): EitherT[F, Rejection, Resource] =
     repo.tag(id, rev, targetRev, tag)
 
-  private def resolveWithImports[F[_]: Monad: Resolution](schema: Ref) =
+  private def schemaContext[F[_]: Monad: Resolution](schema: Ref): EitherT[F, Rejection, SchemaContext] = {
+    def partition(set: Set[ResourceV]): (Set[ResourceV], Set[ResourceV]) =
+      set.partition(_.isSchema)
     // format: off
     for {
       resolvedSchema                <- schema.resolveOr(NotFound)
       materializedSchema            <- materialize(resolvedSchema)
       importedResources             <- imports(materializedSchema)
       (schemaImports, dataImports)  = partition(importedResources)
-    } yield Resolved(materializedSchema, dataImports, schemaImports)
-  // format: on
+    } yield SchemaContext(materializedSchema, dataImports, schemaImports)
+    // format: on
+  }
 
   /**
     * Extracts the types of the graph primary node and appends them to the collection of additional types.
@@ -145,15 +148,6 @@ object Resources {
     */
   def joinTypes(graph: Graph, additional: Set[AbsoluteIri]): Set[AbsoluteIri] =
     graph.primaryTypes.map(_.value) ++ additional
-
-  /**
-    * Partitions the collection of resources based on their types (schemas and others).
-    *
-    * @param set the collection of resources to partition
-    * @return (schemas, others)
-    */
-  def partition(set: Set[ResourceV]): (Set[ResourceV], Set[ResourceV]) =
-    set.partition(_.isSchema)
 
   /**
     * Materializes a json entity into a ResourceF.Value, flattening its context and producing a raw graph. While
@@ -280,5 +274,5 @@ object Resources {
                      dataImports: Set[ResourceV],
                      data: Graph): EitherT[F, Rejection, Unit] = ???
 
-  private case class Resolved(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
+  private case class SchemaContext(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
 }

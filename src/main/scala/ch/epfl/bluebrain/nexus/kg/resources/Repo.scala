@@ -66,7 +66,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     evaluate(id, Deprecate(id, rev, clock.instant(), identity))
 
   /**
-    * Tags a resource. This operation alias the provided ''targetRev'' with the  provided ''tag''
+    * Tags a resource. This operation aliases the provided ''targetRev'' with the  provided ''tag''.
     *
     * @param id        the id of the resource
     * @param rev       the last known revision of the resource
