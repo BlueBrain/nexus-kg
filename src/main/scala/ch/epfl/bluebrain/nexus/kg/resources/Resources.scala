@@ -217,7 +217,7 @@ object Resources {
     for {
       resourceV <- materialize[F](resource)
       graph = resourceV.value.graph
-      value = resourceV.value.copy(graph = resourceV.metadata(_.iri) ++ resourceV.typeGraph)
+      value = resourceV.value.copy(graph = graph ++ resourceV.metadata(_.iri) ++ resourceV.typeGraph)
     } yield resourceV.map(_ => value)
 
   /**
