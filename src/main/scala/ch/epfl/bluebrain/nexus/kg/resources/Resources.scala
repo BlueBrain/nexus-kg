@@ -37,15 +37,12 @@ object Resources {
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     // format: off
     for {
-      value                       <- materialize[F](id, source)
-      graph                        = value.graph
-      resolvedSchema              <- schema.resolveOr(NotFound)
-      materializedSchema          <- materialize(resolvedSchema)
-      importedResources           <- imports(materializedSchema)
-      (schemaImports, dataImports) = partition(importedResources)
-      _                           <- validate(materializedSchema, schemaImports, dataImports, graph)
-      types                        = joinTypes(graph, additionalTypes)
-      created                     <- repo.create(id, schema, types, source, identity)
+      value       <- materialize[F](id, source)
+      graph       = value.graph
+      resolved    <- resolveWithImports(schema)
+      _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
+      types       = joinTypes(graph, additionalTypes)
+      created     <- repo.create(id, schema, types, source)
     } yield created
     // format: on
 
@@ -77,6 +74,68 @@ object Resources {
     */
   def get[F[_]](id: ResId, tag: String)(implicit repo: Repo[F]): OptionT[F, Resource] =
     repo.get(id, tag)
+
+  /**
+    * Updates an existing resource.
+    *
+    * @param id              the id of the resource
+    * @param rev             the last known revision of the resource
+    * @param additionalTypes a collection of additional (asserted or inferred) types of the resource
+    * @param source          the new source representation in json-ld format
+    * @return either a rejection or the updated resource in the F context
+    */
+  def update[F[_]: Monad: Resolution](
+      id: ResId,
+      rev: Long,
+      additionalTypes: Set[AbsoluteIri],
+      source: Json
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
+    // format: off
+    for {
+      resource <- get(id, rev).toRight(NotFound(id.ref))
+      value       <- materialize[F](id, source)
+      graph       = value.graph
+      resolved    <- resolveWithImports(resource.schema)
+      _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
+      types       = joinTypes(graph, additionalTypes)
+      updated     <- repo.update(id, rev, types, source)
+    } yield updated
+  // format: on
+
+  /**
+    * Deprecates an existing resource
+    *
+    * @param id  the id of the resource
+    * @param rev             the last known revision of the resource
+    * @return Some(resource) in the F context when found and None in the F context when not found
+    */
+  def deprecate[F[_]](id: ResId, rev: Long)(implicit repo: Repo[F],
+                                            identity: Identity): EitherT[F, Rejection, Resource] =
+    repo.deprecate(id, rev)
+
+  /**
+    * Tags a resource. This operation alias the provided ''targetRev'' with the  provided ''tag''
+    *
+    * @param id        the id of the resource
+    * @param rev       the last known revision of the resource
+    * @param targetRev the revision that is being aliased with the provided ''tag''
+    * @param tag       the tag of the alias for the provided ''rev''
+    * @return Some(resource) in the F context when found and None in the F context when not found
+    */
+  def tag[F[_]](id: ResId, rev: Long, targetRev: Long, tag: String)(
+      implicit repo: Repo[F],
+      identity: Identity): EitherT[F, Rejection, Resource] =
+    repo.tag(id, rev, targetRev, tag)
+
+  private def resolveWithImports[F[_]: Monad: Resolution](schema: Ref) =
+    // format: off
+    for {
+      resolvedSchema                <- schema.resolveOr(NotFound)
+      materializedSchema            <- materialize(resolvedSchema)
+      importedResources             <- imports(materializedSchema)
+      (schemaImports, dataImports)  = partition(importedResources)
+    } yield Resolved(materializedSchema, dataImports, schemaImports)
+  // format: on
 
   /**
     * Extracts the types of the graph primary node and appends them to the collection of additional types.
@@ -220,4 +279,6 @@ object Resources {
                      schemaImports: Set[ResourceV],
                      dataImports: Set[ResourceV],
                      data: Graph): EitherT[F, Rejection, Unit] = ???
+
+  private case class Resolved(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
 }

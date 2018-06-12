@@ -36,11 +36,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param identity the identity that generated the change
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId,
-             schema: Ref,
-             types: Set[AbsoluteIri],
-             source: Json,
-             identity: Identity): EitherT[F, Rejection, Resource] =
+  def create(id: ResId, schema: Ref, types: Set[AbsoluteIri], source: Json)(
+      implicit identity: Identity): EitherT[F, Rejection, Resource] =
     evaluate(id, Create(id, 0L, schema, types, source, clock.instant(), identity))
 
   /**
@@ -53,11 +50,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param identity the identity that generated the change
     * @return either a rejection or the new resource representation in the F context
     */
-  def update(id: ResId,
-             rev: Long,
-             types: Set[AbsoluteIri],
-             source: Json,
-             identity: Identity): EitherT[F, Rejection, Resource] =
+  def update(id: ResId, rev: Long, types: Set[AbsoluteIri], source: Json)(
+      implicit identity: Identity): EitherT[F, Rejection, Resource] =
     evaluate(id, Update(id, rev, types, source, clock.instant(), identity))
 
   /**
@@ -68,8 +62,22 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param identity the identity that generated the change
     * @return either a rejection or the new resource representation in the F context
     */
-  def deprecate(id: ResId, rev: Long, identity: Identity): EitherT[F, Rejection, Resource] =
+  def deprecate(id: ResId, rev: Long)(implicit identity: Identity): EitherT[F, Rejection, Resource] =
     evaluate(id, Deprecate(id, rev, clock.instant(), identity))
+
+  /**
+    * Tags a resource. This operation alias the provided ''targetRev'' with the  provided ''tag''
+    *
+    * @param id        the id of the resource
+    * @param rev       the last known revision of the resource
+    * @param targetRev the revision that is being aliased with the provided ''tag''
+    * @param tag       the tag of the alias for the provided ''rev''
+    * @param identity  the identity that generated the change
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def tag(id: ResId, rev: Long, targetRev: Long, tag: String)(
+      implicit identity: Identity): EitherT[F, Rejection, Resource] =
+    evaluate(id, AddTag(id, rev, targetRev, tag, clock.instant(), identity))
 
   /**
     * Attempts to read the resource identified by the argument id.
