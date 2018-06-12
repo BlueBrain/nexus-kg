@@ -52,6 +52,7 @@ lazy val rdfNexus             = "ch.epfl.bluebrain.nexus" %% "rdf-nexus"        
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"              % sourcingVersion
 lazy val sourcingAkka         = "ch.epfl.bluebrain.nexus" %% "sourcing-akka"              % sourcingVersion
 lazy val sourcingMem          = "ch.epfl.bluebrain.nexus" %% "sourcing-mem"               % sourcingVersion
+lazy val shaclValidator       = "ch.epfl.bluebrain.nexus" %% "shacl-validator"            % commonsVersion
 lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
 lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"      % akkaVersion
@@ -95,9 +96,11 @@ lazy val kg = project
       monixTail,
       pureconfig,
       sparqlClient,
+      shaclValidator,
       akkaPersistenceInMem % Test,
       scalaTest            % Test
-    )
+    ),
+    resolvers += Resolver.bintrayRepo("bogdanromanx", "maven")
   )
 
 lazy val testSettings = Seq(

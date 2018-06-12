@@ -1,12 +1,19 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import cats.Monad
+import cats.{Monad, MonadError}
 import cats.data.{EitherT, OptionT}
+import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalContextValue, NotFound, UnableToSelectResourceId}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{
+  IllegalContextValue,
+  NotFound,
+  ShaclValidationError,
+  UnableToSelectResourceId
+}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.validation.ShaclValidator
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -34,7 +41,7 @@ object Resources {
       schema: Ref,
       additionalTypes: Set[AbsoluteIri],
       source: Json
-  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
+  )(implicit repo: Repo[F], identity: Identity, F: MonadError[F, Throwable]): EitherT[F, Rejection, Resource] =
     // format: off
     for {
       value       <- materialize[F](id, source)
@@ -269,10 +276,27 @@ object Resources {
     lookup(Map.empty, importsValues(resource.id.value, resource.value.graph).toList)
   }
 
-  def validate[F[_]](schema: ResourceV,
-                     schemaImports: Set[ResourceV],
-                     dataImports: Set[ResourceV],
-                     data: Graph): EitherT[F, Rejection, Unit] = ???
+  /**
+    * Validate data against a SHACL schema
+    * @param schema         schema to validate against
+    * @param schemaImports  resolved schema imports
+    * @param dataImports    resolved data imports
+    * @param data           data to validate
+    */
+  def validate[F[_]](schema: ResourceV, schemaImports: Set[ResourceV], dataImports: Set[ResourceV], data: Graph)(
+      implicit F: MonadError[F, Throwable]): EitherT[F, Rejection, Unit] = {
+    val resolvedSchema = schemaImports.foldLeft(schema.value.graph)(_ ++ _.value.graph)
+    val resolvedData   = dataImports.foldLeft(data)(_ ++ _.value.graph)
 
+    EitherT(ShaclValidator.validate(resolvedSchema, resolvedData).map { report =>
+      if (report.conforms)
+        Right(())
+      else
+        Left(ShaclValidationError(report))
+    })
+  }
   private case class SchemaContext(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
 }
+
+
+
