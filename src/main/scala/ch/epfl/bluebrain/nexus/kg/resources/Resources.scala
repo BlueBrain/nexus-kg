@@ -5,12 +5,7 @@ import cats.data.{EitherT, OptionT}
 import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{
-  IllegalContextValue,
-  NotFound,
-  ShaclValidationError,
-  UnableToSelectResourceId
-}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.validation.ShaclValidator

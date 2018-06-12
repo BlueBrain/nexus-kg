@@ -3,11 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.validation
 import cats.MonadError
 import cats.syntax.applicativeError._
 import cats.syntax.functor._
-import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidatorErr.{
-  CouldNotFindImports,
-  FailedToLoadData,
-  IllegalImportDefinition
-}
+import ch.epfl.bluebrain.nexus.commons.shacl.validator.ShaclValidatorErr._
 import ch.epfl.bluebrain.nexus.commons.shacl.validator.{ValidationReport, ValidationResult}
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
