@@ -161,14 +161,14 @@ object Repo {
       }
     def update(c: Update): Either[Rejection, Updated] =
       state match {
-        case Initial                               => Left(NotFound(c.id.ref))
-        case s: Current if s.rev != c.rev          => Left(IncorrectRev(c.id.ref, c.rev))
-        case s: Current if s.deprecated            => Left(IsDeprecated(c.id.ref))
-        case s: Current if notAllowedUpdates(s, c) => Left(UpdateSchemaTypes(c.id.ref))
-        case s: Current                            => Right(Updated(s.id, s.rev + 1, c.types, c.source, c.instant, c.identity))
+        case Initial                              => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev         => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.deprecated           => Left(IsDeprecated(c.id.ref))
+        case s: Current if forbiddenUpdates(s, c) => Left(UpdateSchemaTypes(c.id.ref))
+        case s: Current                           => Right(Updated(s.id, s.rev + 1, c.types, c.source, c.instant, c.identity))
       }
 
-    def notAllowedUpdates(s: Current, c: Update): Boolean =
+    def forbiddenUpdates(s: Current, c: Update): Boolean =
       (s.types.contains(nxv.Schema) && !c.types.contains(nxv.Schema)) || (!s.types.contains(nxv.Schema) && c.types
         .contains(nxv.Schema))
 

@@ -89,7 +89,7 @@ object Command {
   ) extends Command
 
   /**
-    * An intent to add a tag toa  resource (revision aliasing).
+    * An intent to add a tag to a resource (revision aliasing).
     *
     * @param id        the resource identifier
     * @param rev       the last known revision of the resource when this command was created
