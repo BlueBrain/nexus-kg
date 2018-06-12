@@ -1,14 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import cats.{Monad, MonadError}
 import cats.data.{EitherT, OptionT}
-import cats.syntax.functor._
+import cats.{Applicative, Monad, MonadError}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.validation.ShaclValidator
+import ch.epfl.bluebrain.nexus.kg.validation.Validator
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -272,23 +271,22 @@ object Resources {
   }
 
   /**
-    * Validate data against a SHACL schema
-    * @param schema         schema to validate against
-    * @param schemaImports  resolved schema imports
-    * @param dataImports    resolved data imports
-    * @param data           data to validate
+    * Validate data against a SHACL schema.
+    *
+    * @param schema        schema to validate against
+    * @param schemaImports resolved schema imports
+    * @param dataImports   resolved data imports
+    * @param data          data to validate
     */
-  def validate[F[_]](schema: ResourceV, schemaImports: Set[ResourceV], dataImports: Set[ResourceV], data: Graph)(
-      implicit F: MonadError[F, Throwable]): EitherT[F, Rejection, Unit] = {
+  def validate[F[_]: Applicative](schema: ResourceV,
+                                  schemaImports: Set[ResourceV],
+                                  dataImports: Set[ResourceV],
+                                  data: Graph): EitherT[F, Rejection, Unit] = {
     val resolvedSchema = schemaImports.foldLeft(schema.value.graph)(_ ++ _.value.graph)
     val resolvedData   = dataImports.foldLeft(data)(_ ++ _.value.graph)
-
-    EitherT(ShaclValidator.validate(resolvedSchema, resolvedData).map { report =>
-      if (report.conforms)
-        Right(())
-      else
-        Left(ShaclValidationError(report))
-    })
+    val report         = Validator.validate(resolvedSchema, resolvedData)
+    if (report.conforms) EitherT.rightT(())
+    else EitherT.leftT(InvalidResource(schema.id.ref, report))
   }
   private case class SchemaContext(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
 }

@@ -42,6 +42,7 @@ val monixVersion                = "3.0.0-RC1"
 val pureconfigVersion           = "0.9.1"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.5"
+val wesoValidatorVersion        = "0.0.65-nexus1"
 
 // Dependencies modules
 lazy val rdfCore              = "ch.epfl.bluebrain.nexus" %% "rdf-core"                   % rdfVersion
@@ -71,6 +72,7 @@ lazy val monixTail            = "io.monix"                %% "monix-tail"       
 lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"                 % pureconfigVersion
 lazy val scalaTest            = "org.scalatest"           %% "scalatest"                  % scalaTestVersion
 lazy val shapeless            = "com.chuusai"             %% "shapeless"                  % shapelessVersion
+lazy val wesoSchema           = "com.github.bogdanromanx.es.weso" %% "schema"                     % wesoValidatorVersion
 
 lazy val kg = project
   .in(file("."))
@@ -95,8 +97,8 @@ lazy val kg = project
       logbackClassic,
       monixTail,
       pureconfig,
+      wesoSchema,
       sparqlClient,
-      shaclValidator,
       akkaPersistenceInMem % Test,
       scalaTest            % Test
     ),
