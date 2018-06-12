@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.Iri.{Url, Urn}
 import ch.epfl.bluebrain.nexus.rdf.akka.iri._
 import org.apache.jena.query.ResultSet
 
@@ -48,11 +48,9 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
     }
   }
 
-  private val relativeGraph = Iri.relative("graph").toOption.get
-
   private def query(id: ResId) =
     s"""
-       |SELECT * WHERE {<${id.value.show}> <https://bbp.epfl.ch/nexus/v0/vocabs/nexus/core/terms/v0.1.0/rev> ?o}
+       |SELECT ?o WHERE {<${id.value.show}> <https://bbp.epfl.ch/nexus/v0/vocabs/nexus/core/terms/v0.1.0/rev> ?o}
     """.stripMargin
 
   private def fetchRevision(id: ResId): F[Option[Long]] =
@@ -66,8 +64,13 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
       case Right(r)  => client.replace(res.id, r.value.graph)
     }
 
-  private implicit def toGraphUri(id: ResId): Uri = relativeGraph.resolve(id.value)
-
+  private implicit def toGraphUri(id: ResId): Uri =
+    id.value match {
+      case url: Url if url.path.endsWithSlash => url.copy(path = url.path + "graph")
+      case urn: Urn if urn.nss.endsWithSlash  => urn.copy(nss = urn.nss + "graph")
+      case url: Url                           => url.copy(path = url.path / "graph")
+      case urn: Urn                           => urn.copy(nss = urn.nss / "graph")
+    }
 }
 
 object SparqlIndexer {

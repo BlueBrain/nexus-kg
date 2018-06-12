@@ -25,7 +25,7 @@ scalafmt: {
  */
 
 // Dependency versions
-val commonsVersion              = "0.7.19"
+val commonsVersion              = "0.10.11"
 val rdfVersion                  = "0.2.0"
 val sourcingVersion             = "0.10.5"
 val akkaVersion                 = "2.5.12"
@@ -52,6 +52,7 @@ lazy val rdfNexus             = "ch.epfl.bluebrain.nexus" %% "rdf-nexus"        
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"              % sourcingVersion
 lazy val sourcingAkka         = "ch.epfl.bluebrain.nexus" %% "sourcing-akka"              % sourcingVersion
 lazy val sourcingMem          = "ch.epfl.bluebrain.nexus" %% "sourcing-mem"               % sourcingVersion
+lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
 lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"      % akkaVersion
 lazy val akkaHttp             = "com.typesafe.akka"       %% "akka-http"                  % akkaHttpVersion
@@ -69,7 +70,6 @@ lazy val monixTail            = "io.monix"                %% "monix-tail"       
 lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"                 % pureconfigVersion
 lazy val scalaTest            = "org.scalatest"           %% "scalatest"                  % scalaTestVersion
 lazy val shapeless            = "com.chuusai"             %% "shapeless"                  % shapelessVersion
-lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
 
 lazy val kg = project
   .in(file("."))
