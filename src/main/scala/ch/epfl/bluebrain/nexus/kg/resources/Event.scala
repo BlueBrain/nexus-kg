@@ -87,4 +87,24 @@ object Event {
       instant: Instant,
       identity: Identity
   ) extends Event
+
+  /**
+    * A witness to a resource tagging. This event creates an alias for a revision.
+    *
+    * @param id        the resource identifier
+    * @param rev       the revision that this event generated
+    * @param targetRev the revision that is being aliased with the provided ''tag''
+    * @param tag       the tag of the alias for the provided ''rev''
+    * @param instant   the instant when this event was recorded
+    * @param identity  the identity which generated this event
+    */
+  final case class TagAdded(
+      id: Id[ProjectRef],
+      rev: Long,
+      targetRev: Long,
+      tag: String,
+      instant: Instant,
+      identity: Identity
+  ) extends Event
+
 }

@@ -19,11 +19,42 @@ object Rejection {
   final case class UnexpectedState(ref: Ref) extends Rejection(s"Resource '${ref.show}' is in an unexpected state.")
 
   /**
+    * Signals an attempt to interact with a resource that is deprecated.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class IsDeprecated(ref: Ref) extends Rejection(s"Resource '${ref.show}' is deprecated.")
+
+  /**
+    * Signals an attempt to change the type of a resource (from a schema to something else or from something else to a schema).
+    *
+    * @param ref a reference to the resource
+    */
+  final case class UpdateSchemaTypes(ref: Ref)
+      extends Rejection(s"Resource '${ref.show}' cannot change it's schema type.")
+
+  /**
     * Signals an attempt to interact with a resource that doesn't exist.
     *
     * @param ref a reference to the resource
     */
   final case class NotFound(ref: Ref) extends Rejection(s"Resource '${ref.show}' not found.")
+
+  /**
+    * Signals an attempt to interact with a resource with an incorrect revision.
+    *
+    * @param ref a reference to the resource
+    * @param rev the revision provided
+    */
+  final case class IncorrectRev(ref: Ref, rev: Long)
+      extends Rejection(s"Resource '${ref.show}' with incorrect revision '$rev' provided.")
+
+  /**
+    * Signals an attempt to create a resource that already exists.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class AlreadyExists(ref: Ref) extends Rejection(s"Resource '${ref.show}' already exists.")
 
   /**
     * Signals that a resource has an illegal context value.
