@@ -74,6 +74,7 @@ object Command {
   ) extends Command
 
   /**
+    * An intent for resource deprecation.
     *
     * @param id       the resource identifier
     * @param rev      the last known revision of the resource when this command was created
@@ -83,6 +84,25 @@ object Command {
   final case class Deprecate(
       id: Id[ProjectRef],
       rev: Long,
+      instant: Instant,
+      identity: Identity
+  ) extends Command
+
+  /**
+    * An intent to add a tag toa  resource (revision aliasing).
+    *
+    * @param id        the resource identifier
+    * @param rev       the last known revision of the resource when this command was created
+    * @param targetRev the revision to be tagged with the provided ''tag''
+    * @param tag       the tag's name
+    * @param instant   the instant when this command was created
+    * @param identity  the identity which created this command
+    */
+  final case class AddTag(
+      id: Id[ProjectRef],
+      rev: Long,
+      targetRev: Long,
+      tag: String,
       instant: Instant,
       identity: Identity
   ) extends Command

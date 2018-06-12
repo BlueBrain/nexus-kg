@@ -5,10 +5,13 @@ import java.time.Clock
 import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.syntax.functor._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, _}
 import ch.epfl.bluebrain.nexus.kg.resources
-import ch.epfl.bluebrain.nexus.kg.resources.Command.{Create, Deprecate, Update}
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.UnexpectedState
+import ch.epfl.bluebrain.nexus.kg.resources.Command._
+import ch.epfl.bluebrain.nexus.kg.resources.Event._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
+import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import io.circe.Json
@@ -133,7 +136,63 @@ object Repo {
     type Rejection  = resources.Rejection
   }
 
-  private[resources] final val initial: State                                             = State.Initial
-  private[resources] final def next(state: State, ev: Event): State                       = ???
-  private[resources] final def eval(state: State, cmd: Command): Either[Rejection, Event] = ???
+  private[resources] final val initial: State = State.Initial
+
+  private[resources] final def next(state: State, ev: Event): State =
+    (state, ev) match {
+      case (Initial, Created(id, 1L, schema, types, value, instant, identity)) =>
+        Current(id, 1L, types, deprecated = false, Map.empty, instant, instant, identity, identity, schema, value)
+      case (Initial, _) => Initial
+      case (c: Current, TagAdded(_, rev, targetRev, name, instant, identity)) =>
+        c.copy(rev = rev, tags = c.tags + (name -> targetRev), updated = instant, updatedBy = identity)
+      case (c: Current, _) if c.deprecated => c
+      case (c: Current, Deprecated(_, rev, instant, identity)) =>
+        c.copy(rev = rev, updated = instant, updatedBy = identity, deprecated = true)
+      case (c: Current, Updated(_, rev, types, value, instant, identity)) =>
+        c.copy(rev = rev, types = types, source = value, updated = instant, updatedBy = identity)
+    }
+
+  private[resources] final def eval(state: State, cmd: Command): Either[Rejection, Event] = {
+
+    def create(c: Create): Either[Rejection, Created] =
+      state match {
+        case Initial => Right(Created(c.id, 1L, c.schema, c.types, c.source, c.instant, c.identity))
+        case _       => Left(AlreadyExists(c.id.ref))
+      }
+    def update(c: Update): Either[Rejection, Updated] =
+      state match {
+        case Initial                               => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev          => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.deprecated            => Left(IsDeprecated(c.id.ref))
+        case s: Current if notAllowedUpdates(s, c) => Left(UpdateSchemaTypes(c.id.ref))
+        case s: Current                            => Right(Updated(s.id, s.rev + 1, c.types, c.source, c.instant, c.identity))
+      }
+
+    def notAllowedUpdates(s: Current, c: Update): Boolean =
+      (s.types.contains(nxv.Schema) && !c.types.contains(nxv.Schema)) || (!s.types.contains(nxv.Schema) && c.types
+        .contains(nxv.Schema))
+
+    def tag(c: AddTag): Either[Rejection, TagAdded] =
+      state match {
+        case Initial                     => Left(NotFound(c.id.ref))
+        case s: Current if s.rev < c.rev => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.deprecated  => Left(IsDeprecated(c.id.ref))
+        case s: Current                  => Right(TagAdded(s.id, s.rev + 1, c.targetRev, c.tag, c.instant, c.identity))
+      }
+
+    def deprecate(c: Deprecate): Either[Rejection, Deprecated] =
+      state match {
+        case Initial                     => Left(NotFound(c.id.ref))
+        case s: Current if s.rev < c.rev => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.deprecated  => Left(IsDeprecated(c.id.ref))
+        case s: Current                  => Right(Deprecated(s.id, s.rev + 1, c.instant, c.identity))
+      }
+
+    cmd match {
+      case cmd: Create    => create(cmd)
+      case cmd: Update    => update(cmd)
+      case cmd: Deprecate => deprecate(cmd)
+      case cmd: AddTag    => tag(cmd)
+    }
+  }
 }
