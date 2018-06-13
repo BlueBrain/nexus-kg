@@ -62,8 +62,10 @@ final case class ResourceF[P, S, A](
     * Computes the metadata graph for this resource.
     *
     * @param f a schema representation to an iri mapping
+    * @param parentF a parent representation to an [[ProjectRef]] mapping
     */
-  def metadata(f: S => AbsoluteIri): Graph =
+  def metadata(f: S => AbsoluteIri, parentF: P => ProjectRef): Graph = {
+    val parent = parentF(id.parent)
     Graph(
       Set[Triple](
         (node, nxv.rev, Literal(rev)),
@@ -72,8 +74,21 @@ final case class ResourceF[P, S, A](
         (node, nxv.updatedAt, updated),
         (node, nxv.createdBy, createdBy),
         (node, nxv.updatedBy, updatedBy),
-        (node, nxv.constrainedBy, f(schema))
+        (node, nxv.constrainedBy, f(schema)),
+        (node, nxv.organization, parent.organization.id),
+        (node, nxv.organization, parent.id)
       ))
+  }
+
+  /**
+    * Computes the metadata graph for this resource.
+    *
+    * @param f  a schema representation to an iri mapping
+    * @param ev the implicit evidence that the generic type [[P]]
+    *           is equal to [[ProjectRef]]
+    */
+  def metadata(f: S => AbsoluteIri)(implicit ev: P =:= ProjectRef): Graph =
+    metadata(f, ev.apply)
 
   /**
     * The type graph of this resource.
