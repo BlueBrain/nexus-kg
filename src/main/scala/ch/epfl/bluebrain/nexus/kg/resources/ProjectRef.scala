@@ -6,8 +6,8 @@ import ch.epfl.bluebrain.nexus.rdf.Iri._
 /**
   * A stable project reference.
   *
-  * @param id The unique identifier for a project
-  * @param organization The unique identifier for the project's organization
+  * @param id the unique identifier for a project
+  * @param organization the unique identifier for the project's organization
   */
 final case class ProjectRef(id: AbsoluteIri, organization: OrganizationRef) {}
 
