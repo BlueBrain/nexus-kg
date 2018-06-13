@@ -25,6 +25,7 @@ scalafmt: {
  */
 
 // Dependency versions
+val adminVersion                = "0.1.15"
 val commonsVersion              = "0.10.11"
 val rdfVersion                  = "0.2.0"
 val sourcingVersion             = "0.10.5"
@@ -45,6 +46,7 @@ val scalaTestVersion            = "3.0.5"
 val wesoValidatorVersion        = "0.0.65-nexus1"
 
 // Dependencies modules
+lazy val adminClient          = "ch.epfl.bluebrain.nexus"         %% "admin-client"               % adminVersion
 lazy val rdfCore              = "ch.epfl.bluebrain.nexus"         %% "rdf-core"                   % rdfVersion
 lazy val rdfJena              = "ch.epfl.bluebrain.nexus"         %% "rdf-jena"                   % rdfVersion
 lazy val rdfAkka              = "ch.epfl.bluebrain.nexus"         %% "rdf-akka"                   % rdfVersion
@@ -58,6 +60,7 @@ lazy val sparqlClient         = "ch.epfl.bluebrain.nexus"         %% "sparql-cli
 lazy val akkaClusterSharding  = "com.typesafe.akka"               %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"               %% "akka-distributed-data"      % akkaVersion
 lazy val akkaHttp             = "com.typesafe.akka"               %% "akka-http"                  % akkaHttpVersion
+lazy val akkaHttpTestKit      = "com.typesafe.akka"               %% "akka-http-testkit"          % akkaHttpVersion
 lazy val akkaPersistence      = "com.typesafe.akka"               %% "akka-persistence"           % akkaVersion
 lazy val akkaPersistenceCass  = "com.typesafe.akka"               %% "akka-persistence-cassandra" % akkaPersistenceCassVersion
 lazy val akkaPersistenceInMem = "com.github.dnvriend"             %% "akka-persistence-inmemory"  % akkaPersistenceInMemVersion
@@ -81,6 +84,7 @@ lazy val kg = project
     name       := "kg",
     moduleName := "kg",
     libraryDependencies ++= Seq(
+      adminClient,
       rdfAkka,
       rdfCore,
       rdfCirce,
@@ -99,6 +103,7 @@ lazy val kg = project
       pureconfig,
       wesoSchema,
       sparqlClient,
+      akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
       scalaTest            % Test
     ),
