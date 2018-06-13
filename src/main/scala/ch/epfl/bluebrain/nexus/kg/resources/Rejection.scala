@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.Err
 
 /**
@@ -72,4 +73,13 @@ object Rejection {
     */
   final case class UnableToSelectResourceId(ref: Ref)
       extends Rejection(s"Resource '${ref.show}' is not entity centric, unable to select primary node.")
+
+  /**
+    * Signals that a resource validation failed.
+    *
+    * @param schema a reference to the schema
+    * @param report the validation report
+    */
+  final case class InvalidResource(schema: Ref, report: ValidationReport)
+      extends Rejection(s"Resource failed to validate against the constraints defined by '${schema.show}'")
 }
