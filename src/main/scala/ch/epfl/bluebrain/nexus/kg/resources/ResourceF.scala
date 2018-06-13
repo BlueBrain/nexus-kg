@@ -88,7 +88,7 @@ final case class ResourceF[P, S, A](
     *           is equal to [[ProjectRef]]
     */
   def metadata(f: S => AbsoluteIri)(implicit ev: P =:= ProjectRef): Graph =
-    metadata(f, p => ev.apply(p))
+    metadata(f, ev.apply)
 
   /**
     * The type graph of this resource.
