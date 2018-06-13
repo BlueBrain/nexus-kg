@@ -27,6 +27,6 @@ object PathDirectives {
   private def prefixMappings(implicit mappings: List[LoosePrefixMapping]): Map[String, AbsoluteIri] =
     mappings.foldLeft(Map.empty[String, AbsoluteIri]) {
       case (acc, LoosePrefixMapping(prefix, ns)) =>
-        acc + (prefix.value -> Iri.absolute(ns.value).toOption.get)
+        Iri.absolute(ns.value).map(uri => acc + (prefix.value -> uri)).getOrElse(acc)
     }
 }
