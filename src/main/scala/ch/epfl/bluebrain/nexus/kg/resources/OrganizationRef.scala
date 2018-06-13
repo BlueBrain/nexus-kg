@@ -8,5 +8,3 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   * @param id The unique identifier for the organization
   */
 final case class OrganizationRef(id: AbsoluteIri)
-
-
