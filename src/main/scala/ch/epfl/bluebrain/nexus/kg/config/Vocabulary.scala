@@ -28,6 +28,8 @@ object Vocabulary {
     val updatedAt     = url"$base/updatedAt"
     val createdBy     = url"$base/createdBy"
     val updatedBy     = url"$base/updatedBy"
+    val organization  = url"$base/organization"
+    val project       = url"$base/project"
     val constrainedBy = url"$base/constrainedBy"
     val isPartOf      = url"$base/isPartOf"
 
