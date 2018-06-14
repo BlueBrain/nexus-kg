@@ -291,6 +291,3 @@ object Resources {
 
   private case class SchemaContext(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
 }
-
-
-
