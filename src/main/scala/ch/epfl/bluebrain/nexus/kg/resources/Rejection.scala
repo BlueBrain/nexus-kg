@@ -9,8 +9,10 @@ import ch.epfl.bluebrain.nexus.commons.types.Err
   *
   * @param msg a descriptive message of the rejection
   */
+@SuppressWarnings(Array("IncorrectlyNamedExceptions"))
 sealed abstract class Rejection(val msg: String) extends Err(msg) with Product with Serializable
 
+@SuppressWarnings(Array("IncorrectlyNamedExceptions"))
 object Rejection {
 
   /**
@@ -88,6 +90,5 @@ object Rejection {
     *
     * @param message a human readable description of the cause
     */
-  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
   final case class DownstreamServiceError(override val message: String) extends Rejection(message)
 }

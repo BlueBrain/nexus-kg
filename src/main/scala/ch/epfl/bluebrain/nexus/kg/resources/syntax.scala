@@ -27,6 +27,7 @@ object syntax {
   final implicit def toNode(instant: Instant): Node =
     Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime.value)
 
+  @SuppressWarnings(Array("UnusedMethodParameter"))
   final implicit def toNode(@silent identity: Identity): Node =
     Literal(nxv.Anonymous.value.asUri)
 
