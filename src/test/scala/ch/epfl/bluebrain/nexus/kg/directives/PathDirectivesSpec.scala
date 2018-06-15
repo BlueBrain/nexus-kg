@@ -5,16 +5,19 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.admin.client.types.Project.LoosePrefixMapping
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
-import eu.timepit.refined.auto._
-import org.scalatest.{Matchers, WordSpecLike}
+import ch.epfl.bluebrain.nexus.rdf.Iri
+import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
-class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteTest {
+class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteTest with EitherValues {
 
   "A PathDirectives" should {
-    implicit val mappings = List(LoosePrefixMapping("nxv", "https://bluebrain.github.io/nexus/vocabulary/"),
-                                 LoosePrefixMapping("a", "https://www.w3.org/1999/02/22-rdf-syntax-ns#type"))
+    val mappings = Map(
+      "nxv" -> Iri.absolute("https://bluebrain.github.io/nexus/vocabulary/").right.value,
+      "a"   -> Iri.absolute("https://www.w3.org/1999/02/22-rdf-syntax-ns#type").right.value
+    )
+    implicit val project: Project = Project("project", mappings, "base", 1L, false, "uuid")
 
     def route(): Route =
       (get & pathPrefix(aliasOrCurie)) { iri =>

@@ -82,4 +82,12 @@ object Rejection {
     */
   final case class InvalidResource(schema: Ref, report: ValidationReport)
       extends Rejection(s"Resource failed to validate against the constraints defined by '${schema.show}'")
+
+  /**
+    * Signals the inability to connect to an underlying service to perform a request
+    *
+    * @param message a human readable description of the cause
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case class DownstreamServiceError(override val message: String) extends Rejection(message)
 }
