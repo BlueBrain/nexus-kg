@@ -31,9 +31,14 @@ object Vocabulary {
     val constrainedBy = url"$base/constrainedBy"
     val isPartOf      = url"$base/isPartOf"
 
-    val Schema = url"$base/Schema"
+    val Schema   = url"$base/Schema"
+    val Ontology = url"$base/Ontology"
 
     val Anonymous = url"$base/Anonymous"
+
+    val schemas        = "https://bluebrain.github.io/nexus/schemas"
+    val ShaclSchema    = url"$schemas/schacl"
+    val OntologySchema = url"$schemas/ontology"
   }
 
   /**

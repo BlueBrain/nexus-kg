@@ -2,12 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.{EitherT, OptionT}
 import cats.{Applicative, Monad}
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf, _}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.validation.Validator
+import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -21,31 +22,43 @@ import io.circe.Json
   */
 object Resources {
 
+  private val schacl: AbsoluteIri   = nxv.ShaclSchema
+  private val ontology: AbsoluteIri = nxv.OntologySchema
+
   /**
     * Creates a new resource.
     *
     * @param id              the id of the resource
     * @param schema          a schema reference that constrains the resource
-    * @param additionalTypes a collection of additional (asserted or inferred) types of the resource
     * @param source          the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
   def create[F[_]: Monad: Resolution](
       id: ResId,
       schema: Ref,
-      additionalTypes: Set[AbsoluteIri],
       source: Json
-  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
+
+    def checkAndJoinTypes(types: Set[AbsoluteIri]): EitherT[F, Rejection, Set[AbsoluteIri]] =
+      EitherT.fromEither(schema.iri match {
+        case `schacl` if types.isEmpty || types.contains(nxv.Schema)     => Right(types + nxv.Schema)
+        case `schacl`                                                    => Left(IncorrectTypes(id.ref, types))
+        case `ontology` if types.isEmpty || types.contains(nxv.Ontology) => Right(types + nxv.Ontology)
+        case `ontology`                                                  => Left(IncorrectTypes(id.ref, types))
+        case _                                                           => Right(types)
+      })
+
     // format: off
     for {
-      value       <- materialize[F](id, source)
-      graph       = value.graph
-      resolved    <- schemaContext(schema)
-      _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
-      types       = joinTypes(graph, additionalTypes)
-      created     <- repo.create(id, schema, types, source)
+      value         <- materialize[F](id, source)
+      graph         = value.graph
+      resolved      <- schemaContext(schema)
+      _             <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
+      joinedTypes   <- checkAndJoinTypes(graph.primaryTypes.map(_.value))
+      created       <- repo.create(id, schema, joinedTypes, source)
     } yield created
     // format: on
+  }
 
   /**
     * Fetches the latest revision of a resource
@@ -81,14 +94,12 @@ object Resources {
     *
     * @param id              the id of the resource
     * @param rev             the last known revision of the resource
-    * @param additionalTypes a collection of additional (asserted or inferred) types of the resource
     * @param source          the new source representation in json-ld format
     * @return either a rejection or the updated resource in the F context
     */
   def update[F[_]: Monad: Resolution](
       id: ResId,
       rev: Long,
-      additionalTypes: Set[AbsoluteIri],
       source: Json
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     // format: off
@@ -98,8 +109,7 @@ object Resources {
       graph       = value.graph
       resolved    <- schemaContext(resource.schema)
       _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
-      types       = joinTypes(graph, additionalTypes)
-      updated     <- repo.update(id, rev, types, source)
+      updated     <- repo.update(id, rev, graph.primaryTypes.map(_.value), source)
     } yield updated
   // format: on
 
@@ -140,15 +150,6 @@ object Resources {
     } yield SchemaContext(materializedSchema, dataImports, schemaImports)
     // format: on
   }
-
-  /**
-    * Extracts the types of the graph primary node and appends them to the collection of additional types.
-    *
-    * @param graph      a resource graph
-    * @param additional the additional collection of types
-    */
-  def joinTypes(graph: Graph, additional: Set[AbsoluteIri]): Set[AbsoluteIri] =
-    graph.primaryTypes.map(_.value) ++ additional
 
   /**
     * Materializes a json entity into a ResourceF.Value, flattening its context and producing a raw graph. While
@@ -231,7 +232,7 @@ object Resources {
     import cats.implicits._
     def canImport(id: AbsoluteIri, g: Graph): Boolean =
       g.cursor(id)
-        .downField(_ == rdf.tpe)
+        .downField(rdf.tpe)
         .values
         .flatMap { vs =>
           val set = vs.toSet
@@ -241,7 +242,7 @@ object Resources {
 
     def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
       if (canImport(id, g))
-        g.objects(_ == IriNode(id), _ == owl.imports).unorderedFoldMap {
+        g.objects(IriNode(id), owl.imports).unorderedFoldMap {
           case IriNode(iri) => Set(Ref(iri))
           case _            => Set.empty
         } else Set.empty

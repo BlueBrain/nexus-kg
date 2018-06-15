@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.Err
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 /**
   * Enumeration of resource rejection types.
@@ -52,6 +53,15 @@ object Rejection {
     */
   final case class IncorrectRev(ref: Ref, rev: Long)
       extends Rejection(s"Resource '${ref.show}' with incorrect revision '$rev' provided.")
+
+  /**
+    * Signals an attempt to create a resource with wrong types on it's payload.
+    *
+    * @param ref   a reference to the resource
+    * @param types the payload types
+    */
+  final case class IncorrectTypes(ref: Ref, types: Set[AbsoluteIri])
+      extends Rejection(s"Resource '${ref.show}' with incorrect payload types '$types'.")
 
   /**
     * Signals an attempt to create a resource that already exists.
