@@ -81,8 +81,9 @@ lazy val kg = project
   .in(file("."))
   .settings(testSettings, buildInfoSettings)
   .settings(
-    name       := "kg",
-    moduleName := "kg",
+    name                  := "kg",
+    moduleName            := "kg",
+    coverageFailOnMinimum := false,
     libraryDependencies ++= Seq(
       adminClient,
       rdfAkka,

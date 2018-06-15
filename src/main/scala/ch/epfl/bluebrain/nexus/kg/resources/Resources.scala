@@ -289,5 +289,5 @@ object Resources {
     else EitherT.leftT(InvalidResource(schema.id.ref, report))
   }
 
-  private case class SchemaContext(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
+  final private case class SchemaContext(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
 }
