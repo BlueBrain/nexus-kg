@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter
 
 import cats.Functor
 import cats.data.EitherT
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, xsd}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.rdf.Node.Literal

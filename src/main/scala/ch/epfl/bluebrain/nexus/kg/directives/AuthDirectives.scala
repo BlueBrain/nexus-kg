@@ -6,7 +6,8 @@ import akka.http.scaladsl.server.Directives.{extractCredentials, _}
 import akka.http.scaladsl.server.directives.FutureDirectives.onComplete
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive1}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
-import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
 import ch.epfl.bluebrain.nexus.iam.client.{Caller, IamClient}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.DownstreamServiceError
@@ -26,12 +27,20 @@ object AuthDirectives {
       case _                              => provide(None)
     }
 
+  private def findIdentity(caller: Caller): Identity =
+    caller.identities
+      .find {
+        case _: UserRef => true
+        case _          => false
+      }
+      .getOrElse(Anonymous)
+
   /**
     * Authenticates the requested with the provided ''token'' and returns the ''caller''
     */
-  def caller(implicit iamClient: IamClient[Future], token: Option[AuthToken]): Directive1[Caller] =
+  def callerIdentity(implicit iamClient: IamClient[Future], token: Option[AuthToken]): Directive1[Identity] =
     onComplete(iamClient.getCaller(filterGroups = true)).flatMap {
-      case Success(caller)             => provide(caller)
+      case Success(caller)             => provide(findIdentity(caller))
       case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
       case Failure(err)                => reject(authorizationRejection(err))
     }

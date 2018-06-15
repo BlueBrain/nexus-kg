@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.{EitherT, OptionT}
 import cats.{Applicative, Monad}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf, _}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
