@@ -7,17 +7,35 @@ import cats.Functor
 import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, xsd}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.Literal
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import com.github.ghik.silencer.silent
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 
 object syntax {
 
   final implicit class RefSyntax[F[_]](ref: Ref)(implicit R: Resolution[F]) {
+    private val schacl: AbsoluteIri   = nxv.ShaclSchema
+    private val ontology: AbsoluteIri = nxv.OntologySchema
+
     def resolve: F[Option[Resource]] = R.resolve(ref)
+
     def resolveOr(f: Ref => Rejection)(implicit F: Functor[F]): EitherT[F, Rejection, Resource] =
       EitherT.fromOptionF(resolve, f(ref))
+
     def resolveAll: F[List[Resource]] = R.resolveAll(ref)
+
+    /**
+      * @return the types inferred by the [[Ref]]
+      */
+    def types: Set[AbsoluteIri] =
+      ref.iri match {
+        case `schacl`   => Set(nxv.Schema)
+        case `ontology` => Set(nxv.Ontology)
+        case _          => Set.empty
+      }
+
   }
 
   final implicit class ResourceSyntax(resource: ResourceF[_, _, _]) {

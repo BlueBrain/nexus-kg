@@ -26,14 +26,12 @@ object Resources {
     *
     * @param id              the id of the resource
     * @param schema          a schema reference that constrains the resource
-    * @param additionalTypes a collection of additional (asserted or inferred) types of the resource
     * @param source          the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
   def create[F[_]: Monad: Resolution](
       id: ResId,
       schema: Ref,
-      additionalTypes: Set[AbsoluteIri],
       source: Json
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     // format: off
@@ -42,7 +40,7 @@ object Resources {
       graph       = value.graph
       resolved    <- schemaContext(schema)
       _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
-      types       = joinTypes(graph, additionalTypes)
+      types       = joinTypes(graph, schema.types)
       created     <- repo.create(id, schema, types, source)
     } yield created
     // format: on
@@ -81,14 +79,12 @@ object Resources {
     *
     * @param id              the id of the resource
     * @param rev             the last known revision of the resource
-    * @param additionalTypes a collection of additional (asserted or inferred) types of the resource
     * @param source          the new source representation in json-ld format
     * @return either a rejection or the updated resource in the F context
     */
   def update[F[_]: Monad: Resolution](
       id: ResId,
       rev: Long,
-      additionalTypes: Set[AbsoluteIri],
       source: Json
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     // format: off
@@ -98,7 +94,7 @@ object Resources {
       graph       = value.graph
       resolved    <- schemaContext(resource.schema)
       _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
-      types       = joinTypes(graph, additionalTypes)
+      types       = joinTypes(graph, Set.empty)
       updated     <- repo.update(id, rev, types, source)
     } yield updated
   // format: on
