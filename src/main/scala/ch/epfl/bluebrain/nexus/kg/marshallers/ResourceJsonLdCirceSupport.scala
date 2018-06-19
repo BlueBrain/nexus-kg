@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.marshallers
 import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller, ToResponseMarshaller}
 import akka.http.scaladsl.marshalling.GenericMarshallers.eitherMarshaller
 import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers._
-import akka.http.scaladsl.model.{HttpEntity, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.{HttpEntity, HttpResponse, StatusCode, StatusCodes}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.{JsonLdCirceSupport, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary
@@ -20,20 +20,22 @@ trait ResourceJsonLdCirceSupport extends JsonLdCirceSupport {
     )
   }
 
+  private def statusCodeFrom(rejection: Rejection): StatusCode = rejection match {
+    case _: IsDeprecated | _: UpdateSchemaTypes | _: IncorrectTypes | _: IllegalContextValue |
+        _: UnableToSelectResourceId | _: InvalidResource =>
+      StatusCodes.BadRequest
+    case _: UnexpectedState                 => StatusCodes.InternalServerError
+    case _: NotFound                        => StatusCodes.NotFound
+    case _: IncorrectRev | _: AlreadyExists => StatusCodes.Conflict
+    case _: DownstreamServiceError          => StatusCodes.BadGateway
+  }
+
   final implicit def rejectionToResponseMarshaller(
       implicit printer: Printer = Printer.noSpaces.copy(dropNullValues = true)): ToResponseMarshaller[Rejection] =
     Marshaller.withFixedContentType(RdfMediaTypes.`application/ld+json`) { rejection =>
-      val entity = HttpEntity(RdfMediaTypes.`application/ld+json`, printer.pretty(rejectionEncoder(rejection)))
-      rejection match {
-        case _: IsDeprecated | _: UpdateSchemaTypes | _: IncorrectTypes | _: IllegalContextValue |
-            _: UnableToSelectResourceId | _: InvalidResource =>
-          HttpResponse(status = StatusCodes.BadRequest, entity = entity)
-        case _: UnexpectedState                 => HttpResponse(status = StatusCodes.InternalServerError, entity = entity)
-        case _: NotFound                        => HttpResponse(status = StatusCodes.NotFound, entity = entity)
-        case _: IncorrectRev | _: AlreadyExists => HttpResponse(status = StatusCodes.Conflict, entity = entity)
-        case _: DownstreamServiceError          => HttpResponse(status = StatusCodes.BadGateway, entity = entity)
-      }
-
+      HttpResponse(
+        status = statusCodeFrom(rejection),
+        entity = HttpEntity(RdfMediaTypes.`application/ld+json`, printer.pretty(rejectionEncoder(rejection))))
     }
 
   implicit final def resourceResponseMarshaller[A](

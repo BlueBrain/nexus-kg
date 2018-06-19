@@ -29,6 +29,25 @@ object Resources {
   /**
     * Creates a new resource.
     *
+    * @param projectRef      reference for the project in which the resource is going to be created.
+    * @param base            base used to generate new ids.
+    * @param schema          a schema reference that constrains the resource
+    * @param source          the source representation in json-ld format
+    * @return either a rejection or the newly created resource in the F context
+    */
+  def create[F[_]: Monad: Resolution](
+      projectRef: ProjectRef,
+      base: String,
+      schema: Ref,
+      source: Json
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
+    def extractOrGenerateId(json: Json, base: String): AbsoluteIri = ???
+    create(Id(projectRef, extractOrGenerateId(source, base)), schema, source)
+  }
+
+  /**
+    * Creates a new resource.
+    *
     * @param id              the id of the resource
     * @param schema          a schema reference that constrains the resource
     * @param source          the source representation in json-ld format
