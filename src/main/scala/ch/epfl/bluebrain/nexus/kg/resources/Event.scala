@@ -118,11 +118,11 @@ object Event {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class Attached(id: Id[ProjectRef],
-                            rev: Long,
-                            value: BinaryAttributes,
-                            instant: Instant,
-                            identity: Identity)
+  final case class AttachmentAdded(id: Id[ProjectRef],
+                                   rev: Long,
+                                   value: BinaryAttributes,
+                                   instant: Instant,
+                                   identity: Identity)
       extends Event
 
   /**
@@ -134,7 +134,11 @@ object Event {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class Unattached(id: Id[ProjectRef], rev: Long, filename: String, instant: Instant, identity: Identity)
+  final case class AttachmentRemoved(id: Id[ProjectRef],
+                                     rev: Long,
+                                     filename: String,
+                                     instant: Instant,
+                                     identity: Identity)
       extends Event
 
 }

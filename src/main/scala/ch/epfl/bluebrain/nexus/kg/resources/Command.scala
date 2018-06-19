@@ -118,7 +118,11 @@ object Command {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class Attach(id: Id[ProjectRef], rev: Long, value: BinaryAttributes, instant: Instant, identity: Identity)
+  final case class AddAttachment(id: Id[ProjectRef],
+                                 rev: Long,
+                                 value: BinaryAttributes,
+                                 instant: Instant,
+                                 identity: Identity)
       extends Command
 
   /**
@@ -130,6 +134,10 @@ object Command {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class Unattach(id: Id[ProjectRef], rev: Long, filename: String, instant: Instant, identity: Identity)
+  final case class RemoveAttachment(id: Id[ProjectRef],
+                                    rev: Long,
+                                    filename: String,
+                                    instant: Instant,
+                                    identity: Identity)
       extends Command
 }

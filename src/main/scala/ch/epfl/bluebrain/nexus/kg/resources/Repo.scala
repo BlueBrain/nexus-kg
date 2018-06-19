@@ -100,7 +100,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
       else if (res.rev != rev) EitherT.leftT(IncorrectRev(id.ref, rev))
       else
         store.save(id, attach, source).flatMap { attr =>
-          evaluate(id, Attach(id, rev, attr, clock.instant(), identity))
+          evaluate(id, AddAttachment(id, rev, attr, clock.instant(), identity))
         }
     }
 
@@ -113,7 +113,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return either a rejection or the new resource representation in the F context
     */
   def unattach(id: ResId, rev: Long, filename: String)(implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, Unattach(id, rev, filename, clock.instant(), identity))
+    evaluate(id, RemoveAttachment(id, rev, filename, clock.instant(), identity))
 
   /**
     * Attempts to stream the resource's attachment identified by the argument id and the filename.
@@ -244,12 +244,12 @@ object Repo {
         c.copy(rev = rev, updated = instant, updatedBy = identity, deprecated = true)
       case (c: Current, Updated(_, rev, types, value, instant, identity)) =>
         c.copy(rev = rev, types = types, source = value, updated = instant, updatedBy = identity)
-      case (c: Current, Attached(_, rev, attachment, instant, identity)) =>
+      case (c: Current, AttachmentAdded(_, rev, attachment, instant, identity)) =>
         c.copy(rev = rev,
                attachments = c.attachments.filter(_.filename != attachment.filename) + attachment,
                updated = instant,
                updatedBy = identity)
-      case (c: Current, Unattached(_, rev, name, instant, identity)) =>
+      case (c: Current, AttachmentRemoved(_, rev, name, instant, identity)) =>
         c.copy(rev = rev,
                attachments = c.attachments.filter(_.filename != name),
                updated = instant,
@@ -273,22 +273,22 @@ object Repo {
         case s: Current                           => Right(Updated(s.id, s.rev + 1, c.types, c.source, c.instant, c.identity))
       }
 
-    def attach(c: Attach): Either[Rejection, Attached] =
+    def attach(c: AddAttachment): Either[Rejection, AttachmentAdded] =
       state match {
         case Initial                      => Left(NotFound(c.id.ref))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
-        case s: Current                   => Right(Attached(s.id, s.rev + 1, c.value, c.instant, c.identity))
+        case s: Current                   => Right(AttachmentAdded(s.id, s.rev + 1, c.value, c.instant, c.identity))
       }
 
-    def unattach(c: Unattach): Either[Rejection, Unattached] =
+    def unattach(c: RemoveAttachment): Either[Rejection, AttachmentRemoved] =
       state match {
         case Initial                      => Left(NotFound(c.id.ref))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
         case s: Current if !s.attachments.exists(_.filename == c.filename) =>
           Left(AttachmentNotFound(c.id.ref, c.filename))
-        case s: Current => Right(Unattached(s.id, s.rev + 1, c.filename, c.instant, c.identity))
+        case s: Current => Right(AttachmentRemoved(s.id, s.rev + 1, c.filename, c.instant, c.identity))
       }
 
     def forbiddenUpdates(s: Current, c: Update): Boolean =
@@ -312,12 +312,12 @@ object Repo {
       }
 
     cmd match {
-      case cmd: Create    => create(cmd)
-      case cmd: Update    => update(cmd)
-      case cmd: Deprecate => deprecate(cmd)
-      case cmd: AddTag    => tag(cmd)
-      case cmd: Attach    => attach(cmd)
-      case cmd: Unattach  => unattach(cmd)
+      case cmd: Create           => create(cmd)
+      case cmd: Update           => update(cmd)
+      case cmd: Deprecate        => deprecate(cmd)
+      case cmd: AddTag           => tag(cmd)
+      case cmd: AddAttachment    => attach(cmd)
+      case cmd: RemoveAttachment => unattach(cmd)
     }
   }
 }
