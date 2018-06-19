@@ -107,4 +107,28 @@ object Command {
       instant: Instant,
       identity: Identity
   ) extends Command
+
+  /**
+    * An intent to add an attachment to a resource.
+    *
+    * @param id       the resource identifier
+    * @param rev      the last known revision of the resource when this command was created
+    * @param value    the metadata of the attachment
+    * @param instant  the instant when this event was recorded
+    * @param identity the identity which generated this event
+    */
+  final case class Attach(id: Id[ProjectRef], rev: Long, value: BinaryAttributes, instant: Instant, identity: Identity)
+      extends Command
+
+  /**
+    * An intent to remove an attachment from a resource.
+    *
+    * @param id       the resource identifier
+    * @param rev      the revision that this event generated
+    * @param filename the filename of the attachment to remove
+    * @param instant  the instant when this event was recorded
+    * @param identity the identity which generated this event
+    */
+  final case class Unattach(id: Id[ProjectRef], rev: Long, filename: String, instant: Instant, identity: Identity)
+      extends Command
 }

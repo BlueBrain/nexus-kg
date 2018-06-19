@@ -13,6 +13,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import io.circe.Json
@@ -23,7 +25,7 @@ import io.circe.Json
   * @param agg          an aggregate instance for resources
   * @param clock        a clock used to record the instants when changes occur
   * @param toIdentifier a mapping from an id to a persistent id
-  * @tparam F           the repository effect type
+  * @tparam F the repository effect type
   */
 class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String) {
 
@@ -81,6 +83,89 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     evaluate(id, AddTag(id, rev, targetRev, tag, clock.instant(), identity))
 
   /**
+    * Adds an attachment to a resource.
+    *
+    * @param id     the id of the resource
+    * @param rev    the last known revision of the resource
+    * @param attach the attachment description metadata
+    * @param source the source of the attachment
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def attach[In](id: ResId, rev: Long, attach: BinaryDescription, source: In)(
+      implicit identity: Identity,
+      store: AttachmentStore[F, In, _]): EitherT[F, Rejection, Resource] =
+    get(id).toRight(NotFound(id.ref)).flatMap { res =>
+      if (res.deprecated) EitherT.leftT(IsDeprecated(id.ref))
+      else if (res.rev != rev) EitherT.leftT(IncorrectRev(id.ref, rev))
+      else
+        store.save(id, attach, source).flatMap { attr =>
+          evaluate(id, Attach(id, rev, attr, clock.instant(), identity))
+        }
+    }
+
+  /**
+    * Removes an attachment from a resource.
+    *
+    * @param id       the id of the resource
+    * @param rev      the last known revision of the resource
+    * @param filename the attachment filename
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def unattach(id: ResId, rev: Long, filename: String)(implicit identity: Identity): EitherT[F, Rejection, Resource] =
+    evaluate(id, Unattach(id, rev, filename, clock.instant(), identity))
+
+  /**
+    * Attempts to stream the resource's attachment identified by the argument id and the filename.
+    *
+    * @param id       the id of the resource.
+    * @param filename the filename of the attachment
+    * @tparam Out the type for the output streaming of the attachment binary
+    * @return the optional streamed attachment in the F context
+    */
+  def getAttachment[Out](id: ResId, filename: String)(
+      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    attachmentFromState(agg.currentState(toIdentifier(id)), filename)
+
+  /**
+    * Attempts to stream the resource's attachment identified by the argument id, the revision and the filename.
+    *
+    * @param id       the id of the resource.
+    * @param rev      the revision of the resource
+    * @param filename the filename of the attachment
+    * @tparam Out the type for the output streaming of the attachment binary
+    * @return the optional streamed attachment in the F context
+    */
+  def getAttachment[Out](id: ResId, rev: Long, filename: String)(
+      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    attachmentFromState(getState(id, rev), filename)
+
+  /**
+    * Attempts to stream the resource's attachment identified by the argument id, the tag and the filename. The
+    * tag is transformed into a revision value using the latest resource tag to revision mapping.
+    *
+    * @param id       the id of the resource.
+    * @param tag      the tag of the resource
+    * @param filename the filename of the attachment
+    * @tparam Out the type for the output streaming of the attachment binary
+    * @return the optional streamed attachment in the F context
+    */
+  def getAttachment[Out](id: ResId, tag: String, filename: String)(
+      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    OptionT(agg.currentState(toIdentifier(id)).map {
+      case Initial    => None
+      case c: Current => c.tags.get(tag)
+    }).flatMap(rev => getAttachment(id, rev, filename))
+
+  private def attachmentFromState[Out](state: F[State], filename: String)(
+      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    OptionT(state.map {
+      case Initial => None
+      case c: Current =>
+        c.attachments.find(_.filename == filename).flatMap(at => store.fetch(at).toOption.map(out => at -> out))
+    })
+
+  /**
     * Attempts to read the resource identified by the argument id.
     *
     * @param id the id of the resource
@@ -99,14 +184,14 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return the optional resource in the F context
     */
   def get(id: ResId, rev: Long): OptionT[F, Resource] =
-    OptionT(
-      agg
-        .foldLeft[State](toIdentifier(id), State.Initial) {
-          case (state, event) if event.rev <= rev => Repo.next(state, event)
-          case (state, _)                         => state
-        }
-        .map(_.asResource.filter(_.rev == rev))
-    )
+    OptionT(getState(id, rev).map(_.asResource.filter(_.rev == rev)))
+
+  private def getState(id: ResId, rev: Long): F[State] =
+    agg
+      .foldLeft[State](toIdentifier(id), State.Initial) {
+        case (state, event) if event.rev <= rev => Repo.next(state, event)
+        case (state, _)                         => state
+      }
 
   /**
     * Attempts to read the resource identified by the argument id at the revision identified by the argument tag. The
@@ -150,7 +235,7 @@ object Repo {
   private[resources] final def next(state: State, ev: Event): State =
     (state, ev) match {
       case (Initial, Created(id, 1L, schema, types, value, instant, identity)) =>
-        Current(id, 1L, types, deprecated = false, Map.empty, instant, instant, identity, identity, schema, value)
+        Current(id, 1L, types, false, Map.empty, Set.empty, instant, instant, identity, identity, schema, value)
       case (Initial, _) => Initial
       case (c: Current, TagAdded(_, rev, targetRev, name, instant, identity)) =>
         c.copy(rev = rev, tags = c.tags + (name -> targetRev), updated = instant, updatedBy = identity)
@@ -159,6 +244,16 @@ object Repo {
         c.copy(rev = rev, updated = instant, updatedBy = identity, deprecated = true)
       case (c: Current, Updated(_, rev, types, value, instant, identity)) =>
         c.copy(rev = rev, types = types, source = value, updated = instant, updatedBy = identity)
+      case (c: Current, Attached(_, rev, attachment, instant, identity)) =>
+        c.copy(rev = rev,
+               attachments = c.attachments.filter(_.filename != attachment.filename) + attachment,
+               updated = instant,
+               updatedBy = identity)
+      case (c: Current, Unattached(_, rev, name, instant, identity)) =>
+        c.copy(rev = rev,
+               attachments = c.attachments.filter(_.filename != name),
+               updated = instant,
+               updatedBy = identity)
     }
 
   private[resources] final def eval(state: State, cmd: Command): Either[Rejection, Event] = {
@@ -168,6 +263,7 @@ object Repo {
         case Initial => Right(Created(c.id, 1L, c.schema, c.types, c.source, c.instant, c.identity))
         case _       => Left(AlreadyExists(c.id.ref))
       }
+
     def update(c: Update): Either[Rejection, Updated] =
       state match {
         case Initial                              => Left(NotFound(c.id.ref))
@@ -175,6 +271,24 @@ object Repo {
         case s: Current if s.deprecated           => Left(IsDeprecated(c.id.ref))
         case s: Current if forbiddenUpdates(s, c) => Left(UpdateSchemaTypes(c.id.ref))
         case s: Current                           => Right(Updated(s.id, s.rev + 1, c.types, c.source, c.instant, c.identity))
+      }
+
+    def attach(c: Attach): Either[Rejection, Attached] =
+      state match {
+        case Initial                      => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
+        case s: Current                   => Right(Attached(s.id, s.rev + 1, c.value, c.instant, c.identity))
+      }
+
+    def unattach(c: Unattach): Either[Rejection, Unattached] =
+      state match {
+        case Initial                      => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
+        case s: Current if !s.attachments.exists(_.filename == c.filename) =>
+          Left(AttachmentNotFound(c.id.ref, c.filename))
+        case s: Current => Right(Unattached(s.id, s.rev + 1, c.filename, c.instant, c.identity))
       }
 
     def forbiddenUpdates(s: Current, c: Update): Boolean =
@@ -202,6 +316,8 @@ object Repo {
       case cmd: Update    => update(cmd)
       case cmd: Deprecate => deprecate(cmd)
       case cmd: AddTag    => tag(cmd)
+      case cmd: Attach    => attach(cmd)
+      case cmd: Unattach  => unattach(cmd)
     }
   }
 }
