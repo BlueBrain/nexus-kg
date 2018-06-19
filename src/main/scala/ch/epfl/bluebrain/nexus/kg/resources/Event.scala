@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
