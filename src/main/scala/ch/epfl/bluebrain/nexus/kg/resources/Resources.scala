@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.{EitherT, OptionT}
 import cats.{Applicative, Monad}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf, _}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -24,6 +25,25 @@ object Resources {
 
   private val schacl: AbsoluteIri   = nxv.ShaclSchema
   private val ontology: AbsoluteIri = nxv.OntologySchema
+
+  /**
+    * Creates a new resource.
+    *
+    * @param projectRef      reference for the project in which the resource is going to be created.
+    * @param base            base used to generate new ids.
+    * @param schema          a schema reference that constrains the resource
+    * @param source          the source representation in json-ld format
+    * @return either a rejection or the newly created resource in the F context
+    */
+  def create[F[_]: Monad: Resolution](
+      projectRef: ProjectRef,
+      base: String,
+      schema: Ref,
+      source: Json
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
+    def extractOrGenerateId(json: Json, base: String): AbsoluteIri = ???
+    create(Id(projectRef, extractOrGenerateId(source, base)), schema, source)
+  }
 
   /**
     * Creates a new resource.

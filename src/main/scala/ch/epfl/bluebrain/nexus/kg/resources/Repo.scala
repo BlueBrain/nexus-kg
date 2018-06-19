@@ -5,6 +5,7 @@ import java.time.Clock
 import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.syntax.functor._
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, _}
 import ch.epfl.bluebrain.nexus.kg.resources
 import ch.epfl.bluebrain.nexus.kg.resources.Command._
