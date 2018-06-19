@@ -125,7 +125,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def getAttachment[Out](id: ResId, filename: String)(
       implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    attachmentFromState(agg.currentState(toIdentifier(id)), filename)
+    get(id) subflatMap { res =>
+      res.attachments.find(_.filename == filename).flatMap(at => store.fetch(at).toOption.map(out => at -> out))
+    }
 
   /**
     * Attempts to stream the resource's attachment identified by the argument id, the revision and the filename.
@@ -138,7 +140,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def getAttachment[Out](id: ResId, rev: Long, filename: String)(
       implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    attachmentFromState(getState(id, rev), filename)
+    get(id, rev) subflatMap { res =>
+      res.attachments.find(_.filename == filename).flatMap(at => store.fetch(at).toOption.map(out => at -> out))
+    }
 
   /**
     * Attempts to stream the resource's attachment identified by the argument id, the tag and the filename. The
@@ -152,18 +156,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def getAttachment[Out](id: ResId, tag: String, filename: String)(
       implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    OptionT(agg.currentState(toIdentifier(id)).map {
-      case Initial    => None
-      case c: Current => c.tags.get(tag)
-    }).flatMap(rev => getAttachment(id, rev, filename))
-
-  private def attachmentFromState[Out](state: F[State], filename: String)(
-      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    OptionT(state.map {
-      case Initial => None
-      case c: Current =>
-        c.attachments.find(_.filename == filename).flatMap(at => store.fetch(at).toOption.map(out => at -> out))
-    })
+    get(id, tag) subflatMap { res =>
+      res.attachments.find(_.filename == filename).flatMap(at => store.fetch(at).toOption.map(out => at -> out))
+    }
 
   /**
     * Attempts to read the resource identified by the argument id.

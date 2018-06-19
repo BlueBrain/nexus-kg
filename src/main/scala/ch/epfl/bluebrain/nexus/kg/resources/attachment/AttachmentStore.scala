@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore._
 import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, RelativeIri}
+import monix.eval.Task
 
 import scala.concurrent.Future
 import scala.util.Try
@@ -77,6 +78,12 @@ object AttachmentStore {
   }
 
   object Stream {
+
+    /**
+      * Construct a Stream based on Akka Streams
+      *
+      * @param config the attachment configuration
+      */
     def akka(config: AttachmentConfig)(implicit as: ActorSystem): Stream[Future, AkkaIn, AkkaOut] =
       new Stream[Future, AkkaIn, AkkaOut] {
         import as.dispatcher
@@ -103,14 +110,29 @@ object AttachmentStore {
             .run()
             .flatten)
 
-        private def digestSink: Sink[ByteString, Future[MessageDigest]] = {
-          val initDigest = MessageDigest.getInstance(config.digestAlgorithm)
-          Sink.fold[MessageDigest, ByteString](initDigest)((digest, currentBytes) => {
+        private def digestSink: Sink[ByteString, Future[MessageDigest]] =
+          Sink.fold(MessageDigest.getInstance(config.digestAlgorithm))((digest, currentBytes) => {
             digest.update(currentBytes.asByteBuffer)
             digest
           })
-        }
       }
+
+    /**
+      * Construct a Stream based on Akka Streams wrapped on a [[Task]]
+      *
+      * @param config the attachment configuration
+      */
+    def task(config: AttachmentConfig)(implicit as: ActorSystem): Stream[Task, AkkaIn, AkkaOut] =
+      new Stream[Task, AkkaIn, AkkaOut] {
+        private val underlying = akka(config)
+
+        def toSource(uri: AbsoluteIri): Either[Rejection, AkkaOut] =
+          underlying.toSource(uri)
+
+        def toSink(loc: Location, source: AkkaIn, meta: BinaryDescription): EitherT[Task, Rejection, StoredSummary] =
+          EitherT(Task.deferFuture(underlying.toSink(loc, source, meta).value))
+      }
+
   }
 
   /**

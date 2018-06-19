@@ -83,7 +83,7 @@ object State {
       * The resource counterpart.
       */
     lazy val toResource: Resource =
-      ResourceF(id, rev, types, deprecated, tags, created, updated, createdBy, updatedBy, schema, source)
+      ResourceF(id, rev, types, deprecated, tags, attachments, created, updated, createdBy, updatedBy, schema, source)
 
     override lazy val asResource: Option[Resource] =
       Some(toResource)
