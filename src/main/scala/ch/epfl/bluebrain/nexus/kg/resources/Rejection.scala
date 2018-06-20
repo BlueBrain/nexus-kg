@@ -31,6 +31,15 @@ object Rejection {
   final case class IsDeprecated(ref: Ref) extends Rejection(s"Resource '${ref.show}' is deprecated.")
 
   /**
+    * Signals an attempt to interact with a resource's attachment that doesn't exist.
+    *
+    * @param ref      a reference to the resource
+    * @param filename a reference's attachment filename
+    */
+  final case class AttachmentNotFound(ref: Ref, filename: String)
+      extends Rejection(s"Resource '${ref.show}' attachment with filename '$filename' does not exists.")
+
+  /**
     * Signals an attempt to change the type of a resource (from a schema to something else or from something else to a schema).
     *
     * @param ref a reference to the resource
@@ -101,4 +110,11 @@ object Rejection {
     * @param message a human readable description of the cause
     */
   final case class DownstreamServiceError(override val message: String) extends Rejection(message)
+
+  /**
+    * Signals an unexpected rejection
+    *
+    * @param message a human readable description of the cause
+    */
+  final case class Unexpected(override val message: String) extends Rejection(message)
 }

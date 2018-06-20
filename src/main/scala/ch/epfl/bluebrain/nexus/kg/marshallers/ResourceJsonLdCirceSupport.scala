@@ -24,10 +24,10 @@ trait ResourceJsonLdCirceSupport extends JsonLdCirceSupport {
     case _: IsDeprecated | _: UpdateSchemaTypes | _: IncorrectTypes | _: IllegalContextValue |
         _: UnableToSelectResourceId | _: InvalidResource =>
       StatusCodes.BadRequest
-    case _: UnexpectedState                 => StatusCodes.InternalServerError
-    case _: NotFound                        => StatusCodes.NotFound
-    case _: IncorrectRev | _: AlreadyExists => StatusCodes.Conflict
-    case _: DownstreamServiceError          => StatusCodes.BadGateway
+    case _: UnexpectedState | _: Unexpected  => StatusCodes.InternalServerError
+    case _: NotFound | _: AttachmentNotFound => StatusCodes.NotFound
+    case _: IncorrectRev | _: AlreadyExists  => StatusCodes.Conflict
+    case _: DownstreamServiceError           => StatusCodes.BadGateway
   }
 
   final implicit def rejectionToResponseMarshaller(

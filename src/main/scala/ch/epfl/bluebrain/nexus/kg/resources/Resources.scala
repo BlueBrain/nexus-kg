@@ -7,6 +7,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf, _}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.validation.Validator
 import ch.epfl.bluebrain.nexus.rdf.Graph._
@@ -157,6 +159,76 @@ object Resources {
       implicit repo: Repo[F],
       identity: Identity): EitherT[F, Rejection, Resource] =
     repo.tag(id, rev, targetRev, tag)
+
+  /**
+    * Adds an attachment to a resource.
+    *
+    * @param id     the id of the resource
+    * @param rev    the last known revision of the resource
+    * @param attach the attachment description metadata
+    * @param source the source of the attachment
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def attach[F[_], In](id: ResId, rev: Long, attach: BinaryDescription, source: In)(
+      implicit repo: Repo[F],
+      identity: Identity,
+      store: AttachmentStore[F, In, _]): EitherT[F, Rejection, Resource] =
+    repo.attach(id, rev, attach, source)
+
+  /**
+    * Removes an attachment from a resource.
+    *
+    * @param id       the id of the resource
+    * @param rev      the last known revision of the resource
+    * @param filename the attachment filename
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def unattach[F[_]](id: ResId, rev: Long, filename: String)(implicit repo: Repo[F],
+                                                             identity: Identity): EitherT[F, Rejection, Resource] =
+    repo.unattach(id, rev, filename)
+
+  /**
+    * Attempts to stream the resource's attachment identified by the argument id and the filename.
+    *
+    * @param id       the id of the resource.
+    * @param filename the filename of the attachment
+    * @tparam Out the type for the output streaming of the attachment binary
+    * @return the optional streamed attachment in the F context
+    */
+  def getAttachment[F[_], Out](id: ResId, filename: String)(
+      implicit repo: Repo[F],
+      store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    repo.getAttachment(id, filename)
+
+  /**
+    * Attempts to stream the resource's attachment identified by the argument id, the revision and the filename.
+    *
+    * @param id       the id of the resource.
+    * @param rev      the revision of the resource
+    * @param filename the filename of the attachment
+    * @tparam Out the type for the output streaming of the attachment binary
+    * @return the optional streamed attachment in the F context
+    */
+  def getAttachment[F[_], Out](id: ResId, rev: Long, filename: String)(
+      implicit repo: Repo[F],
+      store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    repo.getAttachment(id, rev, filename)
+
+  /**
+    * Attempts to stream the resource's attachment identified by the argument id, the tag and the filename. The
+    * tag is transformed into a revision value using the latest resource tag to revision mapping.
+    *
+    * @param id       the id of the resource.
+    * @param tag      the tag of the resource
+    * @param filename the filename of the attachment
+    * @tparam Out the type for the output streaming of the attachment binary
+    * @return the optional streamed attachment in the F context
+    */
+  def getAttachment[F[_], Out](id: ResId, tag: String, filename: String)(
+      implicit repo: Repo[F],
+      store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    repo.getAttachment(id, tag, filename)
 
   private def schemaContext[F[_]: Monad: Resolution](schema: Ref): EitherT[F, Rejection, SchemaContext] = {
     def partition(set: Set[ResourceV]): (Set[ResourceV], Set[ResourceV]) =

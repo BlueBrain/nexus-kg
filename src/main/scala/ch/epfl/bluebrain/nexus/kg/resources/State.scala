@@ -4,6 +4,7 @@ import java.time.Instant
 
 import cats.Applicative
 import cats.data.EitherT
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
@@ -50,17 +51,18 @@ object State {
   /**
     * An existing resource state.
     *
-    * @param id         the resource identifier
-    * @param rev        the resource revision
-    * @param types      the collection of known resource types
-    * @param deprecated whether the resource is deprecated or not
-    * @param tags       the collection of resource tags
-    * @param created    the instant when the resource was created
-    * @param updated    the instant when the resource was last updated
-    * @param createdBy  the identity that created the resource
-    * @param updatedBy  the identity that last updated the resource
-    * @param schema     the schema reference that constrains this resource
-    * @param source     the source representation of the resource
+    * @param id          the resource identifier
+    * @param rev         the resource revision
+    * @param types       the collection of known resource types
+    * @param deprecated  whether the resource is deprecated or not
+    * @param tags        the collection of resource tags
+    * @param attachments the collection of attachments
+    * @param created     the instant when the resource was created
+    * @param updated     the instant when the resource was last updated
+    * @param createdBy   the identity that created the resource
+    * @param updatedBy   the identity that last updated the resource
+    * @param schema      the schema reference that constrains this resource
+    * @param source      the source representation of the resource
     */
   final case class Current(
       id: Id[ProjectRef],
@@ -68,6 +70,7 @@ object State {
       types: Set[AbsoluteIri],
       deprecated: Boolean,
       tags: Map[String, Long],
+      attachments: Set[BinaryAttributes],
       created: Instant,
       updated: Instant,
       createdBy: Identity,
@@ -80,7 +83,7 @@ object State {
       * The resource counterpart.
       */
     lazy val toResource: Resource =
-      ResourceF(id, rev, types, deprecated, tags, created, updated, createdBy, updatedBy, schema, source)
+      ResourceF(id, rev, types, deprecated, tags, attachments, created, updated, createdBy, updatedBy, schema, source)
 
     override lazy val asResource: Option[Resource] =
       Some(toResource)

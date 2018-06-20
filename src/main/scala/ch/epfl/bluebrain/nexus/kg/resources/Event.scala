@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -107,5 +108,37 @@ object Event {
       instant: Instant,
       identity: Identity
   ) extends Event
+
+  /**
+    * A witness that a resource's attachment has been added.
+    *
+    * @param id       the resource identifier
+    * @param rev      the revision that this event generated
+    * @param value    the metadata of the attachment
+    * @param instant  the instant when this event was recorded
+    * @param identity the identity which generated this event
+    */
+  final case class AttachmentAdded(id: Id[ProjectRef],
+                                   rev: Long,
+                                   value: BinaryAttributes,
+                                   instant: Instant,
+                                   identity: Identity)
+      extends Event
+
+  /**
+    * A witness that a resource's attachment has been removed.
+    *
+    * @param id       the resource identifier
+    * @param rev      the revision that this event generated
+    * @param filename the filename of the attachment removed
+    * @param instant  the instant when this event was recorded
+    * @param identity the identity which generated this event
+    */
+  final case class AttachmentRemoved(id: Id[ProjectRef],
+                                     rev: Long,
+                                     filename: String,
+                                     instant: Instant,
+                                     identity: Identity)
+      extends Event
 
 }
