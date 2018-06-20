@@ -11,7 +11,6 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.rdf.Iri.{Url, Urn}
 import ch.epfl.bluebrain.nexus.rdf.akka.iri._
 import org.apache.jena.query.ResultSet
 
@@ -64,13 +63,7 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
       case Right(r)  => client.replace(res.id, r.value.graph)
     }
 
-  private implicit def toGraphUri(id: ResId): Uri =
-    id.value match {
-      case url: Url if url.path.endsWithSlash => url.copy(path = url.path + "graph")
-      case urn: Urn if urn.nss.endsWithSlash  => urn.copy(nss = urn.nss + "graph")
-      case url: Url                           => url.copy(path = url.path / "graph")
-      case urn: Urn                           => urn.copy(nss = urn.nss / "graph")
-    }
+  private implicit def toGraphUri(id: ResId): Uri = id.value + "graph"
 }
 
 object SparqlIndexer {

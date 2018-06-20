@@ -28,28 +28,47 @@ class ResourceRoutes(implicit repo: Repo[Task], adminClient: AdminClient[Future]
         // create resource
         (post & pathPrefix(aliasOrCurie) & entity(as[Json]) & pathEndOrSingleSlash) { (schema, source) =>
           callerIdentity.apply { implicit ident =>
-            complete(createResource(proj, schema, source))
+            complete(createResource(schema, source))
           }
-        }
+        } ~
+          (put & pathPrefix(aliasOrCurie) & pathPrefix(aliasOrCurie) & entity(as[Json]) & pathEndOrSingleSlash) {
+            (schema, id, source) =>
+              callerIdentity.apply { implicit ident =>
+                complete(createResource(schema, id, source))
+              }
+          }
       } ~
         (pathPrefix("schemas") & project) { implicit proj =>
           (post & entity(as[Json]) & pathEndOrSingleSlash) { source =>
             callerIdentity.apply { implicit ident =>
-              complete(createResource(proj, Vocabulary.nxv.ShaclSchema, source))
+              complete(createResource(Vocabulary.nxv.ShaclSchema, source))
             }
-          }
+          } ~
+            (put & pathPrefix(aliasOrCurie) & entity(as[Json]) & pathEndOrSingleSlash) { (id, source) =>
+              callerIdentity.apply { implicit ident =>
+                complete(createResource(Vocabulary.nxv.ShaclSchema, id, source))
+              }
+            }
         }
     }
 
-  def createResource(proj: Project, schema: AbsoluteIri, source: Json)(
+  private def createResource(schema: AbsoluteIri, source: Json)(
       implicit identity: Identity,
+      proj: Project,
       repo: Repo[Task]): Future[Either[Rejection, Resource]] = {
     val projectRef                                     = ProjectRef(proj.uuid)
     implicit val resolution: InProjectResolution[Task] = InProjectResolution[Task](projectRef)
-    Resources.create[Task](Id(projectRef, extractOrGenerateId(source)), Ref(schema), source).value.runAsync
+    Resources.create[Task](projectRef, Ref(schema), source).value.runAsync
   }
 
-  def extractOrGenerateId(source: Json): AbsoluteIri = ???
+  private def createResource(schema: AbsoluteIri, id: AbsoluteIri, source: Json)(
+      implicit identity: Identity,
+      proj: Project,
+      repo: Repo[Task]): Future[Either[Rejection, Resource]] = {
+    val projectRef                                     = ProjectRef(proj.uuid)
+    implicit val resolution: InProjectResolution[Task] = InProjectResolution[Task](projectRef)
+    Resources.create[Task](Id(projectRef, id), Ref(schema), source).value.runAsync
+  }
 
   implicit def resourceEndcoer: Encoder[Resource] = ???
 

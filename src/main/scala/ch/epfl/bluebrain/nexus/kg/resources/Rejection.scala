@@ -55,6 +55,14 @@ object Rejection {
       extends Rejection(s"Resource '${ref.show}' with incorrect revision '$rev' provided.")
 
   /**
+    * Signals an attempt to interact with a resource with an incorrect id.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class IncorrectId(ref: Ref)
+      extends Rejection(s"Resource with id '${ref.show}' was not found on the payload")
+
+  /**
     * Signals an attempt to create a resource with wrong types on it's payload.
     *
     * @param ref   a reference to the resource
