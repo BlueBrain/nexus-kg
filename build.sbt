@@ -59,6 +59,8 @@ lazy val sourcingAkka         = "ch.epfl.bluebrain.nexus"         %% "sourcing-a
 lazy val sourcingMem          = "ch.epfl.bluebrain.nexus"         %% "sourcing-mem"               % sourcingVersion
 lazy val shaclValidator       = "ch.epfl.bluebrain.nexus"         %% "shacl-validator"            % commonsVersion
 lazy val sparqlClient         = "ch.epfl.bluebrain.nexus"         %% "sparql-client"              % commonsVersion
+lazy val serviceKamon         = "ch.epfl.bluebrain.nexus"         %% "service-kamon"              % commonsVersion
+lazy val serviceHttp          = "ch.epfl.bluebrain.nexus"         %% "service-http"               % commonsVersion
 lazy val akkaClusterSharding  = "com.typesafe.akka"               %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"               %% "akka-distributed-data"      % akkaVersion
 lazy val akkaHttp             = "com.typesafe.akka"               %% "akka-http"                  % akkaHttpVersion
@@ -82,6 +84,7 @@ lazy val wesoSchema           = "com.github.bogdanromanx.es.weso" %% "schema"   
 lazy val kg = project
   .in(file("."))
   .settings(testSettings, buildInfoSettings)
+  .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(
     name                  := "kg",
     moduleName            := "kg",
@@ -99,6 +102,7 @@ lazy val kg = project
       akkaHttp,
       akkaPersistenceCass,
       akkaStream,
+      akkaSlf4j,
       catsCore,
       catsEffect,
       circeCore,
@@ -108,6 +112,8 @@ lazy val kg = project
       pureconfig,
       wesoSchema,
       sparqlClient,
+      serviceKamon,
+      serviceHttp,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
       scalaTest            % Test

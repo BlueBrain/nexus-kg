@@ -5,6 +5,7 @@ import java.time.Clock
 import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.syntax.functor._
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, _}
 import ch.epfl.bluebrain.nexus.kg.resources
@@ -225,9 +226,9 @@ object Repo {
     type Rejection  = resources.Rejection
   }
 
-  private[resources] final val initial: State = State.Initial
+  final val initial: State = State.Initial
 
-  private[resources] final def next(state: State, ev: Event): State =
+  final def next(state: State, ev: Event): State =
     (state, ev) match {
       case (Initial, Created(id, 1L, schema, types, value, instant, identity)) =>
         Current(id, 1L, types, false, Map.empty, Set.empty, instant, instant, identity, identity, schema, value)
@@ -251,7 +252,7 @@ object Repo {
                updatedBy = identity)
     }
 
-  private[resources] final def eval(state: State, cmd: Command): Either[Rejection, Event] = {
+  final def eval(state: State, cmd: Command): Either[Rejection, Event] = {
 
     def create(c: Create): Either[Rejection, Created] =
       state match {
@@ -315,4 +316,7 @@ object Repo {
       case cmd: RemoveAttachment => unattach(cmd)
     }
   }
+
+  final def apply[F[_]: Monad](agg: Agg[F], clock: Clock): Repo[F] =
+    new Repo(agg, clock, resId => s"${resId.parent.id}-${resId.value.show}")
 }
