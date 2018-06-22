@@ -1,0 +1,8 @@
+{
+  "project": "org/projectName",
+  "id": "https://bbp.epfl.ch/nexus/data/resourceName",
+  "rev": 1,
+  "instant": "{timestamp}",
+  "identity": {"realm":"realm","sub":"sub:1234","type":"UserRef"},
+  "type": "Deprecated"
+}
