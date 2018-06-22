@@ -47,10 +47,10 @@ object Serializer {
     Json.fromString(iri.show)
   }
   private implicit def relativeIriDecoder: Decoder[RelativeIri] = Decoder.decodeString.emapTry { iri =>
-   RelativeIri.apply(iri).left.map(err => new IllegalArgumentException(err)).toTry
+    RelativeIri.apply(iri).left.map(err => new IllegalArgumentException(err)).toTry
   }
 
-  private implicit def binaryAttributesEncoder: Encoder[BinaryAttributes] =  deriveEncoder[BinaryAttributes]
+  private implicit def binaryAttributesEncoder: Encoder[BinaryAttributes] = deriveEncoder[BinaryAttributes]
 
   private implicit def binaryAttributesDecoder: Decoder[BinaryAttributes] = deriveDecoder[BinaryAttributes]
 

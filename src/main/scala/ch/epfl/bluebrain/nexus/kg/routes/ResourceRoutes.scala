@@ -67,7 +67,7 @@ class ResourceRoutes(implicit repo: Repo[Future],
       source: Json,
       optId: Option[AbsoluteIri] = None
   )(implicit project: Project, identity: Identity): Future[Either[Rejection, Resource]] = {
-    val projectRef                                     = ProjectRef(project.uuid)
+    val projectRef                                       = ProjectRef(project.uuid)
     implicit val resolution: InProjectResolution[Future] = InProjectResolution[Future](projectRef)
     optId match {
       case Some(id) => Resources.create[Future](Id(projectRef, id), Ref(schema), source).value
