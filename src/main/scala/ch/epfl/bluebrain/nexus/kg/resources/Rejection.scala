@@ -64,6 +64,13 @@ object Rejection {
       extends Rejection(s"Resource '${ref.show}' with incorrect revision '$rev' provided.")
 
   /**
+    * Signals a mismatch between a resource representation and its id.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class IncorrectId(ref: Ref) extends Rejection(s"Expected id '${ref.show}' was not found in the payload")
+
+  /**
     * Signals an attempt to create a resource with wrong types on it's payload.
     *
     * @param ref   a reference to the resource
@@ -80,20 +87,18 @@ object Rejection {
   final case class AlreadyExists(ref: Ref) extends Rejection(s"Resource '${ref.show}' already exists.")
 
   /**
-    * Signals that a resource has an illegal context value.
+    * Signals that a resource has an illegal (transitive) context value.
     *
-    * @param ref a reference to the resource
+    * @param refs the import value stack
     */
-  final case class IllegalContextValue(ref: Ref)
-      extends Rejection(s"Resource '${ref.show}' has an illegal context value.")
+  final case class IllegalContextValue(refs: List[Ref])
+      extends Rejection(s"Resource '${refs.reverse.map(_.show).mkString(" -> ")}' has an illegal context value.")
 
   /**
     * Signals that the system is unable to select a primary node from a resource graph.
-    *
-    * @param ref a reference to the resource
     */
-  final case class UnableToSelectResourceId(ref: Ref)
-      extends Rejection(s"Resource '${ref.show}' is not entity centric, unable to select primary node.")
+  final case class UnableToSelectResourceId()
+      extends Rejection("Resource is not entity centric, unable to select primary node.")
 
   /**
     * Signals that a resource validation failed.
