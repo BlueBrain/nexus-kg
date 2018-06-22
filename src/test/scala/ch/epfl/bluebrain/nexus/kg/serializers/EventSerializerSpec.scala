@@ -41,17 +41,18 @@ class EventSerializerSpec
 
     val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
 
-    val types = Set(url"https://bbp.epfl.ch/nexus/types/type1".value, url"https://bbp.epfl.ch/nexus/types/type2".value)
-    val instant  =Clock.systemUTC.instant()
+    val types              = Set(url"https://bbp.epfl.ch/nexus/types/type1".value, url"https://bbp.epfl.ch/nexus/types/type2".value)
+    val instant            = Clock.systemUTC.instant()
     val identity: Identity = UserRef("realm", "sub:1234")
 
     val rep = Map(quote("{timestamp}") -> instant.toString)
 
     "using EventSerializer" should {
-      val value  = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
+      val value = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
       val results = List(
-        Created(key, 1L, schema, types, value, instant, identity)  -> jsonContentOf("/serialization/created-resp.json", rep).noSpaces,
-        Deprecated(key, 1L, instant, identity)        -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
+        Created(key, 1L, schema, types, value, instant, identity) -> jsonContentOf("/serialization/created-resp.json",
+                                                                                   rep).noSpaces,
+        Deprecated(key, 1L, instant, identity)              -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
         TagAdded(key, 1L, 2L, "tagName", instant, identity) -> jsonContentOf("/serialization/tagged-resp.json", rep).noSpaces
       )
 
@@ -63,7 +64,6 @@ class EventSerializerSpec
             serializer.manifest(event)
         }
       }
-
 
       "decode known events" in {
         forAll(results) {

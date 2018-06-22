@@ -1,13 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
-
 import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import com.typesafe.config.Config
 import pureconfig.ConvertHelpers.catchReadError
-import pureconfig.{ConfigConvert, _}
+import pureconfig._
 
 /**
   * Akka settings extension to expose application configuration.  It typically uses the configuration instance of the
@@ -20,7 +19,6 @@ class Settings(config: Config) extends Extension {
 
   private implicit val uriConverter: ConfigConvert[Uri] =
     ConfigConvert.viaString[Uri](catchReadError(s => Uri(s)), _.toString)
-
 
   val appConfig = AppConfig(
     loadConfigOrThrow[Description](config, "app.description"),

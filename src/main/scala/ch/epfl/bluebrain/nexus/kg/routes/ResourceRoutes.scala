@@ -81,7 +81,7 @@ class ResourceRoutes(implicit repo: Repo[Future],
 
 object ResourceRoutes {
   final def apply()(implicit repo: Repo[Future],
-                  adminClient: AdminClient[Future],
-                  iamClient: IamClient[Future],
-                  ec: ExecutionContext): ResourceRoutes = new ResourceRoutes()
+                    adminClient: AdminClient[Future],
+                    iamClient: IamClient[Future],
+                    ec: ExecutionContext): ResourceRoutes = new ResourceRoutes()
 }

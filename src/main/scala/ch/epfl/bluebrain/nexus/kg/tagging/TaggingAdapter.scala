@@ -1,7 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.tagging
 
 import akka.persistence.journal.{Tagged, WriteEventAdapter}
-import ch.epfl.bluebrain.nexus.kg.resources.Event
+import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Updated}
+import ch.epfl.bluebrain.nexus.rdf.Iri
 
 /**
   * A tagging event adapter that adds tags to discriminate between event hierarchies.
@@ -10,8 +13,13 @@ class TaggingAdapter extends WriteEventAdapter {
 
   override def manifest(event: Any): String = ""
 
+  def tagsFrom(id: Id[ProjectRef], types: Set[Iri.AbsoluteIri]): Set[String] =
+    types.map(t => s"type=${t.show}") + s"projects=${id.parent.id}"
+
   override def toJournal(event: Any): Any = event match {
-    case ev: Event => Tagged(ev, Set(ev.id.parent.id))
-    case _         => event
+    case Created(id, _, _, types, _, _, _) => Tagged(event, tagsFrom(id, types))
+    case Updated(id, _, types, _, _, _)    => Tagged(event, tagsFrom(id, types))
+    case ev: Event                         => Tagged(ev, tagsFrom(ev.id, types = Set.empty))
+    case _                                 => event
   }
 }

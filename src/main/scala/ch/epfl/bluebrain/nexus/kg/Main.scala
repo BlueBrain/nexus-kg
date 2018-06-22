@@ -11,7 +11,7 @@ import cats.instances.future._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.iam.client.IamClient
+import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.Repo
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
@@ -41,17 +41,19 @@ object Main {
     implicit val mt = ActorMaterializer()
 
     val cluster = Cluster(as)
-    val seed: Address =
-      appConfig.cluster.seeds
-        .map(addr => AddressFromURIString(s"akka.tcp://${appConfig.description.version}@$addr"))
-        .getOrElse(cluster.selfAddress)
+    val seeds: List[Address] = appConfig.cluster.seeds.toList
+      .flatMap(_.split(","))
+      .map(addr => AddressFromURIString(s"akka.tcp://${appConfig.description.version}@$addr")) match {
+      case Nil      => List(cluster.selfAddress)
+      case nonEmpty => nonEmpty
+    }
 
     implicit val cl    = akkaHttpClient
     implicit val clock = Clock.systemUTC
 
     val sourcingSettings     = SourcingAkkaSettings(journalPluginId = appConfig.persistence.queryJournalPlugin)
     implicit val adminClient = AdminClient(appConfig.admin)
-    implicit val iamClient   = IamClient()
+    implicit val iamClient   = IamClient()(IamUri(appConfig.iam.baseUri), as)
 
     val resourceAggregate: Agg[Future] =
       ShardingAggregate("resources", sourcingSettings)(Repo.initial, Repo.next, Repo.eval)
@@ -76,7 +78,7 @@ object Main {
       }
     }
 
-    cluster.joinSeedNodes(List(seed))
+    cluster.joinSeedNodes(seeds)
 
     as.registerOnTermination {
       cluster.leave(cluster.selfAddress)
