@@ -28,6 +28,7 @@ scalafmt: {
 val adminVersion                = "0.2.1"
 val commonsVersion              = "0.10.12"
 val rdfVersion                  = "0.2.0"
+val serviceVersion              = "0.10.12"
 val sourcingVersion             = "0.10.7"
 val akkaVersion                 = "2.5.12"
 val akkaCorsVersion             = "0.3.0"
@@ -52,6 +53,7 @@ lazy val rdfJena              = "ch.epfl.bluebrain.nexus"         %% "rdf-jena" 
 lazy val rdfAkka              = "ch.epfl.bluebrain.nexus"         %% "rdf-akka"                   % rdfVersion
 lazy val rdfCirce             = "ch.epfl.bluebrain.nexus"         %% "rdf-circe"                  % rdfVersion
 lazy val rdfNexus             = "ch.epfl.bluebrain.nexus"         %% "rdf-nexus"                  % rdfVersion
+lazy val serviceIndexing      = "ch.epfl.bluebrain.nexus"         %% "service-indexing"           % serviceVersion
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus"         %% "sourcing-core"              % sourcingVersion
 lazy val sourcingAkka         = "ch.epfl.bluebrain.nexus"         %% "sourcing-akka"              % sourcingVersion
 lazy val sourcingMem          = "ch.epfl.bluebrain.nexus"         %% "sourcing-mem"               % sourcingVersion
@@ -91,7 +93,9 @@ lazy val kg = project
       rdfCirce,
       rdfJena,
       rdfNexus,
+      serviceIndexing,
       sourcingAkka,
+      akkaDistributedData,
       akkaHttp,
       akkaPersistenceCass,
       akkaStream,
