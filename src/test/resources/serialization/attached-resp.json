@@ -1,0 +1,26 @@
+{
+  "project": "org/projectName",
+  "id": "https://bbp.epfl.ch/nexus/data/resourceName",
+  "rev": 1,
+  "value": {
+    "uuid": "uuid",
+    "fileUri": "/test/path",
+    "filename": "test-file.json",
+    "mediaType": "application/json",
+    "contentSize": {
+      "unit": "byte",
+      "value": 128
+    },
+    "digest": {
+      "algorithm": "md5",
+      "value": "1234"
+    }
+  },
+  "instant": "{timestamp}",
+  "identity": {
+    "realm": "realm",
+    "sub": "sub:1234",
+    "type": "UserRef"
+  },
+  "type": "AttachmentAdded"
+}

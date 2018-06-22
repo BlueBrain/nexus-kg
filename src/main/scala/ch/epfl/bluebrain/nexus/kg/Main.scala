@@ -10,7 +10,6 @@ import akka.stream.ActorMaterializer
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.Repo
@@ -30,6 +29,7 @@ import scala.util.{Failure, Success}
 // $COVERAGE-OFF$
 object Main {
 
+  @SuppressWarnings(Array("UnusedMethodParameter"))
   def main(args: Array[String]): Unit = {
     SystemMetrics.startCollecting()
     Kamon.loadReportersFromConfig()

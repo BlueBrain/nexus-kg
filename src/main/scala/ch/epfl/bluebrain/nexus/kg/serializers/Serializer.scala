@@ -8,8 +8,9 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, RelativeIri}
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}
@@ -41,6 +42,17 @@ object Serializer {
   private implicit def iriDecoder: Decoder[AbsoluteIri] = Decoder.decodeString.emapTry { iri =>
     Iri.absolute(iri).left.map(err => new IllegalArgumentException(err)).toTry
   }
+
+  private implicit def relativeIriEncoder: Encoder[RelativeIri] = Encoder { iri =>
+    Json.fromString(iri.show)
+  }
+  private implicit def relativeIriDecoder: Decoder[RelativeIri] = Decoder.decodeString.emapTry { iri =>
+   RelativeIri.apply(iri).left.map(err => new IllegalArgumentException(err)).toTry
+  }
+
+  private implicit def binaryAttributesEncoder: Encoder[BinaryAttributes] =  deriveEncoder[BinaryAttributes]
+
+  private implicit def binaryAttributesDecoder: Decoder[BinaryAttributes] = deriveDecoder[BinaryAttributes]
 
   private implicit val encodeResId: Encoder[ResId] =
     Encoder.forProduct2("project", "id")(r => (r.parent.id, r.value.show))
