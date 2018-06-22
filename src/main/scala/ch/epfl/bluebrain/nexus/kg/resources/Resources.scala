@@ -1,9 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import java.util.UUID
+
 import cats.data.{EitherT, OptionT}
 import cats.{Applicative, Monad}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, owl, rdf, _}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -13,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.validation.Validator
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
+import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
@@ -25,41 +27,71 @@ import io.circe.Json
   */
 object Resources {
 
-  private val schacl: AbsoluteIri   = nxv.ShaclSchema
-  private val ontology: AbsoluteIri = nxv.OntologySchema
-
   /**
-    * Creates a new resource.
+    * Creates a new resource attempting to extract the id from the source. If a primary node of the resulting graph
+    * is found:
+    * <ul>
+    *   <li>if it's an iri then its value will be used</li>
+    *   <li>if it's a bnode a new iri will be generated using the base value</li>
+    * </ul>
     *
-    * @param projectRef      reference for the project in which the resource is going to be created.
-    * @param base            base used to generate new ids.
-    * @param schema          a schema reference that constrains the resource
-    * @param source          the source representation in json-ld format
+    * @param projectRef reference for the project in which the resource is going to be created.
+    * @param base       base used to generate new ids.
+    * @param schema     a schema reference that constrains the resource
+    * @param source     the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
   def create[F[_]: Monad: Resolution](
       projectRef: ProjectRef,
-      base: String,
+      base: AbsoluteIri,
       schema: Ref,
       source: Json
-  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
-    def extractOrGenerateId(json: Json, base: String): AbsoluteIri = ???
-    create(Id(projectRef, extractOrGenerateId(source, base)), schema, source)
-  }
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
+    // format: off
+    for {
+      rawValue       <- materialize(source)
+      value          <- checkOrAssignId(Right((projectRef, base)), rawValue)
+      (id, assigned)  = value
+      resource       <- create(id, schema, assigned)
+    } yield resource
+    // format: on
 
   /**
     * Creates a new resource.
     *
-    * @param id              the id of the resource
-    * @param schema          a schema reference that constrains the resource
-    * @param source          the source representation in json-ld format
+    * @param id     the id of the resource
+    * @param schema a schema reference that constrains the resource
+    * @param source the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
   def create[F[_]: Monad: Resolution](
       id: ResId,
       schema: Ref,
       source: Json
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
+    // format: off
+    for {
+      rawValue      <- materialize(source)
+      value         <- checkOrAssignId(Left(id), rawValue)
+      (_, assigned)  = value
+      resource      <- create(id, schema, assigned)
+    } yield resource
+    // format: off
+
+  /**
+    * Creates a new resource.
+    *
+    * @param id     the id of the resource
+    * @param schema a schema reference that constrains the resource
+    * @param value  the resource representation in json-ld and graph formats
+    */
+  def create[F[_]: Monad: Resolution](
+    id: ResId,
+    schema: Ref,
+    value: ResourceF.Value
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
+    val schacl   = nxv.ShaclSchema.value
+    val ontology = nxv.OntologySchema.value
 
     def checkAndJoinTypes(types: Set[AbsoluteIri]): EitherT[F, Rejection, Set[AbsoluteIri]] =
       EitherT.fromEither(schema.iri match {
@@ -72,12 +104,10 @@ object Resources {
 
     // format: off
     for {
-      value         <- materialize[F](id, source)
-      graph         = value.graph
       resolved      <- schemaContext(schema)
-      _             <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
-      joinedTypes   <- checkAndJoinTypes(graph.primaryTypes.map(_.value))
-      created       <- repo.create(id, schema, joinedTypes, source)
+      _             <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, value.graph)
+      joinedTypes   <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
+      created       <- repo.create(id, schema, joinedTypes, value.source)
     } yield created
     // format: on
   }
@@ -128,12 +158,12 @@ object Resources {
     for {
       resource    <- get(id, rev).toRight(NotFound(id.ref))
       value       <- materialize[F](id, source)
-      graph       = value.graph
+      graph        = value.graph
       resolved    <- schemaContext(resource.schema)
       _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
       updated     <- repo.update(id, rev, graph.primaryTypes.map(_.value), source)
     } yield updated
-  // format: on
+    // format: on
 
   /**
     * Deprecates an existing resource
@@ -142,8 +172,10 @@ object Resources {
     * @param rev             the last known revision of the resource
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
-  def deprecate[F[_]](id: ResId, rev: Long)(implicit repo: Repo[F],
-                                            identity: Identity): EitherT[F, Rejection, Resource] =
+  def deprecate[F[_]](
+      id: ResId,
+      rev: Long
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     repo.deprecate(id, rev)
 
   /**
@@ -155,9 +187,12 @@ object Resources {
     * @param tag       the tag of the alias for the provided ''rev''
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
-  def tag[F[_]](id: ResId, rev: Long, targetRev: Long, tag: String)(
-      implicit repo: Repo[F],
-      identity: Identity): EitherT[F, Rejection, Resource] =
+  def tag[F[_]](
+      id: ResId,
+      rev: Long,
+      targetRev: Long,
+      tag: String
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     repo.tag(id, rev, targetRev, tag)
 
   /**
@@ -170,10 +205,12 @@ object Resources {
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def attach[F[_], In](id: ResId, rev: Long, attach: BinaryDescription, source: In)(
-      implicit repo: Repo[F],
-      identity: Identity,
-      store: AttachmentStore[F, In, _]): EitherT[F, Rejection, Resource] =
+  def attach[F[_], In](
+      id: ResId,
+      rev: Long,
+      attach: BinaryDescription,
+      source: In
+  )(implicit repo: Repo[F], identity: Identity, store: AttachmentStore[F, In, _]): EitherT[F, Rejection, Resource] =
     repo.attach(id, rev, attach, source)
 
   /**
@@ -184,8 +221,11 @@ object Resources {
     * @param filename the attachment filename
     * @return either a rejection or the new resource representation in the F context
     */
-  def unattach[F[_]](id: ResId, rev: Long, filename: String)(implicit repo: Repo[F],
-                                                             identity: Identity): EitherT[F, Rejection, Resource] =
+  def unattach[F[_]](
+      id: ResId,
+      rev: Long,
+      filename: String
+  )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] =
     repo.unattach(id, rev, filename)
 
   /**
@@ -196,9 +236,10 @@ object Resources {
     * @tparam Out the type for the output streaming of the attachment binary
     * @return the optional streamed attachment in the F context
     */
-  def getAttachment[F[_], Out](id: ResId, filename: String)(
-      implicit repo: Repo[F],
-      store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+  def getAttachment[F[_], Out](
+      id: ResId,
+      filename: String
+  )(implicit repo: Repo[F], store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
     repo.getAttachment(id, filename)
 
   /**
@@ -210,9 +251,11 @@ object Resources {
     * @tparam Out the type for the output streaming of the attachment binary
     * @return the optional streamed attachment in the F context
     */
-  def getAttachment[F[_], Out](id: ResId, rev: Long, filename: String)(
-      implicit repo: Repo[F],
-      store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+  def getAttachment[F[_], Out](
+      id: ResId,
+      rev: Long,
+      filename: String
+  )(implicit repo: Repo[F], store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
     repo.getAttachment(id, rev, filename)
 
   /**
@@ -225,9 +268,11 @@ object Resources {
     * @tparam Out the type for the output streaming of the attachment binary
     * @return the optional streamed attachment in the F context
     */
-  def getAttachment[F[_], Out](id: ResId, tag: String, filename: String)(
-      implicit repo: Repo[F],
-      store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+  def getAttachment[F[_], Out](
+      id: ResId,
+      tag: String,
+      filename: String
+  )(implicit repo: Repo[F], store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
     repo.getAttachment(id, tag, filename)
 
   private def schemaContext[F[_]: Monad: Resolution](schema: Ref): EitherT[F, Rejection, SchemaContext] = {
@@ -247,48 +292,53 @@ object Resources {
     * Materializes a json entity into a ResourceF.Value, flattening its context and producing a raw graph. While
     * flattening the context references are transitively resolved.
     *
-    * @param id     the primary id of the entity
     * @param source the source representation of the entity
     */
-  def materialize[F[_]: Monad: Resolution](id: ResId, source: Json): EitherT[F, Rejection, ResourceF.Value] = {
+  def materialize[F[_]: Monad: Resolution](source: Json): EitherT[F, Rejection, ResourceF.Value] = {
     def contextValueOf(json: Json): Json =
       json.hcursor.downField("@context").focus.getOrElse(Json.obj())
 
-    def flattenValue(ref: Ref, contextValue: Json): EitherT[F, Rejection, Json] =
+    def flattenValue(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
       (contextValue.asString, contextValue.asArray, contextValue.asObject) match {
         case (Some(str), _, _) =>
           val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
           for {
-            next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(ref))
+            next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
             res   <- next.resolveOr(NotFound)
-            value <- flattenValue(next, contextValueOf(res.value))
+            value <- flattenValue(next :: refs, contextValueOf(res.value))
           } yield value
         case (_, Some(arr), _) =>
           import cats.implicits._
           val jsons = arr
-            .traverse(j => flattenValue(ref, j).value)
+            .traverse(j => flattenValue(refs, j).value)
             .map(_.sequence)
           EitherT(jsons).map(_.foldLeft(Json.obj())(_ deepMerge _))
         case (_, _, Some(_)) => EitherT.rightT(contextValue)
-        case (_, _, _)       => EitherT.leftT(IllegalContextValue(ref))
+        case (_, _, _)       => EitherT.leftT(IllegalContextValue(refs))
       }
 
-    def graphFor(flattenCtx: Json): EitherT[F, Rejection, Graph] = {
-      val original = (source deepMerge Json.obj("@context" -> flattenCtx)).asGraph
-      val withId =
-        if (original.subjects().contains(id.value)) Some(original)
-        else
-          original.primaryBNode.map { bnode =>
-            original.replaceNode(bnode, id.value)
-          }
-      EitherT.fromOption[F](withId, UnableToSelectResourceId(id.ref))
-    }
+    def graphFor(flattenCtx: Json): Graph =
+      (source deepMerge Json.obj("@context" -> flattenCtx)).asGraph
 
-    for {
-      ctx <- flattenValue(id.ref, contextValueOf(source))
-      g   <- graphFor(ctx)
-    } yield Value(source, ctx, g)
+    flattenValue(Nil, contextValueOf(source))
+      .map(ctx => Value(source, ctx, graphFor(ctx)))
   }
+
+  /**
+    * Materializes a json entity into a ResourceF.Value, flattening its context and producing a raw graph. While
+    * flattening the context references are transitively resolved.
+    *
+    * @param id     the primary id of the entity
+    * @param source the source representation of the entity
+    */
+  def materialize[F[_]: Monad: Resolution](id: ResId, source: Json): EitherT[F, Rejection, ResourceF.Value] =
+    // format: off
+    for {
+      rawValue      <- materialize(source)
+      value         <- checkOrAssignId(Left(id), rawValue)
+      (_, assigned)  = value
+    } yield assigned
+    // format: on
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references
@@ -383,4 +433,35 @@ object Resources {
   }
 
   final private case class SchemaContext(schema: ResourceV, dataImports: Set[ResourceV], schemaImports: Set[ResourceV])
+
+  private def checkOrAssignId[F[_]: Applicative](
+      idOrGenInput: Either[ResId, (ProjectRef, AbsoluteIri)],
+      value: ResourceF.Value
+  ): EitherT[F, Rejection, (ResId, ResourceF.Value)] = {
+
+    def replaceBNode(bnode: BNode, id: AbsoluteIri): ResourceF.Value =
+      value.copy(graph = value.graph.replaceNode(bnode, id))
+
+    def uuid(): String =
+      UUID.randomUUID().toString.toLowerCase
+
+    idOrGenInput match {
+      case Left(id) =>
+        if (value.graph.subjects().contains(id.value)) EitherT.rightT((id, value))
+        else {
+          val withIdOpt = value.graph.primaryBNode.map { bnode =>
+            (id, replaceBNode(bnode, id.value))
+          }
+          EitherT.fromOption(withIdOpt, IncorrectId(id.ref))
+        }
+      case Right((projectRef, base)) =>
+        val withIdOpt = value.graph.primaryNode map {
+          case IriNode(iri) => (Id(projectRef, iri), value)
+          case b: BNode =>
+            val id = Id(projectRef, base + uuid())
+            (id, replaceBNode(b, id.value))
+        }
+        EitherT.fromOption(withIdOpt, UnableToSelectResourceId())
+    }
+  }
 }
