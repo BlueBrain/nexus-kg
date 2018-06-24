@@ -7,11 +7,11 @@ import akka.cluster.Cluster
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
-import cats.instances.future._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.persistence.TaskAggregate
 import ch.epfl.bluebrain.nexus.kg.resources.Repo
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes
@@ -20,9 +20,10 @@ import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSet
 import com.typesafe.config.ConfigFactory
 import kamon.Kamon
 import kamon.system.SystemMetrics
+import monix.eval.Task
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Await
 import scala.util.{Failure, Success}
 
 //noinspection TypeAnnotation
@@ -55,8 +56,8 @@ object Main {
     implicit val adminClient = AdminClient(appConfig.admin)
     implicit val iamClient   = IamClient()(IamUri(appConfig.iam.baseUri), as)
 
-    val resourceAggregate: Agg[Future] =
-      ShardingAggregate("resources", sourcingSettings)(Repo.initial, Repo.next, Repo.eval)
+    val resourceAggregate: Agg[Task] =
+      TaskAggregate.fromFuture(ShardingAggregate("resources", sourcingSettings)(Repo.initial, Repo.next, Repo.eval))
     implicit val repo  = Repo(resourceAggregate, clock)
     val resourceRoutes = ResourceRoutes().routes
     val apiRoutes      = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
