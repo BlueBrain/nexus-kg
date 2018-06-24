@@ -30,9 +30,12 @@ object Vocabulary {
     val updatedBy     = url"$base/updatedBy"
     val constrainedBy = url"$base/constrainedBy"
     val isPartOf      = url"$base/isPartOf"
+    val priority      = url"$base/priority"
 
     val Schema   = url"$base/Schema"
     val Ontology = url"$base/Ontology"
+    val Resolver = url"$base/Resolver"
+    val View     = url"$base/View"
 
     val Anonymous = url"$base/Anonymous"
 
