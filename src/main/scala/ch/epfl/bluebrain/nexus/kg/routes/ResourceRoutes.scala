@@ -6,7 +6,7 @@ import akka.http.javadsl.server.Rejections.validationRejection
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.server.Directives.{pathPrefix, _}
+import akka.http.scaladsl.server.Directives.{fileUpload, parameter, pathPrefix, _}
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -19,6 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
@@ -48,73 +49,96 @@ class ResourceRoutes(implicit repo: Repo[Task],
             complete(create[Task](proj.ref, proj.base, Ref(schema), source).value.runAsync)
           }
         } ~
-          // create resource with explicit id
-          (put & pathPrefix(aliasOrCurie / aliasOrCurie) & entity(as[Json]) & pathEndOrSingleSlash) {
-            (schema, id, source) =>
+          (pathPrefix(aliasOrCurie / aliasOrCurie)) { (schema, id) =>
+            // create resource with explicit id
+            (put & entity(as[Json]) & pathEndOrSingleSlash) { source =>
               (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
                 complete(create[Task](Id(proj.ref, id), Ref(schema), source).value.runAsync)
               }
-          } ~
-          // update a resource
-          (put & pathPrefix(aliasOrCurie / aliasOrCurie) & entity(as[Json]) & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
-            (schema, id, source, rev) =>
-              (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-                complete(update[Task](Id(proj.ref, id), rev, Some(Ref(schema)), source).value.runAsync)
-              }
-          } ~
-          // tag a resource
-          (put & pathPrefix(aliasOrCurie / aliasOrCurie) & entity(as[Json]) & parameter('rev.as[Long]) & pathPrefix(
-            "tags") & pathEndOrSingleSlash) { (schema, id, json, rev) =>
-            (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-              complete(tag[Task](Id(proj.ref, id), rev, Some(Ref(schema)), json).value.runAsync)
-            }
-          } ~
-          // deprecate a resource
-          (delete & pathPrefix(aliasOrCurie / aliasOrCurie) & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
-            (schema, id, rev) =>
-              (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-                complete(deprecate[Task](Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
-              }
-          }
-
-        // get a resource
-        (get & pathPrefix(aliasOrCurie / aliasOrCurie) & parameter('rev.as[Long].?) & parameter('tag.as[Long].?) & pathEndOrSingleSlash) {
-          (schema, id, revOpt, tagOpt) =>
-            (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-              (revOpt, tagOpt) match {
-                case (None, None) => complete(fetch[Task](Id(proj.ref, id), Some(Ref(schema))).value.runAsync)
-                case (Some(_), Some(_)) =>
-                  reject(validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously."))
-                case (Some(rev), _) => complete(fetch[Task](Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
-                case (_, Some(tag)) => complete(fetch[Task](Id(proj.ref, id), tag, Some(Ref(schema))).value.runAsync)
-              }
-            }
-        }
-
-        // get a resource's attachment
-        (get & pathPrefix(aliasOrCurie / aliasOrCurie) & parameter('rev.as[Long].?) & parameter('tag.as[Long].?) & pathPrefix(
-          "attachments" ~ Segment) & pathEndOrSingleSlash) { (schema, id, revOpt, tagOpt, filename) =>
-          (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-            val result = (revOpt, tagOpt) match {
-              case (None, None) =>
-                fetchAttachment[Task, AkkaOut](Id(proj.ref, id), Some(Ref(schema)), filename).value.runAsync
-              //We will deal with this case later on
-              case (Some(_), Some(_)) => Future.failed(new RuntimeException())
-              case (Some(rev), _) =>
-                fetchAttachment[Task, AkkaOut](Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync
-              case (_, Some(tag)) =>
-                fetchAttachment[Task, AkkaOut](Id(proj.ref, id), tag, Some(Ref(schema)), filename).value.runAsync
-            }
-            onSuccess(result) {
-              case Some((info, source)) =>
-                respondWithHeaders(filenameHeader(info)) {
-                  complete(HttpEntity(contentType(info), info.contentSize.value, source))
+            } ~
+              parameter('rev.as[Long]) { rev =>
+                // update a resource
+                (put & entity(as[Json]) & pathEndOrSingleSlash) { source =>
+                  (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
+                    complete(update[Task](Id(proj.ref, id), rev, Some(Ref(schema)), source).value.runAsync)
+                  }
+                } ~
+                  // tag a resource
+                  (put & entity(as[Json]) & pathPrefix("tags") & pathEndOrSingleSlash) { json =>
+                    (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
+                      complete(tag[Task](Id(proj.ref, id), rev, Some(Ref(schema)), json).value.runAsync)
+                    }
+                  } ~
+                  // deprecate a resource
+                  (delete & pathEndOrSingleSlash) {
+                    (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
+                      complete(deprecate[Task](Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
+                    }
+                  }
+                // remove a resource attachment
+                (path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
+                  (delete & pathEndOrSingleSlash) {
+                    (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
+                      complete(unattach[Task](Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
+                    }
+                  } ~
+                    // add a resource attachment
+                    (put & pathEndOrSingleSlash) {
+                      (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
+                        fileUpload("file") {
+                          case (metadata, byteSource) =>
+                            val description = BinaryDescription(filename, metadata.contentType.value)
+                            complete(attach[Task, AkkaIn](Id(proj.ref, id),
+                                                          rev,
+                                                          Some(Ref(schema)),
+                                                          description,
+                                                          byteSource).value.runAsync)
+                        }
+                      }
+                    }
                 }
-              case None =>
-                complete(StatusCodes.NotFound)
-            }
+              } ~
+              (parameter('rev.as[Long].?) & parameter('tag.?)) { (revOpt, tagOpt) =>
+                // get a resource
+                (get & pathEndOrSingleSlash) {
+                  (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
+                    (revOpt, tagOpt) match {
+                      case (None, None) => complete(fetch[Task](Id(proj.ref, id), Some(Ref(schema))).value.runAsync)
+                      case (Some(_), Some(_)) =>
+                        reject(
+                          validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously."))
+                      case (Some(rev), _) =>
+                        complete(fetch[Task](Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
+                      case (_, Some(tag)) =>
+                        complete(fetch[Task](Id(proj.ref, id), tag, Some(Ref(schema))).value.runAsync)
+                    }
+                  }
+                } ~
+                  (path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
+                    // get a resource attachment
+                    (get & callerIdentity & hasPermission(resourceRead) & pathEndOrSingleSlash) { implicit ident =>
+                      val result = (revOpt, tagOpt) match {
+                        case (None, None) =>
+                          fetchAttachment[Task, AkkaOut](Id(proj.ref, id), Some(Ref(schema)), filename).value.runAsync
+                        //We will deal with this case later on
+                        case (Some(_), Some(_)) => Future.failed(new RuntimeException())
+                        case (Some(rev), _) =>
+                          fetchAttachment[Task, AkkaOut](Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync
+                        case (_, Some(tag)) =>
+                          fetchAttachment[Task, AkkaOut](Id(proj.ref, id), tag, Some(Ref(schema)), filename).value.runAsync
+                      }
+                      onSuccess(result) {
+                        case Some((info, source)) =>
+                          respondWithHeaders(filenameHeader(info)) {
+                            complete(HttpEntity(contentType(info), info.contentSize.value, source))
+                          }
+                        case None =>
+                          complete(StatusCodes.NotFound)
+                      }
+                    }
+                  }
+              }
           }
-        }
       }
     }
 
