@@ -1,10 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem}
+import akka.pattern.AskTimeoutException
 import cats.MonadError
 import cats.data.EitherT
-import cats.effect.Timer
 import cats.syntax.all._
+import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
+import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
@@ -20,12 +22,10 @@ import monix.execution.Scheduler
   *
   * @param projects    the project operations
   * @param resolution  the function used to derive a resolution for the corresponding project
-  * @param retryConfig configuration for applying retries in case of failures
   */
-class ViewIndexer[F[_]: Repo: Timer](
+class ViewIndexer[F[_]: Repo](
     projects: Projects[F],
-    resolution: ProjectRef => Resolution[F],
-    retryConfig: RetryConfig
+    resolution: ProjectRef => Resolution[F]
 )(implicit F: MonadError[F, Throwable]) {
 
   /**
@@ -42,10 +42,20 @@ class ViewIndexer[F[_]: Repo: Timer](
       resource     <- get(event.id).toRight[Rejection](NotFound(event.id.ref))
       materialized <- materialize(resource)
       view         <- EitherT.fromOption(View(materialized), NotFound(event.id.ref))
-      applied      <- EitherT.liftF(projects.applyView(projectRef, view))
+      applied      <- EitherT.liftF(projects.applyView(projectRef, view, event.instant))
     } yield applied
 
-    Retry.retryWithBackOff(result.value, retryConfig).map(_ => ())
+    result.value
+      .recoverWith {
+        case _: AskTimeoutException =>
+          val msg = s"TimedOut while attempting to index view event '${event.id.show} (rev = ${event.rev})'"
+          F.raiseError(new RetriableErr(msg))
+        case OperationTimedOut(reason) =>
+          val msg =
+            s"TimedOut while attempting to index view event '${event.id.show} (rev = ${event.rev})', cause: $reason"
+          F.raiseError(new RetriableErr(msg))
+      }
+      .map(_ => ())
   }
 }
 
@@ -56,17 +66,14 @@ object ViewIndexer {
     *
     * @param projects    the project operations
     * @param resolution  the function used to derive a resolution for the corresponding project
-    * @param retryConfig configuration for applying retries in case of failures
     * @param pluginId    the persistence query plugin id to query the event log
     */
   final def start(
       projects: Projects[Task],
       resolution: ProjectRef => Resolution[Task],
-      retryConfig: RetryConfig,
       pluginId: String
   )(implicit repo: Repo[Task], as: ActorSystem, s: Scheduler): ActorRef = {
-    implicit val timer: Timer[Task] = s.timer
-    val indexer                     = new ViewIndexer[Task](projects, resolution, retryConfig)
+    val indexer = new ViewIndexer[Task](projects, resolution)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
       pluginId,
@@ -74,5 +81,4 @@ object ViewIndexer {
       name = "view-indexer"
     )
   }
-
 }

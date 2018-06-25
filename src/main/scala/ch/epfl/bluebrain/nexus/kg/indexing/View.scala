@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import java.time.Instant
 import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -34,11 +33,6 @@ sealed trait View extends Product with Serializable {
     * @return the view revision
     */
   def rev: Long
-
-  /**
-    * @return the instant when the view revision was created
-    */
-  def instant: Instant
 
   /**
     * @return the deprecation state of the view
@@ -78,7 +72,6 @@ object View {
                   resource.id.value,
                   uuid,
                   resource.rev,
-                  resource.updated,
                   resource.deprecated
                 ))
             else if (resource.types.contains(nxv.SparqlView.value))
@@ -88,7 +81,6 @@ object View {
                   resource.id.value,
                   uuid,
                   resource.rev,
-                  resource.updated,
                   resource.deprecated
                 ))
             else None
@@ -103,7 +95,6 @@ object View {
     * @param id         the user facing view id
     * @param uuid       the underlying uuid generated for this view
     * @param rev        the view revision
-    * @param instant    the instant when the view revision was created
     * @param deprecated the deprecation state of the view
     */
   final case class ElasticView(
@@ -111,7 +102,6 @@ object View {
       id: AbsoluteIri,
       uuid: String,
       rev: Long,
-      instant: Instant,
       deprecated: Boolean
   ) extends View
 
@@ -122,7 +112,6 @@ object View {
     * @param id         the user facing view id
     * @param uuid       the underlying uuid generated for this view
     * @param rev        the view revision
-    * @param instant    the instant when the view revision was created
     * @param deprecated the deprecation state of the view
     */
   final case class SparqlView(
@@ -130,7 +119,6 @@ object View {
       id: AbsoluteIri,
       uuid: String,
       rev: Long,
-      instant: Instant,
       deprecated: Boolean
   ) extends View
 }

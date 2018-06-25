@@ -1,7 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
-import java.time.Instant
-
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -28,11 +26,6 @@ sealed trait Resolver extends Product with Serializable {
     * @return the resolver revision
     */
   def rev: Long
-
-  /**
-    * @return the instant when the resolver revision was created
-    */
-  def instant: Instant
 
   /**
     * @return the deprecation state of the resolver
@@ -65,7 +58,6 @@ object Resolver {
               resource.id.parent,
               resource.id.value,
               resource.rev,
-              resource.updated,
               resource.deprecated,
               priority
             )
@@ -80,7 +72,6 @@ object Resolver {
     * @param ref        a reference to the project that the resolver belongs to
     * @param id         the resolver id
     * @param rev        the resolver revision
-    * @param instant    the instant when the resolver revision was created
     * @param deprecated the deprecation state of the resolver
     * @param priority the resolver priority
     */
@@ -88,7 +79,6 @@ object Resolver {
       ref: ProjectRef,
       id: AbsoluteIri,
       rev: Long,
-      instant: Instant,
       deprecated: Boolean,
       priority: Int
   ) extends Resolver

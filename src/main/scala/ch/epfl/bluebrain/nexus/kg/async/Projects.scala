@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
+import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import akka.cluster.ddata.LWWRegister.Clock
@@ -52,21 +54,22 @@ trait Projects[F[_]] {
     *
     * @param ref       the project reference
     * @param resolver  the resolver to add
+    * @param instant   the instant used to merge the register value
     * @param updateRev whether to update the resolver collection if the resolver provided has a higher revision than an
     *                  already existing element in the collection with the same id
     * @return true if the update was performed or false if the element was already in the set
     */
-  def addResolver(ref: ProjectRef, resolver: Resolver, updateRev: Boolean): F[Boolean]
+  def addResolver(ref: ProjectRef, resolver: Resolver, instant: Instant, updateRev: Boolean): F[Boolean]
 
   /**
     * Removes the resolver identified by the argument id from the collection of project resolvers.
     *
-    * @param ref       the project reference
-    * @param id        the id of the resolver to remove
-    * @param timestamp the instant used to merge the register value
+    * @param ref     the project reference
+    * @param id      the id of the resolver to remove
+    * @param instant the instant used to merge the register value
     * @return true of the removal was performed or false of the element was not in the set
     */
-  def removeResolver(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): F[Boolean]
+  def removeResolver(ref: ProjectRef, id: AbsoluteIri, instant: Instant): F[Boolean]
 
   /**
     * Either adds, updates or removes the argument resolver depending on its deprecation state, revision and the current
@@ -74,11 +77,12 @@ trait Projects[F[_]] {
     *
     * @param ref      the project reference
     * @param resolver the resolver
+    * @param instant  the instant used to merge the register value
     * @return true if an update has taken place, false otherwise
     */
-  def applyResolver(ref: ProjectRef, resolver: Resolver): F[Boolean] =
-    if (resolver.deprecated) removeResolver(ref, resolver.id, resolver.instant.toEpochMilli)
-    else addResolver(ref, resolver, updateRev = true)
+  def applyResolver(ref: ProjectRef, resolver: Resolver, instant: Instant): F[Boolean] =
+    if (resolver.deprecated) removeResolver(ref, resolver.id, instant)
+    else addResolver(ref, resolver, instant, updateRev = true)
 
   /**
     * Looks up the collection of defined views for the argument project.
@@ -93,33 +97,35 @@ trait Projects[F[_]] {
     *
     * @param ref       the project reference
     * @param view      the view to add
+    * @param instant   the instant used to merge the register value
     * @param updateRev whether to update the view collection if the view provided has a higher revision than an
     *                  already existing element in the collection with the same id
     * @return true if the update was performed or false if the element was already in the set
     */
-  def addView(ref: ProjectRef, view: View, updateRev: Boolean): F[Boolean]
+  def addView(ref: ProjectRef, view: View, instant: Instant, updateRev: Boolean): F[Boolean]
 
   /**
     * Removes the view identified by the argument id from the collection of project views.
     *
-    * @param ref       the project reference
-    * @param id        the id of the view to remove
-    * @param timestamp the instant used to merge the register value
+    * @param ref     the project reference
+    * @param id      the id of the view to remove
+    * @param instant the instant used to merge the register value
     * @return true of the removal was performed or false of the element was not in the set
     */
-  def removeView(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): F[Boolean]
+  def removeView(ref: ProjectRef, id: AbsoluteIri, instant: Instant): F[Boolean]
 
   /**
     * Either adds, updates or removes the argument view depending on its deprecation state, revision and the current
     * state of the register.
     *
-    * @param ref  the project reference
-    * @param view the view
+    * @param ref     the project reference
+    * @param view    the view
+    * @param instant the instant used to merge the register value
     * @return true if an update has taken place, false otherwise
     */
-  def applyView(ref: ProjectRef, view: View): F[Boolean] =
-    if (view.deprecated) removeView(ref, view.id, view.instant.toEpochMilli)
-    else addView(ref, view, updateRev = true)
+  def applyView(ref: ProjectRef, view: View, instant: Instant): F[Boolean] =
+    if (view.deprecated) removeView(ref, view.id, instant)
+    else addView(ref, view, instant, updateRev = true)
 }
 
 object Projects {
@@ -167,7 +173,12 @@ object Projects {
         case NotFound(_, _)                       => Set.empty
       }
 
-    override def addResolver(ref: ProjectRef, resolver: Resolver, updateRev: Boolean): Future[Boolean] = {
+    override def addResolver(
+        ref: ProjectRef,
+        resolver: Resolver,
+        instant: Instant,
+        updateRev: Boolean
+    ): Future[Boolean] = {
       val found = (r: Resolver) =>
         if (updateRev) r.id == resolver.id && r.rev >= resolver.rev
         else r.id == resolver.id
@@ -176,31 +187,22 @@ object Projects {
         if (resolverSet.exists(found)) Future.successful(false)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[Resolver]))
-          val value  = TimestampedValue(resolver.instant.toEpochMilli, resolverSet + resolver)
+          val value  = TimestampedValue(instant.toEpochMilli, resolverSet + resolver)
           val update = Update(resolverKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-          (replicator ? update).flatMap {
-            case UpdateSuccess(LWWRegisterKey(_), _) =>
-              Future.successful(true)
-            case UpdateTimeout(LWWRegisterKey(_), _) =>
-              Future.failed(OperationTimedOut("Timed out while waiting for add resolver quorum response"))
-          }
+          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add resolver quorum response"))
         }
       }
     }
 
-    override def removeResolver(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): Future[Boolean] = {
+    override def removeResolver(ref: ProjectRef, id: AbsoluteIri, instant: Instant): Future[Boolean] = {
       resolvers(ref).flatMap { resolverSet =>
         if (!resolverSet.exists(_.id == id)) Future.successful(false)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[Resolver]))
-          val value  = TimestampedValue(timestamp, resolverSet.filter(_.id != id))
+          val value  = TimestampedValue(instant.toEpochMilli, resolverSet.filter(_.id != id))
           val update = Update(resolverKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-          (replicator ? update).flatMap {
-            case UpdateSuccess(LWWRegisterKey(_), _) =>
-              Future.successful(true)
-            case UpdateTimeout(LWWRegisterKey(_), _) =>
-              Future.failed(OperationTimedOut("Timed out while waiting for remove resolver quorum response"))
-          }
+          (replicator ? update).flatMap(
+            handleBooleanUpdate("Timed out while waiting for remove resolver quorum response"))
         }
       }
     }
@@ -211,7 +213,7 @@ object Projects {
         case NotFound(_, _)                       => Set.empty
       }
 
-    override def addView(ref: ProjectRef, view: View, updateRev: Boolean): Future[Boolean] = {
+    override def addView(ref: ProjectRef, view: View, instant: Instant, updateRev: Boolean): Future[Boolean] = {
       val found = (v: View) =>
         if (updateRev) v.id == view.id && v.rev >= view.rev
         else v.id == view.id
@@ -220,33 +222,30 @@ object Projects {
         if (viewSet.exists(found)) Future.successful(false)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[View]))
-          val value  = TimestampedValue(view.instant.toEpochMilli, viewSet + view)
+          val value  = TimestampedValue(instant.toEpochMilli, viewSet + view)
           val update = Update(viewKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-          (replicator ? update).flatMap {
-            case UpdateSuccess(LWWRegisterKey(_), _) =>
-              Future.successful(true)
-            case UpdateTimeout(LWWRegisterKey(_), _) =>
-              Future.failed(OperationTimedOut("Timed out while waiting for add view quorum response"))
-          }
+          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add view quorum response"))
         }
       }
     }
 
-    override def removeView(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): Future[Boolean] = {
+    override def removeView(ref: ProjectRef, id: AbsoluteIri, instant: Instant): Future[Boolean] = {
       views(ref).flatMap { viewSet =>
         if (!viewSet.exists(_.id == id)) Future.successful(false)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[View]))
-          val value  = TimestampedValue(timestamp, viewSet.filter(_.id != id))
+          val value  = TimestampedValue(instant.toEpochMilli, viewSet.filter(_.id != id))
           val update = Update(viewKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-          (replicator ? update).flatMap {
-            case UpdateSuccess(LWWRegisterKey(_), _) =>
-              Future.successful(true)
-            case UpdateTimeout(LWWRegisterKey(_), _) =>
-              Future.failed(OperationTimedOut("Timed out while waiting for remove view quorum response"))
-          }
+          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for remove view quorum response"))
         }
       }
+    }
+
+    private def handleBooleanUpdate(timeoutMsg: String): PartialFunction[Any, Future[Boolean]] = {
+      case UpdateSuccess(LWWRegisterKey(_), _) =>
+        Future.successful(true)
+      case UpdateTimeout(LWWRegisterKey(_), _) =>
+        Future.failed(OperationTimedOut(timeoutMsg))
     }
   }
 
@@ -269,19 +268,24 @@ object Projects {
       override def resolvers(ref: ProjectRef): Task[Set[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))
 
-      override def addResolver(ref: ProjectRef, resolver: Resolver, updateRev: Boolean): Task[Boolean] =
-        Task.deferFuture(underlying.addResolver(ref, resolver, updateRev))
+      override def addResolver(
+          ref: ProjectRef,
+          resolver: Resolver,
+          instant: Instant,
+          updateRev: Boolean
+      ): Task[Boolean] =
+        Task.deferFuture(underlying.addResolver(ref, resolver, instant, updateRev))
 
-      override def removeResolver(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): Task[Boolean] =
-        Task.deferFuture(underlying.removeResolver(ref, id, timestamp))
+      override def removeResolver(ref: ProjectRef, id: AbsoluteIri, instant: Instant): Task[Boolean] =
+        Task.deferFuture(underlying.removeResolver(ref, id, instant))
 
       override def views(ref: ProjectRef): Task[Set[View]] =
         Task.deferFuture(underlying.views(ref))
 
-      override def addView(ref: ProjectRef, view: View, updateRev: Boolean): Task[Boolean] =
-        Task.deferFuture(underlying.addView(ref, view, updateRev))
+      override def addView(ref: ProjectRef, view: View, instant: Instant, updateRev: Boolean): Task[Boolean] =
+        Task.deferFuture(underlying.addView(ref, view, instant, updateRev))
 
-      override def removeView(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): Task[Boolean] =
-        Task.deferFuture(underlying.removeView(ref, id, timestamp))
+      override def removeView(ref: ProjectRef, id: AbsoluteIri, instant: Instant): Task[Boolean] =
+        Task.deferFuture(underlying.removeView(ref, id, instant))
     }
 }
