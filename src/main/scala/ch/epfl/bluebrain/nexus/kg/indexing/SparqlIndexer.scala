@@ -37,7 +37,7 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
     *         This method will raise errors if something goes wrong
     */
   final def apply(ev: Event): F[Unit] = {
-    get(ev.id).value.flatMap {
+    fetch(ev.id, None).value.flatMap {
       case None => F.raiseError(NotFound(ev.id.ref))
       case Some(resource) =>
         fetchRevision(ev.id) flatMap {

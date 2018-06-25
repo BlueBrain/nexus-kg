@@ -4,6 +4,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.Err
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import io.circe.Json
 
 /**
   * Enumeration of resource rejection types.
@@ -46,6 +47,15 @@ object Rejection {
     */
   final case class UpdateSchemaTypes(ref: Ref)
       extends Rejection(s"Resource '${ref.show}' cannot change it's schema type.")
+
+  /**
+    * Signals an attempt to perform a request with an invalid payload.
+    *
+    * @param ref a reference to the resource
+    * @param json the incorrect json payload
+    */
+  final case class InvalidPayload(ref: Ref, json: Json)
+      extends Rejection(s"Resource '${ref.show}' with invalid payload '$json'.")
 
   /**
     * Signals an attempt to interact with a resource that doesn't exist.

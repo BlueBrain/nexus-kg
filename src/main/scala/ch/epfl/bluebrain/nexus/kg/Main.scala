@@ -14,6 +14,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.persistence.TaskAggregate
 import ch.epfl.bluebrain.nexus.kg.resources.Repo
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
@@ -58,9 +60,13 @@ object Main {
 
     val resourceAggregate: Agg[Task] =
       TaskAggregate.fromFuture(ShardingAggregate("resources", sourcingSettings)(Repo.initial, Repo.next, Repo.eval))
-    implicit val repo  = Repo(resourceAggregate, clock)
-    val resourceRoutes = ResourceRoutes().routes
-    val apiRoutes      = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
+    implicit val repo      = Repo(resourceAggregate, clock)
+    implicit val attConfig = appConfig.attachments
+    implicit val lc        = AttachmentStore.LocationResolver[Task]()
+    implicit val stream    = AttachmentStore.Stream.task(appConfig.attachments)
+    implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
+    val resourceRoutes     = ResourceRoutes().routes
+    val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
 
     val logger = Logging(as, getClass)
 

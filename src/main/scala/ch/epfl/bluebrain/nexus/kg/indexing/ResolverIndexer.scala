@@ -39,7 +39,7 @@ class ResolverIndexer[F[_]: Repo](
     implicit val res: Resolution[F] = resolution(projectRef)
 
     val result: EitherT[F, Rejection, Boolean] = for {
-      resource     <- get(event.id).toRight[Rejection](NotFound(event.id.ref))
+      resource     <- fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
       materialized <- materialize(resource)
       resolver     <- EitherT.fromOption(Resolver(materialized), NotFound(event.id.ref))
       applied      <- EitherT.liftF(projects.applyResolver(projectRef, resolver, event.instant))
