@@ -87,6 +87,39 @@ trait Projects[F[_]] {
     * @return the collection of known views configured for the argument project
     */
   def views(ref: ProjectRef): F[Set[View]]
+
+  /**
+    * Adds the view to the collection of project views.
+    *
+    * @param ref       the project reference
+    * @param view      the view to add
+    * @param updateRev whether to update the view collection if the view provided has a higher revision than an
+    *                  already existing element in the collection with the same id
+    * @return true if the update was performed or false if the element was already in the set
+    */
+  def addView(ref: ProjectRef, view: View, updateRev: Boolean): F[Boolean]
+
+  /**
+    * Removes the view identified by the argument id from the collection of project views.
+    *
+    * @param ref       the project reference
+    * @param id        the id of the view to remove
+    * @param timestamp the instant used to merge the register value
+    * @return true of the removal was performed or false of the element was not in the set
+    */
+  def removeView(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): F[Boolean]
+
+  /**
+    * Either adds, updates or removes the argument view depending on its deprecation state, revision and the current
+    * state of the register.
+    *
+    * @param ref  the project reference
+    * @param view the view
+    * @return true if an update has taken place, false otherwise
+    */
+  def applyView(ref: ProjectRef, view: View): F[Boolean] =
+    if (view.deprecated) removeView(ref, view.id, view.instant.toEpochMilli)
+    else addView(ref, view, updateRev = true)
 }
 
 object Projects {
@@ -177,6 +210,44 @@ object Projects {
         case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(viewKey(ref)).value.value
         case NotFound(_, _)                       => Set.empty
       }
+
+    override def addView(ref: ProjectRef, view: View, updateRev: Boolean): Future[Boolean] = {
+      val found = (v: View) =>
+        if (updateRev) v.id == view.id && v.rev >= view.rev
+        else v.id == view.id
+
+      views(ref).flatMap { viewSet =>
+        if (viewSet.exists(found)) Future.successful(false)
+        else {
+          val empty  = LWWRegister(TimestampedValue(0L, Set.empty[View]))
+          val value  = TimestampedValue(view.instant.toEpochMilli, viewSet + view)
+          val update = Update(viewKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+          (replicator ? update).flatMap {
+            case UpdateSuccess(LWWRegisterKey(_), _) =>
+              Future.successful(true)
+            case UpdateTimeout(LWWRegisterKey(_), _) =>
+              Future.failed(OperationTimedOut("Timed out while waiting for add view quorum response"))
+          }
+        }
+      }
+    }
+
+    override def removeView(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): Future[Boolean] = {
+      views(ref).flatMap { viewSet =>
+        if (!viewSet.exists(_.id == id)) Future.successful(false)
+        else {
+          val empty  = LWWRegister(TimestampedValue(0L, Set.empty[View]))
+          val value  = TimestampedValue(timestamp, viewSet.filter(_.id != id))
+          val update = Update(viewKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+          (replicator ? update).flatMap {
+            case UpdateSuccess(LWWRegisterKey(_), _) =>
+              Future.successful(true)
+            case UpdateTimeout(LWWRegisterKey(_), _) =>
+              Future.failed(OperationTimedOut("Timed out while waiting for remove view quorum response"))
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -206,5 +277,11 @@ object Projects {
 
       override def views(ref: ProjectRef): Task[Set[View]] =
         Task.deferFuture(underlying.views(ref))
+
+      override def addView(ref: ProjectRef, view: View, updateRev: Boolean): Task[Boolean] =
+        Task.deferFuture(underlying.addView(ref, view, updateRev))
+
+      override def removeView(ref: ProjectRef, id: AbsoluteIri, timestamp: Long): Task[Boolean] =
+        Task.deferFuture(underlying.removeView(ref, id, timestamp))
     }
 }

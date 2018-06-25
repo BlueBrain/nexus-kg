@@ -118,12 +118,13 @@ object Event {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class AttachmentAdded(id: Id[ProjectRef],
-                                   rev: Long,
-                                   value: BinaryAttributes,
-                                   instant: Instant,
-                                   identity: Identity)
-      extends Event
+  final case class AttachmentAdded(
+      id: Id[ProjectRef],
+      rev: Long,
+      value: BinaryAttributes,
+      instant: Instant,
+      identity: Identity
+  ) extends Event
 
   /**
     * A witness that a resource's attachment has been removed.
@@ -134,11 +135,11 @@ object Event {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class AttachmentRemoved(id: Id[ProjectRef],
-                                     rev: Long,
-                                     filename: String,
-                                     instant: Instant,
-                                     identity: Identity)
-      extends Event
-
+  final case class AttachmentRemoved(
+      id: Id[ProjectRef],
+      rev: Long,
+      filename: String,
+      instant: Instant,
+      identity: Identity
+  ) extends Event
 }

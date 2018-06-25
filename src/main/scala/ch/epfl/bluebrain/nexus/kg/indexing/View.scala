@@ -1,7 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
+import java.time.Instant
+import java.util.UUID
+
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.syntax.node._
+
+import scala.util.Try
 
 /**
   * Enumeration of view types.
@@ -29,6 +36,16 @@ sealed trait View extends Product with Serializable {
   def rev: Long
 
   /**
+    * @return the instant when the view revision was created
+    */
+  def instant: Instant
+
+  /**
+    * @return the deprecation state of the view
+    */
+  def deprecated: Boolean
+
+  /**
     * @return a generated name that uniquely identifies the view and its current revision
     */
   def name: String =
@@ -38,23 +55,82 @@ sealed trait View extends Product with Serializable {
 object View {
 
   /**
+    * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.indexing.View]].
+    *
+    * @param resource a materialized resource
+    * @return Some(view) if the resource is compatible with a View, None otherwise
+    */
+  final def apply(resource: ResourceV): Option[View] =
+    if (resource.types.contains(nxv.View.value))
+      resource.value.graph.cursor(resource.id.value).downField(_ == nxv.uuid).values match {
+        case Some(values) =>
+          val uuids = values.flatMap { n =>
+            n.asLiteral
+              .filter(_.isString)
+              .flatMap(l => Try(UUID.fromString(l.lexicalForm)).map(_.toString.toLowerCase).toOption)
+              .toIterable
+          }
+          uuids.headOption.flatMap { uuid =>
+            if (resource.types.contains(nxv.ElasticView.value))
+              Some(
+                ElasticView(
+                  resource.id.parent,
+                  resource.id.value,
+                  uuid,
+                  resource.rev,
+                  resource.updated,
+                  resource.deprecated
+                ))
+            else if (resource.types.contains(nxv.SparqlView.value))
+              Some(
+                SparqlView(
+                  resource.id.parent,
+                  resource.id.value,
+                  uuid,
+                  resource.rev,
+                  resource.updated,
+                  resource.deprecated
+                ))
+            else None
+          }
+        case None => None
+      } else None
+
+  /**
     * ElasticSearch specific view.
     *
-    * @param ref  a reference to the project that the view belongs to
-    * @param id   the user facing view id
-    * @param uuid the underlying uuid generated for this view
-    * @param rev  the view revision
+    * @param ref        a reference to the project that the view belongs to
+    * @param id         the user facing view id
+    * @param uuid       the underlying uuid generated for this view
+    * @param rev        the view revision
+    * @param instant    the instant when the view revision was created
+    * @param deprecated the deprecation state of the view
     */
-  final case class ElasticView(ref: ProjectRef, id: AbsoluteIri, uuid: String, rev: Long) extends View
+  final case class ElasticView(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      uuid: String,
+      rev: Long,
+      instant: Instant,
+      deprecated: Boolean
+  ) extends View
 
   /**
     * Sparql specific view.
     *
-    * @param ref  a reference to the project that the view belongs to
-    * @param id   the user facing view id
-    * @param uuid the underlying uuid generated for this view
-    * @param rev  the view revision
+    * @param ref        a reference to the project that the view belongs to
+    * @param id         the user facing view id
+    * @param uuid       the underlying uuid generated for this view
+    * @param rev        the view revision
+    * @param instant    the instant when the view revision was created
+    * @param deprecated the deprecation state of the view
     */
-  final case class SparqlView(ref: ProjectRef, id: AbsoluteIri, uuid: String, rev: Long) extends View
-
+  final case class SparqlView(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      uuid: String,
+      rev: Long,
+      instant: Instant,
+      deprecated: Boolean
+  ) extends View
 }
