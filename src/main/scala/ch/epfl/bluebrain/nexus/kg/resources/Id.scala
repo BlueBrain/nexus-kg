@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import cats.Show
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
@@ -16,4 +17,10 @@ final case class Id[P](parent: P, value: AbsoluteIri) {
     */
   def ref: Ref =
     Latest(value)
+}
+
+object Id {
+  final implicit def idShow[P](implicit P: Show[P], I: Show[AbsoluteIri]): Show[Id[P]] = Show.show {
+    case Id(parent, value) => s"${P.show(parent)} / ${I.show(value)}"
+  }
 }

@@ -7,6 +7,7 @@ import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
@@ -49,7 +50,7 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
 
   private def query(id: ResId) =
     s"""
-       |SELECT ?o WHERE {<${id.value.show}> <https://bbp.epfl.ch/nexus/v0/vocabs/nexus/core/terms/v0.1.0/rev> ?o}
+       |SELECT ?o WHERE {<${id.value.show}> <${nxv.rev.value.show}> ?o}
     """.stripMargin
 
   private def fetchRevision(id: ResId): F[Option[Long]] =

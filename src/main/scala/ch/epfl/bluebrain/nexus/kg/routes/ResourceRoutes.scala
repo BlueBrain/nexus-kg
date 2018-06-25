@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import cats.instances.future._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
@@ -16,13 +15,12 @@ import ch.epfl.bluebrain.nexus.kg.resolve.InProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.{Encoder, Json}
+import monix.eval.Task
+import monix.execution.Scheduler.Implicits.global
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
-class ResourceRoutes(implicit repo: Repo[Future],
-                     adminClient: AdminClient[Future],
-                     iamClient: IamClient[Future],
-                     ec: ExecutionContext) {
+class ResourceRoutes(implicit repo: Repo[Task], adminClient: AdminClient[Future], iamClient: IamClient[Future]) {
 
   def routes: Route =
     token { implicit optToken =>
@@ -67,11 +65,11 @@ class ResourceRoutes(implicit repo: Repo[Future],
       source: Json,
       optId: Option[AbsoluteIri] = None
   )(implicit project: Project, identity: Identity): Future[Either[Rejection, Resource]] = {
-    val projectRef                                       = ProjectRef(project.uuid)
-    implicit val resolution: InProjectResolution[Future] = InProjectResolution[Future](projectRef)
+    val projectRef                                     = ProjectRef(project.uuid)
+    implicit val resolution: InProjectResolution[Task] = InProjectResolution[Task](projectRef)
     optId match {
-      case Some(id) => Resources.create[Future](Id(projectRef, id), Ref(schema), source).value
-      case None     => Resources.create[Future](projectRef, project.base, Ref(schema), source).value
+      case Some(id) => Resources.create[Task](Id(projectRef, id), Ref(schema), source).value.runAsync
+      case None     => Resources.create[Task](projectRef, project.base, Ref(schema), source).value.runAsync
     }
   }
 
@@ -80,8 +78,8 @@ class ResourceRoutes(implicit repo: Repo[Future],
 }
 
 object ResourceRoutes {
-  final def apply()(implicit repo: Repo[Future],
+  final def apply()(implicit
+                    repo: Repo[Task],
                     adminClient: AdminClient[Future],
-                    iamClient: IamClient[Future],
-                    ec: ExecutionContext): ResourceRoutes = new ResourceRoutes()
+                    iamClient: IamClient[Future]): ResourceRoutes = new ResourceRoutes()
 }

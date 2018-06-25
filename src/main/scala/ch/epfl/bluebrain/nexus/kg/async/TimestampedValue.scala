@@ -12,6 +12,6 @@ final case class TimestampedValue[A](timestamp: Long, value: A)
 
 object TimestampedValue {
 
-  private[async] val clock: Clock[TimestampedValue[_]] =
-    (_: Long, value: TimestampedValue[_]) => value.timestamp
+  private[async] def timestampedValueClock[A]: Clock[TimestampedValue[A]] =
+    (_: Long, value: TimestampedValue[A]) => value.timestamp
 }

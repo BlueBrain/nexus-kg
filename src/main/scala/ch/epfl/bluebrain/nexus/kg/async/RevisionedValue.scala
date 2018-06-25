@@ -12,6 +12,6 @@ final case class RevisionedValue[A](rev: Long, value: A)
 
 object RevisionedValue {
 
-  private[async] val clock: Clock[RevisionedValue[_]] =
-    (_: Long, value: RevisionedValue[_]) => value.rev
+  private[async] def revisionedValueClock[A]: Clock[RevisionedValue[A]] =
+    (_: Long, value: RevisionedValue[A]) => value.rev
 }

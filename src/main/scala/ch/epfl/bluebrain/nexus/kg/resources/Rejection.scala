@@ -92,13 +92,14 @@ object Rejection {
     * @param refs the import value stack
     */
   final case class IllegalContextValue(refs: List[Ref])
-      extends Rejection(s"Resource '${refs.reverse.map(_.show).mkString(" -> ")}' has an illegal context value.")
+      extends Rejection(s"Resource '${refs.reverseMap(_.show).mkString(" -> ")}' has an illegal context value.")
 
   /**
     * Signals that the system is unable to select a primary node from a resource graph.
     */
-  final case class UnableToSelectResourceId()
+  final case object UnableToSelectResourceId
       extends Rejection("Resource is not entity centric, unable to select primary node.")
+  type UnableToSelectResourceId = UnableToSelectResourceId.type
 
   /**
     * Signals that a resource validation failed.

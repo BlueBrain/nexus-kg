@@ -461,7 +461,7 @@ object Resources {
             val id = Id(projectRef, base + uuid())
             (id, replaceBNode(b, id.value))
         }
-        EitherT.fromOption(withIdOpt, UnableToSelectResourceId())
+        EitherT.fromOption(withIdOpt, UnableToSelectResourceId)
     }
   }
 }
