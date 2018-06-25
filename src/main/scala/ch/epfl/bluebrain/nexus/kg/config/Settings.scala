@@ -16,7 +16,7 @@ import pureconfig._
   *
   * @param config the configuration instance to read
   */
-@SuppressWarnings(Array("LooksLikeInterpolatedString"))
+@SuppressWarnings(Array("LooksLikeInterpolatedString", "OptionGet"))
 class Settings(config: Config) extends Extension {
 
   private implicit val uriConverter: ConfigConvert[Uri] =
