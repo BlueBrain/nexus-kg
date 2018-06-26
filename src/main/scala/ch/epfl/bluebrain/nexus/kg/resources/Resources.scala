@@ -105,14 +105,23 @@ object Resources {
         case _                                                           => Right(types)
       })
 
-    // format: off
-    for {
-      resolved      <- schemaContext(schema)
-      _             <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, value.graph)
-      joinedTypes   <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
-      created       <- repo.create(id, schema, joinedTypes, value.source)
-    } yield created
-    // format: on
+    //TODO: For now the schema is not validated against the shacl schema.
+    if(schema.iri == schacl)
+        // format: off
+        for {
+          joinedTypes   <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
+          created       <- repo.create(id, schema, joinedTypes, value.source)
+        } yield created
+        // format: on
+    else
+      // format: off
+      for {
+        resolved      <- schemaContext(schema)
+        _             <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, value.graph)
+        joinedTypes   <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
+        created       <- repo.create(id, schema, joinedTypes, value.source)
+      } yield created
+      // format: on
   }
 
   /**
