@@ -54,7 +54,7 @@ class EventSerializerSpec
       val results = List(
         Created(key, 1L, schema, types, value, instant, identity) -> jsonContentOf("/serialization/created-resp.json",
                                                                                    rep).noSpaces,
-        Deprecated(key, 1L, instant, identity)              -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
+        Deprecated(key, 1L, types, instant, identity)       -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
         TagAdded(key, 1L, 2L, "tagName", instant, identity) -> jsonContentOf("/serialization/tagged-resp.json", rep).noSpaces,
         AttachmentAdded(
           key,

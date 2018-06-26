@@ -236,7 +236,7 @@ object Repo {
       case (c: Current, TagAdded(_, rev, targetRev, name, instant, identity)) =>
         c.copy(rev = rev, tags = c.tags + (name -> targetRev), updated = instant, updatedBy = identity)
       case (c: Current, _) if c.deprecated => c
-      case (c: Current, Deprecated(_, rev, instant, identity)) =>
+      case (c: Current, Deprecated(_, rev, _, instant, identity)) =>
         c.copy(rev = rev, updated = instant, updatedBy = identity, deprecated = true)
       case (c: Current, Updated(_, rev, types, value, instant, identity)) =>
         c.copy(rev = rev, types = types, source = value, updated = instant, updatedBy = identity)
@@ -304,7 +304,7 @@ object Repo {
         case Initial                     => Left(NotFound(c.id.ref))
         case s: Current if s.rev < c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated  => Left(IsDeprecated(c.id.ref))
-        case s: Current                  => Right(Deprecated(s.id, s.rev + 1, c.instant, c.identity))
+        case s: Current                  => Right(Deprecated(s.id, s.rev + 1, s.types, c.instant, c.identity))
       }
 
     cmd match {
