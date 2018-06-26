@@ -39,7 +39,7 @@ class ViewIndexer[F[_]: Repo](
     implicit val res: Resolution[F] = resolution(projectRef)
 
     val result: EitherT[F, Rejection, Boolean] = for {
-      resource     <- get(event.id).toRight[Rejection](NotFound(event.id.ref))
+      resource     <- fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
       materialized <- materialize(resource)
       view         <- EitherT.fromOption(View(materialized), NotFound(event.id.ref))
       applied      <- EitherT.liftF(projects.applyView(projectRef, view, event.instant))

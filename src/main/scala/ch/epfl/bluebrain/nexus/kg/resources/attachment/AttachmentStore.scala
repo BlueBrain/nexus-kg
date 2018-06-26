@@ -12,7 +12,7 @@ import akka.util.ByteString
 import cats.data.EitherT
 import cats.syntax.show._
 import cats.{Applicative, Monad}
-import ch.epfl.bluebrain.nexus.kg.config.AttachmentConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.AttachmentsConfig
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.Unexpected
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.LocationResolver.Location
@@ -25,7 +25,7 @@ import monix.eval.Task
 import scala.concurrent.Future
 import scala.util.Try
 
-abstract class AttachmentStore[F[_]: Monad, In, Out](implicit loc: LocationResolver[F], stream: Stream[F, In, Out]) {
+class AttachmentStore[F[_]: Monad, In, Out](implicit loc: LocationResolver[F], stream: Stream[F, In, Out]) {
 
   /**
     * Stores the provided stream source delegating to ''locator'' for choosing the location
@@ -84,7 +84,7 @@ object AttachmentStore {
       *
       * @param config the attachment configuration
       */
-    def akka(config: AttachmentConfig)(implicit as: ActorSystem): Stream[Future, AkkaIn, AkkaOut] =
+    def akka(config: AttachmentsConfig)(implicit as: ActorSystem): Stream[Future, AkkaIn, AkkaOut] =
       new Stream[Future, AkkaIn, AkkaOut] {
         import as.dispatcher
         implicit val mt: Materializer = ActorMaterializer()
@@ -122,7 +122,7 @@ object AttachmentStore {
       *
       * @param config the attachment configuration
       */
-    def task(config: AttachmentConfig)(implicit as: ActorSystem): Stream[Task, AkkaIn, AkkaOut] =
+    def task(config: AttachmentsConfig)(implicit as: ActorSystem): Stream[Task, AkkaIn, AkkaOut] =
       new Stream[Task, AkkaIn, AkkaOut] {
         private val underlying = akka(config)
 
@@ -185,7 +185,7 @@ object AttachmentStore {
         }
       }
 
-    def apply[F[_]: Applicative](implicit config: AttachmentConfig): LocationResolver[F] =
+    def apply[F[_]: Applicative]()(implicit config: AttachmentsConfig): LocationResolver[F] =
       apply(config.volume)
 
   }

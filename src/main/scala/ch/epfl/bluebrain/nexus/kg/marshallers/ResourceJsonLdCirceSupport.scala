@@ -22,7 +22,7 @@ trait ResourceJsonLdCirceSupport extends JsonLdCirceSupport {
 
   private def statusCodeFrom(rejection: Rejection): StatusCode = rejection match {
     case _: IsDeprecated | _: UpdateSchemaTypes | _: IncorrectTypes | _: IllegalContextValue |
-        _: UnableToSelectResourceId | _: InvalidResource | _: IncorrectId =>
+        _: UnableToSelectResourceId | _: InvalidResource | _: IncorrectId | _: InvalidPayload =>
       StatusCodes.BadRequest
     case _: UnexpectedState | _: Unexpected  => StatusCodes.InternalServerError
     case _: NotFound | _: AttachmentNotFound => StatusCodes.NotFound

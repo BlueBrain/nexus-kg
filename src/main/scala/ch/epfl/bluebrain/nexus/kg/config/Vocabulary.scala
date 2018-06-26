@@ -23,6 +23,7 @@ object Vocabulary {
   object nxv {
     val base          = "https://bluebrain.github.io/nexus/vocabulary"
     val rev           = url"$base/rev"
+    val tag           = url"$base/tag"
     val deprecated    = url"$base/deprecated"
     val createdAt     = url"$base/createdAt"
     val updatedAt     = url"$base/updatedAt"

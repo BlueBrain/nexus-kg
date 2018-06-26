@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
-import cats.Functor
+import cats.Monad
 import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref._
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -12,12 +12,12 @@ import ch.epfl.bluebrain.nexus.kg.resources._
   * @param project the resolution scope
   * @tparam F      the resolution effect type
   */
-class InProjectResolution[F[_]: Functor: Repo](project: ProjectRef) extends Resolution[F] {
+class InProjectResolution[F[_]: Monad: Repo](project: ProjectRef) extends Resolution[F] {
 
   override def resolve(ref: Ref): F[Option[Resource]] = ref match {
-    case Latest(value)        => Resources.get(Id(project, value)).value
-    case Revision(value, rev) => Resources.get(Id(project, value), rev).value
-    case Tag(value, tag)      => Resources.get(Id(project, value), tag).value
+    case Latest(value)        => Resources.fetch(Id(project, value), None).value
+    case Revision(value, rev) => Resources.fetch(Id(project, value), rev, None).value
+    case Tag(value, tag)      => Resources.fetch(Id(project, value), tag, None).value
   }
 
   override def resolveAll(ref: Ref): F[List[Resource]] =
@@ -29,6 +29,6 @@ object InProjectResolution {
   /**
     * Constructs an [[InProjectResolution]] instance.
     */
-  def apply[F[_]: Functor: Repo](project: ProjectRef): InProjectResolution[F] =
+  def apply[F[_]: Monad: Repo](project: ProjectRef): InProjectResolution[F] =
     new InProjectResolution(project)
 }

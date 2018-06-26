@@ -1,10 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
-import java.nio.file.Path
-
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 import scala.concurrent.duration.Duration
 
@@ -72,10 +71,11 @@ object AppConfig {
 
   /**
     * Attachments configuration
-    * @param volume           storage path
-    * @param digestAlgorithm  algorithm for checksum calculation
+    *
+    * @param volume          the base Iri where the attachments are stored
+    * @param digestAlgorithm algorithm for checksum calculation
     */
-  final case class AttachmentsConfig(volume: Path, digestAlgorithm: String)
+  final case class AttachmentsConfig(volume: AbsoluteIri, digestAlgorithm: String)
 
   /**
     * IAM config

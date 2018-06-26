@@ -1,8 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.Err
+import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 /**
@@ -46,6 +46,15 @@ object Rejection {
     */
   final case class UpdateSchemaTypes(ref: Ref)
       extends Rejection(s"Resource '${ref.show}' cannot change it's schema type.")
+
+  /**
+    * Signals an attempt to perform a request with an invalid payload.
+    *
+    * @param ref a reference to the resource
+    * @param reason the human readable reason for the rejection
+    */
+  final case class InvalidPayload(ref: Ref, reason: String)
+      extends Rejection(s"Resource '${ref.show}' with invalid payload due to '$reason'.")
 
   /**
     * Signals an attempt to interact with a resource that doesn't exist.
