@@ -4,8 +4,8 @@ import java.net.URLEncoder
 
 import akka.http.javadsl.server.Rejections.validationRejection
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
-import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives.{fileUpload, parameter, pathPrefix, _}
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
@@ -49,7 +49,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
             complete(create[Task](proj.ref, proj.base, Ref(schema), source).value.runAsync)
           }
         } ~
-          (pathPrefix(aliasOrCurie / aliasOrCurie)) { (schema, id) =>
+          pathPrefix(aliasOrCurie / aliasOrCurie) { (schema, id) =>
             // create resource with explicit id
             (put & entity(as[Json]) & pathEndOrSingleSlash) { source =>
               (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
@@ -120,7 +120,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
                       val result = (revOpt, tagOpt) match {
                         case (None, None) =>
                           fetchAttachment[Task, AkkaOut](Id(proj.ref, id), Some(Ref(schema)), filename).value.runAsync
-                        //We will deal with this case later on
+                        //TODO: We will deal with this case later on
                         case (Some(_), Some(_)) => Future.failed(new RuntimeException())
                         case (Some(rev), _) =>
                           fetchAttachment[Task, AkkaOut](Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync
@@ -153,7 +153,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
   private def encodedFilenameOrElse(info: Attachment.BinaryAttributes, value: => String): String =
     Try(URLEncoder.encode(info.filename, "UTF-8")).getOrElse(value)
 
-  //TODO: TO be done with a refactor of resources method.
+  //TODO: To be done with a refactor of resources method.
   private def schemas(implicit token: Option[AuthToken]): Route = ???
 
   private implicit class ProjectSyntax(proj: Project) {

@@ -218,7 +218,7 @@ object Resources {
     } yield tag(id, rev, schemaOpt, revValue, tagValue)
     result match {
       case Some(v) => v
-      case _       => EitherT.leftT(InvalidPayload(id.ref, json))
+      case _       => EitherT.leftT(InvalidPayload(id.ref, "Both 'tag' and 'rev' fields must be present."))
     }
   }
 

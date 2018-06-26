@@ -1,10 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.Err
+import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import io.circe.Json
 
 /**
   * Enumeration of resource rejection types.
@@ -52,10 +51,10 @@ object Rejection {
     * Signals an attempt to perform a request with an invalid payload.
     *
     * @param ref a reference to the resource
-    * @param json the incorrect json payload
+    * @param reason the human readable reason for the rejection
     */
-  final case class InvalidPayload(ref: Ref, json: Json)
-      extends Rejection(s"Resource '${ref.show}' with invalid payload '$json'.")
+  final case class InvalidPayload(ref: Ref, reason: String)
+      extends Rejection(s"Resource '${ref.show}' with invalid payload due to '$reason'.")
 
   /**
     * Signals an attempt to interact with a resource that doesn't exist.
