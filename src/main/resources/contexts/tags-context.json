@@ -1,0 +1,11 @@
+{
+  "@context": {
+    "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
+    "tags": {
+      "@id": "nxv:tags"
+    },
+    "rev": {
+      "@id": "nxv:rev"
+    }
+  }
+}

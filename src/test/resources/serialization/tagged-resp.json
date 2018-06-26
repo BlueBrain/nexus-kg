@@ -1,0 +1,10 @@
+{
+  "project": "org/projectName",
+  "id": "https://bbp.epfl.ch/nexus/data/resourceName",
+  "rev": 1,
+  "targetRev": 2,
+  "tag": "tagName",
+  "instant": "{timestamp}",
+  "identity": {"realm":"realm","sub":"sub:1234","type":"UserRef"},
+  "type": "TagAdded"
+}

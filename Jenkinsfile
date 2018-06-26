@@ -63,8 +63,8 @@ pipeline {
             steps {
                 checkout scm
                 sh 'sbt releaseEarly universal:packageZipTarball'
-                sh "mv modules/service/target/universal/kg-service-*.tgz ./kg-service.tgz"
-                sh "oc start-build kg-build --from-file=kg-service.tgz --follow"
+                sh "mv target/universal/kg*.tgz ./kg.tgz"
+                sh "oc start-build kg-build --from-file=kg.tgz --follow"
                 sh "oc scale statefulset kg --replicas=0 --namespace=bbp-nexus-dev"
                 sleep 10
                 wait(ENDPOINT, false)
@@ -82,8 +82,8 @@ pipeline {
             steps {
                 checkout scm
                 sh 'sbt releaseEarly universal:packageZipTarball'
-                sh "mv modules/service/target/universal/kg-service-*.tgz ./kg-service.tgz"
-                sh "oc start-build kg-build --from-file=kg-service.tgz --follow"
+                sh "mv target/universal/kg*.tgz ./kg.tgz"
+                sh "oc start-build kg-build --from-file=kg.tgz --follow"
                 openshiftTag srcStream: 'kg', srcTag: 'latest', destStream: 'kg', destTag: version.substring(1), verbose: 'false'
             }
         }
