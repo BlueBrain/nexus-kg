@@ -80,12 +80,14 @@ object Event {
     *
     * @param id       the resource identifier
     * @param rev      the revision that this event generated
+    * @param types    the collection of new known resource types
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
   final case class Deprecated(
       id: Id[ProjectRef],
       rev: Long,
+      types: Set[AbsoluteIri],
       instant: Instant,
       identity: Identity
   ) extends Event

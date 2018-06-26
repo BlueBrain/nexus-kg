@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.persistence
 
 import akka.persistence.journal.{Tagged, WriteEventAdapter}
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
+import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Deprecated, Updated}
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 
@@ -18,6 +18,8 @@ class TaggingAdapter extends WriteEventAdapter {
 
   override def toJournal(event: Any): Any = event match {
     case Created(id, _, _, types, _, _, _) => Tagged(event, tagsFrom(id, types))
+    case Updated(id, _, types, _, _, _)    => Tagged(event, tagsFrom(id, types))
+    case Deprecated(id, _, types, _, _)    => Tagged(event, tagsFrom(id, types))
     case ev: Event                         => Tagged(ev, tagsFrom(ev.id, types = Set.empty))
     case _                                 => event
   }
