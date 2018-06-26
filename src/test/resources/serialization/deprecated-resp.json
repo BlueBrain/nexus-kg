@@ -2,6 +2,7 @@
   "project": "org/projectName",
   "id": "https://bbp.epfl.ch/nexus/data/resourceName",
   "rev": 1,
+  "types":["https://bbp.epfl.ch/nexus/types/type1","https://bbp.epfl.ch/nexus/types/type2"],
   "instant": "{timestamp}",
   "identity": {"realm":"realm","sub":"sub:1234","type":"UserRef"},
   "type": "Deprecated"
