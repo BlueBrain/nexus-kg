@@ -34,10 +34,10 @@ object ServiceDescriptionRoutes {
   /**
     * Default factory method for building [[ServiceDescriptionRoutes]] instances.
     *
-    * @param descConfig the implicitly available description service configuration
+    * @param descConfig the description service configuration
     * @return a new [[ServiceDescriptionRoutes]] instance
     */
-  def apply()(implicit descConfig: Description): ServiceDescriptionRoutes =
+  def apply(descConfig: Description): ServiceDescriptionRoutes =
     new ServiceDescriptionRoutes(ServiceDescription(descConfig.name, descConfig.version))
 
 }

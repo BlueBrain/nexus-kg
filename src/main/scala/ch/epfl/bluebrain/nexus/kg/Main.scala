@@ -68,7 +68,7 @@ object Main {
     implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
     val resourceRoutes     = ResourceRoutes().routes
     val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
-    val serviceDesc        = ServiceDescriptionRoutes().routes
+    val serviceDesc        = ServiceDescriptionRoutes(appConfig.description).routes
 
     val logger = Logging(as, getClass)
 
