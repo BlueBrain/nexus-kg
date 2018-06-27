@@ -6,6 +6,7 @@ import akka.actor.{ActorSystem, Address, AddressFromURIString}
 import akka.cluster.Cluster
 import akka.event.Logging
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
@@ -16,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Repo
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes
+import ch.epfl.bluebrain.nexus.kg.routes.{ResourceRoutes, ServiceDescriptionRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import com.typesafe.config.ConfigFactory
@@ -24,8 +25,8 @@ import kamon.Kamon
 import kamon.system.SystemMetrics
 import monix.eval.Task
 
-import scala.concurrent.duration._
 import scala.concurrent.Await
+import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 //noinspection TypeAnnotation
@@ -67,6 +68,7 @@ object Main {
     implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
     val resourceRoutes     = ResourceRoutes().routes
     val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
+    val serviceDesc        = ServiceDescriptionRoutes(appConfig.description).routes
 
     val logger = Logging(as, getClass)
 
@@ -74,7 +76,7 @@ object Main {
       logger.info("==== Cluster is Live ====")
 
       val httpBinding = {
-        Http().bindAndHandle(apiRoutes, appConfig.http.interface, appConfig.http.port)
+        Http().bindAndHandle(apiRoutes ~ serviceDesc, appConfig.http.interface, appConfig.http.port)
       }
       httpBinding onComplete {
         case Success(binding) =>
