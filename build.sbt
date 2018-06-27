@@ -25,16 +25,16 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "0.2.2"
+val adminVersion                = "0.2.3"
 val commonsVersion              = "0.10.12"
 val rdfVersion                  = "0.2.1"
 val serviceVersion              = "0.10.13"
 val sourcingVersion             = "0.10.7"
 val akkaVersion                 = "2.5.13"
 val akkaCorsVersion             = "0.3.0"
-val akkaHttpVersion             = "10.1.1"
+val akkaHttpVersion             = "10.1.3"
 val akkaPersistenceInMemVersion = "2.5.1.1"
-val akkaPersistenceCassVersion  = "0.84"
+val akkaPersistenceCassVersion  = "0.85"
 val catsVersion                 = "1.1.0"
 val catsEffectVersion           = "1.0.0-RC2"
 val circeVersion                = "0.9.3"
@@ -54,13 +54,13 @@ lazy val rdfAkka              = "ch.epfl.bluebrain.nexus"         %% "rdf-akka" 
 lazy val rdfCirce             = "ch.epfl.bluebrain.nexus"         %% "rdf-circe"                  % rdfVersion
 lazy val rdfNexus             = "ch.epfl.bluebrain.nexus"         %% "rdf-nexus"                  % rdfVersion
 lazy val serviceIndexing      = "ch.epfl.bluebrain.nexus"         %% "service-indexing"           % serviceVersion
+lazy val serviceKamon         = "ch.epfl.bluebrain.nexus"         %% "service-kamon"              % serviceVersion
+lazy val serviceHttp          = "ch.epfl.bluebrain.nexus"         %% "service-http"               % serviceVersion
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus"         %% "sourcing-core"              % sourcingVersion
 lazy val sourcingAkka         = "ch.epfl.bluebrain.nexus"         %% "sourcing-akka"              % sourcingVersion
 lazy val sourcingMem          = "ch.epfl.bluebrain.nexus"         %% "sourcing-mem"               % sourcingVersion
 lazy val shaclValidator       = "ch.epfl.bluebrain.nexus"         %% "shacl-validator"            % commonsVersion
 lazy val sparqlClient         = "ch.epfl.bluebrain.nexus"         %% "sparql-client"              % commonsVersion
-lazy val serviceKamon         = "ch.epfl.bluebrain.nexus"         %% "service-kamon"              % commonsVersion
-lazy val serviceHttp          = "ch.epfl.bluebrain.nexus"         %% "service-http"               % commonsVersion
 lazy val akkaCluster          = "com.typesafe.akka"               %% "akka-cluster"               % akkaVersion
 lazy val akkaClusterSharding  = "com.typesafe.akka"               %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"               %% "akka-distributed-data"      % akkaVersion
