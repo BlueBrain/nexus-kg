@@ -39,14 +39,14 @@ object Main {
     val config             = ConfigFactory.load()
     implicit val appConfig = Settings(config).appConfig
 
-    implicit val as = ActorSystem(appConfig.description.name, config)
+    implicit val as = ActorSystem(appConfig.description.fullName, config)
     implicit val ec = as.dispatcher
     implicit val mt = ActorMaterializer()
 
     val cluster = Cluster(as)
     val seeds: List[Address] = appConfig.cluster.seeds.toList
       .flatMap(_.split(","))
-      .map(addr => AddressFromURIString(s"akka.tcp://${appConfig.description.version}@$addr")) match {
+      .map(addr => AddressFromURIString(s"akka.tcp://${appConfig.description.fullName}@$addr")) match {
       case Nil      => List(cluster.selfAddress)
       case nonEmpty => nonEmpty
     }

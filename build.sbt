@@ -25,16 +25,16 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "0.2.2"
-val commonsVersion              = "0.10.12"
+val adminVersion                = "0.2.3"
+val commonsVersion              = "0.10.13"
 val rdfVersion                  = "0.2.1"
 val serviceVersion              = "0.10.13"
 val sourcingVersion             = "0.10.7"
 val akkaVersion                 = "2.5.13"
 val akkaCorsVersion             = "0.3.0"
-val akkaHttpVersion             = "10.1.1"
+val akkaHttpVersion             = "10.1.3"
 val akkaPersistenceInMemVersion = "2.5.1.1"
-val akkaPersistenceCassVersion  = "0.84"
+val akkaPersistenceCassVersion  = "0.85"
 val catsVersion                 = "1.1.0"
 val catsEffectVersion           = "1.0.0-RC2"
 val circeVersion                = "0.9.3"

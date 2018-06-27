@@ -36,10 +36,14 @@ object AppConfig {
   final case class Description(name: String, environment: String) {
 
     /**
-      * Returns the version of the service
-      * @return version of the service
+      * @return the version of the service
       */
-    def version: String = s"$name-${BuildInfo.version.replaceAll("\\W", "-")}-$environment"
+    def version: String = BuildInfo.version.replaceAll("\\W", "-")
+
+    /**
+      * @return the full name of the service (name + version + environment
+      */
+    def fullName: String = s"$name-$version-$environment"
 
   }
 
