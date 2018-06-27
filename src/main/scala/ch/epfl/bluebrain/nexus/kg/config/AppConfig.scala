@@ -87,4 +87,6 @@ object AppConfig {
     */
   final case class IamConfig(baseUri: Uri)
 
+  implicit def descriptionFromImplicit(implicit appConfig: AppConfig): Description = appConfig.description
+
 }
