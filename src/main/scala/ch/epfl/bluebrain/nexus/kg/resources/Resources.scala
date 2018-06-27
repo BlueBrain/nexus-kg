@@ -4,6 +4,7 @@ import java.util.UUID
 
 import cats.data.{EitherT, OptionT}
 import cats.{Applicative, Monad}
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Contexts
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -218,7 +219,7 @@ object Resources {
       schemaOpt: Option[Ref],
       json: Json
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
-    val cursor = (json deepMerge Contexts.tags).asGraph.cursor()
+    val cursor = (json deepMerge Contexts.tagCtx).asGraph.cursor()
     val result = for {
       revNode  <- cursor.downField(nxv.rev).values.flatMap(_.headOption)
       revValue <- revNode.asLiteral.filter(_.isNumeric).flatMap(l => Try(l.lexicalForm.toLong).toOption)
@@ -382,8 +383,6 @@ object Resources {
     * @param source the source representation of the entity
     */
   def materialize[F[_]: Monad: Resolution](source: Json): EitherT[F, Rejection, ResourceF.Value] = {
-    def contextValueOf(json: Json): Json =
-      json.hcursor.downField("@context").focus.getOrElse(Json.obj())
 
     def flattenValue(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
       (contextValue.asString, contextValue.asArray, contextValue.asObject) match {
@@ -392,7 +391,7 @@ object Resources {
           for {
             next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
             res   <- next.resolveOr(NotFound)
-            value <- flattenValue(next :: refs, contextValueOf(res.value))
+            value <- flattenValue(next :: refs, res.value.contextValue)
           } yield value
         case (_, Some(arr), _) =>
           import cats.implicits._
@@ -407,7 +406,7 @@ object Resources {
     def graphFor(flattenCtx: Json): Graph =
       (source deepMerge Json.obj("@context" -> flattenCtx)).asGraph
 
-    flattenValue(Nil, contextValueOf(source))
+    flattenValue(Nil, source.contextValue)
       .map(ctx => Value(source, ctx, graphFor(ctx)))
   }
 

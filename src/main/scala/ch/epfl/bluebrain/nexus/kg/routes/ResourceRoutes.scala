@@ -10,8 +10,10 @@ import akka.http.scaladsl.server.Directives.{fileUpload, parameter, pathPrefix, 
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{hasPermission, _}
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives.{projectReference, _}
@@ -23,6 +25,10 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescript
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
+import ch.epfl.bluebrain.nexus.rdf.Graph
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -36,9 +42,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
                      store: AttachmentStore[Task, AkkaIn, AkkaOut]) {
 
   def routes: Route =
-    token { implicit optToken =>
-      resources ~ schemas
-    }
+    token(implicit optToken => resources)
 
   private def resources(implicit token: Option[AuthToken]): Route =
     (pathPrefix("resources") & project) { implicit proj =>
@@ -103,14 +107,27 @@ class ResourceRoutes(implicit repo: Repo[Task],
                 (get & pathEndOrSingleSlash) {
                   (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
                     (revOpt, tagOpt) match {
-                      case (None, None) => complete(fetch[Task](Id(proj.ref, id), Some(Ref(schema))).value.runAsync)
+                      case (None, None) =>
+                        complete(
+                          fetch[Task](Id(proj.ref, id), Some(Ref(schema)))
+                            .flatMap(materialize[Task](_).toOption)
+                            .value
+                            .runAsync)
                       case (Some(_), Some(_)) =>
                         reject(
                           validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously."))
                       case (Some(rev), _) =>
-                        complete(fetch[Task](Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
+                        complete(
+                          fetch[Task](Id(proj.ref, id), rev, Some(Ref(schema)))
+                            .flatMap(materialize[Task](_).toOption)
+                            .value
+                            .runAsync)
                       case (_, Some(tag)) =>
-                        complete(fetch[Task](Id(proj.ref, id), tag, Some(Ref(schema))).value.runAsync)
+                        complete(
+                          fetch[Task](Id(proj.ref, id), tag, Some(Ref(schema)))
+                            .flatMap(materialize[Task](_).toOption)
+                            .value
+                            .runAsync)
                     }
                   }
                 } ~
@@ -153,9 +170,6 @@ class ResourceRoutes(implicit repo: Repo[Task],
   private def encodedFilenameOrElse(info: Attachment.BinaryAttributes, value: => String): String =
     Try(URLEncoder.encode(info.filename, "UTF-8")).getOrElse(value)
 
-  //TODO: To be done with a refactor of resources method.
-  private def schemas(implicit token: Option[AuthToken]): Route = ???
-
   private implicit class ProjectSyntax(proj: Project) {
     def ref: ProjectRef = ProjectRef(proj.uuid)
   }
@@ -163,7 +177,20 @@ class ResourceRoutes(implicit repo: Repo[Task],
   private implicit def projectToResolution(implicit proj: Project): Resolution[Task] =
     InProjectResolution[Task](proj.ref)
 
-  private implicit def resourceEncoder: Encoder[Resource] = ???
+  private implicit def resourceEncoder: Encoder[Resource] = Encoder.encodeJson.contramap { res =>
+    json(res.id.value, res.metadata(_.iri) ++ res.typeGraph, res.value.contextValue)
+  }
+
+  private implicit def resourceVEncoder: Encoder[ResourceV] = Encoder.encodeJson.contramap { res =>
+    json(res.id.value, res.value.graph, res.value.ctx)
+  }
+
+  private def json(id: AbsoluteIri, graph: Graph, ctx: Json): Json = {
+    val primaryNode     = Some(IriNode(id))
+    val mergedCtx: Json = ctx mergeContext resourceCtx
+    val jsonResult      = graph.asJson(mergedCtx, primaryNode).getOrElse(graph.asJson)
+    jsonResult deepMerge Json.obj("@context" -> ctx).addContext(resourceCtxUri)
+  }
 
 }
 
