@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.Uri
+import akka.stream.ActorMaterializer
 import cats.MonadError
 import cats.syntax.flatMap._
 import cats.syntax.functor._
@@ -10,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.SparqlConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
+import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -75,12 +76,10 @@ object SparqlIndexer {
   /**
     * Starts the index process for an sparql client
     *
-    * @param project  the project reference
     * @param view     the view for which to start the index
     * @param pluginId the persistence query plugin id to query the event log
     */
   final def start(
-      project: ProjectRef,
       view: View,
       pluginId: String
   )(implicit repo: Repo[Task],
@@ -88,22 +87,18 @@ object SparqlIndexer {
     s: Scheduler,
     ucl: HttpClient[Task, ResultSet],
     config: SparqlConfig): ActorRef = {
+
+    implicit val mt  = ActorMaterializer()
+    implicit val ul  = HttpClient.taskHttpClient
+    implicit val res = InProjectResolution[Task](view.ref)
+
     val client  = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
     val indexer = new SparqlIndexer(client)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
       pluginId,
-      tag = s"project=${project.id}",
+      tag = s"project=${view.ref.id}",
       name = s"sparql-indexer-${view.name}"
     )
   }
-
-  /**
-    * @param client SPARQL client
-    * @return anew [[SparqlIndexer]]
-    */
-  final def apply[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Repo[F],
-                                                             F: MonadError[F, Throwable],
-                                                             ucl: HttpClient[F, ResultSet]): SparqlIndexer[F] =
-    new SparqlIndexer(client)
 }

@@ -120,6 +120,7 @@ object AppConfig {
     */
   final case class ElasticConfig(base: Uri, indexPrefix: String, docType: String)
 
-  implicit def fromConfigToSparql(implicit appConfig: AppConfig): SparqlConfig = appConfig.sparqlConfig
+  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig   = appConfig.sparqlConfig
+  implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig = appConfig.elasticConfig
 
 }

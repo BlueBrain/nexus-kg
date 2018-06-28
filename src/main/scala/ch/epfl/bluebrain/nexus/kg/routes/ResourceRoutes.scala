@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives.{fileUpload, parameter, pathPrefix, _}
 import akka.http.scaladsl.server.Route
+import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
@@ -20,7 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives.{projectReference
 import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
-import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.{Resource, _}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
@@ -108,26 +109,14 @@ class ResourceRoutes(implicit repo: Repo[Task],
                   (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
                     (revOpt, tagOpt) match {
                       case (None, None) =>
-                        complete(
-                          fetch[Task](Id(proj.ref, id), Some(Ref(schema)))
-                            .flatMap(materialize[Task](_).toOption)
-                            .value
-                            .runAsync)
+                        complete(fetch[Task](Id(proj.ref, id), Some(Ref(schema))).materializeRun)
                       case (Some(_), Some(_)) =>
                         reject(
                           validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously."))
                       case (Some(rev), _) =>
-                        complete(
-                          fetch[Task](Id(proj.ref, id), rev, Some(Ref(schema)))
-                            .flatMap(materialize[Task](_).toOption)
-                            .value
-                            .runAsync)
+                        complete(fetch[Task](Id(proj.ref, id), rev, Some(Ref(schema))).materializeRun)
                       case (_, Some(tag)) =>
-                        complete(
-                          fetch[Task](Id(proj.ref, id), tag, Some(Ref(schema)))
-                            .flatMap(materialize[Task](_).toOption)
-                            .value
-                            .runAsync)
+                        complete(fetch[Task](Id(proj.ref, id), tag, Some(Ref(schema))).materializeRun)
                     }
                   }
                 } ~
@@ -158,6 +147,11 @@ class ResourceRoutes(implicit repo: Repo[Task],
           }
       }
     }
+
+  private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
+    def materializeRun(implicit r: Resolution[Task]): Future[Option[ResourceV]] =
+      resource.flatMap(materializeWithMeta[Task](_).toOption).value.runAsync
+  }
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
     val filename = encodedFilenameOrElse(info, "attachment")
