@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
 import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -10,13 +11,15 @@ import scala.concurrent.duration.Duration
 /**
   * Application
   *
-  * @param description  service description
-  * @param http         http interface configuration
-  * @param cluster      akka cluster configuration
-  * @param persistence  persistence configuration
-  * @param attachments  attachments configuration
-  * @param admin        admin client configuration
-  * @param iam          IAM client configuration
+  * @param description   service description
+  * @param http          http interface configuration
+  * @param cluster       akka cluster configuration
+  * @param persistence   persistence configuration
+  * @param attachments   attachments configuration
+  * @param admin         admin client configuration
+  * @param iam           IAM client configuration
+  * @param sparqlConfig  Sparql endpoint configuration
+  * @param elasticConfig ElasticSearch endpoint configuration
   */
 final case class AppConfig(description: Description,
                            http: HttpConfig,
@@ -24,7 +27,9 @@ final case class AppConfig(description: Description,
                            persistence: PersistenceConfig,
                            attachments: AttachmentsConfig,
                            admin: AdminConfig,
-                           iam: IamConfig)
+                           iam: IamConfig,
+                           sparqlConfig: SparqlConfig,
+                           elasticConfig: ElasticConfig)
 
 object AppConfig {
 
@@ -86,5 +91,35 @@ object AppConfig {
     * @param baseUri base URI of IAM service
     */
   final case class IamConfig(baseUri: Uri)
+
+  /**
+    * Collection of configurable settings specific to the Sparql indexer.
+    *
+    * @param base     the base uri
+    * @param username the SPARQL endpoint username
+    * @param password the SPARQL endpoint password
+    */
+  final case class SparqlConfig(base: Uri, username: Option[String], password: Option[String]) {
+
+    /**
+      * @return the optional credentials wrapped on a [[BasicHttpCredentials]]
+      */
+    def akkaCredentials: Option[BasicHttpCredentials] =
+      for {
+        user <- username
+        pass <- password
+      } yield BasicHttpCredentials(user, pass)
+  }
+
+  /**
+    * Collection of configurable settings specific to the ElasticSearch indexer.
+    *
+    * @param base        the application base uri for operating on resources
+    * @param indexPrefix the prefix of the index
+    * @param docType     the name of the `type`
+    */
+  final case class ElasticConfig(base: Uri, indexPrefix: String, docType: String)
+
+  implicit def fromConfigToSparql(implicit appConfig: AppConfig): SparqlConfig = appConfig.sparqlConfig
 
 }
