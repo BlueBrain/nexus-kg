@@ -11,16 +11,12 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
-import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
@@ -33,10 +29,10 @@ import monix.execution.Scheduler
   *
   * @param client the ElasticSearch client
   */
-class ElasticIndexer[F[_]: Resolution](client: ElasticClient[F], index: String)(implicit repo: Repo[F],
-                                                                                config: ElasticConfig,
-                                                                                F: MonadError[F, Throwable],
-                                                                                ucl: HttpClient[F, Json]) {
+class ElasticIndexer[F[_]](client: ElasticClient[F], index: String)(implicit repo: Repo[F],
+                                                                    config: ElasticConfig,
+                                                                    F: MonadError[F, Throwable],
+                                                                    ucl: HttpClient[F, Json]) {
   private val revKey = "_rev"
 
   /**
@@ -66,25 +62,13 @@ class ElasticIndexer[F[_]: Resolution](client: ElasticClient[F], index: String)(
       .get[Json](index, config.docType, id.elasticId, include = Set(revKey))
       .map(j => j.hcursor.get[Long](revKey).toOption)
 
-  private def indexResource(res: Resource): F[Unit] =
-    materialize(res).value.flatMap {
-      case Left(err) =>
-        F.raiseError(err)
-      case Right(r) =>
-        val payload = metadataJson(r) deepMerge Json.obj("original" -> Json.fromString(json(r).noSpaces))
-        client.update(index, config.docType, r.id.elasticId, payload)
-    }
+  private def indexResource(res: Resource): F[Unit] = {
+    val primaryNode = Some(IriNode(res.id.value))
+    val graph       = res.metadata(_.iri) ++ res.typeGraph
 
-  private def metadataJson(res: ResourceV): Json =
-    json(res.id.value, res.metadata(_.iri) ++ res.typeGraph, res.value.ctx).removeKeys("@context")
-
-  private def json(res: ResourceV): Json =
-    json(res.id.value, res.value.graph, res.value.ctx).removeKeys("@context")
-
-  private def json(id: AbsoluteIri, graph: Graph, ctx: Json): Json = {
-    val primaryNode     = Some(IriNode(id))
-    val mergedCtx: Json = ctx mergeContext resourceCtx
-    graph.asJson(mergedCtx, primaryNode).getOrElse(graph.asJson)
+    val payload = graph.asJson(resourceCtx, primaryNode).getOrElse(graph.asJson)
+    val merged  = payload deepMerge Json.obj("original" -> Json.fromString(res.value.noSpaces))
+    client.update(index, config.docType, res.id.elasticId, merged)
   }
 
 }
@@ -105,7 +89,6 @@ object ElasticIndexer {
     implicit val mt         = ActorMaterializer()
     implicit val ul         = HttpClient.taskHttpClient
     implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
-    implicit val res        = InProjectResolution[Task](view.ref)
 
     val client  = ElasticClient[Task](config.base, ElasticQueryClient[Task](config.base))
     val indexer = new ElasticIndexer(client, elasticIndex(view))
@@ -121,8 +104,6 @@ object ElasticIndexer {
     s"${config.indexPrefix}_${view.name}"
 
   private[indexing] implicit class ResIdSyntax(id: ResId) {
-
-    def elasticId: String =
-      URLEncoder.encode(id.value.show, "UTF-8").toLowerCase
+    def elasticId: String = URLEncoder.encode(id.value.show, "UTF-8").toLowerCase
   }
 }

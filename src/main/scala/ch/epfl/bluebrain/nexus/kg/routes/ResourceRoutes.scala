@@ -26,8 +26,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, 
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, _}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
-import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import io.circe.{Encoder, Json}
@@ -172,18 +170,17 @@ class ResourceRoutes(implicit repo: Repo[Task],
     InProjectResolution[Task](proj.ref)
 
   private implicit def resourceEncoder: Encoder[Resource] = Encoder.encodeJson.contramap { res =>
-    json(res.id.value, res.metadata(_.iri) ++ res.typeGraph, res.value.contextValue)
+    val graph       = res.metadata(_.iri) ++ res.typeGraph
+    val primaryNode = Some(IriNode(res.id.value))
+    graph.asJson(resourceCtx, primaryNode).getOrElse(graph.asJson).removeKeys("@context").addContext(resourceCtxUri)
   }
 
   private implicit def resourceVEncoder: Encoder[ResourceV] = Encoder.encodeJson.contramap { res =>
-    json(res.id.value, res.value.graph, res.value.ctx)
-  }
-
-  private def json(id: AbsoluteIri, graph: Graph, ctx: Json): Json = {
-    val primaryNode     = Some(IriNode(id))
-    val mergedCtx: Json = ctx mergeContext resourceCtx
-    val jsonResult      = graph.asJson(mergedCtx, primaryNode).getOrElse(graph.asJson)
-    jsonResult deepMerge Json.obj("@context" -> ctx).addContext(resourceCtxUri)
+    val graph       = res.value.graph
+    val primaryNode = Some(IriNode(res.id.value))
+    val mergedCtx   = res.value.ctx mergeContext resourceCtx
+    val jsonResult  = graph.asJson(mergedCtx, primaryNode).getOrElse(graph.asJson)
+    jsonResult deepMerge Json.obj("@context" -> res.value.ctx).addContext(resourceCtxUri)
   }
 
 }
