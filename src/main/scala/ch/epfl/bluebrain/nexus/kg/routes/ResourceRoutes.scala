@@ -21,10 +21,10 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives.{projectReference
 import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
-import ch.epfl.bluebrain.nexus.kg.resources.{Resource, _}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
+import ch.epfl.bluebrain.nexus.kg.resources.{Resource, _}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
