@@ -1,18 +1,24 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.Uri
+import akka.stream.ActorMaterializer
 import cats.MonadError
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.SparqlConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
+import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.akka.iri._
+import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
+import monix.eval.Task
+import monix.execution.Scheduler
 import org.apache.jena.query.ResultSet
 
 import scala.util.Try
@@ -20,7 +26,7 @@ import scala.util.Try
 /**
   * Indexer which takes a resource event and calls SPARQL client with relevant update if required
   *
-  * @param client SPARQL client
+  * @param client the SPARQL client
   */
 class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Repo[F],
                                                                F: MonadError[F, Throwable],
@@ -49,9 +55,7 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
   }
 
   private def query(id: ResId) =
-    s"""
-       |SELECT ?o WHERE {<${id.value.show}> <${nxv.rev.value.show}> ?o}
-    """.stripMargin
+    s"SELECT ?o WHERE {<${id.value.show}> <${nxv.rev.value.show}> ?o}"
 
   private def fetchRevision(id: ResId): F[Option[Long]] =
     client.queryRs(query(id)).map { rs =>
@@ -70,11 +74,31 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
 object SparqlIndexer {
 
   /**
-    * @param client SPARQL client
-    * @return anew [[SparqlIndexer]]
+    * Starts the index process for an sparql client
+    *
+    * @param view     the view for which to start the index
+    * @param pluginId the persistence query plugin id to query the event log
     */
-  final def apply[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Repo[F],
-                                                             F: MonadError[F, Throwable],
-                                                             ucl: HttpClient[F, ResultSet]): SparqlIndexer[F] =
-    new SparqlIndexer(client)
+  final def start(
+      view: View,
+      pluginId: String
+  )(implicit repo: Repo[Task],
+    as: ActorSystem,
+    s: Scheduler,
+    ucl: HttpClient[Task, ResultSet],
+    config: SparqlConfig): ActorRef = {
+
+    implicit val mt  = ActorMaterializer()
+    implicit val ul  = HttpClient.taskHttpClient
+    implicit val res = InProjectResolution[Task](view.ref)
+
+    val client  = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
+    val indexer = new SparqlIndexer(client)
+    SequentialTagIndexer.startLocal[Event](
+      (ev: Event) => indexer(ev).runAsync,
+      pluginId,
+      tag = s"project=${view.ref.id}",
+      name = s"sparql-indexer-${view.name}"
+    )
+  }
 }

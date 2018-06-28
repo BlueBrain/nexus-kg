@@ -32,7 +32,9 @@ class Settings(config: Config) extends Extension {
     loadConfigOrThrow[PersistenceConfig](config, "app.persistence"),
     loadConfigOrThrow[AttachmentsConfig](config, "app.attachments"),
     loadConfigOrThrow[AdminConfig](config, "app.admin"),
-    loadConfigOrThrow[IamConfig](config, "app.iam")
+    loadConfigOrThrow[IamConfig](config, "app.iam"),
+    loadConfigOrThrow[SparqlConfig](config, "app.sparql"),
+    loadConfigOrThrow[ElasticConfig](config, "app.elastic")
   )
 
 }

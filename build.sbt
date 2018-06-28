@@ -26,7 +26,7 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "0.2.3"
-val commonsVersion              = "0.10.13"
+val commonsVersion              = "0.10.14"
 val rdfVersion                  = "0.2.1"
 val serviceVersion              = "0.10.13"
 val sourcingVersion             = "0.10.7"
@@ -48,6 +48,7 @@ val wesoValidatorVersion        = "0.0.65-nexus1"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus"         %% "admin-client"               % adminVersion
+lazy val elasticClient        = "ch.epfl.bluebrain.nexus"         %% "elastic-client"             % commonsVersion
 lazy val rdfCore              = "ch.epfl.bluebrain.nexus"         %% "rdf-core"                   % rdfVersion
 lazy val rdfJena              = "ch.epfl.bluebrain.nexus"         %% "rdf-jena"                   % rdfVersion
 lazy val rdfAkka              = "ch.epfl.bluebrain.nexus"         %% "rdf-akka"                   % rdfVersion
@@ -108,14 +109,15 @@ lazy val kg = project
       catsCore,
       catsEffect,
       circeCore,
+      elasticClient,
       journalCore,
       logbackClassic,
       monixTail,
       pureconfig,
-      wesoSchema,
       sparqlClient,
       serviceKamon,
       serviceHttp,
+      wesoSchema,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
       scalaTest            % Test
