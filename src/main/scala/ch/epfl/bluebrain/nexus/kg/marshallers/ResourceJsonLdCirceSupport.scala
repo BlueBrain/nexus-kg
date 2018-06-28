@@ -1,21 +1,20 @@
 package ch.epfl.bluebrain.nexus.kg.marshallers
 
-import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller, ToResponseMarshaller}
 import akka.http.scaladsl.marshalling.GenericMarshallers.eitherMarshaller
 import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers._
+import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller, ToResponseMarshaller}
 import akka.http.scaladsl.model.{HttpEntity, HttpResponse, StatusCode, StatusCodes}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.{JsonLdCirceSupport, RdfMediaTypes}
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import io.circe.{Encoder, Json, Printer}
-
 trait ResourceJsonLdCirceSupport extends JsonLdCirceSupport {
 
   val rejectionEncoder: Encoder[Rejection] = Encoder { rejection =>
     Json.obj(
-      "@context" -> Json.fromString(Vocabulary.nxv.errorContext.show),
+      "@context" -> Json.fromString(errorCtxUri.show),
       "message"  -> Json.fromString(rejection.msg)
     )
   }

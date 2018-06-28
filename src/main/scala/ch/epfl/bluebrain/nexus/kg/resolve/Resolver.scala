@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 
@@ -48,7 +49,7 @@ object Resolver {
     */
   final def apply(resource: ResourceV): Option[Resolver] =
     if (resource.types.contains(nxv.Resolver.value)) {
-      resource.value.graph.cursor(resource.id.value).downField(_ == nxv.priority).values match {
+      resource.value.graph.cursor(resource.id.value).downField(nxv.priority).values match {
         case Some(values) =>
           val ints = values.flatMap { n =>
             n.asLiteral.filter(_.isNumeric).flatMap(l => Try(l.lexicalForm.toInt).toOption).toIterable

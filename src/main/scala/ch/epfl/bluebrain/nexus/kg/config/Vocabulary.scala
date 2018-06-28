@@ -47,9 +47,6 @@ object Vocabulary {
     val ShaclSchema: AbsoluteIri    = url"$schemas/schacl"
     val OntologySchema: AbsoluteIri = url"$schemas/ontology"
 
-    val contexts                  = "https://bluebrain.github.io/nexus/contexts"
-    val errorContext: AbsoluteIri = url"$contexts/error"
-
   }
 
   /**

@@ -71,7 +71,7 @@ final case class ResourceF[P, S, A](
     Graph(
       Set[Triple](
         (node, nxv.rev, Literal(rev)),
-        (node, nxv.deprecated, false),
+        (node, nxv.deprecated, deprecated),
         (node, nxv.createdAt, created),
         (node, nxv.updatedAt, updated),
         (node, nxv.createdBy, createdBy),

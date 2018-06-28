@@ -4,6 +4,7 @@ import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 
@@ -56,7 +57,7 @@ object View {
     */
   final def apply(resource: ResourceV): Option[View] =
     if (resource.types.contains(nxv.View.value))
-      resource.value.graph.cursor(resource.id.value).downField(_ == nxv.uuid).values match {
+      resource.value.graph.cursor(resource.id.value).downField(nxv.uuid).values match {
         case Some(values) =>
           val uuids = values.flatMap { n =>
             n.asLiteral
