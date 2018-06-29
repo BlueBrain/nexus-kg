@@ -14,6 +14,8 @@ import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity, Permission
 import ch.epfl.bluebrain.nexus.iam.client.{Caller, IamClient}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.DownstreamServiceError
+import monix.eval.Task
+import monix.execution.Scheduler
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
@@ -42,11 +44,12 @@ object AuthDirectives {
     * @return pass if the ''perms'' is present on the current project, reject with [[AuthorizationFailedRejection]] otherwise
     */
   def hasPermission(perms: Permissions)(implicit projectRef: ProjectReference,
-                                        adminClient: AdminClient[Future],
-                                        token: Option[AuthToken]): Directive0 =
-    onSuccess(adminClient.getProjectAcls(projectRef)).flatMap {
-      case acls if acls.hasAnyPermission(perms) => pass
-      case _                                    => reject(AuthorizationFailedRejection)
+                                        adminClient: AdminClient[Task],
+                                        token: Option[AuthToken],
+                                        s: Scheduler): Directive0 =
+    onSuccess(adminClient.getProjectAcls(projectRef).runAsync).flatMap {
+      case Some(acls) if acls.hasAnyPermission(perms) => pass
+      case _                                          => reject(AuthorizationFailedRejection)
 
     }
 

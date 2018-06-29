@@ -56,7 +56,7 @@ object Main {
     implicit val clock = Clock.systemUTC
 
     val sourcingSettings     = SourcingAkkaSettings(journalPluginId = appConfig.persistence.queryJournalPlugin)
-    implicit val adminClient = AdminClient(appConfig.admin)
+    implicit val adminClient = AdminClient.task(appConfig.admin)
     implicit val iamClient   = IamClient()(IamUri(appConfig.iam.baseUri), as)
 
     val resourceAggregate: Agg[Task] =

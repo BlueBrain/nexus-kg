@@ -6,6 +6,7 @@ import akka.cluster.ddata.Replicator.{Changed, Deleted, Subscribe}
 import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.pattern.pipe
+import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Start
 import ch.epfl.bluebrain.nexus.kg.async.Projects._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
@@ -33,8 +34,8 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
   private val Array(accountUuid, projectUuid) = self.path.name.split('_')
   private val accountRef                      = AccountRef(accountUuid)
   private val projectRef                      = ProjectRef(projectUuid)
-  private val account                         = accountStateKey(accountRef)
-  private val project                         = projectStateKey(projectRef)
+  private val account                         = accountKey(accountRef)
+  private val project                         = projectKey(projectRef)
   private val view                            = viewKey(projectRef)
 
   private val log = Logger(s"${getClass.getSimpleName} ($projectUuid)")
@@ -48,8 +49,8 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
     replicator ! Subscribe(project, self)
     replicator ! Subscribe(view, self)
 
-    val accountState = projects.deprecated(accountRef)
-    val projectState = projects.deprecated(projectRef)
+    val accountState = projects.account(accountRef)
+    val projectState = projects.project(projectRef)
     val views        = projects.views(projectRef)
     val start = for {
       as <- accountState
@@ -63,8 +64,8 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
     case s @ Start(accountStateOpt, projectStateOpt, views) =>
       log.debug(s"Started with state '$s'")
       // for missing values assume not deprecated
-      val accountDeprecated = accountStateOpt.getOrElse(false)
-      val projectDeprecated = projectStateOpt.getOrElse(false)
+      val accountDeprecated = accountStateOpt.exists(_.deprecated)
+      val projectDeprecated = projectStateOpt.exists(_.deprecated)
       context.become(initialized(accountDeprecated, projectDeprecated, views, Map.empty))
       unstashAll()
     case other =>
@@ -106,7 +107,7 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
 
     {
       case c @ Changed(`account`) =>
-        val deprecated = c.get(account).value.value
+        val deprecated = c.get(account).value.value.deprecated
         log.debug(s"Account deprecation changed ($accountState -> $deprecated)")
         context.become(initialized(deprecated, projectState, views, nextMapping))
 
@@ -114,7 +115,7 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
         log.warn("Received account data entry deleted notification, discarding")
 
       case c @ Changed(`project`) =>
-        val deprecated = c.get(project).value.value
+        val deprecated = c.get(project).value.value.deprecated
         log.debug(s"Project deprecation changed ($projectState -> $deprecated)")
         context.become(initialized(accountState, deprecated, views, nextMapping))
 
@@ -136,7 +137,7 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
 }
 
 object ProjectViewCoordinator {
-  private final case class Start(accountState: Option[Boolean], projectState: Option[Boolean], views: Set[View])
+  private final case class Start(accountState: Option[Account], projectState: Option[Project], views: Set[View])
 
   final case class Msg(accountRef: AccountRef, projectRef: ProjectRef)
 

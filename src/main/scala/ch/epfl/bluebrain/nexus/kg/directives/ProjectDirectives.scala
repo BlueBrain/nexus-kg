@@ -1,15 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.directives
 
-import akka.http.scaladsl.server.{Directive1, ValidationRejection}
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{Directive1, ValidationRejection}
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.admin.refined.organization._
 import ch.epfl.bluebrain.nexus.admin.refined.project._
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.CustomAuthRejection
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ProjectNotFound
 import eu.timepit.refined.api.RefType.applyRef
-
-import scala.concurrent.Future
+import monix.eval.Task
+import monix.execution.Scheduler
 
 object ProjectDirectives {
 
@@ -32,10 +34,11 @@ object ProjectDirectives {
   /**
     * Fetches project configuration from nexus admin
     */
-  def project(implicit adminClient: AdminClient[Future], credentials: Option[AuthToken]): Directive1[Project] = {
+  def project(implicit client: AdminClient[Task], cred: Option[AuthToken], s: Scheduler): Directive1[Project] = {
     projectReference().flatMap { ref =>
-      onSuccess(adminClient.getProject(ref)).flatMap { project =>
-        provide(project)
+      onSuccess(client.getProject(ref).runAsync).flatMap {
+        case Some(project) => provide(project)
+        case _             => reject(CustomAuthRejection(ProjectNotFound(ref)))
 
       }
     }
