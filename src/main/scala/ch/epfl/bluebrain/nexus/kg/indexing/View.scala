@@ -7,8 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-
-import scala.util.Try
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 
 /**
   * Enumeration of view types.
@@ -52,41 +51,17 @@ object View {
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.indexing.View]].
     *
-    * @param resource a materialized resource
+    * @param res a materialized resource
     * @return Some(view) if the resource is compatible with a View, None otherwise
     */
-  final def apply(resource: ResourceV): Option[View] =
-    if (resource.types.contains(nxv.View.value))
-      resource.value.graph.cursor(resource.id.value).downField(nxv.uuid).values match {
-        case Some(values) =>
-          val uuids = values.flatMap { n =>
-            n.asLiteral
-              .filter(_.isString)
-              .flatMap(l => Try(UUID.fromString(l.lexicalForm)).map(_.toString.toLowerCase).toOption)
-              .toIterable
-          }
-          uuids.headOption.flatMap { uuid =>
-            if (resource.types.contains(nxv.ElasticView.value))
-              Some(
-                ElasticView(
-                  resource.id.parent,
-                  resource.id.value,
-                  uuid,
-                  resource.rev,
-                  resource.deprecated
-                ))
-            else if (resource.types.contains(nxv.SparqlView.value))
-              Some(
-                SparqlView(
-                  resource.id.parent,
-                  resource.id.value,
-                  uuid,
-                  resource.rev,
-                  resource.deprecated
-                ))
-            else None
-          }
-        case None => None
+  final def apply(res: ResourceV): Option[View] =
+    if (res.types.contains(nxv.View.value))
+      res.value.graph.cursor(res.id.value).downField(nxv.uuid).focus.as[UUID].toOption.flatMap { uuid =>
+        if (res.types.contains(nxv.ElasticView.value))
+          Some(ElasticView(res.id.parent, res.id.value, uuid.toString.toLowerCase(), res.rev, res.deprecated))
+        else if (res.types.contains(nxv.SparqlView.value))
+          Some(SparqlView(res.id.parent, res.id.value, uuid.toString.toLowerCase(), res.rev, res.deprecated))
+        else None
       } else None
 
   /**

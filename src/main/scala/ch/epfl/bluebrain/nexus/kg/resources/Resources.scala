@@ -21,10 +21,9 @@ import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import io.circe.Json
-
-import scala.util.Try
 
 /**
   * Resource operations.
@@ -221,14 +220,12 @@ object Resources {
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
     val cursor = (json deepMerge Contexts.tagCtx).asGraph.cursor()
     val result = for {
-      revNode  <- cursor.downField(nxv.rev).values.flatMap(_.headOption)
-      revValue <- revNode.asLiteral.filter(_.isNumeric).flatMap(l => Try(l.lexicalForm.toLong).toOption)
-      tagNode  <- cursor.downField(nxv.tag).values.flatMap(_.headOption)
-      tagValue <- tagNode.asLiteral.filter(_.isString).map(_.lexicalForm)
+      revValue <- cursor.downField(nxv.rev).focus.as[Long]
+      tagValue <- cursor.downField(nxv.tag).focus.as[String]
     } yield tag(id, rev, schemaOpt, revValue, tagValue)
     result match {
-      case Some(v) => v
-      case _       => EitherT.leftT(InvalidPayload(id.ref, "Both 'tag' and 'rev' fields must be present."))
+      case Right(v) => v
+      case _        => EitherT.leftT(InvalidPayload(id.ref, "Both 'tag' and 'rev' fields must be present."))
     }
   }
 
