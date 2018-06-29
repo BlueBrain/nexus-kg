@@ -9,8 +9,7 @@ import akka.cluster.ddata.Replicator._
 import akka.cluster.ddata.{DistributedData, LWWRegister, LWWRegisterKey}
 import akka.pattern.ask
 import akka.util.Timeout
-import ch.epfl.bluebrain.nexus.admin.client.types.Account
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
