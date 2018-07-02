@@ -57,7 +57,7 @@ object Main {
 
     val sourcingSettings     = SourcingAkkaSettings(journalPluginId = appConfig.persistence.queryJournalPlugin)
     implicit val adminClient = AdminClient.task(appConfig.admin)
-    implicit val iamClient   = IamClient()(IamUri(appConfig.iam.baseUri), as)
+    implicit val iamClient   = IamClient.task()(IamUri(appConfig.iam.baseUri), as)
 
     val resourceAggregate: Agg[Task] =
       TaskAggregate.fromFuture(ShardingAggregate("resources", sourcingSettings)(Repo.initial, Repo.next, Repo.eval))

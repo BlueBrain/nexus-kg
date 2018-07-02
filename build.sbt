@@ -26,6 +26,7 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "0.2.4"
+val iamVersion                  = "0.1.19"
 val commonsVersion              = "0.10.14"
 val rdfVersion                  = "0.2.3"
 val serviceVersion              = "0.10.13"
@@ -48,6 +49,7 @@ val wesoValidatorVersion        = "0.0.65-nexus1"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus"         %% "admin-client"               % adminVersion
+lazy val iamClient            = "ch.epfl.bluebrain.nexus"         %% "iam-client"                 % iamVersion
 lazy val elasticClient        = "ch.epfl.bluebrain.nexus"         %% "elastic-client"             % commonsVersion
 lazy val rdfCore              = "ch.epfl.bluebrain.nexus"         %% "rdf-core"                   % rdfVersion
 lazy val rdfJena              = "ch.epfl.bluebrain.nexus"         %% "rdf-jena"                   % rdfVersion
@@ -93,6 +95,7 @@ lazy val kg = project
     coverageFailOnMinimum := false,
     libraryDependencies ++= Seq(
       adminClient,
+      iamClient,
       rdfAkka,
       rdfCore,
       rdfCirce,

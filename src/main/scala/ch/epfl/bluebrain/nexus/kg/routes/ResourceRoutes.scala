@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -40,7 +40,7 @@ import scala.util.Try
 
 class ResourceRoutes(implicit repo: Repo[Task],
                      adminClient: AdminClient[Task],
-                     iamClient: IamClient[Future],
+                     iamClient: IamClient[Task],
                      store: AttachmentStore[Task, AkkaIn, AkkaOut]) {
 
   def routes: Route =
@@ -131,7 +131,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
               case (None, None) =>
                 complete(fetch[Task](Id(proj.ref, id), Some(Ref(schema))).materializeRun)
               case (Some(_), Some(_)) =>
-                reject(validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously."))
+                reject(simultaneousParamsRejection)
               case (Some(rev), _) =>
                 complete(fetch[Task](Id(proj.ref, id), rev, Some(Ref(schema))).materializeRun)
               case (_, Some(tag)) =>
@@ -144,29 +144,38 @@ class ResourceRoutes(implicit repo: Repo[Task],
             (get & callerIdentity & hasPermission(resourceRead) & pathEndOrSingleSlash) { implicit ident =>
               val result = (revOpt, tagOpt) match {
                 case (None, None) =>
-                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), Some(Ref(schema)), filename).value.runAsync
-                //TODO: We will deal with this case later on
-                case (Some(_), Some(_)) => Future.failed(new RuntimeException())
+                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), Some(Ref(schema)), filename).toEitherRun
+                case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrAttachment)
                 case (Some(rev), _) =>
-                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync
+                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), rev, Some(Ref(schema)), filename).toEitherRun
                 case (_, Some(tag)) =>
-                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), tag, Some(Ref(schema)), filename).value.runAsync
+                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
               }
               onSuccess(result) {
-                case Some((info, source)) =>
+                case Left(rej) => reject(rej)
+                case Right(Some((info, source))) =>
                   respondWithHeaders(filenameHeader(info)) {
                     complete(HttpEntity(contentType(info), info.contentSize.value, source))
                   }
-                case None =>
+                case _ =>
                   complete(StatusCodes.NotFound)
               }
             }
           }
       }
 
+  private val simultaneousParamsRejection: AkkaRejection =
+    validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
+
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
     def materializeRun(implicit r: Resolution[Task]): Future[Option[ResourceV]] =
       resource.flatMap(materializeWithMeta[Task](_).toOption).value.runAsync
+  }
+
+  private type RejectionOrAttachment = Either[AkkaRejection, Option[(Attachment.BinaryAttributes, AkkaOut)]]
+  private implicit class OptionTaskAttachmentSyntax(resource: OptionT[Task, (Attachment.BinaryAttributes, AkkaOut)]) {
+    def toEitherRun: Future[RejectionOrAttachment] =
+      resource.value.map[RejectionOrAttachment](Right.apply).runAsync
   }
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
@@ -206,7 +215,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
 object ResourceRoutes {
   final def apply()(implicit repo: Repo[Task],
                     adminClient: AdminClient[Task],
-                    iamClient: IamClient[Future],
+                    iamClient: IamClient[Task],
                     store: AttachmentStore[Task, AkkaIn, AkkaOut]): ResourceRoutes = new ResourceRoutes()
 
   private[routes] val resourceRead   = Permissions(Permission("resources/read"), Permission("resources/manage"))
