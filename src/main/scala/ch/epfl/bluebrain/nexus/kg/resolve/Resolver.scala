@@ -5,8 +5,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-
-import scala.util.Try
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 
 /**
   * Enumeration of Resolver types.
@@ -48,24 +47,15 @@ object Resolver {
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
   final def apply(resource: ResourceV): Option[Resolver] =
-    if (resource.types.contains(nxv.Resolver.value)) {
-      resource.value.graph.cursor(resource.id.value).downField(nxv.priority).values match {
-        case Some(values) =>
-          val ints = values.flatMap { n =>
-            n.asLiteral.filter(_.isNumeric).flatMap(l => Try(l.lexicalForm.toInt).toOption).toIterable
-          }
-          ints.headOption.map { priority =>
-            InProjectResolver(
-              resource.id.parent,
-              resource.id.value,
-              resource.rev,
-              resource.deprecated,
-              priority
-            )
-          }
-        case None => None
-      }
-    } else None
+    if (resource.types.contains(nxv.Resolver.value))
+      resource.value.graph
+        .cursor(resource.id.value)
+        .downField(nxv.priority)
+        .focus
+        .as[Int]
+        .map(InProjectResolver(resource.id.parent, resource.id.value, resource.rev, resource.deprecated, _))
+        .toOption
+    else None
 
   /**
     * A resolver that uses its project to resolve resources.

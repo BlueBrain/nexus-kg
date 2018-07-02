@@ -36,7 +36,7 @@ import scala.concurrent.Future
 import scala.util.Try
 
 class ResourceRoutes(implicit repo: Repo[Task],
-                     adminClient: AdminClient[Future],
+                     adminClient: AdminClient[Task],
                      iamClient: IamClient[Future],
                      store: AttachmentStore[Task, AkkaIn, AkkaOut]) {
 
@@ -187,7 +187,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
 object ResourceRoutes {
   final def apply()(implicit repo: Repo[Task],
-                    adminClient: AdminClient[Future],
+                    adminClient: AdminClient[Task],
                     iamClient: IamClient[Future],
                     store: AttachmentStore[Task, AkkaIn, AkkaOut]): ResourceRoutes = new ResourceRoutes()
 

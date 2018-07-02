@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.admin.refined.project.ProjectReference
 import ch.epfl.bluebrain.nexus.commons.types.Err
 import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -62,6 +63,13 @@ object Rejection {
     * @param ref a reference to the resource
     */
   final case class NotFound(ref: Ref) extends Rejection(s"Resource '${ref.show}' not found.")
+
+  /**
+    * Signals an attempt to interact with a resource that belongs to a project that doesn't exist.
+    *
+    * @param ref a reference to the project
+    */
+  final case class ProjectNotFound(ref: ProjectReference) extends Rejection(s"Project '${ref.show}' not found.")
 
   /**
     * Signals an attempt to interact with a resource with an incorrect revision.

@@ -9,6 +9,7 @@ import akka.cluster.ddata.Replicator._
 import akka.cluster.ddata.{DistributedData, LWWRegister, LWWRegisterKey}
 import akka.pattern.ask
 import akka.util.Timeout
+import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
@@ -24,22 +25,42 @@ import scala.concurrent.{ExecutionContext, Future}
 trait Projects[F[_]] {
 
   /**
-    * Looks up the deprecation state of the argument account.
+    * Looks up the state of the argument account.
     *
     * @param ref the account reference
-    * @return Some(true) if the account is known to be deprecated, Some(false) if the account is known NOT to be
-    *         deprecated and None if there's no information on the account state
+    * @return Some(account) if there is an account with state and None if there's no information on the account state
     */
-  def deprecated(ref: AccountRef): F[Option[Boolean]]
+  def account(ref: AccountRef): F[Option[Account]]
 
   /**
-    * Looks up the deprecation state of the argument project.
+    * Adds an account.
+    *
+    * @param ref       the account reference
+    * @param account   the account to add
+    * @param updateRev whether to update an existing account if the provided account has a higher revision than an
+    *                  already existing element with the same id
+    * @return true if the update was performed or false if the element was already present
+    */
+  def addAccount(ref: AccountRef, account: Account, updateRev: Boolean): F[Boolean]
+
+  /**
+    * Looks up the state of the argument project.
     *
     * @param ref the project reference
-    * @return Some(true) if the project is known to be deprecated, Some(false) if the project is known NOT to be
-    *         deprecated and None if there's no information on the project state
+    * @return Some(project) if there is a project with state and None if there's no information on the project state
     */
-  def deprecated(ref: ProjectRef): F[Option[Boolean]]
+  def project(ref: ProjectRef): F[Option[Project]]
+
+  /**
+    * Adds a project.
+    *
+    * @param ref       the project reference
+    * @param project   the project to add
+    * @param updateRev whether to update an existing project if the provided project has a higher revision than an
+    *                  already existing element with the same id
+    * @return true if the update was performed or false if the element was already present
+    */
+  def addProject(ref: ProjectRef, project: Project, updateRev: Boolean): F[Boolean]
 
   /**
     * Looks up the collection of defined resolvers for the argument project.
@@ -130,10 +151,10 @@ trait Projects[F[_]] {
 
 object Projects {
 
-  private[async] def accountStateKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Boolean]] =
+  private[async] def accountKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[Account]]] =
     LWWRegisterKey("account_state_" + ref.id)
 
-  private[async] def projectStateKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Boolean]] =
+  private[async] def projectKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[Project]]] =
     LWWRegisterKey("project_state_" + ref.id)
 
   private[async] def resolverKey(ref: ProjectRef): LWWRegisterKey[TimestampedValue[Set[Resolver]]] =
@@ -155,17 +176,47 @@ object Projects {
 
     private implicit def tsClock[A]: Clock[TimestampedValue[A]] = TimestampedValue.timestampedValueClock
 
-    override def deprecated(ref: AccountRef): Future[Option[Boolean]] =
-      (replicator ? Get(accountStateKey(ref), ReadLocal, None)).map {
-        case g @ GetSuccess(LWWRegisterKey(_), _) => Some(g.get(accountStateKey(ref)).value.value)
+    override def account(ref: AccountRef): Future[Option[Account]] =
+      (replicator ? Get(accountKey(ref), ReadLocal, None)).map {
+        case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(accountKey(ref)).value.value
         case NotFound(_, _)                       => None
       }
 
-    override def deprecated(ref: ProjectRef): Future[Option[Boolean]] =
-      (replicator ? Get(projectStateKey(ref), ReadLocal, None)).map {
-        case g @ GetSuccess(LWWRegisterKey(_), _) => Some(g.get(projectStateKey(ref)).value.value)
+    override def addAccount(ref: AccountRef, ac: Account, updateRev: Boolean): Future[Boolean] = {
+      def update() = {
+        val empty  = LWWRegister(RevisionedValue[Option[Account]](0L, None))
+        val value  = RevisionedValue[Option[Account]](ac.rev, Some(ac))
+        val update = Update(accountKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+        (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+      }
+      account(ref).flatMap {
+        case None                                   => update()
+        case Some(p) if updateRev && ac.rev > p.rev => update()
+        case _                                      => Future.successful(false)
+
+      }
+    }
+
+    override def project(ref: ProjectRef): Future[Option[Project]] =
+      (replicator ? Get(projectKey(ref), ReadLocal, None)).map {
+        case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(projectKey(ref)).value.value
         case NotFound(_, _)                       => None
       }
+
+    override def addProject(ref: ProjectRef, proj: Project, updateRev: Boolean): Future[Boolean] = {
+      def update() = {
+        val empty  = LWWRegister(RevisionedValue[Option[Project]](0L, None))
+        val value  = RevisionedValue[Option[Project]](proj.rev, Some(proj))
+        val update = Update(projectKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+        (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+      }
+      project(ref).flatMap {
+        case None                                     => update()
+        case Some(p) if updateRev && proj.rev > p.rev => update()
+        case _                                        => Future.successful(false)
+
+      }
+    }
 
     override def resolvers(ref: ProjectRef): Future[Set[Resolver]] =
       (replicator ? Get(resolverKey(ref), ReadLocal, None)).map {
@@ -259,11 +310,17 @@ object Projects {
     new Projects[Task] {
       private val underlying = future()
 
-      override def deprecated(ref: AccountRef): Task[Option[Boolean]] =
-        Task.deferFuture(underlying.deprecated(ref))
+      override def account(ref: AccountRef): Task[Option[Account]] =
+        Task.deferFuture(underlying.account(ref))
 
-      override def deprecated(ref: ProjectRef): Task[Option[Boolean]] =
-        Task.deferFuture(underlying.deprecated(ref))
+      override def addAccount(ref: AccountRef, account: Account, updateRev: Boolean): Task[Boolean] =
+        Task.deferFuture(underlying.addAccount(ref, account, updateRev))
+
+      override def project(ref: ProjectRef): Task[Option[Project]] =
+        Task.deferFuture(underlying.project(ref))
+
+      override def addProject(ref: ProjectRef, project: Project, updateRev: Boolean): Task[Boolean] =
+        Task.deferFuture(underlying.addProject(ref, project, updateRev))
 
       override def resolvers(ref: ProjectRef): Task[Set[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))
