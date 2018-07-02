@@ -6,7 +6,7 @@ import akka.http.javadsl.server.Rejections.validationRejection
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
-import akka.http.scaladsl.server.Directives.{fileUpload, parameter, pathPrefix, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
@@ -17,16 +17,16 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{hasPermission, _}
+import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
-import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives.{projectReference, _}
+import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
-import ch.epfl.bluebrain.nexus.kg.resources.Resources.{tag, _}
+import ch.epfl.bluebrain.nexus.kg.resources.Resources._
+import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
-import ch.epfl.bluebrain.nexus.kg.resources.{Resource, _}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
