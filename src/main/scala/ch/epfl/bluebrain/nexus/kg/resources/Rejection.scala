@@ -72,6 +72,13 @@ object Rejection {
   final case class ProjectNotFound(ref: ProjectReference) extends Rejection(s"Project '${ref.show}' not found.")
 
   /**
+    * Signals an attempt to interact with a resource that belongs to a deprecated project.
+    *
+    * @param ref a reference to the project
+    */
+  final case class ProjectIsDeprecated(ref: ProjectReference) extends Rejection(s"Project '${ref.show}' is deprecated.")
+
+  /**
     * Signals an attempt to interact with a resource with an incorrect revision.
     *
     * @param ref a reference to the resource
@@ -140,4 +147,18 @@ object Rejection {
     * @param message a human readable description of the cause
     */
   final case class Unexpected(override val message: String) extends Rejection(message)
+
+  /**
+    * Signals the inability to convert the requested query parameter.
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case class IllegalParameter(override val message: String) extends Rejection(message)
+
+  /**
+    * Signals the requirement of a parameter to be present
+    *
+    * @param message a human readable description of the cause
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case class MissingParameter(override val message: String) extends Rejection(message)
 }

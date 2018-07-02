@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
@@ -44,14 +45,16 @@ class ResourceRoutes(implicit repo: Repo[Task],
                      store: AttachmentStore[Task, AkkaIn, AkkaOut]) {
 
   def routes: Route =
-    token(implicit optToken => resources ~ schemas)
+    handleRejections(RejectionHandling.rejectionHandler()) {
+      token(implicit optToken => resources ~ schemas)
+    }
 
   private def resources(implicit token: Option[AuthToken]): Route =
     (pathPrefix("resources") & project) { implicit proj =>
       // consumes the segment {account}/{project}
       projectReference() { implicit projRef =>
         // create resource with implicit or generated id
-        (post & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
+        (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
           (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
             complete(create[Task](proj.ref, proj.base, Ref(schema), source).value.runAsync)
           }
@@ -65,7 +68,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
       // consumes the segment {account}/{project}
       projectReference() { implicit projRef =>
         // create schema with implicit or generated id
-        (post & entity(as[Json])) { source =>
+        (post & projectNotDeprecated & entity(as[Json])) { source =>
           (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
             complete(create[Task](proj.ref, proj.base, Ref(nxv.ShaclSchema), source).value.runAsync)
           }
@@ -79,12 +82,12 @@ class ResourceRoutes(implicit repo: Repo[Task],
                                                               projRef: ProjectReference,
                                                               token: Option[AuthToken]): Route =
     // create resource with explicit id
-    (put & entity(as[Json]) & pathEndOrSingleSlash) { source =>
+    (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
       (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
         complete(create[Task](Id(proj.ref, id), Ref(schema), source).value.runAsync)
       }
     } ~
-      parameter('rev.as[Long]) { rev =>
+      (projectNotDeprecated & parameter('rev.as[Long])) { rev =>
         // update a resource
         (put & entity(as[Json]) & pathEndOrSingleSlash) { source =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
