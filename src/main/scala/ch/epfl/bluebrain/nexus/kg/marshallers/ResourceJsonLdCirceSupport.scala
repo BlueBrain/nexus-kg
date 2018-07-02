@@ -19,9 +19,10 @@ trait ResourceJsonLdCirceSupport extends JsonLdCirceSupport {
     )
   }
 
-  private def statusCodeFrom(rejection: Rejection): StatusCode = rejection match {
-    case _: IsDeprecated | _: UpdateSchemaTypes | _: IncorrectTypes | _: IllegalContextValue |
-        _: UnableToSelectResourceId | _: InvalidResource | _: IncorrectId | _: InvalidPayload =>
+  private[marshallers] def statusCodeFrom(rejection: Rejection): StatusCode = rejection match {
+    case _: IsDeprecated | _: ProjectIsDeprecated | _: UpdateSchemaTypes | _: IncorrectTypes | _: IllegalContextValue |
+        _: UnableToSelectResourceId | _: InvalidResource | _: IncorrectId | _: InvalidPayload | _: IllegalParameter |
+        _: MissingParameter =>
       StatusCodes.BadRequest
     case _: UnexpectedState | _: Unexpected                       => StatusCodes.InternalServerError
     case _: NotFound | _: AttachmentNotFound | _: ProjectNotFound => StatusCodes.NotFound

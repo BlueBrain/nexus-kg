@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.DownstreamServiceError
 import monix.eval.Task
 import monix.execution.Scheduler
 
-import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
 object AuthDirectives {
@@ -56,8 +55,10 @@ object AuthDirectives {
   /**
     * Authenticates the requested with the provided ''token'' and returns the ''caller''
     */
-  def callerIdentity(implicit iamClient: IamClient[Future], token: Option[AuthToken]): Directive1[Identity] =
-    onComplete(iamClient.getCaller(filterGroups = true)).flatMap {
+  def callerIdentity(implicit iamClient: IamClient[Task],
+                     token: Option[AuthToken],
+                     s: Scheduler): Directive1[Identity] =
+    onComplete(iamClient.getCaller(filterGroups = true).runAsync).flatMap {
       case Success(caller)             => provide(findIdentity(caller))
       case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
       case Failure(err)                => reject(authorizationRejection(err))
