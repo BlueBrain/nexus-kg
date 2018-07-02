@@ -151,11 +151,11 @@ trait Projects[F[_]] {
 
 object Projects {
 
-  private[async] def accountKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Account]] =
-    LWWRegisterKey("account_state" + ref.id)
+  private[async] def accountKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[Account]]] =
+    LWWRegisterKey("account_state_" + ref.id)
 
-  private[async] def projectKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Project]] =
-    LWWRegisterKey("project_state" + ref.id)
+  private[async] def projectKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[Project]]] =
+    LWWRegisterKey("project_state_" + ref.id)
 
   private[async] def resolverKey(ref: ProjectRef): LWWRegisterKey[TimestampedValue[Set[Resolver]]] =
     LWWRegisterKey("project_resolvers_" + ref.id)
@@ -178,14 +178,14 @@ object Projects {
 
     override def account(ref: AccountRef): Future[Option[Account]] =
       (replicator ? Get(accountKey(ref), ReadLocal, None)).map {
-        case g @ GetSuccess(LWWRegisterKey(_), _) => Some(g.get(accountKey(ref)).value.value)
+        case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(accountKey(ref)).value.value
         case NotFound(_, _)                       => None
       }
 
     override def addAccount(ref: AccountRef, ac: Account, updateRev: Boolean): Future[Boolean] = {
       def update() = {
-        val empty  = LWWRegister(RevisionedValue(0L, null: Account))
-        val value  = RevisionedValue(ac.rev, ac)
+        val empty  = LWWRegister(RevisionedValue[Option[Account]](0L, None))
+        val value  = RevisionedValue[Option[Account]](ac.rev, Some(ac))
         val update = Update(accountKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
         (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
       }
@@ -199,14 +199,14 @@ object Projects {
 
     override def project(ref: ProjectRef): Future[Option[Project]] =
       (replicator ? Get(projectKey(ref), ReadLocal, None)).map {
-        case g @ GetSuccess(LWWRegisterKey(_), _) => Some(g.get(projectKey(ref)).value.value)
+        case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(projectKey(ref)).value.value
         case NotFound(_, _)                       => None
       }
 
     override def addProject(ref: ProjectRef, proj: Project, updateRev: Boolean): Future[Boolean] = {
       def update() = {
-        val empty  = LWWRegister(RevisionedValue(0L, null: Project))
-        val value  = RevisionedValue(proj.rev, proj)
+        val empty  = LWWRegister(RevisionedValue[Option[Project]](0L, None))
+        val value  = RevisionedValue[Option[Project]](proj.rev, Some(proj))
         val update = Update(projectKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
         (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
       }

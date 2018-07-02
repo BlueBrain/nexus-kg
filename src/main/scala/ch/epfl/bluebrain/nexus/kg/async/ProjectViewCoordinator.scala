@@ -107,7 +107,7 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
 
     {
       case c @ Changed(`account`) =>
-        val deprecated = c.get(account).value.value.deprecated
+        val deprecated = c.get(account).value.value.exists(_.deprecated)
         log.debug(s"Account deprecation changed ($accountState -> $deprecated)")
         context.become(initialized(deprecated, projectState, views, nextMapping))
 
@@ -115,7 +115,7 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
         log.warn("Received account data entry deleted notification, discarding")
 
       case c @ Changed(`project`) =>
-        val deprecated = c.get(project).value.value.deprecated
+        val deprecated = c.get(project).value.value.exists(_.deprecated)
         log.debug(s"Project deprecation changed ($projectState -> $deprecated)")
         context.become(initialized(accountState, deprecated, views, nextMapping))
 
