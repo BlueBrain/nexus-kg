@@ -8,7 +8,7 @@ import cats.MonadError
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticQueryClient}
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
@@ -90,7 +90,7 @@ object ElasticIndexer {
     implicit val ul         = HttpClient.taskHttpClient
     implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
 
-    val client  = ElasticClient[Task](config.base, ElasticQueryClient[Task](config.base))
+    val client  = ElasticClient[Task](config.base)
     val indexer = new ElasticIndexer(client, elasticIndex(view))
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,

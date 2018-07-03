@@ -8,6 +8,7 @@ import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.SparqlConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -28,9 +29,7 @@ import scala.util.Try
   *
   * @param client the SPARQL client
   */
-class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Repo[F],
-                                                               F: MonadError[F, Throwable],
-                                                               ucl: HttpClient[F, ResultSet]) {
+class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Repo[F], F: MonadError[F, Throwable]) {
 
   /**
     * When an event is received, the current state is obtained.

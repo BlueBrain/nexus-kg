@@ -15,11 +15,13 @@ import ch.epfl.bluebrain.nexus.admin.refined.project.ProjectReference
 import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
@@ -42,11 +44,16 @@ import scala.util.Try
 class ResourceRoutes(implicit repo: Repo[Task],
                      adminClient: AdminClient[Task],
                      iamClient: IamClient[Task],
-                     store: AttachmentStore[Task, AkkaIn, AkkaOut]) {
+                     indexers: IndexerClients[Task],
+                     store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                     config: AppConfig) {
+
+  private val (elastic, sparql) = (indexers.elastic, indexers.sparql)
+  import indexers.rsSearch
 
   def routes: Route =
     handleRejections(RejectionHandling.rejectionHandler()) {
-      token(implicit optToken => resources ~ schemas)
+      token(implicit optToken => resources ~ schemas ~ search)
     }
 
   private def resources(implicit token: Option[AuthToken]): Route =
@@ -74,6 +81,28 @@ class ResourceRoutes(implicit repo: Repo[Task],
           }
         } ~
           pathPrefix(aliasOrCurie)(id => resources(nxv.ShaclSchema, id))
+      }
+    }
+
+  private def search(implicit token: Option[AuthToken]): Route =
+    (pathPrefix("views") & project) { implicit proj =>
+      // consumes the segment {account}/{project}
+      projectReference() { implicit projRef =>
+        // search forwarded to the sparql endpoint of the default view
+        (path("sparql") & post & entity(as[Json]) & pathEndOrSingleSlash) { query =>
+          (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
+            complete(sparql.copy(namespace = config.sparql.defaultIndex).queryRaw(query.noSpaces).runAsync)
+          }
+        } ~
+          // search forwarded to the elastic endpoint of the default view
+          (path("elastic") & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
+            (query, pagination, params) =>
+              (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
+                val search = elastic.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
+                //TODO: Treat ES response accordingly
+                complete(search.map(_.results.map(_.source)).runAsync)
+              }
+          }
       }
     }
 
@@ -219,7 +248,9 @@ object ResourceRoutes {
   final def apply()(implicit repo: Repo[Task],
                     adminClient: AdminClient[Task],
                     iamClient: IamClient[Task],
-                    store: AttachmentStore[Task, AkkaIn, AkkaOut]): ResourceRoutes = new ResourceRoutes()
+                    indexers: IndexerClients[Task],
+                    store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                    config: AppConfig): ResourceRoutes = new ResourceRoutes()
 
   private[routes] val resourceRead   = Permissions(Permission("resources/read"), Permission("resources/manage"))
   private[routes] val resourceWrite  = Permissions(Permission("resources/write"), Permission("resources/manage"))
