@@ -95,13 +95,13 @@ class ResourceRoutes(implicit repo: Repo[Task],
           }
         } ~
           // search forwarded to the elastic endpoint of the default view
-          (path("elastic") & post & entity(as[Json]) & pathEndOrSingleSlash & paginated & extract(
-            ctx => ctx.request.uri.query())) { (query, pagination, params) =>
-            (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-              val search = elastic.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
-              //TODO: Treat ES response accordingly
-              complete(search.map(_.results.map(_.source)).runAsync)
-            }
+          (path("elastic") & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
+            (query, pagination, params) =>
+              (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
+                val search = elastic.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
+                //TODO: Treat ES response accordingly
+                complete(search.map(_.results.map(_.source)).runAsync)
+              }
           }
       }
     }
