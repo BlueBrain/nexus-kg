@@ -34,7 +34,8 @@ class Settings(config: Config) extends Extension {
     loadConfigOrThrow[AdminConfig](config, "app.admin"),
     loadConfigOrThrow[IamConfig](config, "app.iam"),
     loadConfigOrThrow[SparqlConfig](config, "app.sparql"),
-    loadConfigOrThrow[ElasticConfig](config, "app.elastic")
+    loadConfigOrThrow[ElasticConfig](config, "app.elastic"),
+    loadConfigOrThrow[PaginationConfig](config, "app.pagination")
   )
 
 }

@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.config
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
+import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
@@ -11,15 +12,16 @@ import scala.concurrent.duration.Duration
 /**
   * Application
   *
-  * @param description   service description
-  * @param http          http interface configuration
-  * @param cluster       akka cluster configuration
-  * @param persistence   persistence configuration
-  * @param attachments   attachments configuration
-  * @param admin         admin client configuration
-  * @param iam           IAM client configuration
-  * @param sparqlConfig  Sparql endpoint configuration
-  * @param elasticConfig ElasticSearch endpoint configuration
+  * @param description service description
+  * @param http        http interface configuration
+  * @param cluster     akka cluster configuration
+  * @param persistence persistence configuration
+  * @param attachments attachments configuration
+  * @param admin       admin client configuration
+  * @param iam         IAM client configuration
+  * @param sparql      Sparql endpoint configuration
+  * @param elastic     ElasticSearch endpoint configuration
+  * @param pagination  Pagination configuration
   */
 final case class AppConfig(description: Description,
                            http: HttpConfig,
@@ -28,8 +30,9 @@ final case class AppConfig(description: Description,
                            attachments: AttachmentsConfig,
                            admin: AdminConfig,
                            iam: IamConfig,
-                           sparqlConfig: SparqlConfig,
-                           elasticConfig: ElasticConfig)
+                           sparql: SparqlConfig,
+                           elastic: ElasticConfig,
+                           pagination: PaginationConfig)
 
 object AppConfig {
 
@@ -95,16 +98,14 @@ object AppConfig {
   /**
     * Collection of configurable settings specific to the Sparql indexer.
     *
-    * @param base     the base uri
-    * @param username the SPARQL endpoint username
-    * @param password the SPARQL endpoint password
+    * @param base         the base uri
+    * @param username     the SPARQL endpoint username
+    * @param password     the SPARQL endpoint password
+    * @param defaultIndex the SPARQL default index
     */
-  final case class SparqlConfig(base: Uri, username: Option[String], password: Option[String]) {
+  final case class SparqlConfig(base: Uri, username: Option[String], password: Option[String], defaultIndex: String) {
 
-    /**
-      * @return the optional credentials wrapped on a [[BasicHttpCredentials]]
-      */
-    def akkaCredentials: Option[BasicHttpCredentials] =
+    val akkaCredentials: Option[BasicHttpCredentials] =
       for {
         user <- username
         pass <- password
@@ -114,13 +115,26 @@ object AppConfig {
   /**
     * Collection of configurable settings specific to the ElasticSearch indexer.
     *
-    * @param base        the application base uri for operating on resources
-    * @param indexPrefix the prefix of the index
-    * @param docType     the name of the `type`
+    * @param base         the application base uri for operating on resources
+    * @param indexPrefix  the prefix of the index
+    * @param docType      the name of the `type`
+    * @param defaultIndex the default index
     */
-  final case class ElasticConfig(base: Uri, indexPrefix: String, docType: String)
+  final case class ElasticConfig(base: Uri, indexPrefix: String, docType: String, defaultIndex: String)
 
-  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig   = appConfig.sparqlConfig
-  implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig = appConfig.elasticConfig
+  /**
+    * Pagination configuration
+    *
+    * @param from      the start offset
+    * @param size      the default number of results per page
+    * @param sizeLimit the maximum number of results per page
+    */
+  final case class PaginationConfig(from: Long, size: Int, sizeLimit: Int) {
+    val pagination: Pagination = Pagination(from, size)
+  }
+
+  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig         = appConfig.sparql
+  implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig       = appConfig.elastic
+  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig = appConfig.pagination
 
 }

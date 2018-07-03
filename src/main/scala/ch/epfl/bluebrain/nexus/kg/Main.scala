@@ -9,21 +9,28 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.persistence.TaskAggregate
 import ch.epfl.bluebrain.nexus.kg.resources.Repo
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.kg.routes.{ResourceRoutes, ServiceDescriptionRoutes}
+import ch.epfl.bluebrain.nexus.kg.routes.{IndexerClients, ResourceRoutes, ServiceDescriptionRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import com.typesafe.config.ConfigFactory
+import io.circe.Json
 import kamon.Kamon
 import kamon.system.SystemMetrics
 import monix.eval.Task
+import org.apache.jena.query.ResultSet
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -43,6 +50,19 @@ object Main {
     implicit val as = ActorSystem(appConfig.description.fullName, config)
     implicit val ec = as.dispatcher
     implicit val mt = ActorMaterializer()
+
+    def indexersClients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): IndexerClients[Task] = {
+      import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+      import io.circe.generic.auto._
+      implicit val ul         = HttpClient.taskHttpClient
+      implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
+      implicit val rsSet      = HttpClient.withTaskUnmarshaller[ResultSet]
+      implicit val rsSearch   = withTaskUnmarshaller[QueryResults[Json]]
+
+      val sparql  = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
+      val elastic = ElasticClient[Task](elasticConfig.base)
+      IndexerClients(elastic, sparql)
+    }
 
     val cluster = Cluster(as)
     val seeds: List[Address] = appConfig.cluster.seeds.toList
@@ -66,6 +86,7 @@ object Main {
     implicit val lc        = AttachmentStore.LocationResolver[Task]()
     implicit val stream    = AttachmentStore.Stream.task(appConfig.attachments)
     implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
+    implicit val indexers  = indexersClients
     val resourceRoutes     = ResourceRoutes().routes
     val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
     val serviceDesc        = ServiceDescriptionRoutes(appConfig.description).routes
