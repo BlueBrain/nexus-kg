@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
-import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
+import ch.epfl.bluebrain.nexus.kg.resolve.{CompositeResolution, InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
@@ -226,7 +226,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
   }
 
   private implicit def projectToResolution(implicit proj: Project): Resolution[Task] =
-    InProjectResolution[Task](proj.ref)
+    CompositeResolution(AppConfig.staticResolution, InProjectResolution[Task](proj.ref))
 
   private implicit def resourceEncoder: Encoder[Resource] = Encoder.encodeJson.contramap { res =>
     val graph       = res.metadata(_.iri) ++ res.typeGraph
