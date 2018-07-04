@@ -38,20 +38,20 @@ object AppConfig {
 
   /**
     * Service description
-    * @param name         service name
-    * @param environment  environment in which service is running
+    *
+    * @param name service name
     */
-  final case class Description(name: String, environment: String) {
+  final case class Description(name: String) {
 
     /**
       * @return the version of the service
       */
-    def version: String = BuildInfo.version.replaceAll("\\W", "-")
+    val version: String = BuildInfo.version.replaceAll("\\W", "-")
 
     /**
-      * @return the full name of the service (name + version + environment
+      * @return the full name of the service (name + version)
       */
-    def fullName: String = s"$name-$version-$environment"
+    val fullName: String = s"$name-$version"
 
   }
 
