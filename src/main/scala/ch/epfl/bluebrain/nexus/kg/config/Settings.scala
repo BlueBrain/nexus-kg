@@ -35,7 +35,8 @@ class Settings(config: Config) extends Extension {
     loadConfigOrThrow[IamConfig](config, "app.iam"),
     loadConfigOrThrow[SparqlConfig](config, "app.sparql"),
     loadConfigOrThrow[ElasticConfig](config, "app.elastic"),
-    loadConfigOrThrow[PaginationConfig](config, "app.pagination")
+    loadConfigOrThrow[PaginationConfig](config, "app.pagination"),
+    loadConfigOrThrow[KafkaConfig](config, "app.kafka")
   )
 
 }

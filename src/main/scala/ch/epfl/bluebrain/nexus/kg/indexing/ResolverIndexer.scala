@@ -8,6 +8,7 @@ import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.{Resolution, Resolver}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
@@ -66,17 +67,15 @@ object ResolverIndexer {
     *
     * @param projects    the project operations
     * @param resolution  the function used to derive a resolution for the corresponding project
-    * @param pluginId    the persistence query plugin id to query the event log
     */
   final def start(
       projects: Projects[Task],
-      resolution: ProjectRef => Resolution[Task],
-      pluginId: String
-  )(implicit repo: Repo[Task], as: ActorSystem, s: Scheduler): ActorRef = {
+      resolution: ProjectRef => Resolution[Task]
+  )(implicit repo: Repo[Task], as: ActorSystem, s: Scheduler, persistence: PersistenceConfig): ActorRef = {
     val indexer = new ResolverIndexer[Task](projects, resolution)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
-      pluginId,
+      persistence.queryJournalPlugin,
       tag = s"type=${nxv.Resolver.value.show}",
       name = "resolver-indexer"
     )

@@ -7,13 +7,14 @@ import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.pattern.pipe
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.service.indexer.stream.StreamCoordinator.Stop
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Start
 import ch.epfl.bluebrain.nexus.kg.async.Projects._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectRef}
 import journal.Logger
-
-import scala.concurrent.{ExecutionContext, Future}
+import monix.eval.Task
+import monix.execution.Scheduler.Implicits.global
 
 /**
   * Manages the indices that are configured to be run for the selected project. It monitors changes in the account,
@@ -22,14 +23,13 @@ import scala.concurrent.{ExecutionContext, Future}
   * It expects its name to use ''{ACCOUNT_UUID}_{PROJECT_UUID}'' format. Attempting to create the actor without using
   * the expected format will result in an error.
   *
-  * @param projects  the project operations
-  * @param actorCtor a function that selects the child actor index runner specific for the view type
+  * @param projects the project operations
+  * @param selector a function that selects the child actor index runner specific for the view type
   */
 //noinspection ActorMutableStateInspection
-class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Props) extends Actor with Stash {
+class ProjectViewCoordinator(projects: Projects[Task], selector: View => ActorRef) extends Actor with Stash {
 
-  private val replicator                    = DistributedData(context.system).replicator
-  private implicit val ec: ExecutionContext = context.dispatcher
+  private val replicator = DistributedData(context.system).replicator
 
   private val Array(accountUuid, projectUuid) = self.path.name.split('_')
   private val accountRef                      = AccountRef(accountUuid)
@@ -49,15 +49,12 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
     replicator ! Subscribe(project, self)
     replicator ! Subscribe(view, self)
 
-    val accountState = projects.account(accountRef)
-    val projectState = projects.project(projectRef)
-    val views        = projects.views(projectRef)
     val start = for {
-      as <- accountState
-      ps <- projectState
-      vs <- views
+      as <- projects.account(accountRef)
+      ps <- projects.project(projectRef)
+      vs <- projects.views(projectRef)
     } yield Start(as, ps, vs)
-    val _ = start pipeTo self
+    val _ = start.runAsync pipeTo self
   }
 
   def receive: Receive = {
@@ -82,6 +79,7 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
     val nextMapping = if (stopChildren) {
       log.debug(s"Account and/or project are deprecated, stopping any running children")
       childMapping.values.foreach { ref =>
+        ref ! Stop
         context.stop(ref)
       }
       Map.empty[String, ActorRef]
@@ -93,14 +91,16 @@ class ProjectViewCoordinator(projects: Projects[Future], actorCtor: View => Prop
       // stop actors that don't have a corresponding view anymore
       if (removed.nonEmpty) log.debug(s"Stopping view coordinators for $removed")
       removed.foreach { name =>
-        context.stop(childMapping(name))
+        val ref = childMapping(name)
+        ref ! Stop
+        context.stop(ref)
       }
 
       // construct actors for the new view updates
       if (added.nonEmpty) log.debug(s"Creating view coordinators for $added")
       val newActorsMapping = withNames
         .filter { case (name, _) => added.contains(name) }
-        .mapValues(v => context.actorOf(actorCtor(v)))
+        .mapValues(v => selector(v))
 
       childMapping -- removed ++ newActorsMapping
     }
@@ -149,26 +149,26 @@ object ProjectViewCoordinator {
     case msg @ Msg(AccountRef(acc), ProjectRef(proj)) => (s"${acc}_$proj", msg)
   }
 
-  private[async] def props(projects: Projects[Future], actorCtor: View => Props): Props =
-    Props(new ProjectViewCoordinator(projects, actorCtor))
+  private[async] def props(projects: Projects[Task], selector: View => ActorRef): Props =
+    Props(new ProjectViewCoordinator(projects, selector))
 
   /**
     * Starts the ProjectViewCoordinator shard with the provided configuration options.
     *
     * @param projects         the project operations
-    * @param actorCtor        a function that selects the child actor index runner specific for the view type
+    * @param selector        a function that selects the child actor index runner specific for the view type
     * @param shardingSettings the sharding settings
     * @param shards           the number of shards to use
     * @param as               the underlying actor system
     */
   final def start(
-      projects: Projects[Future],
-      actorCtor: View => Props,
+      projects: Projects[Task],
+      selector: View => ActorRef,
       shardingSettings: Option[ClusterShardingSettings],
       shards: Int
   )(implicit as: ActorSystem): ActorRef = {
     val settings = shardingSettings.getOrElse(ClusterShardingSettings(as)).withRememberEntities(true)
     ClusterSharding(as)
-      .start("project-view-coordinator", props(projects, actorCtor), settings, entityExtractor, shardExtractor(shards))
+      .start("project-view-coordinator", props(projects, selector), settings, entityExtractor, shardExtractor(shards))
   }
 }

@@ -27,10 +27,10 @@ class CrossProjectResolutionSpec
     with BeforeAndAfter
     with OptionValues {
 
-  private implicit val repo: Repo[CId]      = mock[Repo[CId]]
-  private implicit val cache: Projects[CId] = mock[Projects[CId]]
-  private implicit val clock: Clock         = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private def genJson(): Json               = Json.obj("key" -> Json.fromString(genString()))
+  private implicit val clock: Clock    = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val repo: Repo[CId] = mock[Repo[CId]]
+  private val cache: Projects[CId]     = mock[Projects[CId]]
+  private def genJson(): Json          = Json.obj("key" -> Json.fromString(genString()))
 
   before {
     Mockito.reset(repo)
@@ -62,7 +62,7 @@ class CrossProjectResolutionSpec
       val value = simpleF(id, genJson(), types = Set(nxv.Schema, nxv.Resource))
       when(repo.get(id)).thenReturn(OptionT.some[CId](value))
 
-      val resolution = new CrossProjectResolution[CId](proj)
+      val resolution = CrossProjectResolution[CId](proj, cache)
       resolution.resolve(Latest(resId)).value shouldEqual value
       resolution.resolveAll(Latest(resId)) shouldEqual List(value)
     }
@@ -78,7 +78,7 @@ class CrossProjectResolutionSpec
       when(repo.get(Id(ProjectRef("uuid2"), resId))).thenReturn(OptionT.none[CId, Resource])
       when(repo.get(Id(ProjectRef("uuid3"), resId))).thenReturn(OptionT.none[CId, Resource])
 
-      val resolution = new CrossProjectResolution[CId](proj)
+      val resolution = CrossProjectResolution[CId](proj, cache)
       resolution.resolve(Latest(resId)) shouldEqual None
       resolution.resolveAll(Latest(resId)) shouldEqual List.empty[Resource]
     }
@@ -94,7 +94,7 @@ class CrossProjectResolutionSpec
       when(repo.get(Id(ProjectRef("uuid2"), resId))).thenReturn(OptionT.none[CId, Resource])
       when(repo.get(Id(ProjectRef("uuid3"), resId))).thenReturn(OptionT.none[CId, Resource])
 
-      val resolution = new CrossProjectResolution[CId](proj)
+      val resolution = CrossProjectResolution[CId](proj, cache)
       resolution.resolve(Latest(resId)) shouldEqual None
       resolution.resolveAll(Latest(resId)) shouldEqual List.empty[Resource]
 
@@ -102,7 +102,7 @@ class CrossProjectResolutionSpec
 
     "return none for a resource in a project without resolvers" in {
       when(cache.resolvers(proj)).thenReturn(Set.empty[Resolver])
-      val resolution = new CrossProjectResolution[CId](proj)
+      val resolution = CrossProjectResolution[CId](proj, cache)
       resolution.resolve(Latest(resId)) shouldEqual None
       resolution.resolveAll(Latest(resId)) shouldEqual List.empty[Resource]
     }
@@ -128,7 +128,7 @@ class CrossProjectResolutionSpec
       val value2 = simpleF(id2, genJson(), types = Set(nxv.Schema, nxv.Resource))
       when(repo.get(id2)).thenReturn(OptionT.some[CId](value2))
 
-      val resolution = new CrossProjectResolution[CId](proj)
+      val resolution = CrossProjectResolution[CId](proj, cache)
       resolution.resolveAll(Latest(resId)) shouldEqual List(value1, value2)
       verify(repo, times(1)).get(Id(ProjectRef("uuid2"), resId))
       verify(repo, times(1)).get(Id(ProjectRef("uuid3"), resId))
@@ -149,7 +149,7 @@ class CrossProjectResolutionSpec
       val value = simpleF(id, genJson(), types = Set(nxv.Resource))
       when(repo.get(id)).thenReturn(OptionT.some[CId](value))
 
-      val resolution = new CrossProjectResolution[CId](proj)
+      val resolution = CrossProjectResolution[CId](proj, cache)
       resolution.resolve(Latest(resId)) shouldEqual None
       resolution.resolveAll(Latest(resId)) shouldEqual List.empty[Resource]
     }

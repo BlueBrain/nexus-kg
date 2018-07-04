@@ -10,7 +10,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.SparqlConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{PersistenceConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
@@ -76,16 +76,13 @@ object SparqlIndexer {
     * Starts the index process for an sparql client
     *
     * @param view     the view for which to start the index
-    * @param pluginId the persistence query plugin id to query the event log
     */
-  final def start(
-      view: View,
-      pluginId: String
-  )(implicit repo: Repo[Task],
-    as: ActorSystem,
-    s: Scheduler,
-    ucl: HttpClient[Task, ResultSet],
-    config: SparqlConfig): ActorRef = {
+  final def start(view: View)(implicit repo: Repo[Task],
+                              as: ActorSystem,
+                              s: Scheduler,
+                              ucl: HttpClient[Task, ResultSet],
+                              config: SparqlConfig,
+                              persistence: PersistenceConfig): ActorRef = {
 
     implicit val mt  = ActorMaterializer()
     implicit val ul  = HttpClient.taskHttpClient
@@ -95,7 +92,7 @@ object SparqlIndexer {
     val indexer = new SparqlIndexer(client)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
-      pluginId,
+      persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",
       name = s"sparql-indexer-${view.name}"
     )

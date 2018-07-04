@@ -25,7 +25,7 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "0.2.4"
+val adminVersion                = "0.2.6"
 val iamVersion                  = "0.1.20"
 val commonsVersion              = "0.10.16"
 val rdfVersion                  = "0.2.6"
@@ -58,6 +58,7 @@ lazy val rdfAkka              = "ch.epfl.bluebrain.nexus"         %% "rdf-akka" 
 lazy val rdfCirce             = "ch.epfl.bluebrain.nexus"         %% "rdf-circe"                  % rdfVersion
 lazy val rdfNexus             = "ch.epfl.bluebrain.nexus"         %% "rdf-nexus"                  % rdfVersion
 lazy val serviceIndexing      = "ch.epfl.bluebrain.nexus"         %% "service-indexing"           % serviceVersion
+lazy val serviceKafka         = "ch.epfl.bluebrain.nexus"         %% "service-kafka"              % serviceVersion
 lazy val serviceKamon         = "ch.epfl.bluebrain.nexus"         %% "service-kamon"              % serviceVersion
 lazy val serviceHttp          = "ch.epfl.bluebrain.nexus"         %% "service-http"               % serviceVersion
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus"         %% "sourcing-core"              % sourcingVersion
@@ -120,6 +121,7 @@ lazy val kg = project
       monixTail,
       pureconfig,
       sparqlClient,
+      serviceKafka,
       serviceKamon,
       serviceHttp,
       wesoSchema,
