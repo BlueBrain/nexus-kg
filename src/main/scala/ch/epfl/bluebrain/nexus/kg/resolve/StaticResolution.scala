@@ -32,7 +32,7 @@ object StaticResolution {
     *
     * @param resources mapping between the URI of the resource and the JSON content
     */
-  final def apply[F[_]](resources: Map[AbsoluteIri, Json])(implicit F: Monad[F], clock: Clock): StaticResolution[F] =
+  final def apply[F[_]: Monad](resources: Map[AbsoluteIri, Json])(implicit clock: Clock): StaticResolution[F] =
     new StaticResolution[F](resources.map {
       case (iri, json) =>
         (
@@ -60,8 +60,8 @@ object StaticResolution {
     * @param resources mapping between the URI of the resource and the path to the file with its contents
     */
   @SuppressWarnings(Array("UnusedMethodParameter"))
-  final def apply[F[_]](
-      resources: Map[AbsoluteIri, String])(implicit F: Monad[F], clock: Clock, d: DummyImplicit): StaticResolution[F] =
+  final def apply[F[_]: Monad](resources: Map[AbsoluteIri, String])(implicit clock: Clock,
+                                                                    d: DummyImplicit): StaticResolution[F] =
     apply[F](
       resources
         .mapValues { path =>

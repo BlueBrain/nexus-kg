@@ -1,11 +1,16 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
+import java.time.Clock
+
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtxUri, tagCtxUri}
+import ch.epfl.bluebrain.nexus.kg.resolve.StaticResolution
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import monix.eval.Task
 
 import scala.concurrent.duration.Duration
 
@@ -131,6 +136,18 @@ object AppConfig {
     */
   final case class PaginationConfig(from: Long, size: Int, sizeLimit: Int) {
     val pagination: Pagination = Pagination(from, size)
+  }
+
+  /**
+    * Default instance of [[StaticResolution]]
+    */
+  val staticResolution: StaticResolution[Task] = {
+    implicit val clock: Clock = Clock.systemUTC
+    StaticResolution[Task](
+      Map(
+        tagCtxUri      -> "/contexts/tags-context.json",
+        resourceCtxUri -> "/contexts/resource-context.json"
+      ))
   }
 
   implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig         = appConfig.sparql

@@ -38,7 +38,7 @@ object CompositeResolution {
     *
     * @param resolutions underlying resolutions
     */
-  final def apply[F[_]](resolutions: List[Resolution[F]])(implicit F: Monad[F]): CompositeResolution[F] =
+  final def apply[F[_]: Monad](resolutions: List[Resolution[F]]): CompositeResolution[F] =
     new CompositeResolution[F](resolutions)
 
   /**
@@ -46,6 +46,6 @@ object CompositeResolution {
     *
     * @param resolutions underlying resolutions
     */
-  final def apply[F[_]](resolutions: Resolution[F]*)(implicit F: Monad[F]): CompositeResolution[F] =
+  final def apply[F[_]: Monad](resolutions: Resolution[F]*): CompositeResolution[F] =
     new CompositeResolution[F](resolutions.toList)
 }

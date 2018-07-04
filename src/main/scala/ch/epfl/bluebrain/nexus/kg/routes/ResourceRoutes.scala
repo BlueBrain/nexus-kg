@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
-import ch.epfl.bluebrain.nexus.kg.resolve.{CompositeResolution, InProjectResolution, Resolution, StaticResolution}
+import ch.epfl.bluebrain.nexus.kg.resolve.{CompositeResolution, InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
@@ -41,12 +41,12 @@ import monix.execution.Scheduler.Implicits.global
 import scala.concurrent.Future
 import scala.util.Try
 
-class ResourceRoutes(staticResolution: StaticResolution[Task])(implicit repo: Repo[Task],
-                                                               adminClient: AdminClient[Task],
-                                                               iamClient: IamClient[Task],
-                                                               indexers: IndexerClients[Task],
-                                                               store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                                                               config: AppConfig) {
+class ResourceRoutes(implicit repo: Repo[Task],
+                     adminClient: AdminClient[Task],
+                     iamClient: IamClient[Task],
+                     indexers: IndexerClients[Task],
+                     store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                     config: AppConfig) {
 
   private val (elastic, sparql) = (indexers.elastic, indexers.sparql)
   import indexers.rsSearch
@@ -226,7 +226,7 @@ class ResourceRoutes(staticResolution: StaticResolution[Task])(implicit repo: Re
   }
 
   private implicit def projectToResolution(implicit proj: Project): Resolution[Task] =
-    CompositeResolution(staticResolution, InProjectResolution[Task](proj.ref))
+    CompositeResolution(AppConfig.staticResolution, InProjectResolution[Task](proj.ref))
 
   private implicit def resourceEncoder: Encoder[Resource] = Encoder.encodeJson.contramap { res =>
     val graph       = res.metadata(_.iri) ++ res.typeGraph
@@ -245,13 +245,12 @@ class ResourceRoutes(staticResolution: StaticResolution[Task])(implicit repo: Re
 }
 
 object ResourceRoutes {
-  final def apply(staticResolution: StaticResolution[Task])(implicit repo: Repo[Task],
-                                                            adminClient: AdminClient[Task],
-                                                            iamClient: IamClient[Task],
-                                                            indexers: IndexerClients[Task],
-                                                            store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                                                            config: AppConfig): ResourceRoutes =
-    new ResourceRoutes(staticResolution)
+  final def apply()(implicit repo: Repo[Task],
+                    adminClient: AdminClient[Task],
+                    iamClient: IamClient[Task],
+                    indexers: IndexerClients[Task],
+                    store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                    config: AppConfig): ResourceRoutes = new ResourceRoutes()
 
   private[routes] val resourceRead   = Permissions(Permission("resources/read"), Permission("resources/manage"))
   private[routes] val resourceWrite  = Permissions(Permission("resources/write"), Permission("resources/manage"))

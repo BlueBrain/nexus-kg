@@ -16,10 +16,8 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.persistence.TaskAggregate
-import ch.epfl.bluebrain.nexus.kg.resolve.StaticResolution
 import ch.epfl.bluebrain.nexus.kg.resources.Repo
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
@@ -88,15 +86,10 @@ object Main {
     implicit val lc        = AttachmentStore.LocationResolver[Task]()
     implicit val stream    = AttachmentStore.Stream.task(appConfig.attachments)
     implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
-    val staticResolution = StaticResolution[Task](
-      Map(
-        tagCtxUri      -> "/contexts/tags-context.json",
-        resourceCtxUri -> "/contexts/resource-context.json"
-      ))
-    implicit val indexers = indexersClients
-    val resourceRoutes    = ResourceRoutes(staticResolution).routes
-    val apiRoutes         = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
-    val serviceDesc       = ServiceDescriptionRoutes(appConfig.description).routes
+    implicit val indexers  = indexersClients
+    val resourceRoutes     = ResourceRoutes().routes
+    val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
+    val serviceDesc        = ServiceDescriptionRoutes(appConfig.description).routes
 
     val logger = Logging(as, getClass)
 
