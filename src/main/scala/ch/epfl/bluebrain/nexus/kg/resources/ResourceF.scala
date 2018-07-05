@@ -1,8 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.time.Instant
+import java.time.{Clock, Instant}
 
+import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, rdf}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -10,6 +12,7 @@ import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, Literal}
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import io.circe.Json
 
@@ -97,5 +100,67 @@ object ResourceF {
     * @param graph  a graph representation of a resource
     */
   final case class Value(source: Json, ctx: Json, graph: Graph)
+
+  /**
+    * Construct a [[ResourceF]] with default parameters
+    *
+    * @param id         the unique identifier of the resource
+    * @param value      the [[Json]] resource value
+    * @param rev        the revision of the resource
+    * @param types       the collection of known types of this resource
+    * @param deprecated whether the resource is deprecated of not
+    * @param schema     the schema that this resource conforms to
+    * @tparam P the parent type of the resource identifier
+    */
+  def simpleF[P](id: Id[P],
+                 value: Json,
+                 rev: Long = 1L,
+                 types: Set[AbsoluteIri] = Set.empty,
+                 deprecated: Boolean = false,
+                 schema: Ref = Ref(nxv.Resource))(implicit clock: Clock): ResourceF[P, Ref, Json] =
+    ResourceF(id,
+              rev,
+              types,
+              deprecated,
+              Map.empty,
+              Set.empty,
+              clock.instant(),
+              clock.instant(),
+              Anonymous,
+              Anonymous,
+              schema,
+              value)
+
+  /**
+    * Construct a [[ResourceF]] with default parameters
+    *
+    * @param id         the unique identifier of the resource
+    * @param value      the [[Value]] resource value
+    * @param rev        the revision of the resource
+    * @param types       the collection of known types of this resource
+    * @param deprecated whether the resource is deprecated of not
+    * @param schema     the schema that this resource conforms to
+    * @tparam P the parent type of the resource identifier
+    */
+  def simpleV[P](id: Id[P],
+                 value: Json,
+                 rev: Long = 1L,
+                 types: Set[AbsoluteIri] = Set.empty,
+                 deprecated: Boolean = false,
+                 schema: Ref = Ref(nxv.Resource))(implicit clock: Clock): ResourceF[P, Ref, Value] =
+    ResourceF(
+      id,
+      rev,
+      types,
+      deprecated,
+      Map.empty,
+      Set.empty,
+      clock.instant(),
+      clock.instant(),
+      Anonymous,
+      Anonymous,
+      schema,
+      Value(value, value.contextValue, value.asGraph)
+    )
 
 }
