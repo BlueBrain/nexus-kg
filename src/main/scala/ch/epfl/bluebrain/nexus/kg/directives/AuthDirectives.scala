@@ -46,7 +46,7 @@ object AuthDirectives {
                                         adminClient: AdminClient[Task],
                                         token: Option[AuthToken],
                                         s: Scheduler): Directive0 =
-    onSuccess(adminClient.getProjectAcls(projectRef).runAsync).flatMap {
+    onSuccess(adminClient.getProjectAcls(projectRef, parents = true, self = true).runAsync).flatMap {
       case Some(acls) if acls.hasAnyPermission(perms) => pass
       case _                                          => reject(AuthorizationFailedRejection)
 

@@ -19,6 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
@@ -53,57 +54,56 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
   def routes: Route =
     handleRejections(RejectionHandling.rejectionHandler()) {
-      token(implicit optToken => resources ~ schemas ~ search)
+      token { implicit optToken =>
+        pathPrefix("v1") {
+          resources ~ schemas ~ search
+        }
+      }
     }
 
   private def resources(implicit token: Option[AuthToken]): Route =
-    (pathPrefix("resources") & project) { implicit proj =>
-      // consumes the segment {account}/{project}
-      projectReference() { implicit projRef =>
-        // create resource with implicit or generated id
-        (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
-          (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-            complete(create[Task](proj.ref, proj.base, Ref(schema), source).value.runAsync)
-          }
-        } ~
-          pathPrefix(aliasOrCurie / aliasOrCurie)((schema, id) => resources(schema, id))
-      }
+    // consumes the segment resources/{account}/{project}
+    (pathPrefix("resources") & project) { implicit labelProj =>
+      // create resource with implicit or generated id
+      (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
+        (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
+          complete(create[Task](labelProj.project.ref, labelProj.project.base, Ref(schema), source).value.runAsync)
+        }
+      } ~
+        pathPrefix(aliasOrCurie / aliasOrCurie)((schema, id) => resources(schema, id))
     }
 
   private def schemas(implicit token: Option[AuthToken]): Route =
-    (pathPrefix("schemas") & project) { implicit proj =>
-      // consumes the segment {account}/{project}
-      projectReference() { implicit projRef =>
-        // create schema with implicit or generated id
-        (post & projectNotDeprecated & entity(as[Json])) { source =>
-          (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-            complete(create[Task](proj.ref, proj.base, Ref(nxv.ShaclSchema), source).value.runAsync)
-          }
-        } ~
-          pathPrefix(aliasOrCurie)(id => resources(nxv.ShaclSchema, id))
-      }
+    // consumes the segment schemas/{account}/{project}
+    (pathPrefix("schemas") & project) { implicit labelProj =>
+      // create schema with implicit or generated id
+      (post & projectNotDeprecated & entity(as[Json])) { source =>
+        (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
+          complete(
+            create[Task](labelProj.project.ref, labelProj.project.base, Ref(nxv.ShaclSchema), source).value.runAsync)
+        }
+      } ~
+        pathPrefix(aliasOrCurie)(id => resources(nxv.ShaclSchema, id))
     }
 
   private def search(implicit token: Option[AuthToken]): Route =
-    (pathPrefix("views") & project) { implicit proj =>
-      // consumes the segment {account}/{project}
-      projectReference() { implicit projRef =>
-        // search forwarded to the sparql endpoint of the default view
-        (path("sparql") & post & entity(as[Json]) & pathEndOrSingleSlash) { query =>
-          (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-            complete(sparql.copy(namespace = config.sparql.defaultIndex).queryRaw(query.noSpaces).runAsync)
-          }
-        } ~
-          // search forwarded to the elastic endpoint of the default view
-          (path("elastic") & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
-            (query, pagination, params) =>
-              (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-                val search = elastic.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
-                //TODO: Treat ES response accordingly
-                complete(search.map(_.results.map(_.source)).runAsync)
-              }
-          }
-      }
+    // consumes the segment views/{account}/{project}
+    (pathPrefix("views") & project) { implicit labelProj =>
+      // search forwarded to the sparql endpoint of the default view
+      (path("sparql") & post & entity(as[Json]) & pathEndOrSingleSlash) { query =>
+        (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
+          complete(sparql.copy(namespace = config.sparql.defaultIndex).queryRaw(query.noSpaces).runAsync)
+        }
+      } ~
+        // search forwarded to the elastic endpoint of the default view
+        (path("elastic") & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
+          (query, pagination, params) =>
+            (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
+              val search = elastic.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
+              //TODO: Treat ES response accordingly
+              complete(search.map(_.results.map(_.source)).runAsync)
+            }
+        }
     }
 
   private def resources(schema: AbsoluteIri, id: AbsoluteIri)(implicit
@@ -241,6 +241,9 @@ class ResourceRoutes(implicit repo: Repo[Task],
     val jsonResult  = graph.asJson(mergedCtx, primaryNode).getOrElse(graph.asJson)
     jsonResult deepMerge Json.obj("@context" -> res.value.ctx).addContext(resourceCtxUri)
   }
+
+  private implicit def toProject(implicit value: LabeledProject): Project                   = value.project
+  private implicit def toProjectReference(implicit value: LabeledProject): ProjectReference = value.label
 
 }
 

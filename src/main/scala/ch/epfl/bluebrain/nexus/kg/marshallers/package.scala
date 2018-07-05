@@ -17,6 +17,11 @@ package object marshallers {
 
   private implicit def aEncoder[A: Show]: Encoder[A] = Encoder.encodeString.contramap(_.show)
 
+  /**
+    * The discriminator is enough to give us a Json representation (the name of the class)
+    */
+  private[marshallers] implicit val rejectionConfig: Configuration = Configuration.default.withDiscriminator("code")
+
   private[marshallers] implicit val errorContext: ContextUri = errorCtxUri
 
   private[marshallers] val rejectionEncoder: Encoder[Rejection] = {
@@ -35,10 +40,4 @@ package object marshallers {
     case _: IncorrectRev | _: AlreadyExists                       => StatusCodes.Conflict
     case _: DownstreamServiceError                                => StatusCodes.BadGateway
   }
-
-  /**
-    * The discriminator is enough to give us a Json representation (the name of the class)
-    */
-  private[marshallers] implicit val rejectionConfig: Configuration = Configuration.default.withDiscriminator("code")
-
 }
