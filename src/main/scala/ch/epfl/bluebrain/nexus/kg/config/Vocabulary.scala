@@ -53,7 +53,7 @@ object Vocabulary {
     val Anonymous        = url"$base/Anonymous"
 
     val schemas                     = "https://bluebrain.github.io/nexus/schemas"
-    val ShaclSchema: AbsoluteIri    = url"$schemas/schacl"
+    val ShaclSchema: AbsoluteIri    = url"$schemas/shacl"
     val Resource: AbsoluteIri       = url"$schemas/resource"
     val OntologySchema: AbsoluteIri = url"$schemas/ontology"
 

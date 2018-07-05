@@ -18,7 +18,7 @@ object ProjectDirectives {
   /**
     * Extracts a [[ProjectReference]] from two consecutive path segments.
     */
-  def projectReference(): Directive1[ProjectReference] = {
+  private def projectReference(): Directive1[ProjectReference] =
     pathPrefix(Segment / Segment).tflatMap {
       case (seg1, seg2) =>
         (for {
@@ -29,20 +29,18 @@ object ProjectDirectives {
           case Left(err) => reject(ValidationRejection(err, None))
         }
     }
-  }
 
   /**
     * Fetches project configuration from nexus admin
     */
-  def project(implicit client: AdminClient[Task], cred: Option[AuthToken], s: Scheduler): Directive1[Project] = {
+  def project(implicit client: AdminClient[Task], cred: Option[AuthToken], s: Scheduler): Directive1[LabeledProject] =
     projectReference().flatMap { ref =>
       onSuccess(client.getProject(ref).runAsync).flatMap {
-        case Some(project) => provide(project)
+        case Some(project) => provide(LabeledProject(ref, project))
         case _             => reject(CustomAuthRejection(ProjectNotFound(ref)))
 
       }
     }
-  }
 
   /**
     * @return pass when the project is not deprecated, rejects when project is deprecated
