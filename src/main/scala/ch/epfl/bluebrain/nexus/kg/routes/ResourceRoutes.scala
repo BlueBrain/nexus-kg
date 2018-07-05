@@ -55,7 +55,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
   def routes: Route =
     handleRejections(RejectionHandling.rejectionHandler()) {
       token { implicit optToken =>
-        pathPrefix("v1") {
+        pathPrefix(config.http.prefix) {
           resources ~ schemas ~ search
         }
       }
