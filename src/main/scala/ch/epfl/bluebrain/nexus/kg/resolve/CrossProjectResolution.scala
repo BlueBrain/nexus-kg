@@ -46,7 +46,7 @@ class CrossProjectResolution[F[_]: Repo](project: ProjectRef)(implicit F: Monad[
       }.map(_.reverse)
     }
 
-  private def containsAny[A](a: Set[A], b: Set[A]): Boolean = (a -- b).size < a.size
+  private def containsAny[A](a: Set[A], b: Set[A]): Boolean = b.exists(a.contains)
 
   private implicit class ResolverSetSyntax(values: F[Set[Resolver]]) {
     def crossProjectSorted: F[List[(ProjectRef, Set[AbsoluteIri])]] =
