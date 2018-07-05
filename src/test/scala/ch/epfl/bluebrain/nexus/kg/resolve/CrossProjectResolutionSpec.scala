@@ -29,7 +29,7 @@ class CrossProjectResolutionSpec
 
   private implicit val repo: Repo[CId]      = mock[Repo[CId]]
   private implicit val cache: Projects[CId] = mock[Projects[CId]]
-  private implicit val clock                = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val clock: Clock         = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private def genJson(): Json               = Json.obj("key" -> Json.fromString(genString()))
 
   before {
@@ -59,7 +59,7 @@ class CrossProjectResolutionSpec
       when(repo.get(Id(ProjectRef("uuid4"), resId))).thenReturn(OptionT.none[CId, Resource])
 
       val id    = Id(ProjectRef("uuid5"), resId)
-      val value = simpleF(id, genJson())
+      val value = simpleF(id, genJson(), types = Set(nxv.Schema, nxv.Resource))
       when(repo.get(id)).thenReturn(OptionT.some[CId](value))
 
       val resolution = new CrossProjectResolution[CId](proj)
@@ -111,6 +111,7 @@ class CrossProjectResolutionSpec
       val resolvers: Set[Resolver] =
         Set(
           CrossProjectResolver(Set(nxv.Schema.value), projects, List.empty, proj, iri(1), 1L, false, 100),
+          CrossProjectResolver(Set(nxv.Schema.value), projects, List.empty, proj, iri(2), 1L, false, 12),
           CrossProjectResolver(Set(nxv.Schema.value), projects2, List.empty, proj, iri(3), 1L, false, 10)
         )
       when(cache.resolvers(proj)).thenReturn(resolvers)
@@ -120,11 +121,11 @@ class CrossProjectResolutionSpec
       when(repo.get(Id(ProjectRef("uuid4"), resId))).thenReturn(OptionT.none[CId, Resource])
 
       val id1    = Id(ProjectRef("uuid5"), resId)
-      val value1 = simpleF(id1, genJson())
+      val value1 = simpleF(id1, genJson(), types = Set(nxv.Schema, nxv.Resource))
       when(repo.get(id1)).thenReturn(OptionT.some[CId](value1))
 
       val id2    = Id(ProjectRef("uuid3"), resId)
-      val value2 = simpleF(id2, genJson())
+      val value2 = simpleF(id2, genJson(), types = Set(nxv.Schema, nxv.Resource))
       when(repo.get(id2)).thenReturn(OptionT.some[CId](value2))
 
       val resolution = new CrossProjectResolution[CId](proj)
@@ -135,6 +136,22 @@ class CrossProjectResolutionSpec
       verify(repo, times(1)).get(Id(ProjectRef("uuid5"), resId))
 
       resolution.resolve(Latest(resId)).value shouldEqual value1
+    }
+
+    "return none when the resource type does not match the resolver's expected type" in {
+      val resolvers: Set[Resolver] =
+        Set(CrossProjectResolver(Set(nxv.Schema.value), projects, List.empty, proj, iri(1), 1L, false, 10))
+      when(cache.resolvers(proj)).thenReturn(resolvers)
+
+      when(repo.get(Id(ProjectRef("uuid2"), resId))).thenReturn(OptionT.none[CId, Resource])
+
+      val id    = Id(ProjectRef("uuid3"), resId)
+      val value = simpleF(id, genJson(), types = Set(nxv.Resource))
+      when(repo.get(id)).thenReturn(OptionT.some[CId](value))
+
+      val resolution = new CrossProjectResolution[CId](proj)
+      resolution.resolve(Latest(resId)) shouldEqual None
+      resolution.resolveAll(Latest(resId)) shouldEqual List.empty[Resource]
     }
   }
 
