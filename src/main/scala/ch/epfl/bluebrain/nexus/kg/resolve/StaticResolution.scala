@@ -3,8 +3,6 @@ import java.time.Clock
 
 import cats.Monad
 import cats.syntax.functor._
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
@@ -34,24 +32,7 @@ object StaticResolution {
     */
   final def apply[F[_]: Monad](resources: Map[AbsoluteIri, Json])(implicit clock: Clock): StaticResolution[F] =
     new StaticResolution[F](resources.map {
-      case (iri, json) =>
-        (
-          iri,
-          ResourceF(
-            Id(ProjectRef("static"), iri),
-            0,
-            Set.empty,
-            false,
-            Map(),
-            Set.empty,
-            clock.instant(),
-            clock.instant(),
-            Anonymous,
-            Anonymous,
-            Ref(nxv.Resource),
-            json
-          )
-        )
+      case (iri, json) => (iri, ResourceF.simpleF(Id(ProjectRef("static"), iri), json))
     })
 
   /**
@@ -66,7 +47,7 @@ object StaticResolution {
       resources
         .mapValues { path =>
           parse(contentOf(path))
-            .getOrElse(throw new IllegalArgumentException(s"Couldn't parse contents of ${path}"))
+            .getOrElse(throw new IllegalArgumentException(s"Couldn't parse contents of $path"))
         })
 
   private def contentOf(file: String): String = {

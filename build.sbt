@@ -28,7 +28,7 @@ scalafmt: {
 val adminVersion                = "0.2.4"
 val iamVersion                  = "0.1.20"
 val commonsVersion              = "0.10.15"
-val rdfVersion                  = "0.2.3"
+val rdfVersion                  = "0.2.5"
 val serviceVersion              = "0.10.13"
 val sourcingVersion             = "0.10.7"
 val akkaVersion                 = "2.5.13"
@@ -41,6 +41,7 @@ val catsEffectVersion           = "1.0.0-RC2"
 val circeVersion                = "0.9.3"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
+val mockitoVersion              = "2.19.0"
 val monixVersion                = "3.0.0-RC1"
 val pureconfigVersion           = "0.9.1"
 val shapelessVersion            = "2.3.3"
@@ -78,6 +79,7 @@ lazy val catsCore             = "org.typelevel"                   %% "cats-core"
 lazy val catsEffect           = "org.typelevel"                   %% "cats-effect"                % catsEffectVersion
 lazy val circeCore            = "io.circe"                        %% "circe-core"                 % circeVersion
 lazy val journalCore          = "io.verizon.journal"              %% "core"                       % journalVersion
+lazy val mockitoCore          = "org.mockito"                     % "mockito-core"                % mockitoVersion
 lazy val logbackClassic       = "ch.qos.logback"                  % "logback-classic"             % logbackVersion
 lazy val monixTail            = "io.monix"                        %% "monix-tail"                 % monixVersion
 lazy val pureconfig           = "com.github.pureconfig"           %% "pureconfig"                 % pureconfigVersion
@@ -123,6 +125,7 @@ lazy val kg = project
       wesoSchema,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
+      mockitoCore          % Test,
       scalaTest            % Test
     ),
     resolvers += Resolver.bintrayRepo("bogdanromanx", "maven")

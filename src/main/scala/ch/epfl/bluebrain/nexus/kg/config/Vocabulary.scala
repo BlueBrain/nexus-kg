@@ -33,15 +33,24 @@ object Vocabulary {
     val isPartOf      = url"$base/isPartOf"
     val priority      = url"$base/priority"
     val uuid          = url"$base/uuid"
+    val resourceTypes = url"$base/resourceTypes"
+    val projects      = url"$base/projects"
+    val identities    = url"$base/identities"
+    val realm         = url"$base/realm"
+    val sub           = url"$base/sub"
+    val group         = url"$base/group"
 
-    val Schema      = url"$base/Schema"
-    val Ontology    = url"$base/Ontology"
-    val Resolver    = url"$base/Resolver"
-    val View        = url"$base/View"
-    val ElasticView = url"$base/ElasticView"
-    val SparqlView  = url"$base/SparqlView"
-
-    val Anonymous = url"$base/Anonymous"
+    val Schema           = url"$base/Schema"
+    val Ontology         = url"$base/Ontology"
+    val Resolver         = url"$base/Resolver"
+    val CrossProject     = url"$base/CrossProject"
+    val View             = url"$base/View"
+    val ElasticView      = url"$base/ElasticView"
+    val SparqlView       = url"$base/SparqlView"
+    val UserRef          = url"$base/UserRef"
+    val GroupRef         = url"$base/GroupRef"
+    val AuthenticatedRef = url"$base/AuthenticatedRef"
+    val Anonymous        = url"$base/Anonymous"
 
     val schemas                     = "https://bluebrain.github.io/nexus/schemas"
     val ShaclSchema: AbsoluteIri    = url"$schemas/schacl"
@@ -54,7 +63,7 @@ object Vocabulary {
     * RDF syntax vocabulary.
     */
   object rdf {
-    val base = "https://www.w3.org/1999/02/22-rdf-syntax-ns"
+    val base = "http://www.w3.org/1999/02/22-rdf-syntax-ns"
     val tpe  = url"$base#type"
   }
 
