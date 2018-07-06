@@ -8,10 +8,11 @@ import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.resolve.StaticResolution
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
-import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+
 import scala.concurrent.duration.Duration
 
 /**
@@ -148,7 +149,6 @@ object AppConfig {
         tagCtxUri              -> tagCtx,
         resourceCtxUri         -> resourceCtx,
         shaclCtxUri            -> shaclCtx,
-        resolverCtxUri         -> resolverCtx,
         resolverCtxUri         -> resolverCtx,
         crossResolverSchemaUri -> crossResolverSchema
       ))
