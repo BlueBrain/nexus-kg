@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -80,10 +80,10 @@ class ResourceRoutes(implicit repo: Repo[Task],
       (post & projectNotDeprecated & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
-            create[Task](labelProj.project.ref, labelProj.project.base, Ref(nxv.ShaclSchema), source).value.runAsync)
+            create[Task](labelProj.project.ref, labelProj.project.base, Ref(shaclSchemaUri), source).value.runAsync)
         }
       } ~
-        pathPrefix(aliasOrCurie)(id => resources(nxv.ShaclSchema, id))
+        pathPrefix(aliasOrCurie)(id => resources(shaclSchemaUri, id))
     }
 
   private def search(implicit token: Option[AuthToken]): Route =
