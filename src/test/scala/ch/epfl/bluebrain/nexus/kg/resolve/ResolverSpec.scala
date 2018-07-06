@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import java.time.{Clock, Instant, ZoneId}
 
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
@@ -11,6 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, ResourceF}
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import org.scalatest.{EitherValues, Matchers, OptionValues, WordSpecLike}
 
 class ResolverSpec extends WordSpecLike with Matchers with Resources with EitherValues with OptionValues {

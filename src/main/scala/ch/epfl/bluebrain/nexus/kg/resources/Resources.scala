@@ -4,7 +4,6 @@ import java.util.UUID
 
 import cats.data.{EitherT, OptionT}
 import cats.{Applicative, Monad}
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Contexts
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -20,6 +19,7 @@ import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._

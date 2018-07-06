@@ -4,12 +4,12 @@ import akka.http.javadsl.server.AuthorizationFailedRejection
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server._
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.marshallerHttp
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.{MethodNotSupported, UnauthorizedAccess, WrongOrInvalidJson}
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.CustomAuthRejection
+import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, MissingParameter}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import io.circe.generic.extras.auto._
 
 /**
