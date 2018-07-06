@@ -37,22 +37,43 @@
         },
         {
           "path": "nxv:identities",
-          "name": "Identities",
+          "name": "UserRef identities",
           "description": "The identities used to enforce security into this resolver.",
-          "or": [
-            {
-              "node": "this:UserRefIdentityShape"
-            },
-            {
-              "node": "this:GroupRefIdentityShape"
-            },
-            {
-              "node": "this:AuthenticatedRefIdentityShape"
-            },
-            {
-              "node": "this:AnonymousIdentityShape"
-            }
-          ]
+          "sh:qualifiedValueShape": {
+            "class": "nxv:UserRef"
+          },
+          "qualifiedValueShapesDisjoint": true,
+          "node": "this:UserRefIdentityShape"
+        },
+        {
+          "path": "nxv:identities",
+          "name": "GroupRef identities",
+          "description": "The identities used to enforce security into this resolver.",
+          "sh:qualifiedValueShape": {
+            "class": "nxv:GroupRef"
+          },
+          "qualifiedValueShapesDisjoint": true,
+          "node": "this:GroupRefIdentityShape"
+        },
+        {
+          "path": "nxv:identities",
+          "name": "AuthenticatedRef identities",
+          "description": "The identities used to enforce security into this resolver.",
+          "sh:qualifiedValueShape": {
+            "class": "nxv:GroupRef"
+          },
+          "qualifiedValueShapesDisjoint": true,
+          "node": "this:AuthenticatedRefIdentityShape"
+        },
+        {
+          "path": "nxv:identities",
+          "name": "Anonymous identities",
+          "description": "The identities used to enforce security into this resolver.",
+          "sh:qualifiedValueShape": {
+            "class": "nxv:GroupRef"
+          },
+          "qualifiedValueShapesDisjoint": true,
+          "node": "this:AnonymousIdentityShape"
         }
       ]
     },
@@ -60,7 +81,6 @@
       "@id": "this:UserRefIdentityShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNode",
-      "targetClass": "nxv:UserRef",
       "sh:closed": true,
       "property": [
         {
@@ -85,7 +105,6 @@
       "@id": "this:GroupRefIdentityShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNode",
-      "targetClass": "nxv:GroupRef",
       "sh:closed": true,
       "property": [
         {
@@ -110,7 +129,6 @@
       "@id": "this:AuthenticatedRefIdentityShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNode",
-      "targetClass": "nxv:AuthenticatedRef",
       "sh:closed": true,
       "property": [
         {
@@ -127,7 +145,6 @@
       "@id": "this:AnonymousIdentityShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNode",
-      "targetClass": "nxv:Anonymous",
       "sh:closed": true
     }
   ]
