@@ -29,19 +29,19 @@ object RejectionHandling {
       .newBuilder()
       .handle {
         case rej: Rejection =>
-          complete(statusCodeFrom(rej) -> rej)
+          complete(rej)
         case MalformedQueryParamRejection(_, _, Some(e: HttpRejection)) =>
           complete(BadRequest -> e)
         case MalformedQueryParamRejection(_, _, Some(err)) =>
-          complete(BadRequest -> (IllegalParameter(err.getMessage): Rejection))
+          complete(IllegalParameter(err.getMessage): Rejection)
         case ValidationRejection(_, Some(err: IllegalParameter)) =>
-          complete(BadRequest -> (IllegalParameter(err.getMessage): Rejection))
+          complete(IllegalParameter(err.getMessage): Rejection)
         case ValidationRejection(err, _) =>
-          complete(BadRequest -> (IllegalParameter(err): Rejection))
+          complete(IllegalParameter(err): Rejection)
         case MissingQueryParamRejection(param) =>
-          complete(BadRequest -> (MissingParameter(s"'$param' parameter is required"): Rejection))
+          complete(MissingParameter(s"'$param' parameter is required"): Rejection)
         case CustomAuthRejection(e) =>
-          complete(InternalServerError -> (e: Rejection))
+          complete(e: Rejection)
         case _: AuthorizationFailedRejection =>
           complete(Unauthorized -> (UnauthorizedAccess: HttpRejection))
       }
