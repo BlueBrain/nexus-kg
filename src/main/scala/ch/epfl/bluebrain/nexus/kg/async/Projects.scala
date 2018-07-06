@@ -44,7 +44,7 @@ trait Projects[F[_]] {
   def addAccount(ref: AccountRef, account: Account, updateRev: Boolean): F[Boolean]
 
   /**
-    * Adds an account.
+    * Deprecates an account.
     *
     * @param ref the account reference
     * @param rev the account revision
@@ -72,7 +72,7 @@ trait Projects[F[_]] {
   def addProject(ref: ProjectRef, project: Project, updateRev: Boolean): F[Boolean]
 
   /**
-    * Adds an account.
+    * Deprecates a project.
     *
     * @param ref the project reference
     * @param rev the project revision

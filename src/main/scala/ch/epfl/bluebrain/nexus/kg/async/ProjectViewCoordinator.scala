@@ -100,7 +100,7 @@ class ProjectViewCoordinator(projects: Projects[Task], selector: View => ActorRe
       if (added.nonEmpty) log.debug(s"Creating view coordinators for $added")
       val newActorsMapping = withNames
         .filter { case (name, _) => added.contains(name) }
-        .mapValues(v => selector(v))
+        .mapValues(selector)
 
       childMapping -- removed ++ newActorsMapping
     }
