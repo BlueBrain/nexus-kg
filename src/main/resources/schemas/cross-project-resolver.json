@@ -60,7 +60,7 @@
           "name": "AuthenticatedRef identities",
           "description": "The identities used to enforce security into this resolver.",
           "sh:qualifiedValueShape": {
-            "class": "nxv:GroupRef"
+            "class": "nxv:AuthenticatedRef"
           },
           "qualifiedValueShapesDisjoint": true,
           "node": "this:AuthenticatedRefIdentityShape"
@@ -70,7 +70,7 @@
           "name": "Anonymous identities",
           "description": "The identities used to enforce security into this resolver.",
           "sh:qualifiedValueShape": {
-            "class": "nxv:GroupRef"
+            "class": "nxv:Anonymous"
           },
           "qualifiedValueShapesDisjoint": true,
           "node": "this:AnonymousIdentityShape"
