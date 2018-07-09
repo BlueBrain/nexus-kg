@@ -57,7 +57,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
     handleRejections(RejectionHandling.rejectionHandler()) {
       token { implicit optToken =>
         pathPrefix(config.http.prefix) {
-          resources ~ schemas ~ search
+          resources ~ schemas ~ resolvers ~ search
         }
       }
     }
@@ -85,6 +85,19 @@ class ResourceRoutes(implicit repo: Repo[Task],
         }
       } ~
         pathPrefix(aliasOrCurie)(id => resources(shaclSchemaUri, id))
+    }
+
+  private def resolvers(implicit token: Option[AuthToken]): Route =
+    // consumes the segment resolvers/{account}/{project}
+    (pathPrefix("resolvers") & project) { implicit labelProj =>
+      // create resolvers with implicit or generated id
+      (post & projectNotDeprecated & entity(as[Json])) { source =>
+        (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
+          complete(
+            create[Task](labelProj.project.ref, labelProj.project.base, Ref(crossResolverSchemaUri), source).value.runAsync)
+        }
+      } ~
+        pathPrefix(aliasOrCurie)(id => resources(crossResolverSchemaUri, id))
     }
 
   private def search(implicit token: Option[AuthToken]): Route =
