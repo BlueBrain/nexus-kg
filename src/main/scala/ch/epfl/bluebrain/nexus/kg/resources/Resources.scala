@@ -4,9 +4,9 @@ import java.util.UUID
 
 import cats.data.{EitherT, OptionT}
 import cats.{Applicative, Monad}
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Contexts
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -19,6 +19,7 @@ import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
@@ -93,20 +94,18 @@ object Resources {
     schema: Ref,
     value: ResourceF.Value
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
-    val schacl   = nxv.ShaclSchema.value
-    val ontology = nxv.OntologySchema.value
 
     def checkAndJoinTypes(types: Set[AbsoluteIri]): EitherT[F, Rejection, Set[AbsoluteIri]] =
       EitherT.fromEither(schema.iri match {
-        case `schacl` if types.isEmpty || types.contains(nxv.Schema)     => Right(types + nxv.Schema)
-        case `schacl`                                                    => Left(IncorrectTypes(id.ref, types))
-        case `ontology` if types.isEmpty || types.contains(nxv.Ontology) => Right(types + nxv.Ontology)
-        case `ontology`                                                  => Left(IncorrectTypes(id.ref, types))
+        case `shaclSchemaUri` if types.isEmpty || types.contains(nxv.Schema)     => Right(types + nxv.Schema)
+        case `shaclSchemaUri`                                                    => Left(IncorrectTypes(id.ref, types))
+        case `ontologySchemaUri` if types.isEmpty || types.contains(nxv.Ontology) => Right(types + nxv.Ontology)
+        case `ontologySchemaUri`                                                  => Left(IncorrectTypes(id.ref, types))
         case _                                                           => Right(types)
       })
 
     //TODO: For now the schema is not validated against the shacl schema.
-    if(schema.iri == schacl)
+    if(schema.iri == shaclSchemaUri)
         // format: off
         for {
           joinedTypes   <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))

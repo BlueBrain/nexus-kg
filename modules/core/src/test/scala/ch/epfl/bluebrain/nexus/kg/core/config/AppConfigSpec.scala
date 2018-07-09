@@ -3,11 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.core.config
 import java.io.File
 
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.commons.http.ContextUri
-import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig._
 import com.typesafe.config.ConfigFactory
-import eu.timepit.refined.auto._
-import org.scalatest.{Matchers, WordSpecLike}
 
 import scala.concurrent.duration._
 
@@ -43,12 +39,12 @@ class AppConfigSpec extends WordSpecLike with Matchers {
       implicitly[AdminConfig] shouldEqual AdminConfig("http://localhost:8080/admin", "projects")
 
       appConfig.prefixes shouldEqual PrefixesConfig(
-        ContextUri("http://localhost:8080/v1/contexts/nexus/core/resource/v0.1.0"),
-        ContextUri("http://localhost:8080/v1/contexts/nexus/core/standards/v0.1.0"),
-        ContextUri("http://localhost:8080/v1/contexts/nexus/core/links/v0.1.0"),
-        ContextUri("http://localhost:8080/v1/contexts/nexus/core/search/v0.1.0"),
-        ContextUri("http://localhost:8080/v1/contexts/nexus/core/distribution/v0.1.0"),
-        ContextUri("http://localhost:8080/v1/contexts/nexus/core/error/v0.1.0"),
+        Iri.absolute("http://localhost:8080/v1/contexts/nexus/core/resource/v0.1.0").right.value,
+        Iri.absolute("http://localhost:8080/v1/contexts/nexus/core/standards/v0.1.0").right.value,
+        Iri.absolute("http://localhost:8080/v1/contexts/nexus/core/links/v0.1.0").right.value,
+        Iri.absolute("http://localhost:8080/v1/contexts/nexus/core/search/v0.1.0").right.value,
+        Iri.absolute("http://localhost:8080/v1/contexts/nexus/core/distribution/v0.1.0").right.value,
+        Iri.absolute("http://localhost:8080/v1/contexts/nexus/core/error/v0.1.0").right.value,
         Uri("http://localhost:8080/vocabs/nexus/core/terms/v0.1.0/")
       )
     }

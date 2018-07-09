@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import akka.serialization.SerializerWithStringManifest
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes

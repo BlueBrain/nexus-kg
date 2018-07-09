@@ -30,6 +30,8 @@ object syntax {
     Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime.value)
 
   @SuppressWarnings(Array("UnusedMethodParameter"))
+  //TODO: This is not implemented. Morover, this does not return a Literal,
+  //but a IriNode
   final implicit def toNode(@silent identity: Identity): Node =
     Literal(nxv.Anonymous.value.asUri)
 

@@ -41,6 +41,7 @@ object Vocabulary {
     val group         = url"$base/group"
 
     val Schema           = url"$base/Schema"
+    val Resource         = url"$base/Resource"
     val Ontology         = url"$base/Ontology"
     val Resolver         = url"$base/Resolver"
     val CrossProject     = url"$base/CrossProject"
@@ -51,11 +52,6 @@ object Vocabulary {
     val GroupRef         = url"$base/GroupRef"
     val AuthenticatedRef = url"$base/AuthenticatedRef"
     val Anonymous        = url"$base/Anonymous"
-
-    val schemas                     = "https://bluebrain.github.io/nexus/schemas"
-    val ShaclSchema: AbsoluteIri    = url"$schemas/shacl"
-    val Resource: AbsoluteIri       = url"$schemas/resource"
-    val OntologySchema: AbsoluteIri = url"$schemas/ontology"
 
   }
 

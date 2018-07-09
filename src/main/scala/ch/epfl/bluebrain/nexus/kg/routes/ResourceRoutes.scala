@@ -12,19 +12,19 @@ import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.admin.refined.project.ProjectReference
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
-import ch.epfl.bluebrain.nexus.kg.marshallers.ResourceJsonLdCirceSupport._
+import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.{CompositeResolution, InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -35,6 +35,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -80,10 +81,10 @@ class ResourceRoutes(implicit repo: Repo[Task],
       (post & projectNotDeprecated & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
-            create[Task](labelProj.project.ref, labelProj.project.base, Ref(nxv.ShaclSchema), source).value.runAsync)
+            create[Task](labelProj.project.ref, labelProj.project.base, Ref(shaclSchemaUri), source).value.runAsync)
         }
       } ~
-        pathPrefix(aliasOrCurie)(id => resources(nxv.ShaclSchema, id))
+        pathPrefix(aliasOrCurie)(id => resources(shaclSchemaUri, id))
     }
 
   private def search(implicit token: Option[AuthToken]): Route =

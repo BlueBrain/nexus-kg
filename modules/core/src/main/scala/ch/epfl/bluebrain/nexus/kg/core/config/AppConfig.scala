@@ -3,11 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.core.config
 import java.nio.file.Path
 
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.commons.http.ContextUri
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
-import ch.epfl.bluebrain.nexus.kg.core.UriOps._
-import ch.epfl.bluebrain.nexus.kg.core.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.service.config.BuildInfo
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.service.http.{Path => HttpPath}
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.numeric.{NonNegative, Positive}
@@ -51,12 +48,12 @@ object AppConfig {
     val pagination: Pagination = Pagination(from.value, size.value)
   }
 
-  final case class PrefixesConfig(coreContext: ContextUri,
-                                  standardsContext: ContextUri,
-                                  linksContext: ContextUri,
-                                  searchContext: ContextUri,
-                                  distributionContext: ContextUri,
-                                  errorContext: ContextUri,
+  final case class PrefixesConfig(coreContext: AbsoluteIri,
+                                  standardsContext: AbsoluteIri,
+                                  linksContext: AbsoluteIri,
+                                  searchContext: AbsoluteIri,
+                                  distributionContext: AbsoluteIri,
+                                  errorContext: AbsoluteIri,
                                   coreVocabulary: Uri)
 
   final case class ElasticConfig(baseUri: Uri, indexPrefix: String, docType: String)

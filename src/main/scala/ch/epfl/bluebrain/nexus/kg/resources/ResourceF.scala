@@ -2,9 +2,9 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant}
 
-import ch.epfl.bluebrain.nexus.commons.http.JsonOps._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, rdf}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, Literal}
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import io.circe.Json
 
@@ -117,7 +118,7 @@ object ResourceF {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = Ref(nxv.Resource))(implicit clock: Clock): ResourceF[P, Ref, Json] =
+                 schema: Ref = Ref(resourceSchemaUri))(implicit clock: Clock): ResourceF[P, Ref, Json] =
     ResourceF(id,
               rev,
               types,
@@ -147,7 +148,7 @@ object ResourceF {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = Ref(nxv.Resource))(implicit clock: Clock): ResourceF[P, Ref, Value] =
+                 schema: Ref = Ref(resourceSchemaUri))(implicit clock: Clock): ResourceF[P, Ref, Value] =
     ResourceF(
       id,
       rev,
