@@ -11,14 +11,15 @@
         "nxv:Resolver",
         "nxv:CrossProject"
       ],
-      "sh:closed": true,
       "property": [
         {
           "path": "nxv:priority",
           "name": "Priority",
           "description": "The priority of the resolver.",
           "datatype": "xsd:integer",
-          "minInclusive": 1,
+          "minInclusive": 0,
+          "maxInclusive": 1000,
+          "minCount": 1,
           "maxCount": 1
         },
         {
@@ -43,7 +44,7 @@
             "class": "nxv:UserRef"
           },
           "qualifiedValueShapesDisjoint": true,
-          "node": "this:UserRefIdentityShape"
+          "seeAlso": "this:UserRefIdentityShape"
         },
         {
           "path": "nxv:identities",
@@ -53,7 +54,7 @@
             "class": "nxv:GroupRef"
           },
           "qualifiedValueShapesDisjoint": true,
-          "node": "this:GroupRefIdentityShape"
+          "seeAlso": "this:GroupRefIdentityShape"
         },
         {
           "path": "nxv:identities",
@@ -63,7 +64,7 @@
             "class": "nxv:AuthenticatedRef"
           },
           "qualifiedValueShapesDisjoint": true,
-          "node": "this:AuthenticatedRefIdentityShape"
+          "seeAlso": "this:AuthenticatedRefIdentityShape"
         },
         {
           "path": "nxv:identities",
@@ -73,7 +74,7 @@
             "class": "nxv:Anonymous"
           },
           "qualifiedValueShapesDisjoint": true,
-          "node": "this:AnonymousIdentityShape"
+          "seeAlso": "this:AnonymousIdentityShape"
         }
       ]
     },
@@ -81,14 +82,14 @@
       "@id": "this:UserRefIdentityShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNode",
-      "sh:closed": true,
+      "targetClass": "nxv:UserRef",
       "property": [
         {
           "path": "nxv:realm",
           "name": "Realm",
           "description": "The OIDC Provider realm.",
           "datatype": "xsd:string",
-          "minInclusive": 1,
+          "minCount": 1,
           "maxCount": 1
         },
         {
@@ -96,7 +97,7 @@
           "name": "Subject",
           "description": "The OIDC Provider subject.",
           "datatype": "xsd:string",
-          "minInclusive": 1,
+          "minCount": 1,
           "maxCount": 1
         }
       ]
@@ -105,14 +106,14 @@
       "@id": "this:GroupRefIdentityShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNode",
-      "sh:closed": true,
+      "targetClass": "nxv:GroupRef",
       "property": [
         {
           "path": "nxv:realm",
           "name": "Realm",
           "description": "The OIDC Provider realm.",
           "datatype": "xsd:string",
-          "minInclusive": 1,
+          "minCount": 1,
           "maxCount": 1
         },
         {
@@ -120,7 +121,7 @@
           "name": "Group",
           "description": "The OIDC Provider group.",
           "datatype": "xsd:string",
-          "minInclusive": 1,
+          "minCount": 1,
           "maxCount": 1
         }
       ]
@@ -129,14 +130,14 @@
       "@id": "this:AuthenticatedRefIdentityShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNode",
-      "sh:closed": true,
+      "targetClass": "nxv:AuthenticatedRef",
       "property": [
         {
           "path": "nxv:realm",
           "name": "Realm",
           "description": "The OIDC Provider realm.",
           "datatype": "xsd:string",
-          "minInclusive": 0,
+          "minCount": 0,
           "maxCount": 1
         }
       ]
@@ -145,7 +146,7 @@
       "@id": "this:AnonymousIdentityShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNode",
-      "sh:closed": true
+      "targetClass": "nxv:Anonymous"
     }
   ]
 }
