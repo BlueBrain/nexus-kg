@@ -94,10 +94,19 @@ class ResourceRoutes(implicit repo: Repo[Task],
       (post & projectNotDeprecated & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
-            create[Task](labelProj.project.ref, labelProj.project.base, Ref(crossResolverSchemaUri), source).value.runAsync)
+            create[Task](labelProj.project.ref,
+                         labelProj.project.base,
+                         Ref(crossResolverSchemaUri),
+                         source.addContext(resolverCtxUri)).value.runAsync)
         }
       } ~
-        pathPrefix(aliasOrCurie)(id => resources(crossResolverSchemaUri, id, withAttachment = false, withTag = false))
+        pathPrefix(aliasOrCurie) { id =>
+          resources(crossResolverSchemaUri,
+                    id,
+                    withAttachment = false,
+                    withTag = false,
+                    injectUri = Some(resolverCtxUri))
+        }
     }
 
   private def search(implicit token: Option[AuthToken]): Route =
@@ -120,28 +129,32 @@ class ResourceRoutes(implicit repo: Repo[Task],
         }
     }
 
-  private def resources(schema: AbsoluteIri, id: AbsoluteIri, withTag: Boolean = true, withAttachment: Boolean = true)(
-      implicit
-      proj: Project,
-      projRef: ProjectReference,
-      token: Option[AuthToken]): Route =
+  private def resources(schema: AbsoluteIri,
+                        id: AbsoluteIri,
+                        withTag: Boolean = true,
+                        withAttachment: Boolean = true,
+                        injectUri: Option[AbsoluteIri] = None)(implicit
+                                                               proj: Project,
+                                                               projRef: ProjectReference,
+                                                               token: Option[AuthToken]): Route =
     // create resource with explicit id
     (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
       (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-        complete(create[Task](Id(proj.ref, id), Ref(schema), source).value.runAsync)
+        complete(create[Task](Id(proj.ref, id), Ref(schema), source.addContext(injectUri)).value.runAsync)
       }
     } ~
       (projectNotDeprecated & parameter('rev.as[Long])) { rev =>
         // update a resource
         (put & entity(as[Json]) & pathEndOrSingleSlash) { source =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-            complete(update[Task](Id(proj.ref, id), rev, Some(Ref(schema)), source).value.runAsync)
+            complete(
+              update[Task](Id(proj.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri)).value.runAsync)
           }
         } ~
           // tag a resource
           (evalBool(withTag) & put & entity(as[Json]) & pathPrefix("tags") & pathEndOrSingleSlash) { json =>
             (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-              complete(tag[Task](Id(proj.ref, id), rev, Some(Ref(schema)), json).value.runAsync)
+              complete(tag[Task](Id(proj.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri)).value.runAsync)
             }
           } ~
           // deprecate a resource
@@ -238,6 +251,10 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
   private implicit class ProjectSyntax(proj: Project) {
     def ref: ProjectRef = ProjectRef(proj.uuid)
+  }
+
+  private implicit class JsonRoutesSyntax(json: Json) {
+    def addContext(uriOpt: Option[AbsoluteIri]): Json = uriOpt.map(uri => json.addContext(uri)).getOrElse(json)
   }
 
   private implicit def projectToResolution(implicit proj: Project): Resolution[Task] =
