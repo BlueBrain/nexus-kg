@@ -40,9 +40,9 @@ private class Indexing(projects: Projects[Task], coordinator: ActorRef)(implicit
           projects.addAccount(AccountRef(uuid), Account(org.name, rev, id, deprecated = false, uuid), updateRev = true)
         case OrganizationDeprecated(_, uuid, rev, _) =>
           projects.deprecateAccount(AccountRef(uuid), rev)
-        case _: ProjectCreated    => throw IllegalEventType("ProjectCreated")
-        case _: ProjectUpdated    => throw IllegalEventType("ProjectUpdated")
-        case _: ProjectDeprecated => throw IllegalEventType("ProjectDeprecated")
+        case _: ProjectCreated    => throw IllegalEventType("ProjectCreated", "Organization")
+        case _: ProjectUpdated    => throw IllegalEventType("ProjectUpdated", "Organization")
+        case _: ProjectDeprecated => throw IllegalEventType("ProjectDeprecated", "Organization")
       }
       update.flatMap { updated =>
         if (updated) Task.unit
@@ -83,9 +83,9 @@ private class Indexing(projects: Projects[Task], coordinator: ActorRef)(implicit
           projects
             .deprecateProject(ProjectRef(uuid), rev)
             .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
-        case _: OrganizationCreated    => throw IllegalEventType("OrganizationCreated")
-        case _: OrganizationUpdated    => throw IllegalEventType("OrganizationUpdated")
-        case _: OrganizationDeprecated => throw IllegalEventType("OrganizationDeprecated")
+        case _: OrganizationCreated    => throw IllegalEventType("OrganizationCreated", "Project")
+        case _: OrganizationUpdated    => throw IllegalEventType("OrganizationUpdated", "Project")
+        case _: OrganizationDeprecated => throw IllegalEventType("OrganizationDeprecated", "Project")
       }
       update.runAsync
     }

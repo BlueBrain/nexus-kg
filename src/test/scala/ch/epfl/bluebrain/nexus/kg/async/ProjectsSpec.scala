@@ -1,0 +1,87 @@
+package ch.epfl.bluebrain.nexus.kg.async
+
+import java.time.Instant
+
+import akka.actor.ActorSystem
+import akka.testkit.{DefaultTimeout, TestKit}
+import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
+import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectRef}
+import ch.epfl.bluebrain.nexus.rdf.Iri
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+
+class ProjectsSpec
+    extends TestKit(ActorSystem("ProjectsSpec"))
+    with DefaultTimeout
+    with WordSpecLike
+    with Matchers
+    with ScalaFutures
+    with BeforeAndAfterAll {
+
+  override protected def afterAll(): Unit = TestKit.shutdownActorSystem(system)
+
+  private def genUUID = java.util.UUID.randomUUID.toString
+
+  private val cache = Projects.future()
+
+  private val base = Iri.absolute("https://nexus.example.com").getOrElse(fail)
+
+  "A Projects distributed cache" should {
+
+    "handle accounts life-cycle" in {
+      val uuid    = genUUID
+      val ref     = AccountRef(uuid)
+      val account = Account("some-org", 1L, "some-label", false, uuid)
+      cache.addAccount(ref, account, true).futureValue shouldEqual true
+      cache.addAccount(ref, account.copy(rev = 2L), false).futureValue shouldEqual false
+      cache.account(ref).futureValue shouldEqual Some(account)
+      cache.addAccount(ref, account.copy(rev = 3L), true).futureValue shouldEqual true
+      cache.account(ref).futureValue shouldEqual Some(account.copy(rev = 3L))
+      cache.deprecateAccount(ref, 4L).futureValue shouldEqual true
+      cache.account(ref).futureValue shouldEqual Some(account.copy(rev = 4L, deprecated = true))
+    }
+
+    "handle projects life-cycle" in {
+      val uuid    = genUUID
+      val ref     = ProjectRef(uuid)
+      val project = Project("some-project", Map.empty, base, 1L, false, uuid)
+      cache.addProject(ref, project, true).futureValue shouldEqual true
+      cache.addProject(ref, project.copy(rev = 2L), false).futureValue shouldEqual false
+      cache.project(ref).futureValue shouldEqual Some(project)
+      cache.addProject(ref, project.copy(rev = 3L), true).futureValue shouldEqual true
+      cache.project(ref).futureValue shouldEqual Some(project.copy(rev = 3L))
+      cache.deprecateProject(ref, 4L).futureValue shouldEqual true
+      cache.project(ref).futureValue shouldEqual Some(project.copy(rev = 4L, deprecated = true))
+    }
+
+    "handle resolvers life-cycle" in {
+      val ref       = ProjectRef(genUUID)
+      val projectId = base + "projects/some-project"
+      val resolver  = InProjectResolver(ref, projectId, 1L, false, 10)
+      cache.addResolver(ref, resolver, Instant.now, true).futureValue shouldEqual true
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver)
+      cache.applyResolver(ref, resolver.copy(rev = 2L), Instant.now).futureValue shouldEqual true
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver, resolver.copy(rev = 2L))
+      cache.addResolver(ref, resolver.copy(rev = 3L), Instant.now, false).futureValue shouldEqual false
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver, resolver.copy(rev = 2L))
+      cache.removeResolver(ref, projectId, Instant.now).futureValue shouldEqual true
+      cache.resolvers(ref).futureValue shouldEqual Set.empty
+    }
+
+    "handle views life-cycle" in {
+      val ref       = ProjectRef(genUUID)
+      val projectId = base + "projects/some-project"
+      val view      = ElasticView(ref, projectId, genUUID, 1L, false)
+      cache.addView(ref, view, Instant.now, true).futureValue shouldEqual true
+      cache.views(ref).futureValue shouldEqual Set(view)
+      cache.applyView(ref, view.copy(rev = 2L), Instant.now).futureValue shouldEqual true
+      cache.views(ref).futureValue shouldEqual Set(view, view.copy(rev = 2L))
+      cache.addView(ref, view.copy(rev = 3L), Instant.now, false).futureValue shouldEqual false
+      cache.views(ref).futureValue shouldEqual Set(view, view.copy(rev = 2L))
+      cache.removeView(ref, projectId, Instant.now).futureValue shouldEqual true
+      cache.views(ref).futureValue shouldEqual Set.empty
+    }
+  }
+}

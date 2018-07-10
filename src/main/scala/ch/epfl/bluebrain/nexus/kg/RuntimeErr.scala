@@ -25,6 +25,7 @@ object RuntimeErr {
     *
     * @param eventType the offending type
     */
-  final case class IllegalEventType(eventType: String) extends RuntimeErr(s"Illegal event type '$eventType'")
+  final case class IllegalEventType(eventType: String, expected: String)
+      extends RuntimeErr(s"Illegal event type '$eventType', expected prefix: '$expected'")
 
 }

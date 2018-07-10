@@ -70,14 +70,14 @@ class ProjectViewCoordinator(projects: Projects[Task], selector: View => ActorRe
       stash()
   }
 
-  def initialized(accountState: Boolean,
-                  projectState: Boolean,
+  def initialized(accountDeprecated: Boolean,
+                  projectDeprecated: Boolean,
                   views: Set[View],
                   childMapping: Map[String, ActorRef]): Receive = {
     // stop children if the account or project is deprecated
-    val stopChildren = !accountState || !projectState
+    val stopChildren = accountDeprecated || projectDeprecated
     val nextMapping = if (stopChildren) {
-      log.debug(s"Account and/or project are deprecated, stopping any running children")
+      log.debug("Account and/or project are deprecated, stopping any running children")
       childMapping.values.foreach { ref =>
         ref ! Stop
         context.stop(ref)
@@ -108,27 +108,27 @@ class ProjectViewCoordinator(projects: Projects[Task], selector: View => ActorRe
     {
       case c @ Changed(`account`) =>
         val deprecated = c.get(account).value.value.exists(_.deprecated)
-        log.debug(s"Account deprecation changed ($accountState -> $deprecated)")
-        context.become(initialized(deprecated, projectState, views, nextMapping))
+        log.debug(s"Account deprecation changed ($accountDeprecated -> $deprecated)")
+        context.become(initialized(deprecated, projectDeprecated, views, nextMapping))
 
       case Deleted(`account`) => // should not happen, maintain previous state
         log.warn("Received account data entry deleted notification, discarding")
 
       case c @ Changed(`project`) =>
         val deprecated = c.get(project).value.value.exists(_.deprecated)
-        log.debug(s"Project deprecation changed ($projectState -> $deprecated)")
-        context.become(initialized(accountState, deprecated, views, nextMapping))
+        log.debug(s"Project deprecation changed ($projectDeprecated -> $deprecated)")
+        context.become(initialized(accountDeprecated, deprecated, views, nextMapping))
 
       case Deleted(`project`) => // should not happen, maintain previous state
         log.warn("Received project data entry deleted notification, discarding")
 
       case c @ Changed(`view`) =>
         log.debug("View collection changed, updating state")
-        context.become(initialized(accountState, projectState, c.get(view).value.value, nextMapping))
+        context.become(initialized(accountDeprecated, projectDeprecated, c.get(view).value.value, nextMapping))
 
       case Deleted(`view`) =>
         log.debug("View collection removed, updating state")
-        context.become(initialized(accountState, projectState, Set.empty, nextMapping))
+        context.become(initialized(accountDeprecated, projectDeprecated, Set.empty, nextMapping))
 
       case _ => // drop
     }
