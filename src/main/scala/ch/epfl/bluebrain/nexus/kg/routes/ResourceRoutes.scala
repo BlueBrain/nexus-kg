@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
+import akka.http.scaladsl.server.{Directive0, Route, Rejection => AkkaRejection}
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -57,7 +57,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
     handleRejections(RejectionHandling.rejectionHandler()) {
       token { implicit optToken =>
         pathPrefix(config.http.prefix) {
-          resources ~ schemas ~ search
+          resources ~ schemas ~ resolvers ~ search
         }
       }
     }
@@ -87,6 +87,19 @@ class ResourceRoutes(implicit repo: Repo[Task],
         pathPrefix(aliasOrCurie)(id => resources(shaclSchemaUri, id))
     }
 
+  private def resolvers(implicit token: Option[AuthToken]): Route =
+    // consumes the segment resolvers/{account}/{project}
+    (pathPrefix("resolvers") & project) { implicit labelProj =>
+      // create resolvers with implicit or generated id
+      (post & projectNotDeprecated & entity(as[Json])) { source =>
+        (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
+          complete(
+            create[Task](labelProj.project.ref, labelProj.project.base, Ref(crossResolverSchemaUri), source).value.runAsync)
+        }
+      } ~
+        pathPrefix(aliasOrCurie)(id => resources(crossResolverSchemaUri, id, withAttachment = false, withTag = false))
+    }
+
   private def search(implicit token: Option[AuthToken]): Route =
     // consumes the segment views/{account}/{project}
     (pathPrefix("views") & project) { implicit labelProj =>
@@ -107,10 +120,11 @@ class ResourceRoutes(implicit repo: Repo[Task],
         }
     }
 
-  private def resources(schema: AbsoluteIri, id: AbsoluteIri)(implicit
-                                                              proj: Project,
-                                                              projRef: ProjectReference,
-                                                              token: Option[AuthToken]): Route =
+  private def resources(schema: AbsoluteIri, id: AbsoluteIri, withTag: Boolean = true, withAttachment: Boolean = true)(
+      implicit
+      proj: Project,
+      projRef: ProjectReference,
+      token: Option[AuthToken]): Route =
     // create resource with explicit id
     (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
       (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
@@ -125,7 +139,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
           }
         } ~
           // tag a resource
-          (put & entity(as[Json]) & pathPrefix("tags") & pathEndOrSingleSlash) { json =>
+          (evalBool(withTag) & put & entity(as[Json]) & pathPrefix("tags") & pathEndOrSingleSlash) { json =>
             (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
               complete(tag[Task](Id(proj.ref, id), rev, Some(Ref(schema)), json).value.runAsync)
             }
@@ -137,7 +151,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
             }
           }
         // remove a resource attachment
-        (path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
+        (evalBool(withAttachment) & path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
           (delete & pathEndOrSingleSlash) {
             (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
               complete(unattach[Task](Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
@@ -172,7 +186,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
             }
           }
         } ~
-          (path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
+          (evalBool(withAttachment) & path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
             // get a resource attachment
             (get & callerIdentity & hasPermission(resourceRead) & pathEndOrSingleSlash) { implicit ident =>
               val result = (revOpt, tagOpt) match {
@@ -242,6 +256,10 @@ class ResourceRoutes(implicit repo: Repo[Task],
     val jsonResult  = graph.asJson(mergedCtx, primaryNode).getOrElse(graph.asJson)
     jsonResult deepMerge Json.obj("@context" -> res.value.ctx).addContext(resourceCtxUri)
   }
+
+  private def evalBool(value: Boolean): Directive0 =
+    if (value) pass
+    else reject
 
   private implicit def toProject(implicit value: LabeledProject): Project                   = value.project
   private implicit def toProjectReference(implicit value: LabeledProject): ProjectReference = value.label
