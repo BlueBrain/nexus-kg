@@ -69,9 +69,9 @@ object Resolver {
   private def identity(c: GraphCursor): EncoderResult[Identity] =
     c.downField(rdf.tpe).values.asListOf[AbsoluteIri].flatMap { types =>
       if (types.contains(nxv.UserRef.value))
-        (c.downField(nxv.realm).focus.as[String], c.downField(nxv.sub).focus.as[String]).mapN(UserRef(_, _))
+        (c.downField(nxv.realm).focus.as[String], c.downField(nxv.sub).focus.as[String]).mapN(UserRef.apply)
       else if (types.contains(nxv.GroupRef.value))
-        (c.downField(nxv.realm).focus.as[String], c.downField(nxv.group).focus.as[String]).mapN(GroupRef(_, _))
+        (c.downField(nxv.realm).focus.as[String], c.downField(nxv.group).focus.as[String]).mapN(GroupRef.apply)
       else if (types.contains(nxv.AuthenticatedRef.value))
         Right(AuthenticatedRef(c.downField(nxv.realm).focus.as[String].toOption))
       else if (types.contains(nxv.Anonymous.value))
@@ -104,13 +104,7 @@ object Resolver {
   }
 
   /**
-    * A resolver that uses its project to resolve resources.
-    *
-    * @param ref        a reference to the project that the resolver belongs to
-    * @param id         the resolver id
-    * @param rev        the resolver revision
-    * @param deprecated the deprecation state of the resolver
-    * @param priority the resolver priority
+    * A resolver that looks only within its own project.
     */
   final case class InProjectResolver(
       ref: ProjectRef,
@@ -120,13 +114,42 @@ object Resolver {
       priority: Int
   ) extends Resolver
 
-  final case class CrossProjectResolver(resourceTypes: Set[AbsoluteIri],
-                                        projects: Set[ProjectRef],
-                                        identities: List[Identity],
-                                        ref: ProjectRef,
-                                        id: AbsoluteIri,
-                                        rev: Long,
-                                        deprecated: Boolean,
-                                        priority: Int)
-      extends Resolver
+  /**
+    * A resolver that looks within all projects belonging to its parent account.
+    */
+  final case class InAccountResolver(
+      resourceTypes: Set[AbsoluteIri],
+      identities: List[Identity],
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      priority: Int
+  ) extends Resolver
+
+  /**
+    * A resolver that can looks across several projects.
+    */
+  final case class CrossProjectResolver(
+      resourceTypes: Set[AbsoluteIri],
+      projects: Set[ProjectRef],
+      identities: List[Identity],
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      priority: Int
+  ) extends Resolver
+
+  /**
+    * A resolver that loads bundled static resources.
+    */
+  final case class StaticResolver(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      priority: Int
+  ) extends Resolver
+
 }

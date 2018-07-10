@@ -11,7 +11,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
@@ -78,13 +78,13 @@ object ElasticIndexer {
   /**
     * Starts the index process for an ElasticSearch client
     *
-    * @param view     the view for which to start the index
-    * @param pluginId the persistence query plugin id to query the event log
+    * @param view the view for which to start the index
     */
-  final def start(
-      view: View,
-      pluginId: String
-  )(implicit repo: Repo[Task], as: ActorSystem, s: Scheduler, config: ElasticConfig): ActorRef = {
+  final def start(view: View)(implicit repo: Repo[Task],
+                              as: ActorSystem,
+                              s: Scheduler,
+                              config: ElasticConfig,
+                              persistence: PersistenceConfig): ActorRef = {
 
     implicit val mt         = ActorMaterializer()
     implicit val ul         = HttpClient.taskHttpClient
@@ -94,7 +94,7 @@ object ElasticIndexer {
     val indexer = new ElasticIndexer(client, elasticIndex(view))
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
-      pluginId,
+      persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",
       name = s"elastic-indexer-${view.name}"
     )

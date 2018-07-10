@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.StaticResolution
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
 
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.FiniteDuration
 
 /**
   * Application
@@ -38,7 +38,8 @@ final case class AppConfig(description: Description,
                            iam: IamConfig,
                            sparql: SparqlConfig,
                            elastic: ElasticConfig,
-                           pagination: PaginationConfig)
+                           pagination: PaginationConfig,
+                           kafka: KafkaConfig)
 
 object AppConfig {
 
@@ -72,15 +73,21 @@ object AppConfig {
   final case class HttpConfig(interface: String, port: Int, prefix: String, publicUri: Uri)
 
   /**
-    *  Cluster configuration
+    * Cluster configuration
+    *
     * @param passivationTimeout actor passivation timeout
+    * @param replicationTimeout replication / distributed data timeout
     * @param shards             number of shards in the cluster
     * @param seeds              seed nodes in the cluster
     */
-  final case class ClusterConfig(passivationTimeout: Duration, shards: Int, seeds: Option[String])
+  final case class ClusterConfig(passivationTimeout: FiniteDuration,
+                                 replicationTimeout: FiniteDuration,
+                                 shards: Int,
+                                 seeds: Option[String])
 
   /**
     * Persistence configuration
+    *
     * @param journalPlugin        plugin for storing events
     * @param snapshotStorePlugin  plugin for storing snapshots
     * @param queryJournalPlugin   plugin for querying journal events
@@ -97,9 +104,18 @@ object AppConfig {
 
   /**
     * IAM config
+    *
     * @param baseUri base URI of IAM service
     */
   final case class IamConfig(baseUri: Uri)
+
+  /**
+    * Kafka config
+    *
+    * @param accountTopic the topic for account events
+    * @param projectTopic the topic for project events
+    */
+  final case class KafkaConfig(accountTopic: String, projectTopic: String)
 
   /**
     * Collection of configurable settings specific to the Sparql indexer.
@@ -154,8 +170,9 @@ object AppConfig {
       ))
   }
 
-  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig         = appConfig.sparql
-  implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig       = appConfig.elastic
-  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig = appConfig.pagination
+  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig           = appConfig.sparql
+  implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig         = appConfig.elastic
+  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig = appConfig.persistence
+  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig   = appConfig.pagination
 
 }

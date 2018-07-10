@@ -15,9 +15,10 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   * TODO: Missing ACLs verification
   *
   * @param project  the resolution scope
+  * @param projects the project operations
   * @tparam F the resolution effect type
   */
-class CrossProjectResolution[F[_]: Repo](project: ProjectRef)(implicit F: Monad[F], projects: Projects[F])
+class CrossProjectResolution[F[_]: Repo](project: ProjectRef, projects: Projects[F])(implicit F: Monad[F])
     extends Resolution[F] {
 
   override def resolve(ref: Ref): F[Option[Resource]] =
@@ -58,4 +59,13 @@ class CrossProjectResolution[F[_]: Repo](project: ProjectRef)(implicit F: Monad[
 
   }
 
+}
+
+object CrossProjectResolution {
+
+  /**
+    * Constructs a [[CrossProjectResolution]] instance
+    */
+  def apply[F[_]: Monad: Repo](project: ProjectRef, projects: Projects[F]): CrossProjectResolution[F] =
+    new CrossProjectResolution(project, projects)
 }

@@ -44,6 +44,15 @@ trait Projects[F[_]] {
   def addAccount(ref: AccountRef, account: Account, updateRev: Boolean): F[Boolean]
 
   /**
+    * Deprecates an account.
+    *
+    * @param ref the account reference
+    * @param rev the account revision
+    * @return true if the deprecation was performed or false otherwise
+    */
+  def deprecateAccount(ref: AccountRef, rev: Long): F[Boolean]
+
+  /**
     * Looks up the state of the argument project.
     *
     * @param ref the project reference
@@ -61,6 +70,15 @@ trait Projects[F[_]] {
     * @return true if the update was performed or false if the element was already present
     */
   def addProject(ref: ProjectRef, project: Project, updateRev: Boolean): F[Boolean]
+
+  /**
+    * Deprecates a project.
+    *
+    * @param ref the project reference
+    * @param rev the project revision
+    * @return true if the deprecation was performed or false otherwise
+    */
+  def deprecateProject(ref: ProjectRef, rev: Long): F[Boolean]
 
   /**
     * Looks up the collection of defined resolvers for the argument project.
@@ -176,25 +194,37 @@ object Projects {
 
     private implicit def tsClock[A]: Clock[TimestampedValue[A]] = TimestampedValue.timestampedValueClock
 
+    private def update(ref: AccountRef, ac: Account) = {
+      val empty  = LWWRegister(RevisionedValue[Option[Account]](0L, None))
+      val value  = RevisionedValue[Option[Account]](ac.rev, Some(ac))
+      val update = Update(accountKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+      (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+    }
+
     override def account(ref: AccountRef): Future[Option[Account]] =
       (replicator ? Get(accountKey(ref), ReadLocal, None)).map {
         case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(accountKey(ref)).value.value
         case NotFound(_, _)                       => None
       }
 
-    override def addAccount(ref: AccountRef, ac: Account, updateRev: Boolean): Future[Boolean] = {
-      def update() = {
-        val empty  = LWWRegister(RevisionedValue[Option[Account]](0L, None))
-        val value  = RevisionedValue[Option[Account]](ac.rev, Some(ac))
-        val update = Update(accountKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-        (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
-      }
+    override def addAccount(ref: AccountRef, ac: Account, updateRev: Boolean): Future[Boolean] =
       account(ref).flatMap {
-        case None                                   => update()
-        case Some(p) if updateRev && ac.rev > p.rev => update()
+        case None                                   => update(ref, ac)
+        case Some(a) if updateRev && ac.rev > a.rev => update(ref, ac)
         case _                                      => Future.successful(false)
-
       }
+
+    override def deprecateAccount(ref: AccountRef, rev: Long): Future[Boolean] =
+      account(ref).flatMap {
+        case Some(a) if !a.deprecated && rev > a.rev => update(ref, a.copy(rev = rev, deprecated = true))
+        case _                                       => Future.successful(false)
+      }
+
+    private def update(ref: ProjectRef, proj: Project) = {
+      val empty  = LWWRegister(RevisionedValue[Option[Project]](0L, None))
+      val value  = RevisionedValue[Option[Project]](proj.rev, Some(proj))
+      val update = Update(projectKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+      (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
     }
 
     override def project(ref: ProjectRef): Future[Option[Project]] =
@@ -203,20 +233,18 @@ object Projects {
         case NotFound(_, _)                       => None
       }
 
-    override def addProject(ref: ProjectRef, proj: Project, updateRev: Boolean): Future[Boolean] = {
-      def update() = {
-        val empty  = LWWRegister(RevisionedValue[Option[Project]](0L, None))
-        val value  = RevisionedValue[Option[Project]](proj.rev, Some(proj))
-        val update = Update(projectKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-        (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
-      }
+    override def addProject(ref: ProjectRef, proj: Project, updateRev: Boolean): Future[Boolean] =
       project(ref).flatMap {
-        case None                                     => update()
-        case Some(p) if updateRev && proj.rev > p.rev => update()
+        case None                                     => update(ref, proj)
+        case Some(p) if updateRev && proj.rev > p.rev => update(ref, proj)
         case _                                        => Future.successful(false)
-
       }
-    }
+
+    override def deprecateProject(ref: ProjectRef, rev: Long): Future[Boolean] =
+      project(ref).flatMap {
+        case Some(p) if !p.deprecated && rev > p.rev => update(ref, p.copy(rev = rev, deprecated = true))
+        case _                                       => Future.successful(false)
+      }
 
     override def resolvers(ref: ProjectRef): Future[Set[Resolver]] =
       (replicator ? Get(resolverKey(ref), ReadLocal, None)).map {
@@ -316,11 +344,17 @@ object Projects {
       override def addAccount(ref: AccountRef, account: Account, updateRev: Boolean): Task[Boolean] =
         Task.deferFuture(underlying.addAccount(ref, account, updateRev))
 
+      override def deprecateAccount(ref: AccountRef, rev: Long): Task[Boolean] =
+        Task.deferFuture(underlying.deprecateAccount(ref, rev))
+
       override def project(ref: ProjectRef): Task[Option[Project]] =
         Task.deferFuture(underlying.project(ref))
 
       override def addProject(ref: ProjectRef, project: Project, updateRev: Boolean): Task[Boolean] =
         Task.deferFuture(underlying.addProject(ref, project, updateRev))
+
+      override def deprecateProject(ref: ProjectRef, rev: Long): Task[Boolean] =
+        Task.deferFuture(underlying.deprecateProject(ref, rev))
 
       override def resolvers(ref: ProjectRef): Task[Set[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))

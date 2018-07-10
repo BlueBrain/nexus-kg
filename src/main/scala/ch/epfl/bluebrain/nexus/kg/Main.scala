@@ -8,15 +8,18 @@ import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
+import akka.util.Timeout
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
+import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
 import ch.epfl.bluebrain.nexus.kg.persistence.TaskAggregate
 import ch.epfl.bluebrain.nexus.kg.resources.Repo
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
@@ -27,6 +30,7 @@ import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import com.typesafe.config.ConfigFactory
 import io.circe.Json
+import io.circe.generic.auto._
 import kamon.Kamon
 import kamon.system.SystemMetrics
 import monix.eval.Task
@@ -50,15 +54,14 @@ object Main {
     implicit val as = ActorSystem(appConfig.description.fullName, config)
     implicit val ec = as.dispatcher
     implicit val mt = ActorMaterializer()
+    implicit val tm = Timeout(appConfig.cluster.replicationTimeout)
+
+    implicit val utClient   = HttpClient.taskHttpClient
+    implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
+    implicit val rsClient   = HttpClient.withTaskUnmarshaller[ResultSet]
+    implicit val qrClient   = HttpClient.withTaskUnmarshaller[QueryResults[Json]]
 
     def indexersClients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): IndexerClients[Task] = {
-      import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-      import io.circe.generic.auto._
-      implicit val ul         = HttpClient.taskHttpClient
-      implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
-      implicit val rsSet      = HttpClient.withTaskUnmarshaller[ResultSet]
-      implicit val rsSearch   = withTaskUnmarshaller[QueryResults[Json]]
-
       val sparql  = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
       val elastic = ElasticClient[Task](elasticConfig.base)
       IndexerClients(elastic, sparql)
@@ -72,7 +75,7 @@ object Main {
       case nonEmpty => nonEmpty
     }
 
-    implicit val cl    = akkaHttpClient
+    implicit val cl    = HttpClient.akkaHttpClient
     implicit val clock = Clock.systemUTC
 
     val sourcingSettings     = SourcingAkkaSettings(journalPluginId = appConfig.persistence.queryJournalPlugin)
@@ -87,6 +90,7 @@ object Main {
     implicit val stream    = AttachmentStore.Stream.task(appConfig.attachments)
     implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
     implicit val indexers  = indexersClients
+    val projects           = Projects.task()
     val resourceRoutes     = ResourceRoutes().routes
     val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
     val serviceDesc        = ServiceDescriptionRoutes(appConfig.description).routes
@@ -106,6 +110,8 @@ object Main {
           logger.error(th, "Failed to perform an http binding on {}:{}", appConfig.http.interface, appConfig.http.port)
           Await.result(as.terminate(), 10 seconds)
       }
+
+      Indexing.start(projects)
     }
 
     cluster.joinSeedNodes(seeds)

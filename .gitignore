@@ -37,6 +37,7 @@ target/
 ######################
 *.log.*
 *.sqlite
+**/data.mdb
 
 # OS generated files #
 ######################
