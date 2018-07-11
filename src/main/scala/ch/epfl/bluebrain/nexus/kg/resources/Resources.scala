@@ -4,16 +4,26 @@ import java.util.UUID
 
 import cats.data.{EitherT, OptionT}
 import cats.{Applicative, Monad}
+import cats.syntax.flatMap._
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder
 import ch.epfl.bluebrain.nexus.kg.validation.Validator
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -336,6 +346,72 @@ object Resources {
       filename: String
   )(implicit repo: Repo[F], store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
     checkSchemaAtt(id, schemaOpt)(repo.getAttachment(id, tag, filename))
+
+  /**
+    * Lists resources for the given project
+    * @param project        projects from which resources will be listed
+    * @param deprecated     deprecation status of the resources
+    * @param pagination     pagination options
+    * @param elasticClient  ElasticSearch client
+    * @param esConfig       ElasticSearch config
+    * @param tc             typed HTTP client
+    * @param projects       projects cache
+    * @return               search results in the F context
+    */
+  def list[F[_]](project: ProjectRef, deprecated: Option[Boolean], pagination: Pagination)(
+      implicit elasticClient: ElasticClient[F],
+      esConfig: ElasticConfig,
+      tc: HttpClient[F, QueryResults[AbsoluteIri]],
+      projects: Projects[F],
+      F: Monad[F]
+  ): F[QueryResults[AbsoluteIri]] = {
+    projects.views(project).flatMap { views =>
+      val elasticView = views.find {
+        case _: ElasticView => true
+        case _              => false
+      }
+      elasticView match {
+        case Some(view) =>
+          elasticClient.search(QueryBuilder.queryFor(deprecated), Set(ElasticIndexer.elasticIndex(view)))(pagination)
+        case None =>
+          F.pure(UnscoredQueryResults(0L, List.empty))
+      }
+    }
+  }
+
+  /**
+    * Lists resources for the given project and schema
+    * @param project        projects from which resources will be listed
+    * @param deprecated     deprecation status of the resources
+    * @param schema         schema by which the resources are constrained
+    * @param pagination     pagination options
+    * @param elasticClient  ElasticSearch client
+    * @param esConfig       ElasticSearch config
+    * @param tc             typed HTTP client
+    * @param projects       projects cache
+    * @return               search results in the F context
+    */
+  def list[F[_]](project: ProjectRef, deprecated: Option[Boolean], schema: AbsoluteIri, pagination: Pagination)(
+      implicit elasticClient: ElasticClient[F],
+      esConfig: ElasticConfig,
+      tc: HttpClient[F, QueryResults[AbsoluteIri]],
+      projects: Projects[F],
+      F: Monad[F]
+  ): F[QueryResults[AbsoluteIri]] = {
+    projects.views(project).flatMap { views =>
+      val elasticView = views.find {
+        case _: ElasticView => true
+        case _              => false
+      }
+      elasticView match {
+        case Some(view) =>
+          elasticClient.search(QueryBuilder.queryFor(deprecated, schema), Set(ElasticIndexer.elasticIndex(view)))(
+            pagination)
+        case None =>
+          F.pure(UnscoredQueryResults(0L, List.empty))
+      }
+    }
+  }
 
   private def checkSchemaAtt[F[_]: Monad, Out](id: ResId, schemaOpt: Option[Ref])(
       op: => OptionT[F, (BinaryAttributes, Out)])(implicit repo: Repo[F]): OptionT[F, (BinaryAttributes, Out)] =

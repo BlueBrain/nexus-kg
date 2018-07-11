@@ -1,0 +1,13 @@
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "constrainedBy": "http://nexus.example.com/testSchema"
+          }
+        }
+      ]
+    }
+  }
+}

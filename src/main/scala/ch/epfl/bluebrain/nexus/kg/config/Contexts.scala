@@ -15,6 +15,7 @@ object Contexts extends Resources {
   val resourceCtxUri: AbsoluteIri = url"$contexts/resource"
   val resolverCtxUri: AbsoluteIri = url"$contexts/resolver"
   val shaclCtxUri: AbsoluteIri    = url"$contexts/shacl"
+  val searchCtxUri: AbsoluteIri   = url"$contexts/search"
 
   val tagCtx: Json      = jsonContentOf("/contexts/tags-context.json")
   val resourceCtx: Json = jsonContentOf("/contexts/resource-context.json")

@@ -6,11 +6,17 @@ import akka.http.javadsl.server.Rejections.validationRejection
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
-import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Directives.{parameter, _}
 import akka.http.scaladsl.server.{Directive0, Route, Rejection => AkkaRejection}
+import akka.stream.ActorMaterializer
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.admin.refined.project.ProjectReference
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{withTaskUnmarshaller, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
+import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
 import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -21,6 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.{CompositeResolution, InProjectResolution, Resolution}
@@ -42,10 +49,13 @@ import scala.concurrent.Future
 import scala.util.Try
 
 class ResourceRoutes(implicit repo: Repo[Task],
-                     projects: Projects[Task],
                      indexers: Clients[Task],
                      store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                     config: AppConfig) {
+                     config: AppConfig,
+                     elasticClient: ElasticClient[Task],
+                     httpClient: UntypedHttpClient[Task],
+                     projects: Projects[Task],
+                     mt: ActorMaterializer) {
 
   private val (elastic, sparql) = (indexers.elastic, indexers.sparql)
   import indexers._
@@ -54,7 +64,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
     handleRejections(RejectionHandling.rejectionHandler()) {
       token { implicit optToken =>
         pathPrefix(config.http.prefix) {
-          resources ~ schemas ~ resolvers ~ search
+          resources ~ schemas ~ resolvers ~ search ~ listings
         }
       }
     }
@@ -124,6 +134,19 @@ class ResourceRoutes(implicit repo: Repo[Task],
               complete(search.map(_.results.map(_.source)).runAsync)
             }
         }
+    }
+
+  private def listings(implicit token: Option[AuthToken]): Route =
+    (pathPrefix("resources") & project) { implicit proj =>
+      implicit val decoder = ElasticDecoder.apply(ElasticDecoders.resourceIdDecoder)
+      implicit val cl      = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
+      (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
+        (deprecated, pagination) =>
+          complete(Resources.list[Task](proj.project.ref, deprecated, pagination).runAsync)
+      } ~ (get & parameter('deprecated.as[Boolean].?) & paginated & aliasOrCuriePath & hasPermission(resourceRead)) {
+        (deprecated, pagination, schema) =>
+          complete(Resources.list[Task](proj.project.ref, deprecated, schema, pagination).runAsync)
+      }
     }
 
   private def resources(schema: AbsoluteIri,
@@ -282,10 +305,13 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
 object ResourceRoutes {
   final def apply()(implicit repo: Repo[Task],
-                    projects: Projects[Task],
                     indexers: Clients[Task],
                     store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                    config: AppConfig): ResourceRoutes = new ResourceRoutes()
+                    config: AppConfig,
+                    elasticClient: ElasticClient[Task],
+                    httpClient: UntypedHttpClient[Task],
+                    projects: Projects[Task],
+                    mt: ActorMaterializer): ResourceRoutes = new ResourceRoutes()
 
   private[routes] val resourceRead   = Permissions(Permission("resources/read"), Permission("resources/manage"))
   private[routes] val resourceWrite  = Permissions(Permission("resources/write"), Permission("resources/manage"))

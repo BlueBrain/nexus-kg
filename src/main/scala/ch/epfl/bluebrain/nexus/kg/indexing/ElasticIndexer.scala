@@ -100,7 +100,7 @@ object ElasticIndexer {
     )
   }
 
-  private def elasticIndex(view: View)(implicit config: ElasticConfig): String =
+  def elasticIndex(view: View)(implicit config: ElasticConfig): String =
     s"${config.indexPrefix}_${view.name}"
 
   private[indexing] implicit class ResIdSyntax(id: ResId) {
