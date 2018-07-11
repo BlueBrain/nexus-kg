@@ -349,6 +349,7 @@ object Resources {
 
   /**
     * Lists resources for the given project
+    *
     * @param project        projects from which resources will be listed
     * @param deprecated     deprecation status of the resources
     * @param pagination     pagination options
@@ -381,6 +382,7 @@ object Resources {
 
   /**
     * Lists resources for the given project and schema
+    *
     * @param project        projects from which resources will be listed
     * @param deprecated     deprecation status of the resources
     * @param schema         schema by which the resources are constrained

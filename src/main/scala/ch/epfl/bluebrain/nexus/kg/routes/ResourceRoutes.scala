@@ -41,6 +41,8 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import eu.timepit.refined.auto._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -138,8 +140,9 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
   private def listings(implicit token: Option[AuthToken]): Route =
     (pathPrefix("resources") & project) { implicit proj =>
-      implicit val decoder = ElasticDecoder.apply(ElasticDecoders.resourceIdDecoder)
-      implicit val cl      = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
+      implicit val decoder = ElasticDecoder.apply(ElasticDecoders.resourceIdDecoder(url"${config.http.publicUri.copy(
+        path = config.http.publicUri.path / "resources" / proj.label.organizationReference / proj.label.projectLabel)}".value))
+      implicit val cl = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
         (deprecated, pagination) =>
           complete(Resources.list[Task](proj.project.ref, deprecated, pagination).runAsync)
