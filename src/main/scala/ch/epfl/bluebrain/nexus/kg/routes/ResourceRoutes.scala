@@ -11,7 +11,6 @@ import akka.http.scaladsl.server.{Directive0, Route, Rejection => AkkaRejection}
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.admin.refined.project.ProjectReference
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
@@ -135,7 +134,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
                         withAttachment: Boolean = true,
                         injectUri: Option[AbsoluteIri] = None)(implicit
                                                                proj: Project,
-                                                               projRef: ProjectReference,
+                                                               projRef: ProjectLabel,
                                                                token: Option[AuthToken]): Route =
     // create resource with explicit id
     (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
@@ -278,8 +277,8 @@ class ResourceRoutes(implicit repo: Repo[Task],
     if (value) pass
     else reject
 
-  private implicit def toProject(implicit value: LabeledProject): Project                   = value.project
-  private implicit def toProjectReference(implicit value: LabeledProject): ProjectReference = value.label
+  private implicit def toProject(implicit value: LabeledProject): Project           = value.project
+  private implicit def toProjectLabel(implicit value: LabeledProject): ProjectLabel = value.label
 
 }
 

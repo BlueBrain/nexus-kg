@@ -1,51 +1,35 @@
 package ch.epfl.bluebrain.nexus.kg.directives
 
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Directive1, ValidationRejection}
+import akka.http.scaladsl.server.{Directive0, Directive1}
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.admin.refined.organization._
-import ch.epfl.bluebrain.nexus.admin.refined.project._
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.CustomAuthRejection
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{ProjectIsDeprecated, ProjectNotFound}
-import eu.timepit.refined.api.RefType.applyRef
 import monix.eval.Task
 import monix.execution.Scheduler
 
 object ProjectDirectives {
 
   /**
-    * Extracts a [[ProjectReference]] from two consecutive path segments.
-    */
-  private def projectReference(): Directive1[ProjectReference] =
-    pathPrefix(Segment / Segment).tflatMap {
-      case (seg1, seg2) =>
-        (for {
-          org  <- applyRef[OrganizationReference](seg1)
-          proj <- applyRef[ProjectLabel](seg2)
-        } yield ProjectReference(org, proj)) match {
-          case Right(r)  => provide(r)
-          case Left(err) => reject(ValidationRejection(err, None))
-        }
-    }
-
-  /**
     * Fetches project configuration from nexus admin
     */
   def project(implicit client: AdminClient[Task], cred: Option[AuthToken], s: Scheduler): Directive1[LabeledProject] =
-    projectReference().flatMap { ref =>
-      onSuccess(client.getProject(ref).runAsync).flatMap {
-        case Some(project) => provide(LabeledProject(ref, project))
-        case _             => reject(CustomAuthRejection(ProjectNotFound(ref)))
+    pathPrefix(Segment / Segment).tflatMap {
+      case (accountLabel, projectLabel) =>
+        onSuccess(client.getProject(accountLabel, projectLabel).runAsync).flatMap {
+          case Some(value) => provide(LabeledProject(ProjectLabel(accountLabel, projectLabel), value))
+          case _           => reject(CustomAuthRejection(ProjectNotFound(ProjectLabel(accountLabel, projectLabel))))
 
-      }
+        }
     }
 
   /**
     * @return pass when the project is not deprecated, rejects when project is deprecated
     */
-  def projectNotDeprecated(implicit proj: Project, ref: ProjectReference): Directive0 =
+  def projectNotDeprecated(implicit proj: Project, ref: ProjectLabel): Directive0 =
     if (proj.deprecated) reject(CustomAuthRejection(ProjectIsDeprecated(ref)))
     else pass
 }

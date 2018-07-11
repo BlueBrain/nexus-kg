@@ -8,7 +8,7 @@ import akka.cluster.ddata.LWWRegister.Clock
   * @param timestamp the instant when the value was produced
   * @param value     the value
   */
-final case class TimestampedValue[A](timestamp: Long, value: A)
+final case class TimestampedValue[A](timestamp: Long, value: A) extends RegisteredValue[A]
 
 object TimestampedValue {
 

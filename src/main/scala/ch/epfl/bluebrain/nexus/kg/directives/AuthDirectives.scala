@@ -6,14 +6,13 @@ import akka.http.scaladsl.server.Directives.{extractCredentials, _}
 import akka.http.scaladsl.server.directives.FutureDirectives.onComplete
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive0, Directive1}
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.admin.refined.project.ProjectReference
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity, Permissions}
 import ch.epfl.bluebrain.nexus.iam.client.{Caller, IamClient}
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.DownstreamServiceError
+import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, Rejection}
 import monix.eval.Task
 import monix.execution.Scheduler
 
@@ -42,11 +41,11 @@ object AuthDirectives {
     * @param perms the permissions to check on the current project
     * @return pass if the ''perms'' is present on the current project, reject with [[AuthorizationFailedRejection]] otherwise
     */
-  def hasPermission(perms: Permissions)(implicit projectRef: ProjectReference,
+  def hasPermission(perms: Permissions)(implicit ref: ProjectLabel,
                                         adminClient: AdminClient[Task],
                                         token: Option[AuthToken],
                                         s: Scheduler): Directive0 =
-    onSuccess(adminClient.getProjectAcls(projectRef, parents = true, self = true).runAsync).flatMap {
+    onSuccess(adminClient.getProjectAcls(ref.account, ref.value, parents = true, self = true).runAsync).flatMap {
       case Some(acls) if acls.hasAnyPermission(perms) => pass
       case _                                          => reject(AuthorizationFailedRejection)
 
