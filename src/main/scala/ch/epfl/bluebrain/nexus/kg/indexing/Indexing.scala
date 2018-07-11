@@ -34,10 +34,14 @@ private class Indexing(projects: Projects[Task], coordinator: ActorRef)(implicit
 
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
-        case OrganizationCreated(id, uuid, rev, _, org) =>
-          projects.addAccount(AccountRef(uuid), Account(org.name, rev, id, deprecated = false, uuid), updateRev = false)
-        case OrganizationUpdated(id, uuid, rev, _, org) =>
-          projects.addAccount(AccountRef(uuid), Account(org.name, rev, id, deprecated = false, uuid), updateRev = true)
+        case OrganizationCreated(_, label, uuid, rev, _, org) =>
+          projects.addAccount(AccountRef(uuid),
+                              Account(org.name, rev, label, deprecated = false, uuid),
+                              updateRev = false)
+        case OrganizationUpdated(_, label, uuid, rev, _, org) =>
+          projects.addAccount(AccountRef(uuid),
+                              Account(org.name, rev, label, deprecated = false, uuid),
+                              updateRev = true)
         case OrganizationDeprecated(_, uuid, rev, _) =>
           projects.deprecateAccount(AccountRef(uuid), rev)
         case _: ProjectCreated    => throw IllegalEventType("ProjectCreated", "Organization")
@@ -67,16 +71,18 @@ private class Indexing(projects: Projects[Task], coordinator: ActorRef)(implicit
 
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
-        case ProjectCreated(_, _, uuid, orgUUid, rev, _, proj) =>
+        case ProjectCreated(_, label, uuid, orgUUid, rev, _, proj) =>
           projects
             .addProject(ProjectRef(uuid),
-                        Project(proj.name, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
+                        AccountRef(orgUUid),
+                        Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
                         updateRev = false)
             .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
-        case ProjectUpdated(_, uuid, orgUUid, rev, _, proj) =>
+        case ProjectUpdated(_, label, uuid, orgUUid, rev, _, proj) =>
           projects
             .addProject(ProjectRef(uuid),
-                        Project(proj.name, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
+                        AccountRef(orgUUid),
+                        Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
                         updateRev = true)
             .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
         case ProjectDeprecated(_, uuid, orgUUid, rev, _) =>

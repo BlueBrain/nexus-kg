@@ -86,10 +86,8 @@ object Resolver {
       types    <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri]
       projects <- c.downField(nxv.projects).values.asListOf[String].map(_.map(ProjectRef.apply))
       identities <- c.downField(nxv.identities).downArray.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
-        case (err @ Left(_), _) => err
-        case (Right(list), inner) =>
-          val errorOrIdentities = identity(inner).map(_ :: list)
-          errorOrIdentities
+        case (err @ Left(_), _)   => err
+        case (Right(list), inner) => identity(inner).map(_ :: list)
       }
       priority <- c.downField(nxv.priority).focus.as[Int]
     } yield

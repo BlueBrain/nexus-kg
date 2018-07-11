@@ -25,7 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Repo
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.kg.routes.{IndexerClients, ResourceRoutes, ServiceDescriptionRoutes}
+import ch.epfl.bluebrain.nexus.kg.routes.{Clients, ResourceRoutes, ServiceDescriptionRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import com.typesafe.config.ConfigFactory
@@ -61,10 +61,14 @@ object Main {
     implicit val rsClient   = HttpClient.withTaskUnmarshaller[ResultSet]
     implicit val qrClient   = HttpClient.withTaskUnmarshaller[QueryResults[Json]]
 
-    def indexersClients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): IndexerClients[Task] = {
-      val sparql  = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
-      val elastic = ElasticClient[Task](elasticConfig.base)
-      IndexerClients(elastic, sparql)
+    def clients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
+      val sparql      = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
+      val elastic     = ElasticClient[Task](elasticConfig.base)
+      implicit val cl = HttpClient.akkaHttpClient
+
+      implicit val adminClient = AdminClient.task(appConfig.admin)
+      implicit val iamClient   = IamClient.task()(IamUri(appConfig.iam.baseUri), as)
+      Clients(elastic, sparql)
     }
 
     val cluster = Cluster(as)
@@ -75,12 +79,9 @@ object Main {
       case nonEmpty => nonEmpty
     }
 
-    implicit val cl    = HttpClient.akkaHttpClient
     implicit val clock = Clock.systemUTC
 
-    val sourcingSettings     = SourcingAkkaSettings(journalPluginId = appConfig.persistence.queryJournalPlugin)
-    implicit val adminClient = AdminClient.task(appConfig.admin)
-    implicit val iamClient   = IamClient.task()(IamUri(appConfig.iam.baseUri), as)
+    val sourcingSettings = SourcingAkkaSettings(journalPluginId = appConfig.persistence.queryJournalPlugin)
 
     val resourceAggregate: Agg[Task] =
       TaskAggregate.fromFuture(ShardingAggregate("resources", sourcingSettings)(Repo.initial, Repo.next, Repo.eval))
@@ -89,7 +90,7 @@ object Main {
     implicit val lc        = AttachmentStore.LocationResolver[Task]()
     implicit val stream    = AttachmentStore.Stream.task(appConfig.attachments)
     implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
-    implicit val indexers  = indexersClients
+    implicit val indexers  = clients
     val projects           = Projects.task()
     val resourceRoutes     = ResourceRoutes().routes
     val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)

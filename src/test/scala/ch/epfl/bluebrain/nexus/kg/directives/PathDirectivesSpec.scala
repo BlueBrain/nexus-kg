@@ -18,7 +18,7 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
       "a"   -> Iri.absolute("https://www.w3.org/1999/02/22-rdf-syntax-ns#type").right.value
     )
     implicit val project: Project =
-      Project("project", mappings, Iri.absolute("http://example.com/base").right.value, 1L, false, "uuid")
+      Project("project", "some-label", mappings, Iri.absolute("http://example.com/base").right.value, 1L, false, "uuid")
 
     def route(): Route =
       (get & pathPrefix(aliasOrCurie)) { iri =>

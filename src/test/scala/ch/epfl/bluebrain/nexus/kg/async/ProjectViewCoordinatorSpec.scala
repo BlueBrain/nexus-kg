@@ -48,7 +48,7 @@ class ProjectViewCoordinatorSpec
       val viewUUID   = genUUID
       val projectRef = ProjectRef(projUUID)
       val accountRef = AccountRef(accUUID)
-      val project    = Project("some-project", Map.empty, base, 1L, false, projUUID)
+      val project    = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, projUUID)
       val account    = Account("some-org", 1L, "some-label", false, accUUID)
       val viewId     = base + "projects/some-project/search"
       val view       = ElasticView(projectRef, viewId, viewUUID, 1L, false)
@@ -67,7 +67,7 @@ class ProjectViewCoordinatorSpec
 
       val coordinator = ProjectViewCoordinator.start(projects, selector, None, 1)
       projects.addAccount(accountRef, account, true).runAsync.futureValue shouldEqual true
-      projects.addProject(projectRef, project, true).runAsync.futureValue shouldEqual true
+      projects.addProject(projectRef, accountRef, project, true).runAsync.futureValue shouldEqual true
       coordinator ! Msg(accountRef, projectRef)
       projects.addView(projectRef, view, Instant.now, true).runAsync.futureValue shouldEqual true
       eventually { counter.get shouldEqual 1 }

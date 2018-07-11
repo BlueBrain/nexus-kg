@@ -8,7 +8,7 @@ import akka.cluster.ddata.LWWRegister.Clock
   * @param rev   the value revision
   * @param value the value
   */
-final case class RevisionedValue[A](rev: Long, value: A)
+final case class RevisionedValue[A](rev: Long, value: A) extends RegisteredValue[A]
 
 object RevisionedValue {
 
