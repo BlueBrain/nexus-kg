@@ -244,9 +244,9 @@ object Projects {
       }
 
       def updateAccountLabel() = {
-        val empty                                  = LWWRegister(RevisionedValue[Option[String]](0L, None))
-        val value: RevisionedValue[Option[String]] = RevisionedValue(ac.rev, Some(ac.label))
-        val update                                 = Update(accountSegmentInverseKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+        val empty  = LWWRegister(RevisionedValue[Option[String]](0L, None))
+        val value  = RevisionedValue[Option[String]](ac.rev, Some(ac.label))
+        val update = Update(accountSegmentInverseKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
         (replicator ? update).flatMap(
           handleBooleanUpdate("Timed out while waiting for adding account label quorum response"))
       }
