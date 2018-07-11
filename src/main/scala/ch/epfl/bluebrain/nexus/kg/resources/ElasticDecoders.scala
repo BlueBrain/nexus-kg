@@ -28,15 +28,14 @@ object ElasticDecoders {
     }
 
   private def aliasOrCurieFor(iri: AbsoluteIri, project: Project): String = {
-    def prefixMatches(iri: Iri.AbsoluteIri, prefix: Iri.AbsoluteIri): Boolean =
-      iri.show.startsWith(prefix.show) || iri == prefix
-
-    project.prefixMappings.find { case (_, iri2) => prefixMatches(iri, iri2) } match {
-      case Some((prefix, matchedIri)) if matchedIri == iri => prefix
-      case Some((prefix, matchedIri)) if iri.show.startsWith(matchedIri.show) =>
-        s"$prefix:${iri.show.stripPrefix(matchedIri.show)}"
-      case None => iri.show
-    }
+    project.prefixMappings
+      .collectFirst {
+        case (prefix, ns) if iri.show.startsWith(ns.show) =>
+          s"$prefix:${iri.show.stripPrefix(ns.show)}"
+        case (prefix, ns) if iri == ns =>
+          prefix
+      }
+      .getOrElse(iri.show)
   }
 
 }
