@@ -92,7 +92,6 @@ object Main {
     implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
     implicit val indexers  = clients
     implicit val projects  = Projects.task()
-    implicit val elastic   = ElasticClient[Task](appConfig.elastic.base)
     val resourceRoutes     = ResourceRoutes().routes
     val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
     val serviceDesc        = ServiceDescriptionRoutes(appConfig.description).routes
