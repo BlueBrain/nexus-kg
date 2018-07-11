@@ -53,12 +53,12 @@ object AppConfig {
     /**
       * @return the version of the service
       */
-    val version: String = BuildInfo.version.replaceAll("\\W", "-")
+    val version: String = BuildInfo.version
 
     /**
       * @return the full name of the service (name + version)
       */
-    val fullName: String = s"$name-$version"
+    val fullName: String = s"$name-${version.replaceAll("\\W", "-")}"
 
   }
 
