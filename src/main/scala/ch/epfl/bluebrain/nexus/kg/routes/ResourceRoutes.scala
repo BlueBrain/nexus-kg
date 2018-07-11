@@ -9,10 +9,8 @@ import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Route, Rejection => AkkaRejection}
 import cats.data.OptionT
-import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -43,14 +41,12 @@ import scala.concurrent.Future
 import scala.util.Try
 
 class ResourceRoutes(implicit repo: Repo[Task],
-                     adminClient: AdminClient[Task],
-                     iamClient: IamClient[Task],
-                     indexers: IndexerClients[Task],
+                     indexers: Clients[Task],
                      store: AttachmentStore[Task, AkkaIn, AkkaOut],
                      config: AppConfig) {
 
   private val (elastic, sparql) = (indexers.elastic, indexers.sparql)
-  import indexers.rsSearch
+  import indexers._
 
   def routes: Route =
     handleRejections(RejectionHandling.rejectionHandler()) {
@@ -284,9 +280,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
 object ResourceRoutes {
   final def apply()(implicit repo: Repo[Task],
-                    adminClient: AdminClient[Task],
-                    iamClient: IamClient[Task],
-                    indexers: IndexerClients[Task],
+                    indexers: Clients[Task],
                     store: AttachmentStore[Task, AkkaIn, AkkaOut],
                     config: AppConfig): ResourceRoutes = new ResourceRoutes()
 
