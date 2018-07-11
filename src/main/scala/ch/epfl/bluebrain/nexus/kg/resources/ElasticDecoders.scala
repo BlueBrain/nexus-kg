@@ -12,7 +12,7 @@ import io.circe.Decoder
 object ElasticDecoders {
 
   /**
-    * Circe decoder which which reconstructs resource representation ID from ElasticSearch response
+    * Circe decoder which reconstructs resource representation ID from ElasticSearch response
     * @param project project to which the resource belongs
     * @param config  http config
     * @return        Decoder for representation ID of the resource

@@ -6,7 +6,7 @@ import akka.http.javadsl.server.Rejections.validationRejection
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
-import akka.http.scaladsl.server.Directives.{parameter, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Route, Rejection => AkkaRejection}
 import akka.stream.ActorMaterializer
 import cats.data.OptionT
