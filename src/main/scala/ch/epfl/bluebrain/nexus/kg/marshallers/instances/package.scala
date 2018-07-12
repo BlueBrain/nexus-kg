@@ -2,7 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.marshallers
 
 import akka.http.scaladsl.marshalling.GenericMarshallers.eitherMarshaller
 import akka.http.scaladsl.marshalling._
-import akka.http.scaladsl.model.{HttpEntity, HttpResponse, StatusCode, StatusCodes}
+import akka.http.scaladsl.model.MediaTypes.`application/json`
+import akka.http.scaladsl.model._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
@@ -11,7 +12,12 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.{Encoder, Json, Printer}
 
+import scala.collection.immutable.Seq
+
 package object instances extends FailFastCirceSupport {
+
+  override def unmarshallerContentTypes: Seq[ContentTypeRange] =
+    List(`application/json`, RdfMediaTypes.`application/ld+json`, RdfMediaTypes.`application/sparql-results+json`)
 
   /**
     * `Json` => HTTP entity

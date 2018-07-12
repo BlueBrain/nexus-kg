@@ -12,6 +12,7 @@ import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
+import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -41,6 +42,7 @@ import scala.concurrent.Future
 import scala.util.Try
 
 class ResourceRoutes(implicit repo: Repo[Task],
+                     projects: Projects[Task],
                      indexers: Clients[Task],
                      store: AttachmentStore[Task, AkkaIn, AkkaOut],
                      config: AppConfig) {
@@ -280,6 +282,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
 object ResourceRoutes {
   final def apply()(implicit repo: Repo[Task],
+                    projects: Projects[Task],
                     indexers: Clients[Task],
                     store: AttachmentStore[Task, AkkaIn, AkkaOut],
                     config: AppConfig): ResourceRoutes = new ResourceRoutes()
