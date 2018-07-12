@@ -8,11 +8,10 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Route, Rejection => AkkaRejection}
-import akka.stream.ActorMaterializer
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticDecoder
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{withTaskUnmarshaller, UntypedHttpClient}
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.withTaskUnmarshaller
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
@@ -53,9 +52,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
                      indexers: Clients[Task],
                      store: AttachmentStore[Task, AkkaIn, AkkaOut],
                      config: AppConfig,
-                     httpClient: UntypedHttpClient[Task],
-                     projects: Projects[Task],
-                     mt: ActorMaterializer) {
+                     projects: Projects[Task]) {
 
   private val (elastic, sparql) = (indexers.elastic, indexers.sparql)
   import indexers._
@@ -311,9 +308,8 @@ object ResourceRoutes {
                     indexers: Clients[Task],
                     store: AttachmentStore[Task, AkkaIn, AkkaOut],
                     config: AppConfig,
-                    httpClient: UntypedHttpClient[Task],
                     projects: Projects[Task],
-                    mt: ActorMaterializer): ResourceRoutes = new ResourceRoutes()
+  ): ResourceRoutes = new ResourceRoutes()
 
   private[routes] val resourceRead   = Permissions(Permission("resources/read"), Permission("resources/manage"))
   private[routes] val resourceWrite  = Permissions(Permission("resources/write"), Permission("resources/manage"))
