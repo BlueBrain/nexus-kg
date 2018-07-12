@@ -91,7 +91,7 @@ object Main {
     implicit val stream    = AttachmentStore.Stream.task(appConfig.attachments)
     implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
     implicit val indexers  = clients
-    val projects           = Projects.task()
+    implicit val projects  = Projects.task()
     val resourceRoutes     = ResourceRoutes().routes
     val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
     val serviceDesc        = ServiceDescriptionRoutes(appConfig.description).routes
