@@ -1,0 +1,15 @@
+{
+  "@context" : "https://bluebrain.github.io/nexus/contexts/search",
+  "total": 3,
+  "results": [
+    {
+      "resultId": "http://nexus.com/result1"
+    },
+    {
+      "resultId": "http://nexus.com/result2"
+    },
+    {
+      "resultId": "http://nexus.com/result3"
+    }
+  ]
+}

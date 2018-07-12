@@ -21,5 +21,6 @@ object Contexts extends Resources {
   val resourceCtx: Json = jsonContentOf("/contexts/resource-context.json")
   val resolverCtx: Json = jsonContentOf("/contexts/resolver-context.json")
   val shaclCtx: Json    = jsonContentOf("/contexts/shacl-context.json")
+  val searchCtx: Json   = jsonContentOf("/contexts/search-context.json")
 
 }

@@ -40,6 +40,12 @@ object Vocabulary {
     val sub           = url"$base/sub"
     val group         = url"$base/group"
 
+    val total    = url"$base/total"
+    val results  = url"$base/results"
+    val resultId = url"$base/resultId"
+    val maxScore = url"$base/maxScore"
+    val score    = url"$base/score"
+
     val Schema           = url"$base/Schema"
     val Resource         = url"$base/Resource"
     val Ontology         = url"$base/Ontology"
@@ -59,8 +65,11 @@ object Vocabulary {
     * RDF syntax vocabulary.
     */
   object rdf {
-    val base = "http://www.w3.org/1999/02/22-rdf-syntax-ns"
-    val tpe  = url"$base#type"
+    val base  = "http://www.w3.org/1999/02/22-rdf-syntax-ns"
+    val tpe   = url"$base#type"
+    val first = url"$base#first"
+    val rest  = url"$base#rest"
+    val nil   = url"$base#nil"
   }
 
   /**
