@@ -56,6 +56,22 @@ pipeline {
                 }
             }
         }
+        stage("Report Coverage") {
+            when {
+                expression { !isPR }
+            }
+            steps {
+                checkout scm
+                sh "sbt clean coverage test coverageReport coverageAggregate"
+                sh "curl -s https://codecov.io/bash >> ./coverage.sh"
+                sh "bash ./coverage.sh -t `oc get secrets codecov-secret --template='{{.data.nexus_kg}}' | base64 -d`"
+            }
+            post {
+                always {
+                    junit 'target/test-reports/TEST*.xml'
+                }
+            }
+        }
         stage("Build Snapshot & Deploy") {
             when {
                 expression { !isPR && !isRelease }
@@ -85,22 +101,6 @@ pipeline {
                 sh "mv target/universal/kg*.tgz ./kg.tgz"
                 sh "oc start-build kg-build --from-file=kg.tgz --follow"
                 openshiftTag srcStream: 'kg', srcTag: 'latest', destStream: 'kg', destTag: version.substring(1), verbose: 'false'
-            }
-        }
-        stage("Report Coverage") {
-            when {
-                expression { !isPR }
-            }
-            steps {
-                checkout scm
-                sh "sbt clean coverage test coverageReport coverageAggregate"
-                sh "curl -s https://codecov.io/bash >> ./coverage.sh"
-                sh "bash ./coverage.sh -t `oc get secrets codecov-secret --template='{{.data.nexus_kg}}' | base64 -d`"
-            }
-            post {
-                always {
-                    junit 'target/test-reports/TEST*.xml'
-                }
             }
         }
     }
