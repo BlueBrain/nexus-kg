@@ -16,6 +16,7 @@ class ElasticDecodersSpec extends WordSpecLike with Matchers with TestResources 
     "decode representation IDs correctly when schema ID and resource ID are in prefix mappings" in {
       implicit val project = Project(
         "testproject",
+        "test",
         Map("test"          -> url"http://schemas.nexus.example.com/test/",
             "test-resource" -> url"http://resources.nexus.com/test-resource/"),
         url"http://unused.com",

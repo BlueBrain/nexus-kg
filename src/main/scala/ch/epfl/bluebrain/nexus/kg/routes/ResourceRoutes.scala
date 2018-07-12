@@ -11,12 +11,10 @@ import akka.http.scaladsl.server.{Directive0, Route, Rejection => AkkaRejection}
 import akka.stream.ActorMaterializer
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.admin.refined.project.ProjectReference
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticDecoder
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{withTaskUnmarshaller, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
-import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
 import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -42,7 +40,6 @@ import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import eu.timepit.refined.auto._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -141,7 +138,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
     (pathPrefix("resources") & project) { implicit proj =>
       implicit val esClient = indexers.elastic
       implicit val decoder = ElasticDecoder.apply(ElasticDecoders.resourceIdDecoder(url"${config.http.publicUri.copy(
-        path = config.http.publicUri.path / "resources" / proj.label.organizationReference / proj.label.projectLabel)}".value))
+        path = config.http.publicUri.path / "resources" / proj.label.account / proj.label.value)}".value))
       implicit val cl = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
         (deprecated, pagination) =>
