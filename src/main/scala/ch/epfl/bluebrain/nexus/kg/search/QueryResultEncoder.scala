@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, rdf}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import io.circe.{Encoder, Json}
@@ -83,11 +83,17 @@ object QueryResultEncoder {
         }
         graphWithoutListEnd.add(lastElement, rdf.rest, rdf.nil)
     }
+    import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
     graphWithList
       .asJson(Contexts.searchCtx)
-      .toOption
-      .getOrElse(throw new IllegalArgumentException("Error while encoding UnscoredQueryResults to JSON"))
-      .mapObject(_.remove("@context").remove("@id"))
+      .getOrElse(graphToJsonWithoutContext(graphWithList))
+      .removeKeys("@context", "@id")
       .addContext(Contexts.searchCtxUri)
   }
+
+  private def graphToJsonWithoutContext(graph: Graph): Json = {
+    import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
+    graph.asJson
+  }
+
 }
