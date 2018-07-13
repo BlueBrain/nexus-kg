@@ -4,12 +4,12 @@
       "filter": [
         {
           "term": {
-            "constrainedBy": "http://nexus.example.com/testSchema"
+            "_constrainedBy": "http://nexus.example.com/testSchema"
           }
         },
         {
           "term": {
-            "deprecated": true
+            "_deprecated": true
           }
         }
       ]

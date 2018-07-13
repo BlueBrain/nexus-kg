@@ -4,7 +4,7 @@
       "filter": [
         {
           "term": {
-            "deprecated": true
+            "_deprecated": true
           }
         }
       ]

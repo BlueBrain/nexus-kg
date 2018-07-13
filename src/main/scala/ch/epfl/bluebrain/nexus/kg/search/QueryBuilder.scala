@@ -19,7 +19,7 @@ object QueryBuilder {
       List(
         Json.obj(
           "term" -> Json.obj(
-            "deprecated" -> Json.fromBoolean(deprecated)
+            "_deprecated" -> Json.fromBoolean(deprecated)
           )
         ))
     case None => List.empty
@@ -34,7 +34,7 @@ object QueryBuilder {
   def queryFor(deprecated: Option[Boolean], schema: AbsoluteIri): Json = baseQuery(
     Json.obj(
       "term" -> Json.obj(
-        "constrainedBy" -> Json.fromString(schema.show)
+        "_constrainedBy" -> Json.fromString(schema.show)
       )
     ) :: deprecatedTerm(deprecated)
   )
