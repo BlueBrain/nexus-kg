@@ -1,0 +1,19 @@
+{
+  "@context": "https://bluebrain.github.io/nexus/contexts/search",
+  "total": 3,
+  "maxScore": 0.3,
+  "results": [
+    {
+      "resultId": "http://nexus.com/result1",
+      "score": 0.3
+    },
+    {
+      "resultId": "http://nexus.com/result2",
+      "score": 0.2
+    },
+    {
+      "resultId": "http://nexus.com/result3",
+      "score": 0.1
+    }
+  ]
+}
