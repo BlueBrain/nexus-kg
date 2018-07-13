@@ -14,17 +14,17 @@ import monix.eval.Task
 /**
   * Wraps the different clients
   *
-  * @param elastic     the ElasticSearch indexer client
   * @param sparql      the sparql indexer client
+  * @param elastic     the ElasticSearch indexer client
   * @param adminClient the implicitly available admin client
   * @param iamClient   the implicitly available iam client
   * @param httpClient  the implicitly available [[UntypedHttpClient]]
   * @param mt          the implicitly available [[ActorMaterializer]]
   * @tparam F the monadic effect type
   */
-final case class Clients[F[_]](elastic: ElasticClient[F], sparql: BlazegraphClient[F])(
-    implicit val adminClient: AdminClient[F],
-    val iamClient: IamClient[F],
-    val rsSearch: HttpClient[F, QueryResults[Json]],
-    val httpClient: UntypedHttpClient[Task],
-    val mt: ActorMaterializer)
+final case class Clients[F[_]](sparql: BlazegraphClient[F])(implicit val elastic: ElasticClient[F],
+                                                            val adminClient: AdminClient[F],
+                                                            val iamClient: IamClient[F],
+                                                            val rsSearch: HttpClient[F, QueryResults[Json]],
+                                                            val httpClient: UntypedHttpClient[Task],
+                                                            val mt: ActorMaterializer)

@@ -5,13 +5,14 @@ import java.time.{Clock, Instant}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, rdf}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, Literal}
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
@@ -74,7 +75,7 @@ final case class ResourceF[P, S, A](
   def metadata(f: S => AbsoluteIri): Graph =
     Graph(
       Set[Triple](
-        (node, nxv.rev, Literal(rev)),
+        (node, nxv.rev, rev),
         (node, nxv.deprecated, deprecated),
         (node, nxv.createdAt, created),
         (node, nxv.updatedAt, updated),

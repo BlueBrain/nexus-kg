@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, ResourceF}
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import org.scalatest.{EitherValues, Matchers, OptionValues, WordSpecLike}
 
@@ -24,7 +25,7 @@ class ResolverSpec extends WordSpecLike with Matchers with Resources with Either
     val id           = Id(projectRef, iri)
 
     "construct a in project resolver" in {
-      val resource = ResourceF.simpleV(id, inProject, types = Set(nxv.Resolver, nxv.Resource))
+      val resource = ResourceF.simpleV(id, inProject, types = Set(nxv.Resolver, nxv.InProject, nxv.Resource))
       Resolver(resource).value shouldEqual InProjectResolver(projectRef, iri, resource.rev, resource.deprecated, 10)
     }
 

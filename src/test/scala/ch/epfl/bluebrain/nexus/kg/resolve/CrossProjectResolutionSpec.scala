@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Repo, Resource}
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import io.circe.Json
 import org.mockito.Mockito
 import org.mockito.Mockito._

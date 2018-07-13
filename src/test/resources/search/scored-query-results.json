@@ -1,5 +1,8 @@
 {
-  "@context": "https://bluebrain.github.io/nexus/contexts/search",
+  "@context": [
+    "https://bluebrain.github.io/nexus/contexts/search",
+    "https://bluebrain.github.io/nexus/contexts/resource"
+  ],
   "total": 3,
   "maxScore": 0.3,
   "results": [

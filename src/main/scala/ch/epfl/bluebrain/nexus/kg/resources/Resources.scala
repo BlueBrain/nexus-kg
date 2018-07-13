@@ -3,8 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.util.UUID
 
 import cats.data.{EitherT, OptionT}
-import cats.{Applicative, Monad}
 import cats.syntax.flatMap._
+import cats.{Applicative, Monad}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
@@ -28,6 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.validation.Validator
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
@@ -90,7 +91,7 @@ object Resources {
       (_, assigned)  = value
       resource      <- create(id, schema, assigned)
     } yield resource
-    // format: off
+    // format: on
 
   /**
     * Creates a new resource.
@@ -100,37 +101,33 @@ object Resources {
     * @param value  the resource representation in json-ld and graph formats
     */
   def create[F[_]: Monad: Resolution](
-    id: ResId,
-    schema: Ref,
-    value: ResourceF.Value
+      id: ResId,
+      schema: Ref,
+      value: ResourceF.Value
   )(implicit repo: Repo[F], identity: Identity): EitherT[F, Rejection, Resource] = {
 
     def checkAndJoinTypes(types: Set[AbsoluteIri]): EitherT[F, Rejection, Set[AbsoluteIri]] =
       EitherT.fromEither(schema.iri match {
-        case `shaclSchemaUri` if types.isEmpty || types.contains(nxv.Schema)     => Right(types + nxv.Schema)
-        case `shaclSchemaUri`                                                    => Left(IncorrectTypes(id.ref, types))
+        case `shaclSchemaUri` if types.isEmpty || types.contains(nxv.Schema)      => Right(types + nxv.Schema)
+        case `shaclSchemaUri`                                                     => Left(IncorrectTypes(id.ref, types))
         case `ontologySchemaUri` if types.isEmpty || types.contains(nxv.Ontology) => Right(types + nxv.Ontology)
         case `ontologySchemaUri`                                                  => Left(IncorrectTypes(id.ref, types))
-        case _                                                           => Right(types)
+        case _                                                                    => Right(types)
       })
 
     //TODO: For now the schema is not validated against the shacl schema.
-    if(schema.iri == shaclSchemaUri)
-        // format: off
-        for {
-          joinedTypes   <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
-          created       <- repo.create(id, schema, joinedTypes, value.source)
-        } yield created
-        // format: on
-    else
-      // format: off
+    if (schema.iri == shaclSchemaUri)
       for {
-        resolved      <- schemaContext(schema)
-        _             <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, value.graph)
-        joinedTypes   <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
-        created       <- repo.create(id, schema, joinedTypes, value.source)
+        joinedTypes <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
+        created     <- repo.create(id, schema, joinedTypes, value.source)
       } yield created
-      // format: on
+    else
+      for {
+        resolved    <- schemaContext(schema)
+        _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, value.graph)
+        joinedTypes <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
+        created     <- repo.create(id, schema, joinedTypes, value.source)
+      } yield created
   }
 
   /**

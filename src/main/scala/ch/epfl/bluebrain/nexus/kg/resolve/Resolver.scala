@@ -8,11 +8,14 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Node._
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 
 /**
   * Enumeration of Resolver types.
@@ -43,6 +46,22 @@ sealed trait Resolver extends Product with Serializable {
     * @return the resolver priority
     */
   def priority: Int
+
+  /**
+    * The resolver [[Graph]] representation
+    */
+  def asGraph: Graph
+
+  private[resolve] val s = IriNode(id)
+
+  private[resolve] def mainGraph(tpe: AbsoluteIri): Graph =
+    Graph(
+      (s, rdf.tpe, nxv.Resolver),
+      (s, rdf.tpe, tpe),
+      (s, nxv.priority, priority),
+      (s, nxv.deprecated, deprecated),
+      (s, nxv.rev, rev)
+    )
 }
 
 object Resolver {
@@ -54,11 +73,10 @@ object Resolver {
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
   final def apply(res: ResourceV): Option[Resolver] =
-    if (res.types.contains(nxv.Resolver.value))
-      if (res.types.contains(nxv.CrossProject.value))
-        crossProject(res)
-      else
-        inProject(res)
+    if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.CrossProject.value))
+      crossProject(res)
+    else if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.InProject.value))
+      inProject(res)
     else None
 
   private def inProject(res: ResourceV): Option[Resolver] =
@@ -110,7 +128,9 @@ object Resolver {
       rev: Long,
       deprecated: Boolean,
       priority: Int
-  ) extends Resolver
+  ) extends Resolver {
+    val asGraph: Graph = mainGraph(nxv.InProject)
+  }
 
   /**
     * A resolver that looks within all projects belonging to its parent account.
@@ -123,7 +143,9 @@ object Resolver {
       rev: Long,
       deprecated: Boolean,
       priority: Int
-  ) extends Resolver
+  ) extends Resolver {
+    val asGraph: Graph = mainGraph(nxv.InAccount) ++ graphFor(identities)(s) ++ graphFor(resourceTypes)(s)
+  }
 
   /**
     * A resolver that can looks across several projects.
@@ -137,7 +159,12 @@ object Resolver {
       rev: Long,
       deprecated: Boolean,
       priority: Int
-  ) extends Resolver
+  ) extends Resolver {
+    private val graphForProjects = Graph(projects.map(r => (s: IriOrBNode, nxv.projects, r.id: Node)))
+
+    val asGraph
+      : Graph = mainGraph(nxv.InAccount) ++ graphFor(identities)(s) ++ graphFor(resourceTypes)(s) ++ graphForProjects
+  }
 
   /**
     * A resolver that loads bundled static resources.
@@ -148,6 +175,28 @@ object Resolver {
       rev: Long,
       deprecated: Boolean,
       priority: Int
-  ) extends Resolver
+  ) extends Resolver {
+    val asGraph: Graph = mainGraph(nxv.StaticResolver)
+  }
+
+  private def graphFor(identity: Identity): (BNode, Graph) = {
+    val ss = blank
+    identity match {
+      case UserRef(realm, sub)           => ss -> Graph((ss, rdf.tpe, nxv.UserRef), (ss, nxv.realm, realm), (ss, nxv.sub, sub))
+      case GroupRef(realm, g)            => ss -> Graph((ss, rdf.tpe, nxv.GroupRef), (ss, nxv.realm, realm), (ss, nxv.group, g))
+      case AuthenticatedRef(Some(realm)) => ss -> Graph((ss, rdf.tpe, nxv.AuthenticatedRef), (ss, nxv.realm, realm))
+      case AuthenticatedRef(_)           => ss -> Graph((ss, rdf.tpe, nxv.AuthenticatedRef))
+      case _                             => ss -> Graph((ss, rdf.tpe, nxv.Anonymous))
+    }
+  }
+
+  private def graphFor(identities: List[Identity])(s: IriNode): Graph =
+    identities.foldLeft(Graph()) { (finalGraph, identity) =>
+      val (bNode, graph) = graphFor(identity)
+      finalGraph + ((s, nxv.identities, bNode)) ++ graph
+    }
+
+  private def graphFor(resourceTypes: Set[AbsoluteIri])(s: IriNode): Graph =
+    Graph(resourceTypes.map(r => (s: IriOrBNode, nxv.resourceTypes, IriNode(r): Node)))
 
 }

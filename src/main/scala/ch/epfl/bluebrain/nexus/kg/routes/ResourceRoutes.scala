@@ -13,7 +13,9 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticDecoder
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.withTaskUnmarshaller
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
 import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -26,7 +28,8 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resolve.{CompositeResolution, InProjectResolution, Resolution}
+import ch.epfl.bluebrain.nexus.kg.resolve.{CompositeResolution, InProjectResolution, Resolution, Resolver}
+import ch.epfl.bluebrain.nexus.kg.resources.ElasticDecoders.resourceIdDecoder
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
@@ -36,10 +39,11 @@ import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
+import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.service.http.Path
+import ch.epfl.bluebrain.nexus.service.http.Path.FromString
 import ch.epfl.bluebrain.nexus.service.http.UriOps._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
@@ -54,7 +58,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
                      config: AppConfig,
                      projects: Projects[Task]) {
 
-  private val (elastic, sparql) = (indexers.elastic, indexers.sparql)
+  private val (es, sparql) = (indexers.elastic, indexers.sparql)
   import indexers._
 
   def routes: Route =
@@ -95,7 +99,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
     // consumes the segment resolvers/{account}/{project}
     (pathPrefix("resolvers") & project) { implicit labelProj =>
       // create resolvers with implicit or generated id
-      (post & projectNotDeprecated & entity(as[Json])) { source =>
+      (projectNotDeprecated & post & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
             create[Task](labelProj.project.ref,
@@ -104,6 +108,16 @@ class ResourceRoutes(implicit repo: Repo[Task],
                          source.addContext(resolverCtxUri)).value.runAsync)
         }
       } ~
+        // list resolvers with implicit or generated id
+        (get & parameter('deprecated.as[Boolean].?) & pathEndOrSingleSlash) { deprecated =>
+          (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
+            val resolvers = projects.resolvers(labelProj.label).map { r =>
+              val filtered = deprecated.map(d => r.filter(_.deprecated == d)).getOrElse(r).toList.sortBy(_.priority)
+              toQueryResults(filtered)
+            }
+            complete(resolvers.runAsync)
+          }
+        } ~
         pathPrefix(aliasOrCurie) { id =>
           resources(crossResolverSchemaUri,
                     id,
@@ -126,7 +140,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
         (path("elastic") & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
           (query, pagination, params) =>
             (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-              val search = elastic.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
+              val search = es.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
               //TODO: Treat ES response accordingly
               complete(search.map(_.results.map(_.source)).runAsync)
             }
@@ -135,10 +149,9 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
   private def listings(implicit token: Option[AuthToken]): Route =
     (pathPrefix("resources") & project) { implicit proj =>
-      implicit val esClient = indexers.elastic
-      implicit val decoder = ElasticDecoder.apply(
-        ElasticDecoders.resourceIdDecoder(
-          url"${config.http.publicUri.append(Path./("resources") / proj.label.account / proj.label.value)}".value))
+      implicit val decoder = ElasticDecoder(
+        resourceIdDecoder(
+          url"${config.http.publicUri.append("resources" / proj.label.account / proj.label.value)}".value))
       implicit val cl = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
         (deprecated, pagination) =>
@@ -252,6 +265,9 @@ class ResourceRoutes(implicit repo: Repo[Task],
       resource.flatMap(materializeWithMeta[Task](_).toOption).value.runAsync
   }
 
+  private def toQueryResults(resolvers: List[Resolver]): QueryResults[Resolver] =
+    UnscoredQueryResults(resolvers.size.toLong, resolvers.map(UnscoredQueryResult(_)))
+
   private type RejectionOrAttachment = Either[AkkaRejection, Option[(Attachment.BinaryAttributes, AkkaOut)]]
   private implicit class OptionTaskAttachmentSyntax(resource: OptionT[Task, (Attachment.BinaryAttributes, AkkaOut)]) {
     def toEitherRun: Future[RejectionOrAttachment] =
@@ -288,11 +304,17 @@ class ResourceRoutes(implicit repo: Repo[Task],
 
   private implicit def resourceVEncoder: Encoder[ResourceV] = Encoder.encodeJson.contramap { res =>
     val graph       = res.value.graph
+    val mergedCtx   = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
     val primaryNode = Some(IriNode(res.id.value))
-    val mergedCtx   = res.value.ctx mergeContext resourceCtx
     val jsonResult  = graph.asJson(mergedCtx, primaryNode).getOrElse(graph.asJson)
-    jsonResult deepMerge Json.obj("@context" -> res.value.ctx).addContext(resourceCtxUri)
+    jsonResult deepMerge Json.obj("@context" -> res.value.source.contextValue).addContext(resourceCtxUri)
   }
+
+  private implicit def qrResolverGraphEncoder: GraphEncoder[QueryResult[Resolver]] =
+    GraphEncoder(res => IriNode(res.source.id) -> res.source.asGraph)
+
+  private implicit def qrResolverEncoder: Encoder[QueryResults[Resolver]] =
+    qrsEncoder[Resolver](resolverCtx) mapJson (_ addContext resolverCtxUri)
 
   private def evalBool(value: Boolean): Directive0 =
     if (value) pass
