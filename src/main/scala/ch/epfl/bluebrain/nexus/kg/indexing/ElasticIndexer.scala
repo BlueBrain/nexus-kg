@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.net.URLEncoder
+import java.util.regex.Pattern.quote
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.stream.ActorMaterializer
@@ -67,7 +68,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], index: String)(implicit rep
     val graph       = res.metadata(_.iri) ++ res.typeGraph
 
     val payload = graph.asJson(resourceCtx, primaryNode).getOrElse(graph.asJson)
-    val merged  = payload deepMerge Json.obj("original" -> Json.fromString(res.value.noSpaces))
+    val merged  = payload deepMerge Json.obj("_original" -> Json.fromString(res.value.noSpaces))
     client.update(index, config.docType, res.id.elasticId, merged)
   }
 
@@ -90,9 +91,12 @@ object ElasticIndexer {
     implicit val ul         = HttpClient.taskHttpClient
     implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
 
+    val mapping = jsonContentOf("/elastic/mapping.json", Map(quote("{{docType}}") -> config.docType))
     val client  = ElasticClient[Task](config.base)
-    val indexer = new ElasticIndexer(client, elasticIndex(view))
+    val index   = elasticIndex(view)
+    val indexer = new ElasticIndexer(client, index)
     SequentialTagIndexer.startLocal[Event](
+      () => client.createIndexIfNotExist(index, mapping).map(_ => ()).runAsync,
       (ev: Event) => indexer(ev).runAsync,
       persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",

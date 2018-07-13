@@ -4,7 +4,7 @@
       "filter": [
         {
           "term": {
-            "constrainedBy": "http://nexus.example.com/testSchema"
+            "_constrainedBy": "http://nexus.example.com/testSchema"
           }
         }
       ]

@@ -1,0 +1,19 @@
+{
+  "mappings": {
+    "{{docType}}": {
+      "properties": {
+        "@type": {"type": "keyword"},
+        "@id": {"type": "keyword"},
+        "_rev": {"type": "keyword"},
+        "_deprecated": {"type": "boolean"},
+        "_createdAt": {"type": "date"},
+        "_updatedAt": {"type": "date"},
+        "_createdBy": {"type": "keyword"},
+        "_updatedBy": {"type": "keyword"},
+        "_constrainedBy": {"type": "keyword"},
+        "_source": {"type": "text"}
+      },
+      "dynamic": false
+    }
+  }
+}
