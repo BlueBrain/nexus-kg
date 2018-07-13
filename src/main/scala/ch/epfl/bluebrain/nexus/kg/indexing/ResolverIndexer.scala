@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, ProjectRef, Rejection, Repo}
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
+import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
 
@@ -28,6 +29,8 @@ class ResolverIndexer[F[_]: Repo](
     projects: Projects[F],
     resolution: ProjectRef => Resolution[F]
 )(implicit F: MonadError[F, Throwable]) {
+
+  private val logger = Logger[this.type]
 
   /**
     * Indexes the resolver which corresponds to the argument event. If the resource is not found, or it's not
@@ -56,7 +59,13 @@ class ResolverIndexer[F[_]: Repo](
             s"TimedOut while attempting to index resolver event '${event.id.show} (rev = ${event.rev})', cause: $reason"
           F.raiseError(new RetriableErr(msg))
       }
-      .map(_ => ())
+      .map {
+        case Right(_) => ()
+        case Left(err) =>
+          logger.error(
+            s"Error while attempting to fetch/resolve event '${event.id.show} (rev = ${event.rev})', cause: '${err.message}'")
+          ()
+      }
   }
 }
 

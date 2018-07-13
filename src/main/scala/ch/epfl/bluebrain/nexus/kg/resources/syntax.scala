@@ -6,10 +6,11 @@ import java.time.{Instant, ZoneOffset}
 import cats.Functor
 import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, xsd}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Node.Literal
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import com.github.ghik.silencer.silent
 

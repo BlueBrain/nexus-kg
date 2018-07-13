@@ -108,7 +108,7 @@ private class Indexing(projects: Projects[Task], coordinator: ActorRef)(implicit
           case r: CrossProjectResolver => CrossProjectResolution[Task](r.ref, projects)
           case _                       => ??? // TODO: other kinds of resolver
         }
-        CompositeResolution(sorted)
+        CompositeResolution(AppConfig.staticResolution :: sorted)
       }
       new ProxyResolution(resolutionTask)
     }

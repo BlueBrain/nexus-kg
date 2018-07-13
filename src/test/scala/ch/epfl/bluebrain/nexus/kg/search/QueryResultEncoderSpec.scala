@@ -4,17 +4,20 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import org.scalatest.{Matchers, WordSpecLike}
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import io.circe.syntax._
 
 class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources {
 
   implicit val orderedKeys = OrderedKeys(List("@context", "total", "maxScore", "results", "resultId", "score", ""))
   "QueryResultsEncoder" should {
     "encode ScoredQueryResults" in {
-      val results = ScoredQueryResults[AbsoluteIri](
+      val results: QueryResults[AbsoluteIri] = ScoredQueryResults[AbsoluteIri](
         3,
         0.3f,
         List(
@@ -24,10 +27,10 @@ class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources {
         )
       )
 
-      QueryResultEncoder.scoredEncoder(results).sortKeys shouldEqual jsonContentOf("/search/scored-query-results.json")
+      results.asJson.sortKeys shouldEqual jsonContentOf("/search/scored-query-results.json")
     }
     "encode UnscoredQueryResults" in {
-      val results = UnscoredQueryResults[AbsoluteIri](
+      val results: QueryResults[AbsoluteIri] = UnscoredQueryResults[AbsoluteIri](
         3,
         List(
           UnscoredQueryResult(url"http://nexus.com/result1".value),
@@ -36,8 +39,7 @@ class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources {
         )
       )
 
-      QueryResultEncoder.unscoredEncoder(results).sortKeys shouldEqual jsonContentOf(
-        "/search/unscored-query-results.json")
+      results.asJson.sortKeys shouldEqual jsonContentOf("/search/unscored-query-results.json")
 
     }
   }

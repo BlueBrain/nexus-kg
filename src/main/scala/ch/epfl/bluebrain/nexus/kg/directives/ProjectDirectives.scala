@@ -15,7 +15,7 @@ import monix.execution.Scheduler
 object ProjectDirectives {
 
   /**
-    * Fetches project configuration from nexus admin
+    * Fetches project configuration from the cache if possible, from nexus admin otherwise.
     */
   def project(implicit projects: Projects[Task],
               client: AdminClient[Task],

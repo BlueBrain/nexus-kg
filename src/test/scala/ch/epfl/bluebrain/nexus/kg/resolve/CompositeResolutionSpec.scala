@@ -7,10 +7,10 @@ import java.util.regex.Pattern.quote
 import cats.instances.try_._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import org.scalatest.{Matchers, OptionValues, TryValues, WordSpecLike}
 
 import scala.util.Try

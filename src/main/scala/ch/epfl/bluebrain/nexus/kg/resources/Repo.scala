@@ -7,7 +7,7 @@ import cats.data.{EitherT, OptionT}
 import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, _}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources
 import ch.epfl.bluebrain.nexus.kg.resources.Command._
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import io.circe.Json
 

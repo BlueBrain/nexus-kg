@@ -62,13 +62,13 @@ object Main {
     implicit val qrClient   = HttpClient.withTaskUnmarshaller[QueryResults[Json]]
 
     def clients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
-      val sparql      = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
-      val elastic     = ElasticClient[Task](elasticConfig.base)
-      implicit val cl = HttpClient.akkaHttpClient
+      val sparql           = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
+      implicit val elastic = ElasticClient[Task](elasticConfig.base)
+      implicit val cl      = HttpClient.akkaHttpClient
 
       implicit val adminClient = AdminClient.task(appConfig.admin)
       implicit val iamClient   = IamClient.task()(IamUri(appConfig.iam.baseUri), as)
-      Clients(elastic, sparql)
+      Clients(sparql)
     }
 
     val cluster = Cluster(as)
