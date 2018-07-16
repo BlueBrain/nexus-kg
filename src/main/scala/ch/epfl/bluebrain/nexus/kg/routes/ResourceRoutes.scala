@@ -161,10 +161,12 @@ class ResourceRoutes(resources: Resources[Task])(implicit projects: Projects[Tas
       implicit val cl = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
         (deprecated, pagination) =>
-          complete(resources.list(proj.project.ref, deprecated, pagination).runAsync)
+          val results = projects.views(proj.project.ref).flatMap(v => resources.list(v, deprecated, pagination))
+          complete(results.runAsync)
       } ~ (get & parameter('deprecated.as[Boolean].?) & paginated & aliasOrCuriePath & hasPermission(resourceRead)) {
         (deprecated, pagination, schema) =>
-          complete(resources.list(proj.project.ref, deprecated, schema, pagination).runAsync)
+          val results = projects.views(proj.project.ref).flatMap(v => resources.list(v, deprecated, schema, pagination))
+          complete(results.runAsync)
       }
     }
 

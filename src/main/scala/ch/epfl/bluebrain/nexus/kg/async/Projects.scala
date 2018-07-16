@@ -9,13 +9,10 @@ import akka.cluster.ddata.Replicator._
 import akka.cluster.ddata.{DistributedData, LWWRegister, LWWRegisterKey}
 import akka.pattern.ask
 import akka.util.Timeout
-import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resolve._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -116,17 +113,6 @@ trait Projects[F[_]] {
     * @return the collection of known resolvers configured for the argument project
     */
   def resolvers(label: ProjectLabel): F[List[Resolver]]
-
-  /**
-    * Looks up the collection of defined resolvers for the argument project
-    * and generates an aggregated [[Resolution]] out of them.
-    *
-    * @param ref       the project reference
-    * @param resources the resource operations
-    * @return a new [[Resolution]] which is composed by all the resolutions generated from
-    *         the resolvers found for the given ''projectRef''
-    */
-  def resolution(ref: ProjectRef)(resources: Resources[F]): Resolution[F]
 
   /**
     * Adds the resolver to the collection of project resolvers.
@@ -242,10 +228,9 @@ object Projects {
     * @param tm timeout used for the lookup operations
     */
   def future()(implicit as: ActorSystem, tm: Timeout): Projects[Future] = new Projects[Future] {
-    private val replicator                            = DistributedData(as).replicator
-    private implicit val ec: ExecutionContext         = as.dispatcher
-    private implicit val node: Cluster                = Cluster(as)
-    private val staticResol: StaticResolution[Future] = StaticResolution[Future](iriResolution)
+    private val replicator                    = DistributedData(as).replicator
+    private implicit val ec: ExecutionContext = as.dispatcher
+    private implicit val node: Cluster        = Cluster(as)
 
     private implicit def tsClock[A]: Clock[TimestampedValue[A]] = TimestampedValue.timestampedValueClock
 
@@ -347,25 +332,6 @@ object Projects {
         case _         => Future(List.empty)
       }
 
-    override def resolution(ref: ProjectRef)(resources: Resources[Future]): Resolution[Future] =
-      new Resolution[Future] {
-
-        private val resolution = resolvers(ref).map { res =>
-          val result = res.map {
-            case r: InProjectResolver    => InProjectResolution[Future](r.ref, resources)
-            case _: CrossProjectResolver => CrossProjectResolution[Future](resources, res)
-            case _                       => ??? // TODO: other kinds of resolver
-          }
-          CompositeResolution(staticResol :: result)
-        }
-
-        def resolve(ref: Ref): Future[Option[Resource]] =
-          resolution.flatMap(_.resolve(ref))
-
-        def resolveAll(ref: Ref): Future[List[Resource]] =
-          resolution.flatMap(_.resolveAll(ref))
-      }
-
     private def getOrElse[T, K <: RegisteredValue[T]](f: => LWWRegisterKey[K], default: => T): Future[T] =
       (replicator ? Get(f, ReadLocal, None)).map {
         case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(f).value.value
@@ -463,7 +429,6 @@ object Projects {
     */
   def task()(implicit as: ActorSystem, tm: Timeout): Projects[Task] =
     new Projects[Task] {
-      private val staticResol: StaticResolution[Task] = StaticResolution[Task](iriResolution)
 
       private val underlying = future()
 
@@ -502,25 +467,6 @@ object Projects {
 
       override def resolvers(ref: ProjectRef): Task[List[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))
-
-      override def resolution(ref: ProjectRef)(resources: Resources[Task]): Resolution[Task] =
-        new Resolution[Task] {
-
-          private val resolution = resolvers(ref).map { res =>
-            val result = res.map {
-              case r: InProjectResolver    => InProjectResolution[Task](r.ref, resources)
-              case _: CrossProjectResolver => CrossProjectResolution[Task](resources, res)
-              case _                       => ??? // TODO: other kinds of resolver
-            }
-            CompositeResolution(staticResol :: result)
-          }
-
-          def resolve(ref: Ref): Task[Option[Resource]] =
-            resolution.flatMap(_.resolve(ref))
-
-          def resolveAll(ref: Ref): Task[List[Resource]] =
-            resolution.flatMap(_.resolveAll(ref))
-        }
 
       override def addResolver(ref: ProjectRef,
                                resolver: Resolver,
