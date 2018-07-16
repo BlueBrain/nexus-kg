@@ -91,15 +91,15 @@ class ProjectsSpec
       val projectId = base + "some-label/some-label-proj"
       val resolver  = InProjectResolver(ref, projectId, 1L, false, 10)
       cache.addResolver(ref, resolver, Instant.now, true).futureValue shouldEqual true
-      cache.resolvers(ref).futureValue shouldEqual Set(resolver)
-      cache.resolvers(ProjectLabel("some-label", "some-label-proj")).futureValue shouldEqual Set(resolver)
-      cache.resolvers(ProjectLabel("some-label", "wrong")).futureValue shouldEqual Set.empty[Resolver]
+      cache.resolvers(ref).futureValue shouldEqual List(resolver)
+      cache.resolvers(ProjectLabel("some-label", "some-label-proj")).futureValue shouldEqual List(resolver)
+      cache.resolvers(ProjectLabel("some-label", "wrong")).futureValue shouldEqual List.empty[Resolver]
       cache.applyResolver(ref, resolver.copy(rev = 2L), Instant.now).futureValue shouldEqual true
-      cache.resolvers(ref).futureValue shouldEqual Set(resolver, resolver.copy(rev = 2L))
+      cache.resolvers(ref).futureValue shouldEqual List(resolver, resolver.copy(rev = 2L))
       cache.addResolver(ref, resolver.copy(rev = 3L), Instant.now, false).futureValue shouldEqual false
-      cache.resolvers(ref).futureValue shouldEqual Set(resolver, resolver.copy(rev = 2L))
+      cache.resolvers(ref).futureValue shouldEqual List(resolver, resolver.copy(rev = 2L))
       cache.removeResolver(ref, projectId, Instant.now).futureValue shouldEqual true
-      cache.resolvers(ref).futureValue shouldEqual Set.empty
+      cache.resolvers(ref).futureValue shouldEqual List.empty
     }
 
     "handle views life-cycle" in {

@@ -13,8 +13,8 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
-import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resolve._
+import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
 
@@ -104,7 +104,7 @@ trait Projects[F[_]] {
     * @param ref the project reference
     * @return the collection of known resolvers configured for the argument project
     */
-  def resolvers(ref: ProjectRef): F[Set[Resolver]]
+  def resolvers(ref: ProjectRef): F[List[Resolver]]
 
   /**
     * Looks up the collection of defined resolvers for the argument project.
@@ -112,7 +112,7 @@ trait Projects[F[_]] {
     * @param label the project label
     * @return the collection of known resolvers configured for the argument project
     */
-  def resolvers(label: ProjectLabel): F[Set[Resolver]]
+  def resolvers(label: ProjectLabel): F[List[Resolver]]
 
   /**
     * Adds the resolver to the collection of project resolvers.
@@ -323,13 +323,13 @@ object Projects {
         case _                                       => Future.successful(false)
       }
 
-    override def resolvers(ref: ProjectRef): Future[Set[Resolver]] =
-      getOrElse(resolverKey(ref), Set.empty)
+    override def resolvers(ref: ProjectRef): Future[List[Resolver]] =
+      getOrElse(resolverKey(ref), Set.empty[Resolver]).map(_.toList.sortBy(_.priority))
 
-    override def resolvers(label: ProjectLabel): Future[Set[Resolver]] =
+    override def resolvers(label: ProjectLabel): Future[List[Resolver]] =
       projectRef(label).flatMap {
         case Some(ref) => resolvers(ref)
-        case _         => Future(Set.empty)
+        case _         => Future(List.empty)
       }
 
     private def getOrElse[T, K <: RegisteredValue[T]](f: => LWWRegisterKey[K], default: => T): Future[T] =
@@ -348,7 +348,8 @@ object Projects {
         if (updateRev) r.id == resolver.id && r.rev >= resolver.rev
         else r.id == resolver.id
 
-      resolvers(ref).flatMap { resolverSet =>
+      resolvers(ref).flatMap { resolvers =>
+        val resolverSet = resolvers.toSet
         if (resolverSet.exists(found)) Future.successful(false)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[Resolver]))
@@ -360,7 +361,8 @@ object Projects {
     }
 
     override def removeResolver(ref: ProjectRef, id: AbsoluteIri, instant: Instant): Future[Boolean] = {
-      resolvers(ref).flatMap { resolverSet =>
+      resolvers(ref).flatMap { resolvers =>
+        val resolverSet = resolvers.toSet
         if (!resolverSet.exists(_.id == id)) Future.successful(false)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[Resolver]))
@@ -427,9 +429,10 @@ object Projects {
     */
   def task()(implicit as: ActorSystem, tm: Timeout): Projects[Task] =
     new Projects[Task] {
+
       private val underlying = future()
 
-      override def resolvers(label: ProjectLabel): Task[Set[Resolver]] =
+      override def resolvers(label: ProjectLabel): Task[List[Resolver]] =
         Task.deferFuture(underlying.resolvers(label))
 
       override def views(label: ProjectLabel): Task[Set[View]] =
@@ -462,15 +465,13 @@ object Projects {
       override def deprecateProject(ref: ProjectRef, rev: Long): Task[Boolean] =
         Task.deferFuture(underlying.deprecateProject(ref, rev))
 
-      override def resolvers(ref: ProjectRef): Task[Set[Resolver]] =
+      override def resolvers(ref: ProjectRef): Task[List[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))
 
-      override def addResolver(
-          ref: ProjectRef,
-          resolver: Resolver,
-          instant: Instant,
-          updateRev: Boolean
-      ): Task[Boolean] =
+      override def addResolver(ref: ProjectRef,
+                               resolver: Resolver,
+                               instant: Instant,
+                               updateRev: Boolean): Task[Boolean] =
         Task.deferFuture(underlying.addResolver(ref, resolver, instant, updateRev))
 
       override def removeResolver(ref: ProjectRef, id: AbsoluteIri, instant: Instant): Task[Boolean] =

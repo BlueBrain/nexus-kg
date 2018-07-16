@@ -16,7 +16,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, PersistenceCo
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
-import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -28,12 +27,14 @@ import monix.execution.Scheduler
 /**
   * Indexer which takes a resource event and calls ElasticSearch client with relevant update if required
   *
-  * @param client the ElasticSearch client
+  * @param client    the ElasticSearch client
+  * @param index     the ElasticSearch index
+  * @param resources the resources operations
   */
-class ElasticIndexer[F[_]](client: ElasticClient[F], index: String)(implicit repo: Repo[F],
-                                                                    config: ElasticConfig,
-                                                                    F: MonadError[F, Throwable],
-                                                                    ucl: HttpClient[F, Json]) {
+class ElasticIndexer[F[_]](client: ElasticClient[F], index: String, resources: Resources[F])(
+    implicit config: ElasticConfig,
+    F: MonadError[F, Throwable],
+    ucl: HttpClient[F, Json]) {
   private val revKey = "_rev"
 
   /**
@@ -47,7 +48,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], index: String)(implicit rep
     *         This method will raise errors if something goes wrong
     */
   final def apply(ev: Event): F[Unit] = {
-    fetch(ev.id, None).value.flatMap {
+    resources.fetch(ev.id, None).value.flatMap {
       case None => F.raiseError(NotFound(ev.id.ref))
       case Some(resource) =>
         fetchRevision(ev.id) flatMap {
@@ -79,13 +80,13 @@ object ElasticIndexer {
   /**
     * Starts the index process for an ElasticSearch client
     *
-    * @param view the view for which to start the index
+    * @param view      the view for which to start the index
+    * @param resources the resources operations
     */
-  final def start(view: View)(implicit repo: Repo[Task],
-                              as: ActorSystem,
-                              s: Scheduler,
-                              config: ElasticConfig,
-                              persistence: PersistenceConfig): ActorRef = {
+  final def start(view: View, resources: Resources[Task])(implicit as: ActorSystem,
+                                                          s: Scheduler,
+                                                          config: ElasticConfig,
+                                                          persistence: PersistenceConfig): ActorRef = {
 
     implicit val mt         = ActorMaterializer()
     implicit val ul         = HttpClient.taskHttpClient
@@ -94,7 +95,7 @@ object ElasticIndexer {
     val mapping = jsonContentOf("/elastic/mapping.json", Map(quote("{{docType}}") -> config.docType))
     val client  = ElasticClient[Task](config.base)
     val index   = elasticIndex(view)
-    val indexer = new ElasticIndexer(client, index)
+    val indexer = new ElasticIndexer(client, index, resources)
     SequentialTagIndexer.startLocal[Event](
       () => client.createIndexIfNotExist(index, mapping).map(_ => ()).runAsync,
       (ev: Event) => indexer(ev).runAsync,

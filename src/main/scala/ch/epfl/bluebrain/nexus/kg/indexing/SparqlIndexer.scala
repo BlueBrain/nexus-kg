@@ -12,9 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{PersistenceConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resolve.{InProjectResolution, Resolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
-import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.akka.iri._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
@@ -27,9 +25,11 @@ import scala.util.Try
 /**
   * Indexer which takes a resource event and calls SPARQL client with relevant update if required
   *
-  * @param client the SPARQL client
+  * @param client    the SPARQL client
+  * @param resources the resources operations
   */
-class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Repo[F], F: MonadError[F, Throwable]) {
+private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[F])(
+    implicit F: MonadError[F, Throwable]) {
 
   /**
     * When an event is received, the current state is obtained.
@@ -42,7 +42,7 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
     *         This method will raise errors if something goes wrong
     */
   final def apply(ev: Event): F[Unit] = {
-    fetch(ev.id, None).value.flatMap {
+    resources.fetch(ev.id, None).value.flatMap {
       case None => F.raiseError(NotFound(ev.id.ref))
       case Some(resource) =>
         fetchRevision(ev.id) flatMap {
@@ -62,7 +62,7 @@ class SparqlIndexer[F[_]: Resolution](client: SparqlClient[F])(implicit repo: Re
     }
 
   private def indexResource(res: Resource): F[Unit] =
-    materialize(res).value.flatMap {
+    resources.materialize(res).value.flatMap {
       case Left(err) => F.raiseError(err)
       case Right(r)  => client.replace(res.id, r.value.graph)
     }
@@ -75,21 +75,21 @@ object SparqlIndexer {
   /**
     * Starts the index process for an sparql client
     *
-    * @param view     the view for which to start the index
+    * @param view      the view for which to start the index
+    * @param resources the resources operations
     */
-  final def start(view: View)(implicit repo: Repo[Task],
-                              as: ActorSystem,
-                              s: Scheduler,
-                              ucl: HttpClient[Task, ResultSet],
-                              config: SparqlConfig,
-                              persistence: PersistenceConfig): ActorRef = {
+  final def start(view: View, resources: Resources[Task])(implicit
+                                                          as: ActorSystem,
+                                                          s: Scheduler,
+                                                          ucl: HttpClient[Task, ResultSet],
+                                                          config: SparqlConfig,
+                                                          persistence: PersistenceConfig): ActorRef = {
 
-    implicit val mt  = ActorMaterializer()
-    implicit val ul  = HttpClient.taskHttpClient
-    implicit val res = InProjectResolution[Task](view.ref)
+    implicit val mt = ActorMaterializer()
+    implicit val ul = HttpClient.taskHttpClient
 
     val client  = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
-    val indexer = new SparqlIndexer(client)
+    val indexer = new SparqlIndexer(client, resources)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
       persistence.queryJournalPlugin,

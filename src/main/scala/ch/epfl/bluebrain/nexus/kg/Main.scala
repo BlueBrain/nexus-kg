@@ -21,10 +21,11 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
 import ch.epfl.bluebrain.nexus.kg.persistence.TaskAggregate
-import ch.epfl.bluebrain.nexus.kg.resources.Repo
+import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.{Clients, ResourceRoutes, ServiceDescriptionRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
@@ -85,16 +86,18 @@ object Main {
 
     val resourceAggregate: Agg[Task] =
       TaskAggregate.fromFuture(ShardingAggregate("resources", sourcingSettings)(Repo.initial, Repo.next, Repo.eval))
-    implicit val repo      = Repo(resourceAggregate, clock)
-    implicit val attConfig = appConfig.attachments
-    implicit val lc        = AttachmentStore.LocationResolver[Task]()
-    implicit val stream    = AttachmentStore.Stream.task(appConfig.attachments)
-    implicit val store     = new AttachmentStore[Task, AkkaIn, AkkaOut]
-    implicit val indexers  = clients
-    implicit val projects  = Projects.task()
-    val resourceRoutes     = ResourceRoutes().routes
-    val apiRoutes          = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
-    val serviceDesc        = ServiceDescriptionRoutes(appConfig.description).routes
+    implicit val repo              = Repo(resourceAggregate, clock)
+    implicit val attConfig         = appConfig.attachments
+    implicit val lc                = AttachmentStore.LocationResolver[Task]()
+    implicit val stream            = AttachmentStore.Stream.task(appConfig.attachments)
+    implicit val store             = new AttachmentStore[Task, AkkaIn, AkkaOut]
+    implicit val indexers          = clients
+    implicit val projects          = Projects.task()
+    implicit val projectResolution = ProjectResolution.task(projects)
+    val resources: Resources[Task] = Resources[Task]
+    val resourceRoutes             = ResourceRoutes(resources).routes
+    val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
+    val serviceDesc                = ServiceDescriptionRoutes(appConfig.description).routes
 
     val logger = Logging(as, getClass)
 
@@ -112,7 +115,7 @@ object Main {
           Await.result(as.terminate(), 10 seconds)
       }
 
-      Indexing.start(projects)
+      Indexing.start(resources, projects)
     }
 
     cluster.joinSeedNodes(seeds)

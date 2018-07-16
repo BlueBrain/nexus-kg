@@ -19,13 +19,13 @@ class QueryBuilderSpec extends WordSpecLike with Matchers with Resources {
     }
     "build query with schema and deprecation" in {
       val expected = jsonContentOf("/search/query-schema-deprecation.json")
-      QueryBuilder.queryFor(Some(true), schema) shouldEqual expected
+      QueryBuilder.queryFor(Some(true), Some(schema)) shouldEqual expected
 
     }
 
     "build query with schema and without deprecation" in {
       val expected = jsonContentOf("/search/query-schema-no-deprecation.json")
-      QueryBuilder.queryFor(None, schema) shouldEqual expected
+      QueryBuilder.queryFor(None, Some(schema)) shouldEqual expected
     }
   }
 
