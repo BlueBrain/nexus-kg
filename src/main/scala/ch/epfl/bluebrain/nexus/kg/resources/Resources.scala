@@ -540,6 +540,12 @@ abstract class Resources[F[_]](implicit F: Monad[F],
 }
 
 object Resources {
+
+  /**
+    * @param config the implicitly available application configuration
+    * @tparam F the monadic effect type
+    * @return a new [[Resources]] for the provided F type
+    */
   final def apply[F[_]: Monad: Repo: ProjectResolution](implicit config: AppConfig): Resources[F] =
     new Resources[F]() {}
 
