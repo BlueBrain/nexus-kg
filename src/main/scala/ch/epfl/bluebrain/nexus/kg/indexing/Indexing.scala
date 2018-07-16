@@ -10,10 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.RuntimeErr.IllegalEventType
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectViewCoordinator, Projects}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.indexing.Indexing.ProxyResolution
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.resolve._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.kafka.KafkaConsumer
 import monix.eval.Task
@@ -24,9 +21,9 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import scala.concurrent.Future
 
 // $COVERAGE-OFF$
-private class Indexing(projects: Projects[Task], coordinator: ActorRef)(implicit as: ActorSystem,
-                                                                        repo: Repo[Task],
-                                                                        config: AppConfig) {
+private class Indexing(resources: Resources[Task], projects: Projects[Task], coordinator: ActorRef)(
+    implicit as: ActorSystem,
+    config: AppConfig) {
 
   private val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
@@ -101,19 +98,7 @@ private class Indexing(projects: Projects[Task], coordinator: ActorRef)(implicit
   }
 
   def startResolverStream(): Unit = {
-    def resolution(projectRef: ProjectRef): Resolution[Task] = {
-      val resolutionTask = projects.resolvers(projectRef).map { resolvers =>
-        val sorted = resolvers.toList.sortBy(_.priority).map {
-          case r: InProjectResolver    => InProjectResolution[Task](r.ref)
-          case r: CrossProjectResolver => CrossProjectResolution[Task](r.ref, projects)
-          case _                       => ??? // TODO: other kinds of resolver
-        }
-        CompositeResolution(AppConfig.staticResolution :: sorted)
-      }
-      new ProxyResolution(resolutionTask)
-    }
-
-    ResolverIndexer.start(projects, resolution)
+    ResolverIndexer.start(resources, projects)
     ()
   }
 }
@@ -129,34 +114,23 @@ object Indexing {
     *   <li>Resolvers</li>
     * </ul>
     *
-    * @param projects the project operations
+    * @param resources the resources operations
+    * @param projects  the project operations
     */
-  def start(projects: Projects[Task])(implicit as: ActorSystem,
-                                      repo: Repo[Task],
-                                      ucl: HttpClient[Task, ResultSet],
-                                      config: AppConfig): Unit = {
+  def start(resources: Resources[Task], projects: Projects[Task])(implicit as: ActorSystem,
+                                                                  ucl: HttpClient[Task, ResultSet],
+                                                                  config: AppConfig): Unit = {
 
     def selector(view: View): ActorRef = view match {
-      case _: ElasticView => ElasticIndexer.start(view)
-      case _: SparqlView  => SparqlIndexer.start(view)
+      case _: ElasticView => ElasticIndexer.start(view, resources)
+      case _: SparqlView  => SparqlIndexer.start(view, resources)
     }
 
     val coordinator = ProjectViewCoordinator.start(projects, selector, None, config.cluster.shards)
-    val indexing    = new Indexing(projects, coordinator)
+    val indexing    = new Indexing(resources, projects, coordinator)
     indexing.startAccountStream()
     indexing.startProjectStream()
     indexing.startResolverStream()
-  }
-
-  /**
-    * Constructs a [[Resolution]] instance using another existing instance in a Task context.
-    */
-  private class ProxyResolution(resolution: Task[Resolution[Task]]) extends Resolution[Task] {
-    override def resolve(ref: Ref): Task[Option[Resource]] =
-      resolution.flatMap(_.resolve(ref))
-
-    override def resolveAll(ref: Ref): Task[List[Resource]] =
-      resolution.flatMap(_.resolveAll(ref))
   }
 
 }

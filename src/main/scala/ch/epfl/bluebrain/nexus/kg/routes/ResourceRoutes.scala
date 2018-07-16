@@ -28,9 +28,8 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resolve.{CompositeResolution, InProjectResolution, Resolution, Resolver}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.ElasticDecoders.resourceIdDecoder
-import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
@@ -52,11 +51,15 @@ import monix.execution.Scheduler.Implicits.global
 import scala.concurrent.Future
 import scala.util.Try
 
-class ResourceRoutes(implicit repo: Repo[Task],
-                     indexers: Clients[Task],
-                     store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                     config: AppConfig,
-                     projects: Projects[Task]) {
+/**
+  * Routes for resources operations
+  *
+  * @param resources the resources operations
+  */
+class ResourceRoutes(resources: Resources[Task])(implicit projects: Projects[Task],
+                                                 indexers: Clients[Task],
+                                                 store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                                                 config: AppConfig) {
 
   private val (es, sparql) = (indexers.elastic, indexers.sparql)
   import indexers._
@@ -65,18 +68,18 @@ class ResourceRoutes(implicit repo: Repo[Task],
     handleRejections(RejectionHandling.rejectionHandler()) {
       token { implicit optToken =>
         pathPrefix(config.http.prefix) {
-          resources ~ schemas ~ resolvers ~ search ~ listings
+          res ~ schemas ~ resolvers ~ search ~ listings
         }
       }
     }
 
-  private def resources(implicit token: Option[AuthToken]): Route =
+  private def res(implicit token: Option[AuthToken]): Route =
     // consumes the segment resources/{account}/{project}
     (pathPrefix("resources") & project) { implicit labelProj =>
       // create resource with implicit or generated id
       (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-          complete(create[Task](labelProj.project.ref, labelProj.project.base, Ref(schema), source).value.runAsync)
+          complete(resources.create(labelProj.project.ref, labelProj.project.base, Ref(schema), source).value.runAsync)
         }
       } ~
         pathPrefix(aliasOrCurie / aliasOrCurie)((schema, id) => resources(schema, id))
@@ -89,7 +92,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
       (post & projectNotDeprecated & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
-            create[Task](labelProj.project.ref, labelProj.project.base, Ref(shaclSchemaUri), source).value.runAsync)
+            resources.create(labelProj.project.ref, labelProj.project.base, Ref(shaclSchemaUri), source).value.runAsync)
         }
       } ~
         pathPrefix(aliasOrCurie)(id => resources(shaclSchemaUri, id))
@@ -102,17 +105,20 @@ class ResourceRoutes(implicit repo: Repo[Task],
       (projectNotDeprecated & post & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
-            create[Task](labelProj.project.ref,
-                         labelProj.project.base,
-                         Ref(crossResolverSchemaUri),
-                         source.addContext(resolverCtxUri)).value.runAsync)
+            resources
+              .create(labelProj.project.ref,
+                      labelProj.project.base,
+                      Ref(crossResolverSchemaUri),
+                      source.addContext(resolverCtxUri))
+              .value
+              .runAsync)
         }
       } ~
         // list resolvers with implicit or generated id
         (get & parameter('deprecated.as[Boolean].?) & pathEndOrSingleSlash) { deprecated =>
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
             val resolvers = projects.resolvers(labelProj.label).map { r =>
-              val filtered = deprecated.map(d => r.filter(_.deprecated == d)).getOrElse(r).toList.sortBy(_.priority)
+              val filtered = deprecated.map(d => r.filter(_.deprecated == d)).getOrElse(r)
               toQueryResults(filtered)
             }
             complete(resolvers.runAsync)
@@ -155,10 +161,10 @@ class ResourceRoutes(implicit repo: Repo[Task],
       implicit val cl = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
         (deprecated, pagination) =>
-          complete(Resources.list[Task](proj.project.ref, deprecated, pagination).runAsync)
+          complete(resources.list(proj.project.ref, deprecated, pagination).runAsync)
       } ~ (get & parameter('deprecated.as[Boolean].?) & paginated & aliasOrCuriePath & hasPermission(resourceRead)) {
         (deprecated, pagination, schema) =>
-          complete(Resources.list[Task](proj.project.ref, deprecated, schema, pagination).runAsync)
+          complete(resources.list(proj.project.ref, deprecated, schema, pagination).runAsync)
       }
     }
 
@@ -173,7 +179,7 @@ class ResourceRoutes(implicit repo: Repo[Task],
     // create resource with explicit id
     (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
       (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-        complete(create[Task](Id(proj.ref, id), Ref(schema), source.addContext(injectUri)).value.runAsync)
+        complete(resources.create(Id(proj.ref, id), Ref(schema), source.addContext(injectUri)).value.runAsync)
       }
     } ~
       (projectNotDeprecated & parameter('rev.as[Long])) { rev =>
@@ -181,26 +187,27 @@ class ResourceRoutes(implicit repo: Repo[Task],
         (put & entity(as[Json]) & pathEndOrSingleSlash) { source =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
             complete(
-              update[Task](Id(proj.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri)).value.runAsync)
+              resources.update(Id(proj.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri)).value.runAsync)
           }
         } ~
           // tag a resource
           (evalBool(withTag) & put & entity(as[Json]) & pathPrefix("tags") & pathEndOrSingleSlash) { json =>
             (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-              complete(tag[Task](Id(proj.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri)).value.runAsync)
+              complete(
+                resources.tag(Id(proj.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri)).value.runAsync)
             }
           } ~
           // deprecate a resource
           (delete & pathEndOrSingleSlash) {
             (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-              complete(deprecate[Task](Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
+              complete(resources.deprecate(Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
             }
           }
         // remove a resource attachment
         (evalBool(withAttachment) & path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
           (delete & pathEndOrSingleSlash) {
             (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-              complete(unattach[Task](Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
+              complete(resources.unattach(Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
             }
           } ~
             // add a resource attachment
@@ -210,7 +217,10 @@ class ResourceRoutes(implicit repo: Repo[Task],
                   case (metadata, byteSource) =>
                     val description = BinaryDescription(filename, metadata.contentType.value)
                     complete(
-                      attach[Task, AkkaIn](Id(proj.ref, id), rev, Some(Ref(schema)), description, byteSource).value.runAsync)
+                      resources
+                        .attach(Id(proj.ref, id), rev, Some(Ref(schema)), description, byteSource)
+                        .value
+                        .runAsync)
                 }
               }
             }
@@ -222,13 +232,13 @@ class ResourceRoutes(implicit repo: Repo[Task],
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
             (revOpt, tagOpt) match {
               case (None, None) =>
-                complete(fetch[Task](Id(proj.ref, id), Some(Ref(schema))).materializeRun)
+                complete(resources.fetch(Id(proj.ref, id), Some(Ref(schema))).materializeRun)
               case (Some(_), Some(_)) =>
                 reject(simultaneousParamsRejection)
               case (Some(rev), _) =>
-                complete(fetch[Task](Id(proj.ref, id), rev, Some(Ref(schema))).materializeRun)
+                complete(resources.fetch(Id(proj.ref, id), rev, Some(Ref(schema))).materializeRun)
               case (_, Some(tag)) =>
-                complete(fetch[Task](Id(proj.ref, id), tag, Some(Ref(schema))).materializeRun)
+                complete(resources.fetch(Id(proj.ref, id), tag, Some(Ref(schema))).materializeRun)
             }
           }
         } ~
@@ -237,12 +247,12 @@ class ResourceRoutes(implicit repo: Repo[Task],
             (get & callerIdentity & hasPermission(resourceRead) & pathEndOrSingleSlash) { implicit ident =>
               val result = (revOpt, tagOpt) match {
                 case (None, None) =>
-                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), Some(Ref(schema)), filename).toEitherRun
+                  resources.fetchAttachment(Id(proj.ref, id), Some(Ref(schema)), filename).toEitherRun
                 case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrAttachment)
                 case (Some(rev), _) =>
-                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), rev, Some(Ref(schema)), filename).toEitherRun
+                  resources.fetchAttachment(Id(proj.ref, id), rev, Some(Ref(schema)), filename).toEitherRun
                 case (_, Some(tag)) =>
-                  fetchAttachment[Task, AkkaOut](Id(proj.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
+                  resources.fetchAttachment(Id(proj.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
               }
               onSuccess(result) {
                 case Left(rej) => reject(rej)
@@ -261,8 +271,8 @@ class ResourceRoutes(implicit repo: Repo[Task],
     validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
 
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
-    def materializeRun(implicit r: Resolution[Task]): Future[Option[ResourceV]] =
-      resource.flatMap(materializeWithMeta[Task](_).toOption).value.runAsync
+    def materializeRun: Future[Option[ResourceV]] =
+      resource.flatMap(resources.materializeWithMeta(_).toOption).value.runAsync
   }
 
   private def toQueryResults(resolvers: List[Resolver]): QueryResults[Resolver] =
@@ -292,9 +302,6 @@ class ResourceRoutes(implicit repo: Repo[Task],
   private implicit class JsonRoutesSyntax(json: Json) {
     def addContext(uriOpt: Option[AbsoluteIri]): Json = uriOpt.map(uri => json.addContext(uri)).getOrElse(json)
   }
-
-  private implicit def projectToResolution(implicit proj: Project): Resolution[Task] =
-    CompositeResolution(AppConfig.staticResolution, InProjectResolution[Task](proj.ref))
 
   private implicit def resourceEncoder: Encoder[Resource] = Encoder.encodeJson.contramap { res =>
     val graph       = res.metadata(_.iri) ++ res.typeGraph
@@ -326,12 +333,16 @@ class ResourceRoutes(implicit repo: Repo[Task],
 }
 
 object ResourceRoutes {
-  final def apply()(implicit repo: Repo[Task],
-                    indexers: Clients[Task],
-                    store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                    config: AppConfig,
-                    projects: Projects[Task],
-  ): ResourceRoutes = new ResourceRoutes()
+
+  /**
+    * @param resources the resources operations
+    * @return a new insrtance of a [[ResourceRoutes]]
+    */
+  final def apply(resources: Resources[Task])(implicit projects: Projects[Task],
+                                              indexers: Clients[Task],
+                                              store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                                              config: AppConfig): ResourceRoutes =
+    new ResourceRoutes(resources)
 
   private[routes] val resourceRead   = Permissions(Permission("resources/read"), Permission("resources/manage"))
   private[routes] val resourceWrite  = Permissions(Permission("resources/write"), Permission("resources/manage"))

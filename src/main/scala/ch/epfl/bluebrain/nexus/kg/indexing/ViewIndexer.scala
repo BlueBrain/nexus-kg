@@ -9,10 +9,8 @@ import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
-import ch.epfl.bluebrain.nexus.kg.resources.Resources._
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, ProjectRef, Rejection, Repo}
+import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -20,13 +18,10 @@ import monix.execution.Scheduler
 /**
   * Indexes project view events.
   *
-  * @param projects    the project operations
-  * @param resolution  the function used to derive a resolution for the corresponding project
+  * @param resources the resources operations
+  * @param projects  the project operations
   */
-class ViewIndexer[F[_]: Repo](
-    projects: Projects[F],
-    resolution: ProjectRef => Resolution[F]
-)(implicit F: MonadError[F, Throwable]) {
+private class ViewIndexer[F[_]](resources: Resources[F], projects: Projects[F])(implicit F: MonadError[F, Throwable]) {
 
   /**
     * Indexes the view which corresponds to the argument event. If the resource is not found, or it's not compatible to
@@ -35,12 +30,11 @@ class ViewIndexer[F[_]: Repo](
     * @param event the event to index
     */
   def apply(event: Event): F[Unit] = {
-    val projectRef                  = event.id.parent
-    implicit val res: Resolution[F] = resolution(projectRef)
+    val projectRef = event.id.parent
 
     val result: EitherT[F, Rejection, Boolean] = for {
-      resource     <- fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
-      materialized <- materialize(resource)
+      resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
+      materialized <- resources.materialize(resource)
       view         <- EitherT.fromOption(View(materialized), NotFound(event.id.ref))
       applied      <- EitherT.liftF(projects.applyView(projectRef, view, event.instant))
     } yield applied
@@ -64,16 +58,13 @@ object ViewIndexer {
   /**
     * Starts the index process for views across all projects in the system.
     *
-    * @param projects    the project operations
-    * @param resolution  the function used to derive a resolution for the corresponding project
-    * @param pluginId    the persistence query plugin id to query the event log
+    * @param resources the resources operations
+    * @param projects  the project operations
+    * @param pluginId  the persistence query plugin id to query the event log
     */
-  final def start(
-      projects: Projects[Task],
-      resolution: ProjectRef => Resolution[Task],
-      pluginId: String
-  )(implicit repo: Repo[Task], as: ActorSystem, s: Scheduler): ActorRef = {
-    val indexer = new ViewIndexer[Task](projects, resolution)
+  final def start(resources: Resources[Task], projects: Projects[Task], pluginId: String)(implicit as: ActorSystem,
+                                                                                          s: Scheduler): ActorRef = {
+    val indexer = new ViewIndexer[Task](resources, projects)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
       pluginId,

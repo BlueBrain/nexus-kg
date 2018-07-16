@@ -10,10 +10,9 @@ import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resolve.{Resolution, Resolver}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
-import ch.epfl.bluebrain.nexus.kg.resources.Resources._
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, ProjectRef, Rejection, Repo}
+import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
 import journal.Logger
 import monix.eval.Task
@@ -22,13 +21,11 @@ import monix.execution.Scheduler
 /**
   * Indexes project resolver events.
   *
-  * @param projects    the project operations
-  * @param resolution  the function used to derive a resolution for the corresponding project
+  * @param resources the resources operations
+  * @param projects  the project operations
   */
-class ResolverIndexer[F[_]: Repo](
-    projects: Projects[F],
-    resolution: ProjectRef => Resolution[F]
-)(implicit F: MonadError[F, Throwable]) {
+private class ResolverIndexer[F[_]](resources: Resources[F], projects: Projects[F])(
+    implicit F: MonadError[F, Throwable]) {
 
   private val logger = Logger[this.type]
 
@@ -39,12 +36,11 @@ class ResolverIndexer[F[_]: Repo](
     * @param event the event to index
     */
   def apply(event: Event): F[Unit] = {
-    val projectRef                  = event.id.parent
-    implicit val res: Resolution[F] = resolution(projectRef)
+    val projectRef = event.id.parent
 
     val result: EitherT[F, Rejection, Boolean] = for {
-      resource     <- fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
-      materialized <- materialize(resource)
+      resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
+      materialized <- resources.materialize(resource)
       resolver     <- EitherT.fromOption(Resolver(materialized), NotFound(event.id.ref))
       applied      <- EitherT.liftF(projects.applyResolver(projectRef, resolver, event.instant))
     } yield applied
@@ -74,14 +70,14 @@ object ResolverIndexer {
   /**
     * Starts the index process for resolvers across all projects in the system.
     *
-    * @param projects    the project operations
-    * @param resolution  the function used to derive a resolution for the corresponding project
+    * @param resources the resources operations
+    * @param projects  the project operations
     */
-  final def start(
-      projects: Projects[Task],
-      resolution: ProjectRef => Resolution[Task]
-  )(implicit repo: Repo[Task], as: ActorSystem, s: Scheduler, persistence: PersistenceConfig): ActorRef = {
-    val indexer = new ResolverIndexer[Task](projects, resolution)
+  final def start(resources: Resources[Task], projects: Projects[Task])(implicit
+                                                                        as: ActorSystem,
+                                                                        s: Scheduler,
+                                                                        persistence: PersistenceConfig): ActorRef = {
+    val indexer = new ResolverIndexer[Task](resources, projects)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
       persistence.queryJournalPlugin,

@@ -1,7 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
-import java.time.Clock
-
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
@@ -9,9 +7,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.resolve.StaticResolution
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import monix.eval.Task
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -155,20 +151,13 @@ object AppConfig {
     val pagination: Pagination = Pagination(from, size)
   }
 
-  /**
-    * Default instance of [[StaticResolution]]
-    */
-  val staticResolution: StaticResolution[Task] = {
-    implicit val clock: Clock = Clock.systemUTC
-    StaticResolution[Task](
-      Map(
-        tagCtxUri              -> tagCtx,
-        resourceCtxUri         -> resourceCtx,
-        shaclCtxUri            -> shaclCtx,
-        resolverCtxUri         -> resolverCtx,
-        crossResolverSchemaUri -> crossResolverSchema
-      ))
-  }
+  val iriResolution = Map(
+    tagCtxUri              -> tagCtx,
+    resourceCtxUri         -> resourceCtx,
+    shaclCtxUri            -> shaclCtx,
+    resolverCtxUri         -> resolverCtx,
+    crossResolverSchemaUri -> crossResolverSchema
+  )
 
   implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig           = appConfig.sparql
   implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig         = appConfig.elastic
