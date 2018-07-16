@@ -7,7 +7,7 @@ import cats.data.EitherT
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
-import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
@@ -22,9 +22,9 @@ import monix.execution.Scheduler
   * Indexes project resolver events.
   *
   * @param resources the resources operations
-  * @param projects  the project operations
+  * @param cache the distributed cache
   */
-private class ResolverIndexer[F[_]](resources: Resources[F], projects: Projects[F])(
+private class ResolverIndexer[F[_]](resources: Resources[F], cache: DistributedCache[F])(
     implicit F: MonadError[F, Throwable]) {
 
   private val logger = Logger[this.type]
@@ -42,7 +42,7 @@ private class ResolverIndexer[F[_]](resources: Resources[F], projects: Projects[
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
       materialized <- resources.materialize(resource)
       resolver     <- EitherT.fromOption(Resolver(materialized), NotFound(event.id.ref))
-      applied      <- EitherT.liftF(projects.applyResolver(projectRef, resolver, event.instant))
+      applied      <- EitherT.liftF(cache.applyResolver(projectRef, resolver, event.instant))
     } yield applied
 
     result.value
@@ -71,13 +71,14 @@ object ResolverIndexer {
     * Starts the index process for resolvers across all projects in the system.
     *
     * @param resources the resources operations
-    * @param projects  the project operations
+    * @param cache the distributed cache
     */
-  final def start(resources: Resources[Task], projects: Projects[Task])(implicit
-                                                                        as: ActorSystem,
-                                                                        s: Scheduler,
-                                                                        persistence: PersistenceConfig): ActorRef = {
-    val indexer = new ResolverIndexer[Task](resources, projects)
+  final def start(resources: Resources[Task], cache: DistributedCache[Task])(
+      implicit
+      as: ActorSystem,
+      s: Scheduler,
+      persistence: PersistenceConfig): ActorRef = {
+    val indexer = new ResolverIndexer[Task](resources, cache)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
       persistence.queryJournalPlugin,

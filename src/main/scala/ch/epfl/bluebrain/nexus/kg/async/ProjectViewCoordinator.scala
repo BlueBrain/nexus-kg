@@ -9,7 +9,7 @@ import akka.pattern.pipe
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.service.indexer.stream.StreamCoordinator.Stop
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Start
-import ch.epfl.bluebrain.nexus.kg.async.Projects._
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectRef}
 import journal.Logger
@@ -23,11 +23,11 @@ import monix.execution.Scheduler.Implicits.global
   * It expects its name to use ''{ACCOUNT_UUID}_{PROJECT_UUID}'' format. Attempting to create the actor without using
   * the expected format will result in an error.
   *
-  * @param projects the project operations
+  * @param cache    the distributed cache
   * @param selector a function that selects the child actor index runner specific for the view type
   */
 //noinspection ActorMutableStateInspection
-class ProjectViewCoordinator(projects: Projects[Task], selector: View => ActorRef) extends Actor with Stash {
+class ProjectViewCoordinator(cache: DistributedCache[Task], selector: View => ActorRef) extends Actor with Stash {
 
   private val replicator = DistributedData(context.system).replicator
 
@@ -36,7 +36,7 @@ class ProjectViewCoordinator(projects: Projects[Task], selector: View => ActorRe
   private val projectRef                      = ProjectRef(projectUuid)
   private val account                         = accountKey(accountRef)
   private val project                         = projectKey(projectRef)
-  private val view                            = viewKey(projectRef)
+  private val view                            = projectViewsKey(projectRef)
 
   private val log = Logger(s"${getClass.getSimpleName} ($projectUuid)")
 
@@ -50,9 +50,9 @@ class ProjectViewCoordinator(projects: Projects[Task], selector: View => ActorRe
     replicator ! Subscribe(view, self)
 
     val start = for {
-      as <- projects.account(accountRef)
-      ps <- projects.project(projectRef)
-      vs <- projects.views(projectRef)
+      as <- cache.account(accountRef)
+      ps <- cache.project(projectRef)
+      vs <- cache.views(projectRef)
     } yield Start(as, ps, vs)
     val _ = start.runAsync pipeTo self
   }
@@ -149,26 +149,26 @@ object ProjectViewCoordinator {
     case msg @ Msg(AccountRef(acc), ProjectRef(proj)) => (s"${acc}_$proj", msg)
   }
 
-  private[async] def props(projects: Projects[Task], selector: View => ActorRef): Props =
-    Props(new ProjectViewCoordinator(projects, selector))
+  private[async] def props(cache: DistributedCache[Task], selector: View => ActorRef): Props =
+    Props(new ProjectViewCoordinator(cache, selector))
 
   /**
     * Starts the ProjectViewCoordinator shard with the provided configuration options.
     *
-    * @param projects         the project operations
-    * @param selector        a function that selects the child actor index runner specific for the view type
+    * @param cache            the distributed cache
+    * @param selector         a function that selects the child actor index runner specific for the view type
     * @param shardingSettings the sharding settings
     * @param shards           the number of shards to use
     * @param as               the underlying actor system
     */
   final def start(
-      projects: Projects[Task],
+      cache: DistributedCache[Task],
       selector: View => ActorRef,
       shardingSettings: Option[ClusterShardingSettings],
       shards: Int
   )(implicit as: ActorSystem): ActorRef = {
     val settings = shardingSettings.getOrElse(ClusterShardingSettings(as)).withRememberEntities(true)
     ClusterSharding(as)
-      .start("project-view-coordinator", props(projects, selector), settings, entityExtractor, shardExtractor(shards))
+      .start("project-view-coordinator", props(cache, selector), settings, entityExtractor, shardExtractor(shards))
   }
 }

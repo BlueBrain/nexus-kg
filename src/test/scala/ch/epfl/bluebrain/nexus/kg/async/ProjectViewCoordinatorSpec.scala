@@ -39,7 +39,7 @@ class ProjectViewCoordinatorSpec
 
   private val base = Iri.absolute("https://nexus.example.com").getOrElse(fail)
 
-  private val projects = Projects.task()
+  private val cache = DistributedCache.task()
 
   "A ProjectViewCoordinator" should {
     "create and kill child actors when views change" in {
@@ -65,13 +65,13 @@ class ProjectViewCoordinatorSpec
         case _ => fail()
       }
 
-      val coordinator = ProjectViewCoordinator.start(projects, selector, None, 1)
-      projects.addAccount(accountRef, account, true).runAsync.futureValue shouldEqual true
-      projects.addProject(projectRef, accountRef, project, true).runAsync.futureValue shouldEqual true
+      val coordinator = ProjectViewCoordinator.start(cache, selector, None, 1)
+      cache.addAccount(accountRef, account, true).runAsync.futureValue shouldEqual true
+      cache.addProject(projectRef, accountRef, project, Instant.now, true).runAsync.futureValue shouldEqual true
       coordinator ! Msg(accountRef, projectRef)
-      projects.addView(projectRef, view, Instant.now, true).runAsync.futureValue shouldEqual true
+      cache.addView(projectRef, view, Instant.now, true).runAsync.futureValue shouldEqual true
       eventually { counter.get shouldEqual 1 }
-      projects.removeView(projectRef, viewId, Instant.now).runAsync.futureValue shouldEqual true
+      cache.removeView(projectRef, viewId, Instant.now).runAsync.futureValue shouldEqual true
       probe.expectTerminated(childActor)
     }
   }

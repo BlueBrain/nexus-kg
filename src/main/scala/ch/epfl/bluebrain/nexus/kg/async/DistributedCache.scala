@@ -21,9 +21,10 @@ import monix.eval.Task
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
-  * Project specific operations.
+  * Contract for the distributed cache that keeps in-memory metadata and content
+  * of the resources indexed by the service.
   */
-trait Projects[F[_]] {
+trait DistributedCache[F[_]] {
 
   /**
     * Looks up the state of the argument account.
@@ -83,20 +84,35 @@ trait Projects[F[_]] {
     * @param ref        the project reference
     * @param accountRef the account reference
     * @param project    the project to add
+    * @param instant    the instant used to merge the register value
     * @param updateRev  whether to update an existing project if the provided project has a higher revision than an
     *                   already existing element with the same id
     * @return true if the update was performed or false if the element was already present
     */
-  def addProject(ref: ProjectRef, accountRef: AccountRef, project: Project, updateRev: Boolean): F[Boolean]
+  def addProject(ref: ProjectRef,
+                 accountRef: AccountRef,
+                 project: Project,
+                 instant: Instant,
+                 updateRev: Boolean): F[Boolean]
 
   /**
     * Deprecates a project.
     *
-    * @param ref the project reference
-    * @param rev the project revision
+    * @param ref        the project reference
+    * @param accountRef the account reference
+    * @param instant    the instant used to merge the register value
+    * @param rev        the project revision
     * @return true if the deprecation was performed or false otherwise
     */
-  def deprecateProject(ref: ProjectRef, rev: Long): F[Boolean]
+  def deprecateProject(ref: ProjectRef, accountRef: AccountRef, instant: Instant, rev: Long): F[Boolean]
+
+  /**
+    * Looks up the projects belonging to the argument account.
+    *
+    * @param ref the account reference
+    * @return the collection of project references belonging to this account
+    */
+  def projects(ref: AccountRef): F[Set[ProjectRef]]
 
   /**
     * Looks up the collection of defined resolvers for the argument project.
@@ -201,7 +217,7 @@ trait Projects[F[_]] {
     else addView(ref, view, instant, updateRev = true)
 }
 
-object Projects {
+object DistributedCache {
 
   private[async] def accountKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[Account]]] =
     LWWRegisterKey("account_state_" + ref.id)
@@ -215,10 +231,13 @@ object Projects {
   private[async] def accountSegmentInverseKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[String]]] =
     LWWRegisterKey("account_segment_" + ref.id)
 
-  private[async] def resolverKey(ref: ProjectRef): LWWRegisterKey[TimestampedValue[Set[Resolver]]] =
+  private[async] def accountProjectsKey(ref: AccountRef): LWWRegisterKey[TimestampedValue[Set[ProjectRef]]] =
+    LWWRegisterKey("account_projects_" + ref.id)
+
+  private[async] def projectResolversKey(ref: ProjectRef): LWWRegisterKey[TimestampedValue[Set[Resolver]]] =
     LWWRegisterKey("project_resolvers_" + ref.id)
 
-  private[async] def viewKey(ref: ProjectRef): LWWRegisterKey[TimestampedValue[Set[View]]] =
+  private[async] def projectViewsKey(ref: ProjectRef): LWWRegisterKey[TimestampedValue[Set[View]]] =
     LWWRegisterKey("project_views_" + ref.id)
 
   /**
@@ -227,7 +246,7 @@ object Projects {
     * @param as the underlying actor system
     * @param tm timeout used for the lookup operations
     */
-  def future()(implicit as: ActorSystem, tm: Timeout): Projects[Future] = new Projects[Future] {
+  def future()(implicit as: ActorSystem, tm: Timeout): DistributedCache[Future] = new DistributedCache[Future] {
     private val replicator                    = DistributedData(as).replicator
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val node: Cluster        = Cluster(as)
@@ -251,7 +270,7 @@ object Projects {
           handleBooleanUpdate("Timed out while waiting for adding account label quorum response"))
       }
 
-      updateAccount().withFilter(_ == true).flatMap(_ => updateAccountLabel())
+      updateAccount().withFilter(identity).flatMap(_ => updateAccountLabel())
     }
 
     override def account(ref: AccountRef): Future[Option[Account]] =
@@ -273,27 +292,57 @@ object Projects {
         case _                                       => Future.successful(false)
       }
 
-    private def update(ref: ProjectRef, proj: Project): Future[Boolean] = {
+    private def updateProject(ref: ProjectRef, proj: Project): Future[Boolean] = {
       val empty  = LWWRegister(RevisionedValue[Option[Project]](0L, None))
       val value  = RevisionedValue[Option[Project]](proj.rev, Some(proj))
       val update = Update(projectKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
       (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
     }
 
-    private def update(ref: ProjectRef, accountRef: AccountRef, proj: Project): Future[Boolean] =
-      update(ref, proj).withFilter(_ == true).flatMap { _ =>
-        accountSegment(accountRef).flatMap {
-          case Some(accountL) =>
-            val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
-            val value = RevisionedValue[Option[ProjectRef]](proj.rev, Some(ref))
-            val update = Update(projectSegmentKey(ProjectLabel(accountL, proj.label)),
-                                empty,
-                                WriteMajority(tm.duration))(_.withValue(value))
-            (replicator ? update).flatMap(
-              handleBooleanUpdate("Timed out while waiting for add project quorum response"))
-          case _ => Future.successful(false)
+    private def updateProjectLabel(ref: ProjectRef,
+                                   accountRef: AccountRef,
+                                   proj: Project,
+                                   instant: Instant): Future[Boolean] = {
+      updateProject(ref, proj).withFilter(identity).flatMap { _ =>
+        addProjectToAccount(ref, accountRef, instant).withFilter(identity).flatMap { _ =>
+          accountSegment(accountRef).flatMap {
+            case Some(accountLabel) =>
+              val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
+              val value = RevisionedValue[Option[ProjectRef]](proj.rev, Some(ref))
+              val update = Update(projectSegmentKey(ProjectLabel(accountLabel, proj.label)),
+                                  empty,
+                                  WriteMajority(tm.duration))(_.withValue(value))
+              (replicator ? update).flatMap(
+                handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+            case _ => Future.successful(false)
+          }
         }
       }
+    }
+
+    private def addProjectToAccount(ref: ProjectRef, accountRef: AccountRef, instant: Instant): Future[Boolean] = {
+      projects(accountRef).flatMap { projects =>
+        if (projects.contains(ref)) Future.successful(true)
+        else {
+          val empty  = LWWRegister(TimestampedValue(0L, Set.empty[ProjectRef]))
+          val value  = TimestampedValue(instant.toEpochMilli, projects + ref)
+          val update = Update(accountProjectsKey(accountRef), empty, WriteMajority(tm.duration))(_.withValue(value))
+          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+        }
+      }
+    }
+
+    private def removeProjectFromAccount(ref: ProjectRef, accountRef: AccountRef, instant: Instant): Future[Boolean] = {
+      projects(accountRef).flatMap { projects =>
+        if (projects.contains(ref)) {
+          val empty  = LWWRegister(TimestampedValue(0L, Set.empty[ProjectRef]))
+          val value  = TimestampedValue(instant.toEpochMilli, projects - ref)
+          val update = Update(accountProjectsKey(accountRef), empty, WriteMajority(tm.duration))(_.withValue(value))
+          (replicator ? update).flatMap(
+            handleBooleanUpdate("Timed out while waiting for remove project quorum response"))
+        } else Future.successful(true)
+      }
+    }
 
     override def project(ref: ProjectRef): Future[Option[Project]] =
       getOrElse(projectKey(ref), none[Project])
@@ -310,21 +359,31 @@ object Projects {
     override def addProject(ref: ProjectRef,
                             accountRef: AccountRef,
                             proj: Project,
+                            instant: Instant,
                             updateRev: Boolean): Future[Boolean] =
       project(ref).flatMap {
-        case None                                     => update(ref, accountRef, proj)
-        case Some(p) if updateRev && proj.rev > p.rev => update(ref, accountRef, proj)
+        case None                                     => updateProjectLabel(ref, accountRef, proj, instant)
+        case Some(p) if updateRev && proj.rev > p.rev => updateProjectLabel(ref, accountRef, proj, instant)
         case _                                        => Future.successful(false)
       }
 
-    override def deprecateProject(ref: ProjectRef, rev: Long): Future[Boolean] =
+    override def deprecateProject(ref: ProjectRef,
+                                  accountRef: AccountRef,
+                                  instant: Instant,
+                                  rev: Long): Future[Boolean] =
       project(ref).flatMap {
-        case Some(p) if !p.deprecated && rev > p.rev => update(ref, p.copy(rev = rev, deprecated = true))
-        case _                                       => Future.successful(false)
+        case Some(p) if !p.deprecated && rev > p.rev =>
+          updateProject(ref, p.copy(rev = rev, deprecated = true))
+            .withFilter(identity)
+            .flatMap(_ => removeProjectFromAccount(ref, accountRef, instant))
+        case _ => Future.successful(false)
       }
 
+    override def projects(ref: AccountRef): Future[Set[ProjectRef]] =
+      getOrElse(accountProjectsKey(ref), Set.empty)
+
     override def resolvers(ref: ProjectRef): Future[List[Resolver]] =
-      getOrElse(resolverKey(ref), Set.empty[Resolver]).map(_.toList.sortBy(_.priority))
+      getOrElse(projectResolversKey(ref), Set.empty[Resolver]).map(_.toList.sortBy(_.priority))
 
     override def resolvers(label: ProjectLabel): Future[List[Resolver]] =
       projectRef(label).flatMap {
@@ -354,7 +413,7 @@ object Projects {
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[Resolver]))
           val value  = TimestampedValue(instant.toEpochMilli, resolverSet + resolver)
-          val update = Update(resolverKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+          val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
           (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add resolver quorum response"))
         }
       }
@@ -367,7 +426,7 @@ object Projects {
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[Resolver]))
           val value  = TimestampedValue(instant.toEpochMilli, resolverSet.filter(_.id != id))
-          val update = Update(resolverKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+          val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
           (replicator ? update).flatMap(
             handleBooleanUpdate("Timed out while waiting for remove resolver quorum response"))
         }
@@ -375,7 +434,7 @@ object Projects {
     }
 
     override def views(ref: ProjectRef): Future[Set[View]] =
-      getOrElse(viewKey(ref), Set.empty[View])
+      getOrElse(projectViewsKey(ref), Set.empty[View])
 
     override def views(label: ProjectLabel): Future[Set[View]] =
       projectRef(label).flatMap {
@@ -393,7 +452,7 @@ object Projects {
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[View]))
           val value  = TimestampedValue(instant.toEpochMilli, viewSet + view)
-          val update = Update(viewKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+          val update = Update(projectViewsKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
           (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add view quorum response"))
         }
       }
@@ -405,7 +464,7 @@ object Projects {
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[View]))
           val value  = TimestampedValue(instant.toEpochMilli, viewSet.filter(_.id != id))
-          val update = Update(viewKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+          val update = Update(projectViewsKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
           (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for remove view quorum response"))
         }
       }
@@ -427,8 +486,8 @@ object Projects {
     * @param as the underlying actor system
     * @param tm timeout used for the lookup operations
     */
-  def task()(implicit as: ActorSystem, tm: Timeout): Projects[Task] =
-    new Projects[Task] {
+  def task()(implicit as: ActorSystem, tm: Timeout): DistributedCache[Task] =
+    new DistributedCache[Task] {
 
       private val underlying = future()
 
@@ -459,11 +518,18 @@ object Projects {
       override def addProject(ref: ProjectRef,
                               accountRef: AccountRef,
                               project: Project,
+                              instant: Instant,
                               updateRev: Boolean): Task[Boolean] =
-        Task.deferFuture(underlying.addProject(ref, accountRef, project, updateRev))
+        Task.deferFuture(underlying.addProject(ref, accountRef, project, instant, updateRev))
 
-      override def deprecateProject(ref: ProjectRef, rev: Long): Task[Boolean] =
-        Task.deferFuture(underlying.deprecateProject(ref, rev))
+      override def deprecateProject(ref: ProjectRef,
+                                    accountRef: AccountRef,
+                                    instant: Instant,
+                                    rev: Long): Task[Boolean] =
+        Task.deferFuture(underlying.deprecateProject(ref, accountRef, instant, rev))
+
+      override def projects(ref: AccountRef): Task[Set[ProjectRef]] =
+        Task.deferFuture(underlying.projects(ref))
 
       override def resolvers(ref: ProjectRef): Task[List[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))

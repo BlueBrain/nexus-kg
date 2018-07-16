@@ -5,7 +5,7 @@ import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
@@ -138,6 +138,7 @@ object Resolver {
   final case class InAccountResolver(
       resourceTypes: Set[AbsoluteIri],
       identities: List[Identity],
+      accountRef: AccountRef,
       ref: ProjectRef,
       id: AbsoluteIri,
       rev: Long,

@@ -4,9 +4,9 @@ import cats.Monad
 import cats.instances.future._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Ref, Resource, Resources}
 import monix.eval.Task
 
@@ -15,11 +15,11 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Resolution for a given project
   *
-  * @param projects         the project operations
+  * @param cache the distributed cache
   * @param staticResolution the static resolutions
   * @tparam F the monadic effect type
   */
-abstract class ProjectResolution[F[_]: Monad](projects: Projects[F], staticResolution: Resolution[F]) {
+abstract class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], staticResolution: Resolution[F]) {
 
   /**
     * Looks up the collection of defined resolvers for the argument project
@@ -33,13 +33,14 @@ abstract class ProjectResolution[F[_]: Monad](projects: Projects[F], staticResol
   def apply(ref: ProjectRef)(resources: Resources[F]): Resolution[F] =
     new Resolution[F] {
 
-      private val resolution = projects.resolvers(ref).map { res =>
+      private val resolution = cache.resolvers(ref).map { res =>
         val result = res.map {
+          case _: StaticResolver       => staticResolution
           case r: InProjectResolver    => InProjectResolution[F](r.ref, resources)
+          case r: InAccountResolver    => InAccountResolution[F](r.accountRef, resources, cache)
           case _: CrossProjectResolver => CrossProjectResolution[F](resources, res)
-          case _                       => ??? // TODO: other kinds of resolver
         }
-        CompositeResolution(staticResolution :: result)
+        CompositeResolution(result)
       }
 
       def resolve(ref: Ref): F[Option[Resource]] =
@@ -53,17 +54,17 @@ abstract class ProjectResolution[F[_]: Monad](projects: Projects[F], staticResol
 object ProjectResolution {
 
   /**
-    * @param projects         the project operations
+    * @param cache the distributed cache
     * @return a new [[ProjectResolution]] for the effect type [[Future]]
     */
-  def future(projects: Projects[Future])(implicit ec: ExecutionContext): ProjectResolution[Future] =
-    new ProjectResolution(projects, StaticResolution[Future](iriResolution)) {}
+  def future(cache: DistributedCache[Future])(implicit ec: ExecutionContext): ProjectResolution[Future] =
+    new ProjectResolution(cache, StaticResolution[Future](iriResolution)) {}
 
   /**
-    * @param projects         the project operations
+    * @param cache the distributed cache
     * @return a new [[ProjectResolution]] for the effect type [[Task]]
     */
-  def task(projects: Projects[Task]): ProjectResolution[Task] =
-    new ProjectResolution(projects, StaticResolution[Task](iriResolution)) {}
+  def task(cache: DistributedCache[Task]): ProjectResolution[Task] =
+    new ProjectResolution(cache, StaticResolution[Task](iriResolution)) {}
 
 }

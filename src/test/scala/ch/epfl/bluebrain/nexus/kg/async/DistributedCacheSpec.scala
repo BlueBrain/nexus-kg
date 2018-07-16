@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
-class ProjectsSpec
+class DistributedCacheSpec
     extends TestKit(ActorSystem("ProjectsSpec"))
     with DefaultTimeout
     with WordSpecLike
@@ -26,7 +26,7 @@ class ProjectsSpec
 
   private def genUUID = java.util.UUID.randomUUID.toString
 
-  private val cache = Projects.future()
+  private val cache = DistributedCache.future()
 
   private val base = Iri.absolute("https://nexus.example.com").getOrElse(fail)
 
@@ -50,7 +50,7 @@ class ProjectsSpec
       val ref        = ProjectRef(uuid)
       val accountRef = AccountRef(uuid)
       val project    = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, uuid)
-      cache.addProject(ref, accountRef, project, true).futureValue shouldEqual false
+      cache.addProject(ref, accountRef, project, Instant.now, true).futureValue shouldEqual false
     }
 
     "handle projects life-cycle" in {
@@ -59,21 +59,27 @@ class ProjectsSpec
       val account     = Account("some-org", 1L, "some-label", false, accountUuid)
       cache.addAccount(accountRef, account, true).futureValue shouldEqual true
 
-      val uuid    = genUUID
-      val ref     = ProjectRef(uuid)
-      val project = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, uuid)
+      val uuid     = genUUID
+      val ref      = ProjectRef(uuid)
+      val ref2     = ProjectRef(uuid)
+      val project  = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, uuid)
+      val project2 = Project("some-project2", "some-label-proj2", Map.empty, base, 42L, false, uuid)
 
-      cache.addProject(ref, accountRef, project, true).futureValue shouldEqual true
-      cache.addProject(ref, accountRef, project.copy(rev = 2L), false).futureValue shouldEqual false
+      cache.addProject(ref, accountRef, project, Instant.now, true).futureValue shouldEqual true
+      cache.addProject(ref, accountRef, project.copy(rev = 2L), Instant.now, false).futureValue shouldEqual false
       cache.project(ref).futureValue shouldEqual Some(project)
       cache.project(ProjectLabel("some-label", "some-label-proj")).futureValue shouldEqual Some(project)
+      cache.projects(accountRef).futureValue shouldEqual Set(ref)
+      cache.addProject(ref2, accountRef, project2, Instant.now, true).futureValue shouldEqual true
+      cache.projects(accountRef).futureValue shouldEqual Set(ref, ref2)
       cache.project(ProjectLabel("wrong", "some-label-proj")).futureValue shouldEqual None
       cache.projectRef(ProjectLabel("some-label", "some-label-proj")).futureValue shouldEqual Some(ref)
       cache.projectRef(ProjectLabel("some-label", "wrong")).futureValue shouldEqual None
-      cache.addProject(ref, accountRef, project.copy(rev = 3L), true).futureValue shouldEqual true
+      cache.addProject(ref, accountRef, project.copy(rev = 3L), Instant.now, true).futureValue shouldEqual true
       cache.project(ref).futureValue shouldEqual Some(project.copy(rev = 3L))
-      cache.deprecateProject(ref, 4L).futureValue shouldEqual true
+      cache.deprecateProject(ref, accountRef, Instant.now, 4L).futureValue shouldEqual true
       cache.project(ref).futureValue shouldEqual Some(project.copy(rev = 4L, deprecated = true))
+      cache.projects(accountRef).futureValue shouldEqual Set(ref2)
     }
 
     "handle resolvers life-cycle" in {
@@ -86,7 +92,7 @@ class ProjectsSpec
       val ref         = ProjectRef(projectUuid)
       val project     = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, projectUuid)
 
-      cache.addProject(ref, accountRef, project, true).futureValue shouldEqual true
+      cache.addProject(ref, accountRef, project, Instant.now, true).futureValue shouldEqual true
 
       val projectId = base + "some-label/some-label-proj"
       val resolver  = InProjectResolver(ref, projectId, 1L, false, 10)
@@ -112,7 +118,7 @@ class ProjectsSpec
       val ref         = ProjectRef(projectUuid)
       val project     = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, projectUuid)
 
-      cache.addProject(ref, accountRef, project, true).futureValue shouldEqual true
+      cache.addProject(ref, accountRef, project, Instant.now, true).futureValue shouldEqual true
 
       val projectId = base + "some-label/some-label-proj"
       val view      = ElasticView(ref, projectId, genUUID, 1L, false)

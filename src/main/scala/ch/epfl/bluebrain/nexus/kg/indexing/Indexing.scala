@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.IllegalEventType
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectViewCoordinator, Projects}
+import ch.epfl.bluebrain.nexus.kg.async.{DistributedCache, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -21,7 +21,7 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import scala.concurrent.Future
 
 // $COVERAGE-OFF$
-private class Indexing(resources: Resources[Task], projects: Projects[Task], coordinator: ActorRef)(
+private class Indexing(resources: Resources[Task], cache: DistributedCache[Task], coordinator: ActorRef)(
     implicit as: ActorSystem,
     config: AppConfig) {
 
@@ -32,15 +32,11 @@ private class Indexing(resources: Resources[Task], projects: Projects[Task], coo
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
         case OrganizationCreated(_, label, uuid, rev, _, org) =>
-          projects.addAccount(AccountRef(uuid),
-                              Account(org.name, rev, label, deprecated = false, uuid),
-                              updateRev = false)
+          cache.addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid), updateRev = false)
         case OrganizationUpdated(_, label, uuid, rev, _, org) =>
-          projects.addAccount(AccountRef(uuid),
-                              Account(org.name, rev, label, deprecated = false, uuid),
-                              updateRev = true)
+          cache.addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid), updateRev = true)
         case OrganizationDeprecated(_, uuid, rev, _) =>
-          projects.deprecateAccount(AccountRef(uuid), rev)
+          cache.deprecateAccount(AccountRef(uuid), rev)
         case _: ProjectCreated    => throw IllegalEventType("ProjectCreated", "Organization")
         case _: ProjectUpdated    => throw IllegalEventType("ProjectUpdated", "Organization")
         case _: ProjectDeprecated => throw IllegalEventType("ProjectDeprecated", "Organization")
@@ -68,23 +64,25 @@ private class Indexing(resources: Resources[Task], projects: Projects[Task], coo
 
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
-        case ProjectCreated(_, label, uuid, orgUUid, rev, _, proj) =>
-          projects
+        case ProjectCreated(_, label, uuid, orgUUid, rev, meta, proj) =>
+          cache
             .addProject(ProjectRef(uuid),
                         AccountRef(orgUUid),
                         Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
+                        meta.instant,
                         updateRev = false)
             .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
-        case ProjectUpdated(_, label, uuid, orgUUid, rev, _, proj) =>
-          projects
+        case ProjectUpdated(_, label, uuid, orgUUid, rev, meta, proj) =>
+          cache
             .addProject(ProjectRef(uuid),
                         AccountRef(orgUUid),
                         Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
+                        meta.instant,
                         updateRev = true)
             .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
-        case ProjectDeprecated(_, uuid, orgUUid, rev, _) =>
-          projects
-            .deprecateProject(ProjectRef(uuid), rev)
+        case ProjectDeprecated(_, uuid, orgUUid, rev, meta) =>
+          cache
+            .deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), meta.instant, rev)
             .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
         case _: OrganizationCreated    => throw IllegalEventType("OrganizationCreated", "Project")
         case _: OrganizationUpdated    => throw IllegalEventType("OrganizationUpdated", "Project")
@@ -98,7 +96,7 @@ private class Indexing(resources: Resources[Task], projects: Projects[Task], coo
   }
 
   def startResolverStream(): Unit = {
-    ResolverIndexer.start(resources, projects)
+    ResolverIndexer.start(resources, cache)
     ()
   }
 }
@@ -115,19 +113,19 @@ object Indexing {
     * </ul>
     *
     * @param resources the resources operations
-    * @param projects  the project operations
+    * @param cache the distributed cache
     */
-  def start(resources: Resources[Task], projects: Projects[Task])(implicit as: ActorSystem,
-                                                                  ucl: HttpClient[Task, ResultSet],
-                                                                  config: AppConfig): Unit = {
+  def start(resources: Resources[Task], cache: DistributedCache[Task])(implicit as: ActorSystem,
+                                                                       ucl: HttpClient[Task, ResultSet],
+                                                                       config: AppConfig): Unit = {
 
     def selector(view: View): ActorRef = view match {
       case _: ElasticView => ElasticIndexer.start(view, resources)
       case _: SparqlView  => SparqlIndexer.start(view, resources)
     }
 
-    val coordinator = ProjectViewCoordinator.start(projects, selector, None, config.cluster.shards)
-    val indexing    = new Indexing(resources, projects, coordinator)
+    val coordinator = ProjectViewCoordinator.start(cache, selector, None, config.cluster.shards)
+    val indexing    = new Indexing(resources, cache, coordinator)
     indexing.startAccountStream()
     indexing.startProjectStream()
     indexing.startResolverStream()
