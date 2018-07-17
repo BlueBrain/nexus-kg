@@ -289,15 +289,19 @@ object Repo {
       }
 
     def forbiddenUpdates(s: Current, c: Update): Boolean =
-      (s.types.contains(nxv.Schema) && !c.types.contains(nxv.Schema)) || (!s.types.contains(nxv.Schema) && c.types
-        .contains(nxv.Schema))
+      // format: off
+      ((s.types.contains(nxv.Schema) && !c.types.contains(nxv.Schema)) || (!s.types.contains(nxv.Schema) && c.types.contains(nxv.Schema))) ||
+      ((s.types.contains(nxv.Resolver) && !c.types.contains(nxv.Resolver)) || (!s.types.contains(nxv.Resolver) && c.types.contains(nxv.Resolver))) ||
+      ((s.types.contains(nxv.Ontology) && !c.types.contains(nxv.Ontology)) || (!s.types.contains(nxv.Ontology) && c.types.contains(nxv.Ontology)))
+      // format: on
 
     def tag(c: AddTag): Either[Rejection, TagAdded] =
       state match {
-        case Initial                     => Left(NotFound(c.id.ref))
-        case s: Current if s.rev < c.rev => Left(IncorrectRev(c.id.ref, c.rev))
-        case s: Current if s.deprecated  => Left(IsDeprecated(c.id.ref))
-        case s: Current                  => Right(TagAdded(s.id, s.rev + 1, c.targetRev, c.tag, c.instant, c.identity))
+        case Initial                           => Left(NotFound(c.id.ref))
+        case s: Current if s.rev < c.rev       => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.rev < c.targetRev => Left(IncorrectRev(c.id.ref, c.targetRev))
+        case s: Current if s.deprecated        => Left(IsDeprecated(c.id.ref))
+        case s: Current                        => Right(TagAdded(s.id, s.rev + 1, c.targetRev, c.tag, c.instant, c.identity))
       }
 
     def deprecate(c: Deprecate): Either[Rejection, Deprecated] =

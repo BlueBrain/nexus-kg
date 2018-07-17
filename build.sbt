@@ -128,7 +128,8 @@ lazy val kg = project
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
       mockitoCore          % Test,
-      scalaTest            % Test
+      scalaTest            % Test,
+      sourcingMem          % Test
     ),
     resolvers += Resolver.bintrayRepo("bogdanromanx", "maven")
   )

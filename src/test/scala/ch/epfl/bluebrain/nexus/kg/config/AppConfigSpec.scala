@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
-import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import com.typesafe.config.ConfigFactory
@@ -8,7 +7,7 @@ import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
 import scala.concurrent.duration._
 
-class AppConfigSpec extends WordSpecLike with Matchers with ScalatestRouteTest with EitherValues {
+class AppConfigSpec extends WordSpecLike with Matchers with EitherValues {
 
   "An AppConfig" should {
     val valid = ConfigFactory.parseResources("app.conf").resolve()
