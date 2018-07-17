@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.{Encoder, Json, Printer}
-
+import io.circe.syntax._
 import scala.collection.immutable.Seq
 
 package object instances extends FailFastCirceSupport {
@@ -36,10 +36,10 @@ package object instances extends FailFastCirceSupport {
     * @tparam A type to encode
     * @return marshaller for any `A` value
     */
-  final implicit def http[A](implicit encoder: Encoder[A],
-                             printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
-                             keys: OrderedKeys = OrderedKeys(
-                               List("@context", "@id", "@type", "code", "message", "details", "")))
+  final implicit def httpEntity[A](implicit encoder: Encoder[A],
+                                   printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
+                                   keys: OrderedKeys = OrderedKeys(
+                                     List("@context", "@id", "@type", "code", "message", "details", "")))
     : ToEntityMarshaller[A] =
     jsonLd.compose(encoder.apply)
 
@@ -53,10 +53,26 @@ package object instances extends FailFastCirceSupport {
       implicit encoder: Encoder[A],
       printer: Printer = Printer.noSpaces.copy(dropNullValues = true)
   ): ToResponseMarshaller[Either[Rejection, A]] =
-    eitherMarshaller(rejection, http[A])
+    eitherMarshaller(rejection, httpEntity[A])
 
   /**
-    * `Rejection` => HTTP entity
+    * `(StatusCode, A)` => HTTP response
+    *
+    * @return marshaller for any `A` value with its response type
+    */
+  implicit def httpResponse[A, E <: StatusCode](implicit encoder: Encoder[A],
+                                                printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
+                                                keys: OrderedKeys = OrderedKeys(
+                                                  List("@context", "@id", "@type", "code", "message", "details", "")))
+    : ToResponseMarshaller[(E, A)] =
+    Marshaller.withFixedContentType(RdfMediaTypes.`application/ld+json`) {
+      case (code, res) =>
+        HttpResponse(status = code,
+                     entity = HttpEntity(RdfMediaTypes.`application/ld+json`, printer.pretty(encoder(res).sortKeys)))
+    }
+
+  /**
+    * `Rejection` => HTTP response
     *
     * @return marshaller for Rejection value
     */
@@ -65,9 +81,8 @@ package object instances extends FailFastCirceSupport {
                            List("@context", "@id", "@type", "code", "message", "details", "")))
     : ToResponseMarshaller[Rejection] =
     Marshaller.withFixedContentType(RdfMediaTypes.`application/ld+json`) { rejection =>
-      HttpResponse(
-        status = statusCodeFrom(rejection),
-        entity = HttpEntity(RdfMediaTypes.`application/ld+json`, printer.pretty(rejectionEncoder(rejection).sortKeys)))
+      HttpResponse(status = statusCodeFrom(rejection),
+                   entity = HttpEntity(RdfMediaTypes.`application/ld+json`, printer.pretty(rejection.asJson.sortKeys)))
     }
 
   private def statusCodeFrom(rejection: Rejection): StatusCode = rejection match {

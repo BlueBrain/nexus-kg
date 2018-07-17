@@ -10,7 +10,6 @@ import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.CustomAuthRejection
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import io.circe.generic.extras.auto._
 
 /**
   * A rejection encapsulates a specific reason why a route was not able to handle a request.
