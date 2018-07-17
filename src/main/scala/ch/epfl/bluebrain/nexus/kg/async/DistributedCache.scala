@@ -120,7 +120,7 @@ trait DistributedCache[F[_]] {
     * @param ref the project reference
     * @return the collection of known resolvers configured for the argument project
     */
-  def resolvers(ref: ProjectRef): F[List[Resolver]]
+  def resolvers(ref: ProjectRef): F[Set[Resolver]]
 
   /**
     * Looks up the collection of defined resolvers for the argument project.
@@ -128,7 +128,7 @@ trait DistributedCache[F[_]] {
     * @param label the project label
     * @return the collection of known resolvers configured for the argument project
     */
-  def resolvers(label: ProjectLabel): F[List[Resolver]]
+  def resolvers(label: ProjectLabel): F[Set[Resolver]]
 
   /**
     * Adds the resolver to the collection of project resolvers.
@@ -340,7 +340,7 @@ object DistributedCache {
           val update = Update(accountProjectsKey(accountRef), empty, WriteMajority(tm.duration))(_.withValue(value))
           (replicator ? update).flatMap(
             handleBooleanUpdate("Timed out while waiting for remove project quorum response"))
-        } else Future.successful(true)
+        } else Future.successful(false)
       }
     }
 
@@ -382,13 +382,13 @@ object DistributedCache {
     override def projects(ref: AccountRef): Future[Set[ProjectRef]] =
       getOrElse(accountProjectsKey(ref), Set.empty)
 
-    override def resolvers(ref: ProjectRef): Future[List[Resolver]] =
-      getOrElse(projectResolversKey(ref), Set.empty[Resolver]).map(_.toList.sortBy(_.priority))
+    override def resolvers(ref: ProjectRef): Future[Set[Resolver]] =
+      getOrElse(projectResolversKey(ref), Set.empty[Resolver])
 
-    override def resolvers(label: ProjectLabel): Future[List[Resolver]] =
+    override def resolvers(label: ProjectLabel): Future[Set[Resolver]] =
       projectRef(label).flatMap {
         case Some(ref) => resolvers(ref)
-        case _         => Future(List.empty)
+        case _         => Future(Set.empty)
       }
 
     private def getOrElse[T, K <: RegisteredValue[T]](f: => LWWRegisterKey[K], default: => T): Future[T] =
@@ -408,11 +408,10 @@ object DistributedCache {
         else r.id == resolver.id
 
       resolvers(ref).flatMap { resolvers =>
-        val resolverSet = resolvers.toSet
-        if (resolverSet.exists(found)) Future.successful(false)
+        if (resolvers.exists(found)) Future.successful(false)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[Resolver]))
-          val value  = TimestampedValue(instant.toEpochMilli, resolverSet + resolver)
+          val value  = TimestampedValue(instant.toEpochMilli, resolvers + resolver)
           val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
           (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add resolver quorum response"))
         }
@@ -421,11 +420,10 @@ object DistributedCache {
 
     override def removeResolver(ref: ProjectRef, id: AbsoluteIri, instant: Instant): Future[Boolean] = {
       resolvers(ref).flatMap { resolvers =>
-        val resolverSet = resolvers.toSet
-        if (!resolverSet.exists(_.id == id)) Future.successful(false)
+        if (!resolvers.exists(_.id == id)) Future.successful(false)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[Resolver]))
-          val value  = TimestampedValue(instant.toEpochMilli, resolverSet.filter(_.id != id))
+          val value  = TimestampedValue(instant.toEpochMilli, resolvers.filterNot(_.id == id))
           val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
           (replicator ? update).flatMap(
             handleBooleanUpdate("Timed out while waiting for remove resolver quorum response"))
@@ -491,7 +489,7 @@ object DistributedCache {
 
       private val underlying = future()
 
-      override def resolvers(label: ProjectLabel): Task[List[Resolver]] =
+      override def resolvers(label: ProjectLabel): Task[Set[Resolver]] =
         Task.deferFuture(underlying.resolvers(label))
 
       override def views(label: ProjectLabel): Task[Set[View]] =
@@ -531,7 +529,7 @@ object DistributedCache {
       override def projects(ref: AccountRef): Task[Set[ProjectRef]] =
         Task.deferFuture(underlying.projects(ref))
 
-      override def resolvers(ref: ProjectRef): Task[List[Resolver]] =
+      override def resolvers(ref: ProjectRef): Task[Set[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))
 
       override def addResolver(ref: ProjectRef,

@@ -118,7 +118,11 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         (get & parameter('deprecated.as[Boolean].?) & pathEndOrSingleSlash) { deprecated =>
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
             val resolvers = cache.resolvers(labelProj.label).map { r =>
-              val filtered = deprecated.map(d => r.filter(_.deprecated == d)).getOrElse(r)
+              val filtered = deprecated
+                .map(d => r.filter(_.deprecated == d))
+                .getOrElse(r)
+                .toList
+                .sortBy(_.priority)
               toQueryResults(filtered)
             }
             complete(resolvers.runAsync)

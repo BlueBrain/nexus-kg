@@ -19,7 +19,8 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param staticResolution the static resolutions
   * @tparam F the monadic effect type
   */
-abstract class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], staticResolution: Resolution[F]) {
+abstract class ProjectResolution[F[_]](cache: DistributedCache[F], staticResolution: Resolution[F])(
+    implicit F: Monad[F]) {
 
   /**
     * Looks up the collection of defined resolvers for the argument project
@@ -34,11 +35,15 @@ abstract class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], static
     new Resolution[F] {
 
       private val resolution = cache.resolvers(ref).map { res =>
-        val result = res.map {
-          case _: StaticResolver       => staticResolution
-          case r: InProjectResolver    => InProjectResolution[F](r.ref, resources)
-          case r: InAccountResolver    => InAccountResolution[F](r.accountRef, resources, cache)
-          case _: CrossProjectResolver => CrossProjectResolution[F](resources, res)
+        val result = res.filterNot(_.deprecated).toList.sortBy(_.priority).map {
+          case _: StaticResolver    => staticResolution
+          case r: InProjectResolver => InProjectResolution[F](r.ref, resources)
+          case r: InAccountResolver =>
+            val projects = cache.projects(r.accountRef).map(_.map(_ -> r.resourceTypes).toList)
+            MultiProjectResolution(resources, projects)
+          case r: CrossProjectResolver =>
+            val projects = r.projects.map(_ -> r.resourceTypes).toList
+            MultiProjectResolution(resources, F.pure(projects))
         }
         CompositeResolution(result)
       }

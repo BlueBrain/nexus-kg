@@ -59,13 +59,12 @@ class DistributedCacheSpec
       val account     = Account("some-org", 1L, "some-label", false, accountUuid)
       cache.addAccount(accountRef, account, true).futureValue shouldEqual true
 
-      val uuid     = genUUID
-      val ref      = ProjectRef(uuid)
-      val ref2     = ProjectRef(uuid)
-      val project  = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, uuid)
-      val project2 = Project("some-project2", "some-label-proj2", Map.empty, base, 42L, false, uuid)
+      val ref      = ProjectRef(genUUID)
+      val ref2     = ProjectRef(genUUID)
+      val project  = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, ref.id)
+      val project2 = Project("some-project2", "some-label-proj2", Map.empty, base, 42L, false, ref2.id)
 
-      cache.addProject(ref, accountRef, project, Instant.now, true).futureValue shouldEqual true
+      cache.addProject(ref, accountRef, project, Instant.now, false).futureValue shouldEqual true
       cache.addProject(ref, accountRef, project.copy(rev = 2L), Instant.now, false).futureValue shouldEqual false
       cache.project(ref).futureValue shouldEqual Some(project)
       cache.project(ProjectLabel("some-label", "some-label-proj")).futureValue shouldEqual Some(project)
@@ -97,15 +96,15 @@ class DistributedCacheSpec
       val projectId = base + "some-label/some-label-proj"
       val resolver  = InProjectResolver(ref, projectId, 1L, false, 10)
       cache.addResolver(ref, resolver, Instant.now, true).futureValue shouldEqual true
-      cache.resolvers(ref).futureValue shouldEqual List(resolver)
-      cache.resolvers(ProjectLabel("some-label", "some-label-proj")).futureValue shouldEqual List(resolver)
-      cache.resolvers(ProjectLabel("some-label", "wrong")).futureValue shouldEqual List.empty[Resolver]
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver)
+      cache.resolvers(ProjectLabel("some-label", "some-label-proj")).futureValue shouldEqual Set(resolver)
+      cache.resolvers(ProjectLabel("some-label", "wrong")).futureValue shouldEqual Set.empty[Resolver]
       cache.applyResolver(ref, resolver.copy(rev = 2L), Instant.now).futureValue shouldEqual true
-      cache.resolvers(ref).futureValue shouldEqual List(resolver, resolver.copy(rev = 2L))
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver, resolver.copy(rev = 2L))
       cache.addResolver(ref, resolver.copy(rev = 3L), Instant.now, false).futureValue shouldEqual false
-      cache.resolvers(ref).futureValue shouldEqual List(resolver, resolver.copy(rev = 2L))
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver, resolver.copy(rev = 2L))
       cache.removeResolver(ref, projectId, Instant.now).futureValue shouldEqual true
-      cache.resolvers(ref).futureValue shouldEqual List.empty
+      cache.resolvers(ref).futureValue shouldEqual Set.empty[Resolver]
     }
 
     "handle views life-cycle" in {
