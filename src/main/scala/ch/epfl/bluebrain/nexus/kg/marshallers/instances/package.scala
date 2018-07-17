@@ -10,8 +10,9 @@ import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
-import io.circe.{Encoder, Json, Printer}
 import io.circe.syntax._
+import io.circe.{Encoder, Json, Printer}
+
 import scala.collection.immutable.Seq
 
 package object instances extends FailFastCirceSupport {
@@ -54,22 +55,6 @@ package object instances extends FailFastCirceSupport {
       printer: Printer = Printer.noSpaces.copy(dropNullValues = true)
   ): ToResponseMarshaller[Either[Rejection, A]] =
     eitherMarshaller(rejection, httpEntity[A])
-
-  /**
-    * `(StatusCode, A)` => HTTP response
-    *
-    * @return marshaller for any `A` value with its response type
-    */
-  implicit def httpResponse[A, E <: StatusCode](implicit encoder: Encoder[A],
-                                                printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
-                                                keys: OrderedKeys = OrderedKeys(
-                                                  List("@context", "@id", "@type", "code", "message", "details", "")))
-    : ToResponseMarshaller[(E, A)] =
-    Marshaller.withFixedContentType(RdfMediaTypes.`application/ld+json`) {
-      case (code, res) =>
-        HttpResponse(status = code,
-                     entity = HttpEntity(RdfMediaTypes.`application/ld+json`, printer.pretty(encoder(res).sortKeys)))
-    }
 
   /**
     * `Rejection` => HTTP response
