@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import java.time.Clock
 
 import cats.data.OptionT
-import cats.{Applicative, Id => CId}
+import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
@@ -34,8 +34,8 @@ class MultiProjectResolutionSpec
   private val resId                 = base + "/some-id"
   private val (proj1, proj2, proj3) = (ProjectRef(genUUID), ProjectRef(genUUID), ProjectRef(genUUID))
   private val types                 = Set(nxv.Schema.value, nxv.Resource.value)
-  private val projects              = Applicative[CId].pure(List(proj1 -> types, proj2 -> types, proj3 -> types))
-  private val resolution            = MultiProjectResolution(resources, projects)
+  private val projects              = List(proj1 -> types, proj2 -> types, proj3 -> types)
+  private val resolution            = MultiProjectResolution[CId](resources, projects)
 
   before {
     Mockito.reset(resources)
