@@ -348,7 +348,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     for {
       resourceV <- materialize(resource)
       graph = resourceV.value.graph
-      value = resourceV.value.copy(graph = graph ++ resourceV.metadata(_.iri) ++ resourceV.typeGraph)
+      value = resourceV.value.copy(graph = graph ++ resourceV.metadata ++ resourceV.typeGraph)
     } yield resourceV.map(_ => value)
 
   /**
