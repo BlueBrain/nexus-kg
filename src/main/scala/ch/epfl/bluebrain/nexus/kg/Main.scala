@@ -92,8 +92,8 @@ object Main {
     implicit val stream            = AttachmentStore.Stream.task(appConfig.attachments)
     implicit val store             = new AttachmentStore[Task, AkkaIn, AkkaOut]
     implicit val indexers          = clients
-    implicit val projects          = DistributedCache.task()
-    implicit val projectResolution = ProjectResolution.task(projects)
+    implicit val cache             = DistributedCache.task()
+    implicit val projectResolution = ProjectResolution.task(cache)
     val resources: Resources[Task] = Resources[Task]
     val resourceRoutes             = ResourceRoutes(resources).routes
     val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
@@ -115,7 +115,7 @@ object Main {
           Await.result(as.terminate(), 10 seconds)
       }
 
-      Indexing.start(resources, projects)
+      Indexing.start(resources, cache)
     }
 
     cluster.joinSeedNodes(seeds)
