@@ -163,21 +163,8 @@ object Resolver {
   ) extends Resolver {
     private val graphForProjects = Graph(projects.map(r => (s: IriOrBNode, nxv.projects, r.id: Node)))
 
-    val asGraph
-      : Graph = mainGraph(nxv.InAccount) ++ graphFor(identities)(s) ++ graphFor(resourceTypes)(s) ++ graphForProjects
-  }
-
-  /**
-    * A resolver that loads bundled static resources.
-    */
-  final case class StaticResolver(
-      ref: ProjectRef,
-      id: AbsoluteIri,
-      rev: Long,
-      deprecated: Boolean,
-      priority: Int
-  ) extends Resolver {
-    val asGraph: Graph = mainGraph(nxv.StaticResolver)
+    val asGraph: Graph =
+      mainGraph(nxv.InAccount) ++ graphFor(identities)(s) ++ graphFor(resourceTypes)(s) ++ graphForProjects
   }
 
   private def graphFor(identity: Identity): (BNode, Graph) = {

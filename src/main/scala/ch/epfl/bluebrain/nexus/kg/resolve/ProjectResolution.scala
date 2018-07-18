@@ -36,7 +36,6 @@ abstract class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], static
 
       private val resolution = cache.resolvers(ref).map { res =>
         val result = res.filterNot(_.deprecated).toList.sortBy(_.priority).map {
-          case _: StaticResolver    => staticResolution
           case r: InProjectResolver => InProjectResolution[F](r.ref, resources)
           case r: InAccountResolver =>
             val projects = cache.projects(r.accountRef).map(_.map(_ -> r.resourceTypes).toList)
@@ -45,7 +44,7 @@ abstract class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], static
             val projects = r.projects.map(_ -> r.resourceTypes).toList
             MultiProjectResolution(resources, projects.pure)
         }
-        CompositeResolution(result)
+        CompositeResolution(staticResolution :: result)
       }
 
       def resolve(ref: Ref): F[Option[Resource]] =

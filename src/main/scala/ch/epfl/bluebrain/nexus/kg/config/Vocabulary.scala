@@ -42,7 +42,6 @@ object Vocabulary {
     val Resolver         = url"$base/Resolver"
     val InProject        = url"$base/InProject"
     val InAccount        = url"$base/InAccount"
-    val StaticResolver   = url"$base/StaticResolver"
     val CrossProject     = url"$base/CrossProject"
     val View             = url"$base/View"
     val ElasticView      = url"$base/ElasticView"
