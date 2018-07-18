@@ -88,14 +88,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       resource <- create(id, schema, assigned)
     } yield resource
 
-  /**
-    * Creates a new resource.
-    *
-    * @param id     the id of the resource
-    * @param schema a schema reference that constrains the resource
-    * @param value  the resource representation in json-ld and graph formats
-    */
-  def create(id: ResId, schema: Ref, value: ResourceF.Value)(implicit identity: Identity): RejOrResource = {
+  private def create(id: ResId, schema: Ref, value: ResourceF.Value)(implicit identity: Identity): RejOrResource = {
 
     def checkAndJoinTypes(types: Set[AbsoluteIri]): EitherT[F, Rejection, Set[AbsoluteIri]] =
       EitherT.fromEither(schema.iri match {
@@ -107,7 +100,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       })
 
     //TODO: For now the schema is not validated against the shacl schema.
-    if (schema.iri == shaclSchemaUri)
+    if (schema.iri == shaclSchemaUri || schema.iri == resourceSchemaUri)
       for {
         joinedTypes <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
         created     <- repo.create(id, schema, joinedTypes, value.source)
@@ -212,17 +205,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     }
   }
 
-  /**
-    * Tags a resource. This operation aliases the provided ''targetRev'' with the  provided ''tag''.
-    *
-    * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param targetRev the revision that is being aliased with the provided ''tag''
-    * @param tag       the tag of the alias for the provided ''rev''
-    * @return Some(resource) in the F context when found and None in the F context when not found
-    */
-  def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], targetRev: Long, tag: String)(
+  private def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], targetRev: Long, tag: String)(
       implicit identity: Identity): RejOrResource =
     checkSchema(id, schemaOpt)(repo.tag(id, rev, targetRev, tag))
 
@@ -508,22 +491,27 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     def uuid(): String =
       UUID.randomUUID().toString.toLowerCase
 
+    def extractFromJsonOrGenerate(base: AbsoluteIri) =
+      value.source.hcursor.get[String]("@id").flatMap(Iri.absolute).getOrElse(base + uuid())
+
     idOrGenInput match {
       case Left(id) =>
         if (value.graph.subjects().contains(id.value)) EitherT.rightT((id, value))
         else {
           val withIdOpt = value.graph.primaryBNode.map { bnode =>
-            (id, replaceBNode(bnode, id.value))
+            id -> replaceBNode(bnode, id.value)
           }
           EitherT.fromOption(withIdOpt, IncorrectId(id.ref))
         }
       case Right((projectRef, base)) =>
         val withIdOpt = value.graph.primaryNode map {
-          case IriNode(iri) => (Id(projectRef, iri), value)
+          case IriNode(iri) => Id(projectRef, iri) -> value
           case b: BNode =>
             val id = Id(projectRef, base + uuid())
-            (id, replaceBNode(b, id.value))
-        }
+            id -> replaceBNode(b, id.value)
+        } orElse (Option(value.graph.triples.isEmpty).collect {
+          case true => Id(projectRef, extractFromJsonOrGenerate(base)) -> value
+        })
         EitherT.fromOption(withIdOpt, UnableToSelectResourceId)
     }
   }
