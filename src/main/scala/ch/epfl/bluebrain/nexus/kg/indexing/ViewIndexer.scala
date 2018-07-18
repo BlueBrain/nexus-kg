@@ -7,7 +7,7 @@ import cats.data.EitherT
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
-import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -19,9 +19,10 @@ import monix.execution.Scheduler
   * Indexes project view events.
   *
   * @param resources the resources operations
-  * @param projects  the project operations
+  * @param cache the distributed cache
   */
-private class ViewIndexer[F[_]](resources: Resources[F], projects: Projects[F])(implicit F: MonadError[F, Throwable]) {
+private class ViewIndexer[F[_]](resources: Resources[F], cache: DistributedCache[F])(
+    implicit F: MonadError[F, Throwable]) {
 
   /**
     * Indexes the view which corresponds to the argument event. If the resource is not found, or it's not compatible to
@@ -36,7 +37,7 @@ private class ViewIndexer[F[_]](resources: Resources[F], projects: Projects[F])(
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
       materialized <- resources.materialize(resource)
       view         <- EitherT.fromOption(View(materialized), NotFound(event.id.ref))
-      applied      <- EitherT.liftF(projects.applyView(projectRef, view, event.instant))
+      applied      <- EitherT.liftF(cache.applyView(projectRef, view, event.instant))
     } yield applied
 
     result.value
@@ -59,12 +60,13 @@ object ViewIndexer {
     * Starts the index process for views across all projects in the system.
     *
     * @param resources the resources operations
-    * @param projects  the project operations
+    * @param cache     the distributed cache
     * @param pluginId  the persistence query plugin id to query the event log
     */
-  final def start(resources: Resources[Task], projects: Projects[Task], pluginId: String)(implicit as: ActorSystem,
-                                                                                          s: Scheduler): ActorRef = {
-    val indexer = new ViewIndexer[Task](resources, projects)
+  final def start(resources: Resources[Task], cache: DistributedCache[Task], pluginId: String)(
+      implicit as: ActorSystem,
+      s: Scheduler): ActorRef = {
+    val indexer = new ViewIndexer[Task](resources, cache)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
       pluginId,

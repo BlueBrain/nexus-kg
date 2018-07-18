@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -90,7 +90,7 @@ class ResourcesSpec
 
     "performing create operations" should {
 
-      "create a new resource validated against empty schema (resource schema) with a payload only containing @id adn @context" in new Context {
+      "create a new resource validated against empty schema (resource schema) with a payload only containing @id and @context" in new Context {
         private val schemaRef = Ref(resourceSchemaUri)
         private val genId     = randomIri()
         private val genRes    = Id(projectRef, genId)
@@ -320,8 +320,8 @@ class ResourcesSpec
 }
 
 object ResourcesSpec {
-  private val projects: Projects[CId] = mmock[Projects[CId]]
-  when(projects.resolvers(isA(classOf[ProjectRef]))).thenReturn(List.empty[Resolver])
+  private val cache: DistributedCache[CId] = mmock[DistributedCache[CId]]
+  when(cache.resolvers(isA(classOf[ProjectRef]))).thenReturn(Set.empty[Resolver])
   private[resources] def staticResolution(): ProjectResolution[CId] =
-    new ProjectResolution[CId](projects, StaticResolution(AppConfig.iriResolution)) {}
+    new ProjectResolution[CId](cache, StaticResolution(AppConfig.iriResolution)) {}
 }

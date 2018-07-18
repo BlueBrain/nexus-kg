@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
-import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
@@ -92,7 +92,7 @@ object Main {
     implicit val stream            = AttachmentStore.Stream.task(appConfig.attachments)
     implicit val store             = new AttachmentStore[Task, AkkaIn, AkkaOut]
     implicit val indexers          = clients
-    implicit val projects          = Projects.task()
+    implicit val projects          = DistributedCache.task()
     implicit val projectResolution = ProjectResolution.task(projects)
     val resources: Resources[Task] = Resources[Task]
     val resourceRoutes             = ResourceRoutes(resources).routes

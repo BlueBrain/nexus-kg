@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryRes
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
-import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -56,7 +56,7 @@ import scala.util.Try
   *
   * @param resources the resources operations
   */
-class ResourceRoutes(resources: Resources[Task])(implicit projects: Projects[Task],
+class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCache[Task],
                                                  indexers: Clients[Task],
                                                  store: AttachmentStore[Task, AkkaIn, AkkaOut],
                                                  config: AppConfig) {
@@ -117,8 +117,12 @@ class ResourceRoutes(resources: Resources[Task])(implicit projects: Projects[Tas
         // list resolvers with implicit or generated id
         (get & parameter('deprecated.as[Boolean].?) & pathEndOrSingleSlash) { deprecated =>
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-            val resolvers = projects.resolvers(labelProj.label).map { r =>
-              val filtered = deprecated.map(d => r.filter(_.deprecated == d)).getOrElse(r)
+            val resolvers = cache.resolvers(labelProj.label).map { r =>
+              val filtered = deprecated
+                .map(d => r.filter(_.deprecated == d))
+                .getOrElse(r)
+                .toList
+                .sortBy(_.priority)
               toQueryResults(filtered)
             }
             complete(resolvers.runAsync)
@@ -161,11 +165,11 @@ class ResourceRoutes(resources: Resources[Task])(implicit projects: Projects[Tas
       implicit val cl = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
         (deprecated, pagination) =>
-          val results = projects.views(proj.project.ref).flatMap(v => resources.list(v, deprecated, pagination))
+          val results = cache.views(proj.project.ref).flatMap(v => resources.list(v, deprecated, pagination))
           complete(results.runAsync)
       } ~ (get & parameter('deprecated.as[Boolean].?) & paginated & aliasOrCuriePath & hasPermission(resourceRead)) {
         (deprecated, pagination, schema) =>
-          val results = projects.views(proj.project.ref).flatMap(v => resources.list(v, deprecated, schema, pagination))
+          val results = cache.views(proj.project.ref).flatMap(v => resources.list(v, deprecated, schema, pagination))
           complete(results.runAsync)
       }
     }
@@ -340,7 +344,7 @@ object ResourceRoutes {
     * @param resources the resources operations
     * @return a new insrtance of a [[ResourceRoutes]]
     */
-  final def apply(resources: Resources[Task])(implicit projects: Projects[Task],
+  final def apply(resources: Resources[Task])(implicit cache: DistributedCache[Task],
                                               indexers: Clients[Task],
                                               store: AttachmentStore[Task, AkkaIn, AkkaOut],
                                               config: AppConfig): ResourceRoutes =

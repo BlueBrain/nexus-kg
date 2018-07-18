@@ -1,4 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
+
 import java.time.Clock
 
 import cats.Monad
@@ -9,7 +10,8 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
 /**
-  * Implementation that handles resolution of static resources
+  * Implementation that handles resolution of static resources.
+  *
   * @param resources  mapping between the URI of the resource and the resource
   * @tparam F         the resolution effect type
   */
@@ -17,14 +19,13 @@ class StaticResolution[F[_]: Monad](resources: Map[AbsoluteIri, Resource]) exten
 
   override def resolve(ref: Ref): F[Option[Resource]] = resources.get(ref.iri).pure
 
-  override def resolveAll(ref: Ref): F[List[Resource]] =
-    resolve(ref).map(_.toList)
+  override def resolveAll(ref: Ref): F[List[Resource]] = resolve(ref).map(_.toList)
 }
 
 object StaticResolution {
 
   /**
-    * Constructs a [[StaticResolution]] from mapping between URI and JSON content of the resource
+    * Constructs a [[StaticResolution]] from mapping between URI and JSON content of the resource.
     *
     * @param resources mapping between the URI of the resource and the JSON content
     */
