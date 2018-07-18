@@ -2,12 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import cats.Monad
 import cats.instances.future._
+import cats.syntax.applicative._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Ref, Resource, Resources}
+import ch.epfl.bluebrain.nexus.kg.resources._
 import monix.eval.Task
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -19,8 +20,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param staticResolution the static resolutions
   * @tparam F the monadic effect type
   */
-abstract class ProjectResolution[F[_]](cache: DistributedCache[F], staticResolution: Resolution[F])(
-    implicit F: Monad[F]) {
+abstract class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], staticResolution: Resolution[F]) {
 
   /**
     * Looks up the collection of defined resolvers for the argument project
@@ -43,7 +43,7 @@ abstract class ProjectResolution[F[_]](cache: DistributedCache[F], staticResolut
             MultiProjectResolution(resources, projects)
           case r: CrossProjectResolver =>
             val projects = r.projects.map(_ -> r.resourceTypes).toList
-            MultiProjectResolution(resources, F.pure(projects))
+            MultiProjectResolution(resources, projects.pure)
         }
         CompositeResolution(result)
       }

@@ -302,9 +302,10 @@ object DistributedCache {
     private def updateProjectLabel(ref: ProjectRef,
                                    accountRef: AccountRef,
                                    proj: Project,
-                                   instant: Instant): Future[Boolean] = {
+                                   instant: Instant,
+                                   updateRev: Boolean): Future[Boolean] = {
       updateProject(ref, proj).withFilter(identity).flatMap { _ =>
-        addProjectToAccount(ref, accountRef, instant).withFilter(identity).flatMap { _ =>
+        addProjectToAccount(ref, accountRef, instant, updateRev).withFilter(identity).flatMap { _ =>
           accountSegment(accountRef).flatMap {
             case Some(accountLabel) =>
               val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
@@ -320,9 +321,15 @@ object DistributedCache {
       }
     }
 
-    private def addProjectToAccount(ref: ProjectRef, accountRef: AccountRef, instant: Instant): Future[Boolean] = {
+    /**
+      * @return true if the project ref is already present so that we can chain the call during an update
+      */
+    private def addProjectToAccount(ref: ProjectRef,
+                                    accountRef: AccountRef,
+                                    instant: Instant,
+                                    updateRev: Boolean): Future[Boolean] = {
       projects(accountRef).flatMap { projects =>
-        if (projects.contains(ref)) Future.successful(true)
+        if (projects.contains(ref)) Future.successful(updateRev)
         else {
           val empty  = LWWRegister(TimestampedValue(0L, Set.empty[ProjectRef]))
           val value  = TimestampedValue(instant.toEpochMilli, projects + ref)
@@ -362,8 +369,8 @@ object DistributedCache {
                             instant: Instant,
                             updateRev: Boolean): Future[Boolean] =
       project(ref).flatMap {
-        case None                                     => updateProjectLabel(ref, accountRef, proj, instant)
-        case Some(p) if updateRev && proj.rev > p.rev => updateProjectLabel(ref, accountRef, proj, instant)
+        case None                                     => updateProjectLabel(ref, accountRef, proj, instant, updateRev)
+        case Some(p) if updateRev && proj.rev > p.rev => updateProjectLabel(ref, accountRef, proj, instant, updateRev)
         case _                                        => Future.successful(false)
       }
 

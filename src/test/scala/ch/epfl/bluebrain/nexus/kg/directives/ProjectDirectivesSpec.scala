@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.Error
 import ch.epfl.bluebrain.nexus.kg.Error._
-import ch.epfl.bluebrain.nexus.kg.async.Projects
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
@@ -37,7 +37,7 @@ class ProjectDirectivesSpec
     with BeforeAndAfter
     with ScalatestRouteTest {
 
-  private implicit val projects                = mock[Projects[Task]]
+  private implicit val cache                   = mock[DistributedCache[Task]]
   private implicit val client                  = mock[AdminClient[Task]]
   private implicit val cred: Option[AuthToken] = None
 
@@ -56,7 +56,7 @@ class ProjectDirectivesSpec
     }
 
   before {
-    Mockito.reset(projects)
+    Mockito.reset(cache)
     Mockito.reset(client)
   }
 
@@ -74,7 +74,7 @@ class ProjectDirectivesSpec
     "fetch the project from the cache" in {
       val label   = ProjectLabel("account", "project")
       val project = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
-      when(projects.project(label)).thenReturn(Task.pure(Some(project): Option[Project]))
+      when(cache.project(label)).thenReturn(Task.pure(Some(project): Option[Project]))
 
       Get("/account/project") ~> projectRoute() ~> check {
         responseAs[LabeledProject] shouldEqual LabeledProject(label, project)
@@ -84,7 +84,7 @@ class ProjectDirectivesSpec
     "fetch the project from admin client when not present on the cache" in {
       val label   = ProjectLabel("account", "project")
       val project = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
-      when(projects.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.getProject("account", "project")).thenReturn(Task.pure(Some(project): Option[Project]))
 
       Get("/account/project") ~> projectRoute() ~> check {
@@ -95,7 +95,7 @@ class ProjectDirectivesSpec
     "fetch the project from admin client when cache throws an error" in {
       val label   = ProjectLabel("account", "project")
       val project = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
-      when(projects.project(label)).thenReturn(Task.raiseError(new RuntimeException))
+      when(cache.project(label)).thenReturn(Task.raiseError(new RuntimeException))
       when(client.getProject("account", "project")).thenReturn(Task.pure(Some(project): Option[Project]))
 
       Get("/account/project") ~> projectRoute() ~> check {
@@ -105,7 +105,7 @@ class ProjectDirectivesSpec
 
     "reject when not found neither in the cache nor doing IAM call" in {
       val label = ProjectLabel("account", "project")
-      when(projects.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.getProject("account", "project")).thenReturn(Task.pure(None: Option[Project]))
 
       Get("/account/project") ~> projectRoute() ~> check {
@@ -116,7 +116,7 @@ class ProjectDirectivesSpec
 
     "reject when IAM signals UnauthorizedAccess" in {
       val label = ProjectLabel("account", "project")
-      when(projects.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.getProject("account", "project")).thenReturn(Task.raiseError(UnauthorizedAccess))
 
       Get("/account/project") ~> projectRoute() ~> check {
@@ -127,7 +127,7 @@ class ProjectDirectivesSpec
 
     "reject when IAM signals another error" in {
       val label = ProjectLabel("account", "project")
-      when(projects.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.getProject("account", "project"))
         .thenReturn(Task.raiseError(new RuntimeException("Something went wrong")))
 
