@@ -1,16 +1,19 @@
 package ch.epfl.bluebrain.nexus.kg.directives
 
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Directive1}
+import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive0, Directive1}
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.async.Projects
-import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.CustomAuthRejection
+import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{authorizationRejection, CustomAuthRejection}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{ProjectIsDeprecated, ProjectNotFound}
 import monix.eval.Task
 import monix.execution.Scheduler
+
+import scala.util.{Failure, Success}
 
 object ProjectDirectives {
 
@@ -28,10 +31,12 @@ object ProjectDirectives {
           case value @ Some(_) => Task.pure(value)
           case _               => client.getProject(accountLabel, projectLabel)
         }
-        onSuccess(result.onErrorRecoverWith { case _ => client.getProject(accountLabel, projectLabel) }.runAsync)
+        onComplete(result.onErrorRecoverWith { case _ => client.getProject(accountLabel, projectLabel) }.runAsync)
           .flatMap {
-            case Some(value) => provide(LabeledProject(label, value))
-            case _           => reject(CustomAuthRejection(ProjectNotFound(label)))
+            case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
+            case Failure(err)                => reject(authorizationRejection(err))
+            case Success(None)               => reject(CustomAuthRejection(ProjectNotFound(label)))
+            case Success(Some(value))        => provide(LabeledProject(label, value))
           }
     }
 

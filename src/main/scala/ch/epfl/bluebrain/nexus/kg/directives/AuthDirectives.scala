@@ -45,10 +45,11 @@ object AuthDirectives {
                                         adminClient: AdminClient[Task],
                                         token: Option[AuthToken],
                                         s: Scheduler): Directive0 =
-    onSuccess(adminClient.getProjectAcls(ref.account, ref.value, parents = true, self = true).runAsync).flatMap {
-      case Some(acls) if acls.hasAnyPermission(perms) => pass
-      case _                                          => reject(AuthorizationFailedRejection)
-
+    onComplete(adminClient.getProjectAcls(ref.account, ref.value, parents = true, self = true).runAsync).flatMap {
+      case Success(Some(acls)) if acls.hasAnyPermission(perms) => pass
+      case Success(_)                                          => reject(AuthorizationFailedRejection)
+      case Failure(UnauthorizedAccess)                         => reject(AuthorizationFailedRejection)
+      case Failure(err)                                        => reject(authorizationRejection(err))
     }
 
   /**
@@ -70,7 +71,7 @@ object AuthDirectives {
     */
   final case class CustomAuthRejection(err: Rejection) extends CustomRejection
 
-  private def authorizationRejection(err: Throwable) =
+  private[directives] def authorizationRejection(err: Throwable) =
     CustomAuthRejection(
       DownstreamServiceError(Try(err.getMessage).getOrElse("error while authenticating on the downstream service")))
 

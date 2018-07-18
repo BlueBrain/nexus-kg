@@ -7,12 +7,17 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import ch.epfl.bluebrain.nexus.kg.Error
+import ch.epfl.bluebrain.nexus.kg.Error._
 import ch.epfl.bluebrain.nexus.kg.async.Projects
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -59,8 +64,10 @@ class ProjectDirectivesSpec
 
     def projectRoute(): Route = {
       import monix.execution.Scheduler.Implicits.global
-      (get & project) { project =>
-        complete(StatusCodes.OK -> project)
+      handleRejections(RejectionHandling.rejectionHandler()) {
+        (get & project) { project =>
+          complete(StatusCodes.OK -> project)
+        }
       }
     }
 
@@ -102,7 +109,31 @@ class ProjectDirectivesSpec
       when(client.getProject("account", "project")).thenReturn(Task.pure(None: Option[Project]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        handled shouldEqual false
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].code shouldEqual classNameOf[ProjectNotFound.type]
+      }
+    }
+
+    "reject when IAM signals UnauthorizedAccess" in {
+      val label = ProjectLabel("account", "project")
+      when(projects.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(client.getProject("account", "project")).thenReturn(Task.raiseError(UnauthorizedAccess))
+
+      Get("/account/project") ~> projectRoute() ~> check {
+        status shouldEqual StatusCodes.Unauthorized
+        responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+      }
+    }
+
+    "reject when IAM signals another error" in {
+      val label = ProjectLabel("account", "project")
+      when(projects.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(client.getProject("account", "project"))
+        .thenReturn(Task.raiseError(new RuntimeException("Something went wrong")))
+
+      Get("/account/project") ~> projectRoute() ~> check {
+        status shouldEqual StatusCodes.BadGateway
+        responseAs[Error].code shouldEqual classNameOf[DownstreamServiceError.type]
       }
     }
   }
