@@ -164,5 +164,6 @@ object AppConfig {
   implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig = appConfig.persistence
   implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig   = appConfig.pagination
   implicit def toHttp(implicit appConfig: AppConfig): HttpConfig               = appConfig.http
+  implicit def toIam(implicit appConfig: AppConfig): IamConfig                 = appConfig.iam
 
 }

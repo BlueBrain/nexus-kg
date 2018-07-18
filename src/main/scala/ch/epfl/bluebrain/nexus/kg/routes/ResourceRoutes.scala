@@ -310,7 +310,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   }
 
   private implicit def resourceEncoder: Encoder[Resource] = Encoder.encodeJson.contramap { res =>
-    val graph       = res.metadata(_.iri) ++ res.typeGraph
+    val graph       = res.metadata ++ res.typeGraph
     val primaryNode = Some(IriNode(res.id.value))
     graph.asJson(resourceCtx, primaryNode).getOrElse(graph.asJson).removeKeys("@context").addContext(resourceCtxUri)
   }

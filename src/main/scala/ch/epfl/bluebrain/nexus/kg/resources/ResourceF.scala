@@ -4,11 +4,11 @@ import java.time.{Clock, Instant}
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode}
@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import io.circe.Json
 
 /**
@@ -70,19 +71,17 @@ final case class ResourceF[P, S, A](
 
   /**
     * Computes the metadata graph for this resource.
-    *
-    * @param f a schema representation to an iri mapping
     */
-  def metadata(f: S => AbsoluteIri): Graph =
+  def metadata(implicit ev: S =:= Ref, iamConfig: IamConfig): Graph =
     Graph(
       Set[Triple](
         (node, nxv.rev, rev),
         (node, nxv.deprecated, deprecated),
         (node, nxv.createdAt, created),
         (node, nxv.updatedAt, updated),
-        (node, nxv.createdBy, createdBy),
-        (node, nxv.updatedBy, updatedBy),
-        (node, nxv.constrainedBy, f(schema))
+        (node, nxv.createdBy, createdBy.id),
+        (node, nxv.updatedBy, updatedBy.id),
+        (node, nxv.constrainedBy, ev(schema).iri)
       ))
 
   /**

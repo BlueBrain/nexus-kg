@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, PersistenceConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, IamConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
@@ -34,6 +34,7 @@ import monix.execution.Scheduler
   */
 class ElasticIndexer[F[_]](client: ElasticClient[F], index: String, resources: Resources[F])(
     implicit config: ElasticConfig,
+    iamConfig: IamConfig,
     F: MonadError[F, Throwable],
     ucl: HttpClient[F, Json]) {
   private val revKey = "_rev"
@@ -67,7 +68,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], index: String, resources: R
 
   private def indexResource(res: Resource): F[Unit] = {
     val primaryNode = Some(IriNode(res.id.value))
-    val graph       = res.metadata(_.iri) ++ res.typeGraph
+    val graph       = res.metadata ++ res.typeGraph
 
     val payload = graph.asJson(resourceCtx, primaryNode).getOrElse(graph.asJson)
     val merged  = payload deepMerge Json.obj("_source" -> Json.fromString(res.value.noSpaces))
@@ -87,6 +88,7 @@ object ElasticIndexer {
   final def start(view: View, resources: Resources[Task])(implicit as: ActorSystem,
                                                           s: Scheduler,
                                                           config: ElasticConfig,
+                                                          iamConfig: IamConfig,
                                                           persistence: PersistenceConfig): ActorRef = {
 
     implicit val mt         = ActorMaterializer()
