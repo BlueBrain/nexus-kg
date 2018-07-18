@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg
 
 import cats.Show
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.types.HttpRejection
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
@@ -19,9 +20,15 @@ package object marshallers {
     */
   private[marshallers] implicit val rejectionConfig: Configuration = Configuration.default.withDiscriminator("code")
 
-  private[marshallers] val rejectionEncoder: Encoder[Rejection] = {
+  private[marshallers] implicit val rejectionEncoder: Encoder[Rejection] = {
     import io.circe.generic.extras.auto._
     val enc = deriveEncoder[Rejection]
+    Encoder(enc(_).addContext(errorCtxUri))
+  }
+
+  private[marshallers] implicit val httpRejectionEncoder: Encoder[HttpRejection] = {
+    import io.circe.generic.extras.auto._
+    val enc = deriveEncoder[HttpRejection]
     Encoder(enc(_).addContext(errorCtxUri))
   }
 }
