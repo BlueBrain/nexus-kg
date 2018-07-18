@@ -102,14 +102,14 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     //TODO: For now the schema is not validated against the shacl schema.
     if (schema.iri == shaclSchemaUri || schema.iri == resourceSchemaUri)
       for {
-        joinedTypes <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
+        joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
         created     <- repo.create(id, schema, joinedTypes, value.source)
       } yield created
     else
       for {
         resolved    <- schemaContext(id, schema)
         _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, value.graph)
-        joinedTypes <- checkAndJoinTypes(value.graph.primaryTypes.map(_.value))
+        joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
         created     <- repo.create(id, schema, joinedTypes, value.source)
       } yield created
   }
