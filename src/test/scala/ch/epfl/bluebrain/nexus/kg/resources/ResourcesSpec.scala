@@ -147,6 +147,30 @@ class ResourcesSpec
         private val json        = resolver removeKeys "@context" addContext resolverCtxUri addContext notFoundIri
         resources.create(projectRef, base, schema, json).value.left.value shouldEqual NotFound(Ref(notFoundIri))
       }
+
+      "prevent creating a schema which doesn't have nxv:Schema type" in new Context {
+        private val schemaRef = Ref(shaclSchemaUri)
+        val json = jsonContentOf("/schemas/cross-project-resolver.json").mapObject(
+          _.add("@type", Json.fromString("nxv:Resource")))
+
+        val resourceId =
+          Id(projectRef, Iri.absolute("https://bluebrain.github.io/nexus/schemas/cross-project-resolver").right.value)
+        resources.create(resourceId, schemaRef, json).value.left.value shouldEqual IncorrectTypes(
+          resourceId.ref,
+          Set(nxv.Resource.value))
+      }
+
+      "use correct ID when creating a schema" in new Context {
+        private val schemaRef = Ref(shaclSchemaUri)
+        val json              = jsonContentOf("/schemas/cross-project-resolver.json")
+        val resourceId =
+          Id(projectRef, Iri.absolute("https://bluebrain.github.io/nexus/schemas/cross-project-resolver").right.value)
+        private val resource = resources.create(resourceId, schemaRef, json).value.right.value
+        resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value),
+                                               json,
+                                               types = Set(nxv.Schema.value),
+                                               schema = schemaRef)
+      }
     }
 
     "performing update operations" should {
