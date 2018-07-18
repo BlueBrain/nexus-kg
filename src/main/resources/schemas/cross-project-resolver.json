@@ -1,5 +1,10 @@
 {
-  "@context": "https://bluebrain.github.io/nexus/contexts/shacl",
+  "@context": [
+    "https://bluebrain.github.io/nexus/contexts/shacl",
+    {
+      "this": "https://bluebrain.github.io/nexus/schemas/cross-project-resolver/shapes/"
+    }
+  ],
   "@id": "https://bluebrain.github.io/nexus/schemas/cross-project-resolver",
   "@type": "nxv:Schema",
   "shapes": [

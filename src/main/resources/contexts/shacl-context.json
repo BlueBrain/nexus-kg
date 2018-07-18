@@ -232,7 +232,6 @@
     "seeAlso": {
       "@id": "rdfs:seeAlso",
       "@type": "@id"
-    },
-    "this": "https://bluebrain.github.io/nexus/schemas/cross-project-resolver/shapes/"
+    }
   }
 }

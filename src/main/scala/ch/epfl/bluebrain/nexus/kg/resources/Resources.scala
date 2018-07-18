@@ -168,7 +168,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       graph        = value.graph
       resolved    <- schemaContext(id, resource.schema)
       _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
-      updated     <- repo.update(id, rev, graph.primaryTypes.map(_.value), source)
+      updated     <- repo.update(id, rev, graph.types(id.value).map(_.value), source)
     } yield updated
     // format: on
   }
@@ -491,27 +491,20 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     def uuid(): String =
       UUID.randomUUID().toString.toLowerCase
 
-    def extractFromJsonOrGenerate(base: AbsoluteIri) =
-      value.source.hcursor.get[String]("@id").flatMap(Iri.absolute).getOrElse(base + uuid())
-
     idOrGenInput match {
       case Left(id) =>
-        if (value.graph.subjects().contains(id.value)) EitherT.rightT((id, value))
+        if (value.primaryNode.contains(IriNode(id.value))) EitherT.rightT(id -> value)
         else {
-          val withIdOpt = value.graph.primaryBNode.map { bnode =>
-            id -> replaceBNode(bnode, id.value)
-          }
+          val withIdOpt = value.graph.primaryBNode.map(id -> replaceBNode(_, id.value))
           EitherT.fromOption(withIdOpt, IncorrectId(id.ref))
         }
       case Right((projectRef, base)) =>
-        val withIdOpt = value.graph.primaryNode map {
+        val withIdOpt = value.primaryNode map {
           case IriNode(iri) => Id(projectRef, iri) -> value
           case b: BNode =>
-            val id = Id(projectRef, base + uuid())
-            id -> replaceBNode(b, id.value)
-        } orElse (Option(value.graph.triples.isEmpty).collect {
-          case true => Id(projectRef, extractFromJsonOrGenerate(base)) -> value
-        })
+            val iri = base + uuid()
+            Id(projectRef, iri) -> replaceBNode(b, iri)
+        }
         EitherT.fromOption(withIdOpt, UnableToSelectResourceId)
     }
   }
