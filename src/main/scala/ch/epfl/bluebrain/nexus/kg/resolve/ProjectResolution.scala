@@ -20,7 +20,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param staticResolution the static resolutions
   * @tparam F the monadic effect type
   */
-abstract class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], staticResolution: Resolution[F]) {
+class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], staticResolution: Resolution[F]) {
 
   /**
     * Looks up the collection of defined resolvers for the argument project
@@ -55,6 +55,7 @@ abstract class ProjectResolution[F[_]: Monad](cache: DistributedCache[F], static
     }
 
 }
+
 object ProjectResolution {
 
   /**
@@ -62,13 +63,13 @@ object ProjectResolution {
     * @return a new [[ProjectResolution]] for the effect type [[Future]]
     */
   def future(cache: DistributedCache[Future])(implicit ec: ExecutionContext): ProjectResolution[Future] =
-    new ProjectResolution(cache, StaticResolution[Future](iriResolution)) {}
+    new ProjectResolution(cache, StaticResolution[Future](iriResolution))
 
   /**
     * @param cache the distributed cache
     * @return a new [[ProjectResolution]] for the effect type [[Task]]
     */
   def task(cache: DistributedCache[Task]): ProjectResolution[Task] =
-    new ProjectResolution(cache, StaticResolution[Task](iriResolution)) {}
+    new ProjectResolution(cache, StaticResolution[Task](iriResolution))
 
 }

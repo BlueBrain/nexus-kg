@@ -7,11 +7,9 @@ import cats.Show
   *
   * @param id the underlying stable identifier for a project
   */
-final case class ProjectRef(id: String)
+final case class ProjectRef(id: String) extends AnyVal
 
 object ProjectRef {
 
-  final implicit val projectRefShow: Show[ProjectRef] = Show.show { ref =>
-    s"ProjectRef(${ref.id}) "
-  }
+  final implicit val projectRefShow: Show[ProjectRef] = Show.fromToString
 }

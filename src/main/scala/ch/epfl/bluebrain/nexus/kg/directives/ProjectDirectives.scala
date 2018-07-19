@@ -7,6 +7,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{authorizationRejection, CustomAuthRejection}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{ProjectIsDeprecated, ProjectNotFound}
@@ -36,9 +37,14 @@ object ProjectDirectives {
             case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
             case Failure(err)                => reject(authorizationRejection(err))
             case Success(None)               => reject(CustomAuthRejection(ProjectNotFound(label)))
-            case Success(Some(value))        => provide(LabeledProject(label, value))
+            case Success(Some(value))        => provide(LabeledProject(label, addNxvMapping(value)))
           }
     }
+
+  private def addNxvMapping(project: Project) = {
+    val pm = project.prefixMappings + ("nxv" -> nxv.base)
+    project.copy(prefixMappings = pm)
+  }
 
   /**
     * @return pass when the project is not deprecated, rejects when project is deprecated

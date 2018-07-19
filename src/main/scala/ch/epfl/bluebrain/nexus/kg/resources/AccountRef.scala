@@ -5,4 +5,4 @@ package ch.epfl.bluebrain.nexus.kg.resources
   *
   * @param id the underlying stable identifier for an account
   */
-final case class AccountRef(id: String)
+final case class AccountRef(id: String) extends AnyVal
