@@ -79,7 +79,7 @@ class ProjectDirectivesSpec
 
     def projectRoute(): Route = {
       import monix.execution.Scheduler.Implicits.global
-      handleRejections(RejectionHandling.rejectionHandler()) {
+      handleRejections(RejectionHandling()) {
         (get & project) { project =>
           complete(StatusCodes.OK -> project)
         }

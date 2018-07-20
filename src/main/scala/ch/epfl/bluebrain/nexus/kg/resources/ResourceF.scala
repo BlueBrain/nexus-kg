@@ -115,9 +115,11 @@ object ResourceF {
     * @param id         the unique identifier of the resource
     * @param value      the [[Json]] resource value
     * @param rev        the revision of the resource
-    * @param types       the collection of known types of this resource
+    * @param types      the collection of known types of this resource
     * @param deprecated whether the resource is deprecated of not
     * @param schema     the schema that this resource conforms to
+    * @param created    the identity that created this resource
+    * @param updated    the last identity that updated this resource
     * @tparam P the parent type of the resource identifier
     */
   def simpleF[P](id: Id[P],
@@ -125,7 +127,9 @@ object ResourceF {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = Ref(resourceSchemaUri))(implicit clock: Clock): ResourceF[P, Ref, Json] =
+                 schema: Ref = Ref(resourceSchemaUri),
+                 created: Identity = Anonymous,
+                 updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[P, Ref, Json] =
     ResourceF(id,
               rev,
               types,
@@ -134,8 +138,8 @@ object ResourceF {
               Set.empty,
               clock.instant(),
               clock.instant(),
-              Anonymous,
-              Anonymous,
+              created,
+              updated,
               schema,
               value)
 
@@ -145,9 +149,11 @@ object ResourceF {
     * @param id         the unique identifier of the resource
     * @param value      the [[Value]] resource value
     * @param rev        the revision of the resource
-    * @param types       the collection of known types of this resource
+    * @param types      the collection of known types of this resource
     * @param deprecated whether the resource is deprecated of not
     * @param schema     the schema that this resource conforms to
+    * @param created    the identity that created this resource
+    * @param updated    the last identity that updated this resource
     * @tparam P the parent type of the resource identifier
     */
   def simpleV[P](id: Id[P],
@@ -155,7 +161,9 @@ object ResourceF {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = Ref(resourceSchemaUri))(implicit clock: Clock): ResourceF[P, Ref, Value] =
+                 schema: Ref = Ref(resourceSchemaUri),
+                 created: Identity = Anonymous,
+                 updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[P, Ref, Value] =
     ResourceF(
       id,
       rev,
@@ -165,8 +173,8 @@ object ResourceF {
       Set.empty,
       clock.instant(),
       clock.instant(),
-      Anonymous,
-      Anonymous,
+      created,
+      updated,
       schema,
       Value(value, value.contextValue, value.asGraph)
     )

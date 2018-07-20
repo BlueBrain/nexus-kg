@@ -23,7 +23,7 @@ object RejectionHandling {
     * in the routes evaluation process, the priority order to handle them is defined
     * by the order of appearance in this method.
     */
-  final def rejectionHandler(): RejectionHandler =
+  final def apply(): RejectionHandler =
     RejectionHandler
       .newBuilder()
       .handle {

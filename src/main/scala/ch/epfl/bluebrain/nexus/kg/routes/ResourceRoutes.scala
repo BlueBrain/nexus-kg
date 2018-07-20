@@ -4,6 +4,7 @@ import java.net.URLEncoder
 
 import akka.http.javadsl.server.Rejections.validationRejection
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
+import akka.http.scaladsl.model.StatusCodes.Created
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives._
@@ -26,8 +27,8 @@ import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
-import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.marshallers.{ExceptionHandling, RejectionHandling}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.ElasticDecoders.resourceIdDecoder
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -65,21 +66,24 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   import indexers._
 
   def routes: Route =
-    handleRejections(RejectionHandling.rejectionHandler()) {
-      token { implicit optToken =>
-        pathPrefix(config.http.prefix) {
-          res ~ schemas ~ resolvers ~ search ~ listings
+    handleExceptions(ExceptionHandling()) {
+      handleRejections(RejectionHandling()) {
+        token { implicit optToken =>
+          pathPrefix(config.http.prefix) {
+            res ~ schemas ~ resolvers ~ search ~ listings
+          }
         }
       }
     }
 
   private def res(implicit token: Option[AuthToken]): Route =
     // consumes the segment resources/{account}/{project}
-    (pathPrefix("resources") & project) { implicit labelProj =>
+    (pathPrefix("resources") & project) { implicit wrapped =>
       // create resource with implicit or generated id
       (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-          complete(resources.create(labelProj.project.ref, labelProj.project.base, Ref(schema), source).value.runAsync)
+          complete(
+            Created -> resources.create(wrapped.project.ref, wrapped.project.base, Ref(schema), source).value.runAsync)
         }
       } ~
         pathPrefix(aliasOrCurie / aliasOrCurie)((schema, id) => resources(schema, id))
@@ -87,12 +91,15 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private def schemas(implicit token: Option[AuthToken]): Route =
     // consumes the segment schemas/{account}/{project}
-    (pathPrefix("schemas") & project) { implicit labelProj =>
+    (pathPrefix("schemas") & project) { implicit wrapped =>
       // create schema with implicit or generated id
       (post & projectNotDeprecated & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
-            resources.create(labelProj.project.ref, labelProj.project.base, Ref(shaclSchemaUri), source).value.runAsync)
+            Created -> resources
+              .create(wrapped.project.ref, wrapped.project.base, Ref(shaclSchemaUri), source)
+              .value
+              .runAsync)
         }
       } ~
         pathPrefix(aliasOrCurie)(id => resources(shaclSchemaUri, id))
@@ -100,14 +107,14 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private def resolvers(implicit token: Option[AuthToken]): Route =
     // consumes the segment resolvers/{account}/{project}
-    (pathPrefix("resolvers") & project) { implicit labelProj =>
-      // create resolvers with implicit or generated id
+    (pathPrefix("resolvers") & project) { implicit wrapped =>
+      // create resolver with implicit or generated id
       (projectNotDeprecated & post & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
-            resources
-              .create(labelProj.project.ref,
-                      labelProj.project.base,
+            Created -> resources
+              .create(wrapped.project.ref,
+                      wrapped.project.base,
                       Ref(crossResolverSchemaUri),
                       source.addContext(resolverCtxUri))
               .value
@@ -117,7 +124,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         // list resolvers with implicit or generated id
         (get & parameter('deprecated.as[Boolean].?) & pathEndOrSingleSlash) { deprecated =>
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-            val resolvers = cache.resolvers(labelProj.label).map { r =>
+            val resolvers = cache.resolvers(wrapped.label).map { r =>
               val filtered = deprecated
                 .map(d => r.filter(_.deprecated == d))
                 .getOrElse(r)
@@ -139,7 +146,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private def search(implicit token: Option[AuthToken]): Route =
     // consumes the segment views/{account}/{project}
-    (pathPrefix("views") & project) { implicit labelProj =>
+    (pathPrefix("views") & project) { implicit wrapped =>
       // search forwarded to the sparql endpoint of the default view
       (path("sparql") & post & entity(as[Json]) & pathEndOrSingleSlash) { query =>
         (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
@@ -182,55 +189,61 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
                                                                proj: Project,
                                                                projRef: ProjectLabel,
                                                                token: Option[AuthToken]): Route =
-    // create resource with explicit id
     (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
-      (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-        complete(resources.create(Id(proj.ref, id), Ref(schema), source.addContext(injectUri)).value.runAsync)
-      }
-    } ~
-      (projectNotDeprecated & parameter('rev.as[Long])) { rev =>
-        // update a resource
-        (put & entity(as[Json]) & pathEndOrSingleSlash) { source =>
+      parameter('rev.as[Long].?) {
+        case Some(rev) =>
+          // updates a resource
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
             complete(
               resources.update(Id(proj.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri)).value.runAsync)
           }
-        } ~
-          // tag a resource
-          (evalBool(withTag) & put & entity(as[Json]) & pathPrefix("tags") & pathEndOrSingleSlash) { json =>
-            (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-              complete(
-                resources.tag(Id(proj.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri)).value.runAsync)
-            }
-          } ~
-          // deprecate a resource
-          (delete & pathEndOrSingleSlash) {
-            (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-              complete(resources.deprecate(Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
-            }
+        case None =>
+          // create resource with explicit id
+          (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
+            complete(
+              Created -> resources.create(Id(proj.ref, id), Ref(schema), source.addContext(injectUri)).value.runAsync)
           }
+      }
+    } ~
+      // add tag to resource
+      (evalBool(withTag) & pathPrefix("tags") & projectNotDeprecated) {
+        (put & parameter('rev.as[Long]) & entity(as[Json]) & pathEndOrSingleSlash) { (rev, json) =>
+          (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
+            complete(
+              Created -> resources
+                .tag(Id(proj.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri))
+                .value
+                .runAsync)
+          }
+        }
+      } ~
+      // deprecate a resource
+      (delete & projectNotDeprecated & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+        (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
+          complete(resources.deprecate(Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
+        }
+      } ~
+      (pathPrefix("attachments" / Segment) & evalBool(withAttachment) & projectNotDeprecated) { filename =>
         // remove a resource attachment
-        (evalBool(withAttachment) & path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
-          (delete & pathEndOrSingleSlash) {
+        (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+          (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
+            complete(resources.unattach(Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
+          }
+        } ~
+          // add an attachment to resources
+          (put & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
             (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-              complete(resources.unattach(Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
-            }
-          } ~
-            // add a resource attachment
-            (put & pathEndOrSingleSlash) {
-              (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-                fileUpload("file") {
-                  case (metadata, byteSource) =>
-                    val description = BinaryDescription(filename, metadata.contentType.value)
-                    complete(
-                      resources
-                        .attach(Id(proj.ref, id), rev, Some(Ref(schema)), description, byteSource)
-                        .value
-                        .runAsync)
-                }
+              fileUpload("file") {
+                case (metadata, byteSource) =>
+                  val description = BinaryDescription(filename, metadata.contentType.value)
+                  complete(
+                    resources
+                      .attach(Id(proj.ref, id), rev, Some(Ref(schema)), description, byteSource)
+                      .value
+                      .runAsync)
               }
             }
-        }
+          }
       } ~
       (parameter('rev.as[Long].?) & parameter('tag.?)) { (revOpt, tagOpt) =>
         // get a resource
@@ -248,9 +261,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             }
           }
         } ~
-          (evalBool(withAttachment) & path("attachments" ~ Segment) & pathEndOrSingleSlash) { filename =>
+          (evalBool(withAttachment) & pathPrefix("attachments" / Segment) & pathEndOrSingleSlash) { filename =>
             // get a resource attachment
-            (get & callerIdentity & hasPermission(resourceRead) & pathEndOrSingleSlash) { implicit ident =>
+            (get & callerIdentity & hasPermission(resourceRead)) { implicit ident =>
               val result = (revOpt, tagOpt) match {
                 case (None, None) =>
                   resources.fetchAttachment(Id(proj.ref, id), Some(Ref(schema)), filename).toEitherRun

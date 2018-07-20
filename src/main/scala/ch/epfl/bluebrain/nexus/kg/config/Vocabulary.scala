@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 
 /**
@@ -12,46 +13,52 @@ object Vocabulary {
     * Nexus vocabulary.
     */
   object nxv {
-    val base: Iri.AbsoluteIri = url"https://bluebrain.github.io/nexus/vocabulary".value
+    val base: Iri.AbsoluteIri = url"https://bluebrain.github.io/nexus/vocabulary/".value
 
-    val rev           = url"$base/rev"
-    val tag           = url"$base/tag"
-    val deprecated    = url"$base/deprecated"
-    val createdAt     = url"$base/createdAt"
-    val updatedAt     = url"$base/updatedAt"
-    val createdBy     = url"$base/createdBy"
-    val updatedBy     = url"$base/updatedBy"
-    val constrainedBy = url"$base/constrainedBy"
-    val isPartOf      = url"$base/isPartOf"
-    val priority      = url"$base/priority"
-    val uuid          = url"$base/uuid"
-    val resourceTypes = url"$base/resourceTypes"
-    val projects      = url"$base/projects"
-    val identities    = url"$base/identities"
-    val realm         = url"$base/realm"
-    val sub           = url"$base/sub"
-    val group         = url"$base/group"
+    /**
+      * @param suffix the segment to add to the prefix mapping
+      * @return an [[IriNode]] composed by the ''base'' plus the provided ''suffix''
+      */
+    def withPath(suffix: String): IriNode = IriNode(base + suffix)
 
-    val total    = url"$base/total"
-    val results  = url"$base/results"
-    val resultId = url"$base/resultId"
-    val maxScore = url"$base/maxScore"
-    val score    = url"$base/score"
+    val rev           = withPath("rev")
+    val tag           = withPath("tag")
+    val deprecated    = withPath("deprecated")
+    val createdAt     = withPath("createdAt")
+    val updatedAt     = withPath("updatedAt")
+    val createdBy     = withPath("createdBy")
+    val updatedBy     = withPath("updatedBy")
+    val constrainedBy = withPath("constrainedBy")
+    val isPartOf      = withPath("isPartOf")
+    val priority      = withPath("priority")
+    val uuid          = withPath("uuid")
+    val resourceTypes = withPath("resourceTypes")
+    val projects      = withPath("projects")
+    val identities    = withPath("identities")
+    val realm         = withPath("realm")
+    val sub           = withPath("sub")
+    val group         = withPath("group")
 
-    val Schema           = url"$base/Schema"
-    val Resource         = url"$base/Resource"
-    val Ontology         = url"$base/Ontology"
-    val Resolver         = url"$base/Resolver"
-    val InProject        = url"$base/InProject"
-    val InAccount        = url"$base/InAccount"
-    val CrossProject     = url"$base/CrossProject"
-    val View             = url"$base/View"
-    val ElasticView      = url"$base/ElasticView"
-    val SparqlView       = url"$base/SparqlView"
-    val UserRef          = url"$base/UserRef"
-    val GroupRef         = url"$base/GroupRef"
-    val AuthenticatedRef = url"$base/AuthenticatedRef"
-    val Anonymous        = url"$base/Anonymous"
+    val total    = withPath("total")
+    val results  = withPath("results")
+    val resultId = withPath("resultId")
+    val maxScore = withPath("maxScore")
+    val score    = withPath("score")
+
+    val Schema           = withPath("Schema")
+    val Resource         = withPath("Resource")
+    val Ontology         = withPath("Ontology")
+    val Resolver         = withPath("Resolver")
+    val InProject        = withPath("InProject")
+    val InAccount        = withPath("InAccount")
+    val CrossProject     = withPath("CrossProject")
+    val View             = withPath("View")
+    val ElasticView      = withPath("ElasticView")
+    val SparqlView       = withPath("SparqlView")
+    val UserRef          = withPath("UserRef")
+    val GroupRef         = withPath("GroupRef")
+    val AuthenticatedRef = withPath("AuthenticatedRef")
+    val Anonymous        = withPath("Anonymous")
 
   }
 }

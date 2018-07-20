@@ -9,7 +9,10 @@
     "_deprecated": "nxv:deprecated",
     "_createdAt": "nxv:createdAt",
     "_updatedAt": "nxv:updatedAt",
-    "_createdBy": "nxv:createdBy",
+    "_createdBy": {
+      "@id": "nxv:createdBy",
+      "@type": "@id"
+    },
     "_constrainedBy": {
       "@id": "nxv:constrainedBy",
       "@type": "@id"
