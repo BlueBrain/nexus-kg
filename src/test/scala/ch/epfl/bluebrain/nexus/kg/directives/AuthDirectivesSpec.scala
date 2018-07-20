@@ -46,7 +46,7 @@ class AuthDirectivesSpec
   "Authentication directives" should {
 
     def tokenRoute(): Route = {
-      handleRejections(RejectionHandling.rejectionHandler()) {
+      handleRejections(RejectionHandling()) {
         (get & token) { optToken =>
           complete(StatusCodes.OK -> optToken.map(_.value).getOrElse("empty"))
         }
@@ -55,7 +55,7 @@ class AuthDirectivesSpec
 
     def permissionsRoute(perms: Permissions)(implicit token: Option[AuthToken]): Route = {
       import monix.execution.Scheduler.Implicits.global
-      handleRejections(RejectionHandling.rejectionHandler()) {
+      handleRejections(RejectionHandling()) {
         (get & hasPermission(perms)) {
           complete(StatusCodes.OK)
         }
@@ -64,7 +64,7 @@ class AuthDirectivesSpec
 
     def identityRoute(implicit token: Option[AuthToken]): Route = {
       import monix.execution.Scheduler.Implicits.global
-      handleRejections(RejectionHandling.rejectionHandler()) {
+      handleRejections(RejectionHandling()) {
         (get & callerIdentity) { identity =>
           complete(StatusCodes.OK -> identity)
         }

@@ -31,7 +31,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas.shaclSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.IllegalParameter
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
@@ -90,10 +90,10 @@ class ResourceRoutesSpec
   abstract class Context(perms: Permissions = manage) {
     val account     = genString(length = 4)
     val project     = genString(length = 4)
-    val projectMeta = Project("name", project, Map("nxv" -> url"${nxv.base}/"), nxv.projects, 1L, false, uuid)
+    val projectMeta = Project("name", project, Map("nxv" -> nxv.base), nxv.projects, 1L, false, uuid)
     val projectRef  = ProjectRef(projectMeta.uuid)
     val genUuid     = uuid
-    val iri         = url"${nxv.base}/$genUuid"
+    val iri         = nxv.withPath(genUuid)
     val id          = Id(projectRef, iri)
 
     when(cache.project(ProjectLabel(account, project)))
@@ -230,6 +230,13 @@ class ResourceRoutesSpec
         Post(s"/v1/schemas/$account/$project", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Unauthorized
           responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+        }
+      }
+
+      "reject returning an appropriate error message when exception thrown" in new Schema {
+        Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.InternalServerError
+          responseAs[Error].code shouldEqual classNameOf[Unexpected.type]
         }
       }
     }

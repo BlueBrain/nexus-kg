@@ -72,7 +72,8 @@ object AuthDirectives {
   final case class CustomAuthRejection(err: Rejection) extends CustomRejection
 
   private[directives] def authorizationRejection(err: Throwable) =
-    CustomAuthRejection(DownstreamServiceError(
-      Try(err.getMessage).toOption.filter(_ != null).getOrElse("error while authenticating on the downstream service")))
+    CustomAuthRejection(
+      DownstreamServiceError(
+        Try(err.getMessage).filter(_ != null).getOrElse("error while authenticating on the downstream service")))
 
 }

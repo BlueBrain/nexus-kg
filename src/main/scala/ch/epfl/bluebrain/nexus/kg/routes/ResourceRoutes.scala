@@ -27,8 +27,8 @@ import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
-import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.marshallers.{ExceptionHandling, RejectionHandling}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.ElasticDecoders.resourceIdDecoder
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -66,10 +66,12 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   import indexers._
 
   def routes: Route =
-    handleRejections(RejectionHandling.rejectionHandler()) {
-      token { implicit optToken =>
-        pathPrefix(config.http.prefix) {
-          res ~ schemas ~ resolvers ~ search ~ listings
+    handleExceptions(ExceptionHandling()) {
+      handleRejections(RejectionHandling()) {
+        token { implicit optToken =>
+          pathPrefix(config.http.prefix) {
+            res ~ schemas ~ resolvers ~ search ~ listings
+          }
         }
       }
     }
