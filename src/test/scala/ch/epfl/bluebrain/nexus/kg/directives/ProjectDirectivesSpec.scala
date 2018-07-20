@@ -41,18 +41,33 @@ class ProjectDirectivesSpec
   private implicit val client                  = mock[AdminClient[Task]]
   private implicit val cred: Option[AuthToken] = None
 
-  private implicit def iriEncoder: Encoder[AbsoluteIri] = Encoder.encodeString.contramap(_.show)
-  private implicit def iriDecoder: Decoder[AbsoluteIri] = Decoder.decodeString.map(Iri.absolute(_).right.value)
+  private implicit val iriEncoder: Encoder[AbsoluteIri] = Encoder.encodeString.contramap(_.show)
+  private implicit val iriDecoder: Decoder[AbsoluteIri] = Decoder.decodeString.map(Iri.absolute(_).right.value)
 
-  private implicit def mapEncoder: Encoder[Map[String, AbsoluteIri]] = Encoder.encodeJson.contramap(_ => Json.arr())
+  private case class PrefixMapping(prefix: String, namespace: AbsoluteIri)
+  private implicit val pmDecoder: Decoder[PrefixMapping] =
+    Decoder.forProduct2[String, AbsoluteIri, PrefixMapping]("prefix", "namespace") {
+      case (prefix, namespace) => PrefixMapping(prefix, namespace)
+    }
+  private implicit val pmEncoder: Encoder[Map[String, AbsoluteIri]] = Encoder.encodeJson.contramap { pm =>
+    Json.arr(pm.toList.map {
+      case (k, v) => Json.obj("prefix" -> Json.fromString(k), "namespace" -> Json.fromString(v.toString))
+    }: _*)
+  }
+
   private implicit def projectDecoder: Decoder[Project] =
-    Decoder.forProduct6[String, String, AbsoluteIri, Long, Boolean, String, Project]("name",
-                                                                                     "label",
-                                                                                     "base",
-                                                                                     "rev",
-                                                                                     "deprecated",
-                                                                                     "uuid") {
-      case (name, label, base, rev, deprecated, uuid) => Project(name, label, Map.empty, base, rev, deprecated, uuid)
+    Decoder.forProduct7[String, String, List[PrefixMapping], AbsoluteIri, Long, Boolean, String, Project](
+      "name",
+      "label",
+      "prefixMappings",
+      "base",
+      "rev",
+      "deprecated",
+      "uuid") {
+      case (name, label, pm, base, rev, deprecated, uuid) =>
+        val prefixMappings = pm.map(e => e.prefix -> e.namespace).toMap
+        prefixMappings("nxv") shouldEqual nxv.base
+        Project(name, label, prefixMappings - "nxv", base, rev, deprecated, uuid)
     }
 
   before {

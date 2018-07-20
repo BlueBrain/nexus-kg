@@ -19,7 +19,6 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.ResourcesSpec._
 import ch.epfl.bluebrain.nexus.kg.resources.State.Initial
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryDescription, Digest, Size, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
@@ -31,14 +30,14 @@ import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import com.typesafe.config.ConfigFactory
 import io.circe.Json
-import org.mockito.ArgumentMatchers.isA
-import org.mockito.Mockito
-import org.mockito.Mockito._
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.{reset, when}
 import org.scalatest._
-import org.scalatest.mockito.MockitoSugar.{mock => mmock}
+import org.scalatest.mockito.MockitoSugar
 
 class ResourcesSpec
     extends WordSpecLike
+    with MockitoSugar
     with Matchers
     with OptionValues
     with EitherValues
@@ -46,12 +45,14 @@ class ResourcesSpec
     with BeforeAndAfter
     with test.Resources {
 
-  private implicit val appConfig        = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
-  private implicit val clock: Clock     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private val agg                       = MemoryAggregate("resources")(Initial, Repo.next, Repo.eval).toF[CId]
-  private implicit val repo             = Repo(agg, clock)
-  private implicit val store            = mmock[AttachmentStore[CId, String, String]]
-  private implicit val resolution       = staticResolution()
+  private implicit val appConfig    = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
+  private implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private val agg                   = MemoryAggregate("resources")(Initial, Repo.next, Repo.eval).toF[CId]
+  private implicit val repo         = Repo(agg, clock)
+  private implicit val store        = mock[AttachmentStore[CId, String, String]]
+  private val cache                 = mock[DistributedCache[CId]]
+  when(cache.resolvers(ProjectRef(anyString()))).thenReturn(Set.empty[Resolver])
+  private implicit val resolution       = new ProjectResolution[CId](cache, StaticResolution(AppConfig.iriResolution))
   private val resources: Resources[CId] = Resources[CId]
 
   private def uuid = UUID.randomUUID().toString.toLowerCase
@@ -59,7 +60,7 @@ class ResourcesSpec
   private def randomIri() = Iri.absolute(s"http://example.com/$uuid").right.value
 
   before {
-    Mockito.reset(store)
+    reset(store)
   }
 
   trait Base {
@@ -105,14 +106,15 @@ class ResourcesSpec
         private val genId     = randomIri()
         private val genRes    = Id(projectRef, genId)
         private val json =
-          Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base)), "@id" -> Json.fromString(genId.show))
+          Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
+                   "@id"      -> Json.fromString(genId.show))
         resources.create(projectRef, base, schemaRef, json).value.right.value shouldEqual
           ResourceF.simpleF(genRes, json, schema = schemaRef)
       }
 
       "create a new resource validated against empty schema (resource schema) with a payload only containing @context" in new ResolverResource {
         private val schemaRef = Ref(resourceSchemaUri)
-        val json              = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base)))
+        val json              = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
         private val resource  = resources.create(projectRef, base, schemaRef, json).value.right.value
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
@@ -333,11 +335,4 @@ class ResourcesSpec
       }
     }
   }
-}
-
-object ResourcesSpec {
-  private val cache: DistributedCache[CId] = mmock[DistributedCache[CId]]
-  when(cache.resolvers(isA(classOf[ProjectRef]))).thenReturn(Set.empty[Resolver])
-  private[resources] def staticResolution(): ProjectResolution[CId] =
-    new ProjectResolution[CId](cache, StaticResolution(AppConfig.iriResolution)) {}
 }

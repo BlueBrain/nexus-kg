@@ -10,7 +10,9 @@ import ch.epfl.bluebrain.nexus.kg.RuntimeErr.IllegalEventType
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
 import ch.epfl.bluebrain.nexus.kg.async.{DistributedCache, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.kafka.KafkaConsumer
 import monix.eval.Task
@@ -53,37 +55,48 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
 
   def startProjectStream(): Unit = {
 
-    def processResult(updated: Boolean, accountRef: AccountRef, projectRef: ProjectRef): Task[Unit] = {
-      if (updated) {
+    def processResult(accountRef: AccountRef, projectRef: ProjectRef): Boolean => Task[Unit] = {
+      case true =>
         coordinator ! Msg(accountRef, projectRef)
         Task.unit
-      } else {
+      case false =>
         Task.raiseError(new RetriableErr(s"Failed to update project '${projectRef.id}'"))
-      }
     }
 
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
         case ProjectCreated(_, label, uuid, orgUUid, rev, meta, proj) =>
           cache
-            .addProject(ProjectRef(uuid),
-                        AccountRef(orgUUid),
-                        Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
-                        meta.instant,
-                        updateRev = false)
-            .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
+            .addProject(
+              ProjectRef(uuid),
+              AccountRef(orgUUid),
+              Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
+              meta.instant,
+              updateRev = false
+            )
+            .flatMap {
+              case true =>
+                cache.addResolver(ProjectRef(uuid),
+                                  InProjectResolver(ProjectRef(uuid), nxv.InProject.value, 1L, deprecated = false, 1),
+                                  meta.instant,
+                                  updateRev = false)
+              case false => Task(false)
+            }
+            .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
         case ProjectUpdated(_, label, uuid, orgUUid, rev, meta, proj) =>
           cache
-            .addProject(ProjectRef(uuid),
-                        AccountRef(orgUUid),
-                        Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
-                        meta.instant,
-                        updateRev = true)
-            .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
+            .addProject(
+              ProjectRef(uuid),
+              AccountRef(orgUUid),
+              Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
+              meta.instant,
+              updateRev = true
+            )
+            .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
         case ProjectDeprecated(_, uuid, orgUUid, rev, meta) =>
           cache
             .deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), meta.instant, rev)
-            .flatMap(updated => processResult(updated, AccountRef(orgUUid), ProjectRef(uuid)))
+            .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
         case _: OrganizationCreated    => throw IllegalEventType("OrganizationCreated", "Project")
         case _: OrganizationUpdated    => throw IllegalEventType("OrganizationUpdated", "Project")
         case _: OrganizationDeprecated => throw IllegalEventType("OrganizationDeprecated", "Project")

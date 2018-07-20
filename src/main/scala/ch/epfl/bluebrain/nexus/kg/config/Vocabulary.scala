@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
+import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 
 /**
@@ -11,7 +12,8 @@ object Vocabulary {
     * Nexus vocabulary.
     */
   object nxv {
-    val base          = "https://bluebrain.github.io/nexus/vocabulary"
+    val base: Iri.AbsoluteIri = url"https://bluebrain.github.io/nexus/vocabulary".value
+
     val rev           = url"$base/rev"
     val tag           = url"$base/tag"
     val deprecated    = url"$base/deprecated"
