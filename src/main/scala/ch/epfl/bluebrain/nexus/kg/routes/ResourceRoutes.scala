@@ -106,7 +106,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   private def resolvers(implicit token: Option[AuthToken]): Route =
     // consumes the segment resolvers/{account}/{project}
     (pathPrefix("resolvers") & project) { implicit wrapped =>
-      // create resolvers with implicit or generated id
+      // create resolver with implicit or generated id
       (projectNotDeprecated & post & entity(as[Json])) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
@@ -190,7 +190,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
       parameter('rev.as[Long].?) {
         case Some(rev) =>
-          // update a resource
+          // updates a resource
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
             complete(
               resources.update(Id(proj.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri)).value.runAsync)
@@ -203,7 +203,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           }
       }
     } ~
-      // tag a resource
+      // add tag to resource
       (evalBool(withTag) & pathPrefix("tags") & projectNotDeprecated) {
         (put & parameter('rev.as[Long]) & entity(as[Json]) & pathEndOrSingleSlash) { (rev, json) =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
@@ -228,7 +228,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             complete(resources.unattach(Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
           }
         } ~
-          // add a resource attachment
+          // add an attachment to resources
           (put & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
             (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
               fileUpload("file") {
