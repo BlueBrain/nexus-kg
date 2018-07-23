@@ -34,6 +34,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import io.circe.Json
+import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 
 /**
   * Resource operations.
@@ -63,8 +64,9 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     * @param source     the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(projectRef: ProjectRef, base: AbsoluteIri, schema: Ref, source: Json)(
-      implicit identity: Identity): RejOrResource =
+  def create(projectRef: ProjectRef, base: AbsoluteIri, schema: Ref, source: Json)(implicit identity: Identity,
+                                                                                   additional: AdditionalValidation[F] =
+                                                                                     pass): RejOrResource =
     // format: off
     for {
       rawValue       <- materialize(projectRef, source)
@@ -82,13 +84,16 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     * @param source the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId, schema: Ref, source: Json)(implicit identity: Identity): RejOrResource =
+  def createWithId(id: ResId, schema: Ref, source: Json)(implicit identity: Identity,
+                                                         additional: AdditionalValidation[F] = pass): RejOrResource =
     for {
       assigned <- materialize(id, source)
       resource <- create(id, schema, assigned)
     } yield resource
 
-  private def create(id: ResId, schema: Ref, value: ResourceF.Value)(implicit identity: Identity): RejOrResource = {
+  private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
+      implicit identity: Identity,
+      additional: AdditionalValidation[F]): RejOrResource = {
 
     def checkAndJoinTypes(types: Set[AbsoluteIri]): EitherT[F, Rejection, Set[AbsoluteIri]] =
       EitherT.fromEither(schema.iri match {
@@ -110,6 +115,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
         resolved    <- schemaContext(id, schema)
         _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, value.graph)
         joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
+        _           <- additional(id, schema, joinedTypes, value)
         created     <- repo.create(id, schema, joinedTypes, value.source)
       } yield created
   }
@@ -155,7 +161,9 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     * @param source    the new source representation in json-ld format
     * @return either a rejection or the updated resource in the F context
     */
-  def update(id: ResId, rev: Long, schemaOpt: Option[Ref], source: Json)(implicit identity: Identity): RejOrResource = {
+  def update(id: ResId, rev: Long, schemaOpt: Option[Ref], source: Json)(
+      implicit identity: Identity,
+      additional: AdditionalValidation[F] = pass): RejOrResource = {
     def checkSchema(res: Resource): EitherT[F, Rejection, Unit] = schemaOpt match {
       case Some(schema) if schema != res.schema => EitherT.leftT(NotFound(schema))
       case _                                    => EitherT.rightT(())
@@ -168,7 +176,9 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       graph        = value.graph
       resolved    <- schemaContext(id, resource.schema)
       _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
-      updated     <- repo.update(id, rev, graph.types(id.value).map(_.value), source)
+      joinedTypes  = graph.types(id.value).map(_.value)
+      _           <- additional(id, resource.schema, joinedTypes, value)
+      updated     <- repo.update(id, rev, joinedTypes, source)
     } yield updated
     // format: on
   }

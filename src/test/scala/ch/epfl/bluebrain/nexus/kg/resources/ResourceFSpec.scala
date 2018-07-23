@@ -2,10 +2,10 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.format.DateTimeFormatter
 import java.time.{Clock, Instant, ZoneId, ZoneOffset}
-import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -17,9 +17,8 @@ import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import io.circe.Json
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
-class ResourceFSpec extends WordSpecLike with Matchers with EitherValues {
+class ResourceFSpec extends WordSpecLike with Matchers with EitherValues with TestHelper {
 
-  private def uuid = UUID.randomUUID().toString.toLowerCase
   private implicit def toNode(instant: Instant): Node =
     Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime.value)
 

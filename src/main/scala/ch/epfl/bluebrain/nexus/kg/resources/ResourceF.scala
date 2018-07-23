@@ -14,7 +14,6 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
@@ -157,26 +156,23 @@ object ResourceF {
     * @tparam P the parent type of the resource identifier
     */
   def simpleV[P](id: Id[P],
-                 value: Json,
+                 value: Value,
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
                  schema: Ref = Ref(resourceSchemaUri),
                  created: Identity = Anonymous,
-                 updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[P, Ref, Value] =
-    ResourceF(
-      id,
-      rev,
-      types,
-      deprecated,
-      Map.empty,
-      Set.empty,
-      clock.instant(),
-      clock.instant(),
-      created,
-      updated,
-      schema,
-      Value(value, value.contextValue, value.asGraph)
-    )
-
+                 updated: Identity = Anonymous)(implicit clock: Clock = Clock.systemUTC): ResourceF[P, Ref, Value] =
+    ResourceF(id,
+              rev,
+              types,
+              deprecated,
+              Map.empty,
+              Set.empty,
+              clock.instant(),
+              clock.instant(),
+              created,
+              updated,
+              schema,
+              value)
 }

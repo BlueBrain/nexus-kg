@@ -154,6 +154,13 @@ object Rejection {
   final case class IllegalParameter(override val message: String) extends Rejection(message)
 
   /**
+    * Signals that the logged account does not have one of the provided identities
+    *
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case class InvalidIdentity(override val message: String) extends Rejection(message)
+
+  /**
     * Signals the requirement of a parameter to be present
     *
     * @param message a human readable description of the cause

@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity, Permissions}
+import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, FullAccessControlList, Identity, Permissions}
 import ch.epfl.bluebrain.nexus.iam.client.{Caller, IamClient}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.DownstreamServiceError
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, Rejection}
@@ -45,11 +45,35 @@ object AuthDirectives {
                                         adminClient: AdminClient[Task],
                                         token: Option[AuthToken],
                                         s: Scheduler): Directive0 =
+    acls(ref, adminClient, token, s).flatMap {
+      case Some(acls) if acls.hasAnyPermission(perms) => pass
+      case _                                          => reject(AuthorizationFailedRejection)
+    }
+
+  /**
+    * Checks if the current project has the provided permissions
+    *
+    * @param perms the permissions to check on the current project
+    * @return pass if the ''perms'' is present on the current project, reject with [[AuthorizationFailedRejection]] otherwise
+    */
+  def hasPermissionInAcl(perms: Permissions)(
+      implicit fullAccessControlList: Option[FullAccessControlList]): Directive0 =
+    fullAccessControlList match {
+      case Some(acls) if acls.hasAnyPermission(perms) => pass
+      case _                                          => reject(AuthorizationFailedRejection)
+    }
+
+  /**
+    * Fetch the ACLs for a given project
+    */
+  def acls(implicit ref: ProjectLabel,
+           adminClient: AdminClient[Task],
+           token: Option[AuthToken],
+           s: Scheduler): Directive1[Option[FullAccessControlList]] =
     onComplete(adminClient.getProjectAcls(ref.account, ref.value, parents = true, self = true).runAsync).flatMap {
-      case Success(Some(acls)) if acls.hasAnyPermission(perms) => pass
-      case Success(_)                                          => reject(AuthorizationFailedRejection)
-      case Failure(UnauthorizedAccess)                         => reject(AuthorizationFailedRejection)
-      case Failure(err)                                        => reject(authorizationRejection(err))
+      case Success(result)             => provide(result)
+      case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
+      case Failure(err)                => reject(authorizationRejection(err))
     }
 
   /**

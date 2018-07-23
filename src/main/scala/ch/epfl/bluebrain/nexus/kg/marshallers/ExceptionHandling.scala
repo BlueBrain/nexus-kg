@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.marshallers
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.Unexpected
 import journal.Logger
 
@@ -22,6 +23,7 @@ object ExceptionHandling {
     */
   final def apply(): ExceptionHandler =
     ExceptionHandler {
+      case rej: Rejection => complete(rej)
       case err =>
         logger.error("Exception caught during routes processing ", err)
         val msg = Try(err.getMessage).filter(_ != null).getOrElse("Something went wrong. Please, try again later.")

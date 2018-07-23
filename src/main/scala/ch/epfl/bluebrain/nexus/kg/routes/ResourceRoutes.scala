@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
-import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission, Permissions}
+import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -66,8 +66,8 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   import indexers._
 
   def routes: Route =
-    handleExceptions(ExceptionHandling()) {
-      handleRejections(RejectionHandling()) {
+    handleRejections(RejectionHandling()) {
+      handleExceptions(ExceptionHandling()) {
         token { implicit optToken =>
           pathPrefix(config.http.prefix) {
             res ~ schemas ~ resolvers ~ search ~ listings
@@ -110,15 +110,19 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     (pathPrefix("resolvers") & project) { implicit wrapped =>
       // create resolver with implicit or generated id
       (projectNotDeprecated & post & entity(as[Json])) { source =>
-        (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-          complete(
-            Created -> resources
-              .create(wrapped.project.ref,
-                      wrapped.project.base,
-                      Ref(crossResolverSchemaUri),
-                      source.addContext(resolverCtxUri))
-              .value
-              .runAsync)
+        callerIdentity.apply { implicit ident =>
+          acls.apply { implicit acls =>
+            hasPermissionInAcl(resourceCreate).apply {
+              complete(
+                Created -> resources
+                  .create(wrapped.project.ref,
+                          wrapped.project.base,
+                          Ref(crossResolverSchemaUri),
+                          source.addContext(resolverCtxUri))
+                  .value
+                  .runAsync)
+            }
+          }
         }
       } ~
         // list resolvers with implicit or generated id
@@ -136,11 +140,13 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           }
         } ~
         pathPrefix(aliasOrCurie) { id =>
-          resources(crossResolverSchemaUri,
-                    id,
-                    withAttachment = false,
-                    withTag = false,
-                    injectUri = Some(resolverCtxUri))
+          acls.apply { implicit acls =>
+            resources(crossResolverSchemaUri,
+                      id,
+                      withAttachment = false,
+                      withTag = false,
+                      injectUri = Some(resolverCtxUri))
+          }
         }
     }
 
@@ -188,7 +194,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
                         injectUri: Option[AbsoluteIri] = None)(implicit
                                                                proj: Project,
                                                                projRef: ProjectLabel,
-                                                               token: Option[AuthToken]): Route =
+                                                               token: Option[AuthToken],
+                                                               additional: AdditionalValidation[Task] =
+                                                                 AdditionalValidation.pass): Route =
     (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
       parameter('rev.as[Long].?) {
         case Some(rev) =>
@@ -201,7 +209,10 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           // create resource with explicit id
           (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
             complete(
-              Created -> resources.create(Id(proj.ref, id), Ref(schema), source.addContext(injectUri)).value.runAsync)
+              Created -> resources
+                .createWithId(Id(proj.ref, id), Ref(schema), source.addContext(injectUri))
+                .value
+                .runAsync)
           }
       }
     } ~
@@ -302,6 +313,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     def toEitherRun: Future[RejectionOrAttachment] =
       resource.value.map[RejectionOrAttachment](Right.apply).runAsync
   }
+
+  private implicit def resolverAclValidation(implicit acls: Option[FullAccessControlList]): AdditionalValidation[Task] =
+    AdditionalValidation.resolver(acls)
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
     val filename = encodedFilenameOrElse(info, "attachment")
