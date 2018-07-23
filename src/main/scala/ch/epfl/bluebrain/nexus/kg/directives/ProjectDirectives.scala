@@ -9,8 +9,8 @@ import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{authorizationRejection, CustomAuthRejection}
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{ProjectIsDeprecated, ProjectNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
 import monix.eval.Task
 import monix.execution.Scheduler
 
@@ -28,16 +28,26 @@ object ProjectDirectives {
     pathPrefix(Segment / Segment).tflatMap {
       case (accountLabel, projectLabel) =>
         val label = ProjectLabel(accountLabel, projectLabel)
-        val result = cache.project(label).flatMap {
-          case value @ Some(_) => Task.pure(value)
-          case _               => client.getProject(accountLabel, projectLabel)
-        }
-        onComplete(result.onErrorRecoverWith { case _ => client.getProject(accountLabel, projectLabel) }.runAsync)
+        val result = cache
+          .project(label)
           .flatMap {
-            case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
-            case Failure(err)                => reject(authorizationRejection(err))
-            case Success(None)               => reject(CustomAuthRejection(ProjectNotFound(label)))
-            case Success(Some(value))        => provide(LabeledProject(label, addNxvMapping(value)))
+            case value @ Some(_) => Task.pure(value)
+            case _               => client.getProject(accountLabel, projectLabel)
+          }
+          .onErrorRecoverWith {
+            case _ => client.getProject(accountLabel, projectLabel)
+          }
+          .flatMap {
+            case value @ Some(project) => cache.accountRef(ProjectRef(project.uuid)).map(_ -> value)
+            case _                     => Task.pure(None                                   -> None)
+          }
+        onComplete(result.runAsync)
+          .flatMap {
+            case Failure(UnauthorizedAccess)       => reject(AuthorizationFailedRejection)
+            case Failure(err)                      => reject(authorizationRejection(err))
+            case Success((_, None))                => reject(CustomAuthRejection(ProjectNotFound(label)))
+            case Success((None, Some(value)))      => reject(CustomAuthRejection(AccountNotFound(ProjectRef(value.uuid))))
+            case Success((Some(ref), Some(value))) => provide(LabeledProject(label, addNxvMapping(value), ref))
           }
     }
 

@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
@@ -30,10 +30,15 @@ class ResolverSpec
     val iri          = Iri.absolute("http://example.com/id").right.value
     val projectRef   = ProjectRef("ref")
     val id           = Id(projectRef, iri)
+    val accountRef   = AccountRef("accountRef")
 
     "construct a in project resolver" in {
       val resource = simpleV(id, inProject, types = Set(nxv.Resolver, nxv.InProject, nxv.Resource))
-      Resolver(resource).value shouldEqual InProjectResolver(projectRef, iri, resource.rev, resource.deprecated, 10)
+      Resolver(resource, accountRef).value shouldEqual InProjectResolver(projectRef,
+                                                                         iri,
+                                                                         resource.rev,
+                                                                         resource.deprecated,
+                                                                         10)
     }
 
     "construct a cross project resolver" in {
@@ -41,7 +46,7 @@ class ResolverSpec
       val projects =
         Set(ProjectRef("70eab995-fc68-4abf-8493-8d5248ba1b18"), ProjectRef("bd024b643-84e0-4188-aa62-898aa84387d0"))
       val identities = List[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero"))
-      val resolver   = Resolver(resource).value.asInstanceOf[CrossProjectResolver]
+      val resolver   = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectResolver]
       resolver.priority shouldEqual 50
       resolver.identities should contain theSameElementsAs identities
       resolver.resourceTypes shouldEqual Set(nxv.Schema.value)
@@ -54,13 +59,13 @@ class ResolverSpec
 
     "fail to construct when the types don't match" in {
       val resource = simpleV(id, inProject, types = Set(nxv.Resource))
-      Resolver(resource) shouldEqual None
+      Resolver(resource, accountRef) shouldEqual None
     }
 
     "fail to construct when payload on identity is wrong" in {
       val wrong    = jsonContentOf("/resolve/cross-project-wrong.json").appendContextOf(resolverCtx)
       val resource = simpleV(id, wrong, types = Set(nxv.Resolver, nxv.CrossProject))
-      Resolver(resource) shouldEqual None
+      Resolver(resource, accountRef) shouldEqual None
     }
   }
 

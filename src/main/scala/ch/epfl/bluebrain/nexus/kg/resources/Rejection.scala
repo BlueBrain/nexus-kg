@@ -64,6 +64,13 @@ object Rejection {
   final case class NotFound(ref: Ref) extends Rejection(s"Resource '${ref.show}' not found.")
 
   /**
+    * Signals an attempt to interact with a project that doesn't have an account.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class AccountNotFound(ref: ProjectRef) extends Rejection(s"Project '${ref.show}' without an account")
+
+  /**
     * Signals an attempt to interact with a resource that belongs to a project that doesn't exist.
     *
     * @param ref a reference to the project

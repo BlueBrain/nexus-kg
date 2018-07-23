@@ -34,11 +34,13 @@ object AdditionalValidation {
   /**
     * Additional validation used for checking ACLs on [[Resolver]] creation
     *
-    * @param acls the [[FullAccessControlList]]
+    * @param acls       the [[FullAccessControlList]]
+    * @param accountRef the account reference
     * @tparam F the monadic effect type
     * @return a new validation that passes whenever the provided ''acls'' match the ones on the resolver's identities
     */
-  final def resolver[F[_]: Applicative](acls: Option[FullAccessControlList]): AdditionalValidation[F] = {
+  final def resolver[F[_]: Applicative](acls: Option[FullAccessControlList],
+                                        accountRef: AccountRef): AdditionalValidation[F] = {
     def aclContains(identities: List[Identity]): Boolean = {
       val list = acls.map(_.acl.map(_.identity)).getOrElse(List.empty)
       identities.forall(list.contains)
@@ -47,7 +49,7 @@ object AdditionalValidation {
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: ResourceF.Value) =>
       {
         val resource = ResourceF.simpleV(id, value, types = types, schema = schema)
-        Resolver(resource) match {
+        Resolver(resource, accountRef) match {
           case Some(resolver: CrossProjectResolver) if aclContains(resolver.identities) => EitherT.rightT(())
           case Some(resolver: InAccountResolver) if aclContains(resolver.identities)    => EitherT.rightT(())
           case Some(_: InProjectResolver)                                               => EitherT.rightT(())

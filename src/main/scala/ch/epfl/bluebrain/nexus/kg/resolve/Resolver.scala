@@ -69,54 +69,70 @@ object Resolver {
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.resolve.Resolver]].
     *
-    * @param res a materialized resource
+    * @param res        a materialized resource
+    * @param accountRef the account reference
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
-  final def apply(res: ResourceV): Option[Resolver] =
-    if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.CrossProject.value))
-      crossProject(res)
-    else if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.InProject.value))
-      inProject(res)
-    else None
-
-  private def inProject(res: ResourceV): Option[Resolver] =
-    for {
-      priority <- res.value.graph.cursor(res.id.value).downField(nxv.priority).focus.as[Int].toOption
-    } yield InProjectResolver(res.id.parent, res.id.value, res.rev, res.deprecated, priority)
-
-  private def identity(c: GraphCursor): EncoderResult[Identity] =
-    c.downField(rdf.tpe).values.asListOf[AbsoluteIri].flatMap { types =>
-      if (types.contains(nxv.UserRef.value))
-        (c.downField(nxv.realm).focus.as[String], c.downField(nxv.sub).focus.as[String]).mapN(UserRef.apply)
-      else if (types.contains(nxv.GroupRef.value))
-        (c.downField(nxv.realm).focus.as[String], c.downField(nxv.group).focus.as[String]).mapN(GroupRef.apply)
-      else if (types.contains(nxv.AuthenticatedRef.value))
-        Right(AuthenticatedRef(c.downField(nxv.realm).focus.as[String].toOption))
-      else if (types.contains(nxv.Anonymous.value))
-        Right(Anonymous)
-      else
-        Left(IllegalConversion(s"The types '$types' cannot be converted into an Identity"))
-    }
-
-  private def crossProject(res: ResourceV): Option[Resolver] = {
+  final def apply(res: ResourceV, accountRef: AccountRef): Option[Resolver] = {
     val c = res.value.graph.cursor(res.id.value)
-    (for {
-      types    <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri]
-      projects <- c.downField(nxv.projects).values.asListOf[String].map(_.map(ProjectRef.apply))
-      identities <- c.downField(nxv.identities).downArray.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
-        case (err @ Left(_), _)   => err
-        case (Right(list), inner) => identity(inner).map(_ :: list)
+
+    def inProject: Option[Resolver] =
+      for {
+        priority <- c.downField(nxv.priority).focus.as[Int].toOption
+      } yield InProjectResolver(res.id.parent, res.id.value, res.rev, res.deprecated, priority)
+
+    def crossProject: Option[Resolver] =
+      (for {
+        types    <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri]
+        projects <- c.downField(nxv.projects).values.asListOf[String].map(_.map(ProjectRef.apply))
+        identities <- c.downField(nxv.identities).downArray.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
+          case (err @ Left(_), _)   => err
+          case (Right(list), inner) => identity(inner).map(_ :: list)
+        }
+        priority <- c.downField(nxv.priority).focus.as[Int]
+      } yield
+        CrossProjectResolver(types.toSet,
+                             projects.toSet,
+                             identities,
+                             res.id.parent,
+                             res.id.value,
+                             res.rev,
+                             res.deprecated,
+                             priority)).toOption
+
+    def inAccount: Option[Resolver] =
+      (for {
+        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri]
+        identities <- c.downField(nxv.identities).downArray.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
+          case (err @ Left(_), _)   => err
+          case (Right(list), inner) => identity(inner).map(_ :: list)
+        }
+        priority <- c.downField(nxv.priority).focus.as[Int]
+      } yield
+        InAccountResolver(types.toSet,
+                          identities,
+                          accountRef,
+                          res.id.parent,
+                          res.id.value,
+                          res.rev,
+                          res.deprecated,
+                          priority)).toOption
+
+    def identity(c: GraphCursor): EncoderResult[Identity] =
+      c.downField(rdf.tpe).focus.as[AbsoluteIri].flatMap {
+        case nxv.UserRef.value =>
+          (c.downField(nxv.realm).focus.as[String], c.downField(nxv.sub).focus.as[String]).mapN(UserRef.apply)
+        case nxv.GroupRef.value =>
+          (c.downField(nxv.realm).focus.as[String], c.downField(nxv.group).focus.as[String]).mapN(GroupRef.apply)
+        case nxv.AuthenticatedRef.value        => Right(AuthenticatedRef(c.downField(nxv.realm).focus.as[String].toOption))
+        case iri if iri == nxv.Anonymous.value => Right(Anonymous)
+        case t                                 => Left(IllegalConversion(s"The type '$t' cannot be converted into an Identity"))
       }
-      priority <- c.downField(nxv.priority).focus.as[Int]
-    } yield
-      CrossProjectResolver(types.toSet,
-                           projects.toSet,
-                           identities,
-                           res.id.parent,
-                           res.id.value,
-                           res.rev,
-                           res.deprecated,
-                           priority)).toOption
+
+    if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.CrossProject.value)) crossProject
+    else if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.InProject.value)) inProject
+    else if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.InAccount.value)) inAccount
+    else None
   }
 
   /**
