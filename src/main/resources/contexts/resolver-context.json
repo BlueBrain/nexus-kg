@@ -3,6 +3,8 @@
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
     "Resolver": "nxv:Resolver",
     "CrossProject": "nxv:CrossProject",
+    "InAccount": "nxv:InAccount",
+    "InProject": "nxv:InProject",
     "UserRef": "nxv:UserRef",
     "GroupRef": "nxv:GroupRef",
     "AuthenticatedRef": "nxv:AuthenticatedRef",
