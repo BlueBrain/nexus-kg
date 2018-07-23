@@ -1,13 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
-import java.util.UUID
 
 import cats.data.EitherT
 import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -19,9 +19,9 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import io.circe.Json
-import org.scalatest._
 import org.mockito.Mockito
 import org.mockito.Mockito._
+import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
 
 class RepoSpec
@@ -31,14 +31,14 @@ class RepoSpec
     with EitherValues
     with Randomness
     with MockitoSugar
-    with BeforeAndAfter {
+    with BeforeAndAfter
+    with TestHelper {
 
   private implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private val agg                   = MemoryAggregate("resources")(Initial, Repo.next, Repo.eval).toF[CId]
   private val repo                  = Repo(agg, clock)
   private implicit val store        = mock[AttachmentStore[CId, String, String]]
 
-  private def uuid         = UUID.randomUUID().toString.toLowerCase
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
   private def randomIri()  = Iri.absolute(s"http://example.com/$uuid").right.value
 

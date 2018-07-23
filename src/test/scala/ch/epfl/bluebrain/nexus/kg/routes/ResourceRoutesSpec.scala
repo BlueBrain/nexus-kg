@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
 import java.time.{Clock, Instant, ZoneId}
-import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
@@ -9,6 +8,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import cats.data.{EitherT, OptionT}
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
@@ -23,11 +23,10 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Address._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.Error
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Schemas.shaclSchemaUri
+import ch.epfl.bluebrain.nexus.kg.config.Schemas.{crossResolverSchemaUri, shaclSchemaUri}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -36,6 +35,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
@@ -44,6 +45,7 @@ import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
+import org.mockito.ArgumentMatchers.{isA, eq => mEq}
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
@@ -57,9 +59,8 @@ class ResourceRoutesSpec
     with BeforeAndAfter
     with ScalatestRouteTest
     with test.Resources
-    with Randomness {
-
-  private def uuid = UUID.randomUUID().toString.toLowerCase
+    with Randomness
+    with TestHelper {
 
   private implicit val appConfig = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
   private val iamUri             = appConfig.iam.baseUri
@@ -126,12 +127,56 @@ class ResourceRoutesSpec
         .addContext(resourceCtxUri)
   }
 
+  abstract class Resolver(perms: Permissions = manage) extends Context(perms) {
+    val resolver  = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj("@id" -> Json.fromString(id.show))
+    val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
+    val schemaRef = Ref(crossResolverSchemaUri)
+
+    def resolverResponse(deprecated: Boolean = false): Json =
+      Json
+        .obj(
+          "@id"            -> Json.fromString(s"nxv:$genUuid"),
+          "_constrainedBy" -> Json.fromString(crossResolverSchemaUri.show),
+          "_createdAt"     -> Json.fromString(clock.instant().toString),
+          "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
+          "_deprecated"    -> Json.fromBoolean(deprecated),
+          "_rev"           -> Json.fromLong(1L),
+          "_updatedAt"     -> Json.fromString(clock.instant().toString),
+          "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
+        )
+        .addContext(resourceCtxUri)
+  }
+
   "The routes" when {
+
+    "performing operations on resolvers" should {
+
+      "create a resolver without @id" in new Resolver {
+        val resolverWithCtx = resolver.addContext(resolverCtxUri)
+        private val expected = ResourceF
+          .simpleF(id, resolverWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
+        val mProjectRef = mEq(projectRef.id).asInstanceOf[ProjectRef]
+        when(
+          resources.create(mProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(resolverWithCtx))(
+            mEq(identity),
+            isA(classOf[AdditionalValidation[Task]])))
+          .thenReturn(EitherT.rightT[Task, Rejection](expected))
+
+        Post(s"/v1/resolvers/$account/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          val response = responseAs[Json]
+          response.removeKeys("@type") shouldEqual resolverResponse()
+          response.hcursor.downField("@type").focus.flatMap(_.asArray).value should contain theSameElementsAs (Vector(
+            Json.fromString("nxv:CrossProject"),
+            Json.fromString("nxv:Resolver")))
+        }
+      }
+    }
 
     "performing operations on schemas" should {
 
       "create a schema without @id" in new Schema {
-        when(resources.create(projectRef, projectMeta.base, Ref(shaclSchemaUri), schema)).thenReturn(
+        when(resources.create(projectRef, projectMeta.base, schemaRef, schema)).thenReturn(
           EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
@@ -142,7 +187,7 @@ class ResourceRoutesSpec
       }
 
       "create a schema with @id" in new Schema {
-        when(resources.create(id, Ref(shaclSchemaUri), schema)).thenReturn(EitherT.rightT[Task, Rejection](
+        when(resources.createWithId(id, schemaRef, schema)).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
         Put(s"/v1/schemas/$account/$project/nxv:$genUuid", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -152,7 +197,7 @@ class ResourceRoutesSpec
       }
 
       "update a schema" in new Schema {
-        when(resources.update(id, 1L, Some(Ref(shaclSchemaUri)), schema)).thenReturn(EitherT.rightT[Task, Rejection](
+        when(resources.update(id, 1L, Some(schemaRef), schema)).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
         Put(s"/v1/schemas/$account/$project/nxv:${genUuid}?rev=1", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -163,7 +208,7 @@ class ResourceRoutesSpec
 
       "add a tag to a schema" in new Schema {
         val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(1L)).addContext(tagCtxUri)
-        when(resources.tag(id, 1L, Some(Ref(shaclSchemaUri)), tag)).thenReturn(
+        when(resources.tag(id, 1L, Some(schemaRef), tag)).thenReturn(
           EitherT.rightT[Task, Rejection](
             ResourceF
               .simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)
@@ -177,7 +222,7 @@ class ResourceRoutesSpec
 
       "deprecate a schema" in new Schema {
         val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(1L)).addContext(tagCtxUri)
-        when(resources.deprecate(id, 1L, Some(Ref(shaclSchemaUri)))).thenReturn(EitherT.rightT[Task, Rejection](
+        when(resources.deprecate(id, 1L, Some(schemaRef))).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, schema, deprecated = true, created = identity, updated = identity, schema = schemaRef)))
 
         Delete(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1", tag) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -187,7 +232,7 @@ class ResourceRoutesSpec
       }
 
       "remove attachment from a schema" in new Schema {
-        when(resources.unattach(id, 1L, Some(Ref(shaclSchemaUri)), "name")).thenReturn(EitherT.rightT[Task, Rejection](
+        when(resources.unattach(id, 1L, Some(schemaRef), "name")).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
         Delete(s"/v1/schemas/$account/$project/nxv:$genUuid/attachments/name?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -212,12 +257,12 @@ class ResourceRoutesSpec
 
       "get schema" ignore new Schema {
         val resource = ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)
-        val temp     = ResourceF.simpleV(id, schema, created = identity, updated = identity, schema = schemaRef)
+        val temp     = simpleV(id, schema, created = identity, updated = identity, schema = schemaRef)
         val ctx      = schema.appendContextOf(shaclCtx)
         val resourceV =
           temp.copy(value = Value(schema, ctx.contextValue, ctx.asGraph ++ temp.metadata ++ temp.typeGraph))
 
-        when(resources.fetch(id, 1L, Some(Ref(shaclSchemaUri)))).thenReturn(OptionT.some[Task](resource))
+        when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
 
         Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {

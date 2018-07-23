@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
-import java.util.UUID
 
 import cats.data.EitherT
 import cats.syntax.show._
@@ -11,6 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -43,7 +43,8 @@ class ResourcesSpec
     with EitherValues
     with Randomness
     with BeforeAndAfter
-    with test.Resources {
+    with test.Resources
+    with TestHelper {
 
   private implicit val appConfig    = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
   private implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -54,8 +55,6 @@ class ResourcesSpec
   when(cache.resolvers(ProjectRef(anyString()))).thenReturn(Set.empty[Resolver])
   private implicit val resolution       = new ProjectResolution[CId](cache, StaticResolution(AppConfig.iriResolution))
   private val resources: Resources[CId] = Resources[CId]
-
-  private def uuid = UUID.randomUUID().toString.toLowerCase
 
   private def randomIri() = Iri.absolute(s"http://example.com/$uuid").right.value
 
@@ -133,7 +132,7 @@ class ResourcesSpec
       }
 
       "create a new resource validated against the resolver schema passing the id on the call (the provided on the Json)" in new ResolverResource {
-        resources.create(resId, schema, resolver).value.right.value shouldEqual
+        resources.createWithId(resId, schema, resolver).value.right.value shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
       }
 
@@ -161,12 +160,12 @@ class ResourcesSpec
 
       "prevent creating a schema which doesn't have nxv:Schema type" in new ResolverSchema {
         private val json = resolver deepMerge Json.obj("@type" -> Json.fromString("nxv:Resource"))
-        resources.create(resId, schema, json).value.left.value shouldEqual
+        resources.createWithId(resId, schema, json).value.left.value shouldEqual
           IncorrectTypes(resId.ref, Set(nxv.Resource.value))
       }
 
       "create a new schema passing the id on the call (the provided on the Json)" in new ResolverSchema {
-        resources.create(resId, schema, resolver).value.right.value shouldEqual
+        resources.createWithId(resId, schema, resolver).value.right.value shouldEqual
           ResourceF.simpleF(resId, resolver, types = types, schema = schema)
       }
 

@@ -90,5 +90,6 @@ package object instances extends FailFastCirceSupport {
     case _: IncorrectRev             => StatusCodes.Conflict
     case _: AlreadyExists            => StatusCodes.Conflict
     case _: DownstreamServiceError   => StatusCodes.BadGateway
+    case _: InvalidIdentity          => StatusCodes.Unauthorized
   }
 }
