@@ -106,6 +106,8 @@ class ResourceRoutesSpec
 
     def genIri = url"${projectMeta.base}/$uuid"
 
+    def eqProjectRef             = mEq(projectRef.id).asInstanceOf[ProjectRef]
+    def isAnAdditionalValidation = isA(classOf[AdditionalValidation[Task]])
   }
 
   abstract class Schema(perms: Permissions = manage) extends Context(perms) {
@@ -155,11 +157,10 @@ class ResourceRoutesSpec
         val resolverWithCtx = resolver.addContext(resolverCtxUri)
         private val expected = ResourceF
           .simpleF(id, resolverWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
-        val mProjectRef = mEq(projectRef.id).asInstanceOf[ProjectRef]
         when(
-          resources.create(mProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(resolverWithCtx))(
+          resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(resolverWithCtx))(
             mEq(identity),
-            isA(classOf[AdditionalValidation[Task]])))
+            isAnAdditionalValidation))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/resolvers/$account/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -187,8 +188,9 @@ class ResourceRoutesSpec
       }
 
       "create a schema with @id" in new Schema {
-        when(resources.createWithId(id, schemaRef, schema)).thenReturn(EitherT.rightT[Task, Rejection](
-          ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
+        when(resources.createWithId(mEq(id), mEq(schemaRef), mEq(schema))(mEq(identity), isAnAdditionalValidation))
+          .thenReturn(EitherT.rightT[Task, Rejection](
+            ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
         Put(s"/v1/schemas/$account/$project/nxv:$genUuid", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
@@ -197,8 +199,11 @@ class ResourceRoutesSpec
       }
 
       "update a schema" in new Schema {
-        when(resources.update(id, 1L, Some(schemaRef), schema)).thenReturn(EitherT.rightT[Task, Rejection](
-          ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
+        when(
+          resources.update(mEq(id), mEq(1L), mEq(Some(schemaRef)), mEq(schema))(mEq(identity),
+                                                                                isAnAdditionalValidation)).thenReturn(
+          EitherT.rightT[Task, Rejection](
+            ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
         Put(s"/v1/schemas/$account/$project/nxv:${genUuid}?rev=1", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
