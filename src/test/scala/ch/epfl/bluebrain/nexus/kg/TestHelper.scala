@@ -38,6 +38,6 @@ trait TestHelper {
       Value(value, value.contextValue, value.asGraph)
     )
 
-  def uuid = UUID.randomUUID().toString.toLowerCase
+  def uuid = UUID.randomUUID().toString
 
 }

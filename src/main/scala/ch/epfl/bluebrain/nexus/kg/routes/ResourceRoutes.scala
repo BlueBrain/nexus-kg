@@ -112,7 +112,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       (projectNotDeprecated & post & entity(as[Json])) { source =>
         callerIdentity.apply { implicit ident =>
           acls.apply { implicit acls =>
-            hasPermissionAcl(resourceCreate).apply {
+            hasPermissionInAcl(resourceCreate).apply {
               complete(
                 Created -> resources
                   .create(wrapped.project.ref,

@@ -56,7 +56,8 @@ object AuthDirectives {
     * @param perms the permissions to check on the current project
     * @return pass if the ''perms'' is present on the current project, reject with [[AuthorizationFailedRejection]] otherwise
     */
-  def hasPermissionAcl(perms: Permissions)(implicit fullAccessControlList: Option[FullAccessControlList]): Directive0 =
+  def hasPermissionInAcl(perms: Permissions)(
+      implicit fullAccessControlList: Option[FullAccessControlList]): Directive0 =
     fullAccessControlList match {
       case Some(acls) if acls.hasAnyPermission(perms) => pass
       case _                                          => reject(AuthorizationFailedRejection)
