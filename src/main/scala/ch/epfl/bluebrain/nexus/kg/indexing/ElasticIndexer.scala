@@ -78,11 +78,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], index: String, resources: R
 
     val payload = graph.asJson(resourceCtx, primaryNode).getOrElse(graph.asJson)
     val merged  = payload deepMerge Json.obj("_original_source" -> Json.fromString(res.value.noSpaces))
-    val esPayload = Json.obj(
-      "doc"           -> merged,
-      "doc_as_upsert" -> Json.fromBoolean(true)
-    )
-    client.update(index, config.docType, res.id.elasticId, esPayload)
+    client.create(index, config.docType, res.id.elasticId, merged)
   }
 
 }
