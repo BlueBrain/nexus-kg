@@ -40,8 +40,20 @@ package object instances extends FailFastCirceSupport {
   final implicit def httpEntity[A](implicit encoder: Encoder[A],
                                    printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
                                    keys: OrderedKeys = OrderedKeys(
-                                     List("@context", "@id", "@type", "code", "message", "details", "")))
-    : ToEntityMarshaller[A] =
+                                     List("@context",
+                                          "@id",
+                                          "@type",
+                                          "code",
+                                          "message",
+                                          "details",
+                                          "",
+                                          "_constrainedBy",
+                                          "_createdAt",
+                                          "_createdBy",
+                                          "_updatedAt",
+                                          "_updatedBy",
+                                          "_rev",
+                                          "_deprecated"))): ToEntityMarshaller[A] =
     jsonLd.compose(encoder.apply)
 
   /**

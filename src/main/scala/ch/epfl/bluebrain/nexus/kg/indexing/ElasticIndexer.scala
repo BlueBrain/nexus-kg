@@ -4,12 +4,15 @@ import java.net.URLEncoder
 import java.util.regex.Pattern.quote
 
 import akka.actor.{ActorRef, ActorSystem}
+import akka.http.scaladsl.model.StatusCodes
 import akka.stream.ActorMaterializer
 import cats.MonadError
 import cats.syntax.flatMap._
 import cats.syntax.functor._
+import cats.syntax.applicativeError._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
@@ -65,14 +68,17 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], index: String, resources: R
     client
       .get[Json](index, config.docType, id.elasticId, include = Set(revKey))
       .map(j => j.hcursor.get[Long](revKey).toOption)
+      .handleError {
+        case ElasticClientError(StatusCodes.NotFound, _) => None
+      }
 
   private def indexResource(res: Resource): F[Unit] = {
     val primaryNode = Some(IriNode(res.id.value))
     val graph       = res.metadata ++ res.typeGraph
 
     val payload = graph.asJson(resourceCtx, primaryNode).getOrElse(graph.asJson)
-    val merged  = payload deepMerge Json.obj("_source" -> Json.fromString(res.value.noSpaces))
-    client.update(index, config.docType, res.id.elasticId, merged)
+    val merged  = payload deepMerge Json.obj("_original_source" -> Json.fromString(res.value.noSpaces))
+    client.create(index, config.docType, res.id.elasticId, merged)
   }
 
 }

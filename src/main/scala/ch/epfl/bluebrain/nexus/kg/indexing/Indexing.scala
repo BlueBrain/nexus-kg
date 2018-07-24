@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
+import java.util.UUID
+
 import akka.actor.{ActorRef, ActorSystem}
 import akka.kafka.ConsumerSettings
 import ch.epfl.bluebrain.nexus.admin.client.types.KafkaEvent._
@@ -80,6 +82,16 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                                   InProjectResolver(ProjectRef(uuid), nxv.InProject.value, 1L, deprecated = false, 1),
                                   meta.instant,
                                   updateRev = false)
+              case false => Task(false)
+            }
+            .flatMap {
+              case true =>
+                cache.addView(
+                  ProjectRef(uuid),
+                  ElasticView(ProjectRef(uuid), nxv.default.value, UUID.randomUUID().toString, 1L, false),
+                  meta.instant,
+                  true
+                )
               case false => Task(false)
             }
             .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))

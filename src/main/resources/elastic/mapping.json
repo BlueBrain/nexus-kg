@@ -11,7 +11,7 @@
         "_createdBy": {"type": "keyword"},
         "_updatedBy": {"type": "keyword"},
         "_constrainedBy": {"type": "keyword"},
-        "_source": {"type": "text"}
+        "_original_source": {"type": "text"}
       },
       "dynamic": false
     }

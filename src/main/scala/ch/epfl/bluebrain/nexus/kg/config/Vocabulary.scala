@@ -38,6 +38,7 @@ object Vocabulary {
     val realm         = withPath("realm")
     val sub           = withPath("sub")
     val group         = withPath("group")
+    val default       = withPath("default")
 
     val total    = withPath("total")
     val results  = withPath("results")
