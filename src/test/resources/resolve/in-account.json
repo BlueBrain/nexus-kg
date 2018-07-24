@@ -1,0 +1,18 @@
+{
+  "@id": "http://example.com/id",
+  "@type": ["Resolver", "InAccount"],
+  "resourceTypes": ["nxv:Schema"],
+  "identities": [
+    {
+      "@type": "GroupRef",
+      "realm": "ldap2",
+      "group": "bbp-ou-neuroinformatics"
+    },
+    {
+      "@type": "UserRef",
+      "realm": "ldap",
+      "sub": "dmontero"
+    }
+  ],
+  "priority": 50
+}

@@ -141,6 +141,7 @@ class ResourceRoutesSpec
       Json
         .obj(
           "@id"            -> Json.fromString(s"nxv:$genUuid"),
+          "@type"          -> Json.arr(Json.fromString("nxv:CrossProject"), Json.fromString("nxv:Resolver")),
           "_constrainedBy" -> Json.fromString(resolverSchemaUri.show),
           "_createdAt"     -> Json.fromString(clock.instant().toString),
           "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
@@ -168,11 +169,7 @@ class ResourceRoutesSpec
 
         Post(s"/v1/resolvers/$account/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
-          val response = responseAs[Json]
-          response.removeKeys("@type") shouldEqual resolverResponse()
-          response.hcursor.downField("@type").focus.flatMap(_.asArray).value should contain theSameElementsAs (Vector(
-            Json.fromString("nxv:CrossProject"),
-            Json.fromString("nxv:Resolver")))
+          responseAs[Json] shouldEqual resolverResponse()
         }
       }
     }

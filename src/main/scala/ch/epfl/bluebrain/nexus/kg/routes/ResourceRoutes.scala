@@ -30,6 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.marshallers.{ExceptionHandling, RejectionHandling}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
+import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.ElasticDecoders.resourceIdDecoder
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
@@ -340,8 +341,11 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     jsonResult deepMerge Json.obj("@context" -> res.value.source.contextValue).addContext(resourceCtxUri)
   }
 
-  private implicit def qrResolverGraphEncoder: GraphEncoder[QueryResult[Resolver]] =
-    GraphEncoder(res => IriNode(res.source.id) -> res.source.asGraph)
+  private implicit def qqResolverEncoder(implicit enc: GraphEncoder[Resolver]): GraphEncoder[QueryResult[Resolver]] =
+    GraphEncoder { res =>
+      val encoded = enc(res.source)
+      encoded.subject -> encoded.graph
+    }
 
   private implicit def qrResolverEncoder: Encoder[QueryResults[Resolver]] =
     qrsEncoder[Resolver](resolverCtx) mapJson (_ addContext resolverCtxUri)

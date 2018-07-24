@@ -1,0 +1,34 @@
+{
+  "@context" : [
+    "https://bluebrain.github.io/nexus/contexts/resolver",
+    "https://bluebrain.github.io/nexus/contexts/resource"
+  ],
+  "@id" : "http://example.com/id",
+  "@type" : [
+    "InAccount",
+    "Resolver"
+  ],
+  "identities" : [
+    {
+      "@type" : "GroupRef",
+      "group" : "bbp-ou-neuroinformatics",
+      "realm" : "ldap2"
+    },
+    {
+      "@type" : "UserRef",
+      "realm" : "ldap",
+      "sub" : "dmontero"
+    }
+  ],
+  "priority" : 10,
+  "projects" : [
+    "bd024b643-84e0-4188-aa62-898aa84387d0",
+    "70eab995-fc68-4abf-8493-8d5248ba1b18"
+  ],
+  "resourceTypes": [
+    "nxv:CrossProject",
+    "nxv:Resolver"
+  ],
+  "_deprecated" : false,
+  "_rev" : 1
+}
