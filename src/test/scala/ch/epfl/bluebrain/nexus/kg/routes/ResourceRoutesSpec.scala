@@ -169,7 +169,7 @@ class ResourceRoutesSpec
 
         Post(s"/v1/resolvers/$account/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
-          responseAs[Json] shouldEqual resolverResponse()
+          responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
         }
       }
     }

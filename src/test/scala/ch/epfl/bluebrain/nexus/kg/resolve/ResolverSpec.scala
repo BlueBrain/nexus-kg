@@ -122,7 +122,7 @@ class ResolverSpec
           .value
           .removeKeys("@context")
           .addContext(resolverCtxUri)
-          .addContext(resourceCtxUri) shouldEqual jsonContentOf("/resolve/cross-project-resp.json")
+          .addContext(resourceCtxUri) should equalIgnoreArrayOrder(jsonContentOf("/resolve/cross-project-resp.json"))
       }
 
       "return the json representation for InAccountResolver" in {
@@ -135,7 +135,7 @@ class ResolverSpec
           .value
           .removeKeys("@context")
           .addContext(resolverCtxUri)
-          .addContext(resourceCtxUri) shouldEqual jsonContentOf("/resolve/in-account-resp.json")
+          .addContext(resourceCtxUri) should equalIgnoreArrayOrder(jsonContentOf("/resolve/in-account-resp.json"))
       }
     }
   }

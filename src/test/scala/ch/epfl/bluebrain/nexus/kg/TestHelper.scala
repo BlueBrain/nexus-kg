@@ -13,8 +13,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.syntax._
 import io.circe.{Json, JsonObject}
-import org.scalactic.Equality
-import shapeless.TypeCase
+import org.scalatest.matchers.{MatchResult, Matcher}
 
 trait TestHelper {
 
@@ -43,9 +42,10 @@ trait TestHelper {
 
   def uuid = UUID.randomUUID().toString
 
-  implicit val jsonEq: Equality[Json] = new Equality[Json] {
-    def sortKeys(value: Json): Json = {
+  def equalIgnoreArrayOrder(json: Json) = IgnoredArrayOrder(json)
 
+  case class IgnoredArrayOrder(json: Json) extends Matcher[Json] {
+    private def sortKeys(value: Json): Json = {
       def canonicalJson(json: Json): Json =
         json.arrayOrObject[Json](json,
                                  arr => Json.fromValues(arr.sortBy(_.hashCode()).map(canonicalJson)),
@@ -56,13 +56,8 @@ trait TestHelper {
 
       canonicalJson(value)
     }
-    val JsonCase = TypeCase[Json]
 
-    override def areEqual(a: Json, b: Any): Boolean =
-      b match {
-        case JsonCase(bJson) => sortKeys(a) == sortKeys(bJson)
-        case _               => false
-      }
+    override def apply(left: Json): MatchResult =
+      MatchResult(sortKeys(json) == sortKeys(left), "Both Json are not equal (ignoring array order)", "")
   }
-
 }

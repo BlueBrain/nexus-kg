@@ -45,7 +45,6 @@ object QueryResultEncoder {
       g.asJson(searchCtx deepMerge extraCtx, Some(mainNode))
         .getOrElse(g.asJson)
         .removeKeys("@context", "@id")
-        .removeKeys("@context", "@id")
         .addContext(searchCtxUri)
         .addContext(resourceCtxUri)
     }

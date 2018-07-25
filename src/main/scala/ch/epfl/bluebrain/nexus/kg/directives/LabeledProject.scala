@@ -13,6 +13,14 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   * @param accountRef the account reference
   */
 final case class LabeledProject(label: ProjectLabel, project: Project, accountRef: AccountRef) {
-  def ref: ProjectRef   = ProjectRef(project.uuid)
+
+  /**
+    * @return the project reference
+    */
+  def ref: ProjectRef = ProjectRef(project.uuid)
+
+  /**
+    * @return the project base used to generate IDs
+    */
   def base: AbsoluteIri = project.base
 }
