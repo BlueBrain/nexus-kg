@@ -331,10 +331,10 @@ object DistributedCache {
                               instant: Instant,
                               updateRev: Boolean): Future[Boolean] = {
       val result = for {
-        _ <- updateProject(ref, proj).withFilter(identity)
-        _ <- addProjectToAccount(ref, accountRef, instant, updateRev).withFilter(identity)
-        _ <- addAccountRef(ref, accountRef, proj.rev, updateRev).withFilter(identity)
-        r <- accountSegment(accountRef)
+        ra <- updateProject(ref, proj) if ra
+        rb <- addProjectToAccount(ref, accountRef, instant, updateRev) if rb
+        rc <- addAccountRef(ref, accountRef, proj.rev, updateRev) if rc
+        r  <- accountSegment(accountRef)
       } yield r
       result.flatMap {
         case Some(accountLabel) =>
