@@ -12,17 +12,16 @@
       "@id": "this:ResolverShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNodeOrIRI",
-      "targetClass": [
-        "nxv:Resolver",
-        "nxv:CrossProject",
-        "nxv:InAccount"
-      ],
+      "targetClass": "nxv:Resolver",
       "or": [
         {
           "node": "this:CrossProjectResolverShape"
         },
         {
           "node": "this:InAccountResolverShape"
+        },
+        {
+          "node": "this:InProjectResolverShape"
         }
       ]
     },
@@ -185,7 +184,7 @@
       ]
     },
     {
-      "@id": "this:InProjetResolverShape",
+      "@id": "this:InProjectResolverShape",
       "@type": "sh:NodeShape",
       "nodeKind": "sh:BlankNodeOrIRI",
       "sh:closed": true,
