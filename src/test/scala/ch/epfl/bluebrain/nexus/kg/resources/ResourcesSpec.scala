@@ -71,7 +71,7 @@ class ResourcesSpec
   }
 
   trait ResolverResource extends Base {
-    val schema = Latest(crossResolverSchemaUri)
+    val schema = Latest(resolverSchemaUri)
     val resolver = jsonContentOf("/resolve/cross-project.json") addContext resolverCtxUri deepMerge Json.obj(
       "@id" -> Json.fromString(id.show))
 
@@ -81,10 +81,9 @@ class ResourcesSpec
   }
 
   trait ResolverSchema extends Base {
-    val schema = Latest(shaclSchemaUri)
-    val resolver = jsonContentOf("/schemas/cross-project-resolver.json") deepMerge Json.obj(
-      "@id" -> Json.fromString(id.show))
-    val types = Set[AbsoluteIri](nxv.Schema)
+    val schema   = Latest(shaclSchemaUri)
+    val resolver = jsonContentOf("/schemas/resolver.json") deepMerge Json.obj("@id" -> Json.fromString(id.show))
+    val types    = Set[AbsoluteIri](nxv.Schema)
   }
 
   trait Attachment extends ResolverResource {
@@ -180,14 +179,11 @@ class ResourcesSpec
         */
       "create a new schema without passing the id on the call (neither on the Json)" ignore new ResolverSchema {
         private val resolverNoId = resolver removeKeys "@id"
-        println(resources.create(projectRef, base, schema, resolverNoId).value)
-        private val result      = resources.create(projectRef, base, schema, resolverNoId).value.right.value
-        private val generatedId = result.id.copy(parent = projectRef)
+        private val result       = resources.create(projectRef, base, schema, resolverNoId).value.right.value
+        private val generatedId  = result.id.copy(parent = projectRef)
         result.id.value.show should startWith(base.show)
         result shouldEqual ResourceF.simpleF(generatedId, resolverNoId, schema = schema, types = types)
-
       }
-
     }
 
     "performing update operations" should {

@@ -33,8 +33,9 @@ class AdditionalValidationSpec
     val iri          = Iri.absolute("http://example.com/id").right.value
     val projectRef   = ProjectRef("ref")
     val id           = Id(projectRef, iri)
-    val schema       = Ref(crossResolverSchemaUri)
+    val schema       = Ref(resolverSchemaUri)
     val perms        = Permissions(Read, Write)
+    val accountRef   = AccountRef("accountRef")
 
     "pass always" in {
       val validation = AdditionalValidation.pass[CId]
@@ -46,7 +47,7 @@ class AdditionalValidationSpec
       val acls: Option[FullAccessControlList] = Some(
         FullAccessControlList((UserRef("ldap", "dmontero2"), "a" / "b", perms),
                               (GroupRef("ldap2", "bbp-ou-neuroinformatics"), "c" / "d", perms)))
-      val validation = AdditionalValidation.resolver[CId](acls)
+      val validation = AdditionalValidation.resolver[CId](acls, accountRef)
       val resource   = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
       validation(id, schema, Set(nxv.CrossProject, nxv.Resolver), resource.value).value.left.value shouldBe a[
         InvalidIdentity]
@@ -54,7 +55,7 @@ class AdditionalValidationSpec
 
     "fail when the payload cannot be serialized" in {
       val acls: Option[FullAccessControlList] = Some(FullAccessControlList((Anonymous, "a" / "b", perms)))
-      val validation                          = AdditionalValidation.resolver[CId](acls)
+      val validation                          = AdditionalValidation.resolver[CId](acls, accountRef)
       val resource                            = simpleV(id, crossProject, types = Set(nxv.Resolver))
       validation(id, schema, Set(nxv.Resolver), resource.value).value.left.value shouldBe a[InvalidPayload]
     }
@@ -64,7 +65,7 @@ class AdditionalValidationSpec
         FullAccessControlList((UserRef("ldap", "dmontero"), "a" / "b", perms),
                               (UserRef("ldap", "dmontero2"), "a" / "b", perms),
                               (GroupRef("ldap2", "bbp-ou-neuroinformatics"), "c" / "d", perms)))
-      val validation = AdditionalValidation.resolver[CId](acls)
+      val validation = AdditionalValidation.resolver[CId](acls, accountRef)
       val resource   = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
       validation(id, schema, Set(nxv.Resolver, nxv.CrossProject), resource.value).value.right.value shouldEqual (())
     }

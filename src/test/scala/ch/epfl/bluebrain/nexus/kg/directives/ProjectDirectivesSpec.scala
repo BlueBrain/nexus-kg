@@ -16,8 +16,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, ProjectNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{AccountNotFound, DownstreamServiceError, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -85,41 +85,62 @@ class ProjectDirectivesSpec
         }
       }
     }
+    val label       = ProjectLabel("account", "project")
+    val projectMeta = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
+    val accountRef  = AccountRef("accountUuid")
 
     "fetch the project from the cache" in {
-      val label   = ProjectLabel("account", "project")
-      val project = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
-      when(cache.project(label)).thenReturn(Task.pure(Some(project): Option[Project]))
+
+      when(cache.project(label)).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, project)
+        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMeta, accountRef)
       }
     }
 
     "fetch the project from admin client when not present on the cache" in {
-      val label   = ProjectLabel("account", "project")
-      val project = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
       when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
-      when(client.getProject("account", "project")).thenReturn(Task.pure(Some(project): Option[Project]))
+      when(client.getProject("account", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, project)
+        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMeta, accountRef)
       }
     }
 
     "fetch the project from admin client when cache throws an error" in {
-      val label   = ProjectLabel("account", "project")
-      val project = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
       when(cache.project(label)).thenReturn(Task.raiseError(new RuntimeException))
-      when(client.getProject("account", "project")).thenReturn(Task.pure(Some(project): Option[Project]))
+      when(client.getProject("account", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, project)
+        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMeta, accountRef)
+      }
+    }
+
+    "reject when account ref not found on the cache after fetching project from admin client" in {
+      when(cache.project(label)).thenReturn(Task.raiseError(new RuntimeException))
+      when(client.getProject("account", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(None: Option[AccountRef]))
+
+      Get("/account/project") ~> projectRoute() ~> check {
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].code shouldEqual classNameOf[AccountNotFound.type]
+      }
+    }
+
+    "reject when account ref not found on the cache after fetching project from cache" in {
+      when(cache.project(label)).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(None: Option[AccountRef]))
+
+      Get("/account/project") ~> projectRoute() ~> check {
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].code shouldEqual classNameOf[AccountNotFound.type]
       }
     }
 
     "reject when not found neither in the cache nor doing IAM call" in {
-      val label = ProjectLabel("account", "project")
       when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.getProject("account", "project")).thenReturn(Task.pure(None: Option[Project]))
 

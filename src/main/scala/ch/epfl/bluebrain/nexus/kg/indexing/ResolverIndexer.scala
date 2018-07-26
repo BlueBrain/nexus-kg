@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{AccountNotFound, NotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
 import journal.Logger
@@ -41,7 +41,8 @@ private class ResolverIndexer[F[_]](resources: Resources[F], cache: DistributedC
     val result: EitherT[F, Rejection, Boolean] = for {
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
       materialized <- resources.materialize(resource)
-      resolver     <- EitherT.fromOption(Resolver(materialized), NotFound(event.id.ref))
+      accountRef   <- EitherT.fromOptionF(cache.accountRef(projectRef), AccountNotFound(projectRef))
+      resolver     <- EitherT.fromOption(Resolver(materialized, accountRef), NotFound(event.id.ref))
       applied      <- EitherT.liftF(cache.applyResolver(projectRef, resolver, event.instant))
     } yield applied
 

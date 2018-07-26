@@ -30,6 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.marshallers.{ExceptionHandling, RejectionHandling}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
+import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.ElasticDecoders.resourceIdDecoder
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
@@ -82,8 +83,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       // create resource with implicit or generated id
       (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-          complete(
-            Created -> resources.create(wrapped.project.ref, wrapped.project.base, Ref(schema), source).value.runAsync)
+          complete(Created -> resources.create(wrapped.ref, wrapped.project.base, Ref(schema), source).value.runAsync)
         }
       } ~
         pathPrefix(aliasOrCurie / aliasOrCurie)((schema, id) => resources(schema, id))
@@ -97,7 +97,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           complete(
             Created -> resources
-              .create(wrapped.project.ref, wrapped.project.base, Ref(shaclSchemaUri), source)
+              .create(wrapped.ref, wrapped.project.base, Ref(shaclSchemaUri), source)
               .value
               .runAsync)
         }
@@ -115,10 +115,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             hasPermissionInAcl(resourceCreate).apply {
               complete(
                 Created -> resources
-                  .create(wrapped.project.ref,
-                          wrapped.project.base,
-                          Ref(crossResolverSchemaUri),
-                          source.addContext(resolverCtxUri))
+                  .create(wrapped.ref, wrapped.base, Ref(resolverSchemaUri), source.addContext(resolverCtxUri))
                   .value
                   .runAsync)
             }
@@ -141,11 +138,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         } ~
         pathPrefix(aliasOrCurie) { id =>
           acls.apply { implicit acls =>
-            resources(crossResolverSchemaUri,
-                      id,
-                      withAttachment = false,
-                      withTag = false,
-                      injectUri = Some(resolverCtxUri))
+            resources(resolverSchemaUri, id, withAttachment = false, withTag = false, injectUri = Some(resolverCtxUri))
           }
         }
     }
@@ -171,18 +164,18 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     }
 
   private def listings(implicit token: Option[AuthToken]): Route =
-    (pathPrefix("resources") & project) { implicit proj =>
+    (pathPrefix("resources") & project) { implicit wrapped =>
       implicit val decoder = ElasticDecoder(
         resourceIdDecoder(
-          url"${config.http.publicUri.append("resources" / proj.label.account / proj.label.value)}".value))
+          url"${config.http.publicUri.append("resources" / wrapped.label.account / wrapped.label.value)}".value))
       implicit val cl = withTaskUnmarshaller[QueryResults[AbsoluteIri]]
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
         (deprecated, pagination) =>
-          val results = cache.views(proj.project.ref).flatMap(v => resources.list(v, deprecated, pagination))
+          val results = cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, pagination))
           complete(results.runAsync)
       } ~ (get & parameter('deprecated.as[Boolean].?) & paginated & aliasOrCuriePath & hasPermission(resourceRead)) {
         (deprecated, pagination, schema) =>
-          val results = cache.views(proj.project.ref).flatMap(v => resources.list(v, deprecated, schema, pagination))
+          val results = cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, schema, pagination))
           complete(results.runAsync)
       }
     }
@@ -191,9 +184,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
                         id: AbsoluteIri,
                         withTag: Boolean = true,
                         withAttachment: Boolean = true,
-                        injectUri: Option[AbsoluteIri] = None)(implicit
-                                                               proj: Project,
-                                                               projRef: ProjectLabel,
+                        injectUri: Option[AbsoluteIri] = None)(implicit wrapped: LabeledProject,
                                                                token: Option[AuthToken],
                                                                additional: AdditionalValidation[Task] =
                                                                  AdditionalValidation.pass): Route =
@@ -203,14 +194,17 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           // updates a resource
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
             complete(
-              resources.update(Id(proj.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri)).value.runAsync)
+              resources
+                .update(Id(wrapped.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri))
+                .value
+                .runAsync)
           }
         case None =>
           // create resource with explicit id
           (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
             complete(
               Created -> resources
-                .createWithId(Id(proj.ref, id), Ref(schema), source.addContext(injectUri))
+                .createWithId(Id(wrapped.ref, id), Ref(schema), source.addContext(injectUri))
                 .value
                 .runAsync)
           }
@@ -222,7 +216,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
             complete(
               Created -> resources
-                .tag(Id(proj.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri))
+                .tag(Id(wrapped.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri))
                 .value
                 .runAsync)
           }
@@ -231,14 +225,14 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       // deprecate a resource
       (delete & projectNotDeprecated & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
         (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-          complete(resources.deprecate(Id(proj.ref, id), rev, Some(Ref(schema))).value.runAsync)
+          complete(resources.deprecate(Id(wrapped.ref, id), rev, Some(Ref(schema))).value.runAsync)
         }
       } ~
       (pathPrefix("attachments" / Segment) & evalBool(withAttachment) & projectNotDeprecated) { filename =>
         // remove a resource attachment
         (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-            complete(resources.unattach(Id(proj.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
+            complete(resources.unattach(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
           }
         } ~
           // add an attachment to resources
@@ -249,7 +243,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
                   val description = BinaryDescription(filename, metadata.contentType.value)
                   complete(
                     resources
-                      .attach(Id(proj.ref, id), rev, Some(Ref(schema)), description, byteSource)
+                      .attach(Id(wrapped.ref, id), rev, Some(Ref(schema)), description, byteSource)
                       .value
                       .runAsync)
               }
@@ -262,13 +256,13 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
             (revOpt, tagOpt) match {
               case (None, None) =>
-                complete(resources.fetch(Id(proj.ref, id), Some(Ref(schema))).materializeRun)
+                complete(resources.fetch(Id(wrapped.ref, id), Some(Ref(schema))).materializeRun)
               case (Some(_), Some(_)) =>
                 reject(simultaneousParamsRejection)
               case (Some(rev), _) =>
-                complete(resources.fetch(Id(proj.ref, id), rev, Some(Ref(schema))).materializeRun)
+                complete(resources.fetch(Id(wrapped.ref, id), rev, Some(Ref(schema))).materializeRun)
               case (_, Some(tag)) =>
-                complete(resources.fetch(Id(proj.ref, id), tag, Some(Ref(schema))).materializeRun)
+                complete(resources.fetch(Id(wrapped.ref, id), tag, Some(Ref(schema))).materializeRun)
             }
           }
         } ~
@@ -277,12 +271,12 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             (get & callerIdentity & hasPermission(resourceRead)) { implicit ident =>
               val result = (revOpt, tagOpt) match {
                 case (None, None) =>
-                  resources.fetchAttachment(Id(proj.ref, id), Some(Ref(schema)), filename).toEitherRun
+                  resources.fetchAttachment(Id(wrapped.ref, id), Some(Ref(schema)), filename).toEitherRun
                 case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrAttachment)
                 case (Some(rev), _) =>
-                  resources.fetchAttachment(Id(proj.ref, id), rev, Some(Ref(schema)), filename).toEitherRun
+                  resources.fetchAttachment(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).toEitherRun
                 case (_, Some(tag)) =>
-                  resources.fetchAttachment(Id(proj.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
+                  resources.fetchAttachment(Id(wrapped.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
               }
               onSuccess(result) {
                 case Left(rej) => reject(rej)
@@ -314,8 +308,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       resource.value.map[RejectionOrAttachment](Right.apply).runAsync
   }
 
-  private implicit def resolverAclValidation(implicit acls: Option[FullAccessControlList]): AdditionalValidation[Task] =
-    AdditionalValidation.resolver(acls)
+  private implicit def resolverAclValidation(implicit acls: Option[FullAccessControlList],
+                                             wrapped: LabeledProject): AdditionalValidation[Task] =
+    AdditionalValidation.resolver(acls, wrapped.accountRef)
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
     val filename = encodedFilenameOrElse(info, "attachment")
@@ -327,10 +322,6 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private def encodedFilenameOrElse(info: Attachment.BinaryAttributes, value: => String): String =
     Try(URLEncoder.encode(info.filename, "UTF-8")).getOrElse(value)
-
-  private implicit class ProjectSyntax(proj: Project) {
-    def ref: ProjectRef = ProjectRef(proj.uuid)
-  }
 
   private implicit class JsonRoutesSyntax(json: Json) {
     def addContext(uriOpt: Option[AbsoluteIri]): Json = uriOpt.map(uri => json.addContext(uri)).getOrElse(json)
@@ -350,8 +341,11 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     jsonResult deepMerge Json.obj("@context" -> res.value.source.contextValue).addContext(resourceCtxUri)
   }
 
-  private implicit def qrResolverGraphEncoder: GraphEncoder[QueryResult[Resolver]] =
-    GraphEncoder(res => IriNode(res.source.id) -> res.source.asGraph)
+  private implicit def qqResolverEncoder(implicit enc: GraphEncoder[Resolver]): GraphEncoder[QueryResult[Resolver]] =
+    GraphEncoder { res =>
+      val encoded = enc(res.source)
+      encoded.subject -> encoded.graph
+    }
 
   private implicit def qrResolverEncoder: Encoder[QueryResults[Resolver]] =
     qrsEncoder[Resolver](resolverCtx) mapJson (_ addContext resolverCtxUri)

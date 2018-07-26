@@ -26,7 +26,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Schemas.{crossResolverSchemaUri, shaclSchemaUri}
+import ch.epfl.bluebrain.nexus.kg.config.Schemas.{resolverSchemaUri, shaclSchemaUri}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -93,12 +93,15 @@ class ResourceRoutesSpec
     val project     = genString(length = 4)
     val projectMeta = Project("name", project, Map("nxv" -> nxv.base), nxv.projects, 1L, false, uuid)
     val projectRef  = ProjectRef(projectMeta.uuid)
+    val accountRef  = AccountRef(uuid)
     val genUuid     = uuid
     val iri         = nxv.withPath(genUuid)
     val id          = Id(projectRef, iri)
 
     when(cache.project(ProjectLabel(account, project)))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+    when(cache.accountRef(projectRef))
+      .thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
     when(iamClient.getCaller(filterGroups = true))
       .thenReturn(Task.pure(AuthenticatedCaller(token.value, user, Set.empty)))
     when(adminClient.getProjectAcls(account, project, parents = true, self = true))
@@ -111,7 +114,7 @@ class ResourceRoutesSpec
   }
 
   abstract class Schema(perms: Permissions = manage) extends Context(perms) {
-    val schema    = jsonContentOf("/schemas/cross-project-resolver.json")
+    val schema    = jsonContentOf("/schemas/resolver.json")
     val schemaRef = Ref(shaclSchemaUri)
 
     def schemaResponse(deprecated: Boolean = false): Json =
@@ -132,13 +135,14 @@ class ResourceRoutesSpec
   abstract class Resolver(perms: Permissions = manage) extends Context(perms) {
     val resolver  = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj("@id" -> Json.fromString(id.show))
     val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
-    val schemaRef = Ref(crossResolverSchemaUri)
+    val schemaRef = Ref(resolverSchemaUri)
 
     def resolverResponse(deprecated: Boolean = false): Json =
       Json
         .obj(
           "@id"            -> Json.fromString(s"nxv:$genUuid"),
-          "_constrainedBy" -> Json.fromString(crossResolverSchemaUri.show),
+          "@type"          -> Json.arr(Json.fromString("nxv:CrossProject"), Json.fromString("nxv:Resolver")),
+          "_constrainedBy" -> Json.fromString(resolverSchemaUri.show),
           "_createdAt"     -> Json.fromString(clock.instant().toString),
           "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
           "_deprecated"    -> Json.fromBoolean(deprecated),
@@ -165,11 +169,7 @@ class ResourceRoutesSpec
 
         Post(s"/v1/resolvers/$account/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
-          val response = responseAs[Json]
-          response.removeKeys("@type") shouldEqual resolverResponse()
-          response.hcursor.downField("@type").focus.flatMap(_.asArray).value should contain theSameElementsAs (Vector(
-            Json.fromString("nxv:CrossProject"),
-            Json.fromString("nxv:Resolver")))
+          responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
         }
       }
     }

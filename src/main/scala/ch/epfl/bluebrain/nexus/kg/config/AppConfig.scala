@@ -152,11 +152,11 @@ object AppConfig {
   }
 
   val iriResolution = Map(
-    tagCtxUri              -> tagCtx,
-    resourceCtxUri         -> resourceCtx,
-    shaclCtxUri            -> shaclCtx,
-    resolverCtxUri         -> resolverCtx,
-    crossResolverSchemaUri -> crossResolverSchema
+    tagCtxUri         -> tagCtx,
+    resourceCtxUri    -> resourceCtx,
+    shaclCtxUri       -> shaclCtx,
+    resolverCtxUri    -> resolverCtx,
+    resolverSchemaUri -> resolverSchema
   )
 
   implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig           = appConfig.sparql

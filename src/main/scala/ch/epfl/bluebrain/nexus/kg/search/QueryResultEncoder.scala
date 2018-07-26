@@ -14,13 +14,11 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.{Encoder, Json}
 
 object QueryResultEncoder {
 
-  //not used, but without it Jena will embed everything in @graph
-  private val mainNode = url"http://localhost"
+  private val mainNode = blank
 
   implicit val encoderQr: GraphEncoder[QueryResult[AbsoluteIri]] = GraphEncoder {
     case UnscoredQueryResult(iri) =>

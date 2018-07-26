@@ -35,6 +35,14 @@ trait DistributedCache[F[_]] {
   def account(ref: AccountRef): F[Option[Account]]
 
   /**
+    * Looks up the state of the argument account ref.
+    *
+    * @param ref the project reference
+    * @return Some(accountRef) if there is an account reference with state and None if there's no information on the account reference state
+    */
+  def accountRef(ref: ProjectRef): F[Option[AccountRef]]
+
+  /**
     * Adds an account.
     *
     * @param ref       the account reference
@@ -222,6 +230,9 @@ object DistributedCache {
   private[async] def accountKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[Account]]] =
     LWWRegisterKey("account_state_" + ref.id)
 
+  private[async] def accountRefKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[AccountRef]]] =
+    LWWRegisterKey("account_key_state_" + ref.id)
+
   private[async] def projectKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[Project]]] =
     LWWRegisterKey("project_state_" + ref.id)
 
@@ -276,6 +287,21 @@ object DistributedCache {
     override def account(ref: AccountRef): Future[Option[Account]] =
       getOrElse(accountKey(ref), none[Account])
 
+    override def accountRef(ref: ProjectRef): Future[Option[AccountRef]] =
+      getOrElse(accountRefKey(ref), none[AccountRef])
+
+    private def addAccountRef(ref: ProjectRef, accRef: AccountRef, rev: Long, updateRev: Boolean): Future[Boolean] = {
+      accountRef(ref).flatMap {
+        case Some(_) => Future.successful(updateRev)
+        case _ =>
+          val empty  = LWWRegister(RevisionedValue[Option[AccountRef]](0L, None))
+          val value  = RevisionedValue[Option[AccountRef]](rev, Some(accRef))
+          val update = Update(accountRefKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+          (replicator ? update).flatMap(
+            handleBooleanUpdate("Timed out while waiting for add account ref quorum response"))
+      }
+    }
+
     private def accountSegment(ref: AccountRef): Future[Option[String]] =
       getOrElse(accountSegmentInverseKey(ref), none[String])
 
@@ -299,25 +325,26 @@ object DistributedCache {
       (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
     }
 
-    private def updateProjectLabel(ref: ProjectRef,
-                                   accountRef: AccountRef,
-                                   proj: Project,
-                                   instant: Instant,
-                                   updateRev: Boolean): Future[Boolean] = {
-      updateProject(ref, proj).withFilter(identity).flatMap { _ =>
-        addProjectToAccount(ref, accountRef, instant, updateRev).withFilter(identity).flatMap { _ =>
-          accountSegment(accountRef).flatMap {
-            case Some(accountLabel) =>
-              val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
-              val value = RevisionedValue[Option[ProjectRef]](proj.rev, Some(ref))
-              val update = Update(projectSegmentKey(ProjectLabel(accountLabel, proj.label)),
-                                  empty,
-                                  WriteMajority(tm.duration))(_.withValue(value))
-              (replicator ? update).flatMap(
-                handleBooleanUpdate("Timed out while waiting for add project quorum response"))
-            case _ => Future.successful(false)
-          }
-        }
+    private def updateProject(ref: ProjectRef,
+                              accountRef: AccountRef,
+                              proj: Project,
+                              instant: Instant,
+                              updateRev: Boolean): Future[Boolean] = {
+      val result = for {
+        ra <- updateProject(ref, proj) if ra
+        rb <- addProjectToAccount(ref, accountRef, instant, updateRev) if rb
+        rc <- addAccountRef(ref, accountRef, proj.rev, updateRev) if rc
+        r  <- accountSegment(accountRef)
+      } yield r
+      result.flatMap {
+        case Some(accountLabel) =>
+          val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
+          val value = RevisionedValue[Option[ProjectRef]](proj.rev, Some(ref))
+          val update = Update(projectSegmentKey(ProjectLabel(accountLabel, proj.label)),
+                              empty,
+                              WriteMajority(tm.duration))(_.withValue(value))
+          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+        case _ => Future.successful(false)
       }
     }
 
@@ -369,8 +396,8 @@ object DistributedCache {
                             instant: Instant,
                             updateRev: Boolean): Future[Boolean] =
       project(ref).flatMap {
-        case None                                     => updateProjectLabel(ref, accountRef, proj, instant, updateRev)
-        case Some(p) if updateRev && proj.rev > p.rev => updateProjectLabel(ref, accountRef, proj, instant, updateRev)
+        case None                                     => updateProject(ref, accountRef, proj, instant, updateRev)
+        case Some(p) if updateRev && proj.rev > p.rev => updateProject(ref, accountRef, proj, instant, updateRev)
         case _                                        => Future.successful(false)
       }
 
@@ -510,6 +537,9 @@ object DistributedCache {
 
       override def account(ref: AccountRef): Task[Option[Account]] =
         Task.deferFuture(underlying.account(ref))
+
+      override def accountRef(ref: ProjectRef): Task[Option[AccountRef]] =
+        Task.deferFuture(underlying.accountRef(ref))
 
       override def addAccount(ref: AccountRef, account: Account, updateRev: Boolean): Task[Boolean] =
         Task.deferFuture(underlying.addAccount(ref, account, updateRev))
