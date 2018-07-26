@@ -117,6 +117,13 @@ object Rejection {
   final case class AlreadyExists(ref: Ref) extends Rejection(s"Resource '${ref.show}' already exists.")
 
   /**
+    * Signals an attempt to create a resource with a type that already exists
+    *
+    * @param tpe the type which already exists
+    */
+  final case class AlreadyExistsType(tpe: String) extends Rejection(s"Resource with type '$tpe' already exists.")
+
+  /**
     * Signals that a resource has an illegal (transitive) context value.
     *
     * @param refs the import value stack

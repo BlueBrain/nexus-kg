@@ -125,7 +125,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         // list resolvers with implicit or generated id
         (get & parameter('deprecated.as[Boolean].?) & pathEndOrSingleSlash) { deprecated =>
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-            val resolvers = cache.resolvers(wrapped.label).map { r =>
+            val resolvers = cache.resolvers(wrapped.ref).map { r =>
               val filtered = deprecated
                 .map(d => r.filter(_.deprecated == d))
                 .getOrElse(r)
@@ -310,7 +310,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private implicit def resolverAclValidation(implicit acls: Option[FullAccessControlList],
                                              wrapped: LabeledProject): AdditionalValidation[Task] =
-    AdditionalValidation.resolver(acls, wrapped.accountRef)
+    AdditionalValidation.resolver(acls, wrapped.accountRef, cache.resolvers)
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
     val filename = encodedFilenameOrElse(info, "attachment")
