@@ -21,7 +21,7 @@ object ResolverEncoder {
     case resolver @ CrossProjectResolver(resourceTypes, projects, identities, _, id, _, _, _) =>
       val s             = IriNode(id)
       val projectsGraph = Graph(projects.map(r => (s: IriOrBNode, nxv.projects, r.id: Node)))
-      s -> (resolver.mainGraph(nxv.InAccount) ++ resolver.graphFor(identities) ++ resolver.graphFor(resourceTypes) ++ projectsGraph)
+      s -> (resolver.mainGraph(nxv.CrossProject) ++ resolver.graphFor(identities) ++ resolver.graphFor(resourceTypes) ++ projectsGraph)
     case resolver @ InAccountResolver(resourceTypes, identities, _, _, id, _, _, _) =>
       val s = IriNode(id)
       s -> (resolver.mainGraph(nxv.InAccount) ++ resolver.graphFor(identities) ++ resolver.graphFor(resourceTypes))

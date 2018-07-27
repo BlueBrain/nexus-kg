@@ -3,8 +3,8 @@
   "@type": ["Resolver", "CrossProject"],
   "resourceTypes": ["nxv:Schema"],
   "projects": [
-    "account1/project1",
-    "account1/project2"
+    "70eab995-fc68-4abf-8493-8d5248ba1b18",
+    "bd024b643-84e0-4188-aa62-898aa84387d0"
   ],
   "identities": [
     {
