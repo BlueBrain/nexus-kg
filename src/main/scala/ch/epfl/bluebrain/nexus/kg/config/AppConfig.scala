@@ -4,6 +4,7 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -103,7 +104,7 @@ object AppConfig {
     *
     * @param baseUri base URI of IAM service
     */
-  final case class IamConfig(baseUri: Uri)
+  final case class IamConfig(baseUri: Uri, serviceAccountToken: Option[AuthToken])
 
   /**
     * Kafka config

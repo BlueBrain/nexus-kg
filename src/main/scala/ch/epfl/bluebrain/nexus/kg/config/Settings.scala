@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.config
 import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
+import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -24,6 +25,9 @@ class Settings(config: Config) extends Extension {
 
   private implicit val absoluteIriConverter: ConfigConvert[AbsoluteIri] =
     ConfigConvert.viaString[AbsoluteIri](catchReadError(s => Iri.absolute(s).toOption.get), _.toString)
+
+  private implicit val authTokenConverter: ConfigConvert[AuthToken] =
+    ConfigConvert.viaString[AuthToken](catchReadError(s => AuthToken(s)), _.value)
 
   val appConfig = AppConfig(
     loadConfigOrThrow[Description](config, "app.description"),

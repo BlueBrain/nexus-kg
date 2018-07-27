@@ -22,7 +22,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with EitherValues {
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
       appConfig.attachments shouldEqual AttachmentsConfig(Iri.absolute("file:///tmp").right.value, "SHA-256")
-      appConfig.iam shouldEqual IamConfig("http://localhost:8080/iam")
+      appConfig.iam shouldEqual IamConfig("http://localhost:8080/iam", None)
       appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       appConfig.elastic shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
