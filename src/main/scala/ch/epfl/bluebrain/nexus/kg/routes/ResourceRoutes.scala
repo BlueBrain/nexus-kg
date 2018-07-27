@@ -310,7 +310,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private implicit def resolverAclValidation(implicit acls: Option[FullAccessControlList],
                                              wrapped: LabeledProject): AdditionalValidation[Task] =
-    AdditionalValidation.resolver(acls, wrapped.accountRef)
+    AdditionalValidation.resolver(acls, wrapped.accountRef, cache.projectRef)
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
     val filename = encodedFilenameOrElse(info, "attachment")

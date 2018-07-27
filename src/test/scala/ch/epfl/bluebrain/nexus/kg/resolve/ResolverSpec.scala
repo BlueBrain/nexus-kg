@@ -54,7 +54,7 @@ class ResolverSpec
       "return a CrossProjectResolver" in {
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val projects =
-          Set(ProjectRef("70eab995-fc68-4abf-8493-8d5248ba1b18"), ProjectRef("bd024b643-84e0-4188-aa62-898aa84387d0"))
+          Set(ProjectRef("account1/project1"), ProjectRef("account1/project2"))
         val resolver = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectResolver]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
@@ -106,7 +106,7 @@ class ResolverSpec
 
       "return the json representation for CrossProjectResolver" in {
         val projects =
-          Set(ProjectRef("70eab995-fc68-4abf-8493-8d5248ba1b18"), ProjectRef("bd024b643-84e0-4188-aa62-898aa84387d0"))
+          Set(ProjectRef("account1/project1"), ProjectRef("account1/project2"))
         val resolver = CrossProjectResolver(Set(nxv.Resolver, nxv.CrossProject),
                                             projects,
                                             identities,
