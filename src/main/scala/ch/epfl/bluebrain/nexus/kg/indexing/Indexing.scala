@@ -80,8 +80,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
               case true =>
                 cache.addResolver(ProjectRef(uuid),
                                   InProjectResolver(ProjectRef(uuid), nxv.InProject.value, 1L, deprecated = false, 1),
-                                  meta.instant,
-                                  updateRev = false)
+                )
               case false => Task(false)
             }
             .flatMap {
