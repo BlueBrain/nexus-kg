@@ -28,7 +28,7 @@ trait AdditionalValidation[F[_]] {
     * @param schema the schema that this resource conforms to
     * @param types  the collection of known types of this resource
     * @param value  the resource value
-    * @return a Left(rejection) when the validation does not pass or Right(()) when it does on the effect type ''F''
+    * @return a Left(rejection) when the validation does not pass or Right(value) when it does on the effect type ''F''
     */
   def apply(id: ResId,
             schema: Ref,
@@ -40,7 +40,7 @@ object AdditionalValidation {
 
   /**
     * @tparam F the monadic effect type
-    * @return a new validation that always returns Right(()) on the provided effect type
+    * @return a new validation that always returns Right(value) on the provided effect type
     */
   final def pass[F[_]: Applicative]: AdditionalValidation[F] =
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: ResourceF.Value) => EitherT.rightT(value)
