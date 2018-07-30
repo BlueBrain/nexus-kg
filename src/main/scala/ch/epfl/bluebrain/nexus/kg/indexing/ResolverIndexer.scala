@@ -43,7 +43,7 @@ private class ResolverIndexer[F[_]](resources: Resources[F], cache: DistributedC
       materialized <- resources.materialize(resource)
       accountRef   <- EitherT.fromOptionF(cache.accountRef(projectRef), AccountNotFound(projectRef))
       resolver     <- EitherT.fromOption(Resolver(materialized, accountRef), NotFound(event.id.ref))
-      applied      <- EitherT.liftF(cache.applyResolver(projectRef, resolver, event.instant))
+      applied      <- EitherT.liftF(cache.applyResolver(projectRef, resolver))
     } yield applied
 
     result.value

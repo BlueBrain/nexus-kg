@@ -5,12 +5,14 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.testkit.{DefaultTimeout, TestKit}
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
@@ -95,16 +97,30 @@ class DistributedCacheSpec
 
       val projectId = base + "some-label/some-label-proj"
       val resolver  = InProjectResolver(ref, projectId, 1L, false, 10)
-      cache.addResolver(ref, resolver, Instant.now, true).futureValue shouldEqual true
+
+      val resolver2 = CrossProjectResolver(Set(nxv.Schema.value),
+                                           Set(ProjectRef(genUUID)),
+                                           List(Anonymous),
+                                           ref,
+                                           url"http://cross-project-resolver.com".value,
+                                           1L,
+                                           false,
+                                           1)
+
+      cache.addResolver(ref, resolver).futureValue shouldEqual true
       cache.resolvers(ref).futureValue shouldEqual Set(resolver)
-      cache.resolvers(ProjectLabel("some-label", "some-label-proj")).futureValue shouldEqual Set(resolver)
-      cache.resolvers(ProjectLabel("some-label", "wrong")).futureValue shouldEqual Set.empty[Resolver]
-      cache.applyResolver(ref, resolver.copy(rev = 2L), Instant.now).futureValue shouldEqual true
-      cache.resolvers(ref).futureValue shouldEqual Set(resolver, resolver.copy(rev = 2L))
-      cache.addResolver(ref, resolver.copy(rev = 3L), Instant.now, false).futureValue shouldEqual false
-      cache.resolvers(ref).futureValue shouldEqual Set(resolver, resolver.copy(rev = 2L))
-      cache.removeResolver(ref, projectId, Instant.now).futureValue shouldEqual true
-      cache.resolvers(ref).futureValue shouldEqual Set.empty[Resolver]
+
+      cache.applyResolver(ref, resolver.copy(rev = 2L)).futureValue shouldEqual true
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver.copy(rev = 2L))
+
+      cache.addResolver(ref, resolver2).futureValue shouldEqual true
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver.copy(rev = 2L), resolver2)
+
+      cache.addResolver(ref, resolver.copy(rev = 1L)).futureValue shouldEqual true
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver.copy(rev = 2L), resolver2)
+
+      cache.removeResolver(ref, projectId, 3L).futureValue shouldEqual true
+      cache.resolvers(ref).futureValue shouldEqual Set(resolver2)
     }
 
     "handle views life-cycle" in {

@@ -125,7 +125,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         // list resolvers with implicit or generated id
         (get & parameter('deprecated.as[Boolean].?) & pathEndOrSingleSlash) { deprecated =>
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-            val resolvers = cache.resolvers(wrapped.label).map { r =>
+            val resolvers = cache.resolvers(ProjectRef(wrapped.project.uuid)).map { r =>
               val filtered = deprecated
                 .map(d => r.filter(_.deprecated == d))
                 .getOrElse(r)
