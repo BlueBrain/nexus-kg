@@ -51,6 +51,7 @@ class MultiProjectResolutionSpec
 
   before {
     Mockito.reset(resources)
+    Mockito.reset(adminClient)
     when(adminClient.getProjectAcls(anyString, anyString, is(true), is(false))(is(saToken)))
       .thenReturn(
         Some(FullAccessControlList((group, Address("some/path"), Permissions(Permission("resources/manage"))))))
@@ -59,18 +60,23 @@ class MultiProjectResolutionSpec
   "A MultiProjectResolution" should {
 
     "look in all projects to resolve a resource" in {
-      when(resources.fetch(Id(proj1.ref, resId), None)).thenReturn(OptionT.none[CId, Resource])
-      when(resources.fetch(Id(proj2.ref, resId), None)).thenReturn(OptionT.none[CId, Resource])
+      val id1 = Id(proj1.ref, resId)
+      when(resources.fetch(id1, None)).thenReturn(OptionT.none[CId, Resource])
 
-      val id    = Id(proj3.ref, resId)
-      val value = simpleF(id, genJson, types = types)
-      when(resources.fetch(id, None)).thenReturn(OptionT.some[CId](value))
+      val id2 = Id(proj2.ref, resId)
+      when(resources.fetch(id2, None)).thenReturn(OptionT.none[CId, Resource])
+
+      val id3   = Id(proj3.ref, resId)
+      val value = simpleF(id3, genJson, types = types)
+      when(resources.fetch(id3, None)).thenReturn(OptionT.some[CId](value))
 
       resolution.resolve(Latest(resId)).value shouldEqual value
       resolution.resolveAll(Latest(resId)) shouldEqual List(value)
+      verify(resources, times(2)).fetch(id1, None)
+      verify(resources, times(2)).fetch(id2, None)
     }
 
-    "look in all projects to resolve all resources" in {
+    "short-circuit project traversal when possible" in {
       val id1    = Id(proj1.ref, resId)
       val value1 = simpleF(id1, genJson, types = types)
       when(resources.fetch(id1, None)).thenReturn(OptionT.some[CId](value1))
@@ -83,6 +89,9 @@ class MultiProjectResolutionSpec
       val value3 = simpleF(id3, genJson, types = types)
       when(resources.fetch(id3, None)).thenReturn(OptionT.some[CId](value3))
 
+      resolution.resolve(Latest(resId)) shouldEqual Some(value1)
+      verify(resources, times(0)).fetch(id2, None)
+      verify(resources, times(0)).fetch(id3, None)
       resolution.resolveAll(Latest(resId)) shouldEqual List(value1, value2, value3)
     }
 
@@ -103,6 +112,32 @@ class MultiProjectResolutionSpec
       verify(resources, times(0)).fetch(id3, None)
       resolution.resolveAll(Latest(resId)) shouldEqual List(value2)
       verify(resources, times(1)).fetch(id3, None)
+    }
+
+    "filter results according to the resolvers' identities" in {
+      Mockito.reset(adminClient)
+      when(adminClient.getProjectAcls(is(proj1.account), is(proj1.value), is(true), is(false))(is(saToken)))
+        .thenReturn(Some(FullAccessControlList(
+          (GroupRef("ldap2", "bbp-ou-nexus"), Address("some/path"), Permissions(Permission("resources/manage"))))))
+      when(adminClient.getProjectAcls(is(proj2.account), is(proj2.value), is(true), is(false))(is(saToken)))
+        .thenReturn(Some(FullAccessControlList(
+          (UserRef("ldap", "dmontero"), Address("some/path"), Permissions(Permission("resources/read"))))))
+      when(adminClient.getProjectAcls(is(proj3.account), is(proj3.value), is(true), is(false))(is(saToken)))
+        .thenReturn(None)
+      val id1    = Id(proj1.ref, resId)
+      val value1 = simpleF(id1, genJson, types = types)
+      when(resources.fetch(id1, None)).thenReturn(OptionT.some[CId](value1))
+
+      val id2    = Id(proj2.ref, resId)
+      val value2 = simpleF(id2, genJson, types = types)
+      when(resources.fetch(id2, None)).thenReturn(OptionT.some[CId](value2))
+
+      val id3    = Id(proj3.ref, resId)
+      val value3 = simpleF(id3, genJson, types = types)
+      when(resources.fetch(id3, None)).thenReturn(OptionT.some[CId](value3))
+
+      resolution.resolve(Latest(resId)) shouldEqual Some(value2)
+      resolution.resolveAll(Latest(resId)) shouldEqual List(value2)
     }
 
     "return none if the resource is not found in any project" in {

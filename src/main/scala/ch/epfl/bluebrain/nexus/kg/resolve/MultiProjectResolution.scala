@@ -31,14 +31,21 @@ class MultiProjectResolution[F[_]](
   private val resourceRead = Permissions(Permission("resources/read"), Permission("resources/manage"))
 
   override def resolve(ref: Ref): F[Option[Resource]] = projects.flatMap { set =>
-    collectFirstM(set.toList)(project => hasPermission(project).flatMap(_ => resolveInProject(ref, project)))
+    collectFirstM(set.toList) { project =>
+      hasPermission(project).flatMap {
+        case None => F.pure(None)
+        case _    => resolveInProject(ref, project)
+      }
+    }
   }
 
   override def resolveAll(ref: Ref): F[List[Resource]] = projects.flatMap { set =>
     val traversal =
       set.toList.map { project =>
-        val resource = hasPermission(project).flatMap(_ => resolveInProject(ref, project))
-        resource.map(_.toList)
+        hasPermission(project).flatMap[List[Resource]] {
+          case None => F.pure(Nil)
+          case _    => resolveInProject(ref, project).map(_.toList)
+        }
       }
     traversal.flatSequence
   }
