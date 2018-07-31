@@ -24,7 +24,7 @@ class ResourceFSpec extends WordSpecLike with Matchers with EitherValues with Te
 
   "A ResourceF" should {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-    implicit val iamConfig    = IamConfig("http://iam.example.com")
+    implicit val iamConfig    = IamConfig("http://iam.example.com", None)
     val identity: Identity    = UserRef("someRealm", "dmontero")
     val userIri               = Iri.absolute(s"${iamConfig.baseUri}/realms/someRealm/users/dmontero").right.value
     val anonIri               = Iri.absolute(s"${iamConfig.baseUri}/anonymous").right.value

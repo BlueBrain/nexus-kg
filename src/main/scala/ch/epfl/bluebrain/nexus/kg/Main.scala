@@ -93,7 +93,8 @@ object Main {
     implicit val store             = new AttachmentStore[Task, AkkaIn, AkkaOut]
     implicit val indexers          = clients
     implicit val cache             = DistributedCache.task()
-    implicit val projectResolution = ProjectResolution.task(cache)
+    implicit val saToken           = appConfig.iam.serviceAccountToken
+    implicit val projectResolution = ProjectResolution.task(cache, clients.adminClient)
     val resources: Resources[Task] = Resources[Task]
     val resourceRoutes             = ResourceRoutes(resources).routes
     val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
