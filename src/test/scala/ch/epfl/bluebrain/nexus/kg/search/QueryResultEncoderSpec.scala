@@ -1,20 +1,20 @@
 package ch.epfl.bluebrain.nexus.kg.search
 
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import org.scalatest.{Matchers, WordSpecLike}
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import io.circe.syntax._
+import org.scalatest.{Matchers, WordSpecLike}
 
 class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources {
 
-  implicit val orderedKeys = OrderedKeys(List("@context", "total", "maxScore", "results", "resultId", "score", ""))
+  implicit val orderedKeys = AppConfig.orderedKeys
   "QueryResultsEncoder" should {
     "encode ScoredQueryResults" in {
       val results: QueryResults[AbsoluteIri] = ScoredQueryResults[AbsoluteIri](

@@ -12,6 +12,7 @@ import akka.util.Timeout
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
+import ch.epfl.bluebrain.nexus.kg.async.RegisterValue._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve._
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -155,7 +156,6 @@ trait DistributedCache[F[_]] {
     *
     * @param ref      the project reference
     * @param resolver the resolver
-    * @param instant  the instant used to merge the register value
     * @return true if an update has taken place, false otherwise
     */
   def applyResolver(ref: ProjectRef, resolver: Resolver): F[Boolean] =
@@ -252,6 +252,7 @@ object DistributedCache {
     private implicit val node: Cluster        = Cluster(as)
 
     private implicit def tsClock[A]: Clock[TimestampedValue[A]] = TimestampedValue.timestampedValueClock
+    private implicit def rvClock[A]: Clock[RevisionedValue[A]]  = RevisionedValue.revisionedValueClock
 
     private def update(ref: AccountRef, ac: Account) = {
 
@@ -408,7 +409,7 @@ object DistributedCache {
     override def resolvers(ref: ProjectRef): Future[Set[Resolver]] =
       getOrElse(projectResolversKey(ref), Set.empty[Resolver])
 
-    private def getOrElse[T, K <: RegisteredValue[T]](f: => LWWRegisterKey[K], default: => T): Future[T] =
+    private def getOrElse[T, K <: RegisterValue[T]](f: => LWWRegisterKey[K], default: => T): Future[T] =
       (replicator ? Get(f, ReadLocal, None)).map {
         case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(f).value.value
         case NotFound(_, _)                       => default

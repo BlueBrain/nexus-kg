@@ -26,7 +26,7 @@ object syntax {
       case UserRef(realm, sub)           => url"${iamConfig.baseUri.append("realms" / realm / "users" / sub)}"
       case GroupRef(realm, group)        => url"${iamConfig.baseUri.append("realms" / realm / "groups" / group)}"
       case AuthenticatedRef(Some(realm)) => url"${iamConfig.baseUri.append("realms" / realm / "authenticated")}"
-      case AuthenticatedRef(_)           => url"${iamConfig.baseUri.append("realms" / "authenticated")}"
+      case AuthenticatedRef(_)           => url"${iamConfig.baseUri.append(Path("authenticated"))}"
       case Anonymous                     => url"${iamConfig.baseUri.append(Path("anonymous"))}"
     }
   }

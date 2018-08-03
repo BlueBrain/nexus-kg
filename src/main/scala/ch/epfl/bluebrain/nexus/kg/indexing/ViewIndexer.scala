@@ -63,6 +63,7 @@ object ViewIndexer {
     * @param cache     the distributed cache
     * @param pluginId  the persistence query plugin id to query the event log
     */
+  // $COVERAGE-OFF$
   final def start(resources: Resources[Task], cache: DistributedCache[Task], pluginId: String)(
       implicit as: ActorSystem,
       s: Scheduler): ActorRef = {
@@ -74,4 +75,5 @@ object ViewIndexer {
       name = "view-indexer"
     )
   }
+  // $COVERAGE-ON$
 }

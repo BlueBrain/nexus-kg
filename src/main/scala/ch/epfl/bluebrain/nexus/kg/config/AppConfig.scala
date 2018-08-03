@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.config
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -157,8 +158,32 @@ object AppConfig {
     resourceCtxUri    -> resourceCtx,
     shaclCtxUri       -> shaclCtx,
     resolverCtxUri    -> resolverCtx,
+    viewCtxUri        -> viewCtx,
     resolverSchemaUri -> resolverSchema
   )
+
+  val orderedKeys = OrderedKeys(
+    List(
+      "@context",
+      "@id",
+      "@type",
+      "code",
+      "message",
+      "details",
+      "total",
+      "maxScore",
+      "results",
+      "resultId",
+      "score",
+      "",
+      "_constrainedBy",
+      "_createdAt",
+      "_createdBy",
+      "_updatedAt",
+      "_updatedBy",
+      "_rev",
+      "_deprecated"
+    ))
 
   implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig           = appConfig.sparql
   implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig         = appConfig.elastic

@@ -1,0 +1,34 @@
+{
+  "@context": [
+    "https://bluebrain.github.io/nexus/contexts/search",
+    "https://bluebrain.github.io/nexus/contexts/resource",
+    "https://bluebrain.github.io/nexus/contexts/resolver"
+  ],
+  "total": 2,
+  "results": [
+    {
+      "@id": "nxv:realm",
+      "@type": [
+        "Resolver",
+        "InAccount"
+      ],
+      "identities": {
+        "@type": "Anonymous"
+      },
+      "priority": 10,
+      "resourceTypes": "nxv:Schema",
+      "_rev": 2,
+      "_deprecated": false
+    },
+    {
+      "@id": "nxv:projects",
+      "@type": [
+        "InProject",
+        "Resolver"
+      ],
+      "priority": 20,
+      "_rev": 1,
+      "_deprecated": false
+    }
+  ]
+}

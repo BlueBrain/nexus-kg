@@ -26,22 +26,22 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "0.2.7"
-val iamVersion                  = "0.10.21"
+val iamVersion                  = "0.10.22"
 val commonsVersion              = "0.10.16"
-val rdfVersion                  = "0.2.14"
+val rdfVersion                  = "0.2.15"
 val serviceVersion              = "0.10.14"
 val sourcingVersion             = "0.10.7"
 val akkaVersion                 = "2.5.14"
 val akkaCorsVersion             = "0.3.0"
 val akkaHttpVersion             = "10.1.3"
 val akkaPersistenceInMemVersion = "2.5.1.1"
-val akkaPersistenceCassVersion  = "0.86"
-val catsVersion                 = "1.1.0"
+val akkaPersistenceCassVersion  = "0.88"
+val catsVersion                 = "1.2.0"
 val catsEffectVersion           = "1.0.0-RC2"
 val circeVersion                = "0.9.3"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
-val mockitoVersion              = "2.19.1"
+val mockitoVersion              = "2.21.0"
 val monixVersion                = "3.0.0-RC1"
 val pureconfigVersion           = "0.9.1"
 val shapelessVersion            = "2.3.3"
@@ -93,9 +93,8 @@ lazy val kg = project
   .settings(testSettings, buildInfoSettings)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(
-    name                  := "kg",
-    moduleName            := "kg",
-    coverageFailOnMinimum := false,
+    name       := "kg",
+    moduleName := "kg",
     libraryDependencies ++= Seq(
       adminClient,
       iamClient,

@@ -14,8 +14,8 @@ import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
 import org.scalatest._
 
 class ResolverSpec
@@ -37,7 +37,6 @@ class ResolverSpec
     val id           = Id(projectRef, iri)
     val accountRef   = AccountRef("accountRef")
     val identities   = List[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero"))
-    implicit val enc = resolverGraphEncoder
     val flattenedCtx = resolverCtx.appendContextOf(resourceCtx)
 
     "constructing" should {
@@ -93,12 +92,9 @@ class ResolverSpec
     "converting into json (from Graph)" should {
 
       "return the json representation for InProjectResolver" in {
-        val resolver = InProjectResolver(projectRef, iri, 1L, false, 10)
-        val encoded  = enc(resolver)
-        encoded.graph
-          .asJson(flattenedCtx, Some(encoded.subject))
-          .success
-          .value
+        val resolver: Resolver = InProjectResolver(projectRef, iri, 1L, false, 10)
+        resolver
+          .asJson(flattenedCtx)
           .removeKeys("@context")
           .addContext(resolverCtxUri)
           .addContext(resourceCtxUri) shouldEqual jsonContentOf("/resolve/in-project-resp.json")
@@ -107,32 +103,26 @@ class ResolverSpec
       "return the json representation for CrossProjectResolver" in {
         val projects =
           Set(ProjectRef("account1/project1"), ProjectRef("account1/project2"))
-        val resolver = CrossProjectResolver(Set(nxv.Resolver, nxv.CrossProject),
-                                            projects,
-                                            identities,
-                                            projectRef,
-                                            iri,
-                                            1L,
-                                            false,
-                                            10)
-        val encoded = enc(resolver)
-        encoded.graph
-          .asJson(flattenedCtx, Some(encoded.subject))
-          .success
-          .value
+        val resolver: Resolver = CrossProjectResolver(Set(nxv.Resolver, nxv.CrossProject),
+                                                      projects,
+                                                      identities,
+                                                      projectRef,
+                                                      iri,
+                                                      1L,
+                                                      false,
+                                                      10)
+        resolver
+          .asJson(flattenedCtx)
           .removeKeys("@context")
           .addContext(resolverCtxUri)
           .addContext(resourceCtxUri) should equalIgnoreArrayOrder(jsonContentOf("/resolve/cross-project-resp.json"))
       }
 
       "return the json representation for InAccountResolver" in {
-        val resolver =
+        val resolver: Resolver =
           InAccountResolver(Set(nxv.Resolver, nxv.InAccount), identities, accountRef, projectRef, iri, 1L, false, 10)
-        val encoded = enc(resolver)
-        encoded.graph
-          .asJson(flattenedCtx, Some(encoded.subject))
-          .success
-          .value
+        resolver
+          .asJson(flattenedCtx)
           .removeKeys("@context")
           .addContext(resolverCtxUri)
           .addContext(resourceCtxUri) should equalIgnoreArrayOrder(jsonContentOf("/resolve/in-account-resp.json"))

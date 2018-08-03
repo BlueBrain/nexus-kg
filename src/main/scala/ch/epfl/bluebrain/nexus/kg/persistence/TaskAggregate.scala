@@ -12,6 +12,7 @@ object TaskAggregate {
     *
     * @param agg the underlying future based aggregate
     */
+  // $COVERAGE-OFF$
   final def fromFuture[Id, Ev, St, Cmd, Rej](
       agg: Aggregate.Aux[Future, Id, Ev, St, Cmd, Rej]): Aggregate.Aux[Task, Id, Ev, St, Cmd, Rej] =
     new Aggregate[Task] {
@@ -41,4 +42,5 @@ object TaskAggregate {
       override def checkEval(id: Id, cmd: Cmd): Task[Option[Rej]] =
         Task.deferFuture(agg.checkEval(id, cmd))
     }
+  // $COVERAGE-ON$
 }

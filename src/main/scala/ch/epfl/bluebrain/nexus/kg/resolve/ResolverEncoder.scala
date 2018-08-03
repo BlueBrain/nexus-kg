@@ -1,20 +1,28 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
+import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{AuthenticatedRef, GroupRef, UserRef}
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
+import io.circe.Encoder
 
 /**
   * Graph Encoder for [[Resolver]]
   */
 object ResolverEncoder {
+
+  implicit def qrResolverEncoder: Encoder[QueryResults[Resolver]] =
+    qrsEncoder[Resolver](resolverCtx mergeContext resourceCtx) mapJson (_ addContext resolverCtxUri)
 
   implicit val resolverGraphEncoder: GraphEncoder[Resolver] = GraphEncoder {
     case resolver: InProjectResolver => IriNode(resolver.id) -> resolver.mainGraph(nxv.InProject)
@@ -26,6 +34,12 @@ object ResolverEncoder {
       val s = IriNode(id)
       s -> (resolver.mainGraph(nxv.InAccount) ++ resolver.graphFor(identities) ++ resolver.graphFor(resourceTypes))
   }
+
+  private implicit def qqResolverEncoder(implicit enc: GraphEncoder[Resolver]): GraphEncoder[QueryResult[Resolver]] =
+    GraphEncoder { res =>
+      val encoded = enc(res.source)
+      encoded.subject -> encoded.graph
+    }
 
   private implicit class ResolverSyntax(resolver: Resolver) {
     private val s = IriNode(resolver.id)

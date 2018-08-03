@@ -21,12 +21,23 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
       Project("project", "some-label", mappings, Iri.absolute("http://example.com/base").right.value, 1L, false, "uuid")
 
     def route(): Route =
-      (get & pathPrefix(aliasOrCurie)) { iri =>
+      (get & aliasOrCuriePrefix) { iri =>
+        complete(StatusCodes.OK -> iri.show)
+      }
+
+    def routeEnd(): Route =
+      (get & aliasOrCuriePath) { iri =>
         complete(StatusCodes.OK -> iri.show)
       }
 
     "expand a curie" in {
-      Get("/nxv:rev") ~> route() ~> check {
+      Get("/nxv:rev/other") ~> route() ~> check {
+        responseAs[String] shouldEqual "https://bluebrain.github.io/nexus/vocabulary/rev"
+      }
+    }
+
+    "expand a curie as a last segment" in {
+      Get("/nxv:rev") ~> routeEnd() ~> check {
         responseAs[String] shouldEqual "https://bluebrain.github.io/nexus/vocabulary/rev"
       }
     }

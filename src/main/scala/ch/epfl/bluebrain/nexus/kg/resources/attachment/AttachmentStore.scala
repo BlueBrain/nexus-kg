@@ -58,7 +58,7 @@ object AttachmentStore {
   trait Stream[F[_], In, Out] {
 
     /**
-      * Attempts to create a Out form a URI.
+      * Attempts to create a Out from a URI.
       * This should be used to transmit the content referred by the URI through the Out type in streaming fashion.
       *
       * @param uri the AbsoluteIri from where to retrieve the content

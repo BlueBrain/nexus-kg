@@ -1,0 +1,9 @@
+{
+  "@context": {
+    "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
+    "View": "nxv:View",
+    "ElasticView": "nxv:ElasticView",
+    "SparqlView": "nxv:SparqlView",
+    "uuid": "nxv:uuid"
+  }
+}
