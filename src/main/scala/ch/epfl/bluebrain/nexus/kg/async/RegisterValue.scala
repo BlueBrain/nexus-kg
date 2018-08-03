@@ -9,6 +9,7 @@ sealed trait RegisterValue[A] {
   def value: A
 }
 object RegisterValue {
+
   /**
     * A value with an attached revision corresponding to the value.
     *
