@@ -44,9 +44,9 @@ class ProjectResolution[F[_]: Monad](cache: DistributedCache[F],
           case r: InProjectResolver => InProjectResolution[F](r.ref, resources)
           case r: InAccountResolver =>
             val projects = cache.projects(r.accountRef)
-            MultiProjectResolution(resources, projects, r.resourceTypes, r.identities, adminClient)
+            MultiProjectResolution(resources, projects, r.resourceTypes, r.identities, adminClient, cache)
           case r: CrossProjectResolver =>
-            MultiProjectResolution(resources, r.projects.pure, r.resourceTypes, r.identities, adminClient)
+            MultiProjectResolution(resources, r.projects.pure, r.resourceTypes, r.identities, adminClient, cache)
         }
         CompositeResolution(staticResolution :: result)
       }
