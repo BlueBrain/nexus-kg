@@ -47,7 +47,6 @@ object Ref {
         val (q, opt) = extractTagRev(query)
         val qry      = if (q.value.isEmpty) None else Some(q)
         refOf(u.copy(q = qry), opt)
-
       case _ =>
         Latest(iri)
     }

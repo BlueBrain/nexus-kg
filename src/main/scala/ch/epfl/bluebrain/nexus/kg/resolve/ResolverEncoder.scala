@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{AuthenticatedRef, GroupRef, UserRef}
-import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resolverCtx, _}
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
