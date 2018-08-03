@@ -8,7 +8,6 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import cats.data.{EitherT, OptionT}
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
@@ -26,10 +25,11 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Schemas.{resolverSchemaUri, shaclSchemaUri}
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{InAccountResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -89,14 +89,20 @@ class ResourceRoutesSpec
   private val routes                            = ResourceRoutes(resources).routes
 
   abstract class Context(perms: Permissions = manage) {
-    val account     = genString(length = 4)
-    val project     = genString(length = 4)
-    val projectMeta = Project("name", project, Map("nxv" -> nxv.base), nxv.projects, 1L, false, uuid)
-    val projectRef  = ProjectRef(projectMeta.uuid)
-    val accountRef  = AccountRef(uuid)
-    val genUuid     = uuid
-    val iri         = nxv.withPath(genUuid)
-    val id          = Id(projectRef, iri)
+    val account = genString(length = 4)
+    val project = genString(length = 4)
+    val projectMeta = Project("name",
+                              project,
+                              Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri),
+                              nxv.projects,
+                              1L,
+                              deprecated = false,
+                              uuid)
+    val projectRef = ProjectRef(projectMeta.uuid)
+    val accountRef = AccountRef(uuid)
+    val genUuid    = uuid
+    val iri        = nxv.withPath(genUuid)
+    val id         = Id(projectRef, iri)
 
     when(cache.project(ProjectLabel(account, project)))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
@@ -111,6 +117,25 @@ class ResourceRoutesSpec
 
     def eqProjectRef             = mEq(projectRef.id).asInstanceOf[ProjectRef]
     def isAnAdditionalValidation = isA(classOf[AdditionalValidation[Task]])
+  }
+
+  abstract class Ctx(perms: Permissions = manage) extends Context(perms) {
+    val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
+    val schemaRef = Ref(resourceSchemaUri)
+
+    def ctxResponse: Json =
+      Json
+        .obj(
+          "@id"            -> Json.fromString(s"nxv:$genUuid"),
+          "_constrainedBy" -> Json.fromString(resourceSchemaUri.show),
+          "_createdAt"     -> Json.fromString(clock.instant().toString),
+          "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
+          "_deprecated"    -> Json.fromBoolean(false),
+          "_rev"           -> Json.fromLong(1L),
+          "_updatedAt"     -> Json.fromString(clock.instant().toString),
+          "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
+        )
+        .addContext(resourceCtxUri)
   }
 
   abstract class Schema(perms: Permissions = manage) extends Context(perms) {
@@ -151,6 +176,19 @@ class ResourceRoutesSpec
           "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
         )
         .addContext(resourceCtxUri)
+
+    val resolverSet = Set(
+      InProjectResolver(projectRef, nxv.projects, 1L, deprecated = false, 20),
+      InAccountResolver(Set(nxv.Schema),
+                        List(Anonymous),
+                        accountRef,
+                        projectRef,
+                        nxv.identities,
+                        2L,
+                        deprecated = true,
+                        1),
+      InAccountResolver(Set(nxv.Schema), List(Anonymous), accountRef, projectRef, nxv.realm, 2L, deprecated = false, 10)
+    )
   }
 
   "The routes" when {
@@ -170,6 +208,29 @@ class ResourceRoutesSpec
         Post(s"/v1/resolvers/$account/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+        }
+      }
+    }
+
+    "performing operations on resources" should {
+      "create a context without @id" in new Ctx {
+        when(resources.create(projectRef, projectMeta.base, schemaRef, ctx)).thenReturn(EitherT.rightT[Task, Rejection](
+          ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)))
+
+        Post(s"/v1/resources/$account/$project/resource", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] shouldEqual ctxResponse
+        }
+      }
+
+      "create a context with @id" in new Ctx {
+        when(resources.createWithId(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(identity), isAnAdditionalValidation))
+          .thenReturn(EitherT.rightT[Task, Rejection](
+            ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)))
+
+        Put(s"/v1/resources/$account/$project/resource/nxv:$genUuid", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] shouldEqual ctxResponse
         }
       }
     }
@@ -205,7 +266,7 @@ class ResourceRoutesSpec
           EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
-        Put(s"/v1/schemas/$account/$project/nxv:${genUuid}?rev=1", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
+        Put(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual schemaResponse()
         }
@@ -273,6 +334,22 @@ class ResourceRoutesSpec
         Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual schemaResponse()
+        }
+      }
+
+      "list resolvers" in new Resolver {
+        when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
+        Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list.json")
+        }
+      }
+
+      "list resolvers not deprecated" in new Resolver {
+        when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
+        Get(s"/v1/resolvers/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list-no-deprecated.json")
         }
       }
 

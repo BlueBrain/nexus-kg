@@ -54,7 +54,7 @@ private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[
   }
 
   private def query(id: ResId) =
-    s"SELECT ?o WHERE {<${id.value.show}> <${nxv.rev.value.show}> ?o}"
+    s"SELECT ?o WHERE {<${id.value.show}> <${nxv.rev.value.show}> ?o} LIMIT 1"
 
   private def fetchRevision(id: ResId): F[Option[Long]] =
     client.queryRs(query(id)).map { rs =>
@@ -78,6 +78,7 @@ object SparqlIndexer {
     * @param view      the view for which to start the index
     * @param resources the resources operations
     */
+  // $COVERAGE-OFF$
   final def start(view: View, resources: Resources[Task])(implicit
                                                           as: ActorSystem,
                                                           s: Scheduler,
@@ -97,4 +98,5 @@ object SparqlIndexer {
       name = s"sparql-indexer-${view.name}"
     )
   }
+  // $COVERAGE-ON$
 }

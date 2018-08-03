@@ -67,7 +67,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], index: String, resources: R
   private def fetchRevision(id: ResId): F[Option[Long]] =
     client
       .get[Json](index, config.docType, id.elasticId, include = Set(revKey))
-      .map(j => j.hcursor.get[Long](revKey).toOption)
+      .map(_.hcursor.get[Long](revKey).toOption)
       .handleError {
         case ElasticClientError(StatusCodes.NotFound, _) => None
       }
@@ -91,6 +91,7 @@ object ElasticIndexer {
     * @param view      the view for which to start the index
     * @param resources the resources operations
     */
+  // $COVERAGE-OFF$
   final def start(view: View, resources: Resources[Task])(implicit as: ActorSystem,
                                                           s: Scheduler,
                                                           config: ElasticConfig,
@@ -113,6 +114,7 @@ object ElasticIndexer {
       name = s"elastic-indexer-${view.name}"
     )
   }
+  // $COVERAGE-ON$
 
   def elasticIndex(view: View)(implicit config: ElasticConfig): String =
     s"${config.indexPrefix}_${view.name}"

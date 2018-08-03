@@ -20,7 +20,7 @@ sealed trait Ref extends Product with Serializable {
 object Ref {
 
   /**
-    * Constructs a reference from the argument iri. If the iri contains ''_rev'' or ''_tag'' query parameters their
+    * Constructs a reference from the argument iri. If the iri contains ''rev'' or ''tag'' query parameters their
     * values are used to refine the reference and stripped from the original iri.
     *
     * @param iri the iri to lift into a reference
@@ -28,9 +28,9 @@ object Ref {
   final def apply(iri: AbsoluteIri): Ref = {
     def extractTagRev(q: Query): (Query, Option[Either[String, Long]]) = {
       val map = q.value
-      def rev = map.get("_rev").flatMap(_.headOption).flatMap(s => Try(s.toLong).filter(_ > 0).toOption)
-      def tag = map.get("_tag").flatMap(_.headOption).filter(_.nonEmpty)
-      (Query(map - "_tag" - "_rev"), rev.map(Right.apply) orElse tag.map(Left.apply))
+      def rev = map.get("rev").flatMap(_.headOption).flatMap(s => Try(s.toLong).filter(_ > 0).toOption)
+      def tag = map.get("tag").flatMap(_.headOption).filter(_.nonEmpty)
+      (Query(map - "tag" - "rev"), rev.map(Right.apply) orElse tag.map(Left.apply))
     }
     def refOf(id: AbsoluteIri, opt: Option[Either[String, Long]]): Ref = opt match {
       case Some(Left(tag))  => Tag(id, tag)
@@ -41,10 +41,13 @@ object Ref {
     iri match {
       case u @ Url(_, _, _, Some(query), _) =>
         val (q, opt) = extractTagRev(query)
-        refOf(u.copy(query = Some(q)), opt)
+        val qry      = if (q.value.isEmpty) None else Some(q)
+        refOf(u.copy(query = qry), opt)
       case u @ Urn(_, _, _, Some(query), _) =>
         val (q, opt) = extractTagRev(query)
-        refOf(u.copy(q = Some(q)), opt)
+        val qry      = if (q.value.isEmpty) None else Some(q)
+        refOf(u.copy(q = qry), opt)
+
       case _ =>
         Latest(iri)
     }

@@ -74,6 +74,7 @@ object ResolverIndexer {
     * @param resources the resources operations
     * @param cache the distributed cache
     */
+  // $COVERAGE-OFF$
   final def start(resources: Resources[Task], cache: DistributedCache[Task])(
       implicit
       as: ActorSystem,
@@ -87,4 +88,5 @@ object ResolverIndexer {
       name = "resolver-indexer"
     )
   }
+  // $COVERAGE-ON$
 }

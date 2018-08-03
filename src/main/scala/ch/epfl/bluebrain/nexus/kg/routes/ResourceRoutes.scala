@@ -13,10 +13,9 @@ import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticDecoder
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.withTaskUnmarshaller
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -36,17 +35,15 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
+import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.service.http.Path.FromString
 import ch.epfl.bluebrain.nexus.service.http.UriOps._
-import io.circe.{Encoder, Json}
+import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -326,29 +323,6 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   private implicit class JsonRoutesSyntax(json: Json) {
     def addContext(uriOpt: Option[AbsoluteIri]): Json = uriOpt.map(uri => json.addContext(uri)).getOrElse(json)
   }
-
-  private implicit def resourceEncoder: Encoder[Resource] = Encoder.encodeJson.contramap { res =>
-    val graph       = res.metadata ++ res.typeGraph
-    val primaryNode = Some(IriNode(res.id.value))
-    graph.asJson(resourceCtx, primaryNode).getOrElse(graph.asJson).removeKeys("@context").addContext(resourceCtxUri)
-  }
-
-  private implicit def resourceVEncoder: Encoder[ResourceV] = Encoder.encodeJson.contramap { res =>
-    val graph       = res.value.graph
-    val mergedCtx   = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
-    val primaryNode = Some(IriNode(res.id.value))
-    val jsonResult  = graph.asJson(mergedCtx, primaryNode).getOrElse(graph.asJson)
-    jsonResult deepMerge Json.obj("@context" -> res.value.source.contextValue).addContext(resourceCtxUri)
-  }
-
-  private implicit def qqResolverEncoder(implicit enc: GraphEncoder[Resolver]): GraphEncoder[QueryResult[Resolver]] =
-    GraphEncoder { res =>
-      val encoded = enc(res.source)
-      encoded.subject -> encoded.graph
-    }
-
-  private implicit def qrResolverEncoder: Encoder[QueryResults[Resolver]] =
-    qrsEncoder[Resolver](resolverCtx) mapJson (_ addContext resolverCtxUri)
 
   private def evalBool(value: Boolean): Directive0 =
     if (value) pass

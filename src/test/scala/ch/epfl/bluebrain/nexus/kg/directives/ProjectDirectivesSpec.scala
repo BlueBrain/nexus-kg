@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{AccountNotFound, DownstreamServiceError, ProjectNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -85,6 +85,14 @@ class ProjectDirectivesSpec
         }
       }
     }
+
+    def projectNotDepRoute(implicit proj: Project, ref: ProjectLabel): Route =
+      handleRejections(RejectionHandling()) {
+        (get & projectNotDeprecated) {
+          complete(StatusCodes.OK)
+        }
+      }
+
     val label       = ProjectLabel("account", "project")
     val projectMeta = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
     val accountRef  = AccountRef("accountUuid")
@@ -170,6 +178,19 @@ class ProjectDirectivesSpec
       Get("/account/project") ~> projectRoute() ~> check {
         status shouldEqual StatusCodes.BadGateway
         responseAs[Error].code shouldEqual classNameOf[DownstreamServiceError.type]
+      }
+    }
+
+    "pass when available project is not deprecated" in {
+      Get("/") ~> projectNotDepRoute(projectMeta, label) ~> check {
+        status shouldEqual StatusCodes.OK
+      }
+    }
+
+    "reject when available project is deprecated" in {
+      Get("/") ~> projectNotDepRoute(projectMeta.copy(deprecated = true), label) ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Error].code shouldEqual classNameOf[ProjectIsDeprecated.type]
       }
     }
   }

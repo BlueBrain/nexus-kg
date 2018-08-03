@@ -155,7 +155,6 @@ trait DistributedCache[F[_]] {
     *
     * @param ref      the project reference
     * @param resolver the resolver
-    * @param instant  the instant used to merge the register value
     * @return true if an update has taken place, false otherwise
     */
   def applyResolver(ref: ProjectRef, resolver: Resolver): F[Boolean] =

@@ -11,8 +11,8 @@ import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import io.circe.{Encoder, Json}
 
@@ -31,22 +31,20 @@ object QueryResultEncoder {
       node -> graph
   }
 
-  def qrsEncoder[A](extraCtx: Json)(implicit enc: GraphEncoder[QueryResult[A]]): Encoder[QueryResults[A]] =
-    Encoder.instance { qrs =>
-      val g = qrs match {
-        case ScoredQueryResults(total, max, results) =>
-          Graph((mainNode, nxv.total, total), (mainNode, nxv.maxScore, max))
-            .add(mainNode, nxv.results, results)
-        case UnscoredQueryResults(total, results) =>
-          Graph().add(mainNode, nxv.total, total).add(mainNode, nxv.results, results)
-      }
-      g.asJson(searchCtx deepMerge extraCtx, Some(mainNode))
-        .getOrElse(g.asJson)
+  implicit def encoderQrs[A](implicit enc: GraphEncoder[QueryResult[A]]): GraphEncoder[QueryResults[A]] = GraphEncoder {
+    case ScoredQueryResults(total, max, results) =>
+      mainNode -> Graph((mainNode, nxv.total, total), (mainNode, nxv.maxScore, max)).add(mainNode, nxv.results, results)
+    case UnscoredQueryResults(total, results) =>
+      mainNode -> Graph().add(mainNode, nxv.total, total).add(mainNode, nxv.results, results)
+  }
+
+  def qrsEncoder[A](extraCtx: Json)(implicit enc: GraphEncoder[QueryResults[A]]): Encoder[QueryResults[A]] =
+    Encoder.instance(
+      _.asJson(searchCtx deepMerge extraCtx)
         .removeKeys("@context", "@id")
         .addContext(searchCtxUri)
-        .addContext(resourceCtxUri)
-    }
+        .addContext(resourceCtxUri))
 
-  implicit def qrsEncoder[A](implicit enc: GraphEncoder[QueryResult[A]]): Encoder[QueryResults[A]] =
+  implicit def qrsEncoder[A](implicit enc: GraphEncoder[QueryResults[A]]): Encoder[QueryResults[A]] =
     qrsEncoder(Json.obj())
 }
