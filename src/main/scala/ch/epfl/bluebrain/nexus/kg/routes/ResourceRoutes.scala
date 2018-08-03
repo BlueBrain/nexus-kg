@@ -43,6 +43,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.service.http.Path.FromString
 import ch.epfl.bluebrain.nexus.service.http.UriOps._
+import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -58,10 +59,11 @@ import scala.util.Try
 class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCache[Task],
                                                  indexers: Clients[Task],
                                                  store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                                                 config: AppConfig) {
+                                                 config: AppConfig,
+                                                 tracing: TracingDirectives) {
 
   private val (es, sparql) = (indexers.elastic, indexers.sparql)
-  import indexers._
+  import indexers._, tracing._
 
   def routes: Route =
     handleRejections(RejectionHandling()) {
@@ -80,7 +82,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       // create resource with implicit or generated id
       (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-          complete(Created -> resources.create(wrapped.ref, wrapped.project.base, Ref(schema), source).value.runAsync)
+          trace("createResource") {
+            complete(Created -> resources.create(wrapped.ref, wrapped.project.base, Ref(schema), source).value.runAsync)
+          }
         }
       } ~
         pathPrefix(aliasOrCurie / aliasOrCurie)((schema, id) => resources(schema, id))
@@ -110,16 +114,18 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         callerIdentity.apply { implicit ident =>
           acls.apply { implicit acls =>
             hasPermissionInAcl(resourceCreate).apply {
-              complete(
-                Created -> resources
-                  .create(wrapped.ref, wrapped.base, Ref(resolverSchemaUri), source.addContext(resolverCtxUri))
-                  .value
-                  .runAsync)
+              trace("createResolver") {
+                complete(
+                  Created -> resources
+                    .create(wrapped.ref, wrapped.base, Ref(resolverSchemaUri), source.addContext(resolverCtxUri))
+                    .value
+                    .runAsync)
+              }
             }
           }
         }
       } ~
-        // list resolvers with implicit or generated id
+        // list resolvers
         (get & parameter('deprecated.as[Boolean].?) & pathEndOrSingleSlash) { deprecated =>
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
             val resolvers = cache.resolvers(ProjectRef(wrapped.project.uuid)).map { r =>
@@ -130,7 +136,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
                 .sortBy(_.priority)
               toQueryResults(filtered)
             }
-            complete(resolvers.runAsync)
+            trace("listResolvers") {
+              complete(resolvers.runAsync)
+            }
           }
         } ~
         pathPrefix(aliasOrCurie) { id =>
@@ -146,7 +154,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       // search forwarded to the sparql endpoint of the default view
       (path("sparql") & post & entity(as[Json]) & pathEndOrSingleSlash) { query =>
         (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-          complete(sparql.copy(namespace = config.sparql.defaultIndex).queryRaw(query.noSpaces).runAsync)
+          trace("sparqlSearch") {
+            complete(sparql.copy(namespace = config.sparql.defaultIndex).queryRaw(query.noSpaces).runAsync)
+          }
         }
       } ~
         // search forwarded to the elastic endpoint of the default view
@@ -155,7 +165,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
               val search = es.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
               //TODO: Treat ES response accordingly
-              complete(search.map(_.results.map(_.source)).runAsync)
+              trace("elasticSearch") {
+                complete(search.map(_.results.map(_.source)).runAsync)
+              }
             }
         }
     }
@@ -169,11 +181,15 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
         (deprecated, pagination) =>
           val results = cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, pagination))
-          complete(results.runAsync)
+          trace("listResources") {
+            complete(results.runAsync)
+          }
       } ~ (get & parameter('deprecated.as[Boolean].?) & paginated & aliasOrCuriePath & hasPermission(resourceRead)) {
         (deprecated, pagination, schema) =>
           val results = cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, schema, pagination))
-          complete(results.runAsync)
+          trace("listResources") {
+            complete(results.runAsync)
+          }
       }
     }
 
@@ -190,20 +206,24 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         case Some(rev) =>
           // updates a resource
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-            complete(
-              resources
-                .update(Id(wrapped.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri))
-                .value
-                .runAsync)
+            trace("updateResource") {
+              complete(
+                resources
+                  .update(Id(wrapped.ref, id), rev, Some(Ref(schema)), source.addContext(injectUri))
+                  .value
+                  .runAsync)
+            }
           }
         case None =>
           // create resource with explicit id
           (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-            complete(
-              Created -> resources
-                .createWithId(Id(wrapped.ref, id), Ref(schema), source.addContext(injectUri))
-                .value
-                .runAsync)
+            trace("createResource") {
+              complete(
+                Created -> resources
+                  .createWithId(Id(wrapped.ref, id), Ref(schema), source.addContext(injectUri))
+                  .value
+                  .runAsync)
+            }
           }
       }
     } ~
@@ -211,25 +231,31 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       (evalBool(withTag) & pathPrefix("tags") & projectNotDeprecated) {
         (put & parameter('rev.as[Long]) & entity(as[Json]) & pathEndOrSingleSlash) { (rev, json) =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-            complete(
-              Created -> resources
-                .tag(Id(wrapped.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri))
-                .value
-                .runAsync)
+            trace("addTagResource") {
+              complete(
+                Created -> resources
+                  .tag(Id(wrapped.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri))
+                  .value
+                  .runAsync)
+            }
           }
         }
       } ~
       // deprecate a resource
       (delete & projectNotDeprecated & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
         (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-          complete(resources.deprecate(Id(wrapped.ref, id), rev, Some(Ref(schema))).value.runAsync)
+          trace("deprecateResource") {
+            complete(resources.deprecate(Id(wrapped.ref, id), rev, Some(Ref(schema))).value.runAsync)
+          }
         }
       } ~
       (pathPrefix("attachments" / Segment) & evalBool(withAttachment) & projectNotDeprecated) { filename =>
         // remove a resource attachment
         (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
-            complete(resources.unattach(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
+            trace("removeAttachmentResource") {
+              complete(resources.unattach(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
+            }
           }
         } ~
           // add an attachment to resources
@@ -238,11 +264,13 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
               fileUpload("file") {
                 case (metadata, byteSource) =>
                   val description = BinaryDescription(filename, metadata.contentType.value)
-                  complete(
-                    resources
-                      .attach(Id(wrapped.ref, id), rev, Some(Ref(schema)), description, byteSource)
-                      .value
-                      .runAsync)
+                  trace("addAttachmentResource") {
+                    complete(
+                      resources
+                        .attach(Id(wrapped.ref, id), rev, Some(Ref(schema)), description, byteSource)
+                        .value
+                        .runAsync)
+                  }
               }
             }
           }
@@ -251,15 +279,17 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         // get a resource
         (get & pathEndOrSingleSlash) {
           (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-            (revOpt, tagOpt) match {
-              case (None, None) =>
-                complete(resources.fetch(Id(wrapped.ref, id), Some(Ref(schema))).materializeRun)
-              case (Some(_), Some(_)) =>
-                reject(simultaneousParamsRejection)
-              case (Some(rev), _) =>
-                complete(resources.fetch(Id(wrapped.ref, id), rev, Some(Ref(schema))).materializeRun)
-              case (_, Some(tag)) =>
-                complete(resources.fetch(Id(wrapped.ref, id), tag, Some(Ref(schema))).materializeRun)
+            trace("getResource") {
+              (revOpt, tagOpt) match {
+                case (None, None) =>
+                  complete(resources.fetch(Id(wrapped.ref, id), Some(Ref(schema))).materializeRun)
+                case (Some(_), Some(_)) =>
+                  reject(simultaneousParamsRejection)
+                case (Some(rev), _) =>
+                  complete(resources.fetch(Id(wrapped.ref, id), rev, Some(Ref(schema))).materializeRun)
+                case (_, Some(tag)) =>
+                  complete(resources.fetch(Id(wrapped.ref, id), tag, Some(Ref(schema))).materializeRun)
+              }
             }
           }
         } ~
@@ -275,14 +305,16 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
                 case (_, Some(tag)) =>
                   resources.fetchAttachment(Id(wrapped.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
               }
-              onSuccess(result) {
-                case Left(rej) => reject(rej)
-                case Right(Some((info, source))) =>
-                  respondWithHeaders(filenameHeader(info)) {
-                    complete(HttpEntity(contentType(info), info.contentSize.value, source))
-                  }
-                case _ =>
-                  complete(StatusCodes.NotFound)
+              trace("getResourceAttachment") {
+                onSuccess(result) {
+                  case Left(rej) => reject(rej)
+                  case Right(Some((info, source))) =>
+                    respondWithHeaders(filenameHeader(info)) {
+                      complete(HttpEntity(contentType(info), info.contentSize.value, source))
+                    }
+                  case _ =>
+                    complete(StatusCodes.NotFound)
+                }
               }
             }
           }
@@ -342,8 +374,10 @@ object ResourceRoutes {
   final def apply(resources: Resources[Task])(implicit cache: DistributedCache[Task],
                                               indexers: Clients[Task],
                                               store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                                              config: AppConfig): ResourceRoutes =
+                                              config: AppConfig): ResourceRoutes = {
+    implicit val tracing = new TracingDirectives()
     new ResourceRoutes(resources)
+  }
 
   private[routes] val resourceRead   = Permissions(Permission("resources/read"), Permission("resources/manage"))
   private[routes] val resourceWrite  = Permissions(Permission("resources/write"), Permission("resources/manage"))
