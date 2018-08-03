@@ -252,6 +252,7 @@ object DistributedCache {
     private implicit val node: Cluster        = Cluster(as)
 
     private implicit def tsClock[A]: Clock[TimestampedValue[A]] = TimestampedValue.timestampedValueClock
+    private implicit def rvClock[A]: Clock[RevisionedValue[A]]  = RevisionedValue.revisionedValueClock
 
     private def update(ref: AccountRef, ac: Account) = {
 

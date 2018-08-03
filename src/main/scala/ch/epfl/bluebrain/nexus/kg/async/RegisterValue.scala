@@ -18,6 +18,12 @@ object RegisterValue {
     */
   final case class RevisionedValue[A](rev: Long, value: A) extends RegisterValue[A]
 
+  object RevisionedValue {
+
+    private[async] def revisionedValueClock[A]: Clock[RevisionedValue[A]] =
+      (_: Long, value: RevisionedValue[A]) => value.rev
+  }
+
   /**
     * A value with an attached timestamp when it was produced.
     *
