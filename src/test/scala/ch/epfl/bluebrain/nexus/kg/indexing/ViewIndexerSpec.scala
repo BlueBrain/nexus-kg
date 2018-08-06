@@ -76,40 +76,40 @@ class ViewIndexerSpec
     "index a view" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.applyView(projectRef, view, clock.instant())).thenReturn(Future.successful(true))
+      when(cache.applyView(projectRef, view)).thenReturn(Future.successful(true))
 
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(1)).applyView(projectRef, view, clock.instant())
+      verify(cache, times(1)).applyView(projectRef, view)
     }
 
     "skip indexing a resolver when the resource cannot be found" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.none[Future, Resource])
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(0)).applyView(projectRef, view, clock.instant())
+      verify(cache, times(0)).applyView(projectRef, view)
     }
 
     "skip indexing a resolver when the resource cannot be materialized" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.leftT[Future, ResourceV](Unexpected("error"): Rejection))
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(0)).applyView(projectRef, view, clock.instant())
+      verify(cache, times(0)).applyView(projectRef, view)
     }
 
     "raise RetriableError when cache fails due to an AskTimeoutException" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.applyView(projectRef, view, clock.instant()))
+      when(cache.applyView(projectRef, view))
         .thenReturn(Future.failed(new AskTimeoutException("error")))
       whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
-      verify(cache, times(1)).applyView(projectRef, view, clock.instant())
+      verify(cache, times(1)).applyView(projectRef, view)
     }
 
     "raise RetriableError when cache fails due to an OperationTimedOut" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.applyView(projectRef, view, clock.instant())).thenReturn(Future.failed(new OperationTimedOut("error")))
+      when(cache.applyView(projectRef, view)).thenReturn(Future.failed(new OperationTimedOut("error")))
       whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
-      verify(cache, times(1)).applyView(projectRef, view, clock.instant())
+      verify(cache, times(1)).applyView(projectRef, view)
     }
   }
 

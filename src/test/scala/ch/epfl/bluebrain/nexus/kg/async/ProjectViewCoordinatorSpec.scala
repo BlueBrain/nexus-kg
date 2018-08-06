@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
@@ -48,10 +47,10 @@ class ProjectViewCoordinatorSpec
       val viewUUID   = genUUID
       val projectRef = ProjectRef(projUUID)
       val accountRef = AccountRef(accUUID)
-      val project    = Project("some-project", "some-label-proj", Map.empty, base, 1L, false, projUUID)
-      val account    = Account("some-org", 1L, "some-label", false, accUUID)
+      val project    = Project("some-project", "some-label-proj", Map.empty, base, 1L, deprecated = false, projUUID)
+      val account    = Account("some-org", 1L, "some-label", deprecated = false, accUUID)
       val viewId     = base + "projects/some-project/search"
-      val view       = ElasticView(projectRef, viewId, viewUUID, 1L, false)
+      val view       = ElasticView(projectRef, viewId, viewUUID, 1L, deprecated = false)
       val counter    = new AtomicInteger(0)
       val childActor = system.actorOf(Props(new DummyActor))
       val probe      = TestProbe()
@@ -66,12 +65,12 @@ class ProjectViewCoordinatorSpec
       }
 
       val coordinator = ProjectViewCoordinator.start(cache, selector, None, 1)
-      cache.addAccount(accountRef, account, true).runAsync.futureValue shouldEqual true
-      cache.addProject(projectRef, accountRef, project, Instant.now, true).runAsync.futureValue shouldEqual true
+      cache.addAccount(accountRef, account, updateRev = true).runAsync.futureValue shouldEqual true
+      cache.addProject(projectRef, accountRef, project, updateRev = true).runAsync.futureValue shouldEqual true
       coordinator ! Msg(accountRef, projectRef)
-      cache.addView(projectRef, view, Instant.now, true).runAsync.futureValue shouldEqual true
+      cache.addView(projectRef, view, updateRev = true).runAsync.futureValue shouldEqual true
       eventually { counter.get shouldEqual 1 }
-      cache.removeView(projectRef, viewId, Instant.now).runAsync.futureValue shouldEqual true
+      cache.removeView(projectRef, viewId, 2L).runAsync.futureValue shouldEqual true
       probe.expectTerminated(childActor)
     }
   }
