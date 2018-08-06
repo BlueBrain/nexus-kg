@@ -6,10 +6,12 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   * A type class that provides a specific revision identifier (''id: AbsoluteIri'' and ''rev: Long'') of a resource of type ''A''.
   */
 sealed trait RevisionedId[A] {
+
   /**
     * @return the unique identifier of the resource 'a'
     */
   def id(a: A): AbsoluteIri
+
   /**
     * @return the revision number of the identified resource 'a'
     */
