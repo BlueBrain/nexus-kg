@@ -3,11 +3,16 @@ package ch.epfl.bluebrain.nexus.kg.async
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 /**
-  * A type class of ''A'' which has the methods ''id'' and ''rev''
-  * with the provided signature
+  * A type class that provides a specific revision identifier (''id: AbsoluteIri'' and ''rev: Long'') of a resource of type ''A''.
   */
 sealed trait RevisionedId[A] {
+  /**
+    * @return the unique identifier of the resource 'a'
+    */
   def id(a: A): AbsoluteIri
+  /**
+    * @return the revision number of the identified resource 'a'
+    */
   def rev(a: A): Long
 }
 object RevisionedId {
