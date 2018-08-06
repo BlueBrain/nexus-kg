@@ -1,7 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import java.time.Instant
-
 import akka.actor.ActorSystem
 import akka.testkit.{DefaultTimeout, TestKit}
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
@@ -59,7 +57,7 @@ class DistributedCacheSpec
     }
 
     "fail when adding a project without adding first its account" in new Context {
-      cache.addProject(projectRef, accountRef, project, Instant.now, updateRev = true).futureValue shouldEqual false
+      cache.addProject(projectRef, accountRef, project, updateRev = true).futureValue shouldEqual false
     }
 
     "handle projects life-cycle" in new Context {
@@ -68,33 +66,33 @@ class DistributedCacheSpec
       val ref2     = ProjectRef(genUUID)
       val project2 = Project("some-project2", "some-label-proj2", Map.empty, base, 42L, deprecated = false, ref2.id)
 
-      cache.addProject(projectRef, accountRef, project, Instant.now, updateRev = false).futureValue shouldEqual true
+      cache.addProject(projectRef, accountRef, project, updateRev = false).futureValue shouldEqual true
       cache
-        .addProject(projectRef, accountRef, project.copy(rev = 2L), Instant.now, updateRev = false)
+        .addProject(projectRef, accountRef, project.copy(rev = 2L), updateRev = false)
         .futureValue shouldEqual false
       cache.project(projectRef).futureValue shouldEqual Some(project)
       cache.project(ProjectLabel(accountLabel, projectLabel)).futureValue shouldEqual Some(project)
       cache.projects(accountRef).futureValue shouldEqual Set(projectRef)
-      cache.addProject(ref2, accountRef, project2, Instant.now, updateRev = true).futureValue shouldEqual true
+      cache.addProject(ref2, accountRef, project2, updateRev = true).futureValue shouldEqual true
       cache.projects(accountRef).futureValue shouldEqual Set(projectRef, ref2)
       cache.project(ProjectLabel("wrong", "some-label-proj")).futureValue shouldEqual None
       cache.projectRef(ProjectLabel(accountLabel, projectLabel)).futureValue shouldEqual Some(projectRef)
       cache.projectRef(ProjectLabel(accountLabel, "wrong")).futureValue shouldEqual None
       cache
-        .addProject(projectRef, accountRef, project.copy(rev = 3L), Instant.now, updateRev = true)
+        .addProject(projectRef, accountRef, project.copy(rev = 3L), updateRev = true)
         .futureValue shouldEqual true
       cache.project(projectRef).futureValue shouldEqual Some(project.copy(rev = 3L))
-      cache.deprecateProject(projectRef, accountRef, Instant.now, 4L).futureValue shouldEqual true
+      cache.deprecateProject(projectRef, accountRef, 4L).futureValue shouldEqual true
       cache.project(projectRef).futureValue shouldEqual Some(project.copy(rev = 4L, deprecated = true))
       cache.projects(accountRef).futureValue shouldEqual Set(ref2)
     }
 
     "handle resolvers life-cycle" in new Context {
       cache.addAccount(accountRef, account, updateRev = true).futureValue shouldEqual true
-      cache.addProject(projectRef, accountRef, project, Instant.now, updateRev = true).futureValue shouldEqual true
+      cache.addProject(projectRef, accountRef, project, updateRev = true).futureValue shouldEqual true
 
       val projectId = base + s"$accountLabel/$projectLabel"
-      val resolver  = InProjectResolver(projectRef, projectId, 1L, false, 10)
+      val resolver  = InProjectResolver(projectRef, projectId, 1L, deprecated = false, 10)
 
       val resolver2 = CrossProjectResolver(Set(nxv.Schema.value),
                                            Set(ProjectRef(genUUID)),
@@ -124,20 +122,25 @@ class DistributedCacheSpec
     "handle views life-cycle" in new Context {
       cache.addAccount(accountRef, account, updateRev = true).futureValue shouldEqual true
 
-      cache.addProject(projectRef, accountRef, project, Instant.now, updateRev = true).futureValue shouldEqual true
+      cache.addProject(projectRef, accountRef, project, updateRev = true).futureValue shouldEqual true
 
       val projectId = base + s"$accountLabel/$projectLabel"
       val view      = ElasticView(projectRef, projectId, genUUID, 1L, deprecated = false)
-      cache.addView(projectRef, view, Instant.now, updateRev = true).futureValue shouldEqual true
+      val view2     = ElasticView(projectRef, url"http://some.project/id".value, genUUID, 1L, deprecated = false)
+      cache.addView(projectRef, view, updateRev = true).futureValue shouldEqual true
       cache.views(projectRef).futureValue shouldEqual Set(view)
       cache.views(ProjectLabel(accountLabel, projectLabel)).futureValue shouldEqual Set(view)
       cache.views(ProjectLabel("wrong", "some-label-proj")).futureValue shouldEqual Set.empty[View]
-      cache.applyView(projectRef, view.copy(rev = 2L), Instant.now).futureValue shouldEqual true
-      cache.views(projectRef).futureValue shouldEqual Set(view, view.copy(rev = 2L))
-      cache.addView(projectRef, view.copy(rev = 3L), Instant.now, updateRev = false).futureValue shouldEqual false
-      cache.views(projectRef).futureValue shouldEqual Set(view, view.copy(rev = 2L))
-      cache.removeView(projectRef, projectId, Instant.now).futureValue shouldEqual true
-      cache.views(projectRef).futureValue shouldEqual Set.empty
+      cache.applyView(projectRef, view.copy(rev = 2L)).futureValue shouldEqual true
+      cache.views(projectRef).futureValue shouldEqual Set(view.copy(rev = 2L))
+      cache.addView(projectRef, view2, updateRev = false).futureValue shouldEqual true
+      cache.views(projectRef).futureValue shouldEqual Set(view.copy(rev = 2L), view2)
+      cache.addView(projectRef, view.copy(rev = 3L), updateRev = false).futureValue shouldEqual false
+      cache.views(projectRef).futureValue shouldEqual Set(view.copy(rev = 2L), view2)
+      cache.removeView(projectRef, projectId, 2L).futureValue shouldEqual true
+      cache.views(projectRef).futureValue shouldEqual Set(view.copy(rev = 2L), view2)
+      cache.removeView(projectRef, projectId, 3L).futureValue shouldEqual true
+      cache.views(projectRef).futureValue shouldEqual Set(view2)
     }
   }
 }

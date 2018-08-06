@@ -4,6 +4,7 @@ import cats.instances.all._
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.kg.async.RevisionedId
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
@@ -155,5 +156,7 @@ object Resolver {
       deprecated: Boolean,
       priority: Int
   ) extends Resolver
+
+  final implicit val resolverRevisionedId: RevisionedId[Resolver] = RevisionedId(r => (r.id, r.rev))
 
 }

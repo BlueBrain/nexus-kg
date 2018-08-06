@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.UUID
 
+import ch.epfl.bluebrain.nexus.kg.async.RevisionedId
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
@@ -97,4 +98,6 @@ object View {
       rev: Long,
       deprecated: Boolean
   ) extends View
+
+  final implicit val viewRevisionedId: RevisionedId[View] = RevisionedId(view => (view.id, view.rev))
 }

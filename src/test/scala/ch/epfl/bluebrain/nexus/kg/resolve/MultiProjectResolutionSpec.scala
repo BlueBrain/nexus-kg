@@ -77,7 +77,6 @@ class MultiProjectResolutionSpec
       .addProject(proj1Id.ref,
                   AccountRef(account1Uuid),
                   Project(proj1.value, proj1.value, Map(), base, 1L, false, proj1Id),
-                  clock.instant(),
                   true)
       .futureValue
 
@@ -89,7 +88,6 @@ class MultiProjectResolutionSpec
       .addProject(proj2Id.ref,
                   AccountRef(account2Uuid),
                   Project(proj2.value, proj2.value, Map(), base, 1L, false, proj2Id),
-                  clock.instant(),
                   true)
       .futureValue
 
@@ -101,7 +99,6 @@ class MultiProjectResolutionSpec
       .addProject(proj3Id.ref,
                   AccountRef(account3Uuid),
                   Project(proj3.value, proj3.value, Map(), base, 1L, false, proj3Id),
-                  clock.instant(),
                   true)
       .futureValue
 

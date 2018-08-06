@@ -67,20 +67,18 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
 
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
-        case ProjectCreated(_, label, uuid, orgUUid, rev, meta, proj) =>
+        case ProjectCreated(_, label, uuid, orgUUid, rev, _, proj) =>
           cache
             .addProject(
               ProjectRef(uuid),
               AccountRef(orgUUid),
               Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
-              meta.instant,
               updateRev = false
             )
             .flatMap {
               case true =>
                 cache.addResolver(ProjectRef(uuid),
-                                  InProjectResolver(ProjectRef(uuid), nxv.InProject.value, 1L, deprecated = false, 1),
-                )
+                                  InProjectResolver(ProjectRef(uuid), nxv.InProject.value, 1L, deprecated = false, 1))
               case false => Task(false)
             }
             .flatMap {
@@ -88,25 +86,23 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                 cache.addView(
                   ProjectRef(uuid),
                   ElasticView(ProjectRef(uuid), nxv.default.value, UUID.randomUUID().toString, 1L, false),
-                  meta.instant,
                   true
                 )
               case false => Task(false)
             }
             .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
-        case ProjectUpdated(_, label, uuid, orgUUid, rev, meta, proj) =>
+        case ProjectUpdated(_, label, uuid, orgUUid, rev, _, proj) =>
           cache
             .addProject(
               ProjectRef(uuid),
               AccountRef(orgUUid),
               Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
-              meta.instant,
               updateRev = true
             )
             .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
-        case ProjectDeprecated(_, uuid, orgUUid, rev, meta) =>
+        case ProjectDeprecated(_, uuid, orgUUid, rev, _) =>
           cache
-            .deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), meta.instant, rev)
+            .deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), rev)
             .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
         case _: OrganizationCreated    => throw IllegalEventType("OrganizationCreated", "Project")
         case _: OrganizationUpdated    => throw IllegalEventType("OrganizationUpdated", "Project")
