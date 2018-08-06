@@ -10,7 +10,7 @@ import akka.util.Timeout
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache.RevisionedId._
+import ch.epfl.bluebrain.nexus.kg.async.RevisionedId._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve._
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -206,43 +206,28 @@ trait DistributedCache[F[_]] {
 
 object DistributedCache {
 
-  private[async] sealed trait RevisionedId[A] {
-    def id: AbsoluteIri
-    def rev: Long
-  }
-  object RevisionedId {
-
-    private[async] implicit class RevisionedIdSyntax[A](private val value: A) extends AnyVal {
-      def id(implicit R: RevisionedId[A]): AbsoluteIri = R.id
-      def rev(implicit R: RevisionedId[A]): Long       = R.rev
-    }
-    private[async] final case class Apply[A](id: AbsoluteIri, rev: Long) extends RevisionedId[A]
-    private[async] implicit val revisionedIdResolver: Resolver => RevisionedId[Resolver] = r => Apply(r.id, r.rev)
-    private[async] implicit val revisionedIdView: View => RevisionedId[View]             = v => Apply(v.id, v.rev)
-  }
-
-  private[async] def accountKey(ref: AccountRef): LWWRegisterKey[RevisionValue[Option[Account]]] =
+  private[async] def accountKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[Account]]] =
     LWWRegisterKey("account_state_" + ref.id)
 
-  private[async] def accountRefKey(ref: ProjectRef): LWWRegisterKey[RevisionValue[Option[AccountRef]]] =
+  private[async] def accountRefKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[AccountRef]]] =
     LWWRegisterKey("account_key_state_" + ref.id)
 
-  private[async] def projectKey(ref: ProjectRef): LWWRegisterKey[RevisionValue[Option[Project]]] =
+  private[async] def projectKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[Project]]] =
     LWWRegisterKey("project_state_" + ref.id)
 
-  private[async] def projectSegmentKey(ref: ProjectLabel): LWWRegisterKey[RevisionValue[Option[ProjectRef]]] =
+  private[async] def projectSegmentKey(ref: ProjectLabel): LWWRegisterKey[RevisionedValue[Option[ProjectRef]]] =
     LWWRegisterKey("project_segment_" + ref.show)
 
-  private[async] def accountSegmentInverseKey(ref: AccountRef): LWWRegisterKey[RevisionValue[Option[String]]] =
+  private[async] def accountSegmentInverseKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[String]]] =
     LWWRegisterKey("account_segment_" + ref.id)
 
-  private[async] def accountProjectsKey(ref: AccountRef): LWWRegisterKey[RevisionValue[Set[ProjectRef]]] =
+  private[async] def accountProjectsKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Set[ProjectRef]]] =
     LWWRegisterKey("account_projects_" + ref.id)
 
-  private[async] def projectResolversKey(ref: ProjectRef): LWWRegisterKey[RevisionValue[Set[Resolver]]] =
+  private[async] def projectResolversKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Set[Resolver]]] =
     LWWRegisterKey("project_resolvers_" + ref.id)
 
-  private[async] def projectViewsKey(ref: ProjectRef): LWWRegisterKey[RevisionValue[Set[View]]] =
+  private[async] def projectViewsKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Set[View]]] =
     LWWRegisterKey("project_views_" + ref.id)
 
   /**
@@ -256,20 +241,20 @@ object DistributedCache {
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val node: Cluster        = Cluster(as)
 
-    private implicit def rvClock[A]: Clock[RevisionValue[A]] = RevisionValue.revisionedValueClock
+    private implicit def rvClock[A]: Clock[RevisionedValue[A]] = RevisionedValue.revisionedValueClock
 
     private def update(ref: AccountRef, ac: Account) = {
 
       def updateAccount() = {
-        val empty  = LWWRegister(RevisionValue[Option[Account]](0L, None))
-        val value  = RevisionValue[Option[Account]](ac.rev, Some(ac))
+        val empty  = LWWRegister(RevisionedValue[Option[Account]](0L, None))
+        val value  = RevisionedValue[Option[Account]](ac.rev, Some(ac))
         val update = Update(accountKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
         (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
       }
 
       def updateAccountLabel() = {
-        val empty  = LWWRegister(RevisionValue[Option[String]](0L, None))
-        val value  = RevisionValue[Option[String]](ac.rev, Some(ac.label))
+        val empty  = LWWRegister(RevisionedValue[Option[String]](0L, None))
+        val value  = RevisionedValue[Option[String]](ac.rev, Some(ac.label))
         val update = Update(accountSegmentInverseKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
         (replicator ? update).flatMap(
           handleBooleanUpdate("Timed out while waiting for adding account label quorum response"))
@@ -288,8 +273,8 @@ object DistributedCache {
       accountRef(ref).flatMap {
         case Some(_) => Future.successful(updateRev)
         case _ =>
-          val empty  = LWWRegister(RevisionValue[Option[AccountRef]](0L, None))
-          val value  = RevisionValue[Option[AccountRef]](rev, Some(accRef))
+          val empty  = LWWRegister(RevisionedValue[Option[AccountRef]](0L, None))
+          val value  = RevisionedValue[Option[AccountRef]](rev, Some(accRef))
           val update = Update(accountRefKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
           (replicator ? update).flatMap(
             handleBooleanUpdate("Timed out while waiting for add account ref quorum response"))
@@ -313,8 +298,8 @@ object DistributedCache {
       }
 
     private def updateProject(ref: ProjectRef, proj: Project): Future[Boolean] = {
-      val empty  = LWWRegister(RevisionValue[Option[Project]](0L, None))
-      val value  = RevisionValue[Option[Project]](proj.rev, Some(proj))
+      val empty  = LWWRegister(RevisionedValue[Option[Project]](0L, None))
+      val value  = RevisionedValue[Option[Project]](proj.rev, Some(proj))
       val update = Update(projectKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
       (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
     }
@@ -331,8 +316,8 @@ object DistributedCache {
       } yield r
       result.flatMap {
         case Some(accountLabel) =>
-          val empty = LWWRegister(RevisionValue[Option[ProjectRef]](0L, None))
-          val value = RevisionValue[Option[ProjectRef]](proj.rev, Some(ref))
+          val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
+          val value = RevisionedValue[Option[ProjectRef]](proj.rev, Some(ref))
           val update = Update(projectSegmentKey(ProjectLabel(accountLabel, proj.label)),
                               empty,
                               WriteMajority(tm.duration))(_.withValue(value))
@@ -348,15 +333,15 @@ object DistributedCache {
       projects(accountRef).flatMap { projects =>
         if (projects.contains(ref)) Future.successful(updateRev)
         else {
-          val empty = LWWRegister(RevisionValue(0L, Set.empty[ProjectRef]))
+          val empty = LWWRegister(RevisionedValue(0L, Set.empty[ProjectRef]))
           val update = Update(accountProjectsKey(accountRef), empty, WriteMajority(tm.duration)) { currentState =>
             val currentRevision = currentState.value.rev
             val currentValue    = currentState.value.value
             currentValue.find(_.id == ref.id) match {
               case Some(r) =>
-                currentState.withValue(RevisionValue(currentRevision + 1, currentValue - r + ref))
+                currentState.withValue(RevisionedValue(currentRevision + 1, currentValue - r + ref))
               case None =>
-                currentState.withValue(RevisionValue(currentRevision + 1, currentValue + ref))
+                currentState.withValue(RevisionedValue(currentRevision + 1, currentValue + ref))
             }
           }
           (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
@@ -367,13 +352,13 @@ object DistributedCache {
     private def removeProjectFromAccount(ref: ProjectRef, accountRef: AccountRef): Future[Boolean] = {
       projects(accountRef).flatMap { projects =>
         if (projects.contains(ref)) {
-          val empty = LWWRegister(RevisionValue(0L, Set.empty[ProjectRef]))
+          val empty = LWWRegister(RevisionedValue(0L, Set.empty[ProjectRef]))
           val update = Update(accountProjectsKey(accountRef), empty, WriteMajority(tm.duration)) { currentState =>
             val currentRevision = currentState.value.rev
             val currentValue    = currentState.value.value
             currentValue.find(_.id == ref.id) match {
               case Some(r) =>
-                currentState.withValue(RevisionValue(currentRevision + 1, currentValue - r))
+                currentState.withValue(RevisionedValue(currentRevision + 1, currentValue - r))
               case None => currentState
             }
           }
@@ -420,7 +405,7 @@ object DistributedCache {
     override def resolvers(ref: ProjectRef): Future[Set[Resolver]] =
       getOrElse(projectResolversKey(ref), Set.empty[Resolver])
 
-    private def getOrElse[T](f: => LWWRegisterKey[RevisionValue[T]], default: => T): Future[T] =
+    private def getOrElse[T](f: => LWWRegisterKey[RevisionedValue[T]], default: => T): Future[T] =
       (replicator ? Get(f, ReadLocal, None)).map {
         case g @ GetSuccess(LWWRegisterKey(_), _) => g.get(f).value.value
         case NotFound(_, _)                       => default
@@ -431,20 +416,20 @@ object DistributedCache {
         resolver: Resolver,
     ): Future[Boolean] = {
 
-      val empty = LWWRegister(RevisionValue(0L, Set.empty[Resolver]))
+      val empty = LWWRegister(RevisionedValue(0L, Set.empty[Resolver]))
 
       val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(updateWithIncrement(_, resolver))
       (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add resolver quorum response"))
     }
 
     override def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): Future[Boolean] = {
-      val empty  = LWWRegister(RevisionValue(0L, Set.empty[Resolver]))
+      val empty  = LWWRegister(RevisionedValue(0L, Set.empty[Resolver]))
       val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(removeWithIncrement(_, id, rev))
       (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for remove resolver quorum response"))
     }
 
-    private def updateWithIncrement[A](currentState: LWWRegister[RevisionValue[Set[A]]], value: A)(
-        implicit f: A => RevisionedId[A]): LWWRegister[RevisionValue[Set[A]]] = {
+    private def updateWithIncrement[A: RevisionedId](currentState: LWWRegister[RevisionedValue[Set[A]]],
+                                                     value: A): LWWRegister[RevisionedValue[Set[A]]] = {
       val currentRevision = currentState.value.rev
       val current         = currentState.value.value
 
@@ -452,17 +437,18 @@ object DistributedCache {
         case Some(r) if r.rev >= value.rev => currentState
         case Some(r) =>
           val updated  = current - r + value
-          val newValue = RevisionValue(currentRevision + 1, updated)
+          val newValue = RevisionedValue(currentRevision + 1, updated)
           currentState.withValue(newValue)
         case None =>
           val updated  = current + value
-          val newValue = RevisionValue(currentRevision + 1, updated)
+          val newValue = RevisionedValue(currentRevision + 1, updated)
           currentState.withValue(newValue)
       }
     }
 
-    private def removeWithIncrement[A](currentState: LWWRegister[RevisionValue[Set[A]]], id: AbsoluteIri, rev: Long)(
-        implicit f: A => RevisionedId[A]): LWWRegister[RevisionValue[Set[A]]] = {
+    private def removeWithIncrement[A: RevisionedId](currentState: LWWRegister[RevisionedValue[Set[A]]],
+                                                     id: AbsoluteIri,
+                                                     rev: Long): LWWRegister[RevisionedValue[Set[A]]] = {
       val currentRevision = currentState.value.rev
       val current         = currentState.value.value
 
@@ -470,7 +456,7 @@ object DistributedCache {
         case Some(r) if r.rev >= rev => currentState
         case Some(r) =>
           val updated  = current - r
-          val newValue = RevisionValue(currentRevision + 1, updated)
+          val newValue = RevisionedValue(currentRevision + 1, updated)
           currentState.withValue(newValue)
         case None => currentState
       }
@@ -493,7 +479,7 @@ object DistributedCache {
       views(ref).flatMap { viewSet =>
         if (viewSet.exists(found)) Future.successful(false)
         else {
-          val empty  = LWWRegister(RevisionValue(0L, Set.empty[View]))
+          val empty  = LWWRegister(RevisionedValue(0L, Set.empty[View]))
           val update = Update(projectViewsKey(ref), empty, WriteMajority(tm.duration))(updateWithIncrement(_, view))
           (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add view quorum response"))
         }
@@ -504,7 +490,7 @@ object DistributedCache {
       views(ref).flatMap { viewSet =>
         if (!viewSet.exists(_.id == id)) Future.successful(false)
         else {
-          val empty  = LWWRegister(RevisionValue(0L, Set.empty[View]))
+          val empty  = LWWRegister(RevisionedValue(0L, Set.empty[View]))
           val update = Update(projectViewsKey(ref), empty, WriteMajority(tm.duration))(removeWithIncrement(_, id, rev))
           (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for remove view quorum response"))
         }

@@ -8,10 +8,10 @@ import akka.cluster.ddata.LWWRegister.Clock
   * @param rev   the value revision
   * @param value the value
   */
-final case class RevisionValue[A](rev: Long, value: A)
+final case class RevisionedValue[A](rev: Long, value: A)
 
-object RevisionValue {
+object RevisionedValue {
 
-  private[async] def revisionedValueClock[A]: Clock[RevisionValue[A]] =
-    (_: Long, value: RevisionValue[A]) => value.rev
+  private[async] def revisionedValueClock[A]: Clock[RevisionedValue[A]] =
+    (_: Long, value: RevisionedValue[A]) => value.rev
 }
