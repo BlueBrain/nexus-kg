@@ -29,14 +29,21 @@
       "property": [
         {
           "path": "rdf:type",
-          "name": "RDF types",
-          "description": "The rdf types.",
+          "name": "RDF type ElasticView",
+          "description": "The ElasticView RDF type.",
           "nodeKind": "sh:IRI",
           "sh:hasValue": {
             "@id": "nxv:ElasticView"
-          },
-          "minCount": 2,
-          "maxCount": 2
+          }
+        },
+        {
+          "path": "rdf:type",
+          "name": "RDF type Alpha",
+          "description": "The Alpha RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:Alpha"
+          }
         },
         {
           "path": "nxv:uuid",
@@ -73,7 +80,7 @@
           "datatype": "xsd:boolean"
         },
         {
-          "path": "nxv:sourceAsBlob",
+          "path": "nxv:sourceAsText",
           "name": "Source as blob",
           "description": "flag to include or exclude the source Json as a blob",
           "datatype": "xsd:boolean"

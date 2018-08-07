@@ -29,7 +29,7 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
       val sparqlview  = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
       val elasticview = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
       "return an ElasticView" in {
-        val resource = simpleV(id, elasticview, types = Set(nxv.View, nxv.ElasticView))
+        val resource = simpleV(id, elasticview, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
         View(resource).value shouldEqual ElasticView(mapping,
                                                      Set(nxv.Schema, nxv.Resource),
                                                      Some("one"),
@@ -60,7 +60,7 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
       "fail on ElasticView when invalid payload" in {
         val wrong = List(jsonContentOf("/view/elasticview-wrong.json"), jsonContentOf("/view/elasticview-wrong-2.json"))
         forAll(wrong) { json =>
-          val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticView))
+          val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
           View(resource) shouldEqual None
         }
       }
@@ -71,7 +71,8 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
       }
 
       "fail on SparqlView when invalid payload" in {
-        val resource = simpleV(id, jsonContentOf("/view/sparqlview-wrong.json"), types = Set(nxv.View, nxv.ElasticView))
+        val resource =
+          simpleV(id, jsonContentOf("/view/sparqlview-wrong.json"), types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
         View(resource) shouldEqual None
       }
     }

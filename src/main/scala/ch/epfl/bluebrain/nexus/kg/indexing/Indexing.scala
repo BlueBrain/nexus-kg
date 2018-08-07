@@ -95,7 +95,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                     Set.empty,
                     None,
                     includeMetadata = true,
-                    sourceAsBlob = true,
+                    sourceAsText = true,
                     ProjectRef(uuid),
                     nxv.default.value,
                     UUID.randomUUID().toString,

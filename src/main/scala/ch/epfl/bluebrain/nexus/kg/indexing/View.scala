@@ -69,9 +69,9 @@ object View {
         schemas       = c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].map(_.toSet).getOrElse(Set.empty)
         tag           = c.downField(nxv.resourceTag).focus.as[String].toOption
         includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
-        sourceAsBlob  = c.downField(nxv.sourceAsBlob).focus.as[Boolean].getOrElse(false)
+        sourceAsText  = c.downField(nxv.sourceAsText).focus.as[Boolean].getOrElse(false)
       } yield
-        ElasticView(mapping, schemas, tag, includeMeta, sourceAsBlob, res.id.parent, res.id.value, uuid.toString.toLowerCase(), res.rev, res.deprecated)
+        ElasticView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid.toString.toLowerCase(), res.rev, res.deprecated)
       // format: on
       result.toOption
     }
@@ -81,7 +81,8 @@ object View {
         .map(uuid => SparqlView(res.id.parent, res.id.value, uuid.toString.toLowerCase(), res.rev, res.deprecated))
         .toOption
 
-    if (res.types.contains(nxv.View.value) && res.types.contains(nxv.ElasticView.value)) elastic()
+    if (res.types.contains(nxv.View.value) && res.types.contains(nxv.Alpha.value) && res.types.contains(
+          nxv.ElasticView.value)) elastic()
     else if (res.types.contains(nxv.View.value) && res.types.contains(nxv.SparqlView.value)) sparql()
     else None
   }
@@ -94,7 +95,7 @@ object View {
     *                        resources validated against any of those schemas
     * @param resourceTag     an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
     * @param includeMetadata flag to include or exclude metadata on the indexed Document
-    * @param sourceAsBlob    flag to include or exclude the source Json as a blob
+    * @param sourceAsText    flag to include or exclude the source Json as a blob
     *                        (if true, it will be included in the field '_original_source')
     * @param ref             a reference to the project that the view belongs to
     * @param id              the user facing view id
@@ -107,7 +108,7 @@ object View {
       resourceSchemas: Set[AbsoluteIri],
       resourceTag: Option[String],
       includeMetadata: Boolean,
-      sourceAsBlob: Boolean,
+      sourceAsText: Boolean,
       ref: ProjectRef,
       id: AbsoluteIri,
       uuid: String,

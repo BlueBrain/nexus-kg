@@ -10,7 +10,8 @@
       "@id": "http://example.com/id",
       "@type": [
         "View",
-        "ElasticView"
+        "ElasticView",
+        "Alpha"
       ],
       "mapping": {
         "mappings": {
@@ -57,7 +58,7 @@
         "nxv:Schema"
       ],
       "resourceTag": "one",
-      "sourceAsBlob": true,
+      "sourceAsText": true,
       "uuid": "3aa14a1a-81e7-4147-8306-136d8270bb01",
       "_deprecated": false,
       "_rev": 1

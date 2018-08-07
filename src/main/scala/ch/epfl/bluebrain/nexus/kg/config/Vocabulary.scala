@@ -36,7 +36,7 @@ object Vocabulary {
     val resourceSchemas = withPath("resourceSchemas")
     val resourceTag     = withPath("resourceTag")
     val includeMetadata = withPath("includeMetadata")
-    val sourceAsBlob    = withPath("sourceAsBlob")
+    val sourceAsText    = withPath("sourceAsText")
     val mapping         = withPath("mapping")
     val projects        = withPath("projects")
     val identities      = withPath("identities")
@@ -66,6 +66,7 @@ object Vocabulary {
     val GroupRef         = withPath("GroupRef")
     val AuthenticatedRef = withPath("AuthenticatedRef")
     val Anonymous        = withPath("Anonymous")
+    val Alpha            = withPath("Alpha")
 
   }
 }

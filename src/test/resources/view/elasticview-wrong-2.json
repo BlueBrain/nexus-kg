@@ -2,13 +2,14 @@
   "@id": "http://example.com/id",
   "@type": [
     "View",
-    "ElasticView"
+    "ElasticView",
+    "Alpha"
   ],
   "resourceSchemas": [
     "nxv:Schema",
     "nxv:Resource"
   ],
   "resourceTag": "one",
-  "sourceAsBlob": true,
+  "sourceAsText": true,
   "mapping": "{\"mappings\": }"
 }

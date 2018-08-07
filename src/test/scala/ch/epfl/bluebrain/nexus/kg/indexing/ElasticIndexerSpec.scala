@@ -86,7 +86,7 @@ class ElasticIndexerSpec
         Set.empty,
         None,
         includeMetadata = true,
-        sourceAsBlob = true,
+        sourceAsText = true,
         id.parent,
         nxv.default.value,
         UUID.randomUUID().toString,
@@ -165,7 +165,7 @@ class ElasticIndexerSpec
         Set(nxv.Resolver.value, nxv.Resource.value),
         None,
         includeMetadata = true,
-        sourceAsBlob = true,
+        sourceAsText = true,
         id.parent,
         nxv.default.value,
         UUID.randomUUID().toString,
@@ -206,13 +206,13 @@ class ElasticIndexerSpec
       }
     }
 
-    "using a view without metadata, without sourceAsBlob and targeting a specific tag" should {
+    "using a view without metadata, without sourceAsText and targeting a specific tag" should {
       val view = ElasticView(
         defaultEsMapping,
         Set.empty,
         Some("one"),
         includeMetadata = false,
-        sourceAsBlob = false,
+        sourceAsText = false,
         id.parent,
         nxv.default.value,
         UUID.randomUUID().toString,

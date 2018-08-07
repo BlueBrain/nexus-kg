@@ -93,7 +93,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
     def transform: F[Json] = {
       val metaGraph = if (view.includeMetadata) res.metadata ++ res.typeGraph else Graph()
       val graph: F[Graph] =
-        if (view.sourceAsBlob)
+        if (view.sourceAsText)
           F.pure(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces))
         else
           resources.materialize(res).value.flatMap {
