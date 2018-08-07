@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, IamConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -24,7 +25,6 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
@@ -90,20 +90,17 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
   private def transformAndIndex(res: Resource): F[Unit] = {
     val primaryNode = IriNode(res.id.value)
 
-    def transform: F[Json] = {
-      val metaGraph = if (view.includeMetadata) res.metadata ++ res.typeGraph else Graph()
-      val graph: F[Graph] =
-        if (view.sourceAsText)
-          F.pure(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces))
-        else
-          resources.materialize(res).value.flatMap {
-            case Left(r)  => F.raiseError(r)
-            case Right(r) => F.pure(metaGraph ++ r.value.graph)
-          }
-      graph.map(g => g.asJson(ctx, Some(primaryNode)).getOrElse(g.asJson).removeKeys("@context"))
-    }
+    def asJson(g: Graph): Json =
+      g.asJson(ctx, Some(primaryNode)).getOrElse(g.asJson)
 
-    transform.flatMap(json => client.create(index, config.docType, res.id.elasticId, json))
+    val transformed: Json = {
+      val metaGraph = if (view.includeMetadata) res.metadata ++ res.typeGraph else Graph()
+      if (view.sourceAsText)
+        asJson(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces)).removeKeys("@context")
+      else
+        (asJson(metaGraph) deepMerge res.value).removeKeys("@context")
+    }
+    client.create(index, config.docType, res.id.elasticId, transformed)
   }
 
 }

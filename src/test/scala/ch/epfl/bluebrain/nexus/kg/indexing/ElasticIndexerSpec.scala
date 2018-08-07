@@ -10,7 +10,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import akka.testkit.TestKit
 import cats.Show
-import cats.data.{EitherT, OptionT}
+import cats.data.OptionT
 import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.service.http.Path
@@ -223,36 +223,21 @@ class ElasticIndexerSpec
       val indexer = new ElasticIndexer(client, view, resources)
 
       "index a resource when it does not exist" in {
-        val res  = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
-        val resV = simpleV(id, json, 2L, res.types, schema = schema).copy(tags = res.tags)
+        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
         when(client.get[Json](index, doc, urlEncoded(id.value), include = Set("_rev")))
           .thenReturn(Future.failed(new ElasticClientError(StatusCodes.NotFound, "something")))
-        when(resources.materialize(res)).thenReturn(EitherT.rightT[Future, Rejection](resV))
 
-        val elasticJson = Json.obj("@id" -> Json.fromString(id.value.show), "nxv:key" -> Json.fromInt(2))
+        val elasticJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
         when(client.create(index, doc, urlEncoded(id.value), elasticJson)).thenReturn(Future.successful(()))
         indexer(ev).futureValue shouldEqual (())
         verify(client, times(1)).create(index, doc, urlEncoded(id.value), elasticJson)
-        verify(resources, times(1)).materialize(res)
       }
 
       "skip indexing a resource when it is not matching the tag defined on the view" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
         indexer(ev).futureValue shouldEqual (())
-      }
-
-      "throw when the event resource canot be materialized" in {
-        val res                  = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
-        val rejection: Rejection = Unexpected("something")
-        when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
-        when(client.get[Json](index, doc, urlEncoded(id.value), include = Set("_rev")))
-          .thenReturn(Future.failed(new ElasticClientError(StatusCodes.NotFound, "something")))
-        when(resources.materialize(res)).thenReturn(EitherT.leftT[Future, ResourceV](rejection))
-
-        whenReady(indexer(ev).failed)(_ shouldEqual rejection)
-        verify(resources, times(1)).materialize(res)
       }
     }
   }
