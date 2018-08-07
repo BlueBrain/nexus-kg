@@ -1,0 +1,73 @@
+{
+  "@context" : [
+    "https://bluebrain.github.io/nexus/contexts/search",
+    "https://bluebrain.github.io/nexus/contexts/resource",
+    "https://bluebrain.github.io/nexus/contexts/resolver"
+  ],
+  "total" : 2,
+  "results" : [
+    {
+      "@id" : "http://example.com/id",
+      "@type" : [
+        "InProject",
+        "Resolver"
+      ],
+      "priority" : 10,
+      "_rev" : 1,
+      "_deprecated" : false
+    },
+    {
+      "@id" : "http://example.com/id2",
+      "@type" : [
+        "CrossProject",
+        "Resolver"
+      ],
+      "identities" : [
+        {
+          "@type" : "GroupRef",
+          "group" : "bbp-ou-neuroinformatics",
+          "realm" : "ldap2"
+        },
+        {
+          "@type" : "UserRef",
+          "realm" : "ldap",
+          "sub" : "dmontero"
+        }
+      ],
+      "priority" : 10,
+      "projects" : [
+        "account1/project1",
+        "account1/project2"
+      ],
+      "resourceTypes" : [
+        "nxv:Resolver",
+        "nxv:CrossProject"
+      ],
+      "_rev" : 1,
+      "_deprecated" : false
+    },
+    {
+      "@id" : "http://example.com/id3",
+      "@type" : [
+        "Resolver",
+        "InAccount"
+      ],
+      "identities" : [
+        {
+          "@type" : "Anonymous"
+        },
+        {
+          "@type" : "AuthenticatedRef",
+          "realm" : "some"
+        }
+      ],
+      "priority" : 10,
+      "resourceTypes" : [
+        "nxv:Resolver",
+        "nxv:InAccount"
+      ],
+      "_rev" : 1,
+      "_deprecated" : false
+    }
+  ]
+}

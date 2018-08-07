@@ -1,12 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.UUID
+import java.util.regex.Pattern.quote
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.kafka.ConsumerSettings
 import ch.epfl.bluebrain.nexus.admin.client.types.KafkaEvent._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, KafkaEvent, Project}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.IllegalEventType
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
@@ -30,6 +32,9 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
     config: AppConfig) {
 
   private val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
+
+  private val defaultEsMapping =
+    jsonContentOf("/elastic/mapping.json", Map(quote("{{docType}}") -> config.elastic.docType))
 
   def startAccountStream(): Unit = {
 
@@ -85,7 +90,18 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
               case true =>
                 cache.addView(
                   ProjectRef(uuid),
-                  ElasticView(ProjectRef(uuid), nxv.default.value, UUID.randomUUID().toString, 1L, false),
+                  ElasticView(
+                    defaultEsMapping,
+                    Set.empty,
+                    None,
+                    includeMetadata = true,
+                    sourceAsText = true,
+                    ProjectRef(uuid),
+                    nxv.default.value,
+                    UUID.randomUUID().toString,
+                    1L,
+                    deprecated = false
+                  ),
                   true
                 )
               case false => Task(false)
@@ -140,8 +156,8 @@ object Indexing {
                                                                        config: AppConfig): Unit = {
 
     def selector(view: View): ActorRef = view match {
-      case _: ElasticView => ElasticIndexer.start(view, resources)
-      case _: SparqlView  => SparqlIndexer.start(view, resources)
+      case v: ElasticView => ElasticIndexer.start(v, resources)
+      case v: SparqlView  => SparqlIndexer.start(v, resources)
     }
 
     val coordinator = ProjectViewCoordinator.start(cache, selector, None, config.cluster.shards)

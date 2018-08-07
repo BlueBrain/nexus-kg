@@ -341,7 +341,7 @@ class ResourceRoutesSpec
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list.json")
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
         }
       }
 
@@ -349,7 +349,7 @@ class ResourceRoutesSpec
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list-no-deprecated.json")
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
         }
       }
 

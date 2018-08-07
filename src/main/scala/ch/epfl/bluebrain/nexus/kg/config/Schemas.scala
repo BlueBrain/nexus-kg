@@ -13,8 +13,10 @@ object Schemas {
   val shaclSchemaUri: AbsoluteIri    = url"$schemas/shacl"
   val resolverSchemaUri: AbsoluteIri = url"$schemas/resolver"
   val resourceSchemaUri: AbsoluteIri = url"$schemas/resource"
+  val viewSchemaUri: AbsoluteIri     = url"$schemas/view"
   val ontologySchemaUri: AbsoluteIri = url"$schemas/ontology"
 
   val resolverSchema: Json = jsonContentOf("/schemas/resolver.json")
+  val viewSchema: Json     = jsonContentOf("/schemas/view.json")
 
 }

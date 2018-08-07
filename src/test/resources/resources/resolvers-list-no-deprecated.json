@@ -12,11 +12,15 @@
         "Resolver",
         "InAccount"
       ],
-      "identities": {
-        "@type": "Anonymous"
-      },
+      "identities": [
+        {
+          "@type": "Anonymous"
+        }
+      ],
       "priority": 10,
-      "resourceTypes": "nxv:Schema",
+      "resourceTypes": [
+        "nxv:Schema"
+      ],
       "_rev": 2,
       "_deprecated": false
     },
