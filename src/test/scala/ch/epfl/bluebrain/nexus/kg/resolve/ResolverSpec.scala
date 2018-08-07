@@ -2,8 +2,9 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import java.time.{Clock, Instant, ZoneId}
 
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -15,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
+import io.circe.syntax._
 import org.scalatest._
 
 class ResolverSpec
@@ -37,7 +38,6 @@ class ResolverSpec
     val id           = Id(projectRef, iri)
     val accountRef   = AccountRef("accountRef")
     val identities   = List[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero"))
-    val flattenedCtx = resolverCtx.appendContextOf(resourceCtx)
 
     "constructing" should {
 
@@ -91,41 +91,36 @@ class ResolverSpec
 
     "converting into json (from Graph)" should {
 
-      "return the json representation for InProjectResolver" in {
-        val resolver: Resolver = InProjectResolver(projectRef, iri, 1L, false, 10)
-        resolver
-          .asJson(flattenedCtx)
-          .removeKeys("@context")
-          .addContext(resolverCtxUri)
-          .addContext(resourceCtxUri) shouldEqual jsonContentOf("/resolve/in-project-resp.json")
-      }
+      "return the list representation" in {
+        val iri2 = Iri.absolute("http://example.com/id2").right.value
+        val iri3 = Iri.absolute("http://example.com/id3").right.value
 
-      "return the json representation for CrossProjectResolver" in {
-        val projects =
-          Set(ProjectRef("account1/project1"), ProjectRef("account1/project2"))
-        val resolver: Resolver = CrossProjectResolver(Set(nxv.Resolver, nxv.CrossProject),
-                                                      projects,
-                                                      identities,
-                                                      projectRef,
-                                                      iri,
-                                                      1L,
-                                                      false,
-                                                      10)
-        resolver
-          .asJson(flattenedCtx)
-          .removeKeys("@context")
-          .addContext(resolverCtxUri)
-          .addContext(resourceCtxUri) should equalIgnoreArrayOrder(jsonContentOf("/resolve/cross-project-resp.json"))
-      }
+        val inProject: Resolver = InProjectResolver(projectRef, iri, 1L, false, 10)
 
-      "return the json representation for InAccountResolver" in {
-        val resolver: Resolver =
-          InAccountResolver(Set(nxv.Resolver, nxv.InAccount), identities, accountRef, projectRef, iri, 1L, false, 10)
-        resolver
-          .asJson(flattenedCtx)
-          .removeKeys("@context")
-          .addContext(resolverCtxUri)
-          .addContext(resourceCtxUri) should equalIgnoreArrayOrder(jsonContentOf("/resolve/in-account-resp.json"))
+        val crossProject: Resolver =
+          CrossProjectResolver(Set(nxv.Resolver, nxv.CrossProject),
+                               Set(ProjectRef("account1/project1"), ProjectRef("account1/project2")),
+                               identities,
+                               projectRef,
+                               iri2,
+                               1L,
+                               false,
+                               10)
+        val inAccount: Resolver =
+          InAccountResolver(Set(nxv.Resolver, nxv.InAccount),
+                            List(Anonymous, AuthenticatedRef(Some("some"))),
+                            accountRef,
+                            projectRef,
+                            iri3,
+                            1L,
+                            false,
+                            10)
+
+        val resolvers: QueryResults[Resolver] = QueryResults(2L,
+                                                             List(UnscoredQueryResult(inProject),
+                                                                  UnscoredQueryResult(crossProject),
+                                                                  UnscoredQueryResult(inAccount)))
+        resolvers.asJson should equalIgnoreArrayOrder(jsonContentOf("/resolve/resolver-list-resp.json"))
       }
     }
   }

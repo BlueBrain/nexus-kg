@@ -1,0 +1,14 @@
+{
+  "@id": "http://example.com/id",
+  "@type": [
+    "View",
+    "ElasticView"
+  ],
+  "resourceSchemas": [
+    "nxv:Schema",
+    "nxv:Resource"
+  ],
+  "resourceTag": "one",
+  "sourceAsBlob": true,
+  "mapping": "{\"mappings\": }"
+}

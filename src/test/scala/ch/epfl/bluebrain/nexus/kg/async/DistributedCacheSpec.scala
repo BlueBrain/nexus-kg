@@ -7,7 +7,7 @@ import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri
@@ -125,8 +125,8 @@ class DistributedCacheSpec
       cache.addProject(projectRef, accountRef, project, updateRev = true).futureValue shouldEqual true
 
       val projectId = base + s"$accountLabel/$projectLabel"
-      val view      = ElasticView(projectRef, projectId, genUUID, 1L, deprecated = false)
-      val view2     = ElasticView(projectRef, url"http://some.project/id".value, genUUID, 1L, deprecated = false)
+      val view      = SparqlView(projectRef, projectId, genUUID, 1L, deprecated = false)
+      val view2     = SparqlView(projectRef, url"http://some.project/id".value, genUUID, 1L, deprecated = false)
       cache.addView(projectRef, view, updateRev = true).futureValue shouldEqual true
       cache.views(projectRef).futureValue shouldEqual Set(view)
       cache.views(ProjectLabel(accountLabel, projectLabel)).futureValue shouldEqual Set(view)

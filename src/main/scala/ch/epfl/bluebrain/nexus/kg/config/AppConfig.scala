@@ -159,7 +159,8 @@ object AppConfig {
     shaclCtxUri       -> shaclCtx,
     resolverCtxUri    -> resolverCtx,
     viewCtxUri        -> viewCtx,
-    resolverSchemaUri -> resolverSchema
+    resolverSchemaUri -> resolverSchema,
+    viewSchemaUri     -> viewSchema
   )
 
   val orderedKeys = OrderedKeys(

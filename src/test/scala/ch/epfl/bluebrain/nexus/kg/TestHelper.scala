@@ -57,7 +57,12 @@ trait TestHelper {
       canonicalJson(value)
     }
 
-    override def apply(left: Json): MatchResult =
-      MatchResult(sortKeys(json) == sortKeys(left), "Both Json are not equal (ignoring array order)", "")
+    override def apply(left: Json): MatchResult = {
+      val leftSorted  = sortKeys(left)
+      val rightSorted = sortKeys(json)
+      MatchResult(leftSorted == rightSorted,
+                  s"Both Json are not equal (ignoring array order)\n$leftSorted\ndid not equal\n$rightSorted",
+                  "")
+    }
   }
 }

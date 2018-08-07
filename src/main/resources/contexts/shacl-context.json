@@ -1,14 +1,5 @@
 {
   "@context": {
-    "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
-    "distribution": {
-      "@id": "http://schema.org/distribution"
-    },
-    "id": "@id",
-    "type": "@type",
-    "links": {
-      "@id": "nxv:links"
-    },
     "dcterms": "http://purl.org/dc/terms/",
     "owl": "http://www.w3.org/2002/07/owl#",
     "prov": "http://www.w3.org/ns/prov#",
@@ -20,6 +11,8 @@
     "skos": "http://www.w3.org/2004/02/skos/core#",
     "xsd": "http://www.w3.org/2001/XMLSchema#",
     "shext": "http://www.w3.org/ns/shacl/ext#",
+    "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
+    "distribution": "schema:distribution",
     "class": {
       "@id": "sh:class",
       "@type": "@id"

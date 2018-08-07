@@ -65,9 +65,9 @@ class ViewIndexerSpec
     //TODO: Change to view SHACL schema when we have one
     val schema = Ref(Schemas.resolverSchemaUri)
 
-    val types = Set[AbsoluteIri](nxv.View, nxv.ElasticView)
+    val types = Set[AbsoluteIri](nxv.View, nxv.SparqlView)
 
-    val json      = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+    val json      = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
     val resource  = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
     val view      = View(resourceV).value

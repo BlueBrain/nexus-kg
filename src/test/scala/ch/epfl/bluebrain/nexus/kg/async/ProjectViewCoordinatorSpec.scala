@@ -8,7 +8,7 @@ import akka.testkit.{DefaultTimeout, TestKit, TestProbe}
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import monix.execution.Scheduler.Implicits.global
@@ -50,14 +50,14 @@ class ProjectViewCoordinatorSpec
       val project    = Project("some-project", "some-label-proj", Map.empty, base, 1L, deprecated = false, projUUID)
       val account    = Account("some-org", 1L, "some-label", deprecated = false, accUUID)
       val viewId     = base + "projects/some-project/search"
-      val view       = ElasticView(projectRef, viewId, viewUUID, 1L, deprecated = false)
+      val view       = SparqlView(projectRef, viewId, viewUUID, 1L, deprecated = false)
       val counter    = new AtomicInteger(0)
       val childActor = system.actorOf(Props(new DummyActor))
       val probe      = TestProbe()
       probe watch childActor
 
       def selector(view: View): ActorRef = view match {
-        case v: ElasticView =>
+        case v: SparqlView =>
           v shouldEqual view
           counter.incrementAndGet()
           childActor

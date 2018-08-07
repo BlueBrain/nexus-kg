@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{PersistenceConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.akka.iri._
@@ -79,12 +80,12 @@ object SparqlIndexer {
     * @param resources the resources operations
     */
   // $COVERAGE-OFF$
-  final def start(view: View, resources: Resources[Task])(implicit
-                                                          as: ActorSystem,
-                                                          s: Scheduler,
-                                                          ucl: HttpClient[Task, ResultSet],
-                                                          config: SparqlConfig,
-                                                          persistence: PersistenceConfig): ActorRef = {
+  final def start(view: SparqlView, resources: Resources[Task])(implicit
+                                                                as: ActorSystem,
+                                                                s: Scheduler,
+                                                                ucl: HttpClient[Task, ResultSet],
+                                                                config: SparqlConfig,
+                                                                persistence: PersistenceConfig): ActorRef = {
 
     implicit val mt = ActorMaterializer()
     implicit val ul = HttpClient.taskHttpClient
