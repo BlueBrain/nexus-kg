@@ -1,5 +1,5 @@
 {
   "@id": "http://resources.nexus.com/test-resource/306e8f68-8419-11e8-adc0-fa7ae01bbebc",
-  "deprecated": false,
-  "constrainedBy": "http://schemas.nexus.example.com/test/v0.1.0"
+  "_deprecated": false,
+  "_constrainedBy": "http://schemas.nexus.example.com/test/v0.1.0"
 }
