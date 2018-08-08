@@ -97,7 +97,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                     includeMetadata = true,
                     sourceAsText = true,
                     ProjectRef(uuid),
-                    nxv.default.value,
+                    nxv.defaultElasticIndex.value,
                     UUID.randomUUID().toString,
                     1L,
                     deprecated = false
@@ -135,6 +135,11 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
     ResolverIndexer.start(resources, cache)
     ()
   }
+
+  def startViewStream(): Unit = {
+    ViewIndexer.start(resources, cache)
+    ()
+  }
 }
 
 object Indexing {
@@ -165,6 +170,7 @@ object Indexing {
     indexing.startAccountStream()
     indexing.startProjectStream()
     indexing.startResolverStream()
+    indexing.startViewStream()
   }
 
 }

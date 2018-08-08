@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg
 
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 

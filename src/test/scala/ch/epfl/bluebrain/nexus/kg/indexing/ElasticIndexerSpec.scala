@@ -88,7 +88,7 @@ class ElasticIndexerSpec
         includeMetadata = true,
         sourceAsText = true,
         id.parent,
-        nxv.default.value,
+        nxv.defaultElasticIndex.value,
         UUID.randomUUID().toString,
         1L,
         deprecated = false
@@ -167,7 +167,7 @@ class ElasticIndexerSpec
         includeMetadata = true,
         sourceAsText = true,
         id.parent,
-        nxv.default.value,
+        nxv.defaultElasticIndex.value,
         UUID.randomUUID().toString,
         1L,
         deprecated = false
@@ -214,7 +214,7 @@ class ElasticIndexerSpec
         includeMetadata = false,
         sourceAsText = false,
         id.parent,
-        nxv.default.value,
+        nxv.defaultElasticIndex.value,
         UUID.randomUUID().toString,
         1L,
         deprecated = false

@@ -8,6 +8,7 @@ import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -61,16 +62,16 @@ object ViewIndexer {
     *
     * @param resources the resources operations
     * @param cache     the distributed cache
-    * @param pluginId  the persistence query plugin id to query the event log
     */
   // $COVERAGE-OFF$
-  final def start(resources: Resources[Task], cache: DistributedCache[Task], pluginId: String)(
+  final def start(resources: Resources[Task], cache: DistributedCache[Task])(
       implicit as: ActorSystem,
-      s: Scheduler): ActorRef = {
+      s: Scheduler,
+      persistence: PersistenceConfig): ActorRef = {
     val indexer = new ViewIndexer[Task](resources, cache)
     SequentialTagIndexer.startLocal[Event](
       (ev: Event) => indexer(ev).runAsync,
-      pluginId,
+      persistence.queryJournalPlugin,
       tag = s"type=${nxv.View.value.show}",
       name = "view-indexer"
     )

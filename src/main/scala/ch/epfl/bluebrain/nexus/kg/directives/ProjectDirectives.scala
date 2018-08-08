@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{authorizationRejection, CustomAuthRejection}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
 import monix.eval.Task
 import monix.execution.Scheduler
 
@@ -24,7 +24,8 @@ object ProjectDirectives {
   def project(implicit cache: DistributedCache[Task],
               client: AdminClient[Task],
               cred: Option[AuthToken],
-              s: Scheduler): Directive1[LabeledProject] =
+              s: Scheduler): Directive1[LabeledProject] = {
+
     pathPrefix(Segment / Segment).tflatMap {
       case (accountLabel, projectLabel) =>
         val label = ProjectLabel(accountLabel, projectLabel)
@@ -41,6 +42,10 @@ object ProjectDirectives {
             case value @ Some(project) => cache.accountRef(ProjectRef(project.uuid)).map(_ -> value)
             case _                     => Task.pure(None                                   -> None)
           }
+          .flatMap {
+            case (None, proj @ Some(_)) => client.getAccount(accountLabel).map(_.map(ac => AccountRef(ac.uuid)) -> proj)
+            case o                      => Task.pure(o)
+          }
         onComplete(result.runAsync)
           .flatMap {
             case Failure(UnauthorizedAccess)       => reject(AuthorizationFailedRejection)
@@ -50,6 +55,7 @@ object ProjectDirectives {
             case Success((Some(ref), Some(value))) => provide(LabeledProject(label, addNxvMapping(value), ref))
           }
     }
+  }
 
   private def addNxvMapping(project: Project) = {
     val pm = project.prefixMappings + ("nxv" -> nxv.base)

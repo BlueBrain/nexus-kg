@@ -84,6 +84,13 @@ class ResourcesSpec
     val types = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
   }
 
+  trait ViewResource extends Base {
+    val schema = Latest(viewSchemaUri)
+    val view = jsonContentOf("/view/elasticview.json") addContext viewCtxUri deepMerge Json.obj(
+      "@id" -> Json.fromString(id.show))
+    val types = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
+  }
+
   trait ResolverSchema extends Base {
     val schema   = Latest(shaclSchemaUri)
     val resolver = jsonContentOf("/schemas/resolver.json") deepMerge Json.obj("@id" -> Json.fromString(id.show))
@@ -124,6 +131,11 @@ class ResourcesSpec
       "create a new resource validated against the resolver schema without passing the id on the call (but provided on the Json)" in new ResolverResource {
         resources.create(projectRef, base, schema, resolver).value.right.value shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
+      }
+
+      "create a new resource validated against the view schema without passing the id on the call (but provided on the Json)" in new ViewResource {
+        resources.create(projectRef, base, schema, view).value.right.value shouldEqual
+          ResourceF.simpleF(resId, view, schema = schema, types = types)
       }
 
       "create a new resource validated against the resolver schema without passing the id on the call (neither on the Json)" in new ResolverResource {
