@@ -79,7 +79,7 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
           val uri = base
             .copy(path = (base.path: Path) ++ Path(basePath) ++ Path(queryId.id))
             .withQuery(Uri.Query("from" -> pagination.from.toString, "size" -> pagination.size.toString))
-          redirect(uri, StatusCodes.PermanentRedirect)
+          redirect(uri, StatusCodes.SeeOther)
         }
       }
     } ~

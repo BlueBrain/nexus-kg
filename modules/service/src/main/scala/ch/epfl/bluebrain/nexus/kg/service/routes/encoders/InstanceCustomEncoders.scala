@@ -24,8 +24,13 @@ class InstanceCustomEncoders(base: Uri, prefixes: PrefixUris)
     val instanceRef = InstanceRef(instance.id, instance.rev, instance.attachment)
     val downloadURL = Json.obj("downloadURL" -> Json.fromString(s"${instance.id.qualifyAsString}/attachment"))
     val ours        = instance.attachment.map(_.asJson.addDistributionContext deepMerge downloadURL).toList
-    val theirs      = instance.value.asObject.flatMap(_.apply(JsonLDKeys.distribution)).toList
-    val merged      = ours ++ theirs
+    val merged = instance.value.hcursor
+      .downField(JsonLDKeys.distribution)
+      .focus
+      .flatMap(_.asArray)
+      .map(_.toList ++ ours)
+      .getOrElse(ours)
+      .distinct
 
     val meta = refEncoder
       .apply(instanceRef)

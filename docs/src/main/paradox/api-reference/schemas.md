@@ -17,9 +17,9 @@ a direct `PUT` request with the resource address.  Omitting the last revision im
 {...}
 ```
 
-The version is constrained by the [semantic format](http://semver.org/) and it adds versioning information to the schema.
-
 The `{name}` defines the name of the schema.
+
+The `{version}` is constrained by the [semantic format](http://semver.org/) and it adds versioning information to the schema.
 
 The `{domId}` defines the id of the domain that the schema belongs to.
 
