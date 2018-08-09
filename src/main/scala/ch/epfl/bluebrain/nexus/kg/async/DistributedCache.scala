@@ -9,8 +9,9 @@ import akka.pattern.ask
 import akka.util.Timeout
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.kg.RevisionedId
+import ch.epfl.bluebrain.nexus.kg.RevisionedId._
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
-import ch.epfl.bluebrain.nexus.kg.async.RevisionedId._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve._
 import ch.epfl.bluebrain.nexus.kg.resources._

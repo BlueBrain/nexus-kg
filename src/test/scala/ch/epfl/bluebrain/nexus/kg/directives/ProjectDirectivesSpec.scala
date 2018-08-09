@@ -6,7 +6,7 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.Error
@@ -127,20 +127,22 @@ class ProjectDirectivesSpec
       }
     }
 
-    "reject when account ref not found on the cache after fetching project from admin client" in {
+    "fetch account from admin when not found on cache" in {
       when(cache.project(label)).thenReturn(Task.raiseError(new RuntimeException))
       when(client.getProject("account", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
       when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(None: Option[AccountRef]))
+      when(client.getAccount("account"))
+        .thenReturn(Task.pure(Some(Account("name", 1L, "account", false, accountRef.id)): Option[Account]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[AccountNotFound.type]
+        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMeta, accountRef)
       }
     }
 
-    "reject when account ref not found on the cache after fetching project from cache" in {
+    "reject when account ref not found neither on the cache nor in admin" in {
       when(cache.project(label)).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
       when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(None: Option[AccountRef]))
+      when(client.getAccount("account")).thenReturn(Task.pure(None: Option[Account]))
 
       Get("/account/project") ~> projectRoute() ~> check {
         status shouldEqual StatusCodes.NotFound

@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIndexer, View}
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
+import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
@@ -34,7 +35,6 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import io.circe.Json
-import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 
 /**
   * Resource operations.
@@ -330,7 +330,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
   private def list(views: Set[View], deprecated: Option[Boolean], schema: Option[AbsoluteIri], pagination: Pagination)(
       implicit tc: HttpClient[F, IriResults],
       elastic: ElasticClient[F]): IriResultsF =
-    views.collectFirst { case v: ElasticView => v } match {
+    views.collectFirst { case v: ElasticView if v.id == nxv.defaultElasticIndex.value => v } match {
       case Some(view) =>
         elastic.search(QueryBuilder.queryFor(deprecated, schema), Set(ElasticIndexer.elasticIndex(view)))(pagination)
       case None =>

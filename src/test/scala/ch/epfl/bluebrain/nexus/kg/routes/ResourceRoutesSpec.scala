@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -28,6 +29,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{InAccountResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, Unexpected}
@@ -45,7 +47,7 @@ import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.ArgumentMatchers.{isA, eq => mEq}
+import org.mockito.ArgumentMatchers.{isNull, eq => mEq}
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
@@ -115,67 +117,48 @@ class ResourceRoutesSpec
 
     def genIri = url"${projectMeta.base}/$uuid"
 
-    def eqProjectRef             = mEq(projectRef.id).asInstanceOf[ProjectRef]
-    def isAnAdditionalValidation = isA(classOf[AdditionalValidation[Task]])
+    def eqProjectRef = mEq(projectRef.id).asInstanceOf[ProjectRef]
+
+    def schemaRef: Ref
+
+    def response(deprecated: Boolean = false): Json =
+      Json
+        .obj(
+          "@id"            -> Json.fromString(s"nxv:$genUuid"),
+          "_constrainedBy" -> Json.fromString(schemaRef.iri.show),
+          "_createdAt"     -> Json.fromString(clock.instant().toString),
+          "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
+          "_deprecated"    -> Json.fromBoolean(deprecated),
+          "_rev"           -> Json.fromLong(1L),
+          "_updatedAt"     -> Json.fromString(clock.instant().toString),
+          "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
+        )
+        .addContext(resourceCtxUri)
   }
 
   abstract class Ctx(perms: Permissions = manage) extends Context(perms) {
     val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
     val schemaRef = Ref(resourceSchemaUri)
 
-    def ctxResponse: Json =
-      Json
-        .obj(
-          "@id"            -> Json.fromString(s"nxv:$genUuid"),
-          "_constrainedBy" -> Json.fromString(resourceSchemaUri.show),
-          "_createdAt"     -> Json.fromString(clock.instant().toString),
-          "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
-          "_deprecated"    -> Json.fromBoolean(false),
-          "_rev"           -> Json.fromLong(1L),
-          "_updatedAt"     -> Json.fromString(clock.instant().toString),
-          "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
-        )
-        .addContext(resourceCtxUri)
+    def ctxResponse: Json = response()
   }
 
   abstract class Schema(perms: Permissions = manage) extends Context(perms) {
     val schema    = jsonContentOf("/schemas/resolver.json")
     val schemaRef = Ref(shaclSchemaUri)
 
-    def schemaResponse(deprecated: Boolean = false): Json =
-      Json
-        .obj(
-          "@id"            -> Json.fromString(s"nxv:$genUuid"),
-          "_constrainedBy" -> Json.fromString(shaclSchemaUri.show),
-          "_createdAt"     -> Json.fromString(clock.instant().toString),
-          "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
-          "_deprecated"    -> Json.fromBoolean(deprecated),
-          "_rev"           -> Json.fromLong(1L),
-          "_updatedAt"     -> Json.fromString(clock.instant().toString),
-          "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
-        )
-        .addContext(resourceCtxUri)
+    def schemaResponse(deprecated: Boolean = false): Json = response(deprecated)
   }
 
   abstract class Resolver(perms: Permissions = manage) extends Context(perms) {
-    val resolver  = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj("@id" -> Json.fromString(id.show))
+    val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj(
+      "@id" -> Json.fromString(id.value.show))
     val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
     val schemaRef = Ref(resolverSchemaUri)
 
-    def resolverResponse(deprecated: Boolean = false): Json =
-      Json
-        .obj(
-          "@id"            -> Json.fromString(s"nxv:$genUuid"),
-          "@type"          -> Json.arr(Json.fromString("nxv:CrossProject"), Json.fromString("nxv:Resolver")),
-          "_constrainedBy" -> Json.fromString(resolverSchemaUri.show),
-          "_createdAt"     -> Json.fromString(clock.instant().toString),
-          "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
-          "_deprecated"    -> Json.fromBoolean(deprecated),
-          "_rev"           -> Json.fromLong(1L),
-          "_updatedAt"     -> Json.fromString(clock.instant().toString),
-          "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
-        )
-        .addContext(resourceCtxUri)
+    def resolverResponse(): Json =
+      response() deepMerge Json.obj(
+        "@type" -> Json.arr(Json.fromString("nxv:CrossProject"), Json.fromString("nxv:Resolver")))
 
     val resolverSet = Set(
       InProjectResolver(projectRef, nxv.projects, 1L, deprecated = false, 20),
@@ -191,6 +174,39 @@ class ResourceRoutesSpec
     )
   }
 
+  abstract class View(perms: Permissions = manage) extends Context(perms) {
+    val view = jsonContentOf("/view/elasticview.json").removeKeys("uuid") deepMerge Json.obj(
+      "@id" -> Json.fromString(id.value.show))
+    val types           = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
+    val schemaRef       = Ref(viewSchemaUri)
+    private val mapping = jsonContentOf("/elastic/mapping.json")
+
+    val views = Set(
+      ElasticView(
+        mapping,
+        Set(nxv.Schema, nxv.Resource),
+        Some("one"),
+        false,
+        true,
+        ProjectRef("ref"),
+        url"http://example.com/id".value,
+        "3aa14a1a-81e7-4147-8306-136d8270bb01",
+        1L,
+        false
+      ),
+      SparqlView(ProjectRef("ref"),
+                 url"http://example.com/id2".value,
+                 "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1",
+                 1L,
+                 false)
+    )
+
+    def viewResponse(): Json =
+      response() deepMerge Json.obj(
+        "@type" -> Json
+          .arr(Json.fromString("nxv:View"), Json.fromString("nxv:ElasticView"), Json.fromString("nxv:Alpha")))
+  }
+
   "The routes" when {
 
     "performing operations on resolvers" should {
@@ -201,13 +217,89 @@ class ResourceRoutesSpec
           .simpleF(id, resolverWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
           resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(resolverWithCtx))(
-            mEq(identity),
-            isAnAdditionalValidation))
+            identity = mEq(identity),
+            additional = isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/resolvers/$account/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+        }
+      }
+
+      "list resolvers" in new Resolver {
+        when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
+        Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
+        }
+      }
+
+      "list resolvers not deprecated" in new Resolver {
+        when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
+        Get(s"/v1/resolvers/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
+        }
+      }
+    }
+
+    "performing operations on views" should {
+      "create a view without @id" in new View {
+        val viewWithCtx = view.addContext(viewCtxUri)
+        private val expected =
+          ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
+        when(
+          resources.create(
+            eqProjectRef,
+            mEq(projectMeta.base),
+            mEq(schemaRef),
+            matches[Json](_.removeKeys("uuid") == viewWithCtx))(mEq(identity), isNull[AdditionalValidation[Task]]()))
+          .thenReturn(EitherT.rightT[Task, Rejection](expected))
+
+        Post(s"/v1/views/$account/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
+        }
+      }
+
+      "create a view with @id" in new View {
+        val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
+        val viewWithCtx = view.addContext(viewCtxUri) deepMerge Json.obj(
+          "mapping" -> Json.fromString("""{"key":"value"}"""))
+        private val expected =
+          ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
+        when(
+          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("uuid") == viewWithCtx))(
+            mEq(identity),
+            isA[AdditionalValidation[Task]]))
+          .thenReturn(EitherT.rightT[Task, Rejection](expected))
+
+        Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
+        }
+      }
+
+      "list views" in new View {
+        when(cache.views(projectRef)).thenReturn(Task.pure(views))
+        Get(s"/v1/views/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+        }
+      }
+
+      "list views not deprecated" in new View {
+        when(cache.views(projectRef)).thenReturn(
+          Task.pure(
+            views + SparqlView(projectRef,
+                               url"http://example.com/id3".value,
+                               "317d223b-1d38-4c6e-8fed-f9a8c2ccb4a1",
+                               1L,
+                               true)))
+        Get(s"/v1/views/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
         }
       }
     }
@@ -224,7 +316,7 @@ class ResourceRoutesSpec
       }
 
       "create a context with @id" in new Ctx {
-        when(resources.createWithId(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(identity), isAnAdditionalValidation))
+        when(resources.createWithId(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(identity), isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)))
 
@@ -249,7 +341,8 @@ class ResourceRoutesSpec
       }
 
       "create a schema with @id" in new Schema {
-        when(resources.createWithId(mEq(id), mEq(schemaRef), mEq(schema))(mEq(identity), isAnAdditionalValidation))
+        when(
+          resources.createWithId(mEq(id), mEq(schemaRef), mEq(schema))(mEq(identity), isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
@@ -262,8 +355,8 @@ class ResourceRoutesSpec
       "update a schema" in new Schema {
         when(
           resources.update(mEq(id), mEq(1L), mEq(Some(schemaRef)), mEq(schema))(mEq(identity),
-                                                                                isAnAdditionalValidation)).thenReturn(
-          EitherT.rightT[Task, Rejection](
+                                                                                isA[AdditionalValidation[Task]]))
+          .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
         Put(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -334,22 +427,6 @@ class ResourceRoutesSpec
         Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual schemaResponse()
-        }
-      }
-
-      "list resolvers" in new Resolver {
-        when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
-        Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
-        }
-      }
-
-      "list resolvers not deprecated" in new Resolver {
-        when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
-        Get(s"/v1/resolvers/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
         }
       }
 

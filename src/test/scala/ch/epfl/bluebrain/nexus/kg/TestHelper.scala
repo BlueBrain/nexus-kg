@@ -13,9 +13,12 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.syntax._
 import io.circe.{Json, JsonObject}
+import org.mockito.ArgumentMatchers.{argThat, isA => mockIsA}
 import org.scalatest.matchers.{MatchResult, Matcher}
 
-trait TestHelper {
+import scala.reflect.ClassTag
+
+trait TestHelper extends MockitoMatchers {
 
   def simpleV[P](id: Id[P],
                  value: Json,
@@ -64,5 +67,14 @@ trait TestHelper {
                   s"Both Json are not equal (ignoring array order)\n$leftSorted\ndid not equal\n$rightSorted",
                   "")
     }
+  }
+}
+
+trait MockitoMatchers {
+  def isA[T: ClassTag] =
+    mockIsA(implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]])
+
+  def matches[A](f: A => Boolean) = {
+    argThat((argument: A) => f(argument))
   }
 }

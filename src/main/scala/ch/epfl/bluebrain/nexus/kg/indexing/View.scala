@@ -2,9 +2,9 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.UUID
 
-import ch.epfl.bluebrain.nexus.kg.async.RevisionedId
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
@@ -134,4 +134,6 @@ object View {
   ) extends View
 
   final implicit val viewRevisionedId: RevisionedId[View] = RevisionedId(view => (view.id, view.rev))
+  final implicit val viewDeprecatedId: DeprecatedId[View] = DeprecatedId(r => (r.id, r.deprecated))
+
 }
