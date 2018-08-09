@@ -4,12 +4,12 @@
   "results": [
     {
       "@context": "https://nexus.example.com/v0/contexts/nexus/core/search",
-      "resultId": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
+      "resultId": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/v1.0.0",
       "source": {
-        "@id": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0",
+        "@id": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/v1.0.0",
         "links": {
           "@context": "https://nexus.example.com/v0/contexts/nexus/core/links",
-          "self": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/1.0.0"
+          "self": "https://nexus.example.com/v0/schemas/myorg/mydom/myschema/v1.0.0"
         }
       }
     }

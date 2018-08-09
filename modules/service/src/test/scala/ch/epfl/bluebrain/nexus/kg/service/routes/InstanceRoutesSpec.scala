@@ -4,7 +4,7 @@ import java.net.URLEncoder
 import java.nio.file.{Files, Paths}
 import java.security.MessageDigest
 import java.time.Clock
-import java.util.regex.Pattern
+import java.util.regex.Pattern.quote
 import java.util.{Comparator, UUID}
 
 import akka.http.scaladsl.model._
@@ -93,7 +93,7 @@ class InstanceRoutesSpec
     val settings     = new Settings(ConfigFactory.load())
     val algorithm    = settings.Attachment.HashAlgorithm
     val schemaJson   = jsonContentOf("/int-value-schema.json")
-    val replacements = Map(Pattern.quote("{{base}}") -> baseUri.toString)
+    val replacements = Map(quote("{{base}}") -> baseUri.toString)
 
     val orgAgg                                          = MemoryAggregate("orgs")(Organizations.initial, Organizations.next, Organizations.eval).toF[Future]
     val orgs                                            = Organizations(orgAgg)
@@ -143,6 +143,16 @@ class InstanceRoutesSpec
       InstanceRoutes(instances, client, elasticClient, indexingSettings, querySettings, baseUri).routes
     val value       = genJson()
     val baseEncoder = new BaseEncoder(prefixes)
+
+    def distribution(size: Long, hash: String, downloadUrl: String, mediaType: String, filename: String): Json =
+      jsonContentOf(
+        "/distribution.json",
+        Map(quote(""""{size}"""") -> size.toString,
+            quote("{hash}")       -> hash,
+            quote("{url}")        -> downloadUrl,
+            quote("{mediatype}")  -> mediaType,
+            quote("{filename}")   -> filename)
+      )
 
     val instanceRef = Post(s"/data/${schemaId.show}", value) ~> addCredentials(ValidCredentials) ~> route ~> check {
       status shouldEqual StatusCodes.Created
@@ -261,8 +271,8 @@ class InstanceRoutesSpec
         contentType shouldEqual RdfMediaTypes.`application/ld+json`.toContentType
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual jsonContentOf("/int-value-expanded-with-links.json",
-                                                   Map(Pattern.quote("{{schemaId}}")   -> schemaId.show,
-                                                       Pattern.quote("{{instanceId}}") -> toExpandRef.id.show))
+                                                   Map(quote("{{schemaId}}")   -> schemaId.show,
+                                                       quote("{{instanceId}}") -> toExpandRef.id.show))
       }
     }
 
@@ -420,13 +430,24 @@ class InstanceRoutesSpec
       val (multiPart, size) = multipartEntityAndFileSize(filename)
       val digest            = Attachment.Digest(algorithm, hash)
 
-      Put(s"/data/${instanceRef.id.show}/attachment?rev=${instanceRef.rev}", multiPart) ~> addCredentials(
-        ValidCredentials) ~> route ~> check {
+      private val dist = distribution(size = 4096,
+                                      hash = "some_hash",
+                                      downloadUrl = "http://example.com/downoad",
+                                      mediaType = "text/csv",
+                                      filename = "file.txt")
+      val valueJson = value deepMerge Json.obj("distribution" -> Json.arr(dist))
+
+      Put(s"/data/${instanceRef.id.show}?rev=${instanceRef.rev}", valueJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual instanceRefAsJson(InstanceRef(instanceRef.id, 2L))
+      }
+
+      Put(s"/data/${instanceRef.id.show}/attachment?rev=2", multiPart) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.Created
         responseAs[Json] shouldEqual
           instanceRefAsJson(
             InstanceRef(instanceRef.id,
-                        2,
+                        3,
                         Some(Info(filename, ContentTypes.`text/csv(UTF-8)`.toString(), Size(value = size), digest))))
       }
 
@@ -436,7 +457,7 @@ class InstanceRoutesSpec
         responseAs[Json] shouldEqual Json
           .obj(
             "@id"     -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}"),
-            "nxv:rev" -> Json.fromLong(2L),
+            "nxv:rev" -> Json.fromLong(3L),
             "links" -> Links(
               "@context" -> s"${prefixes.LinksContext}",
               "self"     -> s"$baseUri/data/${instanceRef.id.show}",
@@ -447,6 +468,7 @@ class InstanceRoutesSpec
             "nxv:deprecated" -> Json.fromBoolean(false)
           )
           .deepMerge(Json.obj("distribution" -> Json.arr(
+            dist,
             Json.obj(
               "@context"         -> Json.fromString(prefixes.DistributionContext.toString),
               downloadUrlKey     -> Json.fromString(s"$baseUri/data/${instanceRef.id.show}/attachment"),
@@ -609,5 +631,5 @@ object InstanceRoutesSpec {
   }
 
   private def toCompact(value: String) =
-    value.replaceAll(Pattern.quote(s"$baseUri/data/"), "")
+    value.replaceAll(quote(s"$baseUri/data/"), "")
 }

@@ -21,6 +21,8 @@ The version is constrained by the [semantic format](http://semver.org/) and it a
 
 The `{name}` defines the name of the context.
 
+The `{version}` is constrained by the [semantic format](http://semver.org/) and it adds versioning information to the context.
+
 The `{domId}` defines the id of the domain that the context belongs to.
 
 The `{orgId}` defines the id of the organization that the context belongs to.

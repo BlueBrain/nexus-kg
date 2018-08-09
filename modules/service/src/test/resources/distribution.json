@@ -1,0 +1,13 @@
+{
+  "contentSize": {
+    "unit": "byte",
+    "value": "{size}"
+  },
+  "digest": {
+    "algorithm": "SHA-256",
+    "value": "{hash}"
+  },
+  "downloadURL": "{url}",
+  "mediaType": "{mediatype}",
+  "originalFileName": "{filename}"
+}

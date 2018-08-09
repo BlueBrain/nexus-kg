@@ -1,6 +1,6 @@
 [
   {
-    "@id": "https://nexus.example.com/v0/contexts/myorg/mydom/mycontext/1.0.0",
+    "@id": "https://nexus.example.com/v0/contexts/myorg/mydom/mycontext/v1.0.0",
     "https://nexus.example.com/vocabs/nexus/core/terms/v0.1.0/deprecated": [
       {
         "@value": false

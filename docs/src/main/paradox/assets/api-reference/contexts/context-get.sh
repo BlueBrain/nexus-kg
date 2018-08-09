@@ -1,1 +1,1 @@
-curl "https://nexus.example.com/v0/contexts/myorg/mydom/mycontext/1.0.0"
+curl "https://nexus.example.com/v0/contexts/myorg/mydom/mycontext/v1.0.0"

@@ -166,7 +166,7 @@ class QueryRoutesSpec
 
     "store a query" in {
       Post("/queries/org/dom", queryJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
-        status shouldEqual StatusCodes.PermanentRedirect
+        status shouldEqual StatusCodes.SeeOther
         val location = header("Location").get.value()
         location should startWith(s"$baseUri/queries/")
         location should endWith(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}")
@@ -180,7 +180,7 @@ class QueryRoutesSpec
 
     "store a query with wrong path and follow redirect" in {
       Post("/queries/org/dom/name/1.2.3?from=1&size=10", queryJsonFilter) ~> addCredentials(ValidCredentials) ~> route ~> check {
-        status shouldEqual StatusCodes.PermanentRedirect
+        status shouldEqual StatusCodes.SeeOther
         val location = header("Location").get.value()
         location should startWith(s"$baseUri/queries/")
         location should endWith(s"?from=1&size=10")
@@ -211,7 +211,7 @@ class QueryRoutesSpec
       )
 
       Post("/queries/org/dom", queryJsonWithContext) ~> addCredentials(ValidCredentials) ~> route ~> check {
-        status shouldEqual StatusCodes.PermanentRedirect
+        status shouldEqual StatusCodes.SeeOther
         val location = header("Location").get.value()
         location should startWith(s"$baseUri/queries/")
         location should endWith(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}")
@@ -235,7 +235,7 @@ class QueryRoutesSpec
       )
 
       Post("/queries/org/dom", queryJsonWithContext) ~> addCredentials(ValidCredentials) ~> route ~> check {
-        status shouldEqual StatusCodes.PermanentRedirect
+        status shouldEqual StatusCodes.SeeOther
         val location = header("Location").get.value()
         location should startWith(s"$baseUri/queries/")
         location should endWith(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}")

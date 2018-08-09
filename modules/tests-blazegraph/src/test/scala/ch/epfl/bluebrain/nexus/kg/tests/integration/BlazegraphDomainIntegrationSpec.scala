@@ -102,7 +102,7 @@ class BlazegraphDomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: 
           )
           forAll(queries) { query =>
             Post("/queries", query) ~> addCredentials(ValidCredentials) ~> route ~> check {
-              status shouldEqual StatusCodes.PermanentRedirect
+              status shouldEqual StatusCodes.SeeOther
               val location = header("Location").get.value()
               location should startWith(s"$apiUri/queries/")
               location should endWith(s"?from=0&size=10")
@@ -191,7 +191,7 @@ class BlazegraphDomainIntegrationSpec(apiUri: Uri, prefixes: PrefixUris, route: 
                                          quote("{{description_value}}") -> descriptionOf(domainId))
         )
         Post("/queries/rand", query) ~> addCredentials(ValidCredentials) ~> route ~> check {
-          status shouldEqual StatusCodes.PermanentRedirect
+          status shouldEqual StatusCodes.SeeOther
           val location = header("Location").get.value()
           location should startWith(s"$apiUri/queries/")
           location should endWith(s"?from=0&size=10")
