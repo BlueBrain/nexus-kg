@@ -17,7 +17,7 @@ class ElasticDecodersSpec extends WordSpecLike with Matchers with TestResources 
       implicit val project = Project(
         "testproject",
         "test",
-        Map("test"          -> url"http://schemas.nexus.example.com/test/",
+        Map("test-schema"   -> url"http://schemas.nexus.example.com/test/",
             "test-resource" -> url"http://resources.nexus.com/test-resource/"),
         url"http://unused.com",
         0L,
@@ -31,7 +31,29 @@ class ElasticDecodersSpec extends WordSpecLike with Matchers with TestResources 
         .decodeJson(elasticPayload)
         .right
         .value
-        .show shouldEqual "http://resources.nexus.com/resources/bbp/testproject/test:v0.1.0/test-resource:306e8f68-8419-11e8-adc0-fa7ae01bbebc"
+        .show shouldEqual "http://resources.nexus.com/resources/bbp/testproject/test-schema:v0.1.0/test-resource:306e8f68-8419-11e8-adc0-fa7ae01bbebc"
+
+    }
+
+    "decode representation IDs correctly when resource ID is in prefix mappings and schema is an alias" in {
+      implicit val project = Project(
+        "testproject",
+        "test",
+        Map("test-schema"   -> url"http://schemas.nexus.example.com/test/v0.1.0",
+            "test-resource" -> url"http://resources.nexus.com/test-resource/"),
+        url"http://unused.com",
+        0L,
+        false,
+        "20fdc0fc-841a-11e8-adc0-fa7ae01bbebc"
+      )
+
+      val decoder = ElasticDecoders.resourceIdDecoder(url"http://resources.nexus.com/resources/bbp/testproject".value)
+
+      decoder
+        .decodeJson(elasticPayload)
+        .right
+        .value
+        .show shouldEqual "http://resources.nexus.com/resources/bbp/testproject/test-schema/test-resource:306e8f68-8419-11e8-adc0-fa7ae01bbebc"
 
     }
   }

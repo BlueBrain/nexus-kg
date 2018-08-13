@@ -222,7 +222,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private def listings(implicit token: Option[AuthToken]): Route =
     (pathPrefix("resources") & project) { implicit wrapped =>
-      (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead)) {
+      (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
         (deprecated, pagination) =>
           val results = cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, pagination))
           trace("listResources") {

@@ -1,4 +1,7 @@
 {
+  "sort": [
+    "_createdAt"
+  ],
   "query": {
     "bool": {
       "filter": [

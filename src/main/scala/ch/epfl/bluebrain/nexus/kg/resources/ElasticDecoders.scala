@@ -19,7 +19,7 @@ object ElasticDecoders {
     Decoder.decodeJsonObject.emap { json =>
       for {
         id <- json("@id").flatMap(_.asString).map(Iri.absolute).getOrElse(Left("Field: '@id' not found"))
-        schema <- json("constrainedBy")
+        schema <- json("_constrainedBy")
           .flatMap(_.asString)
           .map(Iri.absolute)
           .getOrElse(Left("Field: 'constrainedBy' not found"))
@@ -30,10 +30,10 @@ object ElasticDecoders {
   private def aliasOrCurieFor(iri: AbsoluteIri, project: Project): String = {
     project.prefixMappings
       .collectFirst {
-        case (prefix, ns) if iri.show.startsWith(ns.show) =>
-          s"$prefix:${iri.show.stripPrefix(ns.show)}"
         case (prefix, ns) if iri == ns =>
           prefix
+        case (prefix, ns) if iri.show.startsWith(ns.show) =>
+          s"$prefix:${iri.show.stripPrefix(ns.show)}"
       }
       .getOrElse(iri.show)
   }

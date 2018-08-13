@@ -17,7 +17,9 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Address._
@@ -29,6 +31,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{InAccountResolver, InProjectResolver}
@@ -105,9 +108,13 @@ class ResourceRoutesSpec
     val genUuid    = uuid
     val iri        = nxv.withPath(genUuid)
     val id         = Id(projectRef, iri)
+    val defaultView =
+      ElasticView(Json.obj(), Set.empty, None, false, true, projectRef, nxv.defaultElasticIndex.value, uuid, 1L, false)
 
     when(cache.project(ProjectLabel(account, project)))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+    when(cache.views(projectRef))
+      .thenReturn(Task.pure(Set(defaultView): Set[IndexingView]))
     when(cache.accountRef(projectRef))
       .thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
     when(iamClient.getCaller(filterGroups = true))
@@ -134,6 +141,24 @@ class ResourceRoutesSpec
           "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
         )
         .addContext(resourceCtxUri)
+
+    def listingResponse(): Json = Json.obj(
+      "@context" -> Json.arr(
+        Json.fromString("https://bluebrain.github.io/nexus/contexts/search"),
+        Json.fromString("https://bluebrain.github.io/nexus/contexts/resource")
+      ),
+      "total" -> Json.fromInt(5),
+      "results" -> Json.arr(
+        (1 to 5).map(
+          i =>
+            Json.obj(
+              "resultId" -> Json.fromString(appConfig.http.publicUri
+                .copy(
+                  path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")
+                .toString)
+          )): _*
+      )
+    )
   }
 
   abstract class Ctx(perms: Permissions = manage) extends Context(perms) {
@@ -323,6 +348,35 @@ class ResourceRoutesSpec
         Put(s"/v1/resources/$account/$project/resource/nxv:$genUuid", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] shouldEqual ctxResponse
+        }
+      }
+
+      "list resources constrained by a schema" in new Ctx {
+        def reprId(i: Int): AbsoluteIri =
+          url"${appConfig.http.publicUri.copy(
+            path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")}".value
+
+        when(
+          resources.list(mEq(Set(defaultView)), mEq(None), mEq(resourceSchemaUri), mEq(Pagination(0, 20)))(
+            isA[HttpClient[Task, QueryResults[AbsoluteIri]]],
+            isA[ElasticClient[Task]]
+          )
+        ).thenReturn(
+          Task.pure(
+            UnscoredQueryResults(
+              5,
+              List(
+                UnscoredQueryResult(reprId(1)),
+                UnscoredQueryResult(reprId(2)),
+                UnscoredQueryResult(reprId(3)),
+                UnscoredQueryResult(reprId(4)),
+                UnscoredQueryResult(reprId(5))
+              )
+            ))
+        )
+        Get(s"/v1/resources/$account/$project/resource") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual listingResponse()
         }
       }
     }

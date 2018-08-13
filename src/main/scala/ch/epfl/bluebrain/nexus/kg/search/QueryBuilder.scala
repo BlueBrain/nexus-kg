@@ -7,12 +7,12 @@ import io.circe.Json
 object QueryBuilder {
 
   private def baseQuery(filterTerms: List[Json]): Json =
-    Json.obj(
-      "query" -> Json.obj(
-        "bool" -> Json.obj(
-          "filter" -> Json.arr(filterTerms: _*)
-        )
-      ))
+    Json.obj("sort" -> Json.arr(Json.fromString("_createdAt")),
+             "query" -> Json.obj(
+               "bool" -> Json.obj(
+                 "filter" -> Json.arr(filterTerms: _*)
+               )
+             ))
 
   private def deprecatedTerm(deprecatedOpt: Option[Boolean]): List[Json] = deprecatedOpt match {
     case Some(deprecated) =>
