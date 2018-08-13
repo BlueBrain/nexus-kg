@@ -165,15 +165,17 @@ class QueryRoutesSpec
     )
 
     "store a query" in {
-      Post("/queries/org/dom", queryJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
+      Post("/queries/org/dom?fields=all", queryJson) ~> addCredentials(ValidCredentials) ~> route ~> check {
         status shouldEqual StatusCodes.SeeOther
         val location = header("Location").get.value()
+        Uri(location).query().toMap shouldEqual Map("from"   -> querySettings.pagination.from.toString,
+                                                    "size"   -> querySettings.pagination.size.toString,
+                                                    "fields" -> "all")
         location should startWith(s"$baseUri/queries/")
-        location should endWith(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}")
         val queryId = QueryId(
           location
             .replace(s"$baseUri/queries/", "")
-            .replace(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}", ""))
+            .replace(s"?from=${querySettings.pagination.from}&size=${querySettings.pagination.size}&fields=all", ""))
         queries.fetch(queryId).futureValue.get shouldEqual Query(queryId, "org" / "dom", queryModel)
       }
     }

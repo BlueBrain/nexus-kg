@@ -73,15 +73,17 @@ class QueryRoutes(queries: Queries[Future], idsToEntities: GroupedIdsToEntityRet
   }
 
   protected def searchRoutes(implicit credentials: Option[OAuth2BearerToken]): Route =
-    (post & extractResourcePath & paginated & queryEntity) { (path, pagination, query) =>
-      authenticateCaller.apply { implicit caller =>
-        onSuccess(queries.create(path, query)) { queryId =>
-          val uri = base
-            .copy(path = (base.path: Path) ++ Path(basePath) ++ Path(queryId.id))
-            .withQuery(Uri.Query("from" -> pagination.from.toString, "size" -> pagination.size.toString))
-          redirect(uri, StatusCodes.SeeOther)
+    (post & extractResourcePath & paginated & queryEntity & extract(_.request.uri.query())) {
+      (path, pagination, query, qp) =>
+        authenticateCaller.apply { implicit caller =>
+          onSuccess(queries.create(path, query)) { queryId =>
+            val uri = base
+              .copy(path = (base.path: Path) ++ Path(basePath) ++ Path(queryId.id))
+              .withQuery(
+                Uri.Query(Map("from" -> pagination.from.toString, "size" -> pagination.size.toString) ++ qp.toMap))
+            redirect(uri, StatusCodes.SeeOther)
+          }
         }
-      }
     } ~
       (get & path(JavaUUID) & pathEndOrSingleSlash & paginated) { (uuid, pagination) =>
         authenticateCaller.apply { implicit caller =>
