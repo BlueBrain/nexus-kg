@@ -228,7 +228,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           trace("listResources") {
             complete(results.runAsync)
           }
-      } ~ (pathPrefix(aliasOrCurie) & pathEndOrSingleSlash)(listings)
+      } ~ pathPrefix(aliasOrCurie)(listings)
     }
 
   private def resources(schema: AbsoluteIri,
