@@ -35,6 +35,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{InAccountResolver, InProjectResolver}
+import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -202,6 +203,7 @@ class ResourceRoutesSpec
   abstract class View(perms: Permissions = manage) extends Context(perms) {
     val view = jsonContentOf("/view/elasticview.json").removeKeys("uuid") deepMerge Json.obj(
       "@id" -> Json.fromString(id.value.show))
+
     val types           = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
     val schemaRef       = Ref(viewSchemaUri)
     private val mapping = jsonContentOf("/elastic/mapping.json")
@@ -303,6 +305,41 @@ class ResourceRoutesSpec
         Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
+        }
+      }
+
+      "update a view" in new View {
+        val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
+        val viewWithCtx = view.addContext(viewCtxUri) deepMerge Json.obj(
+          "mapping" -> Json.fromString("""{"key":"value"}"""))
+        private val expected =
+          ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
+        when(
+          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("uuid") == viewWithCtx))(
+            mEq(identity),
+            isA[AdditionalValidation[Task]]))
+          .thenReturn(EitherT.rightT[Task, Rejection](expected))
+
+        Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+        }
+        val mappingUpdated = Json.obj("mapping" -> Json.obj("key2" -> Json.fromString("value2")))
+
+        val uuidJson       = Json.obj("uuid" -> Json.fromString("uuid1"))
+        val expectedUpdate = expected.copy(value = viewWithCtx deepMerge uuidJson)
+        when(resources.fetch(id, Some(Latest(viewSchemaUri)))).thenReturn(OptionT.some[Task](expectedUpdate))
+        val jsonUpdate = view.addContext(viewCtxUri) deepMerge Json.obj(
+          "mapping" -> Json.fromString("""{"key2":"value2"}""")) deepMerge uuidJson
+        when(
+          resources.update(mEq(id), mEq(1L), mEq(Some(Latest(viewSchemaUri))), mEq(jsonUpdate))(
+            mEq(identity),
+            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](expectedUpdate.copy(rev = 2L)))
+        when(resources.materializeWithMeta(expectedUpdate))
+          .thenReturn(EitherT.rightT[Task, Rejection](simpleV(expectedUpdate)))
+        Put(s"/v1/views/$account/$project/nxv:$genUuid?rev=1", view deepMerge mappingUpdated) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
         }
       }
 

@@ -10,7 +10,7 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
-import cats.data.OptionT
+import cats.data.{EitherT, OptionT}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticDecoder
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -35,6 +35,8 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.marshallers.{ExceptionHandling, RejectionHandling}
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.ElasticDecoders.resourceIdDecoder
+import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, UnexpectedState}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
@@ -95,14 +97,24 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         pathPrefix(aliasOrCurie / aliasOrCurie)((schema, id) => resources(schema, id))
     }
 
-  private def tranformView(source: Json): Json = {
-    val transformed = (source deepMerge Json.obj("uuid" -> Json.fromString(UUID.randomUUID().toString.toLowerCase)))
-      .addContext(viewCtxUri)
+  private def transformView(source: Json): Json =
+    transformView(source, UUID.randomUUID().toString.toLowerCase)
+
+  private def transformView(source: Json, uuid: String): Json = {
+    val transformed = source deepMerge Json.obj("uuid" -> Json.fromString(uuid)).addContext(viewCtxUri)
     transformed.hcursor.get[Json]("mapping") match {
       case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
       case _                      => transformed
     }
   }
+
+  private def transformViewUpdate(resId: ResId)(source: Json): EitherT[Task, Rejection, Json] =
+    resources
+      .fetch(resId, Some(Latest(viewSchemaUri)))
+      .toRight(NotFound(resId.ref): Rejection)
+      .flatMap(r =>
+        EitherT.fromEither(r.value.hcursor.get[String]("uuid").left.map(_ => UnexpectedState(resId.ref): Rejection)))
+      .map(uuid => transformView(source, uuid))
 
   private def views(implicit token: Option[AuthToken]): Route =
     // consumes the segment views/{account}/{project}
@@ -113,13 +125,14 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           trace("createView") {
             complete(
               Created -> resources
-                .create(wrapped.ref, wrapped.base, Ref(viewSchemaUri), tranformView(source))
+                .create(wrapped.ref, wrapped.base, Ref(viewSchemaUri), transformView(source))
                 .value
                 .runAsync)
           }
         }
       } ~ listings(viewSchemaUri) ~
-        pathPrefix(aliasOrCurie)(id => resources(viewSchemaUri, id, tranformView))
+        pathPrefix(aliasOrCurie)(id =>
+          resources(viewSchemaUri, id, transformView, transformViewUpdate(Id(wrapped.ref, id))))
     }
 
   private def schemas(implicit token: Option[AuthToken]): Route =
@@ -161,7 +174,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       } ~ listings(resolverSchemaUri) ~
         pathPrefix(aliasOrCurie) { id =>
           acls.apply { implicit acls =>
-            resources(resolverSchemaUri, id, _.addContext(resolverCtxUri))
+            resources(resolverSchemaUri, id, _.addContext(resolverCtxUri), _.addContext(resolverCtxUri))
           }
         }
     }
@@ -226,7 +239,10 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       } ~ pathPrefix(aliasOrCurie)(listings)
     }
 
-  private def resources(schema: AbsoluteIri, id: AbsoluteIri, transform: Json => Json = j => j)(
+  private def resources(schema: AbsoluteIri,
+                        id: AbsoluteIri,
+                        transformCreate: Json => Json = j => j,
+                        transformUpdate: Json => EitherT[Task, Rejection, Json] = j => EitherT.rightT(j))(
       implicit wrapped: LabeledProject,
       token: Option[AuthToken],
       additional: AdditionalValidation[Task] = AdditionalValidation.pass): Route =
@@ -237,8 +253,8 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
             trace("updateResource") {
               complete(
-                resources
-                  .update(Id(wrapped.ref, id), rev, Some(Ref(schema)), transform(source))
+                transformUpdate(source)
+                  .flatMap(transformed => resources.update(Id(wrapped.ref, id), rev, Some(Ref(schema)), transformed))
                   .value
                   .runAsync)
             }
@@ -249,7 +265,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             trace("createResource") {
               complete(
                 Created -> resources
-                  .createWithId(Id(wrapped.ref, id), Ref(schema), transform(source))
+                  .createWithId(Id(wrapped.ref, id), Ref(schema), transformCreate(source))
                   .value
                   .runAsync)
             }
@@ -361,9 +377,17 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   private val simultaneousParamsRejection: AkkaRejection =
     validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
 
+  private implicit def toEither[A](a: A): EitherT[Task, Rejection, A] =
+    EitherT.rightT[Task, Rejection](a)
+
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
     def materializeRun: Future[Option[ResourceV]] =
-      resource.flatMap(resources.materializeWithMeta(_).toOption).value.runAsync
+      resource
+        .flatMap { e =>
+          resources.materializeWithMeta(e).toOption
+        }
+        .value
+        .runAsync
   }
 
   private def toQueryResults[A](resolvers: List[A]): QueryResults[A] =
