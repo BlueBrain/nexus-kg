@@ -18,12 +18,12 @@ class LocationResolverSpec extends WordSpecLike with Matchers with EitherValues 
     val key = Id(ProjectRef("org/projectName"), url"https://bbp.epfl.ch/nexus/data/resourceName".value)
 
     "resolve a location" in {
-      implicit val config = AttachmentsConfig(Iri.absolute("file:///tmp").right.value, "SHA-256")
+      implicit val config = AttachmentsConfig(Iri.absolute("file:///tmp/").right.value, "SHA-256")
       val resolver        = LocationResolver[CId]()
       val expectedPath =
         Iri.relative("org/projectName/0/1/7/f/9/8/3/7/017f9837-5bea-4e79-bdbd-e64246cd81ec").right.value
       resolver(key, "017f9837-5bea-4e79-bdbd-e64246cd81ec") shouldEqual EitherT.rightT(
-        Location(new File(s"file:/tmp/${expectedPath.show}").toPath, expectedPath))
+        Location(new File(s"/tmp/${expectedPath.show}").toPath, expectedPath))
     }
   }
 

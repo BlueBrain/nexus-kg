@@ -22,7 +22,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with EitherValues with Op
       appConfig.persistence shouldEqual PersistenceConfig("cassandra-journal",
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
-      appConfig.attachments shouldEqual AttachmentsConfig(Iri.absolute("file:///tmp").right.value, "SHA-256")
+      appConfig.attachments shouldEqual AttachmentsConfig(Iri.absolute("file:///tmp/").right.value, "SHA-256")
       appConfig.iam shouldEqual IamConfig("http://localhost:8080/iam", None)
       appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       SparqlConfig("http://localhost:9999/bigdata", Some("user"), Some("pass"), "kg").akkaCredentials.value shouldEqual BasicHttpCredentials(

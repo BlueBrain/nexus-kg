@@ -177,7 +177,7 @@ object AttachmentStore {
           val relIri = Iri.relative(s"${id.parent.id}/${uuid.takeWhile(_ != '-').mkString("/")}/$uuid")
           EitherT.fromEither[F](relIri.left.map[Rejection](Unexpected).flatMap { relative =>
             Try {
-              val attachmentPath = new File(new File(base.show), relative.show).toPath
+              val attachmentPath = new File(new File(new URI(base.show)), relative.show).toPath
               Files.createDirectories(attachmentPath.getParent)
               Location(attachmentPath, relative)
             }.toEither.left.map[Rejection](th => Unexpected(th.getMessage))
