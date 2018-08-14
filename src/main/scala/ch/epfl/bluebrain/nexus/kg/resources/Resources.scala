@@ -464,7 +464,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     def toEitherT(optReport: Option[ValidationReport]): EitherT[F, Rejection, Unit] =
       optReport match {
         case Some(r) if r.isValid() => EitherT.rightT(())
-        case Some(r)                => EitherT.leftT(InvalidResource(schema, r.json))
+        case Some(r)                => EitherT.leftT(InvalidResource(schema, r))
         case _ =>
           EitherT.leftT(Unexpected(s"unexpected error while attempting to validate schema '${schema.iri.asString}'"))
       }

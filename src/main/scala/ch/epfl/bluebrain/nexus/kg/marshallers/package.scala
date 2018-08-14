@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg
 
 import cats.Show
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
@@ -20,6 +21,9 @@ package object marshallers {
     * The discriminator is enough to give us a Json representation (the name of the class)
     */
   private[marshallers] implicit val rejectionConfig: Configuration = Configuration.default.withDiscriminator("code")
+
+  private[marshallers] implicit val validationReportEnc: Encoder[ValidationReport] =
+    Encoder.instance(_.json)
 
   private[marshallers] implicit val rejectionEncoder: Encoder[Rejection] = {
     val enc = deriveEncoder[Rejection]

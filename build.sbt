@@ -130,7 +130,6 @@ lazy val kg = project
       scalaTest            % Test,
       sourcingMem          % Test
     ),
-    resolvers  += Resolver.bintrayRepo("bogdanromanx", "maven"),
     cleanFiles ++= (baseDirectory.value * "ddata*").get
   )
 
