@@ -42,6 +42,20 @@ trait TestHelper extends MockitoMatchers {
       schema,
       Value(value, value.contextValue, value.asGraph)
     )
+  def simpleV[P, S](res: ResourceF[P, S, Json])(implicit clock: Clock) = ResourceF(
+    res.id,
+    res.rev,
+    res.types,
+    res.deprecated,
+    Map.empty,
+    Set.empty,
+    clock.instant(),
+    clock.instant(),
+    res.createdBy,
+    res.updatedBy,
+    res.schema,
+    Value(res.value, res.value.contextValue, res.value.asGraph)
+  )
 
   def uuid = UUID.randomUUID().toString
 
