@@ -202,7 +202,7 @@
     "hasValue": {
       "@id": "sh:hasValue"
     },
-    "resultMessage": {
+    "message": {
       "@id": "sh:message"
     },
     "deactivated": {
