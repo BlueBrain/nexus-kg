@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.StatusCodes.Created
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Route, Rejection => AkkaRejection}
+import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticDecoder
@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.DeprecatedId._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Schemas.{resolverSchemaUri, _}
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -119,8 +119,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           }
         }
       } ~ listings(viewSchemaUri) ~
-        pathPrefix(aliasOrCurie)(id =>
-          resources(viewSchemaUri, id, withAttachment = false, withTag = false, transform = tranformView))
+        pathPrefix(aliasOrCurie)(id => resources(viewSchemaUri, id, tranformView))
     }
 
   private def schemas(implicit token: Option[AuthToken]): Route =
@@ -162,11 +161,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       } ~ listings(resolverSchemaUri) ~
         pathPrefix(aliasOrCurie) { id =>
           acls.apply { implicit acls =>
-            resources(resolverSchemaUri,
-                      id,
-                      withAttachment = false,
-                      withTag = false,
-                      transform = _.addContext(resolverCtxUri))
+            resources(resolverSchemaUri, id, _.addContext(resolverCtxUri))
           }
         }
     }
@@ -208,7 +203,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             }
 
           case `viewSchemaUri` =>
-            trace("listResolvers") {
+            trace("listViews") {
               complete(filterDeprecated(cache.views(wrapped.ref), deprecated).map(toQueryResults).runAsync)
             }
           case _ =>
@@ -231,14 +226,10 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       } ~ pathPrefix(aliasOrCurie)(listings)
     }
 
-  private def resources(schema: AbsoluteIri,
-                        id: AbsoluteIri,
-                        withTag: Boolean = true,
-                        withAttachment: Boolean = true,
-                        transform: Json => Json = j => j)(implicit wrapped: LabeledProject,
-                                                          token: Option[AuthToken],
-                                                          additional: AdditionalValidation[Task] =
-                                                            AdditionalValidation.pass): Route =
+  private def resources(schema: AbsoluteIri, id: AbsoluteIri, transform: Json => Json = j => j)(
+      implicit wrapped: LabeledProject,
+      token: Option[AuthToken],
+      additional: AdditionalValidation[Task] = AdditionalValidation.pass): Route =
     (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
       parameter('rev.as[Long].?) {
         case Some(rev) =>
@@ -266,7 +257,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
       }
     } ~
       // add tag to resource
-      (evalBool(withTag) & pathPrefix("tags") & projectNotDeprecated) {
+      (pathPrefix("tags") & projectNotDeprecated) {
         (put & parameter('rev.as[Long]) & entity(as[Json]) & pathEndOrSingleSlash) { (rev, json) =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
             trace("addTagResource") {
@@ -287,7 +278,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           }
         }
       } ~
-      (pathPrefix("attachments" / Segment) & evalBool(withAttachment) & projectNotDeprecated) { filename =>
+      (pathPrefix("attachments" / Segment) & projectNotDeprecated) { filename =>
         // remove a resource attachment
         (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
           (callerIdentity & hasPermission(resourceWrite)) { implicit ident =>
@@ -331,7 +322,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             }
           }
         } ~
-          (evalBool(withAttachment) & pathPrefix("attachments" / Segment) & pathEndOrSingleSlash) { filename =>
+          (pathPrefix("attachments" / Segment) & pathEndOrSingleSlash) { filename =>
             // get a resource attachment
             (get & callerIdentity & hasPermission(resourceRead)) { implicit ident =>
               val result = (revOpt, tagOpt) match {
@@ -398,10 +389,6 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private def encodedFilenameOrElse(info: Attachment.BinaryAttributes, value: => String): String =
     Try(URLEncoder.encode(info.filename, "UTF-8")).getOrElse(value)
-
-  private def evalBool(value: Boolean): Directive0 =
-    if (value) pass
-    else reject
 
   private implicit def toProject(implicit value: LabeledProject): Project           = value.project
   private implicit def toProjectLabel(implicit value: LabeledProject): ProjectLabel = value.label

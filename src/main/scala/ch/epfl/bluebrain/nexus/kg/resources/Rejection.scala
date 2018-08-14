@@ -2,8 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.types.Err
-import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import io.circe.Json
 
 /**
   * Enumeration of resource rejection types.
@@ -137,7 +137,7 @@ object Rejection {
     * @param schema a reference to the schema
     * @param report the validation report
     */
-  final case class InvalidResource(schema: Ref, report: ValidationReport)
+  final case class InvalidResource(schema: Ref, report: Json)
       extends Rejection(s"Resource failed to validate against the constraints defined by '${schema.show}'")
 
   /**
