@@ -45,7 +45,8 @@ class ResourcesSpec
     with Randomness
     with BeforeAndAfter
     with test.Resources
-    with TestHelper {
+    with TestHelper
+    with Inspectors {
 
   private implicit val appConfig    = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
   private implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -75,9 +76,10 @@ class ResourcesSpec
   }
 
   trait ResolverResource extends Base {
-    val schema = Latest(resolverSchemaUri)
-    val resolver = jsonContentOf("/resolve/cross-project.json") addContext resolverCtxUri deepMerge Json.obj(
-      "@id" -> Json.fromString(id.show))
+    def resolverFrom(json: Json) = json addContext resolverCtxUri deepMerge Json.obj("@id" -> Json.fromString(id.show))
+
+    val schema   = Latest(resolverSchemaUri)
+    val resolver = resolverFrom(jsonContentOf("/resolve/cross-project.json"))
 
     val resolverUpdated = jsonContentOf("/resolve/cross-project-updated.json") addContext resolverCtxUri deepMerge Json
       .obj("@id" -> Json.fromString(id.show))
@@ -151,9 +153,30 @@ class ResourcesSpec
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
       }
 
+      "create resources that validate against resolver schema" in {
+        val valid = List(
+          nxv.CrossProject.value -> jsonContentOf("/resolve/cross-project.json"),
+          nxv.CrossProject.value -> jsonContentOf("/resolve/cross-project2.json"),
+          nxv.InAccount.value    -> jsonContentOf("/resolve/in-account.json"),
+          nxv.InProject.value    -> jsonContentOf("/resolve/in-project.json")
+        )
+        forAll(valid) {
+          case (tpe, j) =>
+            new ResolverResource {
+              val json = resolverFrom(j)
+              resources.create(projectRef, base, schema, json).value.right.value shouldEqual
+                ResourceF.simpleF(resId, json, schema = schema, types = Set(tpe, nxv.Resolver.value))
+            }
+        }
+      }
+
       "prevent to create a resource that does not validate" in new ResolverResource {
-        private val wrongJson = jsonContentOf("/resolve/cross-project-wrong.json")
-        resources.create(projectRef, base, schema, wrongJson).value.left.value shouldBe a[InvalidResource]
+        val invalid = List.range(1, 3).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
+        forAll(invalid) { j =>
+          val json   = resolverFrom(j)
+          val report = resources.create(projectRef, base, schema, json).value.left.value
+          report shouldBe a[InvalidResource]
+        }
       }
 
       "prevent to create a resource with non existing schema" in new ResolverResource {

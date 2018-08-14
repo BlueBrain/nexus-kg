@@ -1,8 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.Err
-import ch.epfl.bluebrain.nexus.kg.validation.Validator.ValidationReport
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 /**

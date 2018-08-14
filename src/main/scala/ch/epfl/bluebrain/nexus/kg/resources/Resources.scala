@@ -6,6 +6,7 @@ import cats.Monad
 import cats.data.{EitherT, OptionT}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
@@ -23,12 +24,12 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttribu
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder
-import ch.epfl.bluebrain.nexus.kg.validation.Validator
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
+import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
@@ -104,20 +105,12 @@ abstract class Resources[F[_]](implicit F: Monad[F],
         case _                                                                    => Right(types)
       })
 
-    //TODO: For now the schema is not validated against the shacl schema.
-    if (schema.iri == shaclSchemaUri || schema.iri == resourceSchemaUri)
-      for {
-        joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
-        created     <- repo.create(id, schema, joinedTypes, value.source)
-      } yield created
-    else
-      for {
-        resolved    <- schemaContext(id, schema)
-        _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, value.graph)
-        joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
-        newValue    <- additional(id, schema, joinedTypes, value)
-        created     <- repo.create(id, schema, joinedTypes, newValue.source)
-      } yield created
+    for {
+      _           <- validate(id.parent, schema, value.graph)
+      joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
+      newValue    <- additional(id, schema, joinedTypes, value)
+      created     <- repo.create(id, schema, joinedTypes, newValue.source)
+    } yield created
   }
 
   /**
@@ -174,8 +167,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       _           <- checkSchema(resource)
       value       <- materialize(id, source)
       graph        = value.graph
-      resolved    <- schemaContext(id, resource.schema)
-      _           <- validate(resolved.schema, resolved.schemaImports, resolved.dataImports, graph)
+      _           <- validate(id.parent, resource.schema, value.graph)
       joinedTypes  = graph.types(id.value).map(_.value)
       _           <- additional(id, resource.schema, joinedTypes, value)
       updated     <- repo.update(id, rev, joinedTypes, source)
@@ -468,28 +460,38 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       }
     }
 
-  private def schemaContext(id: ResId, schema: Ref): EitherT[F, Rejection, SchemaContext] = {
+  private def validate(projectRef: ProjectRef, schema: Ref, data: Graph): EitherT[F, Rejection, Unit] = {
+    def toEitherT(optReport: Option[ValidationReport]): EitherT[F, Rejection, Unit] =
+      optReport match {
+        case Some(r) if r.isValid() => EitherT.rightT(())
+        case Some(r)                => EitherT.leftT(InvalidResource(schema, r))
+        case _ =>
+          EitherT.leftT(Unexpected(s"unexpected error while attempting to validate schema '${schema.iri.asString}'"))
+      }
+
     def partition(set: Set[ResourceV]): (Set[ResourceV], Set[ResourceV]) =
       set.partition(_.isSchema)
-    // format: off
-    for {
-      resolvedSchema                <- schema.resolveOr(id.parent)(NotFound)
-      materializedSchema            <- materialize(resolvedSchema)
-      importedResources             <- imports(materializedSchema)
-      (schemaImports, dataImports)  = partition(importedResources)
-    } yield SchemaContext(materializedSchema, dataImports, schemaImports)
-    // format: on
-  }
 
-  private def validate(schema: ResourceV,
-                       schemaImports: Set[ResourceV],
-                       dataImports: Set[ResourceV],
-                       data: Graph): EitherT[F, Rejection, Unit] = {
-    val resolvedSchema = schemaImports.foldLeft(schema.value.graph)(_ ++ _.value.graph)
-    val resolvedData   = dataImports.foldLeft(data)(_ ++ _.value.graph)
-    val report         = Validator.validate(resolvedSchema, resolvedData)
-    if (report.conforms) EitherT.rightT(())
-    else EitherT.leftT(InvalidResource(schema.id.ref, report))
+    def schemaContext(): EitherT[F, Rejection, SchemaContext] =
+      // format: off
+      for {
+        resolvedSchema                <- schema.resolveOr(projectRef)(NotFound)
+        materializedSchema            <- materialize(resolvedSchema)
+        importedResources             <- imports(materializedSchema)
+        (schemaImports, dataImports)  = partition(importedResources)
+      } yield SchemaContext(materializedSchema, dataImports, schemaImports)
+      // format: on
+
+    schema.iri match {
+      case `resourceSchemaUri` => EitherT.rightT(())
+      case `shaclSchemaUri`    => toEitherT(ShaclEngine(data, reportDetails = true))
+      case _ =>
+        schemaContext().flatMap { resolved =>
+          val resolvedSchema = resolved.schemaImports.foldLeft(resolved.schema.value.graph)(_ ++ _.value.graph)
+          val resolvedData   = resolved.dataImports.foldLeft(data)(_ ++ _.value.graph)
+          toEitherT(ShaclEngine(resolvedData, resolvedSchema, validateShapes = false, reportDetails = true))
+        }
+    }
   }
 
   private def checkOrAssignId(idOrGenInput: Either[ResId, (ProjectRef, AbsoluteIri)],

@@ -12,6 +12,7 @@
     "xsd": "http://www.w3.org/2001/XMLSchema#",
     "shext": "http://www.w3.org/ns/shacl/ext#",
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
+    "nxsh": "https://bluebrain.github.io/nexus/vocabulary/shacl/",
     "distribution": "schema:distribution",
     "class": {
       "@id": "sh:class",
@@ -201,7 +202,7 @@
     "hasValue": {
       "@id": "sh:hasValue"
     },
-    "resultMessage": {
+    "message": {
       "@id": "sh:message"
     },
     "deactivated": {
@@ -225,6 +226,34 @@
     "seeAlso": {
       "@id": "rdfs:seeAlso",
       "@type": "@id"
+    },
+    "targetedNodes": "nxsh:targetedNodes",
+    "conforms": "sh:conforms",
+    "result": "sh:result",
+    "resultMessage": "sh:resultMessage",
+    "focusNode": {
+      "@id": "sh:focusNode",
+      "@type": "@id"
+    },
+    "resultSeverity": {
+      "@id": "sh:resultSeverity",
+      "@type": "@id"
+    },
+    "sourceConstraintComponent": {
+      "@id": "sh:sourceConstraintComponent",
+      "@type": "@id"
+    },
+    "sourceShape": {
+      "@id": "sh:sourceShape",
+      "@type": "@id"
+    },
+    "value": {
+      "@id": "sh:value",
+      "@type": "@id"
+    },
+    "detail": {
+      "@id": "sh:detail",
+      "@container": "@set"
     }
   }
 }

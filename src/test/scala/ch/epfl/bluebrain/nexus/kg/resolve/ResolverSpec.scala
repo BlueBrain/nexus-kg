@@ -83,7 +83,7 @@ class ResolverSpec
       }
 
       "fail when payload on identity is wrong" in {
-        val wrong    = jsonContentOf("/resolve/cross-project-wrong.json").appendContextOf(resolverCtx)
+        val wrong    = jsonContentOf("/resolve/cross-project-wrong-1.json").appendContextOf(resolverCtx)
         val resource = simpleV(id, wrong, types = Set(nxv.Resolver, nxv.CrossProject))
         Resolver(resource, accountRef) shouldEqual None
       }
