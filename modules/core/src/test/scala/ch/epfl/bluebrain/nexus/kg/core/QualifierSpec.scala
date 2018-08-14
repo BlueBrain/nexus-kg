@@ -47,26 +47,26 @@ class QualifierSpec extends WordSpecLike with Matchers with Randomness {
   }
 
   "A DomainId" should {
-    val id = DomainId(OrgId("org"), "dom")
+    val id = DomainId(OrgId("org"), "domè")
 
     "be mapped into a qualified uri using a configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[DomainId] =
         Qualifier.configured[DomainId](base)
-      id.qualify shouldEqual Uri("http://localhost/base/domains/org/dom")
+      id.qualify shouldEqual Uri("http://localhost/base/domains/org/dom%C3%A8")
     }
 
     "be mapped into a qualified uri in string format using a configured base uri" in {
       implicit val qualifier: ConfiguredQualifier[DomainId] =
         Qualifier.configured[DomainId](base)
-      id.qualifyAsString shouldEqual "http://localhost/base/domains/org/dom"
+      id.qualifyAsString shouldEqual "http://localhost/base/domains/org/dom%C3%A8"
     }
 
     "be mapped into a qualified uri using an explicit base uri" in {
-      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/domains/org/dom")
+      id.qualifyWith("http://localhost/explicit") shouldEqual Uri("http://localhost/explicit/domains/org/dom%C3%A8")
     }
 
     "be mapped into a qualified uri in string format" in {
-      id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/domains/org/dom"
+      id.qualifyAsStringWith("http://localhost/explicit") shouldEqual "http://localhost/explicit/domains/org/dom%C3%A8"
     }
   }
 

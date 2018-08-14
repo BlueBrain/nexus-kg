@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.core
 
+import java.net.URLEncoder
 import java.util.regex.Pattern
 
 import akka.http.scaladsl.model.Uri
@@ -169,7 +170,7 @@ trait QualifierInstances {
   implicit val domainIdQualifier: Qualifier[DomainId] =
     new Qualifier[DomainId] {
       override def apply(value: DomainId, base: Uri): Uri =
-        Uri(s"$base/domains/${value.show}")
+        Uri(s"$base/domains/${encode(value.show)}")
 
       override def unapply(uri: Uri, base: Uri): Option[DomainId] =
         Try {
@@ -180,7 +181,7 @@ trait QualifierInstances {
 
   implicit val orgIdQualifier: Qualifier[OrgId] = new Qualifier[OrgId] {
     override def apply(value: OrgId, base: Uri): Uri =
-      Uri(s"$base/organizations/${value.show}")
+      Uri(s"$base/organizations/${encode(value.show)}")
 
     override def unapply(uri: Uri, base: Uri): Option[OrgId] =
       Try { OrgId(removeBaseUri(uri, base, Some("organizations"))) }.toOption
@@ -189,7 +190,7 @@ trait QualifierInstances {
   implicit val schemaNameQualifier: Qualifier[SchemaName] =
     new Qualifier[SchemaName] {
       override def apply(value: SchemaName, base: Uri): Uri =
-        Uri(s"$base/schemas/${value.show}")
+        Uri(s"$base/schemas/${encode(value.show)}")
       override def unapply(uri: Uri, base: Uri): Option[SchemaName] =
         SchemaName(removeBaseUri(uri, base, Some("schemas")))
     }
@@ -197,14 +198,14 @@ trait QualifierInstances {
   implicit val schemaIdQualifier: Qualifier[SchemaId] =
     new Qualifier[SchemaId] {
       override def apply(value: SchemaId, base: Uri): Uri =
-        Uri(s"$base/schemas/${value.show}")
+        Uri(s"$base/schemas/${encode(value.show)}")
       override def unapply(uri: Uri, base: Uri): Option[SchemaId] =
         SchemaId(removeBaseUri(uri, base, Some("schemas"))).toOption
     }
 
   implicit val shapeIdQualifier: Qualifier[ShapeId] = new Qualifier[ShapeId] {
     override def apply(value: ShapeId, base: Uri): Uri =
-      Uri(s"$base/schemas/${value.show}")
+      Uri(s"$base/schemas/${encode(value.show)}")
 
     override def unapply(uri: Uri, base: Uri): Option[ShapeId] = {
       val schemaIdUri = Uri(s"$uri".substring(0, s"$uri".indexOf("/shapes")))
@@ -217,7 +218,7 @@ trait QualifierInstances {
   implicit val instanceIdQualifier: Qualifier[InstanceId] =
     new Qualifier[InstanceId] {
       override def apply(value: InstanceId, base: Uri): Uri =
-        Uri(s"$base/data/${value.show}")
+        Uri(s"$base/data/${encode(value.show)}")
       override def unapply(uri: Uri, base: Uri): Option[InstanceId] =
         InstanceId(removeBaseUri(uri, base, Some("data"))).toOption
     }
@@ -225,7 +226,7 @@ trait QualifierInstances {
   implicit val contextNameQualifier: Qualifier[ContextName] =
     new Qualifier[ContextName] {
       override def apply(value: ContextName, base: Uri): Uri =
-        Uri(s"$base/contexts/${value.show}")
+        Uri(s"$base/contexts/${encode(value.show)}")
       override def unapply(uri: Uri, base: Uri): Option[ContextName] =
         ContextName(removeBaseUri(uri, base, Some("contexts")))
     }
@@ -233,7 +234,7 @@ trait QualifierInstances {
   implicit val contextIdQualifier: Qualifier[ContextId] =
     new Qualifier[ContextId] {
       override def apply(value: ContextId, base: Uri): Uri =
-        Uri(s"$base/contexts/${value.show}")
+        Uri(s"$base/contexts/${encode(value.show)}")
       override def unapply(uri: Uri, base: Uri): Option[ContextId] =
         ContextId(removeBaseUri(uri, base, Some("contexts"))).toOption
     }
@@ -246,4 +247,6 @@ trait QualifierInstances {
 
       override def unapply(uri: Uri, base: Uri): None.type = None
     }
+  private def encode(value: String): String =
+    value.split("/").map(v => Try(URLEncoder.encode(v, "UTF-8")).getOrElse(v)).mkString("/")
 }
