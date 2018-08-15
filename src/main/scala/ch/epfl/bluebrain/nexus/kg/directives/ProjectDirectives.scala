@@ -8,16 +8,26 @@ import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{authorizationRejection, CustomAuthRejection}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import monix.eval.Task
 import monix.execution.Scheduler
-import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 
 import scala.util.{Failure, Success}
 
 object ProjectDirectives {
+  private val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
+    "nxv"           -> nxv.base,
+    "nxs"           -> Schemas.base,
+    "nxc"           -> Contexts.base,
+    "resource"      -> Schemas.resourceSchemaUri,
+    "elasticsearch" -> nxv.defaultElasticIndex,
+    "sparql"        -> nxv.defaultSparqlIndex
+  )
 
   /**
     * Fetches project configuration from the cache if possible, from nexus admin otherwise.
@@ -58,10 +68,8 @@ object ProjectDirectives {
     }
   }
 
-  private def addDefaultMappings(project: Project) = {
-    val pm = project.prefixMappings + ("nxv" -> nxv.base) + ("nxs" -> Schemas.base) + ("nxc" -> Contexts.base) + ("resource" -> Schemas.resourceSchemaUri) + ("elastic" -> nxv.defaultElasticIndex.value) + ("elastic" -> nxv.defaultElasticIndex.value)
-    project.copy(prefixMappings = pm)
-  }
+  private def addDefaultMappings(project: Project) =
+    project.copy(prefixMappings = project.prefixMappings ++ defaultPrefixMapping)
 
   /**
     * @return pass when the project is not deprecated, rejects when project is deprecated

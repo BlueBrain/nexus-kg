@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import java.net.URLEncoder
 import java.time.format.DateTimeFormatter
 import java.time.{Clock, Instant, ZoneId, ZoneOffset}
 import java.util.UUID
@@ -9,7 +8,6 @@ import java.util.regex.Pattern.quote
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import akka.testkit.TestKit
-import cats.Show
 import cats.data.OptionT
 import cats.instances.future._
 import cats.syntax.show._
@@ -18,13 +16,13 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientErr
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.service.http.Path
 import ch.epfl.bluebrain.nexus.service.http.UriOps._
@@ -75,9 +73,6 @@ class ElasticIndexerSpec
     val defaultEsMapping =
       jsonContentOf("/elastic/mapping.json", Map(quote("{{docType}}") -> appConfig.elastic.docType))
 
-    def urlEncoded[A: Show](a: A): String =
-      URLEncoder.encode(a.show, "UTF-8").toLowerCase
-
     val instantString = clock.instant().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT)
 
     "using a default view" should {
@@ -99,7 +94,7 @@ class ElasticIndexerSpec
       "skip indexing a resource when it exists a higher revision on the indexer" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
-        when(client.get[Json](index, doc, urlEncoded(id.value), include = Set("_rev")))
+        when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
           .thenReturn(Future.successful(Json.obj("_rev" -> Json.fromLong(3L))))
         indexer(ev).futureValue shouldEqual (())
       }
@@ -112,7 +107,7 @@ class ElasticIndexerSpec
       "index a resource when it does not exist" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
-        when(client.get[Json](index, doc, urlEncoded(id.value), include = Set("_rev")))
+        when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
           .thenReturn(Future.failed(new ElasticClientError(StatusCodes.NotFound, "something")))
 
         val elasticJson = Json
@@ -127,16 +122,16 @@ class ElasticIndexerSpec
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
           )
-        when(client.create(index, doc, urlEncoded(id.value), elasticJson)).thenReturn(Future.successful(()))
+        when(client.create(index, doc, urlEncode(id.value), elasticJson)).thenReturn(Future.successful(()))
         indexer(ev).futureValue shouldEqual (())
-        verify(client, times(1)).create(index, doc, urlEncoded(id.value), elasticJson)
+        verify(client, times(1)).create(index, doc, urlEncode(id.value), elasticJson)
 
       }
 
       "index a resource when it exists a lower revision on the indexer" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
-        when(client.get[Json](index, doc, urlEncoded(id.value), include = Set("_rev")))
+        when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
           .thenReturn(Future.successful(Json.obj("_rev" -> Json.fromLong(1L))))
 
         val elasticJson = Json
@@ -152,9 +147,9 @@ class ElasticIndexerSpec
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
           )
 
-        when(client.create(index, doc, urlEncoded(id.value), elasticJson)).thenReturn(Future.successful(()))
+        when(client.create(index, doc, urlEncode(id.value), elasticJson)).thenReturn(Future.successful(()))
         indexer(ev).futureValue shouldEqual (())
-        verify(client, times(1)).create(index, doc, urlEncoded(id.value), elasticJson)
+        verify(client, times(1)).create(index, doc, urlEncode(id.value), elasticJson)
 
       }
     }
@@ -184,7 +179,7 @@ class ElasticIndexerSpec
       "index a resource when it does not exist" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value))
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
-        when(client.get[Json](index, doc, urlEncoded(id.value), include = Set("_rev")))
+        when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
           .thenReturn(Future.failed(new ElasticClientError(StatusCodes.NotFound, "something")))
 
         val elasticJson = Json
@@ -199,9 +194,9 @@ class ElasticIndexerSpec
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
           )
-        when(client.create(index, doc, urlEncoded(id.value), elasticJson)).thenReturn(Future.successful(()))
+        when(client.create(index, doc, urlEncode(id.value), elasticJson)).thenReturn(Future.successful(()))
         indexer(ev.copy(schema = Ref(nxv.Resource.value))).futureValue shouldEqual (())
-        verify(client, times(1)).create(index, doc, urlEncoded(id.value), elasticJson)
+        verify(client, times(1)).create(index, doc, urlEncode(id.value), elasticJson)
 
       }
     }
@@ -225,13 +220,13 @@ class ElasticIndexerSpec
       "index a resource when it does not exist" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
-        when(client.get[Json](index, doc, urlEncoded(id.value), include = Set("_rev")))
+        when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
           .thenReturn(Future.failed(new ElasticClientError(StatusCodes.NotFound, "something")))
 
         val elasticJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
-        when(client.create(index, doc, urlEncoded(id.value), elasticJson)).thenReturn(Future.successful(()))
+        when(client.create(index, doc, urlEncode(id.value), elasticJson)).thenReturn(Future.successful(()))
         indexer(ev).futureValue shouldEqual (())
-        verify(client, times(1)).create(index, doc, urlEncoded(id.value), elasticJson)
+        verify(client, times(1)).create(index, doc, urlEncode(id.value), elasticJson)
       }
 
       "skip indexing a resource when it is not matching the tag defined on the view" in {

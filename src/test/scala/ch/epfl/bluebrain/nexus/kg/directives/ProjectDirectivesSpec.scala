@@ -95,13 +95,13 @@ class ProjectDirectivesSpec
 
     val label = ProjectLabel("account", "project")
     val prefixMappings = Map[String, AbsoluteIri](
-      "nxv"      -> nxv.base,
-      "nxs"      -> Schemas.base,
-      "nxc"      -> Contexts.base,
-      "resource" -> Schemas.resourceSchemaUri,
-      "base"     -> nxv.projects,
-      "elastic"  -> nxv.defaultElasticIndex,
-      "sparql"   -> nxv.defaultSparqlIndex
+      "nxv"           -> nxv.base,
+      "nxs"           -> Schemas.base,
+      "nxc"           -> Contexts.base,
+      "resource"      -> Schemas.resourceSchemaUri,
+      "base"          -> nxv.projects,
+      "elasticsearch" -> nxv.defaultElasticIndex,
+      "sparql"        -> nxv.defaultSparqlIndex
     )
     val projectMeta = Project("name", "project", prefixMappings, nxv.projects, 1L, false, "uuid")
     val accountRef  = AccountRef("accountUuid")

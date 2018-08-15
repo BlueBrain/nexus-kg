@@ -88,29 +88,40 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
             }
             .flatMap {
               case true =>
-                cache.addView(
-                  ProjectRef(uuid),
-                  ElasticView(
-                    defaultEsMapping,
-                    Set.empty,
-                    None,
-                    includeMetadata = true,
-                    sourceAsText = true,
+                for {
+                  elastic <- cache.addView(
                     ProjectRef(uuid),
-                    nxv.defaultElasticIndex.value,
-                    UUID.randomUUID().toString,
-                    1L,
-                    deprecated = false
-                  ),
-                  true
-                )
-                cache.addView(ProjectRef(uuid),
-                              SparqlView(ProjectRef(uuid),
-                                         nxv.defaultSparqlIndex.value,
-                                         UUID.randomUUID().toString,
-                                         1L,
-                                         deprecated = false),
-                              true)
+                    ElasticView(
+                      defaultEsMapping,
+                      Set.empty,
+                      None,
+                      includeMetadata = true,
+                      sourceAsText = true,
+                      ProjectRef(uuid),
+                      nxv.defaultElasticIndex.value,
+                      UUID.randomUUID().toString,
+                      1L,
+                      deprecated = false
+                    ),
+                    true
+                  )
+                  sparql <- cache.addView(
+                    ProjectRef(uuid),
+                    ElasticView(
+                      defaultEsMapping,
+                      Set.empty,
+                      None,
+                      includeMetadata = true,
+                      sourceAsText = true,
+                      ProjectRef(uuid),
+                      nxv.defaultElasticIndex.value,
+                      UUID.randomUUID().toString,
+                      1L,
+                      deprecated = false
+                    ),
+                    true
+                  )
+                } yield elastic && sparql
               case false => Task(false)
             }
             .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))

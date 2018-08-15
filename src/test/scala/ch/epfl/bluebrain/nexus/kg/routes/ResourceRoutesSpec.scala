@@ -41,7 +41,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.kg.{urlEncoded, Error, TestHelper}
+import ch.epfl.bluebrain.nexus.kg.{urlEncode, Error, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -445,7 +445,7 @@ class ResourceRoutesSpec
       val query  = "SELECT ?s where {?s ?p ?o} LIMIT 10"
       val result = Json.obj("key1" -> Json.fromString("value1"))
       when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
-      when(sparql.queryRaw(urlEncoded(query))).thenReturn(Task.pure(result))
+      when(sparql.queryRaw(urlEncode(query))).thenReturn(Task.pure(result))
 
       Post(s"/v1/views/$account/$project/nxv:defaultSparqlIndex", query) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK

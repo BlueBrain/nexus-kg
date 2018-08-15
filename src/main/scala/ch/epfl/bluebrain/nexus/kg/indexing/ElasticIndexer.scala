@@ -20,7 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.urlEncoded
+import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -80,7 +80,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
 
   private def fetchRevision(id: ResId): F[Option[Long]] =
     client
-      .get[Json](index, config.docType, urlEncoded(id.value), include = Set(revKey))
+      .get[Json](index, config.docType, urlEncode(id.value), include = Set(revKey))
       .map(_.hcursor.get[Long](revKey).toOption)
       .handleError {
         case ElasticClientError(StatusCodes.NotFound, _) => None
@@ -99,7 +99,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
       else
         (asJson(metaGraph) deepMerge res.value).removeKeys("@context")
     }
-    client.create(index, config.docType, urlEncoded(res.id.value), transformed)
+    client.create(index, config.docType, urlEncode(res.id.value), transformed)
   }
 
 }

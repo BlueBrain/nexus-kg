@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import java.net.URLEncoder
 import java.util.UUID
 
 import akka.http.javadsl.server.Rejections.validationRejection
@@ -20,6 +19,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.DeprecatedId._
+import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -44,7 +44,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentSt
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
-import ch.epfl.bluebrain.nexus.kg.{urlEncoded, DeprecatedId}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -56,7 +55,6 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
-import scala.util.Try
 
 /**
   * Routes for resources operations
@@ -187,7 +185,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
         (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
           val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
             views.find(_.id == id) match {
-              case Some(v: SparqlView) => sparql.copy(namespace = v.name).queryRaw(urlEncoded(query)).map(Right.apply)
+              case Some(v: SparqlView) => sparql.copy(namespace = v.name).queryRaw(urlEncode(query)).map(Right.apply)
               case _                   => Task.pure(Left(NotFound(Ref(id))))
             }
           }
@@ -407,15 +405,12 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     AdditionalValidation.resolver(acls, wrapped.accountRef, cache.projectRef)
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
-    val filename = encodedFilenameOrElse(info, "attachment")
+    val filename = urlEncodeOrElse(info.filename)("attachment")
     RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename")
   }
 
   private def contentType(info: Attachment.BinaryAttributes) =
     ContentType.parse(info.mediaType).getOrElse(`application/octet-stream`)
-
-  private def encodedFilenameOrElse(info: Attachment.BinaryAttributes, value: => String): String =
-    Try(URLEncoder.encode(info.filename, "UTF-8")).getOrElse(value)
 
   private implicit def toProject(implicit value: LabeledProject): Project           = value.project
   private implicit def toProjectLabel(implicit value: LabeledProject): ProjectLabel = value.label
