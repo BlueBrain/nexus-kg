@@ -125,9 +125,33 @@ class ResourcesSpec
 
       "create a new resource validated against empty schema (resource schema) with a payload only containing @context" in new ResolverResource {
         private val schemaRef = Ref(resourceSchemaUri)
-        val json              = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
+        private val json      = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
         private val resource  = resources.create(projectRef, base, schemaRef, json).value.right.value
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
+      }
+
+      "create a new resource validated against empty schema (resource schema) with the id passed on the call and the payload only containing @context" in new ResolverResource {
+        private val schemaRef = Ref(resourceSchemaUri)
+        private val json      = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
+        private val resource  = resources.createWithId(resId, schemaRef, json).value.right.value
+        resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
+      }
+
+      "create a new resource validated against empty schema (resource schema) with the id passed on the call and the payload only containing @context and @id" in new ResolverResource {
+        private val schemaRef = Ref(resourceSchemaUri)
+        private val json =
+          Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
+                   "@id"      -> Json.fromString(resId.value.asString))
+        private val resource = resources.createWithId(resId, schemaRef, json).value.right.value
+        resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
+      }
+
+      "prevent to create a new resource validated against empty schema (resource schema) with the id passed on the call not matching the @id on the payload" in new ResolverResource {
+        private val schemaRef = Ref(resourceSchemaUri)
+        private val genId     = randomIri()
+        private val json = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
+                                    "@id" -> Json.fromString(genId.show))
+        resources.createWithId(resId, schemaRef, json).value.left.value shouldEqual IncorrectId(resId.ref)
       }
 
       "create a new resource validated against the resolver schema without passing the id on the call (but provided on the Json)" in new ResolverResource {
