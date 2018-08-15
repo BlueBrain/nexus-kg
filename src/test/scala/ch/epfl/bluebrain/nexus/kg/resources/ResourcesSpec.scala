@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 
 import cats.data.EitherT
@@ -102,7 +103,7 @@ class ResourcesSpec
   trait Attachment extends ResolverResource {
     val desc       = BinaryDescription("name", "text/plain")
     val source     = "some text"
-    val relative   = Iri.relative("./other").right.value
+    val relative   = Paths.get("./other")
     val attributes = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
     when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[CId, Rejection](attributes))
     when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[CId, Rejection](attributes))

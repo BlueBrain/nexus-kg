@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.serializers
 
 import java.io.NotSerializableException
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Path, Paths}
 
 import akka.serialization.SerializerWithStringManifest
 import cats.syntax.show._
@@ -10,7 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, RelativeIri}
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}
@@ -19,6 +20,8 @@ import io.circe.parser.decode
 import io.circe.refined._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder, Json}
+
+import scala.util.Try
 
 /**
   * Akka ''SerializerWithStringManifest'' class definition for all events.
@@ -43,11 +46,14 @@ object Serializer {
     Iri.absolute(iri).left.map(err => new IllegalArgumentException(err)).toTry
   }
 
-  private implicit def relativeIriEncoder: Encoder[RelativeIri] = Encoder { iri =>
-    Json.fromString(iri.show)
+  private implicit def pathEncoder: Encoder[Path] = Encoder { path =>
+    Json.fromString(path.toString)
   }
-  private implicit def relativeIriDecoder: Decoder[RelativeIri] = Decoder.decodeString.emapTry { iri =>
-    RelativeIri.apply(iri).left.map(err => new IllegalArgumentException(err)).toTry
+
+  private implicit def pathDecoder: Decoder[Path] = Decoder.decodeString.emapTry { path =>
+    Try {
+      Paths.get(path)
+    }
   }
 
   private implicit def binaryAttributesEncoder: Encoder[BinaryAttributes] = deriveEncoder[BinaryAttributes]

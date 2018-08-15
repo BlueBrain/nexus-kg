@@ -1,8 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
+import java.nio.file.Paths
+
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.rdf.Iri
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{EitherValues, Matchers, OptionValues, WordSpecLike}
 
@@ -22,7 +23,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with EitherValues with Op
       appConfig.persistence shouldEqual PersistenceConfig("cassandra-journal",
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
-      appConfig.attachments shouldEqual AttachmentsConfig(Iri.absolute("file:///tmp/").right.value, "SHA-256")
+      appConfig.attachments shouldEqual AttachmentsConfig(Paths.get("/tmp/"), "SHA-256")
       appConfig.iam shouldEqual IamConfig("http://localhost:8080/iam", None)
       appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       SparqlConfig("http://localhost:9999/bigdata", Some("user"), Some("pass"), "kg").akkaCredentials.value shouldEqual BasicHttpCredentials(

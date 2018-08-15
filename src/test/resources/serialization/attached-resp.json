@@ -4,7 +4,7 @@
   "rev": 1,
   "value": {
     "uuid": "uuid",
-    "fileUri": "/test/path",
+    "filePath": "/test/path",
     "filename": "test-file.json",
     "mediaType": "application/json",
     "contentSize": {
