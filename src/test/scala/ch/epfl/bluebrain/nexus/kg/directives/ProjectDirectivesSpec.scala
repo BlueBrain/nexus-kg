@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.Error
 import ch.epfl.bluebrain.nexus.kg.Error._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
@@ -66,8 +67,7 @@ class ProjectDirectivesSpec
       "uuid") {
       case (name, label, pm, base, rev, deprecated, uuid) =>
         val prefixMappings = pm.map(e => e.prefix -> e.namespace).toMap
-        prefixMappings("nxv") shouldEqual nxv.base
-        Project(name, label, prefixMappings - "nxv", base, rev, deprecated, uuid)
+        Project(name, label, prefixMappings, base, rev, deprecated, uuid)
     }
 
   before {
@@ -93,8 +93,13 @@ class ProjectDirectivesSpec
         }
       }
 
-    val label       = ProjectLabel("account", "project")
-    val projectMeta = Project("name", "project", Map.empty, nxv.projects, 1L, false, "uuid")
+    val label = ProjectLabel("account", "project")
+    val prefixMappings = Map[String, AbsoluteIri]("nxv" -> nxv.base,
+                                                  "nxs"      -> Schemas.base,
+                                                  "nxc"      -> Contexts.base,
+                                                  "resource" -> Schemas.resourceSchemaUri,
+                                                  "base"     -> nxv.projects)
+    val projectMeta = Project("name", "project", prefixMappings, nxv.projects, 1L, false, "uuid")
     val accountRef  = AccountRef("accountUuid")
 
     "fetch the project from the cache" in {
