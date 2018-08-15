@@ -107,14 +107,9 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                   )
                   sparql <- cache.addView(
                     ProjectRef(uuid),
-                    ElasticView(
-                      defaultEsMapping,
-                      Set.empty,
-                      None,
-                      includeMetadata = true,
-                      sourceAsText = true,
+                    SparqlView(
                       ProjectRef(uuid),
-                      nxv.defaultElasticIndex.value,
+                      nxv.defaultSparqlIndex.value,
                       UUID.randomUUID().toString,
                       1L,
                       deprecated = false
