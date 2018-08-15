@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
 import monix.eval.Task
 import monix.execution.Scheduler
+import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 
 import scala.util.{Failure, Success}
 
@@ -52,13 +53,13 @@ object ProjectDirectives {
             case Failure(err)                      => reject(authorizationRejection(err))
             case Success((_, None))                => reject(CustomAuthRejection(ProjectNotFound(label)))
             case Success((None, Some(value)))      => reject(CustomAuthRejection(AccountNotFound(ProjectRef(value.uuid))))
-            case Success((Some(ref), Some(value))) => provide(LabeledProject(label, addNxvMapping(value), ref))
+            case Success((Some(ref), Some(value))) => provide(LabeledProject(label, addDefaultMappings(value), ref))
           }
     }
   }
 
-  private def addNxvMapping(project: Project) = {
-    val pm = project.prefixMappings + ("nxv" -> nxv.base)
+  private def addDefaultMappings(project: Project) = {
+    val pm = project.prefixMappings + ("nxv" -> nxv.base) + ("nxs" -> Schemas.base) + ("nxc" -> Contexts.base) + ("resource" -> Schemas.resourceSchemaUri) + ("base" -> project.base)
     project.copy(prefixMappings = pm)
   }
 

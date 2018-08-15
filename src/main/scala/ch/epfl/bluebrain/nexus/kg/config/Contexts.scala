@@ -2,21 +2,20 @@ package ch.epfl.bluebrain.nexus.kg.config
 
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary.vocabToAbsoluteUri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
 
 object Contexts {
 
-  val contexts = "https://bluebrain.github.io/nexus/contexts"
+  val base = url"https://bluebrain.github.io/nexus/contexts".value
 
-  val errorCtxUri: AbsoluteIri    = url"$contexts/error"
-  val tagCtxUri: AbsoluteIri      = url"$contexts/tag"
-  val resourceCtxUri: AbsoluteIri = url"$contexts/resource"
-  val resolverCtxUri: AbsoluteIri = url"$contexts/resolver"
-  val viewCtxUri: AbsoluteIri     = url"$contexts/view"
-  val shaclCtxUri: AbsoluteIri    = url"$contexts/shacl"
-  val searchCtxUri: AbsoluteIri   = url"$contexts/search"
+  val errorCtxUri: AbsoluteIri    = base + "error"
+  val tagCtxUri: AbsoluteIri      = base + "tag"
+  val resourceCtxUri: AbsoluteIri = base + "resource"
+  val resolverCtxUri: AbsoluteIri = base + "resolver"
+  val viewCtxUri: AbsoluteIri     = base + "view"
+  val shaclCtxUri: AbsoluteIri    = base + "shacl"
+  val searchCtxUri: AbsoluteIri   = base + "search"
 
   val tagCtx: Json      = jsonContentOf("/contexts/tags-context.json")
   val resourceCtx: Json = jsonContentOf("/contexts/resource-context.json")
