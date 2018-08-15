@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import java.net.URLEncoder
 import java.util.UUID
 
 import akka.http.javadsl.server.Rejections.validationRejection
@@ -19,8 +18,8 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryRes
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.DeprecatedId
 import ch.epfl.bluebrain.nexus.kg.DeprecatedId._
+import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -30,6 +29,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.marshallers.{ExceptionHandling, RejectionHandling}
@@ -55,7 +55,6 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
-import scala.util.Try
 
 /**
   * Routes for resources operations
@@ -87,7 +86,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     // consumes the segment resources/{account}/{project}
     (pathPrefix("resources") & project) { implicit wrapped =>
       // create resource with implicit or generated id
-      (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json])) { (schema, source) =>
+      (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json]) & pathEndOrSingleSlash) { (schema, source) =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           trace("createResource") {
             complete(Created -> resources.create(wrapped.ref, wrapped.project.base, Ref(schema), source).value.runAsync)
@@ -120,7 +119,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     // consumes the segment views/{account}/{project}
     (pathPrefix("views") & project) { implicit wrapped =>
       // create view with implicit or generated id
-      (projectNotDeprecated & post & entity(as[Json])) { source =>
+      (projectNotDeprecated & post & entity(as[Json]) & pathEndOrSingleSlash) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           trace("createView") {
             complete(
@@ -139,7 +138,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     // consumes the segment schemas/{account}/{project}
     (pathPrefix("schemas") & project) { implicit wrapped =>
       // create schema with implicit or generated id
-      (post & projectNotDeprecated & entity(as[Json])) { source =>
+      (post & projectNotDeprecated & entity(as[Json]) & pathEndOrSingleSlash) { source =>
         (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
           trace("createSchema") {
             complete(
@@ -157,7 +156,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     // consumes the segment resolvers/{account}/{project}
     (pathPrefix("resolvers") & project) { implicit wrapped =>
       // create resolver with implicit or generated id
-      (projectNotDeprecated & post & entity(as[Json])) { source =>
+      (projectNotDeprecated & post & entity(as[Json]) & pathEndOrSingleSlash) { source =>
         callerIdentity.apply { implicit ident =>
           acls.apply { implicit acls =>
             hasPermissionInAcl(resourceCreate).apply {
@@ -182,23 +181,30 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   private def search(implicit token: Option[AuthToken]): Route =
     // consumes the segment views/{account}/{project}
     (pathPrefix("views") & project) { implicit wrapped =>
-      // search forwarded to the sparql endpoint of the default view
-      (path("sparql") & post & entity(as[Json]) & pathEndOrSingleSlash) { query =>
+      (pathPrefix(aliasOrCurie) & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
         (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-          trace("sparqlSearch") {
-            complete(sparql.copy(namespace = config.sparql.defaultIndex).queryRaw(query.noSpaces).runAsync)
+          val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
+            views.find(_.id == id) match {
+              case Some(v: SparqlView) => sparql.copy(namespace = v.name).queryRaw(urlEncode(query)).map(Right.apply)
+              case _                   => Task.pure(Left(NotFound(Ref(id))))
+            }
           }
+          trace("searchSparql")(complete(result.runAsync))
         }
       } ~
-        // search forwarded to the elastic endpoint of the default view
-        (path("elastic") & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
-          (query, pagination, params) =>
+        (pathPrefix(aliasOrCurie) & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
+          (id, query, pagination, params) =>
             (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
-              val search = es.search[Json](query, Set(config.elastic.defaultIndex), params)(pagination)
-              //TODO: Treat ES response accordingly
-              trace("elasticSearch") {
-                complete(search.map(_.results.map(_.source)).runAsync)
+              val result: Task[Either[Rejection, List[Json]]] = cache.views(wrapped.ref).flatMap { views =>
+                views.find(_.id == id) match {
+                  case Some(v: ElasticView) =>
+                    val index = s"${config.elastic.indexPrefix}_${v.name}"
+                    es.search[Json](query, Set(index), params)(pagination).map(qr => Right(qr.results.map(_.source)))
+                  case _ =>
+                    Task.pure(Left(NotFound(Ref(id))))
+                }
               }
+              trace("searchElastic")(complete(result.runAsync))
             }
         }
     }
@@ -382,12 +388,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
 
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
     def materializeRun: Future[Option[ResourceV]] =
-      resource
-        .flatMap { e =>
-          resources.materializeWithMeta(e).toOption
-        }
-        .value
-        .runAsync
+      resource.flatMap(resources.materializeWithMeta(_).toOption).value.runAsync
   }
 
   private def toQueryResults[A](resolvers: List[A]): QueryResults[A] =
@@ -404,15 +405,12 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     AdditionalValidation.resolver(acls, wrapped.accountRef, cache.projectRef)
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
-    val filename = encodedFilenameOrElse(info, "attachment")
+    val filename = urlEncodeOrElse(info.filename)("attachment")
     RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename")
   }
 
   private def contentType(info: Attachment.BinaryAttributes) =
     ContentType.parse(info.mediaType).getOrElse(`application/octet-stream`)
-
-  private def encodedFilenameOrElse(info: Attachment.BinaryAttributes, value: => String): String =
-    Try(URLEncoder.encode(info.filename, "UTF-8")).getOrElse(value)
 
   private implicit def toProject(implicit value: LabeledProject): Project           = value.project
   private implicit def toProjectLabel(implicit value: LabeledProject): ProjectLabel = value.label

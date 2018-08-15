@@ -44,6 +44,7 @@ object Vocabulary {
     val sub                 = withPath("sub")
     val group               = withPath("group")
     val defaultElasticIndex = withPath("defaultElasticIndex")
+    val defaultSparqlIndex  = withPath("defaultSparqlIndex")
     val originalSource      = withPath("_original_source")
 
     val total    = withPath("total")
