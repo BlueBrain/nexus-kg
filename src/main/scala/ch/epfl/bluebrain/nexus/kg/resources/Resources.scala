@@ -505,19 +505,19 @@ abstract class Resources[F[_]](implicit F: Monad[F],
 
     idOrGenInput match {
       case Left(id) =>
-        if (value.primaryNode.contains(IriNode(id.value))) EitherT.rightT(id -> value)
-        else {
-          val withIdOpt = value.graph.primaryBNode.map(id -> replaceBNode(_, id.value))
-          EitherT.fromOption(withIdOpt, IncorrectId(id.ref))
+        value.primaryNode match {
+          case Some(IriNode(iri)) if iri.value == id.value => EitherT.rightT(id -> value)
+          case Some(bNode: BNode)                          => EitherT.rightT(id -> replaceBNode(bNode, id.value))
+          case _                                           => EitherT.leftT(IncorrectId(id.ref))
         }
       case Right((projectRef, base)) =>
-        val withIdOpt = value.primaryNode map {
-          case IriNode(iri) => Id(projectRef, iri) -> value
-          case b: BNode =>
+        value.primaryNode match {
+          case Some(IriNode(iri)) => EitherT.rightT(Id(projectRef, iri) -> value)
+          case Some(bNode: BNode) =>
             val iri = base + uuid()
-            Id(projectRef, iri) -> replaceBNode(b, iri)
+            EitherT.rightT(Id(projectRef, iri) -> replaceBNode(bNode, iri))
+          case _ => EitherT.leftT(UnableToSelectResourceId)
         }
-        EitherT.fromOption(withIdOpt, UnableToSelectResourceId)
     }
   }
 
