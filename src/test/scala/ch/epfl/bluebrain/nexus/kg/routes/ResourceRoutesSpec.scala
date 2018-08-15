@@ -2,8 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import java.time.{Clock, Instant, ZoneId}
 
-import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import cats.data.{EitherT, OptionT}
@@ -31,17 +31,17 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{InAccountResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, NotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
+import ch.epfl.bluebrain.nexus.kg.{urlEncoded, Error, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -109,13 +109,15 @@ class ResourceRoutesSpec
     val genUuid    = uuid
     val iri        = nxv.withPath(genUuid)
     val id         = Id(projectRef, iri)
-    val defaultView =
+    val defaultEsView =
       ElasticView(Json.obj(), Set.empty, None, false, true, projectRef, nxv.defaultElasticIndex.value, uuid, 1L, false)
+
+    val defaultSQLView = SparqlView(projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
 
     when(cache.project(ProjectLabel(account, project)))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
     when(cache.views(projectRef))
-      .thenReturn(Task.pure(Set(defaultView): Set[IndexingView]))
+      .thenReturn(Task.pure(Set(defaultEsView, defaultSQLView): Set[IndexingView]))
     when(cache.accountRef(projectRef))
       .thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
     when(iamClient.getCaller(filterGroups = true))
@@ -394,7 +396,10 @@ class ResourceRoutesSpec
             path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")}".value
 
         when(
-          resources.list(mEq(Set(defaultView)), mEq(None), mEq(resourceSchemaUri), mEq(Pagination(0, 20)))(
+          resources.list(mEq(Set(defaultEsView, defaultSQLView)),
+                         mEq(None),
+                         mEq(resourceSchemaUri),
+                         mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[AbsoluteIri]]],
             isA[ElasticClient[Task]]
           )
@@ -415,6 +420,43 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
         }
+      }
+    }
+
+    "search for resources on a custom ElasticView" in new View {
+      val query   = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
+      val result1 = Json.obj("key1"  -> Json.fromString("value1"))
+      val result2 = Json.obj("key2"  -> Json.fromString("value2"))
+      val qr: QueryResults[Json] =
+        UnscoredQueryResults(2L, List(UnscoredQueryResult(result1), UnscoredQueryResult(result2)))
+      when(
+        elastic.search[Json](query,
+                             Set(s"kg_${defaultEsView.name}"),
+                             Uri.Query(Map("size" -> "23", "other" -> "value")))(Pagination(0L, 23)))
+        .thenReturn(Task.pure(qr))
+      Post(s"/v1/views/$account/$project/nxv:defaultElasticIndex?size=23&other=value", query) ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual Json.arr(result1, result2)
+      }
+    }
+
+    "search for resources on a custom SparqlView" in new View {
+      val query  = "SELECT ?s where {?s ?p ?o} LIMIT 10"
+      val result = Json.obj("key1" -> Json.fromString("value1"))
+      when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
+      when(sparql.queryRaw(urlEncoded(query))).thenReturn(Task.pure(result))
+
+      Post(s"/v1/views/$account/$project/nxv:defaultSparqlIndex", query) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual result
+      }
+    }
+
+    "reject searching on a view that does not exists" in new View {
+      Post(s"/v1/views/$account/$project/nxv:some?size=23&other=value", Json.obj()) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
       }
     }
 

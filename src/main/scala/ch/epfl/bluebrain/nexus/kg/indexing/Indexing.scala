@@ -104,6 +104,13 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                   ),
                   true
                 )
+                cache.addView(ProjectRef(uuid),
+                              SparqlView(ProjectRef(uuid),
+                                         nxv.defaultSparqlIndex.value,
+                                         UUID.randomUUID().toString,
+                                         1L,
+                                         deprecated = false),
+                              true)
               case false => Task(false)
             }
             .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))

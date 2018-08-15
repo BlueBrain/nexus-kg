@@ -59,7 +59,7 @@ object ProjectDirectives {
   }
 
   private def addDefaultMappings(project: Project) = {
-    val pm = project.prefixMappings + ("nxv" -> nxv.base) + ("nxs" -> Schemas.base) + ("nxc" -> Contexts.base) + ("resource" -> Schemas.resourceSchemaUri) + ("base" -> project.base)
+    val pm = project.prefixMappings + ("nxv" -> nxv.base) + ("nxs" -> Schemas.base) + ("nxc" -> Contexts.base) + ("resource" -> Schemas.resourceSchemaUri) + ("elastic" -> nxv.defaultElasticIndex.value) + ("elastic" -> nxv.defaultElasticIndex.value)
     project.copy(prefixMappings = pm)
   }
 
