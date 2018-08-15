@@ -1,8 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources.attachment
 
+import java.nio.file.Path
 import java.util.UUID
-
-import ch.epfl.bluebrain.nexus.rdf.Iri.RelativeIri
 
 object Attachment {
 
@@ -15,7 +14,7 @@ object Attachment {
     */
   final case class BinaryDescription(uuid: String, filename: String, mediaType: String) {
     def process(stored: StoredSummary): BinaryAttributes =
-      BinaryAttributes(uuid, stored.fileUri, filename, mediaType, stored.size, stored.digest)
+      BinaryAttributes(uuid, stored.filePath, filename, mediaType, stored.size, stored.digest)
   }
 
   object BinaryDescription {
@@ -27,21 +26,21 @@ object Attachment {
     * Holds all the metadata information related to an attachment.
     *
     * @param uuid        the unique id that identifies this attachment.
-    * @param fileUri     uri where the attachment gets stored.
+    * @param filePath    path where the attachment gets stored.
     * @param filename    the original filename of the attached file
     * @param mediaType   the media type of the attached file
     * @param contentSize the size of the attached file
     * @param digest      the digest information of the attached file
     */
   final case class BinaryAttributes(uuid: String,
-                                    fileUri: RelativeIri,
+                                    filePath: Path,
                                     filename: String,
                                     mediaType: String,
                                     contentSize: Size,
                                     digest: Digest)
   object BinaryAttributes {
-    def apply(fileUri: RelativeIri, filename: String, mediaType: String, size: Size, digest: Digest): BinaryAttributes =
-      BinaryAttributes(randomUUID(), fileUri, filename, mediaType, size, digest)
+    def apply(filePath: Path, filename: String, mediaType: String, size: Size, digest: Digest): BinaryAttributes =
+      BinaryAttributes(randomUUID(), filePath, filename, mediaType, size, digest)
   }
 
   private def randomUUID(): String = UUID.randomUUID().toString.toLowerCase()
@@ -65,9 +64,9 @@ object Attachment {
   /**
     * The summary after the file has been stored
     *
-    * @param fileUri the location where the file has been stored
-    * @param size    the size of the attached file
-    * @param digest  the digest related information of the attached file
+    * @param filePath the location where the file has been stored
+    * @param size     the size of the attached file
+    * @param digest   the digest related information of the attached file
     */
-  final case class StoredSummary(fileUri: RelativeIri, size: Size, digest: Digest)
+  final case class StoredSummary(filePath: Path, size: Size, digest: Digest)
 }

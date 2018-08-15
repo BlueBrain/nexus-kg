@@ -1,7 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resources.attachment
 
-import java.io.File
-import java.net.URI
 import java.nio.file.{Files, Path, Paths}
 import java.security.MessageDigest
 
@@ -10,7 +8,6 @@ import akka.stream.scaladsl.{FileIO, Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, IOResult, Materializer}
 import akka.util.ByteString
 import cats.data.EitherT
-import cats.syntax.show._
 import cats.{Applicative, Monad}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.AttachmentsConfig
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.Unexpected
@@ -18,8 +15,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.LocationResolver.Location
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore._
 import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId}
-import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, RelativeIri}
 import monix.eval.Task
 
 import scala.concurrent.Future
@@ -47,7 +42,7 @@ class AttachmentStore[F[_]: Monad, In, Out](implicit loc: LocationResolver[F], s
     * @param attachment the attachment metadata
     */
   def fetch(attachment: BinaryAttributes): Either[Rejection, Out] =
-    stream.toSource(attachment.fileUri.resolve(loc.base))
+    stream.toSource(loc.base.resolve(attachment.filePath))
 }
 
 object AttachmentStore {
@@ -61,10 +56,10 @@ object AttachmentStore {
       * Attempts to create a Out from a URI.
       * This should be used to transmit the content referred by the URI through the Out type in streaming fashion.
       *
-      * @param uri the AbsoluteIri from where to retrieve the content
+      * @param path the [[Path]] from where to retrieve the content
       * @return the typeclass Out
       */
-    def toSource(uri: AbsoluteIri): Either[Rejection, Out]
+    def toSource(path: Path): Either[Rejection, Out]
 
     /**
       * Attempts to store and create metadata information which will be used by [[ch.epfl.bluebrain.nexus.kg.resources.State]]
@@ -89,9 +84,8 @@ object AttachmentStore {
         import as.dispatcher
         implicit val mt: Materializer = ActorMaterializer()
 
-        def toSource(uri: AbsoluteIri): Either[Rejection, AkkaOut] =
-          Try(FileIO.fromPath(Paths.get(new URI(uri.show)))).toEither.left.map[Rejection](th =>
-            Unexpected(th.getMessage))
+        def toSource(path: Path): Either[Rejection, AkkaOut] =
+          Try(FileIO.fromPath(path)).toEither.left.map[Rejection](th => Unexpected(th.getMessage))
 
         def toSink(loc: Location, source: AkkaIn, meta: BinaryDescription): EitherT[Future, Rejection, StoredSummary] =
           EitherT(source
@@ -126,8 +120,8 @@ object AttachmentStore {
       new Stream[Task, AkkaIn, AkkaOut] {
         private val underlying = akka(config)
 
-        def toSource(uri: AbsoluteIri): Either[Rejection, AkkaOut] =
-          underlying.toSource(uri)
+        def toSource(path: Path): Either[Rejection, AkkaOut] =
+          underlying.toSource(path)
 
         def toSink(loc: Location, source: AkkaIn, meta: BinaryDescription): EitherT[Task, Rejection, StoredSummary] =
           EitherT(Task.deferFuture(underlying.toSink(loc, source, meta).value))
@@ -142,7 +136,7 @@ object AttachmentStore {
     *
     * @tparam F the monadic effect type
     */
-  abstract class LocationResolver[F[_]](private[attachment] val base: AbsoluteIri) {
+  abstract class LocationResolver[F[_]](private[attachment] val base: Path) {
 
     /**
       * Attempts to create a location for an attachment.
@@ -162,7 +156,7 @@ object AttachmentStore {
       * @param path     absolute Path where to find the attachment
       * @param relative relative route to the attachment's location
       */
-    final case class Location(path: Path, relative: RelativeIri)
+    final case class Location(path: Path, relative: Path)
 
     /**
       * Constructs a ''LocationResolver'' from base path implementing
@@ -171,17 +165,17 @@ object AttachmentStore {
       * @param base path of the root directory from where to store attachments
       * @return the LocationResolver
       */
-    def apply[F[_]: Applicative](base: AbsoluteIri): LocationResolver[F] =
+    def apply[F[_]: Applicative](base: Path): LocationResolver[F] =
       new LocationResolver[F](base) {
         override def apply(id: ResId, uuid: String): EitherT[F, Rejection, Location] = {
-          val relIri = Iri.relative(s"${id.parent.id}/${uuid.takeWhile(_ != '-').mkString("/")}/$uuid")
-          EitherT.fromEither[F](relIri.left.map[Rejection](Unexpected).flatMap { relative =>
+          EitherT.fromEither[F](
             Try {
-              val attachmentPath = new File(new File(base.show), relative.show).toPath
+              val relative       = Paths.get(s"${id.parent.id}/${uuid.takeWhile(_ != '-').mkString("/")}/$uuid")
+              val attachmentPath = base.resolve(relative)
               Files.createDirectories(attachmentPath.getParent)
               Location(attachmentPath, relative)
             }.toEither.left.map[Rejection](th => Unexpected(th.getMessage))
-          })
+          )
         }
       }
 
@@ -189,4 +183,5 @@ object AttachmentStore {
       apply(config.volume)
 
   }
+
 }

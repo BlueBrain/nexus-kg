@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 
 import cats.data.EitherT
@@ -170,13 +171,13 @@ class RepoSpec
 
       "add several attachments to a resource" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.right.value shouldBe a[Resource]
-        private val desc                      = BinaryDescription("name", "text/plain")
-        private val source                    = "some text"
-        private val desc2                     = BinaryDescription("name2", "text/plain")
-        private val source2                   = "some text2"
-        private val relative: Iri.RelativeIri = Iri.relative("./other").right.value
-        private val attributes                = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
-        private val attributes2               = desc2.process(StoredSummary(relative, Size(value = 30L), Digest("MD5", "4567")))
+        private val desc        = BinaryDescription("name", "text/plain")
+        private val source      = "some text"
+        private val desc2       = BinaryDescription("name2", "text/plain")
+        private val source2     = "some text2"
+        private val relative    = Paths.get("./other")
+        private val attributes  = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
+        private val attributes2 = desc2.process(StoredSummary(relative, Size(value = 30L), Digest("MD5", "4567")))
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[CId, Rejection](attributes))
         repo.attach(id, 1L, desc, source).value.right.value shouldEqual
           ResourceF.simpleF(id, value, 2L, schema = Latest(schema)).copy(attachments = Set(attributes))
@@ -218,7 +219,7 @@ class RepoSpec
         repo.create(id, Latest(schema), Set.empty, value).value.right.value shouldBe a[Resource]
         private val desc       = BinaryDescription("name", "text/plain")
         private val source     = "some text"
-        private val relative   = Iri.relative("./other").right.value
+        private val relative   = Paths.get("./other")
         private val attributes = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[CId, Rejection](attributes))
         repo.attach(id, 1L, desc, source).value.right.value shouldBe a[Resource]
@@ -281,15 +282,15 @@ class RepoSpec
     }
 
     "performing get attachment operations" should {
-      val relative: Iri.RelativeIri = Iri.relative("./other").right.value
-      val desc                      = BinaryDescription("name", "text/plain")
-      val source                    = "some text"
-      val attributes                = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
-      val desc2                     = BinaryDescription("name2", "text/plain")
-      val source2                   = "some text2"
-      val attributes2               = desc2.process(StoredSummary(relative, Size(value = 30L), Digest("MD5", "4567")))
-      val source2Updated            = "some text2 other"
-      val attributes2Updated        = desc2.process(StoredSummary(relative, Size(value = 40L), Digest("MD5", "910232")))
+      val relative           = Paths.get("./other")
+      val desc               = BinaryDescription("name", "text/plain")
+      val source             = "some text"
+      val attributes         = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
+      val desc2              = BinaryDescription("name2", "text/plain")
+      val source2            = "some text2"
+      val attributes2        = desc2.process(StoredSummary(relative, Size(value = 30L), Digest("MD5", "4567")))
+      val source2Updated     = "some text2 other"
+      val attributes2Updated = desc2.process(StoredSummary(relative, Size(value = 40L), Digest("MD5", "910232")))
 
       "get a resource attachment" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.right.value shouldBe a[Resource]

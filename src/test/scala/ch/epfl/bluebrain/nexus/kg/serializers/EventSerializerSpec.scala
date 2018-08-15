@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.serializers
 
 import java.nio.charset.Charset
+import java.nio.file.Paths
 import java.time.Clock
 import java.util.regex.Pattern.quote
 
@@ -13,7 +14,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event.{AttachmentAdded, Created, Dep
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, Digest, Size}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
-import ch.epfl.bluebrain.nexus.rdf.Iri.RelativeIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
@@ -61,7 +61,7 @@ class EventSerializerSpec
           1L,
           BinaryAttributes(
             "uuid",
-            RelativeIri("/test/path").toOption.value,
+            Paths.get("/test/path"),
             "test-file.json",
             "application/json",
             Size("byte", 128L),
