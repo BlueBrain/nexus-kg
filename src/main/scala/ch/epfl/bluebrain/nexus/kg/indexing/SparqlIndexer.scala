@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
+import java.util.Properties
+
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
@@ -22,6 +24,7 @@ import monix.execution.Scheduler
 import org.apache.jena.query.ResultSet
 
 import scala.util.Try
+import scala.collection.JavaConverters._
 
 /**
   * Indexer which takes a resource event and calls SPARQL client with relevant update if required
@@ -89,10 +92,16 @@ object SparqlIndexer {
 
     implicit val mt = ActorMaterializer()
     implicit val ul = HttpClient.taskHttpClient
+    val properties: Map[String, String] = {
+      val props = new Properties()
+      props.load(getClass.getResourceAsStream("/blazegraph/index.properties"))
+      props.asScala.toMap
+    }
 
     val client  = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
     val indexer = new SparqlIndexer(client, resources)
     SequentialTagIndexer.startLocal[Event](
+      () => client.createNamespace(properties).runAsync,
       (ev: Event) => indexer(ev).runAsync,
       persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",
