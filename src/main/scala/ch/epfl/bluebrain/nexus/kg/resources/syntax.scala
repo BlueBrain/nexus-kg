@@ -5,8 +5,10 @@ import java.time.{Instant, ZoneOffset}
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, AuthenticatedRef, GroupRef, UserRef}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{HttpConfig, IamConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, Literal}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -33,4 +35,14 @@ object syntax {
 
   final implicit def toNode(instant: Instant): Node =
     Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime.value)
+
+  final implicit class ResourceUriSyntax(private val res: Resource)(implicit wrapped: LabeledProject,
+                                                                    http: HttpConfig) {
+    def accessId: AbsoluteIri = AccessId(res.id.value, res.schema.iri)
+  }
+
+  final implicit class ResourceVUriSyntax(private val res: ResourceV)(implicit wrapped: LabeledProject,
+                                                                      http: HttpConfig) {
+    def accessId: AbsoluteIri = AccessId(res.id.value, res.schema.iri)
+  }
 }

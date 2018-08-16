@@ -1,0 +1,31 @@
+{
+  "@id" : "nxv:{uuid}",
+  "_distribution" : [
+    {
+      "_contentSize" : {
+        "_unit" : "byte",
+        "_value" : 2048
+      },
+      "_digest" : {
+        "_algorithm" : "SHA-256",
+        "_value" : "digest2"
+      },
+      "_downloadURL" : "http://127.0.0.1:8080/resources/v1/{account}/{proj}/resource/nxv:{uuid}/attachments/filename2.txt",
+      "_mediaType" : "text/plain",
+      "_originalFileName" : "filename2.txt"
+    },
+    {
+      "_contentSize" : {
+        "_unit" : "byte",
+        "_value" : 1024
+      },
+      "_digest" : {
+        "_algorithm" : "SHA-256",
+        "_value" : "digest1"
+      },
+      "_downloadURL" : "http://127.0.0.1:8080/resources/v1/{account}/{proj}/resource/nxv:{uuid}/attachments/filename1.txt",
+      "_mediaType" : "text/plain",
+      "_originalFileName" : "filename1.txt"
+    }
+  ]
+}

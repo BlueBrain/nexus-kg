@@ -53,6 +53,17 @@ object Vocabulary {
     val maxScore = withPath("maxScore")
     val score    = withPath("score")
 
+    //Attachment
+    val distribution     = withPath("distribution")
+    val contentSize      = withPath("contentSize")
+    val unit             = withPath("unit")
+    val value            = withPath("value")
+    val digest           = withPath("digest")
+    val algorithm        = withPath("algorithm")
+    val downloadURL      = withPath("downloadURL")
+    val mediaType        = withPath("mediaType")
+    val originalFileName = withPath("originalFileName")
+
     val Schema           = withPath("Schema")
     val Resource         = withPath("Resource")
     val Ontology         = withPath("Ontology")
