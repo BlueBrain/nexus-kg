@@ -1,6 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
+import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCodes, Uri}
@@ -39,6 +41,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, NotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, Digest, Size}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.{urlEncode, Error, TestHelper}
@@ -420,6 +423,35 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
         }
+      }
+    }
+
+    "get a resource with attachments" in new Ctx {
+      val resource = ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)
+      val at1 = BinaryAttributes("uuid1",
+                                 Paths.get("some1"),
+                                 "filename1.txt",
+                                 "text/plain",
+                                 Size(value = 1024L),
+                                 Digest("SHA-256", "digest1"))
+      val at2 = BinaryAttributes("uuid2",
+                                 Paths.get("some2"),
+                                 "filename2.txt",
+                                 "text/plain",
+                                 Size(value = 2048L),
+                                 Digest("SHA-256", "digest2"))
+      val resourceV =
+        simpleV(id, ctx, created = identity, updated = identity, schema = schemaRef).copy(attachments = Set(at1, at2))
+
+      when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
+      when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
+
+      val replacements = Map(quote("{account}") -> account, quote("{proj}") -> project, quote("{uuid}") -> genUuid)
+
+      Get(s"/v1/resources/$account/$project/resource/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(
+          jsonContentOf("/resources/resource-with-at.json", replacements))
       }
     }
 

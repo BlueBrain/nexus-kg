@@ -22,6 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.DeprecatedId._
 import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
@@ -46,9 +47,6 @@ import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.service.http.Path.FromString
-import ch.epfl.bluebrain.nexus.service.http.UriOps._
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 import io.circe.Json
 import monix.eval.Task
@@ -86,14 +84,16 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     // consumes the segment resources/{account}/{project}
     (pathPrefix("resources") & project) { implicit wrapped =>
       // create resource with implicit or generated id
-      (post & projectNotDeprecated & aliasOrCuriePath & entity(as[Json]) & pathEndOrSingleSlash) { (schema, source) =>
-        (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
-          trace("createResource") {
-            complete(Created -> resources.create(wrapped.ref, wrapped.project.base, Ref(schema), source).value.runAsync)
+      (post & projectNotDeprecated & pathPrefix(IdSegment) & entity(as[Json]) & pathEndOrSingleSlash) {
+        (schema, source) =>
+          (callerIdentity & hasPermission(resourceCreate)) { implicit ident =>
+            trace("createResource") {
+              complete(
+                Created -> resources.create(wrapped.ref, wrapped.project.base, Ref(schema), source).value.runAsync)
+            }
           }
-        }
       } ~
-        pathPrefix(aliasOrCurie / aliasOrCurie)((schema, id) => resources(schema, id))
+        pathPrefix(IdSegment / IdSegment)((schema, id) => resources(schema, id))
     }
 
   private def transformView(source: Json): Json =
@@ -130,7 +130,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           }
         }
       } ~ listings(viewSchemaUri) ~
-        pathPrefix(aliasOrCurie)(id =>
+        pathPrefix(IdSegment)(id =>
           resources(viewSchemaUri, id, transformView, transformViewUpdate(Id(wrapped.ref, id))))
     }
 
@@ -149,7 +149,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           }
         }
       } ~ listings(shaclSchemaUri) ~
-        pathPrefix(aliasOrCurie)(id => resources(shaclSchemaUri, id))
+        pathPrefix(IdSegment)(id => resources(shaclSchemaUri, id))
     }
 
   private def resolvers(implicit token: Option[AuthToken]): Route =
@@ -171,7 +171,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           }
         }
       } ~ listings(resolverSchemaUri) ~
-        pathPrefix(aliasOrCurie) { id =>
+        pathPrefix(IdSegment) { id =>
           acls.apply { implicit acls =>
             resources(resolverSchemaUri, id, _.addContext(resolverCtxUri), _.addContext(resolverCtxUri))
           }
@@ -181,7 +181,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   private def search(implicit token: Option[AuthToken]): Route =
     // consumes the segment views/{account}/{project}
     (pathPrefix("views") & project) { implicit wrapped =>
-      (pathPrefix(aliasOrCurie) & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
+      (pathPrefix(IdSegment) & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
         (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
           val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
             views.find(_.id == id) match {
@@ -192,7 +192,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           trace("searchSparql")(complete(result.runAsync))
         }
       } ~
-        (pathPrefix(aliasOrCurie) & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
+        (pathPrefix(IdSegment) & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
           (id, query, pagination, params) =>
             (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
               val result: Task[Either[Rejection, List[Json]]] = cache.views(wrapped.ref).flatMap { views =>
@@ -242,7 +242,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           trace("listResources") {
             complete(results.runAsync)
           }
-      } ~ pathPrefix(aliasOrCurie)(listings)
+      } ~ pathPrefix(IdSegment)(listings)
     }
 
   private def resources(schema: AbsoluteIri,
@@ -374,9 +374,9 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   private def filterDeprecated[A: DeprecatedId](set: Task[Set[A]], deprecated: Option[Boolean]): Task[List[A]] =
     set.map(s => deprecated.map(d => s.filter(_.deprecated == d)).getOrElse(s).toList)
 
-  private implicit def qrsClient(implicit wrapped: LabeledProject): HttpClient[Task, QueryResults[AbsoluteIri]] = {
-    val prefix       = url"${config.http.publicUri.append("resources" / wrapped.label.account / wrapped.label.value)}".value
-    implicit val dec = ElasticDecoder(resourceIdDecoder(prefix))
+  private implicit def qrsClient(implicit wrapped: LabeledProject,
+                                 http: HttpConfig): HttpClient[Task, QueryResults[AbsoluteIri]] = {
+    implicit val elasticDec = ElasticDecoder(resourceIdDecoder)
     withTaskUnmarshaller[QueryResults[AbsoluteIri]]
   }
 

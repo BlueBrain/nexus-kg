@@ -18,26 +18,21 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
       "a"   -> Iri.absolute("https://www.w3.org/1999/02/22-rdf-syntax-ns#type").right.value
     )
     implicit val project: Project =
-      Project("project", "some-label", mappings, Iri.absolute("http://example.com/base").right.value, 1L, false, "uuid")
+      Project("project",
+              "some-label",
+              mappings,
+              Iri.absolute("http://example.com/base/").right.value,
+              1L,
+              false,
+              "uuid")
 
     def route(): Route =
-      (get & aliasOrCuriePrefix) { iri =>
-        complete(StatusCodes.OK -> iri.show)
-      }
-
-    def routeEnd(): Route =
-      (get & aliasOrCuriePath) { iri =>
+      (get & pathPrefix(IdSegment)) { iri =>
         complete(StatusCodes.OK -> iri.show)
       }
 
     "expand a curie" in {
       Get("/nxv:rev/other") ~> route() ~> check {
-        responseAs[String] shouldEqual "https://bluebrain.github.io/nexus/vocabulary/rev"
-      }
-    }
-
-    "expand a curie as a last segment" in {
-      Get("/nxv:rev") ~> routeEnd() ~> check {
         responseAs[String] shouldEqual "https://bluebrain.github.io/nexus/vocabulary/rev"
       }
     }
@@ -48,14 +43,20 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
       }
     }
 
-    "do not match unexisting prefix on curie" in {
+    "matches an absoluteIri" in {
       Get("/c:d") ~> route() ~> check {
-        handled shouldEqual false
+        responseAs[String] shouldEqual "c:d"
       }
     }
 
-    "do not match unexisting alias" in {
-      Get("/something") ~> route() ~> check {
+    "append the uuid to the base" in {
+      Get("/uuid") ~> route() ~> check {
+        responseAs[String] shouldEqual "http://example.com/base/uuid"
+      }
+    }
+
+    "do not match a wrong iri" in {
+      Get("/?nds?i=ad?dsd") ~> route() ~> check {
         handled shouldEqual false
       }
     }
