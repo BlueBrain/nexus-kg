@@ -584,7 +584,7 @@ class ResourceRoutesSpec
         val temp     = simpleV(id, schema, created = identity, updated = identity, schema = schemaRef)
         val ctx      = schema.appendContextOf(shaclCtx)
         val resourceV =
-          temp.copy(value = Value(schema, ctx.contextValue, ctx.asGraph ++ temp.metadata ++ temp.typeGraph))
+          temp.copy(value = Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ temp.metadata ++ temp.typeGraph))
 
         when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))

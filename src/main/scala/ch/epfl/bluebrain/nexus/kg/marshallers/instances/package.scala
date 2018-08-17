@@ -76,6 +76,7 @@ package object instances extends FailFastCirceSupport {
     case _: InvalidResource          => StatusCodes.BadRequest
     case _: IncorrectId              => StatusCodes.BadRequest
     case _: InvalidPayload           => StatusCodes.BadRequest
+    case _: InvalidJsonLD            => StatusCodes.BadRequest
     case _: IllegalParameter         => StatusCodes.BadRequest
     case _: MissingParameter         => StatusCodes.BadRequest
     case _: Unexpected               => StatusCodes.InternalServerError

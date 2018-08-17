@@ -4,6 +4,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.Err
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.circe.JenaModel.JenaModelErr
 
 /**
   * Enumeration of resource rejection types.
@@ -55,6 +56,13 @@ object Rejection {
     */
   final case class InvalidPayload(ref: Ref, reason: String)
       extends Rejection(s"Resource '${ref.show}' with invalid payload due to '$reason'.")
+
+  /**
+    * Signals an attempt to perform a request with an invalid JSON-LD payload.
+    *
+    * @param reason the human readable reason for the rejection
+    */
+  final case class InvalidJsonLD(reason: String) extends Rejection(s"Invalid payload due to '$reason'.")
 
   /**
     * Signals an attempt to interact with a resource that doesn't exist.
@@ -174,4 +182,14 @@ object Rejection {
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
   final case class MissingParameter(override val message: String) extends Rejection(message)
+
+  /**
+    * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.circe.JenaModel.JenaModelErr]].
+    *
+    * @param error the error to be transformed
+    */
+  final def fromJenaModelErr(error: JenaModelErr): Rejection = error match {
+    case JenaModelErr.InvalidJsonLD(message) => InvalidJsonLD(message)
+    case JenaModelErr.Unexpected(message)    => Unexpected(message)
+  }
 }

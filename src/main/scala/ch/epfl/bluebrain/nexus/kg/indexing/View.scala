@@ -71,19 +71,18 @@ object View {
         includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
         sourceAsText  = c.downField(nxv.sourceAsText).focus.as[Boolean].getOrElse(false)
       } yield
-        ElasticView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid.toString.toLowerCase(), res.rev, res.deprecated)
+        ElasticView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid.toString.toLowerCase, res.rev, res.deprecated)
       // format: on
       result.toOption
     }
 
     def sparql(): Option[View] =
       uuidEither
-        .map(uuid => SparqlView(res.id.parent, res.id.value, uuid.toString.toLowerCase(), res.rev, res.deprecated))
+        .map(uuid => SparqlView(res.id.parent, res.id.value, uuid.toString.toLowerCase, res.rev, res.deprecated))
         .toOption
 
-    if (res.types.contains(nxv.View.value) && res.types.contains(nxv.Alpha.value) && res.types.contains(
-          nxv.ElasticView.value)) elastic()
-    else if (res.types.contains(nxv.View.value) && res.types.contains(nxv.SparqlView.value)) sparql()
+    if (Set(nxv.View.value, nxv.Alpha.value, nxv.ElasticView.value).subsetOf(res.types)) elastic()
+    else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
     else None
   }
 
