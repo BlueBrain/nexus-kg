@@ -1,7 +1,7 @@
 {
   "@id": "http://example.com/id",
   "@type": [
-    "nxv:View",
-    "nxv:SparqlView"
+    "View",
+    "SparqlView"
   ]
 }
