@@ -333,13 +333,13 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
             trace("getResource") {
               (revOpt, tagOpt) match {
                 case (None, None) =>
-                  complete(resources.fetch(Id(wrapped.ref, id), Some(Ref(schema))).materializeRun)
+                  complete(resources.fetch(Id(wrapped.ref, id), Some(Ref(schema))).materializeRun(Ref(id)))
                 case (Some(_), Some(_)) =>
                   reject(simultaneousParamsRejection)
                 case (Some(rev), _) =>
-                  complete(resources.fetch(Id(wrapped.ref, id), rev, Some(Ref(schema))).materializeRun)
+                  complete(resources.fetch(Id(wrapped.ref, id), rev, Some(Ref(schema))).materializeRun(Ref(id)))
                 case (_, Some(tag)) =>
-                  complete(resources.fetch(Id(wrapped.ref, id), tag, Some(Ref(schema))).materializeRun)
+                  complete(resources.fetch(Id(wrapped.ref, id), tag, Some(Ref(schema))).materializeRun(Ref(id)))
               }
             }
           }
@@ -387,8 +387,8 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
     EitherT.rightT[Task, Rejection](a)
 
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
-    def materializeRun: Future[Option[ResourceV]] =
-      resource.flatMap(resources.materializeWithMeta(_).toOption).value.runAsync
+    def materializeRun(ref: => Ref): Future[Either[Rejection, ResourceV]] =
+      resource.toRight(NotFound(ref): Rejection).flatMap(resources.materializeWithMeta(_)).value.runAsync
   }
 
   private def toQueryResults[A](resolvers: List[A]): QueryResults[A] =

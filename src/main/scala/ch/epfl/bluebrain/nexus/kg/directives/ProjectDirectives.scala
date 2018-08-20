@@ -69,7 +69,7 @@ object ProjectDirectives {
   }
 
   private def addDefaultMappings(project: Project) =
-    project.copy(prefixMappings = project.prefixMappings ++ defaultPrefixMapping)
+    project.copy(prefixMappings = project.prefixMappings ++ defaultPrefixMapping + ("base" -> project.base))
 
   /**
     * @return pass when the project is not deprecated, rejects when project is deprecated

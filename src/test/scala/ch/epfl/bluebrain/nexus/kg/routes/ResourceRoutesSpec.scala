@@ -456,6 +456,16 @@ class ResourceRoutesSpec
       }
     }
 
+    "reject getting a resource that does not exist" in new Ctx {
+
+      when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.none[Task, Resource])
+
+      Get(s"/v1/resources/$account/$project/resource/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
+      }
+    }
+
     "search for resources on a custom ElasticView" in new View {
       val query   = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
       val result1 = Json.obj("key1"  -> Json.fromString("value1"))

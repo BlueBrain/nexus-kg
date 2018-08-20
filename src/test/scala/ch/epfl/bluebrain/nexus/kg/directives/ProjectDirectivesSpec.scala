@@ -96,6 +96,14 @@ class ProjectDirectivesSpec
     val label = ProjectLabel("account", "project")
     val prefixMappings = Map[String, AbsoluteIri](
       "nxv"           -> nxv.base,
+      "resource"      -> Schemas.resourceSchemaUri,
+      "elasticsearch" -> nxv.defaultElasticIndex,
+      "sparql"        -> nxv.defaultSparqlIndex
+    )
+    val projectMeta = Project("name", "project", prefixMappings, nxv.projects, 1L, false, "uuid")
+
+    val prefixMappingsFinal = Map[String, AbsoluteIri](
+      "nxv"           -> nxv.base,
       "nxs"           -> Schemas.base,
       "nxc"           -> Contexts.base,
       "resource"      -> Schemas.resourceSchemaUri,
@@ -103,8 +111,9 @@ class ProjectDirectivesSpec
       "elasticsearch" -> nxv.defaultElasticIndex,
       "sparql"        -> nxv.defaultSparqlIndex
     )
-    val projectMeta = Project("name", "project", prefixMappings, nxv.projects, 1L, false, "uuid")
-    val accountRef  = AccountRef("accountUuid")
+    val projectMetaResp = projectMeta.copy(prefixMappings = prefixMappingsFinal)
+
+    val accountRef = AccountRef("accountUuid")
 
     "fetch the project from the cache" in {
 
@@ -112,7 +121,7 @@ class ProjectDirectivesSpec
       when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMeta, accountRef)
+        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMetaResp, accountRef)
       }
     }
 
@@ -122,7 +131,7 @@ class ProjectDirectivesSpec
       when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMeta, accountRef)
+        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMetaResp, accountRef)
       }
     }
 
@@ -132,7 +141,7 @@ class ProjectDirectivesSpec
       when(cache.accountRef(ProjectRef("uuid"))).thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMeta, accountRef)
+        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMetaResp, accountRef)
       }
     }
 
@@ -144,7 +153,7 @@ class ProjectDirectivesSpec
         .thenReturn(Task.pure(Some(Account("name", 1L, "account", false, accountRef.id)): Option[Account]))
 
       Get("/account/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMeta, accountRef)
+        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMetaResp, accountRef)
       }
     }
 
