@@ -21,12 +21,12 @@ import scala.util.{Failure, Success}
 
 object ProjectDirectives {
   private val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
-    "nxv"           -> nxv.base,
-    "nxs"           -> Schemas.base,
-    "nxc"           -> Contexts.base,
-    "resource"      -> Schemas.resourceSchemaUri,
-    "elasticsearch" -> nxv.defaultElasticIndex,
-    "sparql"        -> nxv.defaultSparqlIndex
+    "nxv"       -> nxv.base,
+    "nxs"       -> Schemas.base,
+    "nxc"       -> Contexts.base,
+    "resource"  -> Schemas.resourceSchemaUri,
+    "documents" -> nxv.defaultElasticIndex,
+    "graph"     -> nxv.defaultSparqlIndex
   )
 
   /**
@@ -69,7 +69,7 @@ object ProjectDirectives {
   }
 
   private def addDefaultMappings(project: Project) =
-    project.copy(prefixMappings = project.prefixMappings ++ defaultPrefixMapping)
+    project.copy(prefixMappings = project.prefixMappings ++ defaultPrefixMapping + ("base" -> project.base))
 
   /**
     * @return pass when the project is not deprecated, rejects when project is deprecated

@@ -456,6 +456,16 @@ class ResourceRoutesSpec
       }
     }
 
+    "reject getting a resource that does not exist" in new Ctx {
+
+      when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.none[Task, Resource])
+
+      Get(s"/v1/resources/$account/$project/resource/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
+      }
+    }
+
     "search for resources on a custom ElasticView" in new View {
       val query   = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
       val result1 = Json.obj("key1"  -> Json.fromString("value1"))
@@ -467,7 +477,7 @@ class ResourceRoutesSpec
                              Set(s"kg_${defaultEsView.name}"),
                              Uri.Query(Map("size" -> "23", "other" -> "value")))(Pagination(0L, 23)))
         .thenReturn(Task.pure(qr))
-      Post(s"/v1/views/$account/$project/nxv:defaultElasticIndex?size=23&other=value", query) ~> addCredentials(
+      Post(s"/v1/views/$account/$project/nxv:defaultElasticIndex/_search?size=23&other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json.arr(result1, result2)
@@ -480,14 +490,15 @@ class ResourceRoutesSpec
       when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
       when(sparql.queryRaw(urlEncode(query))).thenReturn(Task.pure(result))
 
-      Post(s"/v1/views/$account/$project/nxv:defaultSparqlIndex", query) ~> addCredentials(oauthToken) ~> routes ~> check {
+      Post(s"/v1/views/$account/$project/nxv:defaultSparqlIndex/sparql", query) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual result
       }
     }
 
     "reject searching on a view that does not exists" in new View {
-      Post(s"/v1/views/$account/$project/nxv:some?size=23&other=value", Json.obj()) ~> addCredentials(oauthToken) ~> routes ~> check {
+      Post(s"/v1/views/$account/$project/nxv:some/_search?size=23&other=value", Json.obj()) ~> addCredentials(
+        oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].code shouldEqual classNameOf[NotFound.type]
       }
