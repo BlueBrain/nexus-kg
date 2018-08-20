@@ -181,7 +181,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
   private def search(implicit token: Option[AuthToken]): Route =
     // consumes the segment views/{account}/{project}
     (pathPrefix("views") & project) { implicit wrapped =>
-      (pathPrefix(IdSegment) & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
+      (pathPrefix(IdSegment / "sparql") & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
         (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
           val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
             views.find(_.id == id) match {
@@ -192,7 +192,7 @@ class ResourceRoutes(resources: Resources[Task])(implicit cache: DistributedCach
           trace("searchSparql")(complete(result.runAsync))
         }
       } ~
-        (pathPrefix(IdSegment) & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
+        (pathPrefix(IdSegment / "_search") & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
           (id, query, pagination, params) =>
             (callerIdentity & hasPermission(resourceRead)) { implicit ident =>
               val result: Task[Either[Rejection, List[Json]]] = cache.views(wrapped.ref).flatMap { views =>

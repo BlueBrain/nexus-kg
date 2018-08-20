@@ -7,7 +7,7 @@ import io.circe.Json
 
 object Contexts {
 
-  val base = url"https://bluebrain.github.io/nexus/contexts".value
+  val base = url"https://bluebrain.github.io/nexus/contexts/".value
 
   val errorCtxUri: AbsoluteIri    = base + "error"
   val tagCtxUri: AbsoluteIri      = base + "tag"

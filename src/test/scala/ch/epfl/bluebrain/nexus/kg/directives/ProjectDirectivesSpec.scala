@@ -98,7 +98,7 @@ class ProjectDirectivesSpec
       "nxv"           -> nxv.base,
       "resource"      -> Schemas.resourceSchemaUri,
       "elasticsearch" -> nxv.defaultElasticIndex,
-      "sparql"        -> nxv.defaultSparqlIndex
+      "graph"         -> nxv.defaultSparqlIndex
     )
     val projectMeta = Project("name", "project", prefixMappings, nxv.projects, 1L, false, "uuid")
 
@@ -107,9 +107,10 @@ class ProjectDirectivesSpec
       "nxs"           -> Schemas.base,
       "nxc"           -> Contexts.base,
       "resource"      -> Schemas.resourceSchemaUri,
-      "base"          -> nxv.projects,
       "elasticsearch" -> nxv.defaultElasticIndex,
-      "sparql"        -> nxv.defaultSparqlIndex
+      "base"          -> nxv.projects,
+      "documents"     -> nxv.defaultElasticIndex,
+      "graph"         -> nxv.defaultSparqlIndex
     )
     val projectMetaResp = projectMeta.copy(prefixMappings = prefixMappingsFinal)
 
