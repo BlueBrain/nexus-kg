@@ -54,7 +54,7 @@ import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.ArgumentMatchers.{isNull, eq => mEq}
+import org.mockito.ArgumentMatchers.{eq => mEq}
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
@@ -94,10 +94,13 @@ class ResourceRoutesSpec
   private implicit val token: Option[AuthToken] = Some(AuthToken("valid"))
   private val oauthToken                        = OAuth2BearerToken("valid")
   private val read                              = Permissions(Permission("resources/read"))
-  private val manage                            = Permissions(Permission("resources/manage"))
-  private val routes                            = ResourceRoutes(resources).routes
+  private val manageRes                         = Permissions(Permission("resources/manage"))
+  private val manageResolver                    = Permissions(Permission("resolvers/manage"))
+  private val manageViews                       = Permissions(Permission("views/manage"))
+  private val manageSchemas                     = Permissions(Permission("schemas/manage"))
+  private val routes                            = new ResourcesRoutes(resources).routes
 
-  abstract class Context(perms: Permissions = manage) {
+  abstract class Context(perms: Permissions = manageRes) {
     val account = genString(length = 4)
     val project = genString(length = 4)
     val projectMeta = Project("name",
@@ -167,21 +170,21 @@ class ResourceRoutesSpec
     )
   }
 
-  abstract class Ctx(perms: Permissions = manage) extends Context(perms) {
+  abstract class Ctx(perms: Permissions = manageRes) extends Context(perms) {
     val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
     val schemaRef = Ref(resourceSchemaUri)
 
     def ctxResponse: Json = response()
   }
 
-  abstract class Schema(perms: Permissions = manage) extends Context(perms) {
+  abstract class Schema(perms: Permissions = manageSchemas) extends Context(perms) {
     val schema    = jsonContentOf("/schemas/resolver.json")
     val schemaRef = Ref(shaclSchemaUri)
 
     def schemaResponse(deprecated: Boolean = false): Json = response(deprecated)
   }
 
-  abstract class Resolver(perms: Permissions = manage) extends Context(perms) {
+  abstract class Resolver(perms: Permissions = manageResolver) extends Context(perms) {
     val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj(
       "@id" -> Json.fromString(id.value.show))
     val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
@@ -205,7 +208,7 @@ class ResourceRoutesSpec
     )
   }
 
-  abstract class View(perms: Permissions = manage) extends Context(perms) {
+  abstract class View(perms: Permissions = manageViews) extends Context(perms) {
     val view = jsonContentOf("/view/elasticview.json")
       .removeKeys("uuid")
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
@@ -287,7 +290,7 @@ class ResourceRoutesSpec
             eqProjectRef,
             mEq(projectMeta.base),
             mEq(schemaRef),
-            matches[Json](_.removeKeys("uuid") == viewWithCtx))(mEq(identity), isNull[AdditionalValidation[Task]]()))
+            matches[Json](_.removeKeys("uuid") == viewWithCtx))(mEq(identity), isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/views/$account/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -374,7 +377,10 @@ class ResourceRoutesSpec
 
     "performing operations on resources" should {
       "create a context without @id" in new Ctx {
-        when(resources.create(projectRef, projectMeta.base, schemaRef, ctx)).thenReturn(EitherT.rightT[Task, Rejection](
+        when(
+          resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
+            mEq(identity),
+            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)))
 
         Post(s"/v1/resources/$account/$project/resource", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -507,9 +513,11 @@ class ResourceRoutesSpec
     "performing operations on schemas" should {
 
       "create a schema without @id" in new Schema {
-        when(resources.create(projectRef, projectMeta.base, schemaRef, schema)).thenReturn(
-          EitherT.rightT[Task, Rejection](
-            ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
+        when(
+          resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(schema))(
+            mEq(identity),
+            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
+          ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
         Post(s"/v1/schemas/$account/$project", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
