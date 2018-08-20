@@ -14,11 +14,12 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.syntax._
 import io.circe.{Json, JsonObject}
 import org.mockito.ArgumentMatchers.{argThat, isA => mockIsA}
+import org.scalatest.EitherValues
 import org.scalatest.matchers.{MatchResult, Matcher}
 
 import scala.reflect.ClassTag
 
-trait TestHelper extends MockitoMatchers {
+trait TestHelper extends MockitoMatchers with EitherValues {
 
   def simpleV[P](id: Id[P],
                  value: Json,
@@ -40,7 +41,7 @@ trait TestHelper extends MockitoMatchers {
       created,
       updated,
       schema,
-      Value(value, value.contextValue, value.asGraph)
+      Value(value, value.contextValue, value.asGraph.right.value)
     )
   def simpleV[P, S](res: ResourceF[P, S, Json])(implicit clock: Clock) = ResourceF(
     res.id,
@@ -54,10 +55,10 @@ trait TestHelper extends MockitoMatchers {
     res.createdBy,
     res.updatedBy,
     res.schema,
-    Value(res.value, res.value.contextValue, res.value.asGraph)
+    Value(res.value, res.value.contextValue, res.value.asGraph.right.value)
   )
 
-  def uuid = UUID.randomUUID().toString
+  def uuid: String = UUID.randomUUID().toString
 
   def equalIgnoreArrayOrder(json: Json) = IgnoredArrayOrder(json)
 

@@ -3,6 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.util.UUID
 
 import cats.Monad
+import cats.instances.either._
+import cats.instances.vector._
+import cats.syntax.traverse._
+import cats.syntax.functor._
 import cats.data.{EitherT, OptionT}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -196,8 +200,9 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], json: Json)(implicit identity: Identity): RejOrResource = {
-    val cursor = (json deepMerge Contexts.tagCtx).asGraph.cursor()
     val result = for {
+      graph <- (json deepMerge Contexts.tagCtx).asGraph
+      cursor = graph.cursor()
       revValue <- cursor.downField(nxv.rev).focus.as[Long]
       tagValue <- cursor.downField(nxv.tag).focus.as[String]
     } yield tag(id, rev, schemaOpt, revValue, tagValue)
@@ -414,7 +419,6 @@ abstract class Resources[F[_]](implicit F: Monad[F],
             value <- flattenValue(next :: refs, res.value.contextValue)
           } yield value
         case (_, Some(arr), _) =>
-          import cats.implicits._
           val jsons = arr
             .traverse(j => flattenValue(refs, j).value)
             .map(_.sequence)
@@ -423,11 +427,19 @@ abstract class Resources[F[_]](implicit F: Monad[F],
         case (_, _, _)       => EitherT.leftT(IllegalContextValue(refs))
       }
 
-    def graphFor(flattenCtx: Json): Graph =
-      (source deepMerge Json.obj("@context" -> flattenCtx)).asGraph
+    def graphFor(flattenCtx: Json): EitherT[F, Rejection, Graph] = {
+      val eitherGraph = source
+        .deepMerge(Json.obj("@context" -> flattenCtx))
+        .asGraph
+        .left
+        .map(e => Rejection.fromJenaModelErr(e))
+      EitherT.fromEither[F](eitherGraph)
+    }
 
-    flattenValue(Nil, source.contextValue)
-      .map(ctx => Value(source, ctx, graphFor(ctx)))
+    for {
+      ctx   <- flattenValue(Nil, source.contextValue)
+      graph <- graphFor(ctx)
+    } yield Value(source, ctx, graph)
   }
 
   private def materialize(id: ResId, source: Json): EitherT[F, Rejection, ResourceF.Value] =
@@ -484,11 +496,12 @@ abstract class Resources[F[_]](implicit F: Monad[F],
 
     schema.iri match {
       case `resourceSchemaUri` => EitherT.rightT(())
-      case `shaclSchemaUri`    => toEitherT(ShaclEngine(data, reportDetails = true))
+      case `shaclSchemaUri`    => toEitherT(ShaclEngine(data.asJenaModel, reportDetails = true))
       case _ =>
         schemaContext().flatMap { resolved =>
-          val resolvedSchema = resolved.schemaImports.foldLeft(resolved.schema.value.graph)(_ ++ _.value.graph)
-          val resolvedData   = resolved.dataImports.foldLeft(data)(_ ++ _.value.graph)
+          val resolvedSchema =
+            resolved.schemaImports.foldLeft(resolved.schema.value.graph)(_ ++ _.value.graph).asJenaModel
+          val resolvedData = resolved.dataImports.foldLeft(data)(_ ++ _.value.graph).asJenaModel
           toEitherT(ShaclEngine(resolvedData, resolvedSchema, validateShapes = false, reportDetails = true))
         }
     }

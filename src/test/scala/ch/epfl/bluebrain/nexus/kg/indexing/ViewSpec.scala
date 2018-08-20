@@ -58,7 +58,8 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
       }
 
       "fail on ElasticView when invalid payload" in {
-        val wrong = List(jsonContentOf("/view/elasticview-wrong.json"), jsonContentOf("/view/elasticview-wrong-2.json"))
+        val wrong = List(jsonContentOf("/view/elasticview-wrong.json").appendContextOf(viewCtx),
+                         jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx))
         forAll(wrong) { json =>
           val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
           View(resource) shouldEqual None
@@ -72,7 +73,9 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
 
       "fail on SparqlView when invalid payload" in {
         val resource =
-          simpleV(id, jsonContentOf("/view/sparqlview-wrong.json"), types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
+          simpleV(id,
+                  jsonContentOf("/view/sparqlview-wrong.json").appendContextOf(viewCtx),
+                  types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
         View(resource) shouldEqual None
       }
     }

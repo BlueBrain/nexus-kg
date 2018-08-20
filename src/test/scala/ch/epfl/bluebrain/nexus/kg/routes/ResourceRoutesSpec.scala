@@ -206,8 +206,9 @@ class ResourceRoutesSpec
   }
 
   abstract class View(perms: Permissions = manage) extends Context(perms) {
-    val view = jsonContentOf("/view/elasticview.json").removeKeys("uuid") deepMerge Json.obj(
-      "@id" -> Json.fromString(id.value.show))
+    val view = jsonContentOf("/view/elasticview.json")
+      .removeKeys("uuid")
+      .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
 
     val types           = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
     val schemaRef       = Ref(viewSchemaUri)
@@ -331,7 +332,7 @@ class ResourceRoutesSpec
         val mappingUpdated = Json.obj("mapping" -> Json.obj("key2" -> Json.fromString("value2")))
 
         val uuidJson       = Json.obj("uuid" -> Json.fromString("uuid1"))
-        val expectedUpdate = expected.copy(value = viewWithCtx deepMerge uuidJson)
+        val expectedUpdate = expected.copy(value = view.deepMerge(uuidJson).appendContextOf(viewCtx))
         when(resources.fetch(id, Some(Latest(viewSchemaUri)))).thenReturn(OptionT.some[Task](expectedUpdate))
         val jsonUpdate = view.addContext(viewCtxUri) deepMerge Json.obj(
           "mapping" -> Json.fromString("""{"key2":"value2"}""")) deepMerge uuidJson
@@ -584,7 +585,7 @@ class ResourceRoutesSpec
         val temp     = simpleV(id, schema, created = identity, updated = identity, schema = schemaRef)
         val ctx      = schema.appendContextOf(shaclCtx)
         val resourceV =
-          temp.copy(value = Value(schema, ctx.contextValue, ctx.asGraph ++ temp.metadata ++ temp.typeGraph))
+          temp.copy(value = Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ temp.metadata ++ temp.typeGraph))
 
         when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
