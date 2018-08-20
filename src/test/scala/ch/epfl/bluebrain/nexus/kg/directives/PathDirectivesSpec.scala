@@ -8,7 +8,9 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 
 class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteTest with EitherValues {
 
@@ -30,6 +32,23 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
       (get & pathPrefix(IdSegment)) { iri =>
         complete(StatusCodes.OK -> iri.show)
       }
+
+    def routeIsSegment(iri: AbsoluteIri): Route =
+      (get & pathPrefix(isIdSegment(iri)) & pathPrefix(Segment) & pathEndOrSingleSlash) { s =>
+        complete(StatusCodes.OK -> s)
+      }
+
+    "pass a route with a specific segment id" in {
+      Get("/nxv:rev/other") ~> routeIsSegment(nxv.rev.value) ~> check {
+        responseAs[String] shouldEqual "other"
+      }
+    }
+
+    "do not pass a route when a specific segment id does not match" in {
+      Get("/nxv:rev/other") ~> routeIsSegment(nxv.distribution.value) ~> check {
+        handled shouldEqual false
+      }
+    }
 
     "expand a curie" in {
       Get("/nxv:rev/other") ~> route() ~> check {

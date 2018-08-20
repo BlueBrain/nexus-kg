@@ -62,32 +62,38 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
       }
     }
 
-  private def resolver(implicit token: Option[AuthToken]): Route =
-    (pathPrefix("resolvers") & project) { implicit wrapped =>
-      acls.apply { implicit acls =>
-        new ResourceRoutes(resources, resolverSchemaUri, "resolvers") {
-          override def transformCreate(j: Json) =
-            j.addContext(resolverCtxUri)
+  private def resolver(implicit token: Option[AuthToken]): Route = {
+    def resolverRoute(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]): Route =
+      new ResourceRoutes(resources, resolverSchemaUri, "resolvers") {
+        override def transformCreate(j: Json) =
+          j.addContext(resolverCtxUri)
 
-          override def transformUpdate(@silent id: AbsoluteIri, j: Json) =
-            EitherT.rightT(transformCreate(j))
+        override def transformUpdate(@silent id: AbsoluteIri, j: Json) =
+          EitherT.rightT(transformCreate(j))
 
-          override implicit def additional =
-            AdditionalValidation.resolver(acls, wrapped.accountRef, cache.projectRef)
+        override implicit def additional =
+          AdditionalValidation.resolver(acls, wrapped.accountRef, cache.projectRef)
 
-          override def list: Route =
-            (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
-              (deprecated, pagination) =>
-                trace("listResolvers") {
-                  val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated).map { r =>
-                    toQueryResults(r.sortBy(_.priority))
-                  }
-                  complete(qr.runAsync)
+        override def list: Route =
+          (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
+            (deprecated, pagination) =>
+              trace("listResolvers") {
+                val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated).map { r =>
+                  toQueryResults(r.sortBy(_.priority))
                 }
-            }
-        }.routes
+                complete(qr.runAsync)
+              }
+          }
+      }.routes
+
+    (pathPrefix("resolvers") & project) { implicit wrapped =>
+      acls.apply(implicit acls => resolverRoute)
+    } ~ (pathPrefix("resources") & project) { implicit wrapped =>
+      pathPrefix(isIdSegment(resolverSchemaUri)) {
+        acls.apply(implicit acls => resolverRoute)
       }
     }
+  }
 
   private def view(implicit token: Option[AuthToken]): Route = {
     val resourceRead = Permissions(Permission("views/read"), Permission("views/manage"))
@@ -120,43 +126,46 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
             }
         }
 
+    def viewRoutes(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]): Route =
+      new ResourceRoutes(resources, viewSchemaUri, "views") {
+
+        private def transformView(source: Json, uuid: String): Json = {
+          val transformed = source deepMerge Json.obj("uuid" -> Json.fromString(uuid)).addContext(viewCtxUri)
+          transformed.hcursor.get[Json]("mapping") match {
+            case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
+            case _                      => transformed
+          }
+        }
+
+        override def list: Route =
+          (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
+            (deprecated, pagination) =>
+              trace("listViews") {
+                complete(filterDeprecated(cache.views(wrapped.ref), deprecated).map(toQueryResults).runAsync)
+              }
+          }
+
+        override def transformCreate(j: Json): Json =
+          transformView(j, UUID.randomUUID().toString.toLowerCase)
+
+        override def transformUpdate(id: AbsoluteIri, j: Json): EitherT[Task, Rejection, Json] = {
+          val resId = Id(wrapped.ref, id)
+          resources
+            .fetch(resId, Some(Latest(viewSchemaUri)))
+            .toRight(NotFound(resId.ref): Rejection)
+            .flatMap(r =>
+              EitherT.fromEither(
+                r.value.hcursor.get[String]("uuid").left.map(_ => UnexpectedState(resId.ref): Rejection)))
+            .map(uuid => transformView(j, uuid))
+        }
+      }.routes
+
     (pathPrefix("views") & project) { implicit wrapped =>
-      acls.apply { implicit acls =>
-        new ResourceRoutes(resources, viewSchemaUri, "views") {
-
-          private def transformView(source: Json, uuid: String): Json = {
-            val transformed = source deepMerge Json.obj("uuid" -> Json.fromString(uuid)).addContext(viewCtxUri)
-            transformed.hcursor.get[Json]("mapping") match {
-              case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
-              case _                      => transformed
-            }
-          }
-
-          override def list: Route =
-            (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
-              (deprecated, pagination) =>
-                trace("listViews") {
-                  complete(filterDeprecated(cache.views(wrapped.ref), deprecated).map(toQueryResults).runAsync)
-                }
-            }
-
-          override def transformCreate(j: Json): Json =
-            transformView(j, UUID.randomUUID().toString.toLowerCase)
-
-          override def transformUpdate(id: AbsoluteIri, j: Json): EitherT[Task, Rejection, Json] = {
-            val resId = Id(wrapped.ref, id)
-            resources
-              .fetch(resId, Some(Latest(viewSchemaUri)))
-              .toRight(NotFound(resId.ref): Rejection)
-              .flatMap(r =>
-                EitherT.fromEither(
-                  r.value.hcursor.get[String]("uuid").left.map(_ => UnexpectedState(resId.ref): Rejection)))
-              .map(uuid => transformView(j, uuid))
-          }
-        }.routes ~ search
+      acls.apply(implicit acls => viewRoutes ~ search)
+    } ~ (pathPrefix("resources") & project) { implicit wrapped =>
+      pathPrefix(isIdSegment(viewSchemaUri)) {
+        acls.apply(implicit acls => viewRoutes ~ search)
       }
-    } ~ (pathPrefix("resources") & project & pathPrefix("view")) { implicit wrapped =>
-      acls.apply(implicit acls => search)
     }
   }
 

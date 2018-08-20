@@ -64,6 +64,7 @@ private[routes] class ResourceRoutes(resources: Resources[Task], schema: Absolut
 
   def transformCreate(j: Json): Json = j
 
+  @SuppressWarnings(Array("UnusedMethodParameter"))
   def transformUpdate(@silent id: AbsoluteIri, j: Json): EitherT[Task, Rejection, Json] =
     EitherT.rightT(j)
 
