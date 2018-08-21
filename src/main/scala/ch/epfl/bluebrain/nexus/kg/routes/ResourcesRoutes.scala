@@ -56,7 +56,7 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
       handleExceptions(ExceptionHandling()) {
         token { implicit optToken =>
           pathPrefix(config.http.prefix) {
-            resource ~ schema ~ resolver ~ view
+            resolver ~ view ~ schema ~ resource
           }
         }
       }
@@ -75,8 +75,8 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
           AdditionalValidation.resolver(acls, wrapped.accountRef, cache.projectRef)
 
         override def list: Route =
-          (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
-            (deprecated, pagination) =>
+          (get & parameter('deprecated.as[Boolean].?) & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
+            deprecated =>
               trace("listResolvers") {
                 val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated).map { r =>
                   toQueryResults(r.sortBy(_.priority))
@@ -138,8 +138,8 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
         }
 
         override def list: Route =
-          (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
-            (deprecated, pagination) =>
+          (get & parameter('deprecated.as[Boolean].?) & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
+            deprecated =>
               trace("listViews") {
                 complete(filterDeprecated(cache.views(wrapped.ref), deprecated).map(toQueryResults).runAsync)
               }

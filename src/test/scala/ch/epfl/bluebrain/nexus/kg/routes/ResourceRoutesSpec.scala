@@ -103,13 +103,15 @@ class ResourceRoutesSpec
   abstract class Context(perms: Permissions = manageRes) {
     val account = genString(length = 4)
     val project = genString(length = 4)
-    val projectMeta = Project("name",
-                              project,
-                              Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri),
-                              nxv.projects,
-                              1L,
-                              deprecated = false,
-                              uuid)
+    val projectMeta = Project(
+      "name",
+      project,
+      Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri),
+      nxv.projects,
+      1L,
+      deprecated = false,
+      uuid
+    )
     val projectRef = ProjectRef(projectMeta.uuid)
     val accountRef = AccountRef(uuid)
     val genUuid    = uuid
@@ -261,11 +263,19 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
         }
+        Post(s"/v1/resources/$account/$project/resolver", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+        }
       }
 
       "list resolvers" in new Resolver {
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
+        }
+        Get(s"/v1/resources/$account/$project/resolver") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
         }
@@ -277,10 +287,15 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
         }
+        Get(s"/v1/resources/$account/$project/resolver?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
+        }
       }
     }
 
     "performing operations on views" should {
+
       "create a view without @id" in new View {
         val viewWithCtx = view.addContext(viewCtxUri)
         private val expected =
@@ -294,6 +309,11 @@ class ResourceRoutesSpec
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/views/$account/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
+        }
+
+        Post(s"/v1/resources/$account/$project/view", view) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
         }
@@ -312,6 +332,11 @@ class ResourceRoutesSpec
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
+        }
+
+        Put(s"/v1/resources/$account/$project/view/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
         }
@@ -350,11 +375,21 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
         }
+
+        Put(s"/v1/resources/$account/$project/view/nxv:$genUuid?rev=1", view deepMerge mappingUpdated) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
+        }
       }
 
       "list views" in new View {
         when(cache.views(projectRef)).thenReturn(Task.pure(views))
         Get(s"/v1/views/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+        }
+        Get(s"/v1/resources/$account/$project/view") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
         }
@@ -369,6 +404,10 @@ class ResourceRoutesSpec
                                1L,
                                true)))
         Get(s"/v1/views/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+        }
+        Get(s"/v1/resources/$account/$project/view?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
         }
