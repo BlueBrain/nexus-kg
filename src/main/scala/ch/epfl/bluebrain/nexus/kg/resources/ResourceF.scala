@@ -7,9 +7,10 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
+import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -84,6 +85,14 @@ final case class ResourceF[P, S, A](
       ))
 
   /**
+    * Removes the metadata triples from the graph
+    *
+    * @return a new [[Graph]] without the metadata triples
+    */
+  def graphWithoutMetadata(implicit ev: A =:= Value): Graph =
+    ev(value).graphWithoutMetadata(node)
+
+  /**
     * The type graph of this resource.
     */
   lazy val typeGraph: Graph = types.foldLeft(Graph()) {
@@ -105,6 +114,22 @@ object ResourceF {
       source.id.map(IriNode(_)) orElse graph.primaryNode orElse Option(graph.triples.isEmpty).collect {
         case true => Node.blank
       }
+
+    /**
+      * Removes the metadata triples from the graph centered on the provided subject ''id''
+      *
+      * @param id the subject
+      * @return a new [[Graph]] without the metadata triples
+      */
+    def graphWithoutMetadata(id: IriOrBNode): Graph =
+      graph
+        .remove(id, nxv.rev)
+        .remove(id, nxv.deprecated)
+        .remove(id, nxv.createdAt)
+        .remove(id, nxv.updatedAt)
+        .remove(id, nxv.createdBy)
+        .remove(id, nxv.updatedBy)
+        .remove(id, nxv.constrainedBy)
 
   }
 

@@ -49,6 +49,16 @@ class ResourceFSpec extends WordSpecLike with Matchers with EitherValues with Te
         (IriNode(id), nxv.constrainedBy, IriNode(schema.iri))
       )
     }
+
+    "remove the metadata from a resource" in {
+      val jsonMeta = json deepMerge Json.obj("@id" -> Json.fromString(id.value.asString)) deepMerge Json.obj(
+        nxv.rev.value.asString -> Json.fromLong(10L)) deepMerge Json.obj(
+        "@context"             -> Json.obj("key" -> Json.fromString(nxv.distribution.value.asString)))
+      simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).graphWithoutMetadata.triples shouldEqual Set[
+        Triple](
+        (IriNode(id), nxv.distribution, "value")
+      )
+    }
   }
 
 }
