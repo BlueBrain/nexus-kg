@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -186,6 +187,8 @@ object AppConfig {
       "_rev",
       "_deprecated"
     ))
+
+  val tracing = new TracingDirectives()
 
   implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig           = appConfig.sparql
   implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig         = appConfig.elastic

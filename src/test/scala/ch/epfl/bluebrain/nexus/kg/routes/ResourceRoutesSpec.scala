@@ -54,7 +54,7 @@ import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.ArgumentMatchers.{isNull, eq => mEq}
+import org.mockito.ArgumentMatchers.{eq => mEq}
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
@@ -94,19 +94,24 @@ class ResourceRoutesSpec
   private implicit val token: Option[AuthToken] = Some(AuthToken("valid"))
   private val oauthToken                        = OAuth2BearerToken("valid")
   private val read                              = Permissions(Permission("resources/read"))
-  private val manage                            = Permissions(Permission("resources/manage"))
-  private val routes                            = ResourceRoutes(resources).routes
+  private val manageRes                         = Permissions(Permission("resources/manage"))
+  private val manageResolver                    = Permissions(Permission("resolvers/manage"))
+  private val manageViews                       = Permissions(Permission("views/manage"))
+  private val manageSchemas                     = Permissions(Permission("schemas/manage"))
+  private val routes                            = new ResourcesRoutes(resources).routes
 
-  abstract class Context(perms: Permissions = manage) {
+  abstract class Context(perms: Permissions = manageRes) {
     val account = genString(length = 4)
     val project = genString(length = 4)
-    val projectMeta = Project("name",
-                              project,
-                              Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri),
-                              nxv.projects,
-                              1L,
-                              deprecated = false,
-                              uuid)
+    val projectMeta = Project(
+      "name",
+      project,
+      Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri),
+      nxv.projects,
+      1L,
+      deprecated = false,
+      uuid
+    )
     val projectRef = ProjectRef(projectMeta.uuid)
     val accountRef = AccountRef(uuid)
     val genUuid    = uuid
@@ -167,21 +172,21 @@ class ResourceRoutesSpec
     )
   }
 
-  abstract class Ctx(perms: Permissions = manage) extends Context(perms) {
+  abstract class Ctx(perms: Permissions = manageRes) extends Context(perms) {
     val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
     val schemaRef = Ref(resourceSchemaUri)
 
     def ctxResponse: Json = response()
   }
 
-  abstract class Schema(perms: Permissions = manage) extends Context(perms) {
+  abstract class Schema(perms: Permissions = manageSchemas) extends Context(perms) {
     val schema    = jsonContentOf("/schemas/resolver.json")
     val schemaRef = Ref(shaclSchemaUri)
 
     def schemaResponse(deprecated: Boolean = false): Json = response(deprecated)
   }
 
-  abstract class Resolver(perms: Permissions = manage) extends Context(perms) {
+  abstract class Resolver(perms: Permissions = manageResolver) extends Context(perms) {
     val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj(
       "@id" -> Json.fromString(id.value.show))
     val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
@@ -205,7 +210,7 @@ class ResourceRoutesSpec
     )
   }
 
-  abstract class View(perms: Permissions = manage) extends Context(perms) {
+  abstract class View(perms: Permissions = manageViews) extends Context(perms) {
     val view = jsonContentOf("/view/elasticview.json")
       .removeKeys("uuid")
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
@@ -258,11 +263,19 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
         }
+        Post(s"/v1/resources/$account/$project/resolver", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+        }
       }
 
       "list resolvers" in new Resolver {
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
+        }
+        Get(s"/v1/resources/$account/$project/resolver") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
         }
@@ -274,10 +287,15 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
         }
+        Get(s"/v1/resources/$account/$project/resolver?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
+        }
       }
     }
 
     "performing operations on views" should {
+
       "create a view without @id" in new View {
         val viewWithCtx = view.addContext(viewCtxUri)
         private val expected =
@@ -287,10 +305,15 @@ class ResourceRoutesSpec
             eqProjectRef,
             mEq(projectMeta.base),
             mEq(schemaRef),
-            matches[Json](_.removeKeys("uuid") == viewWithCtx))(mEq(identity), isNull[AdditionalValidation[Task]]()))
+            matches[Json](_.removeKeys("uuid") == viewWithCtx))(mEq(identity), isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/views/$account/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
+        }
+
+        Post(s"/v1/resources/$account/$project/view", view) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
         }
@@ -309,6 +332,11 @@ class ResourceRoutesSpec
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
+        }
+
+        Put(s"/v1/resources/$account/$project/view/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
         }
@@ -347,11 +375,21 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
         }
+
+        Put(s"/v1/resources/$account/$project/view/nxv:$genUuid?rev=1", view deepMerge mappingUpdated) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
+        }
       }
 
       "list views" in new View {
         when(cache.views(projectRef)).thenReturn(Task.pure(views))
         Get(s"/v1/views/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+        }
+        Get(s"/v1/resources/$account/$project/view") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
         }
@@ -369,12 +407,19 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.OK
           responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
         }
+        Get(s"/v1/resources/$account/$project/view?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+        }
       }
     }
 
     "performing operations on resources" should {
       "create a context without @id" in new Ctx {
-        when(resources.create(projectRef, projectMeta.base, schemaRef, ctx)).thenReturn(EitherT.rightT[Task, Rejection](
+        when(
+          resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
+            mEq(identity),
+            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)))
 
         Post(s"/v1/resources/$account/$project/resource", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -507,9 +552,11 @@ class ResourceRoutesSpec
     "performing operations on schemas" should {
 
       "create a schema without @id" in new Schema {
-        when(resources.create(projectRef, projectMeta.base, schemaRef, schema)).thenReturn(
-          EitherT.rightT[Task, Rejection](
-            ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
+        when(
+          resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(schema))(
+            mEq(identity),
+            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
+          ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
         Post(s"/v1/schemas/$account/$project", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created

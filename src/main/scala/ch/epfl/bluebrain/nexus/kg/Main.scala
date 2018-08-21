@@ -26,9 +26,10 @@ import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
-import ch.epfl.bluebrain.nexus.kg.routes.{Clients, ResourceRoutes, ServiceDescriptionRoutes}
+import ch.epfl.bluebrain.nexus.kg.routes.{Clients, ResourcesRoutes, ServiceDescriptionRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
+import com.github.jsonldjava.core.DocumentLoader
 import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.generic.auto._
@@ -96,12 +97,12 @@ object Main {
     implicit val saToken           = appConfig.iam.serviceAccountToken
     implicit val projectResolution = ProjectResolution.task(cache, clients.adminClient)
     val resources: Resources[Task] = Resources[Task]
-    val resourceRoutes             = ResourceRoutes(resources).routes
+    val resourceRoutes             = new ResourcesRoutes(resources).routes
     val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
     val serviceDesc                = ServiceDescriptionRoutes(appConfig.description).routes
 
     val logger = Logging(as, getClass)
-
+    System.setProperty(DocumentLoader.DISALLOW_REMOTE_CONTEXT_LOADING, "true")
     cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
 
