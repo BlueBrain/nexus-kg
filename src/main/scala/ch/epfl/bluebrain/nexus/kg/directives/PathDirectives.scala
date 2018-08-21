@@ -2,9 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.directives
 
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.server.PathMatcher.{Matched, Unmatched}
-import akka.http.scaladsl.server.{PathMatcher, PathMatcher0, PathMatcher1}
 import akka.http.scaladsl.server.PathMatchers.Segment
-import cats.syntax.show._
+import akka.http.scaladsl.server.{PathMatcher, PathMatcher0, PathMatcher1}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.{Curie, Iri}
@@ -25,20 +24,11 @@ object PathDirectives {
   def IdSegment(implicit project: Project): PathMatcher1[AbsoluteIri] =
     Segment flatMap (toIri)
 
-  private def toIri(s: String)(implicit project: Project): Option[AbsoluteIri] = {
-    def toAbsolute(curie: Curie): Either[String, AbsoluteIri] =
-      project.prefixMappings
-        .get(curie.prefix.show)
-        .toRight(s"Unable to find prefix '${curie.prefix.show}' in the provided mapping")
-        .map { p =>
-          p + curie.reference.show
-        }
-
+  private def toIri(s: String)(implicit project: Project): Option[AbsoluteIri] =
     project.prefixMappings.get(s) orElse
-      Curie(s).flatMap(toAbsolute).toOption orElse
+      Curie(s).flatMap(_.toIriUnsafePrefix(project.prefixMappings)).toOption orElse
       Iri.url(s).toOption orElse
       Iri.absolute(project.base.asString + s).toOption
-  }
 
   /**
     * Attempts to match a segment and build an [[AbsoluteIri]], as in the method ''IdSegment''.

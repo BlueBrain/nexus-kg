@@ -16,8 +16,9 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
 
   "A PathDirectives" should {
     val mappings = Map(
-      "nxv" -> Iri.absolute("https://bluebrain.github.io/nexus/vocabulary/").right.value,
-      "a"   -> Iri.absolute("https://www.w3.org/1999/02/22-rdf-syntax-ns#type").right.value
+      "nxv"   -> Iri.absolute("https://bluebrain.github.io/nexus/vocabulary/").right.value,
+      "a"     -> Iri.absolute("https://www.w3.org/1999/02/22-rdf-syntax-ns#type").right.value,
+      "alias" -> Iri.absolute("https://www.w3.org/1999/02").right.value
     )
     implicit val project: Project =
       Project("project",
@@ -51,8 +52,8 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
     }
 
     "expand a curie" in {
-      Get("/nxv:rev/other") ~> route() ~> check {
-        responseAs[String] shouldEqual "https://bluebrain.github.io/nexus/vocabulary/rev"
+      Get("/alias:%2Frev/other") ~> route() ~> check {
+        responseAs[String] shouldEqual "https://www.w3.org/1999/02/rev"
       }
     }
 
