@@ -97,7 +97,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
       if (view.sourceAsText)
         asJson(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces)).removeKeys("@context")
       else
-        (asJson(metaGraph) deepMerge res.value).removeKeys("@context")
+        (res.value deepMerge asJson(metaGraph)).removeKeys("@context")
     }
     client.create(index, config.docType, urlEncode(res.id.value), transformed)
   }

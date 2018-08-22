@@ -41,7 +41,7 @@ object ResourceEncoder {
           (blank, nxv.digest, blankDigest),
           (blank, nxv.mediaType, at.mediaType),
           (blank, nxv.originalFileName, at.filename),
-          (blank, nxv.downloadURL, (res.accessId + "attachments" + at.filename)),
+          (blank, nxv.downloadURL, res.accessId + "attachments" + at.filename),
           (id, nxv.distribution, blank)
         )
       }

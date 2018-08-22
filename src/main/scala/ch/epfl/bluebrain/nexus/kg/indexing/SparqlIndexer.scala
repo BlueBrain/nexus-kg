@@ -98,17 +98,10 @@ object SparqlIndexer {
       props.asScala.toMap
     }
 
-    val client = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
-
-    //TODO: Change this in commons
-    def init = client.namespaceExists.flatMap {
-      case true  => Task.pure(())
-      case false => client.createNamespace(properties)
-    }
-
+    val client  = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
     val indexer = new SparqlIndexer(client, resources)
     SequentialTagIndexer.startLocal[Event](
-      () => init.runAsync,
+      () => client.createNamespaceIfNotExist(properties).runAsync.map(_ => ()),
       (ev: Event) => indexer(ev).runAsync,
       persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",
