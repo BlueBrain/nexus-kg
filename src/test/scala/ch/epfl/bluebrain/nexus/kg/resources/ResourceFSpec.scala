@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import io.circe.Json
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 
 class ResourceFSpec extends WordSpecLike with Matchers with EitherValues with TestHelper {
 
@@ -54,8 +55,9 @@ class ResourceFSpec extends WordSpecLike with Matchers with EitherValues with Te
       val jsonMeta = json deepMerge Json.obj("@id" -> Json.fromString(id.value.asString)) deepMerge Json.obj(
         nxv.rev.value.asString -> Json.fromLong(10L)) deepMerge Json.obj(
         "@context"             -> Json.obj("key" -> Json.fromString(nxv.distribution.value.asString)))
-      simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).graphWithoutMetadata.triples shouldEqual Set[
-        Triple](
+      simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).value.graph
+        .removeMetadata(resId.value)
+        .triples shouldEqual Set[Triple](
         (IriNode(id), nxv.distribution, "value")
       )
     }

@@ -1,30 +1,18 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.util.UUID
-
 import cats.data.EitherT
 import cats.syntax.all._
 import cats.{Applicative, Monad, MonadError}
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticFailure}
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Identity}
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
+import ch.epfl.bluebrain.nexus.kg.indexing.View
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
-import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload, ProjectNotFound, Unexpected}
-import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Graph.{Triple, _}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.GraphResult
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
-import io.circe.Json
-import io.circe.parser.parse
 
 import scala.util.Try
 
@@ -60,34 +48,35 @@ object AdditionalValidation {
     * @return a new validation that passes whenever the provided mappings are compliant with the ElasticSearch mappings or
     *         when the view is not an ElasticView
     */
-  final def view[F[_]](implicit F: MonadError[F, Throwable], elastic: ElasticClient[F]): AdditionalValidation[F] =
-    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) => {
-      if (types.contains(nxv.ElasticView.value)) {
-        val verifyMapping: F[Either[Rejection, Value]] = {
-          val index = UUID.randomUUID().toString
-          value.graph.cursor(id.value).downField(nxv.mapping).focus.as[String].flatMap(parse) match {
-            case Left(_) =>
-              F.pure(Left(InvalidPayload(id.ref, "ElasticSearch mapping field not found or not convertible to Json")))
-            case Right(mapping) =>
-              elastic
-                .createIndex(index, mapping)
-                .flatMap[Either[Rejection, Value]] {
-                  case true  => elastic.deleteIndex(index).map(_ => Right(value))
-                  case false => F.pure(Left(Unexpected("View mapping validation could not be performed")))
-                }
-                .recoverWith {
-                  case err: ElasticFailure => F.pure(Left(InvalidPayload(id.ref, err.body)))
-                  case err =>
-                    val msg = Try(err.getMessage).getOrElse("")
-                    F.pure(Left(Unexpected(s"View mapping validation could not be performed. Cause '$msg'")))
-                }
-          }
-        }
-        EitherT(verifyMapping)
-      } else
-        EitherT.rightT[F, Rejection](value)
+  final def view[F[_]](implicit F: MonadError[F, Throwable],
+                       elastic: ElasticClient[F],
+                       config: ElasticConfig): AdditionalValidation[F] = {
 
-    }
+    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) =>
+      {
+        def attemptCreateIndex(es: ElasticView) =
+          elastic
+            .createIndex(s"${config.indexPrefix}_${es.name}", es.mapping)
+            .map[Either[Rejection, Value]] {
+              case true  => Right(value)
+              case false => Left(Unexpected("View mapping validation could not be performed"))
+            }
+            .recoverWith {
+              case err: ElasticFailure => F.pure(Left(InvalidPayload(id.ref, err.body)))
+              case err =>
+                val msg = Try(err.getMessage).getOrElse("")
+                F.pure(Left(Unexpected(s"View mapping validation could not be performed. Cause '$msg'")))
+            }
+
+        val resource = ResourceF.simpleV(id, value, types = types, schema = schema)
+        View(resource) match {
+          case Some(es: ElasticView) => EitherT(attemptCreateIndex(es))
+          case Some(_)               => EitherT.rightT(value)
+          case _ =>
+            EitherT.leftT(InvalidPayload(id.ref, "The provided payload could not be mapped to a view"): Rejection)
+        }
+      }
+  }
 
   /**
     * Additional validation used for checking ACLs on [[Resolver]] creation
@@ -113,19 +102,6 @@ object AdditionalValidation {
 
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) =>
       {
-        def toResourceV(resolver: Resolver) = {
-          val GraphResult(s, graph) = resolverGraphEncoder(resolver)
-          val finalGraph = graph -- Graph(
-            Set[Triple]((id.value, nxv.rev, resolver.rev), (id.value, nxv.deprecated, resolver.deprecated)))
-          val json =
-            finalGraph
-              .asJson(Json.obj("@context" -> value.ctx), Some(s))
-              .getOrElse(graph.asJson)
-              .removeKeys("@context")
-              .addContext(resolverCtxUri)
-          ResourceF.Value(json, value.ctx, graph)
-        }
-
         def invalidRef(ref: String): Rejection =
           InvalidPayload(id.ref, s"'projects' values must be formatted as {account}/{project} and not as '$ref'")
 
@@ -144,7 +120,7 @@ object AdditionalValidation {
                   newSet <- EitherT.rightT[F, Rejection](set + ref)
                 } yield newSet
               }
-              .map(projects => toResourceV(resolver.copy(projects = projects)))
+              .map(projects => resolver.copy(projects = projects).toResourceV(id, value.ctx))
           case Some(resolver: InAccountResolver) if aclContains(resolver.identities) =>
             EitherT.rightT[F, Rejection](value)
           case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)

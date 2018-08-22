@@ -77,7 +77,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       rawValue       <- materialize(projectRef, source)
       value          <- checkOrAssignId(Right((projectRef, base)), rawValue)
       (id, assigned)  = value
-      resource       <- create(id, schema, assigned.copy(graph = assigned.graphWithoutMetadata(id.value)))
+      resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata(id.value)))
     } yield resource
   // format: on
 
@@ -343,7 +343,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
   def materialize(resource: Resource): RejOrResourceV =
     for {
       value <- materialize(resource.id, resource.value)
-    } yield resource.map(_ => value.copy(graph = value.graphWithoutMetadata(resource.id.value)))
+    } yield resource.map(_ => value.copy(graph = value.graph.removeMetadata(resource.id.value)))
 
   /**
     * Materializes a resource flattening its context and producing a graph that contains the additional type information
@@ -446,7 +446,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     // format: off
     for {
       rawValue      <- materialize(id.parent, source)
-      value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graphWithoutMetadata(id.value)))
+      value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata(id.value)))
       (_, assigned)  = value
     } yield assigned
   // format: on

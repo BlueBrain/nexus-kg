@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, GroupRef, U
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission._
 import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Permissions}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -23,11 +24,10 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.Json
 import io.circe.parser.parse
-import org.mockito.ArgumentMatchers.{eq => mEq}
 import org.mockito.Mockito
 import org.mockito.Mockito.when
-import org.scalatest.mockito.MockitoSugar
 import org.scalatest._
+import org.scalatest.mockito.MockitoSugar
 
 import scala.util.Try
 
@@ -116,16 +116,19 @@ class AdditionalValidationSpec
     }
 
     "applied to views" should {
-      val schema   = Ref(viewSchemaUri)
-      val view     = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
-      val types    = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
-      val mappings = view.hcursor.get[String]("mapping").flatMap(parse).right.value
-      val F        = catsStdInstancesForTry
+      val schema                         = Ref(viewSchemaUri)
+      val elasticView                    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+      val sparqlView                     = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
+      val types                          = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
+      val mappings                       = elasticView.hcursor.get[String]("mapping").flatMap(parse).right.value
+      val F                              = catsStdInstancesForTry
+      implicit val config: ElasticConfig = ElasticConfig("http://localhost", "kg", "doc", "default")
+      val index                          = s"kg_${projectRef.id}_3aa14a1a-81e7-4147-8306-136d8270bb01_1"
 
       "fail when the mappings are wrong for an ElasticView" in {
         val validation = AdditionalValidation.view[Try]
-        val resource   = simpleV(id, view, types = types)
-        when(elastic.createIndex(isA[String], mEq(mappings)))
+        val resource   = simpleV(id, elasticView, types = types)
+        when(elastic.createIndex(index, mappings))
           .thenReturn(F.raiseError(new ElasticServerError(StatusCodes.BadRequest, "Failed to parse mapping...")))
 
         validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[InvalidPayload]
@@ -133,8 +136,8 @@ class AdditionalValidationSpec
 
       "fail when the creation of the elasticsearch index throws an unexpected error for an ElasticView" in {
         val validation = AdditionalValidation.view[Try]
-        val resource   = simpleV(id, view, types = types)
-        when(elastic.createIndex(isA[String], mEq(mappings)))
+        val resource   = simpleV(id, elasticView, types = types)
+        when(elastic.createIndex(index, mappings))
           .thenReturn(F.raiseError(new RuntimeException("Failed to parse mapping...")))
 
         validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[Unexpected]
@@ -142,26 +145,26 @@ class AdditionalValidationSpec
 
       "fail when the elasticSearch index already exists for an ElasticView" in {
         val validation = AdditionalValidation.view[Try]
-        val resource   = simpleV(id, view, types = types)
-        when(elastic.createIndex(isA[String], mEq(mappings))).thenReturn(Try(false))
+        val resource   = simpleV(id, elasticView, types = types)
+        when(elastic.createIndex(index, mappings)).thenReturn(Try(false))
 
         validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[Unexpected]
       }
 
       "pass when the mappings are correct for an ElasticView" in {
         val validation = AdditionalValidation.view[Try]
-        val resource   = simpleV(id, view, types = types)
-        when(elastic.createIndex(isA[String], mEq(mappings))).thenReturn(Try(true))
-        when(elastic.deleteIndex(isA[String])).thenReturn(Try(true))
+        val resource   = simpleV(id, elasticView, types = types)
+        when(elastic.createIndex(index, mappings)).thenReturn(Try(true))
 
         validation(id, schema, types, resource.value).value.success.value.right.value shouldEqual resource.value
       }
 
-      "pass when it is not an ElasticView" in {
+      "pass when it is an SparqlView" in {
         val validation = AdditionalValidation.view[Try]
-        val resource   = simpleV(id, view, types = Set(nxv.SparqlView.value))
+        val types      = Set[AbsoluteIri](nxv.SparqlView.value, nxv.View, nxv.Alpha)
+        val resource   = simpleV(id, sparqlView, types = types)
 
-        validation(id, schema, Set(nxv.SparqlView.value), resource.value).value.success.value.right.value shouldEqual resource.value
+        validation(id, schema, types, resource.value).value.success.value.right.value shouldEqual resource.value
       }
     }
   }

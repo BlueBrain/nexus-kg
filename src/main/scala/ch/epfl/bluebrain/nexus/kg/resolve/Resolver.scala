@@ -2,19 +2,27 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import cats.instances.all._
 import cats.syntax.all._
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
-import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId}
+import ch.epfl.bluebrain.nexus.kg.config.Contexts.resolverCtxUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder.resolverGraphEncoder
+import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
+import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.GraphResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
+import io.circe.Json
 
 /**
   * Enumeration of Resolver types.
@@ -45,6 +53,23 @@ sealed trait Resolver extends Product with Serializable {
     * @return the resolver priority
     */
   def priority: Int
+
+  /**
+    * Converts a resolver to a [[ResourceF.Value]]
+    *
+    * @param id            the id of the resource
+    * @param flattenCtxObj the flatten context object (not wrapped in the @context key)
+    */
+  def toResourceV(id: ResId, flattenCtxObj: Json): ResourceF.Value = {
+    val GraphResult(s, graph) = resolverGraphEncoder(this)
+    val graphNoMeta           = graph.removeMetadata(id.value)
+    val json = graphNoMeta
+      .asJson(Json.obj("@context" -> flattenCtxObj), Some(s))
+      .getOrElse(graphNoMeta.asJson)
+      .removeKeys("@context")
+      .addContext(resolverCtxUri)
+    ResourceF.Value(json, flattenCtxObj, graphNoMeta)
+  }
 }
 
 object Resolver {
