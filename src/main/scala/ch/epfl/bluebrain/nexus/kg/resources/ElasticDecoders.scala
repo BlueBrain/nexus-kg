@@ -21,7 +21,7 @@ object ElasticDecoders {
         schema <- json("_constrainedBy")
           .flatMap(_.asString)
           .map(Iri.absolute)
-          .getOrElse(Left("Field: 'constrainedBy' not found"))
+          .getOrElse(Left("Field: '_constrainedBy' not found"))
       } yield AccessId(id, schema)
     }
 }
