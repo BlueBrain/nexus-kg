@@ -10,7 +10,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -32,7 +32,6 @@ import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSet
 import com.github.jsonldjava.core.DocumentLoader
 import com.typesafe.config.ConfigFactory
 import io.circe.Json
-import io.circe.generic.auto._
 import kamon.Kamon
 import kamon.system.SystemMetrics
 import monix.eval.Task
@@ -61,6 +60,7 @@ object Main {
     implicit val utClient   = HttpClient.taskHttpClient
     implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
     implicit val rsClient   = HttpClient.withTaskUnmarshaller[ResultSet]
+    implicit val esDecoders = ElasticDecoder[Json]
     implicit val qrClient   = HttpClient.withTaskUnmarshaller[QueryResults[Json]]
 
     def clients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
