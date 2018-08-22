@@ -125,7 +125,7 @@ object ElasticIndexer {
     val client  = ElasticClient[Task](config.base)
     val indexer = new ElasticIndexer(client, view, resources)
     SequentialTagIndexer.startLocal[Event](
-      () => client.createIndexIfNotExist(elasticIndex(view), view.mapping).map(_ => ()).runAsync,
+      () => client.createIndex(elasticIndex(view), view.mapping).map(_ => ()).runAsync,
       (ev: Event) => indexer(ev).runAsync,
       persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",

@@ -1,7 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import java.util.UUID
+
 import cats.data.EitherT
-import cats.{Applicative, Monad}
+import cats.syntax.all._
+import cats.{Applicative, Monad, MonadError}
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticFailure}
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Identity}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -9,15 +13,20 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload, ProjectNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload, ProjectNotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
+import ch.epfl.bluebrain.nexus.rdf.Graph.{Triple, _}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.GraphResult
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import io.circe.Json
+import io.circe.parser.parse
+
+import scala.util.Try
 
 trait AdditionalValidation[F[_]] {
 
@@ -30,20 +39,55 @@ trait AdditionalValidation[F[_]] {
     * @param value  the resource value
     * @return a Left(rejection) when the validation does not pass or Right(value) when it does on the effect type ''F''
     */
-  def apply(id: ResId,
-            schema: Ref,
-            types: Set[AbsoluteIri],
-            value: ResourceF.Value): EitherT[F, Rejection, ResourceF.Value]
+  def apply(id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value): EitherT[F, Rejection, Value]
 }
 
 object AdditionalValidation {
+
+  type Value = ResourceF.Value
 
   /**
     * @tparam F the monadic effect type
     * @return a new validation that always returns Right(value) on the provided effect type
     */
   final def pass[F[_]: Applicative]: AdditionalValidation[F] =
-    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: ResourceF.Value) => EitherT.rightT(value)
+    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) => EitherT.rightT(value)
+
+  /**
+    * Additional validation used for checking the correctness of the ElasticSearch mappings
+    *
+    * @tparam F the monadic effect type
+    * @return a new validation that passes whenever the provided mappings are compliant with the ElasticSearch mappings or
+    *         when the view is not an ElasticView
+    */
+  final def view[F[_]](implicit F: MonadError[F, Throwable], elastic: ElasticClient[F]): AdditionalValidation[F] =
+    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) => {
+      if (types.contains(nxv.ElasticView.value)) {
+        val verifyMapping: F[Either[Rejection, Value]] = {
+          val index = UUID.randomUUID().toString
+          value.graph.cursor(id.value).downField(nxv.mapping).focus.as[String].flatMap(parse) match {
+            case Left(_) =>
+              F.pure(Left(InvalidPayload(id.ref, "ElasticSearch mapping field not found or not convertible to Json")))
+            case Right(mapping) =>
+              elastic
+                .createIndex(index, mapping)
+                .flatMap[Either[Rejection, Value]] {
+                  case true  => elastic.deleteIndex(index).map(_ => Right(value))
+                  case false => F.pure(Left(Unexpected("View mapping validation could not be performed")))
+                }
+                .recoverWith {
+                  case err: ElasticFailure => F.pure(Left(InvalidPayload(id.ref, err.body)))
+                  case err =>
+                    val msg = Try(err.getMessage).getOrElse("")
+                    F.pure(Left(Unexpected(s"View mapping validation could not be performed. Cause '$msg'")))
+                }
+          }
+        }
+        EitherT(verifyMapping)
+      } else
+        EitherT.rightT[F, Rejection](value)
+
+    }
 
   /**
     * Additional validation used for checking ACLs on [[Resolver]] creation
@@ -56,8 +100,6 @@ object AdditionalValidation {
   final def resolver[F[_]: Monad](acls: Option[FullAccessControlList],
                                   accountRef: AccountRef,
                                   labelResolution: ProjectLabel => F[Option[ProjectRef]]): AdditionalValidation[F] = {
-    type Value = ResourceF.Value
-
     def aclContains(identities: List[Identity]): Boolean = {
       val list = acls.map(_.acl.map(_.identity)).getOrElse(List.empty)
       identities.forall(list.contains)
