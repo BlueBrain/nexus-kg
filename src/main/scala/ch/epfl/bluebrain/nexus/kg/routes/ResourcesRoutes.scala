@@ -176,12 +176,12 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
     ResourceRoutes(resources, shaclSchemaUri, "schemas")
 
   private def resource(implicit token: Option[AuthToken]): Route = {
-    val resourceRead = Permissions(Permission(s"resources/read"), Permission(s"resources/manage"))
+    val resourceRead = Permissions(Permission("resources/read"), Permission("resources/manage"))
     (pathPrefix("resources") & project) { implicit wrapped =>
       acls.apply { implicit acls =>
         (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
           (deprecated, pagination) =>
-            trace(s"listResources") {
+            trace("listResources") {
               complete(cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, pagination)).runAsync)
             }
         } ~
