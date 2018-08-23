@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
@@ -117,10 +118,12 @@ object ResourceF {
     * @param graph  a graph representation of a resource
     */
   final case class Value(source: Json, ctx: Json, graph: Graph) {
-    def primaryNode: Option[IriOrBNode] =
-      source.id.map(IriNode(_)) orElse graph.primaryNode orElse Option(graph.triples.isEmpty).collect {
+    def primaryNode: Option[IriOrBNode] = {
+      val resolvedSource = source appendContextOf Json.obj("@context" -> ctx)
+      resolvedSource.id.map(IriNode(_)) orElse graph.primaryNode orElse Option(graph.triples.isEmpty).collect {
         case true => Node.blank
       }
+    }
   }
 
   /**
