@@ -8,7 +8,6 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Authenticat
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{HttpConfig, IamConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
-import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode, Literal}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -47,7 +46,7 @@ object syntax {
     def accessId: AbsoluteIri = AccessId(res.id.value, res.schema.iri)
   }
 
-  final implicit class GraphSyntaxMeta(private val g: Graph) extends AnyVal {
+  final implicit class GraphSyntaxMeta(private val graph: Graph) extends AnyVal {
 
     /**
       * Removes the metadata triples from the graph centered on the provided subject ''id''
@@ -55,13 +54,6 @@ object syntax {
       * @param id the subject
       * @return a new [[Graph]] without the metadata triples
       */
-    def removeMetadata(id: IriOrBNode): Graph =
-      g.remove(id, nxv.rev)
-        .remove(id, nxv.deprecated)
-        .remove(id, nxv.createdAt)
-        .remove(id, nxv.updatedAt)
-        .remove(id, nxv.createdBy)
-        .remove(id, nxv.updatedBy)
-        .remove(id, nxv.constrainedBy)
+    def removeMetadata(id: IriOrBNode): Graph = ResourceF.removeMetadata(graph, id)
   }
 }

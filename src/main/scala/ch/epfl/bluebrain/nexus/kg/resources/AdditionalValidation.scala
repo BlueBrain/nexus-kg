@@ -1,9 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
-import cats.syntax.all._
 import cats.{Applicative, Monad, MonadError}
-import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticFailure}
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Identity}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View
@@ -11,10 +10,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload, ProjectNotFound, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-
-import scala.util.Try
 
 trait AdditionalValidation[F[_]] {
 
@@ -50,33 +47,16 @@ object AdditionalValidation {
     */
   final def view[F[_]](implicit F: MonadError[F, Throwable],
                        elastic: ElasticClient[F],
-                       config: ElasticConfig): AdditionalValidation[F] = {
-
-    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) =>
-      {
-        def attemptCreateIndex(es: ElasticView) =
-          elastic
-            .createIndex(s"${config.indexPrefix}_${es.name}", es.mapping)
-            .map[Either[Rejection, Value]] {
-              case true  => Right(value)
-              case false => Left(Unexpected("View mapping validation could not be performed"))
-            }
-            .recoverWith {
-              case err: ElasticFailure => F.pure(Left(InvalidPayload(id.ref, err.body)))
-              case err =>
-                val msg = Try(err.getMessage).getOrElse("")
-                F.pure(Left(Unexpected(s"View mapping validation could not be performed. Cause '$msg'")))
-            }
-
-        val resource = ResourceF.simpleV(id, value, types = types, schema = schema)
-        View(resource) match {
-          case Some(es: ElasticView) => EitherT(attemptCreateIndex(es))
-          case Some(_)               => EitherT.rightT(value)
-          case _ =>
-            EitherT.leftT(InvalidPayload(id.ref, "The provided payload could not be mapped to a view"): Rejection)
-        }
+                       config: ElasticConfig): AdditionalValidation[F] =
+    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) => {
+      val resource = ResourceF.simpleV(id, value, types = types, schema = schema)
+      View(resource) match {
+        case Some(es: ElasticView) => EitherT(es.createIndex[F]).map(_ => value)
+        case Some(_)               => EitherT.rightT(value)
+        case _ =>
+          EitherT.leftT(InvalidPayload(id.ref, "The provided payload could not be mapped to a view"): Rejection)
       }
-  }
+    }
 
   /**
     * Additional validation used for checking ACLs on [[Resolver]] creation
@@ -120,7 +100,7 @@ object AdditionalValidation {
                   newSet <- EitherT.rightT[F, Rejection](set + ref)
                 } yield newSet
               }
-              .map(projects => resolver.copy(projects = projects).toResourceV(id, value.ctx))
+              .map(projects => resolver.copy(projects = projects).resourceValue(id, value.ctx))
           case Some(resolver: InAccountResolver) if aclContains(resolver.identities) =>
             EitherT.rightT[F, Rejection](value)
           case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)

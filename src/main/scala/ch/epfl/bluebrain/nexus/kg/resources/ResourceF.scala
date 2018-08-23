@@ -94,6 +94,22 @@ final case class ResourceF[P, S, A](
 object ResourceF {
 
   /**
+    * Removes the metadata triples from the graph centered on the provided subject ''id''
+    *
+    * @param id the subject
+    * @return a new [[Graph]] without the metadata triples
+    */
+  def removeMetadata(graph: Graph, id: IriOrBNode): Graph =
+    graph
+      .remove(id, nxv.rev)
+      .remove(id, nxv.deprecated)
+      .remove(id, nxv.createdAt)
+      .remove(id, nxv.updatedAt)
+      .remove(id, nxv.createdBy)
+      .remove(id, nxv.updatedBy)
+      .remove(id, nxv.constrainedBy)
+
+  /**
     * A default resource value type.
     *
     * @param source the source value of a resource

@@ -60,7 +60,7 @@ sealed trait Resolver extends Product with Serializable {
     * @param id            the id of the resource
     * @param flattenCtxObj the flatten context object (not wrapped in the @context key)
     */
-  def toResourceV(id: ResId, flattenCtxObj: Json): ResourceF.Value = {
+  def resourceValue(id: ResId, flattenCtxObj: Json): ResourceF.Value = {
     val GraphResult(s, graph) = resolverGraphEncoder(this)
     val graphNoMeta           = graph.removeMetadata(id.value)
     val json = graphNoMeta
