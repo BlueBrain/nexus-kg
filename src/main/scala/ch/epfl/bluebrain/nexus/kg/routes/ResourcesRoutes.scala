@@ -129,6 +129,8 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
     def viewRoutes(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]): Route =
       new ResourceRoutes(resources, viewSchemaUri, "views") {
 
+        override implicit def additional = AdditionalValidation.view
+
         private def transformView(source: Json, uuid: String): Json = {
           val transformed = source deepMerge Json.obj("uuid" -> Json.fromString(uuid)).addContext(viewCtxUri)
           transformed.hcursor.get[Json]("mapping") match {

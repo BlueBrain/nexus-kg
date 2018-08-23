@@ -3,11 +3,12 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.util.UUID
 
 import cats.Monad
+import cats.data.{EitherT, OptionT}
 import cats.instances.either._
 import cats.instances.vector._
 import cats.syntax.traverse._
 import cats.syntax.functor._
-import cats.data.{EitherT, OptionT}
+import cats.syntax.traverse._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
@@ -17,8 +18,8 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
+import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
-import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIndexer, View}
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -33,8 +34,8 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
@@ -77,7 +78,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       rawValue       <- materialize(projectRef, source)
       value          <- checkOrAssignId(Right((projectRef, base)), rawValue)
       (id, assigned)  = value
-      resource       <- create(id, schema, assigned.copy(graph = assigned.graphWithoutMetadata(id.value)))
+      resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata(id.value)))
     } yield resource
   // format: on
 
@@ -329,7 +330,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       elastic: ElasticClient[F]): IriResultsF =
     views.collectFirst { case v: ElasticView if v.id == nxv.defaultElasticIndex.value => v } match {
       case Some(view) =>
-        elastic.search(QueryBuilder.queryFor(deprecated, schema), Set(ElasticIndexer.elasticIndex(view)))(pagination)
+        elastic.search(QueryBuilder.queryFor(deprecated, schema), Set(view.index))(pagination)
       case None =>
         F.pure(UnscoredQueryResults(0L, List.empty))
     }
@@ -343,7 +344,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
   def materialize(resource: Resource): RejOrResourceV =
     for {
       value <- materialize(resource.id, resource.value)
-    } yield resource.map(_ => value.copy(graph = value.graphWithoutMetadata(resource.id.value)))
+    } yield resource.map(_ => value.copy(graph = value.graph.removeMetadata(resource.id.value)))
 
   /**
     * Materializes a resource flattening its context and producing a graph that contains the additional type information
@@ -446,7 +447,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     // format: off
     for {
       rawValue      <- materialize(id.parent, source)
-      value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graphWithoutMetadata(id.value)))
+      value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata(id.value)))
       (_, assigned)  = value
     } yield assigned
   // format: on

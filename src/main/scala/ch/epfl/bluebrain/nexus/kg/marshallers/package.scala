@@ -6,13 +6,14 @@ import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidPayload
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import io.circe.Encoder
-import io.circe.generic.extras.auto._
 import io.circe.generic.extras.Configuration
+import io.circe.generic.extras.auto._
 import io.circe.generic.extras.semiauto.deriveEncoder
+import io.circe.parser.parse
+import io.circe.{Encoder, Json}
 import io.circe.refined._
-
 package object marshallers {
 
   private implicit def aEncoder[A: Show]: Encoder[A] = Encoder.encodeString.contramap(_.show)
@@ -27,11 +28,17 @@ package object marshallers {
 
   private[marshallers] implicit val rejectionEncoder: Encoder[Rejection] = {
     val enc = deriveEncoder[Rejection]
-    Encoder(enc(_).addContext(errorCtxUri))
+    Encoder.instance {
+      case r @ InvalidPayload(_, reason) =>
+        val encoded = enc(r: Rejection) addContext errorCtxUri
+        parse(reason).map(j => encoded deepMerge Json.obj("reason" -> j)).getOrElse(encoded)
+      case rej =>
+        enc(rej) addContext errorCtxUri
+    }
   }
 
   private[marshallers] implicit val httpRejectionEncoder: Encoder[HttpRejection] = {
     val enc = deriveEncoder[HttpRejection]
-    Encoder(enc(_).addContext(errorCtxUri))
+    Encoder(enc(_) addContext errorCtxUri)
   }
 }

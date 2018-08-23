@@ -1,23 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
-import cats.{Applicative, Monad}
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import cats.{Applicative, Monad, MonadError}
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Identity}
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
+import ch.epfl.bluebrain.nexus.kg.indexing.View
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
-import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
+import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload, ProjectNotFound}
-import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.GraphResult
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import io.circe.Json
 
 trait AdditionalValidation[F[_]] {
 
@@ -30,20 +24,39 @@ trait AdditionalValidation[F[_]] {
     * @param value  the resource value
     * @return a Left(rejection) when the validation does not pass or Right(value) when it does on the effect type ''F''
     */
-  def apply(id: ResId,
-            schema: Ref,
-            types: Set[AbsoluteIri],
-            value: ResourceF.Value): EitherT[F, Rejection, ResourceF.Value]
+  def apply(id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value): EitherT[F, Rejection, Value]
 }
 
 object AdditionalValidation {
+
+  type Value = ResourceF.Value
 
   /**
     * @tparam F the monadic effect type
     * @return a new validation that always returns Right(value) on the provided effect type
     */
   final def pass[F[_]: Applicative]: AdditionalValidation[F] =
-    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: ResourceF.Value) => EitherT.rightT(value)
+    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) => EitherT.rightT(value)
+
+  /**
+    * Additional validation used for checking the correctness of the ElasticSearch mappings
+    *
+    * @tparam F the monadic effect type
+    * @return a new validation that passes whenever the provided mappings are compliant with the ElasticSearch mappings or
+    *         when the view is not an ElasticView
+    */
+  final def view[F[_]](implicit F: MonadError[F, Throwable],
+                       elastic: ElasticClient[F],
+                       config: ElasticConfig): AdditionalValidation[F] =
+    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) => {
+      val resource = ResourceF.simpleV(id, value, types = types, schema = schema)
+      View(resource) match {
+        case Some(es: ElasticView) => EitherT(es.createIndex[F]).map(_ => value)
+        case Some(_)               => EitherT.rightT(value)
+        case _ =>
+          EitherT.leftT(InvalidPayload(id.ref, "The provided payload could not be mapped to a view"): Rejection)
+      }
+    }
 
   /**
     * Additional validation used for checking ACLs on [[Resolver]] creation
@@ -56,8 +69,6 @@ object AdditionalValidation {
   final def resolver[F[_]: Monad](acls: Option[FullAccessControlList],
                                   accountRef: AccountRef,
                                   labelResolution: ProjectLabel => F[Option[ProjectRef]]): AdditionalValidation[F] = {
-    type Value = ResourceF.Value
-
     def aclContains(identities: List[Identity]): Boolean = {
       val list = acls.map(_.acl.map(_.identity)).getOrElse(List.empty)
       identities.forall(list.contains)
@@ -71,19 +82,6 @@ object AdditionalValidation {
 
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) =>
       {
-        def toResourceV(resolver: Resolver) = {
-          val GraphResult(s, graph) = resolverGraphEncoder(resolver)
-          val finalGraph = graph -- Graph(
-            Set[Triple]((id.value, nxv.rev, resolver.rev), (id.value, nxv.deprecated, resolver.deprecated)))
-          val json =
-            finalGraph
-              .asJson(Json.obj("@context" -> value.ctx), Some(s))
-              .getOrElse(graph.asJson)
-              .removeKeys("@context")
-              .addContext(resolverCtxUri)
-          ResourceF.Value(json, value.ctx, graph)
-        }
-
         def invalidRef(ref: String): Rejection =
           InvalidPayload(id.ref, s"'projects' values must be formatted as {account}/{project} and not as '$ref'")
 
@@ -102,7 +100,7 @@ object AdditionalValidation {
                   newSet <- EitherT.rightT[F, Rejection](set + ref)
                 } yield newSet
               }
-              .map(projects => toResourceV(resolver.copy(projects = projects)))
+              .map(projects => resolver.copy(projects = projects).resourceValue(id, value.ctx))
           case Some(resolver: InAccountResolver) if aclContains(resolver.identities) =>
             EitherT.rightT[F, Rejection](value)
           case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)

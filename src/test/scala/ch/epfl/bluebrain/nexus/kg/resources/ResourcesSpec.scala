@@ -77,19 +77,19 @@ class ResourcesSpec
   }
 
   trait ResolverResource extends Base {
-    def resolverFrom(json: Json) = json addContext resolverCtxUri deepMerge Json.obj("@id" -> Json.fromString(id.show))
+    def resolverFrom(json: Json) =
+      json appendContextOf resolverCtx deepMerge Json.obj("@id" -> Json.fromString(id.show))
 
     val schema   = Latest(resolverSchemaUri)
     val resolver = resolverFrom(jsonContentOf("/resolve/cross-project.json"))
 
-    val resolverUpdated = jsonContentOf("/resolve/cross-project-updated.json") addContext resolverCtxUri deepMerge Json
-      .obj("@id" -> Json.fromString(id.show))
-    val types = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
+    val resolverUpdated = resolverFrom(jsonContentOf("/resolve/cross-project-updated.json"))
+    val types           = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
   }
 
   trait ViewResource extends Base {
     val schema = Latest(viewSchemaUri)
-    val view = jsonContentOf("/view/elasticview.json") addContext viewCtxUri deepMerge Json.obj(
+    val view = jsonContentOf("/view/elasticview.json") appendContextOf viewCtx deepMerge Json.obj(
       "@id" -> Json.fromString(id.show))
     val types = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
   }

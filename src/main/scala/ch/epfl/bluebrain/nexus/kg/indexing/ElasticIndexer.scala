@@ -44,7 +44,6 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
     F: MonadError[F, Throwable],
     ucl: HttpClient[F, Json]) {
   private val revKey = "_rev"
-  private val index  = elasticIndex(view)
 
   /**
     * When an event is received, the current state is obtained.
@@ -80,7 +79,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
 
   private def fetchRevision(id: ResId): F[Option[Long]] =
     client
-      .get[Json](index, config.docType, urlEncode(id.value), include = Set(revKey))
+      .get[Json](view.index, config.docType, urlEncode(id.value), include = Set(revKey))
       .map(_.hcursor.get[Long](revKey).toOption)
       .handleError {
         case ElasticClientError(StatusCodes.NotFound, _) => None
@@ -99,7 +98,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
       else
         (res.value deepMerge asJson(metaGraph)).removeKeys("@context")
     }
-    client.create(index, config.docType, urlEncode(res.id.value), transformed)
+    client.create(view.index, config.docType, urlEncode(res.id.value), transformed)
   }
 
 }
@@ -122,10 +121,10 @@ object ElasticIndexer {
     implicit val ul         = HttpClient.taskHttpClient
     implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
 
-    val client  = ElasticClient[Task](config.base)
-    val indexer = new ElasticIndexer(client, view, resources)
+    implicit val client = ElasticClient[Task](config.base)
+    val indexer         = new ElasticIndexer(client, view, resources)
     SequentialTagIndexer.startLocal[Event](
-      () => client.createIndexIfNotExist(elasticIndex(view), view.mapping).map(_ => ()).runAsync,
+      () => view.createIndex[Task].map(_ => ()).runAsync,
       (ev: Event) => indexer(ev).runAsync,
       persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",
@@ -133,9 +132,6 @@ object ElasticIndexer {
     )
   }
   // $COVERAGE-ON$
-
-  def elasticIndex(view: View)(implicit config: ElasticConfig): String =
-    s"${config.indexPrefix}_${view.name}"
 
   private[indexing] val ctx: Json =
     resourceCtx appendContextOf Json.obj(

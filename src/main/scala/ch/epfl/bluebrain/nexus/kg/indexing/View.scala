@@ -2,8 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.UUID
 
+import cats.MonadError
+import cats.syntax.all._
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticFailure}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidPayload, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -11,6 +16,9 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import io.circe.Json
 import io.circe.parser._
+
+import scala.util.Try
+import scala.util.control.NonFatal
 
 /**
   * Enumeration of view types.
@@ -113,7 +121,39 @@ object View {
       uuid: String,
       rev: Long,
       deprecated: Boolean
-  ) extends View
+  ) extends View {
+
+    /**
+      * Generates the elasticSearch index
+      *
+      * @param config the [[ElasticConfig]]
+      */
+    def index(implicit config: ElasticConfig): String = s"${config.indexPrefix}_$name"
+
+    /**
+      * Attempts to create the index for the [[ElasticView]].
+      *
+      * @tparam F the effect type
+      * @return ''Unit'' when the index was successfully created, a ''Rejection'' signaling the type of error
+      *         when the index couldn't be created wrapped in an [[Either]]. The either is then wrapped in the
+      *         effect type ''F''
+      */
+    def createIndex[F[_]](implicit elastic: ElasticClient[F],
+                          config: ElasticConfig,
+                          F: MonadError[F, Throwable]): F[Either[Rejection, Unit]] =
+      elastic
+        .createIndex(index, mapping)
+        .map[Either[Rejection, Unit]] {
+          case true  => Right(())
+          case false => Left(Unexpected("View mapping validation could not be performed"))
+        }
+        .recoverWith {
+          case err: ElasticFailure => F.pure(Left(InvalidPayload(Ref(id), err.body)))
+          case NonFatal(err) =>
+            val msg = Try(err.getMessage).getOrElse("")
+            F.pure(Left(Unexpected(s"View mapping validation could not be performed. Cause '$msg'")))
+        }
+  }
 
   /**
     * Sparql specific view.
