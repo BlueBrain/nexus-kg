@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidPayload
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
@@ -30,31 +31,31 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
       val elasticview = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
       "return an ElasticView" in {
         val resource = simpleV(id, elasticview, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
-        View(resource).value shouldEqual ElasticView(mapping,
-                                                     Set(nxv.Schema, nxv.Resource),
-                                                     Some("one"),
-                                                     false,
-                                                     true,
-                                                     projectRef,
-                                                     iri,
-                                                     "3aa14a1a-81e7-4147-8306-136d8270bb01",
-                                                     resource.rev,
-                                                     resource.deprecated)
+        View(resource).right.value shouldEqual ElasticView(mapping,
+                                                           Set(nxv.Schema, nxv.Resource),
+                                                           Some("one"),
+                                                           false,
+                                                           true,
+                                                           projectRef,
+                                                           iri,
+                                                           "3aa14a1a-81e7-4147-8306-136d8270bb01",
+                                                           resource.rev,
+                                                           resource.deprecated)
       }
 
       "return an SparqlView" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.View, nxv.SparqlView))
-        View(resource).value shouldEqual SparqlView(projectRef,
-                                                    iri,
-                                                    "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1",
-                                                    resource.rev,
-                                                    resource.deprecated)
+        View(resource).right.value shouldEqual SparqlView(projectRef,
+                                                          iri,
+                                                          "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1",
+                                                          resource.rev,
+                                                          resource.deprecated)
 
       }
 
       "fail on ElasticView when types are wrong" in {
         val resource = simpleV(id, elasticview, types = Set(nxv.View))
-        View(resource) shouldEqual None
+        View(resource).left.value shouldBe a[InvalidPayload]
       }
 
       "fail on ElasticView when invalid payload" in {
@@ -62,13 +63,13 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
                          jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx))
         forAll(wrong) { json =>
           val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
-          View(resource) shouldEqual None
+          View(resource).left.value shouldBe a[InvalidPayload]
         }
       }
 
       "fail on SparqlView when types are wrong" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.Schema))
-        View(resource) shouldEqual None
+        View(resource).left.value shouldBe a[InvalidPayload]
       }
 
       "fail on SparqlView when invalid payload" in {
@@ -76,7 +77,7 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
           simpleV(id,
                   jsonContentOf("/view/sparqlview-wrong.json").appendContextOf(viewCtx),
                   types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
-        View(resource) shouldEqual None
+        View(resource).left.value shouldBe a[InvalidPayload]
       }
     }
 

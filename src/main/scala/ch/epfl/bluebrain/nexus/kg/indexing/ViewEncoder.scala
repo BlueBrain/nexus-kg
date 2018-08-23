@@ -21,23 +21,28 @@ import io.circe.parser.parse
   */
 object ViewEncoder {
 
-  implicit def qrViewEncoder: Encoder[QueryResults[View]] = {
-    def addJsonMapping(result: Json): Json =
-      result.hcursor
-        .get[String]("mapping")
-        .flatMap(parse)
-        .map(mapping => result deepMerge Json.obj("mapping" -> mapping))
-        .getOrElse(result)
+  /**
+    * Attempts to find the key ''mapping'' on the top Json level and transform the string value to Json. This will work
+    * E.g.: {"mapping": "{\"a\": \"b\"}"} will be converted to {"mapping": {"a": "b"}}
+    *
+    * @param json the json to be transformed
+    */
+  def transformToJson(json: Json): Json =
+    json.hcursor
+      .get[String]("mapping")
+      .flatMap(parse)
+      .map(mapping => json deepMerge Json.obj("mapping" -> mapping))
+      .getOrElse(json)
 
+  implicit def qrViewEncoder: Encoder[QueryResults[View]] =
     qrsEncoder[View](viewCtx mergeContext resourceCtx) mapJson { json =>
       val jsonWithCtx = json addContext viewCtxUri
       val results = jsonWithCtx.hcursor
         .downField("results")
         .focus
-        .flatMap(_.asArray.map(_.map(addJsonMapping)))
+        .flatMap(_.asArray.map(_.map(transformToJson)))
       results.map(res => jsonWithCtx deepMerge Json.obj("results" -> Json.arr(res: _*))).getOrElse(jsonWithCtx)
     }
-  }
 
   implicit val viewGraphEncoder: GraphEncoder[View] = GraphEncoder {
     case view @ ElasticView(mapping, resourceSchemas, resourceTag, includeMeta, sourceAsText, _, id, _, _, _) =>

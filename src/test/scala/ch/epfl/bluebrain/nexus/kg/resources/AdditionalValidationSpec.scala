@@ -49,7 +49,7 @@ class AdditionalValidationSpec
   }
 
   "An AdditionalValidation" when {
-
+    implicit val config: ElasticConfig                      = ElasticConfig("http://localhost", "kg", "doc", "default")
     val iri                                                 = Iri.absolute("http://example.com/id").right.value
     val projectRef                                          = ProjectRef("ref")
     val id                                                  = Id(projectRef, iri)
@@ -116,20 +116,28 @@ class AdditionalValidationSpec
     }
 
     "applied to views" should {
-      val schema                         = Ref(viewSchemaUri)
-      val elasticView                    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
-      val sparqlView                     = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-      val types                          = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
-      val mappings                       = elasticView.hcursor.get[String]("mapping").flatMap(parse).right.value
-      val F                              = catsStdInstancesForTry
-      implicit val config: ElasticConfig = ElasticConfig("http://localhost", "kg", "doc", "default")
-      val index                          = s"kg_${projectRef.id}_3aa14a1a-81e7-4147-8306-136d8270bb01_1"
+      val schema                  = Ref(viewSchemaUri)
+      val elasticView             = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+      val elasticViewWrongMapping = jsonContentOf("/view/elasticview-wrong-mapping.json").appendContextOf(viewCtx)
+      val sparqlView              = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
+      val types                   = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
+      val mappings = Json.obj(
+        "mappings" -> Json.obj(config.docType -> elasticView.hcursor.get[String]("mapping").flatMap(parse).right.value))
+      val F     = catsStdInstancesForTry
+      val index = s"kg_${projectRef.id}_3aa14a1a-81e7-4147-8306-136d8270bb01_1"
 
       "fail when the mappings are wrong for an ElasticView" in {
         val validation = AdditionalValidation.view[Try]
         val resource   = simpleV(id, elasticView, types = types)
         when(elastic.createIndex(index, mappings))
           .thenReturn(F.raiseError(new ElasticServerError(StatusCodes.BadRequest, "Failed to parse mapping...")))
+
+        validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[InvalidPayload]
+      }
+
+      "fail when validation of elasticsearch mappings that contains invalid keys" in {
+        val validation = AdditionalValidation.view[Try]
+        val resource   = simpleV(id, elasticViewWrongMapping, types = types)
 
         validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[InvalidPayload]
       }

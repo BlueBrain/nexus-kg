@@ -5,6 +5,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{HttpConfig, IamConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
+import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, ResourceV}
@@ -55,6 +56,9 @@ object ResourceEncoder {
   implicit def resourceVEncoder(implicit http: HttpConfig, wrapped: LabeledProject): Encoder[ResourceV] =
     Encoder.encodeJson.contramap { res =>
       val mergedCtx = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
-      res.asJson(mergedCtx) deepMerge Json.obj("@context" -> res.value.source.contextValue).addContext(resourceCtxUri)
+      val json = res.asJson(mergedCtx) deepMerge Json
+        .obj("@context" -> res.value.source.contextValue)
+        .addContext(resourceCtxUri)
+      if (res.types.contains(nxv.ElasticView.value)) ViewEncoder.transformToJson(json) else json
     }
 }

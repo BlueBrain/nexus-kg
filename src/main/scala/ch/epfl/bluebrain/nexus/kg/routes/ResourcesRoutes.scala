@@ -31,6 +31,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, UnexpectedState
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import com.github.ghik.silencer.silent
@@ -174,14 +175,22 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
   private def schema(implicit token: Option[AuthToken]): Route =
     ResourceRoutes(resources, shaclSchemaUri, "schemas")
 
-  private def resource(implicit token: Option[AuthToken]): Route =
+  private def resource(implicit token: Option[AuthToken]): Route = {
+    val resourceRead = Permissions(Permission("resources/read"), Permission("resources/manage"))
     (pathPrefix("resources") & project) { implicit wrapped =>
       acls.apply { implicit acls =>
-        pathPrefix(IdSegment) { schema =>
-          new ResourceRoutes(resources, schema, "resources").routes
-        }
+        (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
+          (deprecated, pagination) =>
+            trace("listResources") {
+              complete(cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, pagination)).runAsync)
+            }
+        } ~
+          pathPrefix(IdSegment) { schema =>
+            new ResourceRoutes(resources, schema, "resources").routes
+          }
       }
     }
+  }
 
   private def filterDeprecated[A: DeprecatedId](set: Task[Set[A]], deprecated: Option[Boolean]): Task[List[A]] =
     set.map(s => deprecated.map(d => s.filter(_.deprecated == d)).getOrElse(s).toList)

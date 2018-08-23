@@ -6,7 +6,6 @@ import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.instances.either._
 import cats.instances.vector._
-import cats.syntax.traverse._
 import cats.syntax.functor._
 import cats.syntax.traverse._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient

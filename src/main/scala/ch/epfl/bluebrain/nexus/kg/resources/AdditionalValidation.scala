@@ -50,11 +50,9 @@ object AdditionalValidation {
                        config: ElasticConfig): AdditionalValidation[F] =
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value) => {
       val resource = ResourceF.simpleV(id, value, types = types, schema = schema)
-      View(resource) match {
-        case Some(es: ElasticView) => EitherT(es.createIndex[F]).map(_ => value)
-        case Some(_)               => EitherT.rightT(value)
-        case _ =>
-          EitherT.leftT(InvalidPayload(id.ref, "The provided payload could not be mapped to a view"): Rejection)
+      EitherT.fromEither(View(resource)).flatMap {
+        case es: ElasticView => EitherT(es.createIndex[F]).map(_ => value)
+        case _               => EitherT.rightT(value)
       }
     }
 

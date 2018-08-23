@@ -452,20 +452,26 @@ class ResourceRoutesSpec
             isA[HttpClient[Task, QueryResults[AbsoluteIri]]],
             isA[ElasticClient[Task]]
           )
-        ).thenReturn(
-          Task.pure(
-            UnscoredQueryResults(
-              5,
-              List(
-                UnscoredQueryResult(reprId(1)),
-                UnscoredQueryResult(reprId(2)),
-                UnscoredQueryResult(reprId(3)),
-                UnscoredQueryResult(reprId(4)),
-                UnscoredQueryResult(reprId(5))
-              )
-            ))
-        )
+        ).thenReturn(Task.pure(UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(reprId(i))))))
         Get(s"/v1/resources/$account/$project/resource") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual listingResponse()
+        }
+      }
+
+      "list resources" in new Ctx {
+        def reprId(i: Int): AbsoluteIri =
+          url"${appConfig.http.publicUri.copy(
+            path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")}".value
+
+        when(
+          resources.list(mEq(Set(defaultEsView, defaultSQLView)), mEq(None), mEq(Pagination(0, 20)))(
+            isA[HttpClient[Task, QueryResults[AbsoluteIri]]],
+            isA[ElasticClient[Task]]
+          )
+        ).thenReturn(Task.pure(UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(reprId(i))))))
+
+        Get(s"/v1/resources/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
         }

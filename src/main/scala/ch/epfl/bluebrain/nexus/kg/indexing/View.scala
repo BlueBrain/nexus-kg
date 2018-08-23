@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import io.circe.Json
@@ -58,22 +59,34 @@ sealed trait View extends Product with Serializable {
 }
 
 object View {
+  private val allowedMappingKeys: Set[String] = Set("dynamic_templates", "properties", "dynamic")
+
+  private implicit class NodeEncoderResultSyntax[A](private val enc: NodeEncoder.EncoderResult[A]) extends AnyVal {
+    def toInvalidPayloadEither(ref: Ref): Either[Rejection, A] =
+      enc.left.map(err =>
+        InvalidPayload(ref, s"The provided payload could not be mapped to a view due to '${err.message}'"))
+  }
 
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.indexing.View]].
     *
     * @param res a materialized resource
-    * @return Some(view) if the resource is compatible with a View, None otherwise
+    * @return Right(view) if the resource is compatible with a View, Left(rejection) otherwise
     */
-  final def apply(res: ResourceV): Option[View] = {
+  final def apply(res: ResourceV): Either[Rejection, View] = {
     val c          = res.value.graph.cursor(res.id.value)
     val uuidEither = c.downField(nxv.uuid).focus.as[UUID]
 
-    def elastic(): Option[View] = {
+    def validMapping(mapping: Json): Boolean =
+      mapping.asObject.map(_.keys.toSet.subsetOf(allowedMappingKeys)).getOrElse(false)
+
+    def elastic(): Either[Rejection, View] =
       // format: off
-      val result = for {
-        uuid          <- uuidEither
-        mapping       <- c.downField(nxv.mapping).focus.as[String].flatMap(parse)
+      for {
+        uuid          <- uuidEither.toInvalidPayloadEither(res.id.ref)
+        mappingStr    <- c.downField(nxv.mapping).focus.as[String].toInvalidPayloadEither(res.id.ref)
+        mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidPayload(res.id.ref, "mappings cannot be parsed into Json"))
+        _             <- if (validMapping(mapping)) Right(()) else Left(InvalidPayload(res.id.ref, s"mappings should only contain some of the following keys: '${allowedMappingKeys.mkString(", ")}'"))
         schemas       = c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].map(_.toSet).getOrElse(Set.empty)
         tag           = c.downField(nxv.resourceTag).focus.as[String].toOption
         includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
@@ -81,17 +94,15 @@ object View {
       } yield
         ElasticView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid.toString.toLowerCase, res.rev, res.deprecated)
       // format: on
-      result.toOption
-    }
 
-    def sparql(): Option[View] =
+    def sparql(): Either[Rejection, View] =
       uuidEither
+        .toInvalidPayloadEither(res.id.ref)
         .map(uuid => SparqlView(res.id.parent, res.id.value, uuid.toString.toLowerCase, res.rev, res.deprecated))
-        .toOption
 
     if (Set(nxv.View.value, nxv.Alpha.value, nxv.ElasticView.value).subsetOf(res.types)) elastic()
     else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
-    else None
+    else Left(InvalidPayload(res.id.ref, "The provided @type do not match any of the view types"))
   }
 
   /**
@@ -142,7 +153,7 @@ object View {
                           config: ElasticConfig,
                           F: MonadError[F, Throwable]): F[Either[Rejection, Unit]] =
       elastic
-        .createIndex(index, mapping)
+        .createIndex(index, Json.obj("mappings" -> Json.obj(config.docType -> mapping)))
         .map[Either[Rejection, Unit]] {
           case true  => Right(())
           case false => Left(Unexpected("View mapping validation could not be performed"))

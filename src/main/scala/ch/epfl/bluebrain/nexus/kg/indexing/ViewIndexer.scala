@@ -37,7 +37,7 @@ private class ViewIndexer[F[_]](resources: Resources[F], cache: DistributedCache
     val result: EitherT[F, Rejection, Boolean] = for {
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
       materialized <- resources.materialize(resource)
-      view         <- EitherT.fromOption(View(materialized), NotFound(event.id.ref))
+      view         <- EitherT.fromEither(View(materialized))
       applied      <- EitherT.liftF(cache.applyView(projectRef, view))
     } yield applied
 
