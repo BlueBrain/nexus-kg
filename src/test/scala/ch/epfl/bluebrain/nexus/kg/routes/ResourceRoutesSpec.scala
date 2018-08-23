@@ -452,7 +452,7 @@ class ResourceRoutesSpec
             isA[HttpClient[Task, QueryResults[AbsoluteIri]]],
             isA[ElasticClient[Task]]
           )
-        ).thenReturn(Task.pure(UnscoredQueryResults(5, List.range(1, 5).map(i => UnscoredQueryResult(reprId(i))))))
+        ).thenReturn(Task.pure(UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(reprId(i))))))
         Get(s"/v1/resources/$account/$project/resource") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
@@ -469,7 +469,7 @@ class ResourceRoutesSpec
             isA[HttpClient[Task, QueryResults[AbsoluteIri]]],
             isA[ElasticClient[Task]]
           )
-        ).thenReturn(Task.pure(UnscoredQueryResults(5, List.range(1, 5).map(i => UnscoredQueryResult(reprId(i))))))
+        ).thenReturn(Task.pure(UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(reprId(i))))))
 
         Get(s"/v1/resources/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
