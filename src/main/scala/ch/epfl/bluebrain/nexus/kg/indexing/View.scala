@@ -142,7 +142,7 @@ object View {
     def index(implicit config: ElasticConfig): String = s"${config.indexPrefix}_$name"
 
     /**
-      * Attempts to Vi the index for the [[ElasticView]].
+      * Attempts to create the index for the [[ElasticView]].
       *
       * @tparam F the effect type
       * @return ''Unit'' when the index was successfully created, a ''Rejection'' signaling the type of error
