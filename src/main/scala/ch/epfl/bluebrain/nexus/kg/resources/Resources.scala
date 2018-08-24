@@ -112,7 +112,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     for {
       _           <- validate(id.parent, schema, value.graph)
       joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
-      newValue    <- additional(id, schema, joinedTypes, value)
+      newValue    <- additional(id, schema, joinedTypes, value, 1L)
       created     <- repo.create(id, schema, joinedTypes, newValue.source)
     } yield created
   }
@@ -173,7 +173,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
       graph        = value.graph
       _           <- validate(id.parent, resource.schema, value.graph)
       joinedTypes  = graph.types(id.value).map(_.value)
-      _           <- additional(id, resource.schema, joinedTypes, value)
+      _           <- additional(id, resource.schema, joinedTypes, value, rev + 1)
       updated     <- repo.update(id, rev, joinedTypes, source)
     } yield updated
     // format: on
