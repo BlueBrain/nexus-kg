@@ -29,6 +29,7 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
     "constructing" should {
       val sparqlview  = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
       val elasticview = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+
       "return an ElasticView" in {
         val resource = simpleV(id, elasticview, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
         View(resource).right.value shouldEqual ElasticView(mapping,
@@ -82,8 +83,7 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
     }
 
     "converting into json (from Graph)" should {
-      "return the json representation for a queryresults list" in {
-        val iri2 = url"http://example.com/id2".value
+      "return the json representation for a queryresults list with ElasticView" in {
         val elastic: View = ElasticView(mapping,
                                         Set(nxv.Schema, nxv.Resource),
                                         Some("one"),
@@ -94,10 +94,14 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
                                         "3aa14a1a-81e7-4147-8306-136d8270bb01",
                                         1L,
                                         false)
-        val sparql: View = SparqlView(projectRef, iri2, "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1", 1L, false)
-        val views: QueryResults[View] =
-          QueryResults(2L, List(UnscoredQueryResult(elastic), UnscoredQueryResult(sparql)))
-        views.asJson should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+        val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(elastic)))
+        views.asJson should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp-elastic.json"))
+      }
+
+      "return the json representation for a queryresults list with SparqlView" in {
+        val sparql: View              = SparqlView(projectRef, iri, "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1", 1L, false)
+        val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(sparql)))
+        views.asJson should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp-sparql.json"))
       }
     }
   }

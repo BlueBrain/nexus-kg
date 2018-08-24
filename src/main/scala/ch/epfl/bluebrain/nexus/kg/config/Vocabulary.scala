@@ -29,6 +29,8 @@ object Vocabulary {
     val createdBy           = withPath("createdBy")
     val updatedBy           = withPath("updatedBy")
     val constrainedBy       = withPath("constrainedBy")
+    val self                = withPath("self")
+    val project             = withPath("project")
     val isPartOf            = withPath("isPartOf")
     val priority            = withPath("priority")
     val uuid                = withPath("uuid")

@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
@@ -351,7 +352,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     *
     * @param resource the resource to materialize
     */
-  def materializeWithMeta(resource: Resource): RejOrResourceV =
+  def materializeWithMeta(resource: Resource)(implicit wrapped: LabeledProject): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
       graph = resourceV.value.graph

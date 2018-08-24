@@ -1,0 +1,20 @@
+{
+  "@context": [
+    "https://bluebrain.github.io/nexus/contexts/search",
+    "https://bluebrain.github.io/nexus/contexts/resource",
+    "https://bluebrain.github.io/nexus/contexts/view"
+  ],
+  "total": 1,
+  "results": [
+    {
+      "@id": "http://example.com/id",
+      "@type": [
+        "SparqlView",
+        "View"
+      ],
+      "uuid": "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1",
+      "_deprecated": false,
+      "_rev": 1
+    }
+  ]
+}

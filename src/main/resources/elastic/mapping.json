@@ -27,6 +27,12 @@
     "_constrainedBy": {
       "type": "keyword"
     },
+    "_project": {
+      "type": "keyword"
+    },
+    "_self": {
+      "type": "keyword"
+    },
     "_original_source": {
       "type": "text"
     }

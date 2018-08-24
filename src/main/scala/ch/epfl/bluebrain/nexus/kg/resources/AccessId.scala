@@ -24,7 +24,7 @@ object AccessId {
                                                             http: HttpConfig): AbsoluteIri = {
 
     def prefix(resource: String): AbsoluteIri =
-      url"${http.publicUri.append(resource / http.prefix / wrapped.label.account / wrapped.label.value)}".value
+      url"${http.publicUri.append(http.prefix / resource / wrapped.label.account / wrapped.label.value)}".value
 
     def aliasOrCurieFor(iri: AbsoluteIri): String =
       (wrapped.project.prefixMappings.collectFirst {

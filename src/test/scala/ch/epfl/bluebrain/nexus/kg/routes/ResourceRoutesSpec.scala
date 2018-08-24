@@ -11,7 +11,7 @@ import akka.stream.ActorMaterializer
 import cats.data.{EitherT, OptionT}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
@@ -31,8 +31,9 @@ import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -73,6 +74,7 @@ class ResourceRoutesSpec
 
   private implicit val appConfig = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
   private val iamUri             = appConfig.iam.baseUri
+  private val adminUri           = appConfig.admin.baseUri
   private implicit val clock     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   private implicit val adminClient = mock[AdminClient[Task]]
@@ -103,6 +105,14 @@ class ResourceRoutesSpec
   abstract class Context(perms: Permissions = manageRes) {
     val account = genString(length = 4)
     val project = genString(length = 4)
+    val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
+      "nxv"       -> nxv.base,
+      "nxs"       -> Schemas.base,
+      "nxc"       -> Contexts.base,
+      "resource"  -> Schemas.resourceSchemaUri,
+      "documents" -> nxv.defaultElasticIndex,
+      "graph"     -> nxv.defaultSparqlIndex
+    )
     val projectMeta = Project(
       "name",
       project,
@@ -112,22 +122,26 @@ class ResourceRoutesSpec
       deprecated = false,
       uuid
     )
-    val projectRef = ProjectRef(projectMeta.uuid)
-    val accountRef = AccountRef(uuid)
-    val genUuid    = uuid
-    val iri        = nxv.withPath(genUuid)
-    val id         = Id(projectRef, iri)
+    val accountMeta = Account("accountName", 1L, account, false, uuid)
+    val projectRef  = ProjectRef(projectMeta.uuid)
+    val accountRef  = AccountRef(uuid)
+    val genUuid     = uuid
+    val iri         = nxv.withPath(genUuid)
+    val id          = Id(projectRef, iri)
     val defaultEsView =
       ElasticView(Json.obj(), Set.empty, None, false, true, projectRef, nxv.defaultElasticIndex.value, uuid, 1L, false)
 
     val defaultSQLView = SparqlView(projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
 
-    when(cache.project(ProjectLabel(account, project)))
+    implicit val labeledProject = LabeledProject(ProjectLabel(account, project), projectMeta, accountRef)
+
+    when(cache.project(labeledProject.label))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
     when(cache.views(projectRef))
       .thenReturn(Task.pure(Set(defaultEsView, defaultSQLView): Set[IndexingView]))
     when(cache.accountRef(projectRef))
       .thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
+    when(cache.account(accountRef)).thenReturn(Task.pure(Some(accountMeta): Option[Account]))
     when(iamClient.getCaller(filterGroups = true))
       .thenReturn(Task.pure(AuthenticatedCaller(token.value, user, Set.empty)))
     when(adminClient.getProjectAcls(account, project, parents = true, self = true))
@@ -143,11 +157,12 @@ class ResourceRoutesSpec
       Json
         .obj(
           "@id"            -> Json.fromString(s"nxv:$genUuid"),
-          "_constrainedBy" -> Json.fromString(schemaRef.iri.show),
+          "_constrainedBy" -> Json.fromString(s"nxs:${schemaRef.iri.show.reverse.takeWhile(_ != '/').reverse}"),
           "_createdAt"     -> Json.fromString(clock.instant().toString),
           "_createdBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString()),
           "_deprecated"    -> Json.fromBoolean(deprecated),
           "_rev"           -> Json.fromLong(1L),
+          "_project"       -> Json.fromString(adminUri.append("projects" / account / project).toString()),
           "_updatedAt"     -> Json.fromString(clock.instant().toString),
           "_updatedBy"     -> Json.fromString(iamUri.append("realms" / user.realm / "users" / user.sub).toString())
         )
@@ -176,14 +191,18 @@ class ResourceRoutesSpec
     val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
     val schemaRef = Ref(resourceSchemaUri)
 
-    def ctxResponse: Json = response()
+    def ctxResponse: Json =
+      response() deepMerge Json.obj(
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$account/$project/resource/nxv:$genUuid"))
   }
 
   abstract class Schema(perms: Permissions = manageSchemas) extends Context(perms) {
     val schema    = jsonContentOf("/schemas/resolver.json")
     val schemaRef = Ref(shaclSchemaUri)
 
-    def schemaResponse(deprecated: Boolean = false): Json = response(deprecated)
+    def schemaResponse(deprecated: Boolean = false): Json =
+      response(deprecated) deepMerge Json.obj(
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/schemas/$account/$project/nxv:$genUuid"))
   }
 
   abstract class Resolver(perms: Permissions = manageResolver) extends Context(perms) {
@@ -194,10 +213,12 @@ class ResourceRoutesSpec
 
     def resolverResponse(): Json =
       response() deepMerge Json.obj(
-        "@type" -> Json.arr(Json.fromString("nxv:CrossProject"), Json.fromString("nxv:Resolver")))
+        "@type" -> Json.arr(Json.fromString("nxv:CrossProject"), Json.fromString("nxv:Resolver")),
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$account/$project/nxv:$genUuid")
+      )
 
     val resolverSet = Set(
-      InProjectResolver(projectRef, nxv.projects, 1L, deprecated = false, 20),
+      InProjectResolver(projectRef, nxv.deprecated, 1L, deprecated = false, 20),
       InAccountResolver(Set(nxv.Schema),
                         List(Anonymous),
                         accountRef,
@@ -242,7 +263,9 @@ class ResourceRoutesSpec
     def viewResponse(): Json =
       response() deepMerge Json.obj(
         "@type" -> Json
-          .arr(Json.fromString("nxv:View"), Json.fromString("nxv:ElasticView"), Json.fromString("nxv:Alpha")))
+          .arr(Json.fromString("nxv:View"), Json.fromString("nxv:ElasticView"), Json.fromString("nxv:Alpha")),
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/views/$account/$project/nxv:$genUuid")
+      )
   }
 
   "The routes" when {
@@ -273,11 +296,11 @@ class ResourceRoutesSpec
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list.json")
         }
         Get(s"/v1/resources/$account/$project/resolver") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list.json")
         }
       }
 
@@ -285,11 +308,11 @@ class ResourceRoutesSpec
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list-no-deprecated.json")
         }
         Get(s"/v1/resources/$account/$project/resolver?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/resolvers-list-no-deprecated.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list-no-deprecated.json")
         }
       }
     }
@@ -387,11 +410,11 @@ class ResourceRoutesSpec
         when(cache.views(projectRef)).thenReturn(Task.pure(views))
         Get(s"/v1/views/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
         }
         Get(s"/v1/resources/$account/$project/view") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
         }
       }
 
@@ -405,11 +428,11 @@ class ResourceRoutesSpec
                                true)))
         Get(s"/v1/views/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
         }
         Get(s"/v1/resources/$account/$project/view?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
         }
       }
     }
@@ -496,7 +519,9 @@ class ResourceRoutesSpec
         simpleV(id, ctx, created = identity, updated = identity, schema = schemaRef).copy(attachments = Set(at1, at2))
 
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
-      when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
+      val lb = labeledProject.copy(project = labeledProject.project.copy(
+        prefixMappings = labeledProject.project.prefixMappings ++ defaultPrefixMapping + ("base" -> nxv.projects.value)))
+      when(resources.materializeWithMeta(resource)(lb)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
 
       val replacements = Map(quote("{account}") -> account, quote("{proj}") -> project, quote("{uuid}") -> genUuid)
 

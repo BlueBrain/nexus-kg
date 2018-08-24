@@ -10,7 +10,7 @@
         "_algorithm" : "SHA-256",
         "_value" : "digest2"
       },
-      "_downloadURL" : "http://127.0.0.1:8080/resources/v1/{account}/{proj}/resource/nxv:{uuid}/attachments/filename2.txt",
+      "_downloadURL" : "http://127.0.0.1:8080/v1/resources/{account}/{proj}/resource/nxv:{uuid}/attachments/filename2.txt",
       "_mediaType" : "text/plain",
       "_originalFileName" : "filename2.txt"
     },
@@ -23,7 +23,7 @@
         "_algorithm" : "SHA-256",
         "_value" : "digest1"
       },
-      "_downloadURL" : "http://127.0.0.1:8080/resources/v1/{account}/{proj}/resource/nxv:{uuid}/attachments/filename1.txt",
+      "_downloadURL" : "http://127.0.0.1:8080/v1/resources/{account}/{proj}/resource/nxv:{uuid}/attachments/filename1.txt",
       "_mediaType" : "text/plain",
       "_originalFileName" : "filename1.txt"
     }

@@ -13,9 +13,10 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientErr
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, IamConfig, PersistenceConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
@@ -39,8 +40,8 @@ import monix.execution.Scheduler
   * @param resources the resources operations
   */
 class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resources: Resources[F])(
-    implicit config: ElasticConfig,
-    iamConfig: IamConfig,
+    implicit config: AppConfig,
+    labeledProject: LabeledProject,
     F: MonadError[F, Throwable],
     ucl: HttpClient[F, Json]) {
   private val revKey = "_rev"
@@ -79,7 +80,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
 
   private def fetchRevision(id: ResId): F[Option[Long]] =
     client
-      .get[Json](view.index, config.docType, urlEncode(id.value), include = Set(revKey))
+      .get[Json](view.index, config.elastic.docType, urlEncode(id.value), include = Set(revKey))
       .map(_.hcursor.get[Long](revKey).toOption)
       .handleError {
         case ElasticClientError(StatusCodes.NotFound, _) => None
@@ -98,7 +99,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
       else
         (res.value deepMerge asJson(metaGraph)).removeKeys("@context")
     }
-    client.create(view.index, config.docType, urlEncode(res.id.value), transformed)
+    client.create(view.index, config.elastic.docType, urlEncode(res.id.value), transformed)
   }
 
 }
@@ -108,25 +109,26 @@ object ElasticIndexer {
   /**
     * Starts the index process for an ElasticSearch client
     *
-    * @param view      the view for which to start the index
-    * @param resources the resources operations
+    * @param view           the view for which to start the index
+    * @param resources      the resources operations
+    * @param labeledProject project to which the resource belongs containing label information (account label and project label)
     */
   // $COVERAGE-OFF$
-  final def start(view: ElasticView, resources: Resources[Task])(implicit as: ActorSystem,
-                                                                 s: Scheduler,
-                                                                 config: ElasticConfig,
-                                                                 iamConfig: IamConfig,
-                                                                 persistence: PersistenceConfig): ActorRef = {
+  final def start(view: ElasticView, resources: Resources[Task], labeledProject: LabeledProject)(
+      implicit as: ActorSystem,
+      s: Scheduler,
+      config: AppConfig): ActorRef = {
     implicit val mt         = ActorMaterializer()
     implicit val ul         = HttpClient.taskHttpClient
     implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
+    implicit val lb         = labeledProject
 
-    implicit val client = ElasticClient[Task](config.base)
+    implicit val client = ElasticClient[Task](config.elastic.base)
     val indexer         = new ElasticIndexer(client, view, resources)
     SequentialTagIndexer.startLocal[Event](
       () => view.createIndex[Task].map(_ => ()).runAsync,
       (ev: Event) => indexer(ev).runAsync,
-      persistence.queryJournalPlugin,
+      config.persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",
       name = s"elastic-indexer-${view.name}"
     )

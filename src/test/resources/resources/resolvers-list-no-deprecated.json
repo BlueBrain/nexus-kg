@@ -25,10 +25,10 @@
       "_deprecated": false
     },
     {
-      "@id": "nxv:projects",
+      "@id": "nxv:deprecated",
       "@type": [
-        "InProject",
-        "Resolver"
+        "Resolver",
+        "InProject"
       ],
       "priority": 20,
       "_rev": 1,

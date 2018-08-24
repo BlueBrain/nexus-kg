@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
 import ch.epfl.bluebrain.nexus.kg.async.{DistributedCache, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -173,9 +174,9 @@ object Indexing {
                                                                        ucl: HttpClient[Task, ResultSet],
                                                                        config: AppConfig): Unit = {
 
-    def selector(view: View): ActorRef = view match {
-      case v: ElasticView => ElasticIndexer.start(v, resources)
-      case v: SparqlView  => SparqlIndexer.start(v, resources)
+    def selector(view: View, labeledProject: LabeledProject): ActorRef = view match {
+      case v: ElasticView => ElasticIndexer.start(v, resources, labeledProject)
+      case v: SparqlView  => SparqlIndexer.start(v, resources, labeledProject)
     }
 
     val coordinator = ProjectViewCoordinator.start(cache, selector, None, config.cluster.shards)

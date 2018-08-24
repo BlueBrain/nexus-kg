@@ -36,7 +36,7 @@ class ElasticDecodersSpec extends WordSpecLike with Matchers with TestResources 
         .decodeJson(elasticPayload)
         .right
         .value
-        .show shouldEqual "http://resources.nexus.com/resources/v1/bbp/testproject/test-schema:v0.1.0/test-resource:306e8f68-8419-11e8-adc0-fa7ae01bbebc"
+        .show shouldEqual "http://resources.nexus.com/v1/resources/bbp/testproject/test-schema:v0.1.0/test-resource:306e8f68-8419-11e8-adc0-fa7ae01bbebc"
 
     }
 
@@ -56,7 +56,7 @@ class ElasticDecodersSpec extends WordSpecLike with Matchers with TestResources 
         .decodeJson(elasticPayload)
         .right
         .value
-        .show shouldEqual "http://resources.nexus.com/resources/v1/bbp/testproject/test-schema/test-resource:306e8f68-8419-11e8-adc0-fa7ae01bbebc"
+        .show shouldEqual "http://resources.nexus.com/v1/resources/bbp/testproject/test-schema/test-resource:306e8f68-8419-11e8-adc0-fa7ae01bbebc"
 
     }
   }
