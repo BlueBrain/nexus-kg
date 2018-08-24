@@ -4,6 +4,8 @@ import java.nio.file.Paths
 
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
+import ch.epfl.bluebrain.nexus.rdf.Iri
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{EitherValues, Matchers, OptionValues, WordSpecLike}
 
@@ -31,7 +33,14 @@ class AppConfigSpec extends WordSpecLike with Matchers with EitherValues with Op
         "pass")
       appConfig.elastic shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
-      appConfig.kafka shouldEqual KafkaConfig("organization", "project")
+      appConfig.kafka shouldEqual KafkaConfig(
+        "organization",
+        "project",
+        Some(
+          MigrationConfig(List("instance", "context", "schema"),
+                          Iri.absolute("http://bbp-nexus.epfl.ch/staging/v0/").right.value,
+                          ProjectRef("883f8093-9420-40f5-93ca-56bca417a5c2")))
+      )
 
       implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       implicitly[ElasticConfig] shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")

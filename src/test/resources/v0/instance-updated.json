@@ -1,0 +1,67 @@
+{
+  "id": "some/trace/v1.0.0/a5b09604-1301-452c-a1a4-4a580d4b24db",
+  "rev": 5,
+  "meta": {
+    "author": {
+      "id": "https://nexus.example.com/realms/BBP/users/f:9d46ddd6-134e-44d6-aa74-456789abcdef:alice",
+      "type": "UserRef"
+    },
+    "instant": "2018-08-23T10:24:49.893Z"
+  },
+  "value": {
+    "@context": [
+      "https://nexus.example.com/contexts/neurosciencegraph/core/data/v1.0.3",
+      "https://nexus.example.com/contexts/nexus/core/resource/v0.3.0"
+    ],
+    "@id": "https://nexus.example.com/data/some/trace/v1.0.0/a5b09604-1301-452c-a1a4-4a580d4b24db",
+    "@type": [
+      "prov:Entity",
+      "nsg:Trace",
+      "nsg:StimulationTrace"
+    ],
+    "channel": "7",
+    "distribution": [
+      {
+        "downloadURL": [
+          "file:///gpfs/project/proj55/nexus/JY160302_B_1/exp_Delta_ch7_2091.ibw"
+        ],
+        "mediaType": "text/plain; charset=UTF-8",
+        "originalFileName": "exp_Delta_ch7_2091.ibw",
+        "storageType": "gpfs"
+      },
+      {
+        "@context": "https://nexus.example.com/contexts/nexus/core/distribution/v0.1.0",
+        "contentSize": {
+          "unit": "byte",
+          "value": 20796
+        },
+        "digest": {
+          "algorithm": "SHA-256",
+          "value": "e31ee7e8409980c93d339392475cd082e910db3369739fc042ff50040573c100"
+        },
+        "downloadURL": "https://nexus.example.com/data/some/trace/v1.0.0/a5b09604-1301-452c-a1a4-4a580d4b24db/attachment",
+        "mediaType": "text/plain; charset=UTF-8",
+        "originalFileName": "exp_Delta_ch7_2091.ibw"
+      }
+    ],
+    "name": "exp_Delta_ch7_2091.ibw",
+    "qualifiedGeneration": {
+      "@id": "https://nexus.example.com/data/some/tracegeneration/v1.0.0/d5fd0e81-eca7-4ac1-aef8-3aec14e571ce",
+      "@type": "nsg:TraceGeneration"
+    },
+    "wasGeneratedBy": {
+      "@id": "https://nexus.example.com/data/experiment/v0.1.0/45905102-74df-4507-b372-7060b15f45af",
+      "@type": "nsg:Experiment"
+    },
+    "nxv:rev": 4,
+    "nxv:deprecated": false,
+    "links": {
+      "@context": "https://nexus.example.com/contexts/nexus/core/links/v0.2.0",
+      "incoming": "https://nexus.example.com/data/some/trace/v1.0.0/a5b09604-1301-452c-a1a4-4a580d4b24db/incoming",
+      "outgoing": "https://nexus.example.com/data/some/trace/v1.0.0/a5b09604-1301-452c-a1a4-4a580d4b24db/outgoing",
+      "schema": "https://nexus.example.com/schemas/some/trace/v1.0.0",
+      "self": "https://nexus.example.com/data/some/trace/v1.0.0/a5b09604-1301-452c-a1a4-4a580d4b24db"
+    }
+  },
+  "type": "InstanceUpdated"
+}

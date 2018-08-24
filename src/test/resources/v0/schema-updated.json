@@ -1,0 +1,53 @@
+{
+  "id": "some/sim/tool/v0.1.2",
+  "rev": 2,
+  "meta": {
+    "author": {
+      "id": "https://nexus.example.com/realms/BBP/users/f:9d46ddd6-134e-44d6-aa74-0123456789ab:bob",
+      "type": "UserRef"
+    },
+    "instant": "2018-08-22T14:58:28.838Z"
+  },
+  "value": {
+    "@context": [
+      "https://nexus.example.com/contexts/neurosciencegraph/core/schema/v0.1.0",
+      {
+        "this": "https://nexus.example.com/schemas/some/sim/tool/v0.1.2/shapes/"
+      },
+      "https://nexus.example.com/contexts/nexus/core/resource/v0.3.0"
+    ],
+    "@id": "https://nexus.example.com/schemas/some/sim/tool/v0.1.2",
+    "@type": "nxv:Schema",
+    "imports": [
+      "https://nexus.example.com/schemas/neurosciencegraph/commons/entity/v0.1.0"
+    ],
+    "links": {
+      "@context": "https://nexus.example.com/contexts/nexus/core/links/v0.2.0",
+      "self": "https://nexus.example.com/schemas/some/sim/tool/v0.1.2"
+    },
+    "nxv:deprecated": false,
+    "nxv:published": true,
+    "nxv:rev": 1,
+    "shapes": [
+      {
+        "@id": "this:ToolOptRun",
+        "@type": "sh:NodeShape",
+        "and": [
+          {
+            "node": "https://nexus.example.com/schemas/neurosciencegraph/commons/entity/v0.1.0/shapes/EntityShape"
+          },
+          {
+            "nodeKind": "sh:BlankNode",
+            "path": "nsg:gitHash",
+            "minCount": 1
+          }
+        ],
+        "comment": "",
+        "label": "run",
+        "nodekind": "sh:BlankNodeOrIRI",
+        "targetClass": "nsg:Configuration"
+      }
+    ]
+  },
+  "type": "SchemaUpdated"
+}

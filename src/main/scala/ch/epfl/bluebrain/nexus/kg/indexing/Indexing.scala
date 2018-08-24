@@ -156,6 +156,12 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
     ViewIndexer.start(resources, cache)
     ()
   }
+
+  def startMigrationStreams(): Unit = {
+    config.kafka.migration.foreach { migration =>
+      MigrationIndexer.start(resources.repo, migration.topics, migration.baseUri, migration.projectRef)
+    }
+  }
 }
 
 object Indexing {
@@ -170,7 +176,7 @@ object Indexing {
     * </ul>
     *
     * @param resources the resources operations
-    * @param cache the distributed cache
+    * @param cache     the distributed cache
     */
   def start(resources: Resources[Task], cache: DistributedCache[Task])(implicit as: ActorSystem,
                                                                        ucl: HttpClient[Task, ResultSet],
