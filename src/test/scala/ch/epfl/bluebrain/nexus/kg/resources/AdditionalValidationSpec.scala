@@ -67,7 +67,7 @@ class AdditionalValidationSpec
       "pass always" in {
         val validation = AdditionalValidation.pass[CId]
         val resource   = simpleV(id, Json.obj(), types = Set(nxv.Resource.value) + nxv.InProject)
-        validation(id, Ref(resourceSchemaUri), Set(nxv.Resource.value), resource.value).value.right.value shouldEqual resource.value
+        validation(id, Ref(resourceSchemaUri), Set(nxv.Resource.value), resource.value, 1L).value.right.value shouldEqual resource.value
       }
     }
 
@@ -82,28 +82,28 @@ class AdditionalValidationSpec
                                 (GroupRef("ldap2", "bbp-ou-neuroinformatics"), "c" / "d", perms)))
         val validation = AdditionalValidation.resolver[CId](acls, accountRef, labelResol)
         val resource   = simpleV(id, crossProject, types = types)
-        validation(id, schema, types, resource.value).value.left.value shouldBe a[InvalidIdentity]
+        validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[InvalidIdentity]
       }
 
       "fail when the payload cannot be serialized" in {
         val acls: Option[FullAccessControlList] = Some(FullAccessControlList((Anonymous, "a" / "b", perms)))
         val validation                          = AdditionalValidation.resolver[CId](acls, accountRef, labelResol)
         val resource                            = simpleV(id, crossProject, types = Set(nxv.Resolver))
-        validation(id, schema, Set(nxv.Resolver), resource.value).value.left.value shouldBe a[InvalidPayload]
+        validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.left.value shouldBe a[InvalidPayload]
       }
 
       "fail when projects cannot be converted to account and project label" in {
         val crossProjectNoLabel = jsonContentOf("/resolve/cross-project-no-label.json").appendContextOf(resolverCtx)
         val validation          = AdditionalValidation.resolver[CId](matchingAcls, accountRef, labelResol)
         val resource            = simpleV(id, crossProjectNoLabel, types = types)
-        validation(id, schema, types, resource.value).value.left.value shouldBe a[InvalidPayload]
+        validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[InvalidPayload]
       }
 
       "fail when project not found in cache" in {
         val notFoundResol: ProjectLabel => CId[Option[ProjectRef]] = _ => None
         val validation                                             = AdditionalValidation.resolver[CId](matchingAcls, accountRef, notFoundResol)
         val resource                                               = simpleV(id, crossProject, types = types)
-        validation(id, schema, types, resource.value).value.left.value shouldBe a[ProjectNotFound]
+        validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[ProjectNotFound]
 
       }
 
@@ -111,60 +111,56 @@ class AdditionalValidationSpec
         val validation = AdditionalValidation.resolver[CId](matchingAcls, accountRef, labelResol)
         val resource   = simpleV(id, crossProject, types = types)
         val expected   = jsonContentOf("/resolve/cross-project-modified.json")
-        validation(id, schema, types, resource.value).value.right.value.source should equalIgnoreArrayOrder(expected)
+        validation(id, schema, types, resource.value, 1L).value.right.value.source should equalIgnoreArrayOrder(
+          expected)
       }
     }
 
     "applied to views" should {
-      val schema                  = Ref(viewSchemaUri)
-      val elasticView             = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
-      val elasticViewWrongMapping = jsonContentOf("/view/elasticview-wrong-mapping.json").appendContextOf(viewCtx)
-      val sparqlView              = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-      val types                   = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
-      val mappings = Json.obj(
-        "mappings" -> Json.obj(config.docType -> elasticView.hcursor.get[String]("mapping").flatMap(parse).right.value))
-      val F     = catsStdInstancesForTry
-      val index = s"kg_${projectRef.id}_3aa14a1a-81e7-4147-8306-136d8270bb01_1"
+      val schema           = Ref(viewSchemaUri)
+      val elasticView      = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+      val sparqlView       = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
+      val types            = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
+      val mappings         = elasticView.hcursor.get[String]("mapping").flatMap(parse).right.value
+      val F                = catsStdInstancesForTry
+      def index(rev: Long) = s"kg_${projectRef.id}_3aa14a1a-81e7-4147-8306-136d8270bb01_$rev"
+
+      "fail when the index cerating throws an error for an ElasticView" in {
+        val idx        = index(1L)
+        val validation = AdditionalValidation.view[Try]
+        val resource   = simpleV(id, elasticView, types = types)
+        when(elastic.createIndex(idx))
+          .thenReturn(F.raiseError(new ElasticServerError(StatusCodes.BadRequest, "Error on creation...")))
+        validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidPayload]
+      }
 
       "fail when the mappings are wrong for an ElasticView" in {
+        val idx        = index(1L)
         val validation = AdditionalValidation.view[Try]
         val resource   = simpleV(id, elasticView, types = types)
-        when(elastic.createIndex(index, mappings))
-          .thenReturn(F.raiseError(new ElasticServerError(StatusCodes.BadRequest, "Failed to parse mapping...")))
+        when(elastic.createIndex(idx)).thenReturn(Try(true))
+        when(elastic.updateMapping(idx, config.docType, mappings))
+          .thenReturn(F.raiseError(new ElasticServerError(StatusCodes.BadRequest, "Error on mappings...")))
 
-        validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[InvalidPayload]
+        validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidPayload]
       }
 
-      "fail when validation of elasticsearch mappings that contains invalid keys" in {
-        val validation = AdditionalValidation.view[Try]
-        val resource   = simpleV(id, elasticViewWrongMapping, types = types)
-
-        validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[InvalidPayload]
-      }
-
-      "fail when the creation of the elasticsearch index throws an unexpected error for an ElasticView" in {
+      "fail when the elasticSearch mappings cannot be applied because the index does not exists for an ElasticView" in {
         val validation = AdditionalValidation.view[Try]
         val resource   = simpleV(id, elasticView, types = types)
-        when(elastic.createIndex(index, mappings))
-          .thenReturn(F.raiseError(new RuntimeException("Failed to parse mapping...")))
-
-        validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[Unexpected]
-      }
-
-      "fail when the elasticSearch index already exists for an ElasticView" in {
-        val validation = AdditionalValidation.view[Try]
-        val resource   = simpleV(id, elasticView, types = types)
-        when(elastic.createIndex(index, mappings)).thenReturn(Try(false))
-
-        validation(id, schema, types, resource.value).value.success.value.left.value shouldBe a[Unexpected]
+        val idx        = index(3L)
+        when(elastic.createIndex(idx)).thenReturn(Try(true))
+        when(elastic.updateMapping(idx, config.docType, mappings)).thenReturn(Try(false))
+        validation(id, schema, types, resource.value, 3L).value.success.value.left.value shouldBe a[Unexpected]
       }
 
       "pass when the mappings are correct for an ElasticView" in {
         val validation = AdditionalValidation.view[Try]
-        val resource   = simpleV(id, elasticView, types = types)
-        when(elastic.createIndex(index, mappings)).thenReturn(Try(true))
-
-        validation(id, schema, types, resource.value).value.success.value.right.value shouldEqual resource.value
+        val resource   = simpleV(id, elasticView, types = types, rev = 2L)
+        val idx        = index(2L)
+        when(elastic.createIndex(idx)).thenReturn(Try(true))
+        when(elastic.updateMapping(idx, config.docType, mappings)).thenReturn(Try(true))
+        validation(id, schema, types, resource.value, 2L).value.success.value.right.value shouldEqual resource.value
       }
 
       "pass when it is an SparqlView" in {
@@ -172,7 +168,7 @@ class AdditionalValidationSpec
         val types      = Set[AbsoluteIri](nxv.SparqlView.value, nxv.View, nxv.Alpha)
         val resource   = simpleV(id, sparqlView, types = types)
 
-        validation(id, schema, types, resource.value).value.success.value.right.value shouldEqual resource.value
+        validation(id, schema, types, resource.value, 1L).value.success.value.right.value shouldEqual resource.value
       }
     }
   }

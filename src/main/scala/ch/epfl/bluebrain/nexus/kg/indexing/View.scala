@@ -59,7 +59,6 @@ sealed trait View extends Product with Serializable {
 }
 
 object View {
-  private val allowedMappingKeys: Set[String] = Set("dynamic_templates", "properties", "dynamic")
 
   private implicit class NodeEncoderResultSyntax[A](private val enc: NodeEncoder.EncoderResult[A]) extends AnyVal {
     def toInvalidPayloadEither(ref: Ref): Either[Rejection, A] =
@@ -77,16 +76,12 @@ object View {
     val c          = res.value.graph.cursor(res.id.value)
     val uuidEither = c.downField(nxv.uuid).focus.as[UUID]
 
-    def validMapping(mapping: Json): Boolean =
-      mapping.asObject.map(_.keys.toSet.subsetOf(allowedMappingKeys)).getOrElse(false)
-
     def elastic(): Either[Rejection, View] =
       // format: off
       for {
         uuid          <- uuidEither.toInvalidPayloadEither(res.id.ref)
         mappingStr    <- c.downField(nxv.mapping).focus.as[String].toInvalidPayloadEither(res.id.ref)
         mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidPayload(res.id.ref, "mappings cannot be parsed into Json"))
-        _             <- if (validMapping(mapping)) Right(()) else Left(InvalidPayload(res.id.ref, s"mappings should only contain some of the following keys: '${allowedMappingKeys.mkString(", ")}'"))
         schemas       = c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].map(_.toSet).getOrElse(Set.empty)
         tag           = c.downField(nxv.resourceTag).focus.as[String].toOption
         includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
@@ -153,7 +148,8 @@ object View {
                           config: ElasticConfig,
                           F: MonadError[F, Throwable]): F[Either[Rejection, Unit]] =
       elastic
-        .createIndex(index, Json.obj("mappings" -> Json.obj(config.docType -> mapping)))
+        .createIndex(index)
+        .flatMap(_ => elastic.updateMapping(index, config.docType, mapping))
         .map[Either[Rejection, Unit]] {
           case true  => Right(())
           case false => Left(Unexpected("View mapping validation could not be performed"))
