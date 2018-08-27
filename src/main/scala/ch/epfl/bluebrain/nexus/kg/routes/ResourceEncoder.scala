@@ -1,7 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{HttpConfig, IamConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
@@ -19,11 +20,6 @@ import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import io.circe.{Encoder, Json}
 
 object ResourceEncoder {
-
-  private implicit def graphEncoderResourceF(implicit iamConfig: IamConfig): GraphEncoder[Resource] = GraphEncoder {
-    res =>
-      IriNode(res.id.value) -> (res.metadata ++ res.typeGraph)
-  }
 
   private implicit def graphEncoderResourceV(implicit http: HttpConfig,
                                              wrapped: LabeledProject): GraphEncoder[ResourceV] =
@@ -49,8 +45,14 @@ object ResourceEncoder {
       id -> (res.value.graph ++ Graph(res.attachments.flatMap(triplesFor)))
     }
 
-  implicit def resourceEncoder(implicit iamConfig: IamConfig): Encoder[Resource] = Encoder.encodeJson.contramap { res =>
-    res.asJson(resourceCtx).removeKeys("@context").addContext(resourceCtxUri)
+  implicit def resourceEncoder(implicit config: AppConfig, wrapped: LabeledProject): Encoder[Resource] = {
+    implicit def encoderGraph: GraphEncoder[Resource] = GraphEncoder { res =>
+      IriNode(res.id.value) -> (res.metadata ++ res.typeGraph)
+    }
+
+    Encoder.encodeJson.contramap { res =>
+      res.asJson(resourceCtx).removeKeys("@context").addContext(resourceCtxUri)
+    }
   }
 
   implicit def resourceVEncoder(implicit http: HttpConfig, wrapped: LabeledProject): Encoder[ResourceV] =

@@ -7,10 +7,11 @@ import akka.cluster.Cluster
 import akka.testkit.{DefaultTimeout, TestKit, TestProbe}
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
-import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectRef}
-import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
@@ -36,29 +37,32 @@ class ProjectViewCoordinatorSpec
 
   private def genUUID = java.util.UUID.randomUUID.toString
 
-  private val base = Iri.absolute("https://nexus.example.com").getOrElse(fail)
+  private val base = url"https://nexus.example.com".value
 
   private val cache = DistributedCache.task()
 
   "A ProjectViewCoordinator" should {
     "create and kill child actors when views change" in {
-      val projUUID   = genUUID
-      val accUUID    = genUUID
-      val viewUUID   = genUUID
-      val projectRef = ProjectRef(projUUID)
-      val accountRef = AccountRef(accUUID)
-      val project    = Project("some-project", "some-label-proj", Map.empty, base, 1L, deprecated = false, projUUID)
-      val account    = Account("some-org", 1L, "some-label", deprecated = false, accUUID)
-      val viewId     = base + "projects/some-project/search"
-      val view       = SparqlView(projectRef, viewId, viewUUID, 1L, deprecated = false)
-      val counter    = new AtomicInteger(0)
-      val childActor = system.actorOf(Props(new DummyActor))
-      val probe      = TestProbe()
+      val projUUID       = genUUID
+      val accUUID        = genUUID
+      val viewUUID       = genUUID
+      val projectRef     = ProjectRef(projUUID)
+      val accountRef     = AccountRef(accUUID)
+      val project        = Project("some-project", "some-label-proj", Map.empty, base, 1L, deprecated = false, projUUID)
+      val account        = Account("some-org", 1L, "some-label", deprecated = false, accUUID)
+      val viewId         = base + "projects/some-project/search"
+      val view           = SparqlView(projectRef, viewId, viewUUID, 1L, deprecated = false)
+      val counter        = new AtomicInteger(0)
+      val childActor     = system.actorOf(Props(new DummyActor))
+      val probe          = TestProbe()
+      val labeledProject = LabeledProject(ProjectLabel(account.label, project.label), project, accountRef)
+
       probe watch childActor
 
-      def selector(view: View): ActorRef = view match {
+      def selector(view: View, lp: LabeledProject): ActorRef = view match {
         case v: SparqlView =>
-          v shouldEqual view
+          if (lp == labeledProject)
+            v shouldEqual view
           counter.incrementAndGet()
           childActor
         case _ => fail()

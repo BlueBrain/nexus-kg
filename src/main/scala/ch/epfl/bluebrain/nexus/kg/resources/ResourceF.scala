@@ -4,9 +4,11 @@ import java.time.{Clock, Instant}
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
@@ -72,7 +74,8 @@ final case class ResourceF[P, S, A](
   /**
     * Computes the metadata graph for this resource.
     */
-  def metadata(implicit ev: S =:= Ref, iamConfig: IamConfig): Graph =
+  def metadata(implicit config: AppConfig, wrapped: LabeledProject, ev: S =:= Ref): Graph = {
+    val schemaIri = ev(schema).iri
     Graph(
       Set[Triple](
         (node, nxv.rev, rev),
@@ -81,8 +84,11 @@ final case class ResourceF[P, S, A](
         (node, nxv.updatedAt, updated),
         (node, nxv.createdBy, createdBy.id),
         (node, nxv.updatedBy, updatedBy.id),
-        (node, nxv.constrainedBy, ev(schema).iri)
+        (node, nxv.constrainedBy, schemaIri),
+        (node, nxv.project, wrapped.label.projectAccessId),
+        (node, nxv.self, AccessId(id.value, schemaIri))
       ))
+  }
 
   /**
     * The type graph of this resource.

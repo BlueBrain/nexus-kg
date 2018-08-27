@@ -179,7 +179,9 @@ object AppConfig {
       "resultId",
       "score",
       "",
+      "_self",
       "_constrainedBy",
+      "_project",
       "_createdAt",
       "_createdBy",
       "_updatedAt",
@@ -196,5 +198,6 @@ object AppConfig {
   implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig   = appConfig.pagination
   implicit def toHttp(implicit appConfig: AppConfig): HttpConfig               = appConfig.http
   implicit def toIam(implicit appConfig: AppConfig): IamConfig                 = appConfig.iam
+  implicit def toAdmin(implicit appConfig: AppConfig): AdminConfig             = appConfig.admin
 
 }

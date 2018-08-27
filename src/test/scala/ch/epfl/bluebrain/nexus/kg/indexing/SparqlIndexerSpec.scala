@@ -9,10 +9,13 @@ import akka.testkit.TestKit
 import cats.data.{EitherT, OptionT}
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -38,15 +41,22 @@ class SparqlIndexerSpec
     with MockitoSugar
     with ScalaFutures
     with test.Resources
-    with BeforeAndAfter {
+    with BeforeAndAfter
+    with TestHelper {
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 0.3 seconds)
 
   import system.dispatcher
 
-  private val resources = mock[Resources[Future]]
-  private val client    = mock[SparqlClient[Future]]
-  private val indexer   = new SparqlIndexer(client, resources)
+  private val resources  = mock[Resources[Future]]
+  private val client     = mock[SparqlClient[Future]]
+  private val projectRef = ProjectRef(uuid)
+  private val accountRef = AccountRef(uuid)
+  private val project =
+    Project("some-project", "some-label-proj", Map.empty, nxv.project.value, 1L, deprecated = false, projectRef.id)
+  private val account                 = Account("some-org", 1L, "some-label", deprecated = false, accountRef.id)
+  private implicit val labeledProject = LabeledProject(ProjectLabel(account.label, project.label), project, accountRef)
+  private val indexer                 = new SparqlIndexer(client, resources)
 
   before {
     Mockito.reset(resources)
@@ -87,7 +97,7 @@ class SparqlIndexerSpec
       val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
       when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
       when(client.queryRs(queryId)).thenReturn(Future.successful(queryEmptyResp))
-      when(resources.materialize(res)).thenReturn(EitherT.rightT[Future, Rejection](
+      when(resources.materializeWithMeta(res)).thenReturn(EitherT.rightT[Future, Rejection](
         ResourceF.simpleV(id, ResourceF.Value(json, json.contextValue, Graph()), 2L, schema = schema)))
 
       when(client.replace(id.value + "graph", Graph())).thenReturn(Future.successful(()))
@@ -102,7 +112,7 @@ class SparqlIndexerSpec
       when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
       when(client.queryRs(queryId)).thenReturn(Future.successful(queryResp(1L)))
 
-      when(resources.materialize(res)).thenReturn(EitherT.rightT[Future, Rejection](
+      when(resources.materializeWithMeta(res)).thenReturn(EitherT.rightT[Future, Rejection](
         ResourceF.simpleV(id, ResourceF.Value(json, json.contextValue, Graph()), 2L, schema = schema)))
 
       when(client.replace(id.value + "graph", Graph())).thenReturn(Future.successful(()))

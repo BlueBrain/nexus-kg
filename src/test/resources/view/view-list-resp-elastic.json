@@ -4,14 +4,14 @@
     "https://bluebrain.github.io/nexus/contexts/resource",
     "https://bluebrain.github.io/nexus/contexts/view"
   ],
-  "total": 2,
+  "total": 1,
   "results": [
     {
       "@id": "http://example.com/id",
       "@type": [
-        "Alpha",
         "View",
-        "ElasticView"
+        "ElasticView",
+        "Alpha"
       ],
       "mapping": {
         "properties": {
@@ -62,16 +62,6 @@
       "resourceTag": "one",
       "sourceAsText": true,
       "uuid": "3aa14a1a-81e7-4147-8306-136d8270bb01",
-      "_deprecated": false,
-      "_rev": 1
-    },
-    {
-      "@id": "http://example.com/id2",
-      "@type": [
-        "SparqlView",
-        "View"
-      ],
-      "uuid": "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1",
       "_deprecated": false,
       "_rev": 1
     }

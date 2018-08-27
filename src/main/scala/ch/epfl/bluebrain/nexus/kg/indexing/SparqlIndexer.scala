@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{PersistenceConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -23,8 +24,8 @@ import monix.eval.Task
 import monix.execution.Scheduler
 import org.apache.jena.query.ResultSet
 
-import scala.util.Try
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 /**
   * Indexer which takes a resource event and calls SPARQL client with relevant update if required
@@ -33,7 +34,8 @@ import scala.collection.JavaConverters._
   * @param resources the resources operations
   */
 private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[F])(
-    implicit F: MonadError[F, Throwable]) {
+    implicit F: MonadError[F, Throwable],
+    labeledProject: LabeledProject) {
 
   /**
     * When an event is received, the current state is obtained.
@@ -66,7 +68,7 @@ private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[
     }
 
   private def indexResource(res: Resource): F[Unit] =
-    resources.materialize(res).value.flatMap {
+    resources.materializeWithMeta(res).value.flatMap {
       case Left(err) => F.raiseError(err)
       case Right(r)  => client.replace(res.id, r.value.graph)
     }
@@ -79,19 +81,23 @@ object SparqlIndexer {
   /**
     * Starts the index process for an sparql client
     *
-    * @param view      the view for which to start the index
-    * @param resources the resources operations
+    * @param view           the view for which to start the index
+    * @param resources      the resources operations
+    * @param labeledProject project to which the resource belongs containing label information (account label and project label)
     */
   // $COVERAGE-OFF$
-  final def start(view: SparqlView, resources: Resources[Task])(implicit
-                                                                as: ActorSystem,
-                                                                s: Scheduler,
-                                                                ucl: HttpClient[Task, ResultSet],
-                                                                config: SparqlConfig,
-                                                                persistence: PersistenceConfig): ActorRef = {
+  final def start(view: SparqlView, resources: Resources[Task], labeledProject: LabeledProject)(
+      implicit
+      as: ActorSystem,
+      s: Scheduler,
+      ucl: HttpClient[Task, ResultSet],
+      config: SparqlConfig,
+      persistence: PersistenceConfig): ActorRef = {
 
     implicit val mt = ActorMaterializer()
     implicit val ul = HttpClient.taskHttpClient
+    implicit val lb = labeledProject
+
     val properties: Map[String, String] = {
       val props = new Properties()
       props.load(getClass.getResourceAsStream("/blazegraph/index.properties"))

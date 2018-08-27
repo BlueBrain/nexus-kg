@@ -11,6 +11,7 @@ import akka.testkit.TestKit
 import cats.data.OptionT
 import cats.instances.future._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -18,6 +19,7 @@ import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
@@ -46,7 +48,7 @@ class ElasticIndexerSpec
     with BeforeAndAfter
     with TestHelper {
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 0.3 seconds)
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(5 seconds, 0.3 seconds)
 
   import system.dispatcher
 
@@ -54,6 +56,15 @@ class ElasticIndexerSpec
   private val client             = mock[ElasticClient[Future]]
   private implicit val rs        = mock[HttpClient[Future, Json]]
   private implicit val appConfig = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
+  val label                      = ProjectLabel("bbp", "core")
+  val projectMeta = Project("name",
+                            "core",
+                            Map("ex" -> url"https://bbp.epfl.ch/nexus/data/".value, "resource" -> nxv.Resource.value),
+                            nxv.projects.value,
+                            1L,
+                            false,
+                            "uuid")
+  private implicit val labeledProject = LabeledProject(label, projectMeta, AccountRef("uuid"))
 
   before {
     Mockito.reset(resources)
@@ -119,6 +130,8 @@ class ElasticIndexerSpec
             "_createdBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString()),
             "_deprecated"      -> Json.fromBoolean(false),
             "_rev"             -> Json.fromLong(2L),
+            "_self"            -> Json.fromString("http://127.0.0.1:8080/v1/resources/bbp/core/ex:schemaName/ex:resourceName"),
+            "_project"         -> Json.fromString("http://localhost:8080/admin/projects/bbp/core"),
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
           )
@@ -143,6 +156,8 @@ class ElasticIndexerSpec
             "_createdBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString()),
             "_deprecated"      -> Json.fromBoolean(false),
             "_rev"             -> Json.fromLong(2L),
+            "_self"            -> Json.fromString("http://127.0.0.1:8080/v1/resources/bbp/core/ex:schemaName/ex:resourceName"),
+            "_project"         -> Json.fromString("http://localhost:8080/admin/projects/bbp/core"),
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
           )
@@ -190,6 +205,8 @@ class ElasticIndexerSpec
             "_createdAt"       -> Json.fromString(instantString),
             "_createdBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString()),
             "_deprecated"      -> Json.fromBoolean(false),
+            "_self"            -> Json.fromString("http://127.0.0.1:8080/v1/resources/bbp/core/resource/ex:resourceName"),
+            "_project"         -> Json.fromString("http://localhost:8080/admin/projects/bbp/core"),
             "_rev"             -> Json.fromLong(2L),
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())

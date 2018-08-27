@@ -43,13 +43,13 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors {
       val list = List(
         (url"http://example.com/a".value,
          shaclSchemaUri,
-         s"http://resources.nexus.com/schemas/v1/bbp/core/${urlEncode("http://example.com/a")}"),
+         s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"),
         (url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
          resourceSchemaUri,
-         s"http://resources.nexus.com/resources/v1/bbp/core/resource/test-schema:a"),
+         s"http://resources.nexus.com/v1/resources/bbp/core/resource/test-schema:a"),
         (url"${Schemas.base.asString}b".value,
          url"http://example.com/a".value,
-         s"http://resources.nexus.com/resources/v1/bbp/core/${urlEncode("http://example.com/a")}/nxs:b")
+         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:b")
       )
       forAll(list) {
         case (id, schemaId, result) => AccessId(id, schemaId).asString shouldEqual result
