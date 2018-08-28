@@ -55,16 +55,17 @@ class ProjectViewCoordinator(cache: DistributedCache[Task], selector: (View, Lab
   def init(): Unit = {
     log.debug("Initializing")
 
-    replicator ! Subscribe(account, self)
-    replicator ! Subscribe(project, self)
-    replicator ! Subscribe(view, self)
-
     val start = for {
       account <- cache.account(accountRef).retryWhenNot { case Some(ac) => ac }
       proj    <- cache.project(projectRef).retryWhenNot { case Some(ac) => ac }
       vs      <- cache.views(projectRef)
     } yield Start(account, LabeledProject(ProjectLabel(account.label, proj.label), proj, accountRef), vs)
-    val _ = start.runAsync pipeTo self
+    val _ = start.map { msg =>
+      replicator ! Subscribe(account, self)
+      replicator ! Subscribe(project, self)
+      replicator ! Subscribe(view, self)
+      msg
+    }.runAsync pipeTo self
   }
 
   def receive: Receive = {

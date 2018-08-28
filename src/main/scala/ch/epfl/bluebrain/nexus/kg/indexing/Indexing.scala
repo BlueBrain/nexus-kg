@@ -34,6 +34,9 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
 
   private val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
+  private val elasticUUID = "684bd815-9273-46f4-ac1c-0383d4a98254"
+  private val sparqlUUID  = "d88b71d2-b8a4-4744-bf22-2d99ef5bd26b"
+
   private val defaultEsMapping =
     jsonContentOf("/elastic/mapping.json", Map(quote("{{docType}}") -> config.elastic.docType))
 
@@ -100,7 +103,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                       sourceAsText = true,
                       ProjectRef(uuid),
                       nxv.defaultElasticIndex.value,
-                      UUID.randomUUID().toString,
+                      elasticUUID,
                       1L,
                       deprecated = false
                     ),
@@ -111,7 +114,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                     SparqlView(
                       ProjectRef(uuid),
                       nxv.defaultSparqlIndex.value,
-                      UUID.randomUUID().toString,
+                      sparqlUUID,
                       1L,
                       deprecated = false
                     ),
