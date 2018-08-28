@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import java.util.UUID
 import java.util.regex.Pattern.quote
 
 import akka.actor.{ActorRef, ActorSystem}
