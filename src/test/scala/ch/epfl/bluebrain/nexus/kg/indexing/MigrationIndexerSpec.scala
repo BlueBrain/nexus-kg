@@ -41,7 +41,7 @@ class MigrationIndexerSpec
   private val base           = Iri.absolute("https://nexus.example.com").right.value
   private val resource       = ResourceF.simpleF(Id(projectRef, base + "some-id"), Json.obj())(Clock.systemUTC)
   private val success        = EitherT.right[Rejection](Task(resource))
-  private val indexer        = new MigrationIndexer(repo, List.empty, base, projectRef)(as)
+  private val indexer        = new MigrationIndexer(repo, "topic", base, projectRef)(as)
 
   before {
     Mockito.reset(repo)
