@@ -63,9 +63,11 @@ private[indexing] class MigrationIndexer(repo: Repo[Task], topic: String, base: 
         repo
           .get(toId(id))
           .toRight(NotFound(toId(event.id).ref))
-          .flatMap { res => // v0 instances can have only one attachment
-            if (res.attachments.size == 1) repo.unattach(res.id, rev, res.attachments.head.filename, meta.instant)
-            else EitherT.fromEither[Task](Left(UnexpectedState(res.id.ref)))
+          .flatMap { res =>
+            res.attachments.toList match { // v0 instances can have only one attachment
+              case head :: Nil => repo.unattach(res.id, rev, head.filename, meta.instant)
+              case _           => EitherT.fromEither[Task](Left(UnexpectedState(res.id.ref)))
+            }
           }
 
       case _: ContextPublished | _: SchemaPublished =>
