@@ -53,8 +53,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
   type RejOrResourceV = EitherT[F, Rejection, ResourceV]
   type RejOrResource  = EitherT[F, Rejection, Resource]
   type OptResource    = OptionT[F, Resource]
-  type IriResults     = QueryResults[AbsoluteIri]
-  type IriResultsF    = F[QueryResults[AbsoluteIri]]
+  type JsonResults    = QueryResults[Json]
 
   /**
     * Creates a new resource attempting to extract the id from the source. If a primary node of the resulting graph
@@ -298,8 +297,8 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     * @return search results in the F context
     */
   def list(views: Set[View], deprecated: Option[Boolean], pagination: Pagination)(
-      implicit tc: HttpClient[F, IriResults],
-      elastic: ElasticClient[F]): IriResultsF =
+      implicit tc: HttpClient[F, JsonResults],
+      elastic: ElasticClient[F]): F[JsonResults] =
     list(views, deprecated, None, pagination)
 
   /**
@@ -312,8 +311,8 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     * @return               search results in the F context
     */
   def list(views: Set[View], deprecated: Option[Boolean], schema: AbsoluteIri, pagination: Pagination)(
-      implicit tc: HttpClient[F, QueryResults[AbsoluteIri]],
-      elastic: ElasticClient[F]): F[QueryResults[AbsoluteIri]] =
+      implicit tc: HttpClient[F, JsonResults],
+      elastic: ElasticClient[F]): F[JsonResults] =
     list(views, deprecated, Some(schema), pagination)
 
   /**
@@ -326,8 +325,8 @@ abstract class Resources[F[_]](implicit F: Monad[F],
     * @return search results in the F context
     */
   private def list(views: Set[View], deprecated: Option[Boolean], schema: Option[AbsoluteIri], pagination: Pagination)(
-      implicit tc: HttpClient[F, IriResults],
-      elastic: ElasticClient[F]): IriResultsF =
+      implicit tc: HttpClient[F, JsonResults],
+      elastic: ElasticClient[F]): F[JsonResults] =
     views.collectFirst { case v: ElasticView if v.id == nxv.defaultElasticIndex.value => v } match {
       case Some(view) =>
         elastic.search(QueryBuilder.queryFor(deprecated, schema), Set(view.index))(pagination)

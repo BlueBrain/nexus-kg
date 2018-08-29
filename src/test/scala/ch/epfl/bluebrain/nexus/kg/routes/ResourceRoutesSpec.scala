@@ -173,16 +173,12 @@ class ResourceRoutesSpec
         Json.fromString("https://bluebrain.github.io/nexus/contexts/search"),
         Json.fromString("https://bluebrain.github.io/nexus/contexts/resource")
       ),
-      "total" -> Json.fromInt(5),
-      "results" -> Json.arr(
-        (1 to 5).map(
-          i =>
-            Json.obj(
-              "resultId" -> Json.fromString(appConfig.http.publicUri
-                .copy(
-                  path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")
-                .toString)
-          )): _*
+      "_total" -> Json.fromInt(5),
+      "_results" -> Json.arr(
+        (1 to 5).map(i => {
+          val id = appConfig.http.publicUri.append("resources" / account / project / "resource" / s"resource:$i")
+          jsonContentOf("/resources/es-metadata.json", Map(quote("{id}") -> id.toString()))
+        }): _*
       )
     )
   }
@@ -462,20 +458,25 @@ class ResourceRoutesSpec
         }
       }
 
+      def metadata(account: String, project: String, i: Int): Json = {
+        val id = url"${appConfig.http.publicUri.copy(
+          path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")}".value
+        jsonContentOf("/resources/es-metadata.json", Map(quote("{id}") -> id.asString)) deepMerge Json.obj(
+          "_original_source" -> Json.fromString(Json.obj("k" -> Json.fromInt(1)).noSpaces))
+      }
+
       "list resources constrained by a schema" in new Ctx {
-        def reprId(i: Int): AbsoluteIri =
-          url"${appConfig.http.publicUri.copy(
-            path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")}".value
 
         when(
           resources.list(mEq(Set(defaultEsView, defaultSQLView)),
                          mEq(None),
                          mEq(resourceSchemaUri),
                          mEq(Pagination(0, 20)))(
-            isA[HttpClient[Task, QueryResults[AbsoluteIri]]],
+            isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
           )
-        ).thenReturn(Task.pure(UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(reprId(i))))))
+        ).thenReturn(Task.pure(
+          UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(account, project, i))))))
         Get(s"/v1/resources/$account/$project/resource") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
@@ -483,16 +484,13 @@ class ResourceRoutesSpec
       }
 
       "list resources" in new Ctx {
-        def reprId(i: Int): AbsoluteIri =
-          url"${appConfig.http.publicUri.copy(
-            path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")}".value
-
         when(
           resources.list(mEq(Set(defaultEsView, defaultSQLView)), mEq(None), mEq(Pagination(0, 20)))(
-            isA[HttpClient[Task, QueryResults[AbsoluteIri]]],
+            isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
           )
-        ).thenReturn(Task.pure(UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(reprId(i))))))
+        ).thenReturn(Task.pure(
+          UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(account, project, i))))))
 
         Get(s"/v1/resources/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK

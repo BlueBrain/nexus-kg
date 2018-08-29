@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 
 import scala.concurrent.duration.FiniteDuration
@@ -173,21 +174,20 @@ object AppConfig {
       "code",
       "message",
       "details",
-      "total",
-      "maxScore",
-      "results",
-      "resultId",
-      "score",
+      nxv.total.prefix,
+      nxv.maxScore.prefix,
+      nxv.results.prefix,
+      nxv.score.prefix,
       "",
-      "_self",
-      "_constrainedBy",
-      "_project",
-      "_createdAt",
-      "_createdBy",
-      "_updatedAt",
-      "_updatedBy",
-      "_rev",
-      "_deprecated"
+      nxv.self.prefix,
+      nxv.constrainedBy.prefix,
+      nxv.project.prefix,
+      nxv.createdAt.prefix,
+      nxv.createdBy.prefix,
+      nxv.updatedAt.prefix,
+      nxv.updatedBy.prefix,
+      nxv.rev.prefix,
+      nxv.deprecated.prefix
     ))
 
   val tracing = new TracingDirectives()

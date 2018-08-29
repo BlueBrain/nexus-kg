@@ -38,10 +38,10 @@ object ViewEncoder {
     qrsEncoder[View](viewCtx mergeContext resourceCtx) mapJson { json =>
       val jsonWithCtx = json addContext viewCtxUri
       val results = jsonWithCtx.hcursor
-        .downField("results")
+        .downField(nxv.results.prefix)
         .focus
         .flatMap(_.asArray.map(_.map(transformToJson)))
-      results.map(res => jsonWithCtx deepMerge Json.obj("results" -> Json.arr(res: _*))).getOrElse(jsonWithCtx)
+      results.map(res => jsonWithCtx deepMerge Json.obj(nxv.results.prefix -> Json.arr(res: _*))).getOrElse(jsonWithCtx)
     }
 
   implicit val viewGraphEncoder: GraphEncoder[View] = GraphEncoder {

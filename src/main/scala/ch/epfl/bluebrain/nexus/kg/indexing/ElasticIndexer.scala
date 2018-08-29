@@ -137,6 +137,5 @@ object ElasticIndexer {
 
   private[indexing] val ctx: Json =
     resourceCtx appendContextOf Json.obj(
-      "@context" -> Json.obj("_original_source" -> Json.fromString(nxv.originalSource.show)))
-
+      "@context" -> Json.obj(nxv.originalSource.prefix -> Json.fromString(nxv.originalSource.show)))
 }

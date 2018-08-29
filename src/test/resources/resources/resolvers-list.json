@@ -4,8 +4,8 @@
     "https://bluebrain.github.io/nexus/contexts/resource",
     "https://bluebrain.github.io/nexus/contexts/resolver"
   ],
-  "total": 3,
-  "results": [
+  "_total": 3,
+  "_results": [
     {
       "@id": "nxv:identities",
       "@type": [
