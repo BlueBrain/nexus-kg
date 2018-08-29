@@ -111,14 +111,14 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
           trace("searchSparql")(complete(result.runAsync))
         }
       } ~
-        (pathPrefix(IdSegment / "_search") & post & entity(as[Json]) & paginated & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
-          (id, query, pagination, params) =>
+        (pathPrefix(IdSegment / "_search") & post & entity(as[Json]) & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
+          (id, query, params) =>
             (callerIdentity & hasPermissionInAcl(resourceRead)) { implicit ident =>
-              val result: Task[Either[Rejection, List[Json]]] = cache.views(wrapped.ref).flatMap { views =>
+              val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
                 views.find(_.id == id) match {
                   case Some(v: ElasticView) =>
                     val index = s"${config.elastic.indexPrefix}_${v.name}"
-                    es.search[Json](query, Set(index), params)(pagination).map(qr => Right(qr.results.map(_.source)))
+                    es.searchRaw(query, Set(index), params).map(Right(_))
                   case _ =>
                     Task.pure(Left(NotFound(Ref(id))))
                 }
