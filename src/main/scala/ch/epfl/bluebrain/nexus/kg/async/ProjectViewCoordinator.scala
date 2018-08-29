@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorRef, ActorSystem, Props, Stash}
 import akka.cluster.ddata.DistributedData
 import akka.cluster.ddata.Replicator.{Changed, Deleted, Subscribe}
 import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache._
@@ -158,6 +158,7 @@ object ProjectViewCoordinator {
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
     case Msg(AccountRef(acc), ProjectRef(proj)) => math.abs(s"${acc}_$proj".hashCode) % shards toString
+    case ShardRegion.StartEntity(id)            => (id.hashCode                       % shards) toString
   }
 
   private[async] val entityExtractor: ExtractEntityId = {
