@@ -25,7 +25,7 @@ scalafmt: {
  */
 
 // Library dependency versions
-val akkaVersion                     = "2.5.9"
+val akkaVersion                     = "2.5.14"
 val akkaHttpVersion                 = "10.0.11"
 val akkaHttpCorsVersion             = "0.2.2"
 val akkaPersistenceCassandraVersion = "0.55"
@@ -47,6 +47,7 @@ val elasticSearchVersion            = "6.1.2"
 
 // Nexus dependency versions
 val commonsVersion = "0.7.18"
+val serviceVersion = "0.10.15"
 
 // Library dependencies
 lazy val akkaClusterSharding      = "com.typesafe.akka"          %% "akka-cluster-sharding"               % akkaVersion
@@ -96,6 +97,7 @@ lazy val sourcingAkka      = "ch.epfl.bluebrain.nexus" %% "sourcing-akka"       
 lazy val sourcingCore      = "ch.epfl.bluebrain.nexus" %% "sourcing-core"        % commonsVersion
 lazy val sourcingMem       = "ch.epfl.bluebrain.nexus" %% "sourcing-mem"         % commonsVersion
 lazy val sparqlClient      = "ch.epfl.bluebrain.nexus" %% "sparql-client"        % commonsVersion
+lazy val serviceKafka      = "ch.epfl.bluebrain.nexus" %% "service-kafka"        % serviceVersion
 
 lazy val docs = project
   .in(file("docs"))
@@ -241,6 +243,7 @@ lazy val service = project
       logbackClassic,
       metricsCore, // for cassandra client, or fails at runtime
       sourcingAkka,
+      serviceKafka,
       sourcingMem          % Test,
       akkaHttpTestkit      % Test,
       akkaPersistenceInMem % Test,
