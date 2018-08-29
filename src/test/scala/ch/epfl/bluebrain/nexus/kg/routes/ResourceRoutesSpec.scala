@@ -13,7 +13,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.{ElasticClientError, ElasticUnexpectedError}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
@@ -40,7 +40,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{InAccountResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalParameter, NotFound, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, IllegalParameter, NotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, Digest, Size}
@@ -571,7 +571,38 @@ class ResourceRoutesSpec
         status shouldEqual StatusCodes.BadRequest
         responseAs[Json] shouldEqual esResponse
       }
+    }
 
+    "return 400 Bad Request from Elastic Search when response is not JSON" in new View {
+      val query      = Json.obj("query" -> Json.obj("error" -> Json.obj()))
+      val esResponse = "some error response"
+
+      when(
+        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
+          any[HttpClient[Task, Json]]()))
+        .thenReturn(Task.raiseError(ElasticClientError(StatusCodes.BadRequest, esResponse)))
+
+      Post(s"/v1/views/$account/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[String] shouldEqual esResponse
+      }
+    }
+
+    "return 502 Bad Gateway when received unexpected response from ES" in new View {
+      val query      = Json.obj("query" -> Json.obj("error" -> Json.obj()))
+      val esResponse = "some error response"
+
+      when(
+        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
+          any[HttpClient[Task, Json]]()))
+        .thenReturn(Task.raiseError(ElasticUnexpectedError(StatusCodes.ImATeapot, esResponse)))
+
+      Post(s"/v1/views/$account/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.BadGateway
+        responseAs[DownstreamServiceError] shouldEqual DownstreamServiceError("Error communicating with ElasticSearch")
+      }
     }
 
     "search for resources on a custom SparqlView" in new View {
