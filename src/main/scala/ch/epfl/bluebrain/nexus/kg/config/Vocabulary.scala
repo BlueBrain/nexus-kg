@@ -1,6 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
+import cats.Show
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 
@@ -21,51 +24,60 @@ object Vocabulary {
       */
     def withPath(suffix: String): IriNode = IriNode(base + suffix)
 
-    val rev                 = withPath("rev")
-    val tag                 = withPath("tag")
-    val deprecated          = withPath("deprecated")
-    val createdAt           = withPath("createdAt")
-    val updatedAt           = withPath("updatedAt")
-    val createdBy           = withPath("createdBy")
-    val updatedBy           = withPath("updatedBy")
-    val constrainedBy       = withPath("constrainedBy")
-    val self                = withPath("self")
-    val project             = withPath("project")
-    val isPartOf            = withPath("isPartOf")
-    val priority            = withPath("priority")
-    val uuid                = withPath("uuid")
-    val resourceTypes       = withPath("resourceTypes")
-    val resourceSchemas     = withPath("resourceSchemas")
-    val resourceTag         = withPath("resourceTag")
-    val includeMetadata     = withPath("includeMetadata")
-    val sourceAsText        = withPath("sourceAsText")
-    val mapping             = withPath("mapping")
-    val projects            = withPath("projects")
-    val identities          = withPath("identities")
-    val realm               = withPath("realm")
-    val sub                 = withPath("sub")
-    val group               = withPath("group")
+    // Metadata vocabulary
+    val rev           = Metadata("rev")
+    val deprecated    = Metadata("deprecated")
+    val createdAt     = Metadata("createdAt")
+    val updatedAt     = Metadata("updatedAt")
+    val createdBy     = Metadata("createdBy")
+    val updatedBy     = Metadata("updatedBy")
+    val constrainedBy = Metadata("constrainedBy")
+    val self          = Metadata("self")
+    val project       = Metadata("project")
+    val total         = Metadata("total")
+    val results       = Metadata("results")
+    val maxScore      = Metadata("maxScore")
+    val score         = Metadata("score")
+
+    // Attachment metadata vocabulary
+    val distribution     = Metadata("distribution")
+    val contentSize      = Metadata("contentSize")
+    val unit             = Metadata("unit")
+    val value            = Metadata("value")
+    val digest           = Metadata("digest")
+    val algorithm        = Metadata("algorithm")
+    val downloadURL      = Metadata("downloadURL")
+    val mediaType        = Metadata("mediaType")
+    val originalFileName = Metadata("originalFileName")
+
+    // Elasticsearch sourceAsText predicate
+    val originalSource = Metadata("original_source")
+
+    // Tagging resource payload vocabulary
+    val tag = withPath("tag")
+
+    // Resolvers payload vocabulary
+    val priority      = withPath("priority")
+    val resourceTypes = withPath("resourceTypes")
+    val projects      = withPath("projects")
+    val identities    = withPath("identities")
+    val realm         = withPath("realm")
+    val sub           = withPath("sub")
+    val group         = withPath("group")
+
+    // View payload vocabulary
+    val uuid            = withPath("uuid")
+    val resourceSchemas = withPath("resourceSchemas")
+    val resourceTag     = withPath("resourceTag")
+    val includeMetadata = withPath("includeMetadata")
+    val sourceAsText    = withPath("sourceAsText")
+    val mapping         = withPath("mapping")
+
+    // View default ids
     val defaultElasticIndex = withPath("defaultElasticIndex")
     val defaultSparqlIndex  = withPath("defaultSparqlIndex")
-    val originalSource      = withPath("_original_source")
 
-    val total    = withPath("total")
-    val results  = withPath("results")
-    val resultId = withPath("resultId")
-    val maxScore = withPath("maxScore")
-    val score    = withPath("score")
-
-    //Attachment
-    val distribution     = withPath("distribution")
-    val contentSize      = withPath("contentSize")
-    val unit             = withPath("unit")
-    val value            = withPath("value")
-    val digest           = withPath("digest")
-    val algorithm        = withPath("algorithm")
-    val downloadURL      = withPath("downloadURL")
-    val mediaType        = withPath("mediaType")
-    val originalFileName = withPath("originalFileName")
-
+    // @type platform ids
     val Schema           = withPath("Schema")
     val Resource         = withPath("Resource")
     val Ontology         = withPath("Ontology")
@@ -81,6 +93,31 @@ object Vocabulary {
     val AuthenticatedRef = withPath("AuthenticatedRef")
     val Anonymous        = withPath("Anonymous")
     val Alpha            = withPath("Alpha")
+
+    /**
+      * Metadata vocabulary.
+      *
+      * @param prefix the prefix associated to this term, used in the Json-LD context
+      * @param value  the fully expanded [[AbsoluteIri]] to what the ''prefix'' resolves
+      */
+    final case class Metadata(prefix: String, value: AbsoluteIri)
+
+    object Metadata {
+
+      /**
+        * Constructs a [[Metadata]] vocabulary term from the given ''base'' and the provided ''lastSegment''.
+        *
+        * @param lastSegment the last segment to append to the ''base'' to build the metadata
+        *                    vocabulary term
+        */
+      def apply(lastSegment: String): Metadata =
+        Metadata("_" + lastSegment, base + lastSegment)
+
+      implicit def metadatataIri(m: Metadata): IriNode             = IriNode(m.value)
+      implicit def metadatataAbsoluteIri(m: Metadata): AbsoluteIri = m.value
+      implicit def metadataToIriF(p: Metadata): IriNode => Boolean = _ == IriNode(p.value)
+      implicit val metadatataShow: Show[Metadata]                  = Show.show(_.value.show)
+    }
 
   }
 }

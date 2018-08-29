@@ -4,8 +4,8 @@
     "https://bluebrain.github.io/nexus/contexts/resource",
     "https://bluebrain.github.io/nexus/contexts/view"
   ],
-  "total": 1,
-  "results": [
+  "_total": 1,
+  "_results": [
     {
       "@id": "http://example.com/id",
       "@type": [
