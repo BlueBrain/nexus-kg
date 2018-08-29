@@ -11,9 +11,9 @@ import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 
 import scala.concurrent.duration.FiniteDuration
@@ -117,18 +117,19 @@ object AppConfig {
     *
     * @param accountTopic the topic for account events
     * @param projectTopic the topic for project events
-    * @param migration    an optional migration config
+    * @param migration    the v0 events migration config
     */
-  final case class KafkaConfig(accountTopic: String, projectTopic: String, migration: Option[MigrationConfig])
+  final case class KafkaConfig(accountTopic: String, projectTopic: String, migration: MigrationConfig)
 
   /**
     * Migration config
     *
-    * @param topics     the Kafka topics to read v0 events from
+    * @param enabled    whether the v0 event migration is enabled
+    * @param topic      the Kafka topic to read v0 events from
     * @param baseUri    the base URI for v0 ids
     * @param projectRef the target project reference, where events will be migrated to
     */
-  final case class MigrationConfig(topics: List[String], baseUri: AbsoluteIri, projectRef: ProjectRef)
+  final case class MigrationConfig(enabled: Boolean, topic: String, baseUri: AbsoluteIri, projectRef: ProjectRef)
 
   /**
     * Collection of configurable settings specific to the Sparql indexer.

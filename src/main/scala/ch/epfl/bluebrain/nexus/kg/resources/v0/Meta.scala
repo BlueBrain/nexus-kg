@@ -17,6 +17,7 @@ import io.circe.java8.time._
   * @param instant
   */
 final case class Meta(author: Identity, instant: Instant) {
+
   /**
     * @return the author converted to the new [[ch.epfl.bluebrain.nexus.iam.client.types.Identity]] format
     */
@@ -30,5 +31,5 @@ final case class Meta(author: Identity, instant: Instant) {
 
 object Meta {
   implicit val configuration: Configuration = Configuration.default.withDiscriminator("type")
-  implicit val metaDecoder: Decoder[Meta] = deriveDecoder[Meta]
+  implicit val metaDecoder: Decoder[Meta]   = deriveDecoder[Meta]
 }

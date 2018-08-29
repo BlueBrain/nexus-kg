@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.kafka.ConsumerSettings
 import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
@@ -18,22 +18,18 @@ import org.apache.kafka.common.serialization.StringDeserializer
 
 import scala.concurrent.Future
 
-private[indexing] class MigrationIndexer(repo: Repo[Task],
-                                         topics: List[String],
-                                         base: AbsoluteIri,
-                                         projectRef: ProjectRef)(implicit as: ActorSystem) {
+private[indexing] class MigrationIndexer(repo: Repo[Task], topic: String, base: AbsoluteIri, projectRef: ProjectRef)(
+    implicit as: ActorSystem) {
 
   private val log              = Logger[this.type]
   private val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
   private val resourceSchema = Ref(resourceSchemaUri)
-  private val resourceTypes = Set(nxv.Resource.value)
-  private val schemaTypes   = Set(nxv.Resource.value, nxv.Schema.value)
+  private val resourceTypes  = Set(nxv.Resource.value)
+  private val schemaTypes    = Set(nxv.Resource.value, nxv.Schema.value)
 
   // $COVERAGE-OFF$
-  private def run(): Unit = {
-    topics.foreach(topic => KafkaConsumer.start[v0.Event](consumerSettings, index, topic, s"$topic-migration"))
-  }
+  private def run(): ActorRef = KafkaConsumer.start[v0.Event](consumerSettings, index, topic, s"$topic-migration")
 
   private def index(event: v0.Event): Future[Unit] = {
     process(event).value.map {
@@ -46,26 +42,29 @@ private[indexing] class MigrationIndexer(repo: Repo[Task],
   private[indexing] def process(event: v0.Event): EitherT[Task, Rejection, Resource] = {
     implicit val author: Identity = event.meta.toIdentity
     event match {
-      case InstanceCreated(id, _, _, value) => repo.create(toId(id), resourceSchema, resourceTypes, value)
-      case ContextCreated(id, _, _, value)  => repo.create(toId(id), resourceSchema, resourceTypes, value)
-      case SchemaCreated(id, _, _, value)   => repo.create(toId(id), resourceSchema, schemaTypes, value)
+      case InstanceCreated(id, _, meta, value) =>
+        repo.create(toId(id), resourceSchema, resourceTypes, value, meta.instant)
+      case ContextCreated(id, _, meta, value) =>
+        repo.create(toId(id), resourceSchema, resourceTypes, value, meta.instant)
+      case SchemaCreated(id, _, meta, value) =>
+        repo.create(toId(id), resourceSchema, schemaTypes, value, meta.instant)
 
-      case InstanceUpdated(id, rev, _, value) => repo.update(toId(id), rev, resourceTypes, value)
-      case ContextUpdated(id, rev, _, value)  => repo.update(toId(id), rev, resourceTypes, value)
-      case SchemaUpdated(id, rev, _, value)   => repo.update(toId(id), rev, schemaTypes, value)
+      case InstanceUpdated(id, rev, meta, value) => repo.update(toId(id), rev, resourceTypes, value, meta.instant)
+      case ContextUpdated(id, rev, meta, value)  => repo.update(toId(id), rev, resourceTypes, value, meta.instant)
+      case SchemaUpdated(id, rev, meta, value)   => repo.update(toId(id), rev, schemaTypes, value, meta.instant)
 
-      case InstanceDeprecated(id, rev, _) => repo.deprecate(toId(id), rev)
-      case ContextDeprecated(id, rev, _)  => repo.deprecate(toId(id), rev)
-      case SchemaDeprecated(id, rev, _)   => repo.deprecate(toId(id), rev)
+      case InstanceDeprecated(id, rev, meta) => repo.deprecate(toId(id), rev, meta.instant)
+      case ContextDeprecated(id, rev, meta)  => repo.deprecate(toId(id), rev, meta.instant)
+      case SchemaDeprecated(id, rev, meta)   => repo.deprecate(toId(id), rev, meta.instant)
 
-      case InstanceAttachmentCreated(id, rev, _, value) =>
-        repo.unsafeAttach(toId(id), rev, value.toBinaryAttributes)
-      case InstanceAttachmentRemoved(id, rev, _) =>
+      case InstanceAttachmentCreated(id, rev, meta, value) =>
+        repo.unsafeAttach(toId(id), rev, value.toBinaryAttributes, meta.instant)
+      case InstanceAttachmentRemoved(id, rev, meta) =>
         repo
           .get(toId(id))
           .toRight(NotFound(toId(event.id).ref))
           .flatMap { res => // v0 instances can have only one attachment
-            if (res.attachments.size == 1) repo.unattach(res.id, rev, res.attachments.head.filename)
+            if (res.attachments.size == 1) repo.unattach(res.id, rev, res.attachments.head.filename, meta.instant)
             else EitherT.fromEither[Task](Left(UnexpectedState(res.id.ref)))
           }
 
@@ -73,7 +72,7 @@ private[indexing] class MigrationIndexer(repo: Repo[Task],
         repo
           .get(toId(event.id))
           .toRight(NotFound(toId(event.id).ref))
-          .flatMap(res => repo.update(res.id, event.rev, res.types, res.value))
+          .flatMap(res => repo.update(res.id, event.rev, res.types, res.value, event.meta.instant))
     }
   }
 
@@ -87,13 +86,14 @@ object MigrationIndexer {
     * Starts an indexer that reads v0 events from Kafka and migrates them into the v1 resource repository.
     *
     * @param repo       the resource repository
-    * @param topics     the Kafka topics to read events from
+    * @param topic      the Kafka topic to read events from
     * @param base       the base URI of the target project
     * @param projectRef the target project, where events will be reindexed
     */
-  final def start(repo: Repo[Task], topics: List[String], base: AbsoluteIri, projectRef: ProjectRef)(
+  final def start(repo: Repo[Task], topic: String, base: AbsoluteIri, projectRef: ProjectRef)(
       implicit as: ActorSystem): Unit = {
-    val indexer = new MigrationIndexer(repo, topics, base, projectRef)
+    val indexer = new MigrationIndexer(repo, topic, base, projectRef)
     indexer.run()
+    ()
   }
 }

@@ -36,10 +36,10 @@ class AppConfigSpec extends WordSpecLike with Matchers with EitherValues with Op
       appConfig.kafka shouldEqual KafkaConfig(
         "organization",
         "project",
-        Some(
-          MigrationConfig(List("instance", "context", "schema"),
-                          Iri.absolute("http://bbp-nexus.epfl.ch/staging/v0/").right.value,
-                          ProjectRef("883f8093-9420-40f5-93ca-56bca417a5c2")))
+        MigrationConfig(enabled = false,
+                        "v0-events",
+                        Iri.absolute("http://bbp-nexus.epfl.ch/staging/v0/").right.value,
+                        ProjectRef("bbp/v0"))
       )
 
       implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")

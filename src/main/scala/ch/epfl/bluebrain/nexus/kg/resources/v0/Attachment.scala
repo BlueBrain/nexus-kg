@@ -8,8 +8,6 @@ import io.circe.generic.semiauto.deriveDecoder
 
 object Attachment {
 
-  val downloadUrlKey = "downloadURL"
-
   final case class Meta(fileUri: String, info: Info) {
     require(fileUri != null && !fileUri.isEmpty)
 
@@ -19,6 +17,6 @@ object Attachment {
 
   final case class Info(originalFileName: String, mediaType: String, contentSize: Size, digest: Digest)
 
-  implicit val infoDecoder: Decoder[Info]     = deriveDecoder[Info]
-  implicit val attMetaDecoder: Decoder[Meta]  = deriveDecoder[Meta]
+  implicit val infoDecoder: Decoder[Info]    = deriveDecoder[Info]
+  implicit val attMetaDecoder: Decoder[Meta] = deriveDecoder[Meta]
 }

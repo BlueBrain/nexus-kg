@@ -20,8 +20,7 @@ object Event {
 
   final case class InstanceDeprecated(id: String, rev: Long, meta: Meta) extends Event
 
-  final case class InstanceAttachmentCreated(id: String, rev: Long, meta: Meta, value: Attachment.Meta)
-    extends Event
+  final case class InstanceAttachmentCreated(id: String, rev: Long, meta: Meta, value: Attachment.Meta) extends Event
 
   final case class InstanceAttachmentRemoved(id: String, rev: Long, meta: Meta) extends Event
 

@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.time.Clock
+import java.time.{Clock, Instant}
 
 import cats.Monad
 import cats.data.{EitherT, OptionT}
@@ -39,11 +39,12 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param types    the collection of known types of the resource
     * @param source   the source representation
     * @param identity the identity that generated the change
+    * @param instant  an optionally provided operation instant
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId, schema: Ref, types: Set[AbsoluteIri], source: Json)(
+  def create(id: ResId, schema: Ref, types: Set[AbsoluteIri], source: Json, instant: Instant = clock.instant)(
       implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, Create(id, 0L, schema, types, source, clock.instant(), identity))
+    evaluate(id, Create(id, 0L, schema, types, source, instant, identity))
 
   /**
     * Updates a resource.
@@ -53,11 +54,12 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param types    the new collection of known resource types
     * @param source   the source representation
     * @param identity the identity that generated the change
+    * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def update(id: ResId, rev: Long, types: Set[AbsoluteIri], source: Json)(
+  def update(id: ResId, rev: Long, types: Set[AbsoluteIri], source: Json, instant: Instant = clock.instant)(
       implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, Update(id, rev, types, source, clock.instant(), identity))
+    evaluate(id, Update(id, rev, types, source, instant, identity))
 
   /**
     * Deprecates a resource.
@@ -65,10 +67,12 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param id       the id of the resource
     * @param rev      the last known revision of the resource
     * @param identity the identity that generated the change
+    * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def deprecate(id: ResId, rev: Long)(implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, Deprecate(id, rev, clock.instant(), identity))
+  def deprecate(id: ResId, rev: Long, instant: Instant = clock.instant)(
+      implicit identity: Identity): EitherT[F, Rejection, Resource] =
+    evaluate(id, Deprecate(id, rev, instant, identity))
 
   /**
     * Tags a resource. This operation aliases the provided ''targetRev'' with the  provided ''tag''.
@@ -78,11 +82,12 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param targetRev the revision that is being aliased with the provided ''tag''
     * @param tag       the tag of the alias for the provided ''rev''
     * @param identity  the identity that generated the change
+    * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def tag(id: ResId, rev: Long, targetRev: Long, tag: String)(
+  def tag(id: ResId, rev: Long, targetRev: Long, tag: String, instant: Instant = clock.instant)(
       implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, AddTag(id, rev, targetRev, tag, clock.instant(), identity))
+    evaluate(id, AddTag(id, rev, targetRev, tag, instant, identity))
 
   /**
     * Adds an attachment to a resource.
@@ -91,10 +96,11 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param rev    the last known revision of the resource
     * @param attach the attachment description metadata
     * @param source the source of the attachment
+    * @param instant  an optionally provided operation instant
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def attach[In](id: ResId, rev: Long, attach: BinaryDescription, source: In)(
+  def attach[In](id: ResId, rev: Long, attach: BinaryDescription, source: In, instant: Instant = clock.instant)(
       implicit identity: Identity,
       store: AttachmentStore[F, In, _]): EitherT[F, Rejection, Resource] =
     get(id).toRight(NotFound(id.ref)).flatMap { res =>
@@ -102,24 +108,25 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
       else if (res.rev != rev) EitherT.leftT(IncorrectRev(id.ref, rev))
       else
         store.save(id, attach, source).flatMap { attr =>
-          evaluate(id, AddAttachment(id, rev, attr, clock.instant(), identity))
+          evaluate(id, AddAttachment(id, rev, attr, instant, identity))
         }
     }
 
   /**
-    * Adds attachment metadata to a resource for an external file, without checking is existence.
+    * Adds attachment metadata to a resource for an external file, without checking its existence.
     *
     * @param id   the id of the resource
     * @param rev  the last known revision of the resource
     * @param attr the attachment description metadata
+    * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def unsafeAttach(id: ResId, rev: Long, attr: BinaryAttributes)(
-    implicit identity: Identity): EitherT[F, Rejection, Resource] =
+  def unsafeAttach(id: ResId, rev: Long, attr: BinaryAttributes, instant: Instant = clock.instant)(
+      implicit identity: Identity): EitherT[F, Rejection, Resource] =
     get(id).toRight(NotFound(id.ref)).flatMap { res =>
       if (res.deprecated) EitherT.leftT(IsDeprecated(id.ref))
       else if (res.rev != rev) EitherT.leftT(IncorrectRev(id.ref, rev))
-      else evaluate(id, AddAttachment(id, rev, attr, clock.instant(), identity))
+      else evaluate(id, AddAttachment(id, rev, attr, instant, identity))
     }
 
   /**
@@ -128,10 +135,12 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param id       the id of the resource
     * @param rev      the last known revision of the resource
     * @param filename the attachment filename
+    * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def unattach(id: ResId, rev: Long, filename: String)(implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, RemoveAttachment(id, rev, filename, clock.instant(), identity))
+  def unattach(id: ResId, rev: Long, filename: String, instant: Instant = clock.instant)(
+      implicit identity: Identity): EitherT[F, Rejection, Resource] =
+    evaluate(id, RemoveAttachment(id, rev, filename, instant, identity))
 
   /**
     * Attempts to stream the resource's attachment identified by the argument id and the filename.

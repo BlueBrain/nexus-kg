@@ -157,9 +157,10 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
     ()
   }
 
-  def startMigrationStreams(): Unit = {
-    config.kafka.migration.foreach { migration =>
-      MigrationIndexer.start(resources.repo, migration.topics, migration.baseUri, migration.projectRef)
+  def startMigrationStream(): Unit = {
+    val migration = config.kafka.migration
+    if (migration.enabled) {
+      MigrationIndexer.start(resources.repo, migration.topic, migration.baseUri, migration.projectRef)
     }
   }
 }
@@ -193,6 +194,7 @@ object Indexing {
     indexing.startProjectStream()
     indexing.startResolverStream()
     indexing.startViewStream()
+    indexing.startMigrationStream()
   }
 
 }
