@@ -13,6 +13,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
@@ -55,7 +56,7 @@ import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.ArgumentMatchers.{eq => mEq}
+import org.mockito.ArgumentMatchers.{any, eq => mEq}
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
@@ -541,21 +542,36 @@ class ResourceRoutesSpec
     }
 
     "search for resources on a custom ElasticView" in new View {
-      val query   = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
-      val result1 = Json.obj("key1"  -> Json.fromString("value1"))
-      val result2 = Json.obj("key2"  -> Json.fromString("value2"))
-      val qr: QueryResults[Json] =
-        UnscoredQueryResults(2L, List(UnscoredQueryResult(result1), UnscoredQueryResult(result2)))
+      val query      = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
+      val esResponse = jsonContentOf("/view/search-response.json")
+
       when(
-        elastic.search[Json](query,
-                             Set(s"kg_${defaultEsView.name}"),
-                             Uri.Query(Map("size" -> "23", "other" -> "value")))(Pagination(0L, 23)))
-        .thenReturn(Task.pure(qr))
-      Post(s"/v1/views/$account/$project/nxv:defaultElasticIndex/_search?size=23&other=value", query) ~> addCredentials(
+        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
+          any[HttpClient[Task, Json]]()))
+        .thenReturn(Task.pure(esResponse))
+
+      Post(s"/v1/views/$account/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual Json.arr(result1, result2)
+        responseAs[Json] shouldEqual esResponse
       }
+    }
+
+    "return 400 Bad Request from Elastic Search " in new View {
+      val query      = Json.obj("query" -> Json.obj("error" -> Json.obj()))
+      val esResponse = jsonContentOf("/view/search-error-response.json")
+
+      when(
+        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
+          any[HttpClient[Task, Json]]()))
+        .thenReturn(Task.raiseError(ElasticClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
+
+      Post(s"/v1/views/$account/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Json] shouldEqual esResponse
+      }
+
     }
 
     "search for resources on a custom SparqlView" in new View {
