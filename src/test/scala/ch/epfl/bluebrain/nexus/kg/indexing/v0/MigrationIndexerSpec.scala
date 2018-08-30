@@ -111,7 +111,7 @@ class MigrationIndexerSpec
       filePath.toString shouldEqual "1/4/5/7/2/e/6/b/14572e6b-3811-4b48-9673-194059d40981.1"
       filename shouldEqual "cACint_L23MC.hoc"
       mediaType shouldEqual "application/neuron-hoc"
-      contentSize shouldEqual Attachment.Size("byte", 11641L)
+      contentSize shouldEqual 11641L
       digest shouldEqual Attachment.Digest("SHA-256",
                                            "37d393c115f239bdc1782d494125dcd3e6a6aa2766ed0e28e837780830563ce2")
       author.getValue shouldEqual UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-456789abcdef:alice")
@@ -124,14 +124,13 @@ class MigrationIndexerSpec
         (idCaptor, idCaptor, revCaptor, stringCaptor, instantCaptor, authorCaptor)
       Mockito
         .when(repo.get(id.capture))
-        .thenReturn(OptionT[Task, Resource](Task(Some(resource.copy(
-          id = instanceId,
-          attachments = Set(BinaryAttributes(Paths.get("null"),
-                                             "fileName",
-                                             "mediaType",
-                                             Attachment.Size("bytes", 123L),
-                                             Attachment.Digest("algo", "value")))
-        )))))
+        .thenReturn(
+          OptionT[Task, Resource](
+            Task(Some(resource.copy(
+              id = instanceId,
+              attachments = Set(
+                BinaryAttributes(Paths.get("null"), "fileName", "mediaType", 123L, Attachment.Digest("algo", "value")))
+            )))))
       Mockito
         .when(repo.unattach(id2.capture, rev.capture, fileName.capture, instant.capture)(author.capture))
         .thenReturn(success)

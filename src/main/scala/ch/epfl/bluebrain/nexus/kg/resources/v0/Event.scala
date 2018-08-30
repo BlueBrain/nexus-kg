@@ -5,7 +5,7 @@ import io.circe.generic.extras.semiauto._
 
 /**
   * Enumeration for all v0 event types that are supported by
-  * the [[ch.epfl.bluebrain.nexus.kg.indexing.MigrationIndexer]]
+  * the [[ch.epfl.bluebrain.nexus.kg.indexing.v0.MigrationIndexer]]
   */
 sealed trait Event {
   def id: String
