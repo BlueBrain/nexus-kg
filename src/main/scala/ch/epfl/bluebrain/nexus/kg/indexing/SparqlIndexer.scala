@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
 import ch.epfl.bluebrain.nexus.rdf.akka.iri._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
 import monix.eval.Task
@@ -106,10 +107,11 @@ object SparqlIndexer {
 
     val client  = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
     val indexer = new SparqlIndexer(client, resources)
-    SequentialTagIndexer.startLocal[Event](
+    SequentialTagIndexer.start[Event](
       () => client.createNamespaceIfNotExist(properties).runAsync.map(_ => ()),
       (ev: Event) => indexer(ev).runAsync,
-      persistence.queryJournalPlugin,
+      id = s"sparql-indexer-${view.name}",
+      pluginId = persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",
       name = s"sparql-indexer-${view.name}"
     )

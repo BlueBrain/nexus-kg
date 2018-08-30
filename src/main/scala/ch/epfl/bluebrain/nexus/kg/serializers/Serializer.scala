@@ -71,12 +71,12 @@ object Serializer {
   private val enc = deriveEncoder[Event]
   private val dec = deriveDecoder[Event]
 
-  private implicit val eventEncoder: Encoder[Event] =
+  implicit val eventEncoder: Encoder[Event] =
     Encoder.instance { ev =>
       enc(ev).removeKeys("id") deepMerge ev.id.asJson
     }
 
-  private implicit val eventDecoder: Decoder[Event] =
+  implicit val eventDecoder: Decoder[Event] =
     Decoder.instance { hc =>
       val json = hc.value
       for {

@@ -21,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
 import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
@@ -125,10 +126,11 @@ object ElasticIndexer {
 
     implicit val client = ElasticClient[Task](config.elastic.base)
     val indexer         = new ElasticIndexer(client, view, resources)
-    SequentialTagIndexer.startLocal[Event](
+    SequentialTagIndexer.start[Event](
       () => view.createIndex[Task].map(_ => ()).runAsync,
       (ev: Event) => indexer(ev).runAsync,
-      config.persistence.queryJournalPlugin,
+      id = s"elastic-indexer-${view.name}",
+      pluginId = config.persistence.queryJournalPlugin,
       tag = s"project=${view.ref.id}",
       name = s"elastic-indexer-${view.name}"
     )
