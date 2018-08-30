@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.v0.MigrationIndexer
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.kafka.KafkaConsumer
@@ -160,7 +161,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
   def startMigrationStream(): Unit = {
     val migration = config.kafka.migration
     if (migration.enabled) {
-      MigrationIndexer.start(resources.repo, migration.topic, migration.baseUri, migration.projectRef)
+      MigrationIndexer.start(resources.repo, migration)
     }
   }
 }

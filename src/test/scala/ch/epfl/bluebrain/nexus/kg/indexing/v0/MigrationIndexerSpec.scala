@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.indexing
+package ch.epfl.bluebrain.nexus.kg.indexing.v0
 
 import java.nio.file.Paths
 import java.time.{Clock, Instant}
@@ -15,11 +15,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.v0.Event
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import org.mockito.ArgumentCaptor
-import org.mockito.Mockito
+import org.mockito.{ArgumentCaptor, Mockito}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
@@ -38,10 +38,10 @@ class MigrationIndexerSpec
   private val repo           = mock[Repo[Task]]
   private val resourceSchema = Ref(resourceSchemaUri)
   private val projectRef     = ProjectRef("org/v0")
-  private val base           = Iri.absolute("https://nexus.example.com").right.value
+  private val base           = url"https://nexus.example.com".value
   private val resource       = ResourceF.simpleF(Id(projectRef, base + "some-id"), Json.obj())(Clock.systemUTC)
   private val success        = EitherT.right[Rejection](Task(resource))
-  private val indexer        = new MigrationIndexer(repo, "topic", base, projectRef)(as)
+  private val indexer        = new MigrationIndexer(repo, "topic", base, projectRef, ".*".r)(as)
 
   before {
     Mockito.reset(repo)
@@ -57,8 +57,9 @@ class MigrationIndexerSpec
       val event = jsonContentOf("/v0/instance-created.json").as[Event].right.value
       indexer.process(event) shouldEqual success
       id.getValue shouldEqual Id(projectRef, base + "some/stuff/v0.1.1/2e838302-81df-48be-a348-ef45cbdb5ad0")
-      schema.getValue shouldEqual resourceSchema
-      types.getValue shouldEqual Set(nxv.Resource.value)
+      schema.getValue shouldEqual Ref(base + "some/stuff/v0.1.1")
+      types.getValue shouldEqual Set(
+        url"https://bbp-nexus.epfl.ch/vocabs/bbp/neurosciencegraph/core/v0.1.0/Entity".value)
       source.getValue.asObject.getOrElse(fail).keys should contain("geneName")
       author.getValue shouldEqual UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-0123456789ab:bob")
       instant.getValue shouldEqual Instant.parse("2018-07-16T07:04:08.799Z")
@@ -153,7 +154,9 @@ class MigrationIndexerSpec
       indexer.process(event) shouldEqual success
       id.getValue shouldEqual Id(projectRef, base + "some/trace/v1.0.0/a5b09604-1301-452c-a1a4-4a580d4b24db")
       rev.getValue shouldEqual 5L
-      types.getValue shouldEqual Set(nxv.Resource.value)
+      types.getValue shouldEqual Set(Iri.absolute("prov:Entity").right.value,
+                                     Iri.absolute("nsg:Trace").right.value,
+                                     Iri.absolute("nsg:StimulationTrace").right.value)
       author.getValue shouldEqual UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-456789abcdef:alice")
       instant.getValue shouldEqual Instant.parse("2018-08-23T10:24:49.893Z")
     }

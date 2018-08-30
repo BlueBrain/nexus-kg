@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 
 import scala.concurrent.duration.FiniteDuration
+import scala.util.matching.Regex
 
 /**
   * Application
@@ -128,8 +129,13 @@ object AppConfig {
     * @param topic      the Kafka topic to read v0 events from
     * @param baseUri    the base URI for v0 ids
     * @param projectRef the target project reference, where events will be migrated to
+    * @param pattern    the regex pattern to select event ids that will be migrated
     */
-  final case class MigrationConfig(enabled: Boolean, topic: String, baseUri: AbsoluteIri, projectRef: ProjectRef)
+  final case class MigrationConfig(enabled: Boolean,
+                                   topic: String,
+                                   baseUri: AbsoluteIri,
+                                   projectRef: ProjectRef,
+                                   pattern: Regex)
 
   /**
     * Collection of configurable settings specific to the Sparql indexer.

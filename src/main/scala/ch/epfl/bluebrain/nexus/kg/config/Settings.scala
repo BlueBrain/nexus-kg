@@ -14,6 +14,8 @@ import com.typesafe.config.Config
 import pureconfig.ConvertHelpers.catchReadError
 import pureconfig._
 
+import scala.util.matching.Regex
+
 /**
   * Akka settings extension to expose application configuration.  It typically uses the configuration instance of the
   * actor system as the configuration root.
@@ -37,6 +39,9 @@ class Settings(config: Config) extends Extension {
 
   private implicit val projectRefConverter: ConfigConvert[ProjectRef] =
     ConfigConvert.viaString[ProjectRef](catchReadError(s => ProjectRef(s)), _.toString)
+
+  private implicit val regexConverter: ConfigConvert[Regex] =
+    ConfigConvert.viaString[Regex](catchReadError(s => s.r), _.toString)
 
   val appConfig = AppConfig(
     loadConfigOrThrow[Description](config, "app.description"),

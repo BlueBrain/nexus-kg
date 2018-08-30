@@ -5,13 +5,13 @@ import java.nio.file.Paths
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
-import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.typesafe.config.ConfigFactory
-import org.scalatest.{EitherValues, Matchers, OptionValues, WordSpecLike}
+import org.scalatest.{Matchers, OptionValues, WordSpecLike}
 
 import scala.concurrent.duration._
 
-class AppConfigSpec extends WordSpecLike with Matchers with EitherValues with OptionValues {
+class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
 
   "An AppConfig" should {
     val valid = ConfigFactory.parseResources("app.conf").resolve()
@@ -33,14 +33,13 @@ class AppConfigSpec extends WordSpecLike with Matchers with EitherValues with Op
         "pass")
       appConfig.elastic shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
-      appConfig.kafka shouldEqual KafkaConfig(
-        "organization",
-        "project",
-        MigrationConfig(enabled = false,
-                        "v0-events",
-                        Iri.absolute("http://bbp-nexus.epfl.ch/staging/v0/").right.value,
-                        ProjectRef("bbp/v0"))
-      )
+      appConfig.kafka.projectTopic shouldEqual "project"
+      appConfig.kafka.accountTopic shouldEqual "organization"
+      appConfig.kafka.migration.enabled shouldEqual false
+      appConfig.kafka.migration.topic shouldEqual "v0-events"
+      appConfig.kafka.migration.baseUri shouldEqual url"http://bbp-nexus.epfl.ch/staging/v0/".value
+      appConfig.kafka.migration.projectRef shouldEqual ProjectRef("bbp/v0")
+      appConfig.kafka.migration.pattern.toString shouldEqual "bbp/.*"
 
       implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       implicitly[ElasticConfig] shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
