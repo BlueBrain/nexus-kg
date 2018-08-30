@@ -9,8 +9,8 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.core.contexts.ContextEvent
 import ch.epfl.bluebrain.nexus.kg.core.instances.InstanceEvent
 import ch.epfl.bluebrain.nexus.kg.core.schemas.SchemaEvent
-import ch.epfl.bluebrain.nexus.service.kafka.KafkaPublisher
-import ch.epfl.bluebrain.nexus.service.kafka.key.Key
+import ch.epfl.bluebrain.nexus.kg.service.kafka.KafkaPublisher
+import ch.epfl.bluebrain.nexus.kg.service.kafka.key.Key
 import org.apache.kafka.common.serialization.StringSerializer
 
 // $COVERAGE-OFF$

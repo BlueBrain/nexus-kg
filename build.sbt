@@ -25,12 +25,13 @@ scalafmt: {
  */
 
 // Library dependency versions
-val akkaVersion                     = "2.5.14"
+val akkaVersion                     = "2.5.16"
 val akkaHttpVersion                 = "10.0.11"
 val akkaHttpCorsVersion             = "0.2.2"
 val akkaPersistenceCassandraVersion = "0.55"
 val akkaPersistenceInMemVersion     = "2.5.1.1"
 val akkaHttpCirceVersion            = "1.19.0"
+val akkaStreamKafkaVersion          = "0.22"
 val catsVersion                     = "1.0.1"
 val circeVersion                    = "0.9.0"
 val logbackVersion                  = "1.2.3"
@@ -47,7 +48,6 @@ val elasticSearchVersion            = "6.1.2"
 
 // Nexus dependency versions
 val commonsVersion = "0.7.18"
-val serviceVersion = "0.10.15"
 
 // Library dependencies
 lazy val akkaClusterSharding      = "com.typesafe.akka"          %% "akka-cluster-sharding"               % akkaVersion
@@ -61,6 +61,7 @@ lazy val akkaPersistenceInMem     = "com.github.dnvriend"        %% "akka-persis
 lazy val akkaSlf4j                = "com.typesafe.akka"          %% "akka-slf4j"                          % akkaVersion
 lazy val akkaStream               = "com.typesafe.akka"          %% "akka-stream"                         % akkaVersion
 lazy val akkaTestkit              = "com.typesafe.akka"          %% "akka-testkit"                        % akkaVersion
+lazy val akkaStreamKafka          = "com.typesafe.akka"          %% "akka-stream-kafka"                   % akkaStreamKafkaVersion
 lazy val asm                      = "org.ow2.asm"                % "asm"                                  % asmVersion
 lazy val blazegraph               = "com.blazegraph"             % "blazegraph-jar"                       % blazegraphVersion
 lazy val cassandraLauncher        = "com.typesafe.akka"          %% "akka-persistence-cassandra-launcher" % akkaPersistenceCassandraVersion
@@ -97,7 +98,6 @@ lazy val sourcingAkka      = "ch.epfl.bluebrain.nexus" %% "sourcing-akka"       
 lazy val sourcingCore      = "ch.epfl.bluebrain.nexus" %% "sourcing-core"        % commonsVersion
 lazy val sourcingMem       = "ch.epfl.bluebrain.nexus" %% "sourcing-mem"         % commonsVersion
 lazy val sparqlClient      = "ch.epfl.bluebrain.nexus" %% "sparql-client"        % commonsVersion
-lazy val serviceKafka      = "ch.epfl.bluebrain.nexus" %% "service-kafka"        % serviceVersion
 
 lazy val docs = project
   .in(file("docs"))
@@ -231,6 +231,7 @@ lazy val service = project
       akkaHttpCirce,
       akkaHttpCors,
       akkaPersistenceCassandra,
+      akkaStreamKafka,
       akkaSlf4j,
       circeCore,
       circeGenericExtras,
@@ -243,7 +244,6 @@ lazy val service = project
       logbackClassic,
       metricsCore, // for cassandra client, or fails at runtime
       sourcingAkka,
-      serviceKafka,
       sourcingMem          % Test,
       akkaHttpTestkit      % Test,
       akkaPersistenceInMem % Test,
