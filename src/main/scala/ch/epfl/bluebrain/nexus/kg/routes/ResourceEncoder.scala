@@ -39,7 +39,7 @@ object ResourceEncoder {
           (blank, nxv.mediaType, at.mediaType),
           (blank, nxv.originalFileName, at.filename),
           (blank, nxv.downloadURL, res.accessId + "attachments" + at.filename),
-          (id, nxv.distribution, blank)
+          (id, schema.distribution, blank)
         )
       }
       id -> (res.value.graph ++ Graph(res.attachments.flatMap(triplesFor)))
