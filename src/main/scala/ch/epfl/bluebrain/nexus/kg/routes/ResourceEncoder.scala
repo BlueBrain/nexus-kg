@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
@@ -27,19 +28,17 @@ object ResourceEncoder {
       val id = IriNode(res.id.value)
       def triplesFor(at: BinaryAttributes): Set[Triple] = {
         val blank       = Node.blank
-        val blankSize   = Node.blank
         val blankDigest = Node.blank
         Set(
-          (blankSize, schema.unit, at.contentSize.unit),
-          (blankSize, schema.value, at.contentSize.value),
-          (blankDigest, schema.algorithm, at.digest.algorithm),
-          (blankDigest, schema.value, at.digest.value),
-          (blank, schema.contentSize, blankSize),
+          (blankDigest, nxv.algorithm, at.digest.algorithm),
+          (blankDigest, nxv.value, at.digest.value),
+          (blank, rdf.tpe, dcat.Distribution),
+          (blank, dcat.byteSize, at.byteSize),
           (blank, nxv.digest, blankDigest),
-          (blank, schema.mediaType, at.mediaType),
+          (blank, dcat.mediaType, at.mediaType),
           (blank, nxv.originalFileName, at.filename),
-          (blank, schema.downloadURL, res.accessId + "attachments" + at.filename),
-          (id, schema.distribution, blank)
+          (blank, dcat.downloadURL, res.accessId + "attachments" + at.filename),
+          (id, dcat.distribution, blank)
         )
       }
       id -> (res.value.graph ++ Graph(res.attachments.flatMap(triplesFor)))

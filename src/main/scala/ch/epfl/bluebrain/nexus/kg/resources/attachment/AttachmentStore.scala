@@ -95,7 +95,7 @@ object AttachmentStore {
                 digFuture.zipWith(ioFuture) {
                   case (dig, io) if io.wasSuccessful && loc.path.toFile.exists() =>
                     val digest = Digest(dig.getAlgorithm, dig.digest().map("%02x".format(_)).mkString)
-                    Future(Right(StoredSummary(loc.relative, Size(value = io.count), digest)))
+                    Future(Right(StoredSummary(loc.relative, io.count, digest)))
                   case _ =>
                     Future(Left(Unexpected(
                       s"I/O error writing attachment with contentType '${meta.mediaType}' and filename '${meta.filename}'"): Rejection))

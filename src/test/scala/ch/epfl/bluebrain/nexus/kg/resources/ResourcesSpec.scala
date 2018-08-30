@@ -10,8 +10,8 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
-import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -22,7 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticRe
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.State.Initial
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryDescription, Digest, Size, StoredSummary}
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryDescription, Digest, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -104,7 +104,7 @@ class ResourcesSpec
     val desc       = BinaryDescription("name", "text/plain")
     val source     = "some text"
     val relative   = Paths.get("./other")
-    val attributes = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
+    val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
     when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[CId, Rejection](attributes))
     when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[CId, Rejection](attributes))
   }
