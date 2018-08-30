@@ -18,7 +18,13 @@ object Vocabulary {
 
     // Attachment metadata vocabulary
     val distribution = Metadata("distribution")
-
+    val algorithm    = Metadata("algorithm")
+    val contentSize  = Metadata("contentSize")
+    val downloadURL  = Metadata("downloadURL")
+    val accessURL    = Metadata("accessURL")
+    val mediaType    = Metadata("mediaType")
+    val unit         = Metadata("_unit", base + "unitCode")
+    val value        = Metadata("value")
   }
 
   /**
@@ -50,14 +56,8 @@ object Vocabulary {
     val score         = Metadata("score")
 
     // Attachment metadata vocabulary
-    val contentSize      = Metadata("contentSize")
-    val unit             = Metadata("unit")
-    val value            = Metadata("value")
-    val digest           = Metadata("digest")
-    val algorithm        = Metadata("algorithm")
-    val downloadURL      = Metadata("downloadURL")
-    val mediaType        = Metadata("mediaType")
     val originalFileName = Metadata("originalFileName")
+    val digest           = Metadata("digest")
 
     // Elasticsearch sourceAsText predicate
     val originalSource = Metadata("original_source")
@@ -110,7 +110,7 @@ object Vocabulary {
     * @param prefix the prefix associated to this term, used in the Json-LD context
     * @param value  the fully expanded [[AbsoluteIri]] to what the ''prefix'' resolves
     */
-  final case class Metadata private (prefix: String, value: AbsoluteIri)
+  final case class Metadata(prefix: String, value: AbsoluteIri)
 
   object Metadata {
 

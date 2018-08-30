@@ -41,16 +41,17 @@
       "@container": "@set",
       "@id": "schema:distribution"
     },
-    "_unit": "nxv:unit",
-    "_value": "nxv:value",
+    "_unit": "schema:unitCode",
+    "_value": "schema:value",
     "_downloadURL": {
       "@type": "@id",
-      "@id": "nxv:downloadURL"
+      "@id": "schema:downloadURL"
     },
+    "_accessURL": "schema:accessURL",
     "_digest": "nxv:digest",
-    "_algorithm": "nxv:algorithm",
-    "_mediaType": "nxv:mediaType",
+    "_algorithm": "schema:algorithm",
+    "_mediaType": "schema:mediaType",
     "_originalFileName": "nxv:originalFileName",
-    "_contentSize": "nxv:contentSize"
+    "_contentSize": "schema:contentSize"
   }
 }
