@@ -30,16 +30,16 @@ object ResourceEncoder {
         val blankSize   = Node.blank
         val blankDigest = Node.blank
         Set(
-          (blankSize, nxv.unit, at.contentSize.unit),
-          (blankSize, nxv.value, at.contentSize.value),
-          (blankDigest, nxv.algorithm, at.digest.algorithm),
-          (blankDigest, nxv.value, at.digest.value),
-          (blank, nxv.contentSize, blankSize),
+          (blankSize, schema.unit, at.contentSize.unit),
+          (blankSize, schema.value, at.contentSize.value),
+          (blankDigest, schema.algorithm, at.digest.algorithm),
+          (blankDigest, schema.value, at.digest.value),
+          (blank, schema.contentSize, blankSize),
           (blank, nxv.digest, blankDigest),
-          (blank, nxv.mediaType, at.mediaType),
+          (blank, schema.mediaType, at.mediaType),
           (blank, nxv.originalFileName, at.filename),
-          (blank, nxv.downloadURL, res.accessId + "attachments" + at.filename),
-          (id, nxv.distribution, blank)
+          (blank, schema.downloadURL, res.accessId + "attachments" + at.filename),
+          (id, schema.distribution, blank)
         )
       }
       id -> (res.value.graph ++ Graph(res.attachments.flatMap(triplesFor)))

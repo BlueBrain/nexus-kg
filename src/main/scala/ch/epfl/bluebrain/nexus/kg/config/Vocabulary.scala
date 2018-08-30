@@ -12,14 +12,30 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
   */
 object Vocabulary {
 
+  object schema {
+    val base: Iri.AbsoluteIri          = url"http://schema.org/".value
+    private[Vocabulary] implicit val _ = IriNode(base)
+
+    // Attachment metadata vocabulary
+    val distribution = Metadata("distribution")
+    val algorithm    = Metadata("algorithm")
+    val contentSize  = Metadata("contentSize")
+    val downloadURL  = Metadata("downloadURL")
+    val accessURL    = Metadata("accessURL")
+    val mediaType    = Metadata("mediaType")
+    val unit         = Metadata("_unit", base + "unitCode")
+    val value        = Metadata("value")
+  }
+
   /**
     * Nexus vocabulary.
     */
   object nxv {
-    val base: Iri.AbsoluteIri = url"https://bluebrain.github.io/nexus/vocabulary/".value
+    val base: Iri.AbsoluteIri          = url"https://bluebrain.github.io/nexus/vocabulary/".value
+    private[Vocabulary] implicit val _ = IriNode(base)
 
     /**
-      * @param suffix the segment to add to the prefix mapping
+      * @param suffix the segment to suffix to the base
       * @return an [[IriNode]] composed by the ''base'' plus the provided ''suffix''
       */
     def withPath(suffix: String): IriNode = IriNode(base + suffix)
@@ -40,15 +56,8 @@ object Vocabulary {
     val score         = Metadata("score")
 
     // Attachment metadata vocabulary
-    val distribution     = Metadata("distribution")
-    val contentSize      = Metadata("contentSize")
-    val unit             = Metadata("unit")
-    val value            = Metadata("value")
-    val digest           = Metadata("digest")
-    val algorithm        = Metadata("algorithm")
-    val downloadURL      = Metadata("downloadURL")
-    val mediaType        = Metadata("mediaType")
     val originalFileName = Metadata("originalFileName")
+    val digest           = Metadata("digest")
 
     // Elasticsearch sourceAsText predicate
     val originalSource = Metadata("original_source")
@@ -93,31 +102,30 @@ object Vocabulary {
     val AuthenticatedRef = withPath("AuthenticatedRef")
     val Anonymous        = withPath("Anonymous")
     val Alpha            = withPath("Alpha")
+  }
+
+  /**
+    * Metadata vocabulary.
+    *
+    * @param prefix the prefix associated to this term, used in the Json-LD context
+    * @param value  the fully expanded [[AbsoluteIri]] to what the ''prefix'' resolves
+    */
+  final case class Metadata(prefix: String, value: AbsoluteIri)
+
+  object Metadata {
 
     /**
-      * Metadata vocabulary.
+      * Constructs a [[Metadata]] vocabulary term from the given ''base'' and the provided ''lastSegment''.
       *
-      * @param prefix the prefix associated to this term, used in the Json-LD context
-      * @param value  the fully expanded [[AbsoluteIri]] to what the ''prefix'' resolves
+      * @param lastSegment the last segment to append to the ''base'' to build the metadata
+      *                    vocabulary term
       */
-    final case class Metadata(prefix: String, value: AbsoluteIri)
+    def apply(lastSegment: String)(implicit base: IriNode): Metadata =
+      Metadata("_" + lastSegment, base.value + lastSegment)
 
-    object Metadata {
-
-      /**
-        * Constructs a [[Metadata]] vocabulary term from the given ''base'' and the provided ''lastSegment''.
-        *
-        * @param lastSegment the last segment to append to the ''base'' to build the metadata
-        *                    vocabulary term
-        */
-      def apply(lastSegment: String): Metadata =
-        Metadata("_" + lastSegment, base + lastSegment)
-
-      implicit def metadatataIri(m: Metadata): IriNode             = IriNode(m.value)
-      implicit def metadatataAbsoluteIri(m: Metadata): AbsoluteIri = m.value
-      implicit def metadataToIriF(p: Metadata): IriNode => Boolean = _ == IriNode(p.value)
-      implicit val metadatataShow: Show[Metadata]                  = Show.show(_.value.show)
-    }
-
+    implicit def metadatataIri(m: Metadata): IriNode             = IriNode(m.value)
+    implicit def metadatataAbsoluteIri(m: Metadata): AbsoluteIri = m.value
+    implicit def metadataToIriF(p: Metadata): IriNode => Boolean = _ == IriNode(p.value)
+    implicit val metadatataShow: Show[Metadata]                  = Show.show(_.value.show)
   }
 }

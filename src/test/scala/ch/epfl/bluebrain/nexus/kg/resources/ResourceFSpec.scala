@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings, Vocabulary}
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
@@ -73,11 +73,11 @@ class ResourceFSpec extends WordSpecLike with Matchers with EitherValues with Te
     "remove the metadata from a resource" in {
       val jsonMeta = json deepMerge Json.obj("@id" -> Json.fromString(id.value.asString)) deepMerge Json.obj(
         nxv.rev.value.asString -> Json.fromLong(10L)) deepMerge Json.obj(
-        "@context"             -> Json.obj("key" -> Json.fromString(nxv.distribution.value.asString)))
+        "@context"             -> Json.obj("key" -> Json.fromString(Vocabulary.schema.distribution.value.asString)))
       simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).value.graph
         .removeMetadata(resId.value)
         .triples shouldEqual Set[Triple](
-        (IriNode(id), nxv.distribution, "value")
+        (IriNode(id), Vocabulary.schema.distribution, "value")
       )
     }
   }
