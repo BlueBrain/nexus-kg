@@ -176,8 +176,8 @@ class RepoSpec
         private val desc2       = BinaryDescription("name2", "text/plain")
         private val source2     = "some text2"
         private val relative    = Paths.get("./other")
-        private val attributes  = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
-        private val attributes2 = desc2.process(StoredSummary(relative, Size(value = 30L), Digest("MD5", "4567")))
+        private val attributes  = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
+        private val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[CId, Rejection](attributes))
         repo.attach(id, 1L, desc, source).value.right.value shouldEqual
           ResourceF.simpleF(id, value, 2L, schema = Latest(schema)).copy(attachments = Set(attributes))
@@ -220,7 +220,7 @@ class RepoSpec
         private val desc       = BinaryDescription("name", "text/plain")
         private val source     = "some text"
         private val relative   = Paths.get("./other")
-        private val attributes = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
+        private val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[CId, Rejection](attributes))
         repo.attach(id, 1L, desc, source).value.right.value shouldBe a[Resource]
         repo.unattach(id, 2L, "name").value.right.value shouldEqual
@@ -285,12 +285,12 @@ class RepoSpec
       val relative           = Paths.get("./other")
       val desc               = BinaryDescription("name", "text/plain")
       val source             = "some text"
-      val attributes         = desc.process(StoredSummary(relative, Size(value = 20L), Digest("MD5", "1234")))
+      val attributes         = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
       val desc2              = BinaryDescription("name2", "text/plain")
       val source2            = "some text2"
-      val attributes2        = desc2.process(StoredSummary(relative, Size(value = 30L), Digest("MD5", "4567")))
+      val attributes2        = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
       val source2Updated     = "some text2 other"
-      val attributes2Updated = desc2.process(StoredSummary(relative, Size(value = 40L), Digest("MD5", "910232")))
+      val attributes2Updated = desc2.process(StoredSummary(relative, 40L, Digest("MD5", "910232")))
 
       "get a resource attachment" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.right.value shouldBe a[Resource]

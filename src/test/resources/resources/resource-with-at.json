@@ -2,10 +2,8 @@
   "@id" : "nxv:{uuid}",
   "_distribution" : [
     {
-      "_contentSize" : {
-        "_unit" : "byte",
-        "_value" : 2048
-      },
+      "@type": "dcat:Distribution",
+      "_byteSize" : 2048,
       "_digest" : {
         "_algorithm" : "SHA-256",
         "_value" : "digest2"
@@ -15,10 +13,8 @@
       "_originalFileName" : "filename2.txt"
     },
     {
-      "_contentSize" : {
-        "_unit" : "byte",
-        "_value" : 1024
-      },
+      "@type": "dcat:Distribution",
+      "_byteSize" : 1024,
       "_digest" : {
         "_algorithm" : "SHA-256",
         "_value" : "digest1"

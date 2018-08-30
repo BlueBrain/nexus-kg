@@ -43,7 +43,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, IllegalParameter, NotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, Digest, Size}
+import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, Digest}
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.{urlEncode, Error, TestHelper}
@@ -127,7 +127,7 @@ class ResourceRoutesSpec
     val projectRef  = ProjectRef(projectMeta.uuid)
     val accountRef  = AccountRef(uuid)
     val genUuid     = uuid
-    val iri         = nxv.withPath(genUuid)
+    val iri         = nxv.withSuffix(genUuid)
     val id          = Id(projectRef, iri)
     val defaultEsView =
       ElasticView(Json.obj(), Set.empty, None, false, true, projectRef, nxv.defaultElasticIndex.value, uuid, 1L, false)
@@ -502,18 +502,10 @@ class ResourceRoutesSpec
 
     "get a resource with attachments" in new Ctx {
       val resource = ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)
-      val at1 = BinaryAttributes("uuid1",
-                                 Paths.get("some1"),
-                                 "filename1.txt",
-                                 "text/plain",
-                                 Size(value = 1024L),
-                                 Digest("SHA-256", "digest1"))
-      val at2 = BinaryAttributes("uuid2",
-                                 Paths.get("some2"),
-                                 "filename2.txt",
-                                 "text/plain",
-                                 Size(value = 2048L),
-                                 Digest("SHA-256", "digest2"))
+      val at1 =
+        BinaryAttributes("uuid1", Paths.get("some1"), "filename1.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
+      val at2 =
+        BinaryAttributes("uuid2", Paths.get("some2"), "filename2.txt", "text/plain", 2048, Digest("SHA-256", "digest2"))
       val resourceV =
         simpleV(id, ctx, created = identity, updated = identity, schema = schemaRef).copy(attachments = Set(at1, at2))
 

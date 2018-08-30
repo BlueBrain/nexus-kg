@@ -14,7 +14,7 @@ object Attachment {
     */
   final case class BinaryDescription(uuid: String, filename: String, mediaType: String) {
     def process(stored: StoredSummary): BinaryAttributes =
-      BinaryAttributes(uuid, stored.filePath, filename, mediaType, stored.size, stored.digest)
+      BinaryAttributes(uuid, stored.filePath, filename, mediaType, stored.byteSize, stored.digest)
   }
 
   object BinaryDescription {
@@ -25,21 +25,21 @@ object Attachment {
   /**
     * Holds all the metadata information related to an attachment.
     *
-    * @param uuid        the unique id that identifies this attachment.
-    * @param filePath    path where the attachment gets stored.
-    * @param filename    the original filename of the attached file
-    * @param mediaType   the media type of the attached file
-    * @param contentSize the size of the attached file
-    * @param digest      the digest information of the attached file
+    * @param uuid      the unique id that identifies this attachment.
+    * @param filePath  path where the attachment gets stored.
+    * @param filename  the original filename of the attached file
+    * @param mediaType the media type of the attached file
+    * @param byteSize  the size of the attached file in bytes
+    * @param digest    the digest information of the attached file
     */
   final case class BinaryAttributes(uuid: String,
                                     filePath: Path,
                                     filename: String,
                                     mediaType: String,
-                                    contentSize: Size,
+                                    byteSize: Long,
                                     digest: Digest)
   object BinaryAttributes {
-    def apply(filePath: Path, filename: String, mediaType: String, size: Size, digest: Digest): BinaryAttributes =
+    def apply(filePath: Path, filename: String, mediaType: String, size: Long, digest: Digest): BinaryAttributes =
       BinaryAttributes(randomUUID(), filePath, filename, mediaType, size, digest)
   }
 
@@ -54,19 +54,11 @@ object Attachment {
   final case class Digest(algorithm: String, value: String)
 
   /**
-    * The size of the attached file
-    *
-    * @param unit  the size's unit of the attached file
-    * @param value the actual value of the size of the attached file
-    */
-  final case class Size(unit: String = "byte", value: Long)
-
-  /**
     * The summary after the file has been stored
     *
     * @param filePath the location where the file has been stored
-    * @param size     the size of the attached file
+    * @param byteSize the size of the attached file in bytes
     * @param digest   the digest related information of the attached file
     */
-  final case class StoredSummary(filePath: Path, size: Size, digest: Digest)
+  final case class StoredSummary(filePath: Path, byteSize: Long, digest: Digest)
 }

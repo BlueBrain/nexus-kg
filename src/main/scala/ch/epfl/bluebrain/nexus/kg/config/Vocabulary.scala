@@ -12,19 +12,24 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
   */
 object Vocabulary {
 
-  object schema {
-    val base: Iri.AbsoluteIri          = url"http://schema.org/".value
+  object dcat {
+    val base: Iri.AbsoluteIri          = url"http://www.w3.org/ns/dcat#".value
     private[Vocabulary] implicit val _ = IriNode(base)
+
+    /**
+      * @param suffix the segment to suffix to the base
+      * @return an [[IriNode]] composed by the ''base'' plus the provided ''suffix''
+      */
+    def withSuffix(suffix: String): IriNode = url"${base.show + suffix}"
 
     // Attachment metadata vocabulary
     val distribution = Metadata("distribution")
-    val algorithm    = Metadata("algorithm")
-    val contentSize  = Metadata("contentSize")
+    val byteSize     = Metadata("byteSize")
     val downloadURL  = Metadata("downloadURL")
     val accessURL    = Metadata("accessURL")
     val mediaType    = Metadata("mediaType")
-    val unit         = Metadata("_unit", base + "unitCode")
-    val value        = Metadata("value")
+
+    val Distribution = withSuffix("Distribution")
   }
 
   /**
@@ -38,7 +43,7 @@ object Vocabulary {
       * @param suffix the segment to suffix to the base
       * @return an [[IriNode]] composed by the ''base'' plus the provided ''suffix''
       */
-    def withPath(suffix: String): IriNode = IriNode(base + suffix)
+    def withSuffix(suffix: String): IriNode = IriNode(base + suffix)
 
     // Metadata vocabulary
     val rev           = Metadata("rev")
@@ -58,50 +63,52 @@ object Vocabulary {
     // Attachment metadata vocabulary
     val originalFileName = Metadata("originalFileName")
     val digest           = Metadata("digest")
+    val algorithm        = Metadata("algorithm")
+    val value            = Metadata("value")
 
     // Elasticsearch sourceAsText predicate
     val originalSource = Metadata("original_source")
 
     // Tagging resource payload vocabulary
-    val tag = withPath("tag")
+    val tag = withSuffix("tag")
 
     // Resolvers payload vocabulary
-    val priority      = withPath("priority")
-    val resourceTypes = withPath("resourceTypes")
-    val projects      = withPath("projects")
-    val identities    = withPath("identities")
-    val realm         = withPath("realm")
-    val sub           = withPath("sub")
-    val group         = withPath("group")
+    val priority      = withSuffix("priority")
+    val resourceTypes = withSuffix("resourceTypes")
+    val projects      = withSuffix("projects")
+    val identities    = withSuffix("identities")
+    val realm         = withSuffix("realm")
+    val sub           = withSuffix("sub")
+    val group         = withSuffix("group")
 
     // View payload vocabulary
-    val uuid            = withPath("uuid")
-    val resourceSchemas = withPath("resourceSchemas")
-    val resourceTag     = withPath("resourceTag")
-    val includeMetadata = withPath("includeMetadata")
-    val sourceAsText    = withPath("sourceAsText")
-    val mapping         = withPath("mapping")
+    val uuid            = withSuffix("uuid")
+    val resourceSchemas = withSuffix("resourceSchemas")
+    val resourceTag     = withSuffix("resourceTag")
+    val includeMetadata = withSuffix("includeMetadata")
+    val sourceAsText    = withSuffix("sourceAsText")
+    val mapping         = withSuffix("mapping")
 
     // View default ids
-    val defaultElasticIndex = withPath("defaultElasticIndex")
-    val defaultSparqlIndex  = withPath("defaultSparqlIndex")
+    val defaultElasticIndex = withSuffix("defaultElasticIndex")
+    val defaultSparqlIndex  = withSuffix("defaultSparqlIndex")
 
     // @type platform ids
-    val Schema           = withPath("Schema")
-    val Resource         = withPath("Resource")
-    val Ontology         = withPath("Ontology")
-    val Resolver         = withPath("Resolver")
-    val InProject        = withPath("InProject")
-    val InAccount        = withPath("InAccount")
-    val CrossProject     = withPath("CrossProject")
-    val View             = withPath("View")
-    val ElasticView      = withPath("ElasticView")
-    val SparqlView       = withPath("SparqlView")
-    val UserRef          = withPath("UserRef")
-    val GroupRef         = withPath("GroupRef")
-    val AuthenticatedRef = withPath("AuthenticatedRef")
-    val Anonymous        = withPath("Anonymous")
-    val Alpha            = withPath("Alpha")
+    val Schema           = withSuffix("Schema")
+    val Resource         = withSuffix("Resource")
+    val Ontology         = withSuffix("Ontology")
+    val Resolver         = withSuffix("Resolver")
+    val InProject        = withSuffix("InProject")
+    val InAccount        = withSuffix("InAccount")
+    val CrossProject     = withSuffix("CrossProject")
+    val View             = withSuffix("View")
+    val ElasticView      = withSuffix("ElasticView")
+    val SparqlView       = withSuffix("SparqlView")
+    val UserRef          = withSuffix("UserRef")
+    val GroupRef         = withSuffix("GroupRef")
+    val AuthenticatedRef = withSuffix("AuthenticatedRef")
+    val Anonymous        = withSuffix("Anonymous")
+    val Alpha            = withSuffix("Alpha")
   }
 
   /**
@@ -121,7 +128,7 @@ object Vocabulary {
       *                    vocabulary term
       */
     def apply(lastSegment: String)(implicit base: IriNode): Metadata =
-      Metadata("_" + lastSegment, base.value + lastSegment)
+      Metadata("_" + lastSegment, url"${base.value.show + lastSegment}".value)
 
     implicit def metadatataIri(m: Metadata): IriNode             = IriNode(m.value)
     implicit def metadatataAbsoluteIri(m: Metadata): AbsoluteIri = m.value

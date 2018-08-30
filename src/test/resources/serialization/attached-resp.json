@@ -7,10 +7,7 @@
     "filePath": "/test/path",
     "filename": "test-file.json",
     "mediaType": "application/json",
-    "contentSize": {
-      "unit": "byte",
-      "value": 128
-    },
+    "byteSize": 128,
     "digest": {
       "algorithm": "md5",
       "value": "1234"
