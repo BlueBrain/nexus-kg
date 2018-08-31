@@ -131,6 +131,8 @@ object ResourceF {
       .remove(id, nxv.createdBy)
       .remove(id, nxv.updatedBy)
       .remove(id, nxv.constrainedBy)
+      .remove(id, nxv.project)
+      .remove(id, nxv.self)
 
   /**
     * A default resource value type.
