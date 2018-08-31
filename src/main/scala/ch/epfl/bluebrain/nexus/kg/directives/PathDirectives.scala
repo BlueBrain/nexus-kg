@@ -22,7 +22,7 @@ object PathDirectives {
     */
   @SuppressWarnings(Array("MethodNames"))
   def IdSegment(implicit project: Project): PathMatcher1[AbsoluteIri] =
-    Segment flatMap (toIri)
+    Segment flatMap toIri
 
   private def toIri(s: String)(implicit project: Project): Option[AbsoluteIri] =
     project.prefixMappings.get(s) orElse

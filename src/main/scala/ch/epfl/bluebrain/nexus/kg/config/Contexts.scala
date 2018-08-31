@@ -14,7 +14,7 @@ object Contexts {
   val resourceCtxUri: AbsoluteIri = base + "resource"
   val resolverCtxUri: AbsoluteIri = base + "resolver"
   val viewCtxUri: AbsoluteIri     = base + "view"
-  val shaclCtxUri: AbsoluteIri    = base + "shacl"
+  val shaclCtxUri: AbsoluteIri    = base + "shacl-20170720"
   val searchCtxUri: AbsoluteIri   = base + "search"
 
   val tagCtx: Json      = jsonContentOf("/contexts/tags-context.json")

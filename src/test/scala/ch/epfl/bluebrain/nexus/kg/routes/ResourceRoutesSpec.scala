@@ -512,7 +512,8 @@ class ResourceRoutesSpec
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       val lb = labeledProject.copy(project = labeledProject.project.copy(
         prefixMappings = labeledProject.project.prefixMappings ++ defaultPrefixMapping + ("base" -> nxv.projects.value)))
-      when(resources.materializeWithMeta(resource)(lb)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
+      when(resources.materializeWithMeta(resource)(lb)).thenReturn(
+        EitherT.rightT[Task, Rejection](resourceV.copy(value = resourceV.value.copy(graph = resourceV.metadata))))
 
       val replacements = Map(quote("{account}") -> account, quote("{proj}") -> project, quote("{uuid}") -> genUuid)
 
