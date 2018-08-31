@@ -12,6 +12,7 @@
     "@context": "https://nexus.example.com/contexts/demo/core/data/v0.2.7",
     "@type": [
       "https://bbp-nexus.epfl.ch/vocabs/bbp/neurosciencegraph/core/v0.1.0/Entity",
+      "nsg:Trace",
       "Concentration"
     ],
     "uniprotCanonLeadProtID": "E9QAQ5",

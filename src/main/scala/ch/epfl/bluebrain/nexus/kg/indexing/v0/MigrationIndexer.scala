@@ -32,8 +32,9 @@ private[v0] class MigrationIndexer(repo: Repo[Task],
   private val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
   private val resourceSchema = Ref(resourceSchemaUri)
+  private val shaclSchema    = Ref(shaclSchemaUri)
   private val resourceTypes  = Set(nxv.Resource.value)
-  private val schemaTypes    = Set(nxv.Resource.value, nxv.Schema.value)
+  private val schemaTypes    = Set(nxv.Schema.value)
 
   // $COVERAGE-OFF$
   private def run(): ActorRef = KafkaConsumer.start[v0.Event](consumerSettings, index, topic, s"$topic-migration")
@@ -56,7 +57,7 @@ private[v0] class MigrationIndexer(repo: Repo[Task],
       case ContextCreated(id, _, meta, value) =>
         repo.create(toId(id), resourceSchema, resourceTypes, value, meta.instant)
       case SchemaCreated(id, _, meta, value) =>
-        repo.create(toId(id), resourceSchema, schemaTypes, value, meta.instant)
+        repo.create(toId(id), shaclSchema, schemaTypes, value, meta.instant)
 
       case InstanceUpdated(id, rev, meta, value) => repo.update(toId(id), rev, extractTypes(value), value, meta.instant)
       case ContextUpdated(id, rev, meta, value)  => repo.update(toId(id), rev, resourceTypes, value, meta.instant)
@@ -67,7 +68,7 @@ private[v0] class MigrationIndexer(repo: Repo[Task],
       case SchemaDeprecated(id, rev, meta)   => repo.deprecate(toId(id), rev, meta.instant)
 
       case InstanceAttachmentCreated(id, rev, meta, value) =>
-        repo.unsafeAttach(toId(id), rev, value.toBinaryAttributes, meta.instant)
+        repo.attachFromMetadata(toId(id), rev, value.toBinaryAttributes, meta.instant)
       case InstanceAttachmentRemoved(id, rev, meta) =>
         repo
           .get(toId(id))
@@ -80,10 +81,11 @@ private[v0] class MigrationIndexer(repo: Repo[Task],
           }
 
       case _: ContextPublished | _: SchemaPublished =>
-        repo
-          .get(toId(event.id))
-          .toRight(NotFound(toId(event.id).ref))
-          .flatMap(res => repo.update(res.id, event.rev, res.types, res.value, event.meta.instant))
+        for {
+          res     <- repo.get(toId(event.id), event.rev).toRight(NotFound(toId(event.id).ref))
+          updated <- repo.update(res.id, res.rev, res.types, res.value, event.meta.instant)
+          tagged  <- repo.tag(updated.id, updated.rev, updated.rev, "published", event.meta.instant)
+        } yield tagged
     }
   }
 

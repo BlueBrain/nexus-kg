@@ -113,15 +113,15 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     }
 
   /**
-    * Adds attachment metadata to a resource for an external file, without checking its existence.
+    * Adds attachment metadata to a resource for an existing file.
     *
     * @param id   the id of the resource
     * @param rev  the last known revision of the resource
-    * @param attr the attachment description metadata
+    * @param attr the full attachment description metadata
     * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def unsafeAttach(id: ResId, rev: Long, attr: BinaryAttributes, instant: Instant = clock.instant)(
+  def attachFromMetadata(id: ResId, rev: Long, attr: BinaryAttributes, instant: Instant = clock.instant)(
       implicit identity: Identity): EitherT[F, Rejection, Resource] =
     get(id).toRight(NotFound(id.ref)).flatMap { res =>
       if (res.deprecated) EitherT.leftT(IsDeprecated(id.ref))
