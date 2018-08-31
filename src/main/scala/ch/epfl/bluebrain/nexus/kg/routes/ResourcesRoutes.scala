@@ -116,11 +116,8 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
             (callerIdentity & hasPermissionInAcl(resourceRead)) { implicit ident =>
               val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
                 views.find(_.id == id) match {
-                  case Some(v: ElasticView) =>
-                    val index = s"${config.elastic.indexPrefix}_${v.name}"
-                    es.searchRaw(query, Set(index), params).map(Right(_))
-                  case _ =>
-                    Task.pure(Left(NotFound(Ref(id))))
+                  case Some(v: ElasticView) => es.searchRaw(query, Set(v.index), params).map(Right(_))
+                  case _                    => Task.pure(Left(NotFound(Ref(id))))
                 }
               }
               trace("searchElastic")(complete(result.runAsync))
