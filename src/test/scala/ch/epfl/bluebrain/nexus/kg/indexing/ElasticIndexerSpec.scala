@@ -201,7 +201,7 @@ class ElasticIndexerSpec
           .obj(
             "@id"              -> Json.fromString(id.value.show),
             "_original_source" -> Json.fromString(json.noSpaces),
-            "_constrainedBy"   -> Json.fromString("nxv:Resource"),
+            "_constrainedBy"   -> Json.fromString(nxv.Resource.value.show),
             "_createdAt"       -> Json.fromString(instantString),
             "_createdBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString()),
             "_deprecated"      -> Json.fromBoolean(false),

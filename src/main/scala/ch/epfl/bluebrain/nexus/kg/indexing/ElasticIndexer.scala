@@ -7,14 +7,13 @@ import cats.MonadError
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
@@ -26,7 +25,6 @@ import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
 import io.circe.Json
@@ -90,17 +88,14 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
   private def transformAndIndex(res: Resource): F[Unit] = {
     val primaryNode = IriNode(res.id.value)
 
-    def asJson(g: Graph): Json =
-      g.asJson(ctx, Some(primaryNode)).getOrElse(g.asJson)
+    def asJson(g: Graph): Json = g.asJson(ctx, Some(primaryNode)).getOrElse(g.asJson)
 
     val transformed: Json = {
       val metaGraph = if (view.includeMetadata) res.metadata ++ res.typeGraph else Graph()
-      if (view.sourceAsText)
-        asJson(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces)).removeKeys("@context")
-      else
-        (res.value deepMerge asJson(metaGraph)).removeKeys("@context")
+      if (view.sourceAsText) asJson(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces))
+      else res.value deepMerge asJson(metaGraph)
     }
-    client.create(view.index, config.elastic.docType, urlEncode(res.id.value), transformed)
+    client.create(view.index, config.elastic.docType, urlEncode(res.id.value), transformed.removeKeys("@context"))
   }
 
 }
@@ -137,7 +132,5 @@ object ElasticIndexer {
   }
   // $COVERAGE-ON$
 
-  private[indexing] val ctx: Json =
-    resourceCtx appendContextOf Json.obj(
-      "@context" -> Json.obj(nxv.originalSource.prefix -> Json.fromString(nxv.originalSource.show)))
+  private[indexing] val ctx: Json = jsonContentOf("/elastic/default-context.json")
 }
