@@ -1,27 +1,36 @@
 {
-  "@id" : "nxv:{uuid}",
-  "_distribution" : [
+  "@id": "nxv:{uuid}",
+  "_distribution": [
     {
       "@type": "dcat:Distribution",
-      "_byteSize" : 2048,
-      "_digest" : {
-        "_algorithm" : "SHA-256",
-        "_value" : "digest2"
+      "_byteSize": 2048,
+      "_digest": {
+        "_algorithm": "SHA-256",
+        "_value": "digest2"
       },
-      "_downloadURL" : "http://127.0.0.1:8080/v1/resources/{account}/{proj}/resource/nxv:{uuid}/attachments/filename2.txt",
-      "_mediaType" : "text/plain",
-      "_originalFileName" : "filename2.txt"
+      "_downloadURL": "http://127.0.0.1:8080/v1/resources/{account}/{proj}/resource/nxv:{uuid}/attachments/filename2.txt",
+      "_mediaType": "text/plain",
+      "_originalFileName": "filename2.txt"
     },
     {
       "@type": "dcat:Distribution",
-      "_byteSize" : 1024,
-      "_digest" : {
-        "_algorithm" : "SHA-256",
-        "_value" : "digest1"
+      "_byteSize": 1024,
+      "_digest": {
+        "_algorithm": "SHA-256",
+        "_value": "digest1"
       },
-      "_downloadURL" : "http://127.0.0.1:8080/v1/resources/{account}/{proj}/resource/nxv:{uuid}/attachments/filename1.txt",
-      "_mediaType" : "text/plain",
-      "_originalFileName" : "filename1.txt"
+      "_downloadURL": "http://127.0.0.1:8080/v1/resources/{account}/{proj}/resource/nxv:{uuid}/attachments/filename1.txt",
+      "_mediaType": "text/plain",
+      "_originalFileName": "filename1.txt"
     }
-  ]
+  ],
+  "_constrainedBy": "nxs:resource",
+  "_createdAt": "1970-01-01T01:00:00Z",
+  "_createdBy": "http://localhost:8080/iam/realms/realm/users/dmontero",
+  "_deprecated": false,
+  "_project": "http://localhost:8080/admin/projects/{account}/{proj}",
+  "_rev": 1,
+  "_self": "http://127.0.0.1:8080/v1/resources/{account}/{proj}/resource/nxv:{uuid}",
+  "_updatedAt": "1970-01-01T01:00:00Z",
+  "_updatedBy": "http://localhost:8080/iam/realms/realm/users/dmontero"
 }

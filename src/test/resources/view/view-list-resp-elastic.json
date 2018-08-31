@@ -50,6 +50,40 @@
           },
           "_original_source": {
             "type": "text"
+          },
+          "_distribution": {
+            "type": "nested",
+            "properties": {
+              "@type": {
+                "type": "keyword"
+              },
+              "@id": {
+                "type": "keyword"
+              },
+              "_byteSize": {
+                "type": "long"
+              },
+              "_downloadURL": {
+                "type": "keyword"
+              },
+              "_mediaType": {
+                "type": "keyword"
+              },
+              "_originalFileName": {
+                "type": "keyword"
+              },
+              "_digest": {
+                "type": "nested",
+                "properties": {
+                  "_algorithm": {
+                    "type": "keyword"
+                  },
+                  "_value": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
           }
         },
         "dynamic": false

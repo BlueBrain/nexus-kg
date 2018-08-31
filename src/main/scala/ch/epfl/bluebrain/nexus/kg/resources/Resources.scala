@@ -354,8 +354,7 @@ abstract class Resources[F[_]](implicit F: Monad[F],
   def materializeWithMeta(resource: Resource)(implicit wrapped: LabeledProject): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
-      graph = resourceV.value.graph
-      value = resourceV.value.copy(graph = graph ++ resourceV.metadata ++ resourceV.typeGraph)
+      value = resourceV.value.copy(graph = resourceV.value.graph ++ resourceV.metadata ++ resourceV.typeGraph)
     } yield resourceV.map(_ => value)
 
   /**
