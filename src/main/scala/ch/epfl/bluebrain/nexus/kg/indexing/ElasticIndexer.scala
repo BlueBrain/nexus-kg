@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.StatusCodes
-import akka.stream.ActorMaterializer
 import cats.MonadError
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
@@ -10,7 +9,6 @@ import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -111,18 +109,21 @@ object ElasticIndexer {
     */
   // $COVERAGE-OFF$
   final def start(view: ElasticView, resources: Resources[Task], labeledProject: LabeledProject)(
-      implicit as: ActorSystem,
+      implicit client: ElasticClient[Task],
       s: Scheduler,
-      config: AppConfig): ActorRef = {
-    implicit val mt         = ActorMaterializer()
-    implicit val ul         = HttpClient.taskHttpClient
-    implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
-    implicit val lb         = labeledProject
+      as: ActorSystem,
+      config: AppConfig,
+      jsonCl: HttpClient[Task, Json]): ActorRef = {
 
-    implicit val client = ElasticClient[Task](config.elastic.base)
-    val indexer         = new ElasticIndexer(client, view, resources)
+    implicit val lb = labeledProject
+
+    val indexer = new ElasticIndexer(client, view, resources)
     SequentialTagIndexer.start[Event](
-      () => view.createIndex[Task].map(_ => ()).runAsync,
+      () =>
+        (for {
+          _ <- view.createIndex[Task]
+          _ <- if (view.rev > 1) client.deleteIndex(view.copy(rev = view.rev - 1).index) else Task.pure(true)
+        } yield ()).runAsync,
       (ev: Event) => indexer(ev).runAsync,
       id = s"elastic-indexer-${view.name}",
       pluginId = config.persistence.queryJournalPlugin,

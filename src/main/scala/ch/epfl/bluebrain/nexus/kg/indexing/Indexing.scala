@@ -4,9 +4,12 @@ import java.util.regex.Pattern.quote
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.kafka.ConsumerSettings
+import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.admin.client.types.KafkaEvent._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, KafkaEvent, Project}
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.IllegalEventType
@@ -20,10 +23,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.v0.MigrationIndexer
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.kafka.KafkaConsumer
+import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 import org.apache.kafka.common.serialization.StringDeserializer
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 
 import scala.concurrent.Future
 
@@ -184,12 +189,24 @@ object Indexing {
                                                                        ucl: HttpClient[Task, ResultSet],
                                                                        config: AppConfig): Unit = {
 
+    implicit val mt            = ActorMaterializer()
+    implicit val ul            = HttpClient.taskHttpClient
+    implicit val jsonClient    = HttpClient.withTaskUnmarshaller[Json]
+    implicit val elasticClient = ElasticClient[Task](config.elastic.base)
+
     def selector(view: View, labeledProject: LabeledProject): ActorRef = view match {
       case v: ElasticView => ElasticIndexer.start(v, resources, labeledProject)
       case v: SparqlView  => SparqlIndexer.start(v, resources, labeledProject)
     }
 
-    val coordinator = ProjectViewCoordinator.start(cache, selector, None, config.cluster.shards)
+    def onStop(view: View): Task[Boolean] = view match {
+      case v: ElasticView =>
+        elasticClient.deleteIndex(v.index)
+      case _: SparqlView =>
+        BlazegraphClient[Task](config.sparql.base, view.name, config.sparql.akkaCredentials).deleteNamespace
+    }
+
+    val coordinator = ProjectViewCoordinator.start(cache, selector, onStop, None, config.cluster.shards)
     val indexing    = new Indexing(resources, cache, coordinator)
     indexing.startAccountStream()
     indexing.startProjectStream()

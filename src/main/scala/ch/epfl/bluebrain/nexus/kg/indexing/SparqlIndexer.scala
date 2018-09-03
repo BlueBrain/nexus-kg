@@ -10,6 +10,7 @@ import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{PersistenceConfig, SparqlConfig}
@@ -88,15 +89,14 @@ object SparqlIndexer {
     */
   // $COVERAGE-OFF$
   final def start(view: SparqlView, resources: Resources[Task], labeledProject: LabeledProject)(
-      implicit
-      as: ActorSystem,
+      implicit as: ActorSystem,
+      mt: ActorMaterializer,
+      ul: UntypedHttpClient[Task],
       s: Scheduler,
       ucl: HttpClient[Task, ResultSet],
       config: SparqlConfig,
       persistence: PersistenceConfig): ActorRef = {
 
-    implicit val mt = ActorMaterializer()
-    implicit val ul = HttpClient.taskHttpClient
     implicit val lb = labeledProject
 
     val properties: Map[String, String] = {
@@ -108,7 +108,12 @@ object SparqlIndexer {
     val client  = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
     val indexer = new SparqlIndexer(client, resources)
     SequentialTagIndexer.start[Event](
-      () => client.createNamespace(properties).runAsync.map(_ => ()),
+      () =>
+        (for {
+          _ <- client.createNamespace(properties)
+          _ <- if (view.rev > 1) client.copy(namespace = (view.copy(rev = view.rev - 1).name)).deleteNamespace
+          else Task.pure(true)
+        } yield ()).runAsync,
       (ev: Event) => indexer(ev).runAsync,
       id = s"sparql-indexer-${view.name}",
       pluginId = persistence.queryJournalPlugin,
