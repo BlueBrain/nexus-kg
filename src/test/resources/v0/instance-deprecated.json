@@ -1,0 +1,12 @@
+{
+  "id": "some/other/stuff/v0.1.0/85b8bc79-8e25-4ae5-81fd-2e76559f6a60",
+  "rev": 2,
+  "meta": {
+    "author": {
+      "id": "https://nexus.example.com/realms/BBP/users/f:9d46ddd6-134e-44d6-aa74-0123456789ab:bob",
+      "type": "UserRef"
+    },
+    "instant": "2018-08-27T13:16:35.621Z"
+  },
+  "type": "InstanceDeprecated"
+}

@@ -3,6 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.resources.attachment
 import java.nio.file.Path
 import java.util.UUID
 
+import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
+
 object Attachment {
 
   /**
@@ -61,4 +64,6 @@ object Attachment {
     * @param digest   the digest related information of the attached file
     */
   final case class StoredSummary(filePath: Path, byteSize: Long, digest: Digest)
+
+  implicit val digestDecoder: Decoder[Digest] = deriveDecoder[Digest]
 }

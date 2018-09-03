@@ -45,10 +45,8 @@ import io.circe.Json
 /**
   * Resource operations.
   */
-abstract class Resources[F[_]](implicit F: Monad[F],
-                               repo: Repo[F],
-                               resolution: ProjectResolution[F],
-                               config: AppConfig) { self =>
+class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: ProjectResolution[F], config: AppConfig) {
+  self =>
 
   type RejOrResourceV = EitherT[F, Rejection, ResourceV]
   type RejOrResource  = EitherT[F, Rejection, Resource]
@@ -552,7 +550,7 @@ object Resources {
     * @return a new [[Resources]] for the provided F type
     */
   final def apply[F[_]: Monad: Repo: ProjectResolution](implicit config: AppConfig): Resources[F] =
-    new Resources[F]() {}
+    new Resources[F]()
 
   private[resources] final case class SchemaContext(schema: ResourceV,
                                                     dataImports: Set[ResourceV],
