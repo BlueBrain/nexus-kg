@@ -325,6 +325,19 @@ class Settings(config: Config) extends Extension {
       */
     val BaseUri = Uri(ns.getString("iam.base-uri"))
   }
+
+  object Kafka {
+
+    /**
+      * Whether the event migration is enabled.
+      */
+    val Enabled = ns.getBoolean("kafka.enabled")
+
+    /**
+      * Name of the Kafka topic where events are published.
+      */
+    val Topic = ns.getString("kafka.topic")
+  }
 }
 
 object Settings extends ExtensionId[Settings] with ExtensionIdProvider {
