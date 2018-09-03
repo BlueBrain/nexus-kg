@@ -1,13 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem}
-import akka.http.scaladsl.model.StatusCodes
 import cats.MonadError
-import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
@@ -78,10 +75,7 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
   private def fetchRevision(id: ResId): F[Option[Long]] =
     client
       .get[Json](view.index, config.elastic.docType, urlEncode(id.value), include = Set(revKey))
-      .map(_.hcursor.get[Long](revKey).toOption)
-      .handleError {
-        case ElasticClientError(StatusCodes.NotFound, _) => None
-      }
+      .map(_.flatMap(_.hcursor.get[Long](revKey).toOption))
 
   private def transformAndIndex(res: Resource): F[Unit] = {
     val primaryNode = IriNode(res.id.value)

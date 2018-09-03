@@ -6,14 +6,12 @@ import java.util.UUID
 import java.util.regex.Pattern.quote
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.StatusCodes
 import akka.testkit.TestKit
 import cats.data.OptionT
 import cats.instances.future._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
@@ -106,7 +104,7 @@ class ElasticIndexerSpec
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
         when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
-          .thenReturn(Future.successful(Json.obj("_rev" -> Json.fromLong(3L))))
+          .thenReturn(Future.successful(Option(Json.obj("_rev" -> Json.fromLong(3L)))))
         indexer(ev).futureValue shouldEqual (())
       }
 
@@ -119,7 +117,7 @@ class ElasticIndexerSpec
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
         when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
-          .thenReturn(Future.failed(new ElasticClientError(StatusCodes.NotFound, "something")))
+          .thenReturn(Future.successful(None: Option[Json]))
 
         val elasticJson = Json
           .obj(
@@ -145,7 +143,7 @@ class ElasticIndexerSpec
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
         when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
-          .thenReturn(Future.successful(Json.obj("_rev" -> Json.fromLong(1L))))
+          .thenReturn(Future.successful(Option(Json.obj("_rev" -> Json.fromLong(1L)))))
 
         val elasticJson = Json
           .obj(
@@ -195,7 +193,7 @@ class ElasticIndexerSpec
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value))
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
         when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
-          .thenReturn(Future.failed(new ElasticClientError(StatusCodes.NotFound, "something")))
+          .thenReturn(Future.successful(None: Option[Json]))
 
         val elasticJson = Json
           .obj(
@@ -238,7 +236,7 @@ class ElasticIndexerSpec
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
         when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
         when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
-          .thenReturn(Future.failed(new ElasticClientError(StatusCodes.NotFound, "something")))
+          .thenReturn(Future.successful(None: Option[Json]))
 
         val elasticJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
         when(client.create(index, doc, urlEncode(id.value), elasticJson)).thenReturn(Future.successful(()))
