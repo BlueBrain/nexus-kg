@@ -4,9 +4,8 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
-import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import akka.http.scaladsl.model.{StatusCodes, Uri}
+import akka.http.scaladsl.model.{HttpEntity, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import cats.data.{EitherT, OptionT}
@@ -604,9 +603,10 @@ class ResourceRoutesSpec
       val result = Json.obj("key1" -> Json.fromString("value1"))
       when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
       when(sparql.queryRaw(query)).thenReturn(Task.pure(result))
-      implicit val sm =  PredefinedToEntityMarshallers.stringMarshaller(RdfMediaTypes.`application/sparql-query`)
 
-      Post(s"/v1/views/$account/$project/nxv:defaultSparqlIndex/sparql", query) ~> addCredentials(oauthToken) ~> routes ~> check {
+      Post(
+        s"/v1/views/$account/$project/nxv:defaultSparqlIndex/sparql",
+        HttpEntity(RdfMediaTypes.`application/sparql-query`, query)) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual result
       }

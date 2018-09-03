@@ -1,7 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg
 
+import akka.http.scaladsl.model.MediaTypes
+import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, PredefinedFromEntityUnmarshallers}
 import cats.Show
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
@@ -37,4 +40,7 @@ package object marshallers {
     val enc = deriveEncoder[HttpRejection]
     Encoder(enc(_) addContext errorCtxUri)
   }
+
+  val sparqlQueryUnmarshaller: FromEntityUnmarshaller[String] = PredefinedFromEntityUnmarshallers.stringUnmarshaller
+    .forContentTypes(RdfMediaTypes.`application/sparql-query`, MediaTypes.`text/plain`)
 }
