@@ -108,7 +108,7 @@ object SparqlIndexer {
     val client  = BlazegraphClient[Task](config.base, view.name, config.akkaCredentials)
     val indexer = new SparqlIndexer(client, resources)
     SequentialTagIndexer.start[Event](
-      () => client.createNamespaceIfNotExist(properties).runAsync.map(_ => ()),
+      () => client.createNamespace(properties).runAsync.map(_ => ()),
       (ev: Event) => indexer(ev).runAsync,
       id = s"sparql-indexer-${view.name}",
       pluginId = persistence.queryJournalPlugin,

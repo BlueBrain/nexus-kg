@@ -2,9 +2,12 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import java.util.UUID
 
+import akka.http.scaladsl.model.MediaTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
 import cats.data.EitherT
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
@@ -99,12 +102,13 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
   private def view(implicit token: Option[AuthToken]): Route = {
     val resourceRead = Permissions(Permission("views/read"), Permission("views/manage"))
 
+    implicit val um = PredefinedFromEntityUnmarshallers.stringUnmarshaller.forContentTypes(RdfMediaTypes.`application/sparql-query`, MediaTypes.`text/plain`)
     def search(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]) =
-      (pathPrefix(IdSegment / "sparql") & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
+    (pathPrefix(IdSegment / "sparql") & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
         (callerIdentity & hasPermissionInAcl(resourceRead)) { implicit ident =>
           val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
             views.find(_.id == id) match {
-              case Some(v: SparqlView) => sparql.copy(namespace = v.name).queryRaw(urlEncode(query)).map(Right.apply)
+              case Some(v: SparqlView) => sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
               case _                   => Task.pure(Left(NotFound(Ref(id))))
             }
           }
