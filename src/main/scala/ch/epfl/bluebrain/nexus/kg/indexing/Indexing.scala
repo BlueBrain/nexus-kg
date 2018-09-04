@@ -9,10 +9,10 @@ import ch.epfl.bluebrain.nexus.admin.client.types.KafkaEvent._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, KafkaEvent, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
-import ch.epfl.bluebrain.nexus.kg.RuntimeErr.IllegalEventType
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
 import ch.epfl.bluebrain.nexus.kg.async.{DistributedCache, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -28,7 +28,6 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 import org.apache.kafka.common.serialization.StringDeserializer
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 
 import scala.concurrent.Future
 
@@ -45,33 +44,9 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
   private val defaultEsMapping =
     jsonContentOf("/elastic/mapping.json", Map(quote("{{docType}}") -> config.elastic.docType))
 
-  def startAccountStream(): Unit = {
+  def startKafkaStream(): Unit = {
 
-    def index(event: KafkaEvent): Future[Unit] = {
-      val update = event match {
-        case OrganizationCreated(_, label, uuid, rev, _, org) =>
-          cache.addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid), updateRev = false)
-        case OrganizationUpdated(_, label, uuid, rev, _, org) =>
-          cache.addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid), updateRev = true)
-        case OrganizationDeprecated(_, uuid, rev, _) =>
-          cache.deprecateAccount(AccountRef(uuid), rev)
-        case _: ProjectCreated    => throw IllegalEventType("ProjectCreated", "Organization")
-        case _: ProjectUpdated    => throw IllegalEventType("ProjectUpdated", "Organization")
-        case _: ProjectDeprecated => throw IllegalEventType("ProjectDeprecated", "Organization")
-      }
-      update.flatMap { updated =>
-        if (updated) Task.unit
-        else Task.raiseError(new RetriableErr(s"Failed to update account '${event.id}'"))
-      }.runAsync
-    }
-
-    KafkaConsumer.start(consumerSettings, index, config.kafka.accountTopic, "account-events", committable = false, None)
-    ()
-  }
-
-  def startProjectStream(): Unit = {
-
-    def processResult(accountRef: AccountRef, projectRef: ProjectRef): Boolean => Task[Unit] = {
+    def processProject(accountRef: AccountRef, projectRef: ProjectRef): Boolean => Task[Unit] = {
       case true =>
         coordinator ! Msg(accountRef, projectRef)
         Task.unit
@@ -79,8 +54,26 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
         Task.raiseError(new RetriableErr(s"Failed to update project '${projectRef.id}'"))
     }
 
+    def processAccount(accountRef: AccountRef): Boolean => Task[Unit] = {
+      case true =>
+        Task.unit
+      case false =>
+        Task.raiseError(new RetriableErr(s"Failed to update account '${accountRef.id}'"))
+    }
+
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
+        case OrganizationCreated(_, label, uuid, rev, _, org) =>
+          cache
+            .addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid), updateRev = false)
+            .flatMap(processAccount(AccountRef(uuid)))
+
+        case OrganizationUpdated(_, label, uuid, rev, _, org) =>
+          cache
+            .addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid), updateRev = true)
+            .flatMap(processAccount(AccountRef(uuid)))
+        case OrganizationDeprecated(_, uuid, rev, _) =>
+          cache.deprecateAccount(AccountRef(uuid), rev).flatMap(processAccount(AccountRef(uuid)))
         case ProjectCreated(_, label, uuid, orgUUid, rev, _, proj) =>
           cache
             .addProject(
@@ -128,7 +121,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
                 } yield elastic && sparql
               case false => Task(false)
             }
-            .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
+            .flatMap(processProject(AccountRef(orgUUid), ProjectRef(uuid)))
         case ProjectUpdated(_, label, uuid, orgUUid, rev, _, proj) =>
           cache
             .addProject(
@@ -137,19 +130,16 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
               Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
               updateRev = true
             )
-            .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
+            .flatMap(processProject(AccountRef(orgUUid), ProjectRef(uuid)))
         case ProjectDeprecated(_, uuid, orgUUid, rev, _) =>
           cache
             .deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), rev)
-            .flatMap(processResult(AccountRef(orgUUid), ProjectRef(uuid)))
-        case _: OrganizationCreated    => throw IllegalEventType("OrganizationCreated", "Project")
-        case _: OrganizationUpdated    => throw IllegalEventType("OrganizationUpdated", "Project")
-        case _: OrganizationDeprecated => throw IllegalEventType("OrganizationDeprecated", "Project")
+            .flatMap(processProject(AccountRef(orgUUid), ProjectRef(uuid)))
       }
       update.runAsync
     }
 
-    KafkaConsumer.start(consumerSettings, index, config.kafka.projectTopic, "project-events", committable = false, None)
+    KafkaConsumer.start(consumerSettings, index, config.kafka.adminTopic, "admin-events", committable = false, None)
     ()
   }
 
@@ -208,8 +198,7 @@ object Indexing {
 
     val coordinator = ProjectViewCoordinator.start(cache, selector, onStop, None, config.cluster.shards)
     val indexing    = new Indexing(resources, cache, coordinator)
-    indexing.startAccountStream()
-    indexing.startProjectStream()
+    indexing.startKafkaStream()
     indexing.startResolverStream()
     indexing.startViewStream()
     indexing.startMigrationStream()
