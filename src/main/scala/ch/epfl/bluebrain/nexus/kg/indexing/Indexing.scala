@@ -139,7 +139,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
       update.runAsync
     }
 
-    KafkaConsumer.start(consumerSettings, index, config.kafka.adminTopic, "account-events", committable = false, None)
+    KafkaConsumer.start(consumerSettings, index, config.kafka.adminTopic, "admin-events", committable = false, None)
     ()
   }
 
