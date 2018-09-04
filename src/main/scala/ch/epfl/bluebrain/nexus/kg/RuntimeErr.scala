@@ -19,13 +19,4 @@ object RuntimeErr {
     * @param msg a descriptive message on the operation that timed out
     */
   final case class OperationTimedOut(msg: String) extends RuntimeErr(msg)
-
-  /**
-    * Signals an illegal event type received from the Kafka topic.
-    *
-    * @param eventType the offending type
-    */
-  final case class IllegalEventType(eventType: String, expected: String)
-      extends RuntimeErr(s"Illegal event type '$eventType', expected prefix: '$expected'")
-
 }
