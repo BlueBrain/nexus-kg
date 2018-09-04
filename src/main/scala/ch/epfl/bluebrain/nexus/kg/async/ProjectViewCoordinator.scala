@@ -31,9 +31,12 @@ import scala.concurrent.duration._
   *
   * @param cache    the distributed cache
   * @param selector a function that selects the child actor index runner specific for the view type
+  * @param onStop   a function that is called whenever a view is stopped
   */
 //noinspection ActorMutableStateInspection
-class ProjectViewCoordinator(cache: DistributedCache[Task], selector: (View, LabeledProject) => ActorRef)
+class ProjectViewCoordinator(cache: DistributedCache[Task],
+                             selector: (View, LabeledProject) => ActorRef,
+                             onStop: View => Task[Boolean])
     extends Actor
     with Stash {
 
@@ -81,7 +84,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task], selector: (View, Lab
   def initialized(ac: Account,
                   wrapped: LabeledProject,
                   views: Set[View],
-                  childMapping: Map[String, ActorRef])(): Receive = {
+                  childMapping: Map[View, ActorRef])(): Receive = {
 
     def updateWrappedAc(account: Account): LabeledProject =
       wrapped.copy(label = wrapped.label.copy(account = account.label))
@@ -96,12 +99,11 @@ class ProjectViewCoordinator(cache: DistributedCache[Task], selector: (View, Lab
         ref ! Stop
         context.stop(ref)
       }
-      Map.empty[String, ActorRef]
+      Task.sequence(childMapping.keys.map(onStop)).runAsync
+      Map.empty[View, ActorRef]
     } else {
-      val withNames = views.map(v => v.name -> v).toMap
-      val added     = withNames.keySet -- childMapping.keySet
-      val removed   = childMapping.keySet -- withNames.keySet
-
+      val added   = views -- childMapping.keySet
+      val removed = childMapping.keySet -- views
       // stop actors that don't have a corresponding view anymore
       if (removed.nonEmpty) log.debug(s"Stopping view coordinators for $removed")
       removed.foreach { name =>
@@ -109,12 +111,11 @@ class ProjectViewCoordinator(cache: DistributedCache[Task], selector: (View, Lab
         ref ! Stop
         context.stop(ref)
       }
+      Task.sequence(removed.map(onStop)).runAsync
 
       // construct actors for the new view updates
       if (added.nonEmpty) log.debug(s"Creating view coordinators for $added")
-      val newActorsMapping = withNames
-        .filter { case (name, _) => added.contains(name) }
-        .mapValues(v => selector(v, wrapped))
+      val newActorsMapping = views.intersect(added).map(v => v -> selector(v, wrapped))
 
       childMapping -- removed ++ newActorsMapping
     }
@@ -165,14 +166,17 @@ object ProjectViewCoordinator {
     case msg @ Msg(AccountRef(acc), ProjectRef(proj)) => (s"${acc}_$proj", msg)
   }
 
-  private[async] def props(cache: DistributedCache[Task], selector: (View, LabeledProject) => ActorRef): Props =
-    Props(new ProjectViewCoordinator(cache, selector))
+  private[async] def props(cache: DistributedCache[Task],
+                           selector: (View, LabeledProject) => ActorRef,
+                           onStop: View => Task[Boolean]): Props =
+    Props(new ProjectViewCoordinator(cache, selector, onStop))
 
   /**
     * Starts the ProjectViewCoordinator shard with the provided configuration options.
     *
     * @param cache            the distributed cache
     * @param selector         a function that selects the child actor index runner specific for the view type
+    * @param onStop           a function that is called whenever a view is stopped
     * @param shardingSettings the sharding settings
     * @param shards           the number of shards to use
     * @param as               the underlying actor system
@@ -180,11 +184,16 @@ object ProjectViewCoordinator {
   final def start(
       cache: DistributedCache[Task],
       selector: (View, LabeledProject) => ActorRef,
+      onStop: View => Task[Boolean],
       shardingSettings: Option[ClusterShardingSettings],
       shards: Int
   )(implicit as: ActorSystem): ActorRef = {
     val settings = shardingSettings.getOrElse(ClusterShardingSettings(as)).withRememberEntities(true)
     ClusterSharding(as)
-      .start("project-view-coordinator", props(cache, selector), settings, entityExtractor, shardExtractor(shards))
+      .start("project-view-coordinator",
+             props(cache, selector, onStop),
+             settings,
+             entityExtractor,
+             shardExtractor(shards))
   }
 }
