@@ -53,5 +53,6 @@
     "_mediaType": "dcat:mediaType",
     "_originalFileName": "nxv:originalFileName",
     "_byteSize": "dcat:byteSize"
-  }
+  },
+  "@id": "https://bluebrain.github.io/nexus/contexts/resource"
 }

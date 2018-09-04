@@ -33,8 +33,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
         "pass")
       appConfig.elastic shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
-      appConfig.kafka.projectTopic shouldEqual "project"
-      appConfig.kafka.accountTopic shouldEqual "organization"
+      appConfig.kafka.adminTopic shouldEqual "admin-events"
       appConfig.kafka.migration.enabled shouldEqual false
       appConfig.kafka.migration.topic shouldEqual "v0-events"
       appConfig.kafka.migration.baseUri shouldEqual url"http://bbp-nexus.epfl.ch/staging/v0/".value

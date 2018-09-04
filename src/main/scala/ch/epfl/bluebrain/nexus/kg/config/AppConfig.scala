@@ -116,11 +116,10 @@ object AppConfig {
   /**
     * Kafka config
     *
-    * @param accountTopic the topic for account events
-    * @param projectTopic the topic for project events
-    * @param migration    the v0 events migration config
+    * @param adminTopic the topic for account and project events
+    * @param migration  the v0 events migration config
     */
-  final case class KafkaConfig(accountTopic: String, projectTopic: String, migration: MigrationConfig)
+  final case class KafkaConfig(adminTopic: String, migration: MigrationConfig)
 
   /**
     * Migration config
