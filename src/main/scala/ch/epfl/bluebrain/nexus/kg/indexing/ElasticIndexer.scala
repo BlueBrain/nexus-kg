@@ -50,8 +50,8 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
     * @return Unit wrapped in the context F.
     *         This method will raise errors if something goes wrong
     */
-  final def apply(ev: Event): F[Unit] = {
-    resources.fetch(ev.id, None).value.flatMap {
+  final def apply(ev: Event): F[Unit] =
+    view.resourceTag.map(resources.fetch(ev.id, _, None)).getOrElse(resources.fetch(ev.id, None)).value.flatMap {
       case None => F.raiseError(NotFound(ev.id.ref))
       case Some(resource) if validCandidate(resource) =>
         fetchRevision(ev.id) flatMap {
@@ -61,16 +61,9 @@ class ElasticIndexer[F[_]](client: ElasticClient[F], view: ElasticView, resource
         }
       case Some(_) => F.pure(())
     }
-  }
 
-  private def validCandidate(resource: Resource): Boolean = {
-    val validSchema = view.resourceSchemas.isEmpty || view.resourceSchemas.contains(resource.schema.iri)
-    view.resourceTag match {
-      case Some(tag) if resource.tags.contains(tag) => resource.tags(tag) == resource.rev && validSchema
-      case Some(_)                                  => false
-      case None                                     => validSchema
-    }
-  }
+  private def validCandidate(resource: Resource): Boolean =
+    view.resourceSchemas.isEmpty || view.resourceSchemas.contains(resource.schema.iri)
 
   private def fetchRevision(id: ResId): F[Option[Long]] =
     client
