@@ -234,7 +234,7 @@ class ElasticIndexerSpec
 
       "index a resource when it does not exist" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
-        when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
+        when(resources.fetch(id, "one", None)).thenReturn(OptionT.some(res))
         when(client.get[Json](index, doc, urlEncode(id.value), include = Set("_rev")))
           .thenReturn(Future.successful(None: Option[Json]))
 
@@ -245,9 +245,8 @@ class ElasticIndexerSpec
       }
 
       "skip indexing a resource when it is not matching the tag defined on the view" in {
-        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-        when(resources.fetch(id, None)).thenReturn(OptionT.some(res))
-        indexer(ev).futureValue shouldEqual (())
+        when(resources.fetch(id, "one", None)).thenReturn(OptionT.none[Future, Resource])
+        whenReady(indexer(ev).failed)(_ shouldBe a[NotFound])
       }
     }
   }
