@@ -160,12 +160,8 @@
       "@id": "sh:target",
       "@type": "@id"
     },
-    "isDefinedBy": {
-      "@id": "http://www.w3.org/2000/01/rdf-schema#isDefinedBy",
-      "@type": "@id"
-    },
     "shapes": {
-      "@reverse": "http://www.w3.org/2000/01/rdf-schema#isDefinedBy",
+      "@id": "nxv:shapes",
       "@type": "@id",
       "@container": "@set"
     },
