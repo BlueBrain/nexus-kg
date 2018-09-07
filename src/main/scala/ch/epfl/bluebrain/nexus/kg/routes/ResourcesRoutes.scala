@@ -170,8 +170,25 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
     }
   }
 
-  private def schema(implicit token: Option[AuthToken]): Route =
-    ResourceRoutes(resources, shaclSchemaUri, "schemas")
+  private def schema(implicit token: Option[AuthToken]): Route = {
+    def schemaRoutes(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]): Route =
+      new ResourceRoutes(resources, shaclSchemaUri, "schemas") {
+
+        override def transformCreate(j: Json): Json =
+          j.addContext(shaclCtxUri)
+
+        override def transformUpdate(id: AbsoluteIri, j: Json): EitherT[Task, Rejection, Json] =
+          EitherT.rightT(transformCreate(j))
+      }.routes
+
+    (pathPrefix("schemas") & project) { implicit wrapped =>
+      acls.apply(implicit acls => schemaRoutes)
+    } ~ (pathPrefix("resources") & project) { implicit wrapped =>
+      pathPrefix(isIdSegment(shaclSchemaUri)) {
+        acls.apply(implicit acls => schemaRoutes)
+      }
+    }
+  }
 
   private def resource(implicit token: Option[AuthToken]): Route = {
     val resourceRead = Permissions(Permission("resources/read"), Permission("resources/manage"))
