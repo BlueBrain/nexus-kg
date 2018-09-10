@@ -77,20 +77,20 @@ class ProjectViewCoordinatorSpec
 
       probe watch childActor
       val coordinator = ProjectViewCoordinator.start(cache, selector, onStop, None, 1)
-      cache.addAccount(accountRef, account, updateRev = true).runAsync.futureValue shouldEqual true
-      cache.addProject(projectRef, accountRef, project, updateRev = true).runAsync.futureValue shouldEqual true
+      cache.addAccount(accountRef, account).runAsync.futureValue shouldEqual (())
+      cache.addProject(projectRef, accountRef, project).runAsync.futureValue shouldEqual (())
       coordinator ! Msg(accountRef, projectRef)
-      cache.addView(projectRef, view, updateRev = true).runAsync.futureValue shouldEqual true
+      cache.addView(projectRef, view).runAsync.futureValue shouldEqual (())
       eventually(counter.get shouldEqual 1)
-      cache.removeView(projectRef, viewId, 2L).runAsync.futureValue shouldEqual true
+      cache.removeView(projectRef, viewId, 2L).runAsync.futureValue shouldEqual (())
       eventually(counterStop.get shouldEqual 1)
 
-      cache.addView(projectRef, view2, updateRev = true).runAsync.futureValue shouldEqual true
+      cache.addView(projectRef, view2).runAsync.futureValue shouldEqual (())
       eventually(counter.get shouldEqual 2)
       cache
-        .addProject(projectRef, accountRef, project.copy(deprecated = true, rev = 2L), updateRev = true)
+        .addProject(projectRef, accountRef, project.copy(deprecated = true, rev = 2L))
         .runAsync
-        .futureValue shouldEqual true
+        .futureValue shouldEqual (())
       eventually(counterStop.get shouldEqual 2)
       probe.expectTerminated(childActor)
     }

@@ -38,7 +38,7 @@ private class ResolverIndexer[F[_]](resources: Resources[F], cache: DistributedC
   def apply(event: Event): F[Unit] = {
     val projectRef = event.id.parent
 
-    val result: EitherT[F, Rejection, Boolean] = for {
+    val result: EitherT[F, Rejection, Unit] = for {
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
       materialized <- resources.materialize(resource)
       accountRef   <- EitherT.fromOptionF(cache.accountRef(projectRef), AccountNotFound(projectRef))

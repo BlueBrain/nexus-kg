@@ -76,7 +76,7 @@ class ViewIndexerSpec
     "index a view" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.applyView(projectRef, view)).thenReturn(Future.successful(true))
+      when(cache.applyView(projectRef, view)).thenReturn(Future.successful(()))
 
       indexer(ev).futureValue shouldEqual (())
       verify(cache, times(1)).applyView(projectRef, view)
