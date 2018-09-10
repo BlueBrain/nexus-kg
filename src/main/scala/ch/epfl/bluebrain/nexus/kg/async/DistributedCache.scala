@@ -330,7 +330,7 @@ object DistributedCache {
     }
 
     /**
-      * @return true if the project ref is already present so that we can chain the call during an update
+      * @return Successful [[Future]] if update succeeded, failure otherwise
       */
     private def addProjectToAccount(ref: ProjectRef, accountRef: AccountRef): Future[Unit] = {
       projects(accountRef).flatMap { projects =>
@@ -496,7 +496,7 @@ object DistributedCache {
       case UpdateSuccess(LWWRegisterKey(_), _) =>
         Future.successful(())
       case UpdateTimeout(LWWRegisterKey(_), _) =>
-        Future.failed(OperationTimedOut(s"Distributed cache update timed out while performing action '$action'"))
+        Future.failed(new RetriableErr(s"Distributed cache update timed out while performing action '$action'"))
       case ModifyFailure(LWWRegisterKey(_), msg, cause, _) =>
         log.error(s"Failed to modify the current value while performing action: '$action' with error message: '$msg'",
                   cause)
