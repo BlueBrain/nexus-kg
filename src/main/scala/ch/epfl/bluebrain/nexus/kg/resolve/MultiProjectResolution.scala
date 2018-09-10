@@ -69,7 +69,7 @@ class MultiProjectResolution[F[_]](
     }
   }
 
-  private def containsAny[A](a: Set[A], b: Set[A]): Boolean = b.exists(a.contains)
+  private def containsAny[A](a: Set[A], b: Set[A]): Boolean = b.isEmpty || b.exists(a.contains)
 
   private def projectToLabel(project: ProjectRef): F[Option[ProjectLabel]] =
     (for {

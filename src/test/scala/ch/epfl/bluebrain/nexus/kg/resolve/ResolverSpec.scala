@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import java.time.{Clock, Instant, ZoneId}
 
 import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
@@ -65,12 +66,40 @@ class ResolverSpec
         resolver.deprecated shouldEqual resource.deprecated
       }
 
-      "return a InAccountResolver" in {
+      "return a CrossProjectResolver that does not have resourceTypes" in {
+        val resource =
+          simpleV(id, crossProject.removeKeys("resourceTypes"), types = Set(nxv.Resolver, nxv.CrossProject))
+        val projects =
+          Set(ProjectRef("account1/project1"), ProjectRef("account1/project2"))
+        val resolver = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectResolver]
+        resolver.priority shouldEqual 50
+        resolver.identities should contain theSameElementsAs identities
+        resolver.resourceTypes shouldEqual Set.empty
+        resolver.projects shouldEqual projects
+        resolver.ref shouldEqual projectRef
+        resolver.id shouldEqual iri
+        resolver.rev shouldEqual resource.rev
+        resolver.deprecated shouldEqual resource.deprecated
+      }
+
+      "return an InAccountResolver" in {
         val resource = simpleV(id, inAccount, types = Set(nxv.Resolver, nxv.InAccount))
         val resolver = Resolver(resource, accountRef).value.asInstanceOf[InAccountResolver]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set(nxv.Schema.value)
+        resolver.ref shouldEqual projectRef
+        resolver.id shouldEqual iri
+        resolver.rev shouldEqual resource.rev
+        resolver.deprecated shouldEqual resource.deprecated
+      }
+
+      "return a InAccountResolver that does not have resourceTypes" in {
+        val resource = simpleV(id, inAccount.removeKeys("resourceTypes"), types = Set(nxv.Resolver, nxv.InAccount))
+        val resolver = Resolver(resource, accountRef).value.asInstanceOf[InAccountResolver]
+        resolver.priority shouldEqual 50
+        resolver.identities should contain theSameElementsAs identities
+        resolver.resourceTypes shouldEqual Set.empty
         resolver.ref shouldEqual projectRef
         resolver.id shouldEqual iri
         resolver.rev shouldEqual resource.rev

@@ -91,13 +91,13 @@ object Resolver {
 
     def crossProject: Option[Resolver] =
       (for {
-        types    <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri]
         projects <- c.downField(nxv.projects).values.asListOf[String].map(_.map(ProjectRef.apply))
         identities <- c.downField(nxv.identities).downArray.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
           case (err @ Left(_), _)   => err
           case (Right(list), inner) => identity(inner).map(_ :: list)
         }
         priority <- c.downField(nxv.priority).focus.as[Int]
+        types = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty[AbsoluteIri])
       } yield
         CrossProjectResolver(types.toSet,
                              projects.toSet,
@@ -110,12 +110,12 @@ object Resolver {
 
     def inAccount: Option[Resolver] =
       (for {
-        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri]
         identities <- c.downField(nxv.identities).downArray.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
           case (err @ Left(_), _)   => err
           case (Right(list), inner) => identity(inner).map(_ :: list)
         }
         priority <- c.downField(nxv.priority).focus.as[Int]
+        types = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty[AbsoluteIri])
       } yield
         InAccountResolver(types.toSet,
                           identities,
@@ -137,9 +137,9 @@ object Resolver {
         case t                                 => Left(IllegalConversion(s"The type '$t' cannot be converted into an Identity"))
       }
 
-    if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.CrossProject.value)) crossProject
-    else if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.InProject.value)) inProject
-    else if (res.types.contains(nxv.Resolver.value) && res.types.contains(nxv.InAccount.value)) inAccount
+    if (Set(nxv.Resolver.value, nxv.CrossProject.value).subsetOf(res.types)) crossProject
+    else if (Set(nxv.Resolver.value, nxv.InProject.value).subsetOf(res.types)) inProject
+    else if (Set(nxv.Resolver.value, nxv.InAccount.value).subsetOf(res.types)) inAccount
     else None
   }
 
