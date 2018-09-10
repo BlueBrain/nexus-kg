@@ -12,7 +12,6 @@ import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RevisionedId
 import ch.epfl.bluebrain.nexus.kg.RevisionedId._
-import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve._
 import ch.epfl.bluebrain.nexus.kg.resources._
