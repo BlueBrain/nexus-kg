@@ -71,35 +71,32 @@ class MultiProjectResolutionSpec
     super.beforeAll()
     val account1Uuid = UUID.randomUUID().toString
     cache
-      .addAccount(AccountRef(account1Uuid), Account(proj1.account, 1L, proj1.account, false, account1Uuid), true)
+      .addAccount(AccountRef(account1Uuid), Account(proj1.account, 1L, proj1.account, false, account1Uuid))
       .futureValue
     cache
       .addProject(proj1Id.ref,
                   AccountRef(account1Uuid),
-                  Project(proj1.value, proj1.value, Map(), base, 1L, false, proj1Id),
-                  true)
+                  Project(proj1.value, proj1.value, Map(), base, 1L, false, proj1Id))
       .futureValue
 
     val account2Uuid = UUID.randomUUID().toString
     cache
-      .addAccount(AccountRef(account2Uuid), Account(proj1.account, 1L, proj2.account, false, account2Uuid), true)
+      .addAccount(AccountRef(account2Uuid), Account(proj1.account, 1L, proj2.account, false, account2Uuid))
       .futureValue
     cache
       .addProject(proj2Id.ref,
                   AccountRef(account2Uuid),
-                  Project(proj2.value, proj2.value, Map(), base, 1L, false, proj2Id),
-                  true)
+                  Project(proj2.value, proj2.value, Map(), base, 1L, false, proj2Id))
       .futureValue
 
     val account3Uuid = UUID.randomUUID().toString
     cache
-      .addAccount(AccountRef(account3Uuid), Account(proj3.account, 1L, proj3.account, false, account3Uuid), true)
+      .addAccount(AccountRef(account3Uuid), Account(proj3.account, 1L, proj3.account, false, account3Uuid))
       .futureValue
     val _ = cache
       .addProject(proj3Id.ref,
                   AccountRef(account3Uuid),
-                  Project(proj3.value, proj3.value, Map(), base, 1L, false, proj3Id),
-                  true)
+                  Project(proj3.value, proj3.value, Map(), base, 1L, false, proj3Id))
       .futureValue
 
   }

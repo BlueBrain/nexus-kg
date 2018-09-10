@@ -78,7 +78,7 @@ class ResolverIndexerSpec
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
       when(cache.accountRef(projectRef)).thenReturn(Future.successful(Option(accountRef)))
-      when(cache.applyResolver(projectRef, resolver)).thenReturn(Future.successful(true))
+      when(cache.applyResolver(projectRef, resolver)).thenReturn(Future.successful(()))
 
       indexer(ev).futureValue shouldEqual (())
       verify(cache, times(1)).applyResolver(projectRef, resolver)

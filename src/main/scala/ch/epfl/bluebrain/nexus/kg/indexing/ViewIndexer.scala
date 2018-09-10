@@ -34,7 +34,7 @@ private class ViewIndexer[F[_]](resources: Resources[F], cache: DistributedCache
   def apply(event: Event): F[Unit] = {
     val projectRef = event.id.parent
 
-    val result: EitherT[F, Rejection, Boolean] = for {
+    val result: EitherT[F, Rejection, Unit] = for {
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
       materialized <- resources.materialize(resource)
       view         <- EitherT.fromEither(View(materialized))
