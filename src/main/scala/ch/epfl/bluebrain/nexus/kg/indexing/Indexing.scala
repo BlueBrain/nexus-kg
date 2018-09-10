@@ -12,7 +12,6 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
-import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
 import ch.epfl.bluebrain.nexus.kg.async.{DistributedCache, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -46,95 +45,64 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
 
   def startKafkaStream(): Unit = {
 
-    def processProject(accountRef: AccountRef, projectRef: ProjectRef): Boolean => Task[Unit] = {
-      case true =>
-        coordinator ! Msg(accountRef, projectRef)
-        Task.unit
-      case false =>
-        Task.raiseError(new RetriableErr(s"Failed to update project '${projectRef.id}'"))
-    }
-
-    def processAccount(accountRef: AccountRef): Boolean => Task[Unit] = {
-      case true =>
-        Task.unit
-      case false =>
-        Task.raiseError(new RetriableErr(s"Failed to update account '${accountRef.id}'"))
-    }
-
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
         case OrganizationCreated(_, label, uuid, rev, _, org) =>
           cache
-            .addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid), updateRev = false)
-            .flatMap(processAccount(AccountRef(uuid)))
+            .addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid))
 
         case OrganizationUpdated(_, label, uuid, rev, _, org) =>
           cache
-            .addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid), updateRev = true)
-            .flatMap(processAccount(AccountRef(uuid)))
+            .addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid))
         case OrganizationDeprecated(_, uuid, rev, _) =>
-          cache.deprecateAccount(AccountRef(uuid), rev).flatMap(processAccount(AccountRef(uuid)))
+          cache.deprecateAccount(AccountRef(uuid), rev)
         case ProjectCreated(_, label, uuid, orgUUid, rev, _, proj) =>
-          cache
-            .addProject(
+          for {
+            _ <- cache
+              .addProject(
+                ProjectRef(uuid),
+                AccountRef(orgUUid),
+                Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid)
+              )
+            _ <- cache.addResolver(ProjectRef(uuid),
+                                   InProjectResolver(ProjectRef(uuid), nxv.InProject.value, 1L, deprecated = false, 1))
+            _ <- cache.addView(
               ProjectRef(uuid),
-              AccountRef(orgUUid),
-              Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
-              updateRev = false
+              ElasticView(
+                defaultEsMapping,
+                Set.empty,
+                None,
+                includeMetadata = true,
+                sourceAsText = true,
+                ProjectRef(uuid),
+                nxv.defaultElasticIndex.value,
+                elasticUUID,
+                1L,
+                deprecated = false
+              )
             )
-            .flatMap {
-              case true =>
-                cache.addResolver(ProjectRef(uuid),
-                                  InProjectResolver(ProjectRef(uuid), nxv.InProject.value, 1L, deprecated = false, 1))
-              case false => Task(false)
-            }
-            .flatMap {
-              case true =>
-                for {
-                  elastic <- cache.addView(
-                    ProjectRef(uuid),
-                    ElasticView(
-                      defaultEsMapping,
-                      Set.empty,
-                      None,
-                      includeMetadata = true,
-                      sourceAsText = true,
-                      ProjectRef(uuid),
-                      nxv.defaultElasticIndex.value,
-                      elasticUUID,
-                      1L,
-                      deprecated = false
-                    ),
-                    true
-                  )
-                  sparql <- cache.addView(
-                    ProjectRef(uuid),
-                    SparqlView(
-                      ProjectRef(uuid),
-                      nxv.defaultSparqlIndex.value,
-                      sparqlUUID,
-                      1L,
-                      deprecated = false
-                    ),
-                    true
-                  )
-                } yield elastic && sparql
-              case false => Task(false)
-            }
-            .flatMap(processProject(AccountRef(orgUUid), ProjectRef(uuid)))
+            _ <- cache.addView(
+              ProjectRef(uuid),
+              SparqlView(
+                ProjectRef(uuid),
+                nxv.defaultSparqlIndex.value,
+                sparqlUUID,
+                1L,
+                deprecated = false
+              )
+            )
+            _ = coordinator ! Msg(AccountRef(orgUUid), ProjectRef(uuid))
+          } yield ()
         case ProjectUpdated(_, label, uuid, orgUUid, rev, _, proj) =>
           cache
             .addProject(
               ProjectRef(uuid),
               AccountRef(orgUUid),
-              Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid),
-              updateRev = true
+              Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid)
             )
-            .flatMap(processProject(AccountRef(orgUUid), ProjectRef(uuid)))
         case ProjectDeprecated(_, uuid, orgUUid, rev, _) =>
           cache
             .deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), rev)
-            .flatMap(processProject(AccountRef(orgUUid), ProjectRef(uuid)))
       }
       update.runAsync
     }

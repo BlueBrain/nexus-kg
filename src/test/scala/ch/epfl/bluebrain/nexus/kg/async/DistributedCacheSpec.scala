@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{DefaultTimeout, TestKit}
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
@@ -47,49 +48,45 @@ class DistributedCacheSpec
     }
 
     "handle accounts life-cycle" in new Context {
-      cache.addAccount(accountRef, account, updateRev = true).futureValue shouldEqual true
-      cache.addAccount(accountRef, account.copy(rev = 2L), updateRev = false).futureValue shouldEqual false
+      cache.addAccount(accountRef, account).futureValue shouldEqual (())
       cache.account(accountRef).futureValue shouldEqual Some(account)
-      cache.addAccount(accountRef, account.copy(rev = 3L), updateRev = true).futureValue shouldEqual true
+      cache.addAccount(accountRef, account.copy(rev = 3L)).futureValue shouldEqual (())
       cache.account(accountRef).futureValue shouldEqual Some(account.copy(rev = 3L))
-      cache.deprecateAccount(accountRef, 4L).futureValue shouldEqual true
+      cache.deprecateAccount(accountRef, 4L).futureValue shouldEqual (())
       cache.account(accountRef).futureValue shouldEqual Some(account.copy(rev = 4L, deprecated = true))
     }
 
     "fail when adding a project without adding first its account" in new Context {
-      cache.addProject(projectRef, accountRef, project, updateRev = true).futureValue shouldEqual false
+      cache.addProject(projectRef, accountRef, project).failed.futureValue shouldBe a[RetriableErr]
     }
 
     "handle projects life-cycle" in new Context {
-      cache.addAccount(accountRef, account, updateRev = true).futureValue shouldEqual true
+      cache.addAccount(accountRef, account).futureValue shouldEqual (())
 
       val ref2     = ProjectRef(genUUID)
       val project2 = Project("some-project2", "some-label-proj2", Map.empty, base, 42L, deprecated = false, ref2.id)
 
-      cache.addProject(projectRef, accountRef, project, updateRev = false).futureValue shouldEqual true
-      cache
-        .addProject(projectRef, accountRef, project.copy(rev = 2L), updateRev = false)
-        .futureValue shouldEqual false
+      cache.addProject(projectRef, accountRef, project).futureValue shouldEqual (())
       cache.project(projectRef).futureValue shouldEqual Some(project)
       cache.project(ProjectLabel(accountLabel, projectLabel)).futureValue shouldEqual Some(project)
       cache.projects(accountRef).futureValue shouldEqual Set(projectRef)
-      cache.addProject(ref2, accountRef, project2, updateRev = true).futureValue shouldEqual true
+      cache.addProject(ref2, accountRef, project2).futureValue shouldEqual (())
       cache.projects(accountRef).futureValue shouldEqual Set(projectRef, ref2)
       cache.project(ProjectLabel("wrong", "some-label-proj")).futureValue shouldEqual None
       cache.projectRef(ProjectLabel(accountLabel, projectLabel)).futureValue shouldEqual Some(projectRef)
       cache.projectRef(ProjectLabel(accountLabel, "wrong")).futureValue shouldEqual None
       cache
-        .addProject(projectRef, accountRef, project.copy(rev = 3L), updateRev = true)
-        .futureValue shouldEqual true
+        .addProject(projectRef, accountRef, project.copy(rev = 3L))
+        .futureValue shouldEqual (())
       cache.project(projectRef).futureValue shouldEqual Some(project.copy(rev = 3L))
-      cache.deprecateProject(projectRef, accountRef, 4L).futureValue shouldEqual true
+      cache.deprecateProject(projectRef, accountRef, 4L).futureValue shouldEqual (())
       cache.project(projectRef).futureValue shouldEqual Some(project.copy(rev = 4L, deprecated = true))
       cache.projects(accountRef).futureValue shouldEqual Set(ref2)
     }
 
     "handle resolvers life-cycle" in new Context {
-      cache.addAccount(accountRef, account, updateRev = true).futureValue shouldEqual true
-      cache.addProject(projectRef, accountRef, project, updateRev = true).futureValue shouldEqual true
+      cache.addAccount(accountRef, account).futureValue shouldEqual (())
+      cache.addProject(projectRef, accountRef, project).futureValue shouldEqual (())
 
       val projectId = base + s"$accountLabel/$projectLabel"
       val resolver  = InProjectResolver(projectRef, projectId, 1L, deprecated = false, 10)
@@ -103,43 +100,41 @@ class DistributedCacheSpec
                                            deprecated = false,
                                            1)
 
-      cache.addResolver(projectRef, resolver).futureValue shouldEqual true
+      cache.addResolver(projectRef, resolver).futureValue shouldEqual (())
       cache.resolvers(projectRef).futureValue shouldEqual Set(resolver)
 
-      cache.applyResolver(projectRef, resolver.copy(rev = 2L)).futureValue shouldEqual true
+      cache.applyResolver(projectRef, resolver.copy(rev = 2L)).futureValue shouldEqual (())
       cache.resolvers(projectRef).futureValue shouldEqual Set(resolver.copy(rev = 2L))
 
-      cache.addResolver(projectRef, resolver2).futureValue shouldEqual true
+      cache.addResolver(projectRef, resolver2).futureValue shouldEqual (())
       cache.resolvers(projectRef).futureValue shouldEqual Set(resolver.copy(rev = 2L), resolver2)
 
-      cache.addResolver(projectRef, resolver.copy(rev = 1L)).futureValue shouldEqual true
+      cache.addResolver(projectRef, resolver.copy(rev = 1L)).futureValue shouldEqual (())
       cache.resolvers(projectRef).futureValue shouldEqual Set(resolver.copy(rev = 2L), resolver2)
 
-      cache.removeResolver(projectRef, projectId, 3L).futureValue shouldEqual true
+      cache.removeResolver(projectRef, projectId, 3L).futureValue shouldEqual (())
       cache.resolvers(projectRef).futureValue shouldEqual Set(resolver2)
     }
 
     "handle views life-cycle" in new Context {
-      cache.addAccount(accountRef, account, updateRev = true).futureValue shouldEqual true
+      cache.addAccount(accountRef, account).futureValue shouldEqual (())
 
-      cache.addProject(projectRef, accountRef, project, updateRev = true).futureValue shouldEqual true
+      cache.addProject(projectRef, accountRef, project).futureValue shouldEqual (())
 
       val projectId = base + s"$accountLabel/$projectLabel"
       val view      = SparqlView(projectRef, projectId, genUUID, 1L, deprecated = false)
       val view2     = SparqlView(projectRef, url"http://some.project/id".value, genUUID, 1L, deprecated = false)
-      cache.addView(projectRef, view, updateRev = true).futureValue shouldEqual true
+      cache.addView(projectRef, view).futureValue shouldEqual (())
       cache.views(projectRef).futureValue shouldEqual Set(view)
       cache.views(ProjectLabel(accountLabel, projectLabel)).futureValue shouldEqual Set(view)
       cache.views(ProjectLabel("wrong", "some-label-proj")).futureValue shouldEqual Set.empty[View]
-      cache.applyView(projectRef, view.copy(rev = 2L)).futureValue shouldEqual true
+      cache.applyView(projectRef, view.copy(rev = 2L)).futureValue shouldEqual (())
       cache.views(projectRef).futureValue shouldEqual Set(view.copy(rev = 2L))
-      cache.addView(projectRef, view2, updateRev = false).futureValue shouldEqual true
+      cache.addView(projectRef, view2).futureValue shouldEqual (())
       cache.views(projectRef).futureValue shouldEqual Set(view.copy(rev = 2L), view2)
-      cache.addView(projectRef, view.copy(rev = 3L), updateRev = false).futureValue shouldEqual false
+      cache.removeView(projectRef, projectId, 2L).futureValue shouldEqual (())
       cache.views(projectRef).futureValue shouldEqual Set(view.copy(rev = 2L), view2)
-      cache.removeView(projectRef, projectId, 2L).futureValue shouldEqual true
-      cache.views(projectRef).futureValue shouldEqual Set(view.copy(rev = 2L), view2)
-      cache.removeView(projectRef, projectId, 3L).futureValue shouldEqual true
+      cache.removeView(projectRef, projectId, 3L).futureValue shouldEqual (())
       cache.views(projectRef).futureValue shouldEqual Set(view2)
     }
   }

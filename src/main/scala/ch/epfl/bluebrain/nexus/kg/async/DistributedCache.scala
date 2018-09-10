@@ -9,6 +9,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RevisionedId
 import ch.epfl.bluebrain.nexus.kg.RevisionedId._
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
@@ -16,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import journal.Logger
 import monix.eval.Task
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -47,20 +49,16 @@ trait DistributedCache[F[_]] {
     *
     * @param ref       the account reference
     * @param account   the account to add
-    * @param updateRev whether to update an existing account if the provided account has a higher revision than an
-    *                  already existing element with the same id
-    * @return true if the update was performed or false if the element was already present
     */
-  def addAccount(ref: AccountRef, account: Account, updateRev: Boolean): F[Boolean]
+  def addAccount(ref: AccountRef, account: Account): F[Unit]
 
   /**
     * Deprecates an account.
     *
     * @param ref the account reference
     * @param rev the account revision
-    * @return true if the deprecation was performed or false otherwise
     */
-  def deprecateAccount(ref: AccountRef, rev: Long): F[Boolean]
+  def deprecateAccount(ref: AccountRef, rev: Long): F[Unit]
 
   /**
     * Looks up the state of the argument project.
@@ -92,11 +90,8 @@ trait DistributedCache[F[_]] {
     * @param ref        the project reference
     * @param accountRef the account reference
     * @param project    the project to add
-    * @param updateRev  whether to update an existing project if the provided project has a higher revision than an
-    *                   already existing element with the same id
-    * @return true if the update was performed or false if the element was already present
     */
-  def addProject(ref: ProjectRef, accountRef: AccountRef, project: Project, updateRev: Boolean): F[Boolean]
+  def addProject(ref: ProjectRef, accountRef: AccountRef, project: Project): F[Unit]
 
   /**
     * Deprecates a project.
@@ -104,9 +99,8 @@ trait DistributedCache[F[_]] {
     * @param ref        the project reference
     * @param accountRef the account reference
     * @param rev        the project revision
-    * @return true if the deprecation was performed or false otherwise
     */
-  def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): F[Boolean]
+  def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): F[Unit]
 
   /**
     * Looks up the projects belonging to the argument account.
@@ -129,9 +123,8 @@ trait DistributedCache[F[_]] {
     *
     * @param ref       the project reference
     * @param resolver  the resolver to add
-    * @return true if the update was performed or false if the element was already in the set
     */
-  def addResolver(ref: ProjectRef, resolver: Resolver): F[Boolean]
+  def addResolver(ref: ProjectRef, resolver: Resolver): F[Unit]
 
   /**
     * Removes the resolver identified by the argument id from the collection of project resolvers.
@@ -139,9 +132,8 @@ trait DistributedCache[F[_]] {
     * @param ref     the project reference
     * @param id      the id of the resolver to remove
     * @param rev     revision of the deprecated resolver
-    * @return true of the removal was performed or false of the element was not in the set
     */
-  def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): F[Boolean]
+  def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): F[Unit]
 
   /**
     * Either adds, updates or removes the argument resolver depending on its deprecation state, revision and the current
@@ -149,9 +141,8 @@ trait DistributedCache[F[_]] {
     *
     * @param ref      the project reference
     * @param resolver the resolver
-    * @return true if an update has taken place, false otherwise
     */
-  def applyResolver(ref: ProjectRef, resolver: Resolver): F[Boolean] =
+  def applyResolver(ref: ProjectRef, resolver: Resolver): F[Unit] =
     if (resolver.deprecated) removeResolver(ref, resolver.id, resolver.rev)
     else addResolver(ref, resolver)
 
@@ -176,11 +167,8 @@ trait DistributedCache[F[_]] {
     *
     * @param ref       the project reference
     * @param view      the view to add
-    * @param updateRev whether to update the view collection if the view provided has a higher revision than an
-    *                  already existing element in the collection with the same id
-    * @return true if the update was performed or false if the element was already in the set
     */
-  def addView(ref: ProjectRef, view: View, updateRev: Boolean): F[Boolean]
+  def addView(ref: ProjectRef, view: View): F[Unit]
 
   /**
     * Removes the view identified by the argument id from the collection of project views.
@@ -188,9 +176,8 @@ trait DistributedCache[F[_]] {
     * @param ref the project reference
     * @param id  the id of the view to remove
     * @param rev revision of the deprecated view
-    * @return true of the removal was performed or false of the element was not in the set
     */
-  def removeView(ref: ProjectRef, id: AbsoluteIri, rev: Long): F[Boolean]
+  def removeView(ref: ProjectRef, id: AbsoluteIri, rev: Long): F[Unit]
 
   /**
     * Either adds, updates or removes the argument view depending on its deprecation state, revision and the current
@@ -198,11 +185,10 @@ trait DistributedCache[F[_]] {
     *
     * @param ref     the project reference
     * @param view    the view
-    * @return true if an update has taken place, false otherwise
     */
-  def applyView(ref: ProjectRef, view: View): F[Boolean] =
+  def applyView(ref: ProjectRef, view: View): F[Unit] =
     if (view.deprecated) removeView(ref, view.id, view.rev)
-    else addView(ref, view, updateRev = true)
+    else addView(ref, view)
 }
 
 object DistributedCache {
@@ -232,12 +218,15 @@ object DistributedCache {
     LWWRegisterKey("project_views_" + ref.id)
 
   /**
-    * Constructs a ''Projects'' instance in a ''Future'' effect type.
+    * Constructs a [[DistributedCache]] instance in a [[Future]] effect type.
     *
     * @param as the underlying actor system
     * @param tm timeout used for the lookup operations
     */
   def future()(implicit as: ActorSystem, tm: Timeout): DistributedCache[Future] = new DistributedCache[Future] {
+
+    private val log = Logger[this.type]
+
     private val replicator                    = DistributedData(as).replicator
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val node: Cluster        = Cluster(as)
@@ -250,18 +239,17 @@ object DistributedCache {
         val empty  = LWWRegister(RevisionedValue[Option[Account]](0L, None))
         val value  = RevisionedValue[Option[Account]](ac.rev, Some(ac))
         val update = Update(accountKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-        (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+        (replicator ? update).flatMap(handleUpdate(s"update account ${ac.label}"))
       }
 
       def updateAccountLabel() = {
         val empty  = LWWRegister(RevisionedValue[Option[String]](0L, None))
         val value  = RevisionedValue[Option[String]](ac.rev, Some(ac.label))
         val update = Update(accountSegmentInverseKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-        (replicator ? update).flatMap(
-          handleBooleanUpdate("Timed out while waiting for adding account label quorum response"))
+        (replicator ? update).flatMap(handleUpdate(s"update account label for ${ac.label}"))
       }
 
-      updateAccount().withFilter(identity).flatMap(_ => updateAccountLabel())
+      updateAccount().flatMap(_ => updateAccountLabel())
     }
 
     override def account(ref: AccountRef): Future[Option[Account]] =
@@ -270,87 +258,101 @@ object DistributedCache {
     override def accountRef(ref: ProjectRef): Future[Option[AccountRef]] =
       getOrElse(accountRefKey(ref), none[AccountRef])
 
-    private def addAccountRef(ref: ProjectRef, accRef: AccountRef, rev: Long, updateRev: Boolean): Future[Boolean] = {
+    private def addAccountRef(ref: ProjectRef, accRef: AccountRef, rev: Long): Future[Unit] = {
       accountRef(ref).flatMap {
-        case Some(_) => Future.successful(updateRev)
+        case Some(_) => Future.successful(())
         case _ =>
           val empty  = LWWRegister(RevisionedValue[Option[AccountRef]](0L, None))
           val value  = RevisionedValue[Option[AccountRef]](rev, Some(accRef))
           val update = Update(accountRefKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-          (replicator ? update).flatMap(
-            handleBooleanUpdate("Timed out while waiting for add account ref quorum response"))
+          (replicator ? update).flatMap(handleUpdate(s"update account label for ${accRef.id}"))
       }
     }
 
     private def accountSegment(ref: AccountRef): Future[Option[String]] =
       getOrElse(accountSegmentInverseKey(ref), none[String])
 
-    override def addAccount(ref: AccountRef, ac: Account, updateRev: Boolean): Future[Boolean] =
+    override def addAccount(ref: AccountRef, ac: Account): Future[Unit] =
       account(ref).flatMap {
-        case None                                   => update(ref, ac)
-        case Some(a) if updateRev && ac.rev > a.rev => update(ref, ac)
-        case _                                      => Future.successful(false)
+        case None                      => update(ref, ac)
+        case Some(a) if ac.rev > a.rev => update(ref, ac)
+        case Some(a) =>
+          log.warn(
+            s"Account ${ac.label} already indexed at higher revision, current revision: ${a.rev}, update revision: ${ac.rev}")
+          Future.successful(())
       }
 
-    override def deprecateAccount(ref: AccountRef, rev: Long): Future[Boolean] =
+    override def deprecateAccount(ref: AccountRef, rev: Long): Future[Unit] =
       account(ref).flatMap {
         case Some(a) if !a.deprecated && rev > a.rev => update(ref, a.copy(rev = rev, deprecated = true))
-        case _                                       => Future.successful(false)
+        case Some(a) =>
+          log.warn(
+            s"Trying to deprecate an account '${a.label}' that is already indexed at higher revision, current revision: ${a.rev}, update revision: $rev")
+          Future.successful(())
+        case _ =>
+          log.warn(s"Trying to deprecate account which is not in the cache: uuid:'${ref.id}', rev: $rev")
+          Future.failed(
+            new RetriableErr(s"Trying to deprecate account which is not in the cache: uuid:'${ref.id}', rev: $rev"))
       }
 
-    private def updateProject(ref: ProjectRef, proj: Project): Future[Boolean] = {
+    private def updateProject(ref: ProjectRef, proj: Project): Future[Unit] = {
       val empty  = LWWRegister(RevisionedValue[Option[Project]](0L, None))
       val value  = RevisionedValue[Option[Project]](proj.rev, Some(proj))
       val update = Update(projectKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-      (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+      (replicator ? update).flatMap(handleUpdate(s"update project ${proj.label}"))
     }
 
-    private def updateProject(ref: ProjectRef,
-                              accountRef: AccountRef,
-                              proj: Project,
-                              updateRev: Boolean): Future[Boolean] = {
-      val result = for {
-        ra <- updateProject(ref, proj) if ra
-        rb <- addProjectToAccount(ref, accountRef, updateRev) if rb
-        rc <- addAccountRef(ref, accountRef, proj.rev, updateRev) if rc
-        r  <- accountSegment(accountRef)
-      } yield r
-      result.flatMap {
-        case Some(accountLabel) =>
-          val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
-          val value = RevisionedValue[Option[ProjectRef]](proj.rev, Some(ref))
-          val update = Update(projectSegmentKey(ProjectLabel(accountLabel, proj.label)),
-                              empty,
-                              WriteMajority(tm.duration))(_.withValue(value))
-          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
-        case _ => Future.successful(false)
-      }
+    private def updateProjectLabelToUuid(ref: ProjectRef,
+                                         accountRef: AccountRef,
+                                         proj: Project,
+                                         accountLabelOpt: Option[String]): Future[Unit] = accountLabelOpt match {
+      case Some(accountLabel) =>
+        val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
+        val value = RevisionedValue[Option[ProjectRef]](proj.rev, Some(ref))
+        val update = Update(projectSegmentKey(ProjectLabel(accountLabel, proj.label)),
+                            empty,
+                            WriteMajority(tm.duration))(_.withValue(value))
+        (replicator ? update).flatMap(handleUpdate(s"update project label to uuid mapping for ${proj.label}"))
+      case None =>
+        log.warn(s"Couldn't find account label for ${accountRef.id} while updating project ${proj.label}")
+        Future.failed(
+          new RetriableErr(s"Couldn't find account label for ${accountRef.id} while updating project ${proj.label}"))
+    }
+
+    private def updateProject(ref: ProjectRef, accountRef: AccountRef, proj: Project): Future[Unit] = {
+      for {
+        _          <- updateProject(ref, proj)
+        _          <- addProjectToAccount(ref, accountRef)
+        _          <- addAccountRef(ref, accountRef, proj.rev)
+        accountSeg <- accountSegment(accountRef)
+        _          <- updateProjectLabelToUuid(ref, accountRef, proj, accountSeg)
+      } yield ()
     }
 
     /**
       * @return true if the project ref is already present so that we can chain the call during an update
       */
-    private def addProjectToAccount(ref: ProjectRef, accountRef: AccountRef, updateRev: Boolean): Future[Boolean] = {
+    private def addProjectToAccount(ref: ProjectRef, accountRef: AccountRef): Future[Unit] = {
       projects(accountRef).flatMap { projects =>
-        if (projects.contains(ref)) Future.successful(updateRev)
+        if (projects.contains(ref)) Future.successful(())
         else {
           val empty = LWWRegister(RevisionedValue(0L, Set.empty[ProjectRef]))
           val update = Update(accountProjectsKey(accountRef), empty, WriteMajority(tm.duration)) { currentState =>
             val currentRevision = currentState.value.rev
             val currentValue    = currentState.value.value
             currentValue.find(_.id == ref.id) match {
-              case Some(r) =>
-                currentState.withValue(RevisionedValue(currentRevision + 1, currentValue - r + ref))
+              case Some(_) =>
+                currentState
               case None =>
                 currentState.withValue(RevisionedValue(currentRevision + 1, currentValue + ref))
             }
           }
-          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add project quorum response"))
+          (replicator ? update).flatMap(handleUpdate(s"add project ${ref.id} to account ${accountRef.id}"))
         }
       }
     }
 
-    private def removeProjectFromAccount(ref: ProjectRef, accountRef: AccountRef): Future[Boolean] = {
+    private def removeProjectFromAccount(ref: ProjectRef, accountRef: AccountRef): Future[Unit] = {
       projects(accountRef).flatMap { projects =>
         if (projects.contains(ref)) {
           val empty = LWWRegister(RevisionedValue(0L, Set.empty[ProjectRef]))
@@ -363,9 +365,8 @@ object DistributedCache {
               case None => currentState
             }
           }
-          (replicator ? update).flatMap(
-            handleBooleanUpdate("Timed out while waiting for remove project quorum response"))
-        } else Future.successful(false)
+          (replicator ? update).flatMap(handleUpdate(s"remove project ${ref.id} from account ${accountRef.id}"))
+        } else Future.successful(())
       }
     }
 
@@ -381,23 +382,30 @@ object DistributedCache {
         case _         => Future(None)
       }
 
-    override def addProject(ref: ProjectRef,
-                            accountRef: AccountRef,
-                            proj: Project,
-                            updateRev: Boolean): Future[Boolean] =
+    override def addProject(ref: ProjectRef, accountRef: AccountRef, proj: Project): Future[Unit] =
       project(ref).flatMap {
-        case None                                     => updateProject(ref, accountRef, proj, updateRev)
-        case Some(p) if updateRev && proj.rev > p.rev => updateProject(ref, accountRef, proj, updateRev)
-        case _                                        => Future.successful(false)
+        case None                        => updateProject(ref, accountRef, proj)
+        case Some(p) if proj.rev > p.rev => updateProject(ref, accountRef, proj)
+        case Some(p) =>
+          log.warn(
+            s"Account ${proj.label} already indexed at higher revision, current revision: ${p.rev}, update revision: ${proj.rev}")
+          Future.successful(())
       }
 
-    override def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): Future[Boolean] =
+    override def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): Future[Unit] =
       project(ref).flatMap {
         case Some(p) if !p.deprecated && rev > p.rev =>
           updateProject(ref, p.copy(rev = rev, deprecated = true))
-            .withFilter(identity)
             .flatMap(_ => removeProjectFromAccount(ref, accountRef))
-        case _ => Future.successful(false)
+        case Some(p) =>
+          log.warn(
+            s"Account ${p.label} already indexed at higher revision, current revision: ${p.rev}, update revision: $rev")
+          Future.successful(())
+
+        case _ =>
+          log.warn(s"Trying to deprecate project which is not in the cache: uuid:'${ref.id}', rev: $rev")
+          Future.failed(
+            new RetriableErr(s"Trying to deprecate project which is not in the cache: uuid:'${ref.id}', rev: $rev"))
       }
 
     override def projects(ref: AccountRef): Future[Set[ProjectRef]] =
@@ -415,18 +423,18 @@ object DistributedCache {
     override def addResolver(
         ref: ProjectRef,
         resolver: Resolver,
-    ): Future[Boolean] = {
+    ): Future[Unit] = {
 
       val empty = LWWRegister(RevisionedValue(0L, Set.empty[Resolver]))
 
       val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(updateWithIncrement(_, resolver))
-      (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add resolver quorum response"))
+      (replicator ? update).flatMap(handleUpdate(s"add resolver ${resolver.id.show} to project ${ref.id}"))
     }
 
-    override def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): Future[Boolean] = {
+    override def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): Future[Unit] = {
       val empty  = LWWRegister(RevisionedValue(0L, Set.empty[Resolver]))
       val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(removeWithIncrement(_, id, rev))
-      (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for remove resolver quorum response"))
+      (replicator ? update).flatMap(handleUpdate(s"remove resolver ${id.show} from project ${ref.id}"))
     }
 
     private def updateWithIncrement[A: RevisionedId](currentState: LWWRegister[RevisionedValue[Set[A]]],
@@ -472,44 +480,38 @@ object DistributedCache {
         case _         => Future(Set.empty)
       }
 
-    override def addView(ref: ProjectRef, view: View, updateRev: Boolean): Future[Boolean] = {
-      val found = (v: View) =>
-        if (updateRev) v.id == view.id && v.rev >= view.rev
-        else v.id == view.id
-
-      views(ref).flatMap { viewSet =>
-        if (viewSet.exists(found)) Future.successful(false)
-        else {
-          val empty  = LWWRegister(RevisionedValue(0L, Set.empty[View]))
-          val update = Update(projectViewsKey(ref), empty, WriteMajority(tm.duration))(updateWithIncrement(_, view))
-          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for add view quorum response"))
-        }
-      }
+    override def addView(ref: ProjectRef, view: View): Future[Unit] = {
+      val empty  = LWWRegister(RevisionedValue(0L, Set.empty[View]))
+      val update = Update(projectViewsKey(ref), empty, WriteMajority(tm.duration))(updateWithIncrement(_, view))
+      (replicator ? update).flatMap(handleUpdate(s"add view ${view.id.show} to project ${ref.id}"))
     }
 
-    override def removeView(ref: ProjectRef, id: AbsoluteIri, rev: Long): Future[Boolean] = {
-      views(ref).flatMap { viewSet =>
-        if (!viewSet.exists(_.id == id)) Future.successful(false)
-        else {
-          val empty  = LWWRegister(RevisionedValue(0L, Set.empty[View]))
-          val update = Update(projectViewsKey(ref), empty, WriteMajority(tm.duration))(removeWithIncrement(_, id, rev))
-          (replicator ? update).flatMap(handleBooleanUpdate("Timed out while waiting for remove view quorum response"))
-        }
-      }
+    override def removeView(ref: ProjectRef, id: AbsoluteIri, rev: Long): Future[Unit] = {
+      val empty  = LWWRegister(RevisionedValue(0L, Set.empty[View]))
+      val update = Update(projectViewsKey(ref), empty, WriteMajority(tm.duration))(removeWithIncrement(_, id, rev))
+      (replicator ? update).flatMap(handleUpdate(s"remove resolver ${id.show} from project ${ref.id}"))
     }
 
-    private def handleBooleanUpdate(timeoutMsg: String): PartialFunction[Any, Future[Boolean]] = {
+    private def handleUpdate(action: String): PartialFunction[Any, Future[Unit]] = {
       case UpdateSuccess(LWWRegisterKey(_), _) =>
-        Future.successful(true)
+        Future.successful(())
       case UpdateTimeout(LWWRegisterKey(_), _) =>
-        Future.failed(OperationTimedOut(timeoutMsg))
+        Future.failed(OperationTimedOut(s"Distributed cache update timed out while performing action '$action'"))
+      case ModifyFailure(LWWRegisterKey(_), msg, cause, _) =>
+        log.error(s"Failed to modify the current value while performing action: '$action' with error message: '$msg'",
+                  cause)
+        Future.failed(cause)
+      case StoreFailure(LWWRegisterKey(_), _) =>
+        log.error(s"Failed to replicate the update for: '$action'")
+        Future.failed(new RetriableErr(s"Failed to replicate the update for: '$action'"))
+
     }
 
     private def none[A]: Option[A] = None
   }
 
   /**
-    * Constructs a ''Projects'' instance in a ''Task'' effect type.
+    * Constructs a ''DistributedCache'' instance in a ''Task'' effect type.
     *
     * @param as the underlying actor system
     * @param tm timeout used for the lookup operations
@@ -534,22 +536,19 @@ object DistributedCache {
       override def accountRef(ref: ProjectRef): Task[Option[AccountRef]] =
         Task.deferFuture(underlying.accountRef(ref))
 
-      override def addAccount(ref: AccountRef, account: Account, updateRev: Boolean): Task[Boolean] =
-        Task.deferFuture(underlying.addAccount(ref, account, updateRev))
+      override def addAccount(ref: AccountRef, account: Account): Task[Unit] =
+        Task.deferFuture(underlying.addAccount(ref, account))
 
-      override def deprecateAccount(ref: AccountRef, rev: Long): Task[Boolean] =
+      override def deprecateAccount(ref: AccountRef, rev: Long): Task[Unit] =
         Task.deferFuture(underlying.deprecateAccount(ref, rev))
 
       override def project(ref: ProjectRef): Task[Option[Project]] =
         Task.deferFuture(underlying.project(ref))
 
-      override def addProject(ref: ProjectRef,
-                              accountRef: AccountRef,
-                              project: Project,
-                              updateRev: Boolean): Task[Boolean] =
-        Task.deferFuture(underlying.addProject(ref, accountRef, project, updateRev))
+      override def addProject(ref: ProjectRef, accountRef: AccountRef, project: Project): Task[Unit] =
+        Task.deferFuture(underlying.addProject(ref, accountRef, project))
 
-      override def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): Task[Boolean] =
+      override def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): Task[Unit] =
         Task.deferFuture(underlying.deprecateProject(ref, accountRef, rev))
 
       override def projects(ref: AccountRef): Task[Set[ProjectRef]] =
@@ -558,19 +557,19 @@ object DistributedCache {
       override def resolvers(ref: ProjectRef): Task[Set[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))
 
-      override def addResolver(ref: ProjectRef, resolver: Resolver): Task[Boolean] =
+      override def addResolver(ref: ProjectRef, resolver: Resolver): Task[Unit] =
         Task.deferFuture(underlying.addResolver(ref, resolver))
 
-      override def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): Task[Boolean] =
+      override def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): Task[Unit] =
         Task.deferFuture(underlying.removeResolver(ref, id, rev))
 
       override def views(ref: ProjectRef): Task[Set[View]] =
         Task.deferFuture(underlying.views(ref))
 
-      override def addView(ref: ProjectRef, view: View, updateRev: Boolean): Task[Boolean] =
-        Task.deferFuture(underlying.addView(ref, view, updateRev))
+      override def addView(ref: ProjectRef, view: View): Task[Unit] =
+        Task.deferFuture(underlying.addView(ref, view))
 
-      override def removeView(ref: ProjectRef, id: AbsoluteIri, rev: Long): Task[Boolean] =
+      override def removeView(ref: ProjectRef, id: AbsoluteIri, rev: Long): Task[Unit] =
         Task.deferFuture(underlying.removeView(ref, id, rev))
     }
 }
