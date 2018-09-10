@@ -89,7 +89,7 @@ private[v0] class MigrationIndexer(repo: Repo[Task],
     }
   }
 
-  private def toId(id: String): Id[ProjectRef] = Id(projectRef, base + id)
+  private[v0] def toId(id: String): Id[ProjectRef] = Id(projectRef, buildId(id))
 
   private def extractTypes(value: Json): Set[AbsoluteIri] = {
     val types = value.asObject
@@ -106,9 +106,11 @@ private[v0] class MigrationIndexer(repo: Repo[Task],
   private def extractSchema(id: String): Ref = {
     val slash = id.lastIndexOf('/')
     if (slash < 0) resourceSchema
-    else Ref(base + id.substring(0, slash))
+    else Ref(buildId(id.substring(0, slash)))
   }
 
+  private def buildId(id: String): AbsoluteIri =
+    id.split('/').foldLeft(base)((uri, segment) => uri + segment)
 }
 
 object MigrationIndexer {

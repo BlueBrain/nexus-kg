@@ -51,9 +51,20 @@ class MigrationIndexerSpec
   }
 
   "A MigrationIndexer" should {
+
+    "convert v0 ids" in {
+      indexer
+        .toId("some/stuff/v0.1.1/2e838302-81df-48be-a348-ef45cbdb5ad0")
+        .ref
+        .iri
+        .asUri shouldEqual "https://nexus.example.com/some/stuff/v0.1.1/2e838302-81df-48be-a348-ef45cbdb5ad0"
+      indexer.toId("some/").ref.iri.asUri shouldEqual "https://nexus.example.com/some"
+      indexer.toId("").ref.iri.asUri shouldEqual "https://nexus.example.com"
+    }
+
     "process 'instance created' events" in {
-      val id     = Id(projectRef, base + "some/stuff/v0.1.1/2e838302-81df-48be-a348-ef45cbdb5ad0")
-      val schema = Ref(base + "some/stuff/v0.1.1")
+      val id     = Id(projectRef, base + "some" + "stuff" + "v0.1.1" + "2e838302-81df-48be-a348-ef45cbdb5ad0")
+      val schema = Ref(base + "some" + "stuff" + "v0.1.1")
       val types = Set(url"https://bbp-nexus.epfl.ch/vocabs/bbp/neurosciencegraph/core/v0.1.0/Entity".value,
                       Iri.absolute("nsg:Trace").right.value)
       val source  = instancePayload
@@ -67,7 +78,7 @@ class MigrationIndexerSpec
     }
 
     "process 'context created'" in {
-      val id      = Id(projectRef, base + "neurosciencegraph/core/data/v1.0.3")
+      val id      = Id(projectRef, base + "neurosciencegraph" + "core" + "data" + "v1.0.3")
       val schema  = resourceSchema
       val types   = Set(nxv.Resource.value)
       val source  = contextPayload
@@ -81,7 +92,7 @@ class MigrationIndexerSpec
     }
 
     "process 'schema created'" in {
-      val id      = Id(projectRef, base + "some/sim/tool/v0.1.2")
+      val id      = Id(projectRef, base + "some" + "sim" + "tool" + "v0.1.2")
       val schema  = shaclSchema
       val types   = Set(nxv.Schema.value)
       val source  = schemaPayload
@@ -96,7 +107,8 @@ class MigrationIndexerSpec
     }
 
     "process 'instance attachment created' events" in {
-      val id  = Id(projectRef, base + "some/project/sim/script/v0.1.0/14572e6b-3811-4b48-9673-194059d40981")
+      val id =
+        Id(projectRef, base + "some" + "project" + "sim" + "script" + "v0.1.0" + "14572e6b-3811-4b48-9673-194059d40981")
       val rev = 2L
       val attr = new ArgumentMatcher[BinaryAttributes] {
         override def matches(argument: BinaryAttributes): Boolean = {
@@ -119,11 +131,12 @@ class MigrationIndexerSpec
     }
 
     "process 'instance attachment removed' events" in {
-      val instanceId = Id(projectRef, base + "some/project/sim/script/v0.1.0/14572e6b-3811-4b48-9673-194059d40981")
-      val rev        = 2L
-      val fileName   = "fileName"
-      val author     = UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-456789abcdef:alice")
-      val instant    = Instant.parse("2018-08-16T15:11:59.924Z")
+      val instanceId =
+        Id(projectRef, base + "some" + "project" + "sim" + "script" + "v0.1.0" + "14572e6b-3811-4b48-9673-194059d40981")
+      val rev      = 2L
+      val fileName = "fileName"
+      val author   = UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-456789abcdef:alice")
+      val instant  = Instant.parse("2018-08-16T15:11:59.924Z")
       Mockito
         .when(repo.get(instanceId))
         .thenReturn(
@@ -142,7 +155,7 @@ class MigrationIndexerSpec
     }
 
     "process 'instance updated' events" in {
-      val id  = Id(projectRef, base + "some/trace/v1.0.0/a5b09604-1301-452c-a1a4-4a580d4b24db")
+      val id  = Id(projectRef, base + "some" + "trace" + "v1.0.0" + "a5b09604-1301-452c-a1a4-4a580d4b24db")
       val rev = 5L
       val types = Set(url"https://bbp-nexus.epfl.ch/vocabs/bbp/neurosciencegraph/core/v0.1.0/Entity".value,
                       Iri.absolute("nsg:Trace").right.value)
@@ -158,7 +171,7 @@ class MigrationIndexerSpec
     }
 
     "process 'context updated' events" in {
-      val id      = Id(projectRef, base + "demo/core/data/v0.2.8")
+      val id      = Id(projectRef, base + "demo" + "core" + "data" + "v0.2.8")
       val rev     = 2L
       val types   = Set(nxv.Resource.value)
       val source  = contextPayload
@@ -173,7 +186,7 @@ class MigrationIndexerSpec
     }
 
     "process 'schema updated' events" in {
-      val id      = Id(projectRef, base + "some/sim/tool/v0.1.2")
+      val id      = Id(projectRef, base + "some" + "sim" + "tool" + "v0.1.2")
       val rev     = 2L
       val types   = Set(nxv.Schema.value)
       val source  = schemaPayload
@@ -187,7 +200,7 @@ class MigrationIndexerSpec
     }
 
     "process 'instance deprecated' events" in {
-      val id      = Id(projectRef, base + "some/other/stuff/v0.1.0/85b8bc79-8e25-4ae5-81fd-2e76559f6a60")
+      val id      = Id(projectRef, base + "some" + "other" + "stuff" + "v0.1.0" + "85b8bc79-8e25-4ae5-81fd-2e76559f6a60")
       val rev     = 2L
       val author  = UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-0123456789ab:bob")
       val instant = Instant.parse("2018-08-27T13:16:35.621Z")
@@ -199,7 +212,7 @@ class MigrationIndexerSpec
     }
 
     "process 'context deprecated' events" in {
-      val id      = Id(projectRef, base + "neurosciencegraph/core/data/v1.0.3")
+      val id      = Id(projectRef, base + "neurosciencegraph" + "core" + "data" + "v1.0.3")
       val rev     = 2L
       val author  = UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-0123456789ab:bob")
       val instant = Instant.parse("2018-08-27T13:16:35.621Z")
@@ -211,7 +224,7 @@ class MigrationIndexerSpec
     }
 
     "process 'schema deprecated' events" in {
-      val id      = Id(projectRef, base + "some/sim/tool/v0.1.2")
+      val id      = Id(projectRef, base + "some" + "sim" + "tool" + "v0.1.2")
       val rev     = 3L
       val author  = UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-0123456789ab:bob")
       val instant = Instant.parse("2018-08-24T11:29:21.316Z")
@@ -223,7 +236,7 @@ class MigrationIndexerSpec
     }
 
     "process 'context published' events" in {
-      val contextId     = Id(projectRef, base + "nexus/core/resource/v0.1.0")
+      val contextId     = Id(projectRef, base + "nexus" + "core" + "resource" + "v0.1.0")
       val resourceTypes = Set(nxv.Resource.value)
       val instant       = Instant.parse("2018-01-18T23:52:49.563Z")
       val author        = Anonymous
@@ -240,7 +253,7 @@ class MigrationIndexerSpec
     }
 
     "process 'schema published' events" in {
-      val schemaId    = Id(projectRef, base + "some/sim/tool/v0.1.2")
+      val schemaId    = Id(projectRef, base + "some" + "sim" + "tool" + "v0.1.2")
       val schemaTypes = Set(nxv.Schema.value)
       val instant     = Instant.parse("2018-08-22T15:00:43.408Z")
       val author      = UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-0123456789ab:bob")
