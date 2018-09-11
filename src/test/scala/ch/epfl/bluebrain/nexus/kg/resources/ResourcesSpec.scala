@@ -28,6 +28,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import com.typesafe.config.ConfigFactory
@@ -225,6 +226,12 @@ class ResourcesSpec
         private val json = resolver deepMerge Json.obj("@type" -> Json.fromString("nxv:Resource"))
         resources.createWithId(resId, schema, json).value.left.value shouldEqual
           IncorrectTypes(resId.ref, Set(nxv.Resource.value))
+      }
+
+      "prevent creating a schema with wrong imports" in new ResolverSchema {
+        private val json = resolver deepMerge Json.obj("imports" -> Json.fromString("http://example.com/some"))
+        resources.createWithId(resId, schema, json).value.left.value shouldEqual
+          NotFound(Ref(url"http://example.com/some".value))
       }
 
       "create a new schema passing the id on the call (the provided on the Json)" in new ResolverSchema {
