@@ -56,12 +56,13 @@ private class ResolverIndexer[F[_]](resources: Resources[F], cache: DistributedC
             s"TimedOut while attempting to index resolver event '${event.id.show} (rev = ${event.rev})', cause: $reason"
           F.raiseError(new RetriableErr(msg))
       }
-      .map {
-        case Right(_) => ()
+      .flatMap {
+        case Right(_)                                  => F.pure(())
+        case Left(err @ AccountNotFound(`projectRef`)) => F.raiseError(new RetriableErr(err.msg))
         case Left(err) =>
           logger.error(
             s"Error while attempting to fetch/resolve event '${event.id.show} (rev = ${event.rev})', cause: '${err.message}'")
-          ()
+          F.pure(())
       }
   }
 }

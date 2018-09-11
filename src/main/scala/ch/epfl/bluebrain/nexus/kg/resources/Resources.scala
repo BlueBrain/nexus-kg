@@ -39,7 +39,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, Node}
 import io.circe.Json
 
 /**
@@ -108,7 +108,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       })
 
     for {
-      _           <- validate(id.parent, schema, value.graph)
+      _           <- validate(id, schema, value.graph)
       joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
       newValue    <- additional(id, schema, joinedTypes, value, 1L)
       created     <- repo.create(id, schema, joinedTypes, newValue.source)
@@ -169,7 +169,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       _           <- checkSchema(resource)
       value       <- materialize(id, source)
       graph        = value.graph
-      _           <- validate(id.parent, resource.schema, value.graph)
+      _           <- validate(id, resource.schema, value.graph)
       joinedTypes  = graph.types(id.value).map(_.value)
       _           <- additional(id, resource.schema, joinedTypes, value, rev + 1)
       updated     <- repo.update(id, rev, joinedTypes, source)
@@ -359,33 +359,28 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * Transitively imports resources referenced by the primary node of the resource through ''owl:imports'' if the
     * resource has type ''owl:Ontology''.
     *
-    * @param resource the resource for which imports are looked up
+    * @param resId the resource id for which imports are looked up
+    * @param graph the resource graph for which imports are looked up
     */
-  private def imports(resource: ResourceV): EitherT[F, Rejection, Set[ResourceV]] = {
+  private def imports(resId: ResId, graph: Graph): EitherT[F, Rejection, Set[ResourceV]] = {
     import cats.implicits._
     def canImport(id: AbsoluteIri, g: Graph): Boolean =
-      g.cursor(id)
-        .downField(rdf.tpe)
-        .values
-        .flatMap { vs =>
-          val set = vs.toSet
-          Some(set.contains(nxv.Schema) || set.contains(owl.Ontology))
-        }
-        .getOrElse(false)
+      g.select(_ == IriNode(id), _ == rdf.tpe, (o: Node) => (o == nxv.Schema || o == owl.Ontology)).nonEmpty
 
-    def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
+    def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] = {
       if (canImport(id, g))
         g.objects(IriNode(id), owl.imports).unorderedFoldMap {
           case IriNode(iri) => Set(Ref(iri))
           case _            => Set.empty
         } else Set.empty
+    }
 
     def lookup(current: Map[Ref, ResourceV], remaining: List[Ref]): EitherT[F, Rejection, Set[ResourceV]] = {
       def load(ref: Ref): EitherT[F, Rejection, (Ref, ResourceV)] =
         current
           .find(_._1 == ref)
           .map(tuple => EitherT.rightT[F, Rejection](tuple))
-          .getOrElse(ref.resolveOr(resource.id.parent)(NotFound).flatMap(r => materialize(r)).map(ref -> _))
+          .getOrElse(ref.resolveOr(resId.parent)(NotFound).flatMap(r => materialize(r)).map(ref -> _))
 
       if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
       else {
@@ -401,7 +396,8 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
         }
       }
     }
-    lookup(Map.empty, importsValues(resource.id.value, resource.value.graph).toList)
+
+    lookup(Map.empty, importsValues(resId.value, graph).toList)
   }
 
   private def materialize(projectRef: ProjectRef, source: Json): EitherT[F, Rejection, ResourceF.Value] = {
@@ -469,7 +465,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       }
     }
 
-  private def validate(projectRef: ProjectRef, schema: Ref, data: Graph): EitherT[F, Rejection, Unit] = {
+  private def validate(resId: ResId, schema: Ref, data: Graph): EitherT[F, Rejection, Unit] = {
     def toEitherT(optReport: Option[ValidationReport]): EitherT[F, Rejection, Unit] =
       optReport match {
         case Some(r) if r.isValid() => EitherT.rightT(())
@@ -484,16 +480,20 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     def schemaContext(): EitherT[F, Rejection, SchemaContext] =
       // format: off
       for {
-        resolvedSchema                <- schema.resolveOr(projectRef)(NotFound)
+        resolvedSchema                <- schema.resolveOr(resId.parent)(NotFound)
         materializedSchema            <- materialize(resolvedSchema)
-        importedResources             <- imports(materializedSchema)
+        importedResources             <- imports(materializedSchema.id, materializedSchema.value.graph)
         (schemaImports, dataImports)  = partition(importedResources)
       } yield SchemaContext(materializedSchema, dataImports, schemaImports)
       // format: on
 
     schema.iri match {
       case `resourceSchemaUri` => EitherT.rightT(())
-      case `shaclSchemaUri`    => toEitherT(ShaclEngine(data.asJenaModel, reportDetails = true))
+      case `shaclSchemaUri` =>
+        imports(resId, data).flatMap { resolved =>
+          val resolvedData = resolved.foldLeft(data)(_ ++ _.value.graph).asJenaModel
+          toEitherT(ShaclEngine(resolvedData, reportDetails = true))
+        }
       case _ =>
         schemaContext().flatMap { resolved =>
           val resolvedSchema =
