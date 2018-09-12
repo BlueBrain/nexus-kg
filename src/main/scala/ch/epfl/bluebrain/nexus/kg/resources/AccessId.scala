@@ -31,7 +31,8 @@ object AccessId {
         case (p, `iri`) => p
       } orElse
         wrapped.project.prefixMappings.collectFirst {
-          case (p, ns) if iri.asString.startsWith(ns.asString) => s"$p:${urlEncode(iri.asString.stripPrefix(ns.asString))}"
+          case (p, ns) if iri.asString.startsWith(ns.asString) =>
+            s"$p:${urlEncode(iri.asString.stripPrefix(ns.asString))}"
         }).getOrElse(urlEncode(iri.asString))
 
     val shortResourceId = aliasOrCurieFor(resourceId)
