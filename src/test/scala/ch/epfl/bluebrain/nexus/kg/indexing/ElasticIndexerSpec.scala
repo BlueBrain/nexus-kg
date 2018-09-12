@@ -159,7 +159,6 @@ class ElasticIndexerSpec
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
           )
-
         when(client.create(index, doc, urlEncode(id.value), elasticJson)).thenReturn(Future.successful(()))
         indexer(ev).futureValue shouldEqual (())
         verify(client, times(1)).create(index, doc, urlEncode(id.value), elasticJson)

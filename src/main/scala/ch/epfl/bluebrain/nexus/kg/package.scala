@@ -29,5 +29,5 @@ package object kg {
     * @return attempts to url encode the provided ''s''. It returns the provided ''default'' when encoding fails
     */
   def urlEncodeOrElse(s: String)(default: => String): String =
-    Try(URLEncoder.encode(s, "UTF-8").toLowerCase).getOrElse(default)
+    Try(URLEncoder.encode(s, "UTF-8")).getOrElse(default)
 }

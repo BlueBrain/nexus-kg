@@ -52,7 +52,7 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors {
          s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:b"),
         (url"https://bluebrain.github.io/nexus/schemas/some/other".value,
          url"http://example.com/a".value,
-         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:some%2fother")
+         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:some%2Fother")
       )
       forAll(list) {
         case (id, schemaId, result) => AccessId(id, schemaId).asString shouldEqual result
