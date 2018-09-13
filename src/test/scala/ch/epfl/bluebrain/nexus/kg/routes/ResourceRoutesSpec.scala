@@ -47,6 +47,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttribu
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -512,8 +513,8 @@ class ResourceRoutesSpec
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       val lb = labeledProject.copy(project = labeledProject.project.copy(
         prefixMappings = labeledProject.project.prefixMappings ++ defaultPrefixMapping + ("base" -> nxv.projects.value)))
-      when(resources.materializeWithMeta(resource)(lb)).thenReturn(
-        EitherT.rightT[Task, Rejection](resourceV.copy(value = resourceV.value.copy(graph = resourceV.metadata))))
+      when(resources.materializeWithMeta(resource)(lb)).thenReturn(EitherT.rightT[Task, Rejection](
+        resourceV.copy(value = resourceV.value.copy(graph = Graph(resourceV.metadata)))))
 
       val replacements = Map(quote("{account}") -> account, quote("{proj}") -> project, quote("{uuid}") -> genUuid)
 
@@ -714,7 +715,8 @@ class ResourceRoutesSpec
         val temp     = simpleV(id, schema, created = identity, updated = identity, schema = schemaRef)
         val ctx      = schema.appendContextOf(shaclCtx)
         val resourceV =
-          temp.copy(value = Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ temp.metadata ++ temp.typeGraph))
+          temp.copy(value =
+            Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ Graph(temp.metadata ++ temp.typeTriples)))
 
         when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))

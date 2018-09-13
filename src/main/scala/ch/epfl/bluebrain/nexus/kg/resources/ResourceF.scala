@@ -72,9 +72,9 @@ final case class ResourceF[P, S, A](
   lazy val node: IriNode = IriNode(id.value)
 
   /**
-    * Computes the metadata graph for this resource.
+    * Computes the metadata triples for this resource.
     */
-  def metadata(implicit config: AppConfig, wrapped: LabeledProject, ev: S =:= Ref): Graph = {
+  def metadata(implicit config: AppConfig, wrapped: LabeledProject, ev: S =:= Ref): Set[Triple] = {
 
     def triplesFor(at: BinaryAttributes): Set[Triple] = {
       val blank       = Node.blank
@@ -92,7 +92,7 @@ final case class ResourceF[P, S, A](
       )
     }
     val schemaIri = ev(schema).iri
-    val meta = Set[Triple](
+    Set[Triple](
       (node, nxv.rev, rev),
       (node, nxv.deprecated, deprecated),
       (node, nxv.createdAt, created),
@@ -103,18 +103,24 @@ final case class ResourceF[P, S, A](
       (node, nxv.project, wrapped.label.projectAccessId),
       (node, nxv.self, AccessId(id.value, schemaIri))
     ) ++ attachments.flatMap(triplesFor)
-    Graph(meta)
   }
 
   /**
-    * The type graph of this resource.
+    * The triples for the type of this resource.
     */
-  lazy val typeGraph: Graph = types.foldLeft(Graph()) {
-    case (g, tpe) => g add (node, rdf.tpe, tpe)
-  }
+  lazy val typeTriples: Set[Triple] = types.map(tpe => (node, rdf.tpe, tpe): Triple)
 }
 
 object ResourceF {
+  private val metaPredicates = Set[IriNode](nxv.rev,
+                                            nxv.deprecated,
+                                            nxv.createdAt,
+                                            nxv.updatedAt,
+                                            nxv.createdBy,
+                                            nxv.updatedBy,
+                                            nxv.constrainedBy,
+                                            nxv.project,
+                                            nxv.self)
 
   /**
     * Removes the metadata triples from the graph centered on the provided subject ''id''
@@ -123,16 +129,7 @@ object ResourceF {
     * @return a new [[Graph]] without the metadata triples
     */
   def removeMetadata(graph: Graph, id: IriOrBNode): Graph =
-    graph
-      .remove(id, nxv.rev)
-      .remove(id, nxv.deprecated)
-      .remove(id, nxv.createdAt)
-      .remove(id, nxv.updatedAt)
-      .remove(id, nxv.createdBy)
-      .remove(id, nxv.updatedBy)
-      .remove(id, nxv.constrainedBy)
-      .remove(id, nxv.project)
-      .remove(id, nxv.self)
+    graph.remove(id, metaPredicates.contains)
 
   /**
     * A default resource value type.
