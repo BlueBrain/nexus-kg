@@ -6,25 +6,31 @@ import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
-import ch.epfl.bluebrain.nexus.kg.service.config.Settings
+import ch.epfl.bluebrain.nexus.kg.service.config.{ExternalConfig, Settings}
 import com.github.jsonldjava.core.DocumentLoader
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.Config
 import kamon.Kamon
 import kamon.system.SystemMetrics
 
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success}
 
 //noinspection TypeAnnotation
 // $COVERAGE-OFF$
 object Main {
 
-  @SuppressWarnings(Array("UnusedMethodParameter"))
-  def main(args: Array[String]): Unit = {
+  def startMonitoring(config: Config): Unit = {
+    Kamon.reconfigure(config)
     SystemMetrics.startCollecting()
     Kamon.loadReportersFromConfig()
-    val config   = ConfigFactory.load()
+  }
+
+  @SuppressWarnings(Array("UnusedMethodParameter"))
+  def main(args: Array[String]): Unit = {
+    val config = ExternalConfig("KG_CONFIG_FILE", "kg.config.file")
+    startMonitoring(config)
+
     val settings = new Settings(config)
 
     implicit val as                            = ActorSystem(settings.Description.ActorSystemName, config)
