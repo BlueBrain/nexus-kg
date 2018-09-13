@@ -7,6 +7,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.rdf.Graph
+import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
@@ -16,13 +17,13 @@ import io.circe.{Encoder, Json}
 
 object QueryResultEncoder {
 
-  private val mainNode = blank
+  private val mainNode: IriOrBNode = blank
 
   implicit def encoderQrs[A](implicit enc: GraphEncoder[QueryResult[A]]): GraphEncoder[QueryResults[A]] = GraphEncoder {
     case ScoredQueryResults(total, max, results) =>
       mainNode -> Graph((mainNode, nxv.total, total), (mainNode, nxv.maxScore, max)).add(mainNode, nxv.results, results)
     case UnscoredQueryResults(total, results) =>
-      mainNode -> Graph().add(mainNode, nxv.total, total).add(mainNode, nxv.results, results)
+      mainNode -> Graph(((mainNode, nxv.total, total): Triple)).add(mainNode, nxv.results, results)
   }
 
   def qrsEncoder[A](extraCtx: Json)(implicit enc: GraphEncoder[QueryResults[A]]): Encoder[QueryResults[A]] =

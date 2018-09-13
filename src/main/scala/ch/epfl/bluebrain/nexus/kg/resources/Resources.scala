@@ -352,7 +352,8 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def materializeWithMeta(resource: Resource)(implicit wrapped: LabeledProject): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
-      value = resourceV.value.copy(graph = resourceV.value.graph ++ resourceV.metadata ++ resourceV.typeGraph)
+      value = resourceV.value.copy(
+        graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata ++ resourceV.typeTriples))
     } yield resourceV.map(_ => value)
 
   /**
@@ -491,14 +492,17 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       case `resourceSchemaUri` => EitherT.rightT(())
       case `shaclSchemaUri` =>
         imports(resId, data).flatMap { resolved =>
-          val resolvedData = resolved.foldLeft(data)(_ ++ _.value.graph).asJenaModel
+          val resolvedSets = resolved.foldLeft(data.triples)(_ ++ _.value.graph.triples)
+          val resolvedData = Graph(resolvedSets).asJenaModel
           toEitherT(ShaclEngine(resolvedData, reportDetails = true))
         }
       case _ =>
         schemaContext().flatMap { resolved =>
-          val resolvedSchema =
-            resolved.schemaImports.foldLeft(resolved.schema.value.graph)(_ ++ _.value.graph).asJenaModel
-          val resolvedData = resolved.dataImports.foldLeft(data)(_ ++ _.value.graph).asJenaModel
+          val resolvedSchemaSets =
+            resolved.schemaImports.foldLeft(resolved.schema.value.graph.triples)(_ ++ _.value.graph.triples)
+          val resolvedSchema   = Graph(resolvedSchemaSets).asJenaModel
+          val resolvedDataSets = resolved.dataImports.foldLeft(data.triples)(_ ++ _.value.graph.triples)
+          val resolvedData     = Graph(resolvedDataSets).asJenaModel
           toEitherT(ShaclEngine(resolvedData, resolvedSchema, validateShapes = false, reportDetails = true))
         }
     }

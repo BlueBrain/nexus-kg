@@ -7,6 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, ResourceV}
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
@@ -17,7 +18,7 @@ object ResourceEncoder {
 
   implicit def resourceEncoder(implicit config: AppConfig, wrapped: LabeledProject): Encoder[Resource] = {
     implicit val graphEnc: GraphEncoder[Resource] =
-      GraphEncoder(res => IriNode(res.id.value) -> (res.metadata ++ res.typeGraph))
+      GraphEncoder(res => IriNode(res.id.value) -> Graph(res.metadata ++ res.typeTriples))
     Encoder.encodeJson.contramap { res =>
       res.asJson(resourceCtx).removeKeys("@context").addContext(resourceCtxUri)
     }
