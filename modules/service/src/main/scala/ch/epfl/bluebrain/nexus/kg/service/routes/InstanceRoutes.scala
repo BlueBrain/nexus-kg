@@ -197,7 +197,9 @@ class InstanceRoutes(instances: Instances[Future, Source[ByteString, Any], Sourc
                       ContentType.parse(info.mediaType).getOrElse(ContentTypes.`application/octet-stream`)
                     val filename = encodedFilenameOrElse(info, "attachment")
                     respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename")) {
-                      complete(HttpEntity(ct, info.contentSize.value, source))
+                      encodeResponse {
+                        complete(HttpEntity(ct, info.contentSize.value, source))
+                      }
                     }
                   case None =>
                     complete(StatusCodes.NotFound)

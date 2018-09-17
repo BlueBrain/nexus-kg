@@ -8,9 +8,9 @@ import java.util.regex.Pattern.quote
 import java.util.{Comparator, UUID}
 
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.stream.scaladsl.{Keep, Sink}
+import akka.stream.scaladsl.{Compression, Keep, Sink}
 import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.show._
@@ -57,6 +57,7 @@ import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.syntax._
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.matchers.Matcher
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
 import scala.concurrent.Future
@@ -189,6 +190,9 @@ class InstanceRoutesSpec
         .walk(settings.Attachment.VolumePath)
         .sorted(Comparator.reverseOrder())
         .forEach(p => Files.delete(p))
+
+    def haveContentEncoding(encoding: HttpEncoding): Matcher[HttpResponse] =
+      be(Some(`Content-Encoding`(encoding))) compose { (_: HttpResponse).header[`Content-Encoding`] }
   }
 
   "An InstanceRoutes" should {
@@ -523,6 +527,24 @@ class InstanceRoutesSpec
         header("Content-Disposition") shouldEqual Some(
           RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename2"))
         responseEntity.dataBytes
+          .toMat(digestSink)(Keep.right)
+          .run()
+          .futureValue
+          .digest()
+          .map("%02x".format(_))
+          .mkString shouldEqual hash2
+      }
+
+      //Fetch latest gzipped
+      Get(s"/data/${instanceRef.id.show}/attachment") ~> `Accept-Encoding`(HttpEncodings.gzip) ~> addCredentials(
+        ValidCredentials) ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+        response should haveContentEncoding(HttpEncodings.gzip)
+        contentType shouldEqual ContentTypes.`text/csv(UTF-8)`
+        header("Content-Disposition") shouldEqual Some(
+          RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename2"))
+        responseEntity.dataBytes
+          .via(Compression.gunzip())
           .toMat(digestSink)(Keep.right)
           .run()
           .futureValue
