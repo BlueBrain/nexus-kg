@@ -201,7 +201,9 @@ private[routes] class ResourceRoutes(resources: Resources[Task], schema: Absolut
               case Left(rej) => reject(rej)
               case Right(Some((info, source))) =>
                 respondWithHeaders(filenameHeader(info)) {
-                  complete(HttpEntity(contentType(info), info.byteSize, source))
+                  encodeResponse {
+                    complete(HttpEntity(contentType(info), info.byteSize, source))
+                  }
                 }
               case _ =>
                 complete(StatusCodes.NotFound)
