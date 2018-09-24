@@ -29,6 +29,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Address._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
+import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -91,6 +92,7 @@ class ResourceRoutesSpec
   private implicit val qrClient = HttpClient.withTaskUnmarshaller[QueryResults[Json]]
   private val sparql            = mock[BlazegraphClient[Task]]
   private implicit val elastic  = mock[ElasticClient[Task]]
+  private implicit val aclsOps  = mock[AclsOps]
   private implicit val clients  = Clients(sparql)
 
   private val user                              = UserRef("realm", "dmontero")
@@ -145,9 +147,8 @@ class ResourceRoutesSpec
       .thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
     when(cache.account(accountRef)).thenReturn(Task.pure(Some(accountMeta): Option[Account]))
     when(iamClient.getCaller(filterGroups = true))
-      .thenReturn(Task.pure(AuthenticatedCaller(token.value, user, Set.empty)))
-    when(adminClient.getProjectAcls(account, project, parents = true, self = true))
-      .thenReturn(Task.pure(Some(FullAccessControlList((Anonymous, account / project, perms)))))
+      .thenReturn(Task.pure(AuthenticatedCaller(token.value, user, Set(Anonymous))))
+    when(aclsOps.fetch()).thenReturn(Task.pure(FullAccessControlList((Anonymous, Address./, perms))))
 
     def genIri = url"${projectMeta.base}/$uuid"
 

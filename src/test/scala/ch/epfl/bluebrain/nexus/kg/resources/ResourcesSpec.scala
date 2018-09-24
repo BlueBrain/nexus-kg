@@ -6,12 +6,11 @@ import java.time.{Clock, Instant, ZoneId}
 import cats.data.EitherT
 import cats.syntax.show._
 import cats.{Id => CId}
-import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
+import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -56,11 +55,14 @@ class ResourcesSpec
   private implicit val repo         = Repo(agg, clock)
   private implicit val store        = mock[AttachmentStore[CId, String, String]]
   private val cache                 = mock[DistributedCache[CId]]
-  private val adminClient           = mock[AdminClient[CId]]
   when(cache.resolvers(ProjectRef(anyString()))).thenReturn(Set.empty[Resolver])
-  private implicit val saToken = Some(AuthToken("service-account-token"))
   private implicit val resolution =
-    new ProjectResolution[CId](cache, StaticResolution(AppConfig.iriResolution), adminClient)
+    new ProjectResolution[CId](
+      cache,
+      StaticResolution(AppConfig.iriResolution),
+      FullAccessControlList(
+        (UserRef("realm", "sub"), Address("some/path"), Permissions(Permission("resources/manage"))))
+    )
   private val resources: Resources[CId] = Resources[CId]
 
   private def randomIri() = Iri.absolute(s"http://example.com/$uuid").right.value

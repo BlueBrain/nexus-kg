@@ -5,9 +5,10 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import scala.concurrent.duration._
 
 class IdentityIdSyntaxSpec extends WordSpecLike with Matchers with Inspectors {
-  private implicit val iamConfig = IamConfig("http://example.com", None)
+  private implicit val iamConfig = IamConfig("http://example.com", None, 30 seconds)
 
   "An IdentityIdSyntax" should {
 

@@ -8,10 +8,10 @@ import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticServerError
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.iam.client.types.Address._
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, GroupRef, UserRef}
-import ch.epfl.bluebrain.nexus.iam.client.types.Permission._
-import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Permissions}
+import ch.epfl.bluebrain.nexus.iam.client.Caller
+import ch.epfl.bluebrain.nexus.iam.client.Caller.{AnonymousCaller, AuthenticatedCaller}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{GroupRef, UserRef}
+import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -53,14 +53,15 @@ class AdditionalValidationSpec
     val iri                                                 = Iri.absolute("http://example.com/id").right.value
     val projectRef                                          = ProjectRef("ref")
     val id                                                  = Id(projectRef, iri)
-    val perms                                               = Permissions(Read, Write)
     val accountRef                                          = AccountRef("accountRef")
     val labelResol: ProjectLabel => CId[Option[ProjectRef]] = lb => Some(ProjectRef(s"${lb.account}-${lb.value}-uuid"))
-
-    val matchingAcls: Option[FullAccessControlList] = Some(
-      FullAccessControlList((UserRef("ldap", "dmontero"), "a" / "b", perms),
-                            (UserRef("ldap", "dmontero2"), "a" / "b", perms),
-                            (GroupRef("ldap2", "bbp-ou-neuroinformatics"), "c" / "d", perms)))
+    val matchingCaller: Caller = AuthenticatedCaller(
+      AuthToken("some"),
+      UserRef("ldap", "dmontero"),
+      Set[Identity](UserRef("ldap", "dmontero"),
+                    UserRef("ldap", "dmontero2"),
+                    GroupRef("ldap2", "bbp-ou-neuroinformatics"))
+    )
 
     "applied to generic resources" should {
 
@@ -77,38 +78,39 @@ class AdditionalValidationSpec
       val types        = Set[AbsoluteIri](nxv.CrossProject, nxv.Resolver)
 
       "fail when identities in acls are different from identities on resolver" in {
-        val acls: Option[FullAccessControlList] = Some(
-          FullAccessControlList((UserRef("ldap", "dmontero2"), "a" / "b", perms),
-                                (GroupRef("ldap2", "bbp-ou-neuroinformatics"), "c" / "d", perms)))
-        val validation = AdditionalValidation.resolver[CId](acls, accountRef, labelResol)
+        val caller: Caller =
+          AuthenticatedCaller(AuthToken("sone"),
+                              UserRef("ldap", "dmontero2"),
+                              Set[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero2")))
+        val validation = AdditionalValidation.resolver[CId](caller, accountRef, labelResol)
         val resource   = simpleV(id, crossProject, types = types)
         validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[InvalidIdentity]
       }
 
       "fail when the payload cannot be serialized" in {
-        val acls: Option[FullAccessControlList] = Some(FullAccessControlList((Anonymous, "a" / "b", perms)))
-        val validation                          = AdditionalValidation.resolver[CId](acls, accountRef, labelResol)
-        val resource                            = simpleV(id, crossProject, types = Set(nxv.Resolver))
+        val caller: Caller = AnonymousCaller
+        val validation     = AdditionalValidation.resolver[CId](caller, accountRef, labelResol)
+        val resource       = simpleV(id, crossProject, types = Set(nxv.Resolver))
         validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.left.value shouldBe a[InvalidPayload]
       }
 
       "fail when projects cannot be converted to account and project label" in {
         val crossProjectNoLabel = jsonContentOf("/resolve/cross-project-no-label.json").appendContextOf(resolverCtx)
-        val validation          = AdditionalValidation.resolver[CId](matchingAcls, accountRef, labelResol)
+        val validation          = AdditionalValidation.resolver[CId](matchingCaller, accountRef, labelResol)
         val resource            = simpleV(id, crossProjectNoLabel, types = types)
         validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[InvalidPayload]
       }
 
       "fail when project not found in cache" in {
         val notFoundResol: ProjectLabel => CId[Option[ProjectRef]] = _ => None
-        val validation                                             = AdditionalValidation.resolver[CId](matchingAcls, accountRef, notFoundResol)
+        val validation                                             = AdditionalValidation.resolver[CId](matchingCaller, accountRef, notFoundResol)
         val resource                                               = simpleV(id, crossProject, types = types)
         validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[ProjectNotFound]
 
       }
 
       "pass when identities in acls are the same as the identities on resolver" in {
-        val validation = AdditionalValidation.resolver[CId](matchingAcls, accountRef, labelResol)
+        val validation = AdditionalValidation.resolver[CId](matchingCaller, accountRef, labelResol)
         val resource   = simpleV(id, crossProject, types = types)
         val expected   = jsonContentOf("/resolve/cross-project-modified.json")
         validation(id, schema, types, resource.value, 1L).value.right.value.source should equalIgnoreArrayOrder(
@@ -130,7 +132,7 @@ class AdditionalValidationSpec
         val validation = AdditionalValidation.view[Try]
         val resource   = simpleV(id, elasticView, types = types)
         when(elastic.createIndex(idx))
-          .thenReturn(F.raiseError(new ElasticServerError(StatusCodes.BadRequest, "Error on creation...")))
+          .thenReturn(F.raiseError(ElasticServerError(StatusCodes.BadRequest, "Error on creation...")))
         validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidPayload]
       }
 
@@ -140,7 +142,7 @@ class AdditionalValidationSpec
         val resource   = simpleV(id, elasticView, types = types)
         when(elastic.createIndex(idx)).thenReturn(Try(true))
         when(elastic.updateMapping(idx, config.docType, mappings))
-          .thenReturn(F.raiseError(new ElasticServerError(StatusCodes.BadRequest, "Error on mappings...")))
+          .thenReturn(F.raiseError(ElasticServerError(StatusCodes.BadRequest, "Error on mappings...")))
 
         validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidPayload]
       }
