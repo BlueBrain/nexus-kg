@@ -7,7 +7,10 @@ import akka.actor.{ActorSystem, Address, AddressFromURIString}
 import akka.cluster.Cluster
 import akka.event.Logging
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.model.headers.Location
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
@@ -30,6 +33,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.{Clients, ResourcesRoutes, ServiceDescriptionRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.github.jsonldjava.core.DocumentLoader
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -119,11 +124,19 @@ object Main {
 
     val logger = Logging(as, getClass)
     System.setProperty(DocumentLoader.DISALLOW_REMOTE_CONTEXT_LOADING, "true")
+
+    val corsSettings = CorsSettings.defaultSettings
+      .withAllowedMethods(List(GET, PUT, POST, DELETE, OPTIONS, HEAD))
+      .withExposedHeaders(List(Location.name))
+
     cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
 
+      val routes: Route =
+        handleRejections(corsRejectionHandler)(cors(corsSettings)(apiRoutes ~ serviceDesc))
+
       val httpBinding = {
-        Http().bindAndHandle(apiRoutes ~ serviceDesc, appConfig.http.interface, appConfig.http.port)
+        Http().bindAndHandle(routes, appConfig.http.interface, appConfig.http.port)
       }
       httpBinding onComplete {
         case Success(binding) =>

@@ -70,6 +70,7 @@ lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"     
 lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"       % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"       % akkaVersion
 lazy val akkaHttp             = "com.typesafe.akka"       %% "akka-http"                   % akkaHttpVersion
+lazy val akkaHttpCors         = "ch.megard"               %% "akka-http-cors"              % akkaCorsVersion
 lazy val akkaHttpTestKit      = "com.typesafe.akka"       %% "akka-http-testkit"           % akkaHttpVersion
 lazy val akkaPersistence      = "com.typesafe.akka"       %% "akka-persistence"            % akkaVersion
 lazy val akkaPersistenceCass  = "com.typesafe.akka"       %% "akka-persistence-cassandra"  % akkaPersistenceCassVersion
@@ -107,6 +108,7 @@ lazy val kg = project
       sourcingAkka,
       akkaDistributedData,
       akkaHttp,
+      akkaHttpCors,
       akkaPersistenceCass,
       akkaStream,
       akkaSlf4j,
