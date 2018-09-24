@@ -109,11 +109,11 @@ object AppConfig {
   /**
     * IAM config
     *
-    * @param baseUri base URI of IAM service
-    * @param serviceAccountToken the service account token to execute calls to IAM
-    * @param cacheTimeout the maximum tolerated inactivity period after which the cached ACLs will be refreshed
+    * @param baseUri              base URI of IAM service
+    * @param serviceAccountToken  the service account token to execute calls to IAM
+    * @param cacheRefreshInterval the maximum tolerated inactivity period after which the cached ACLs will be refreshed
     */
-  final case class IamConfig(baseUri: Uri, serviceAccountToken: Option[AuthToken], cacheTimeout: FiniteDuration)
+  final case class IamConfig(baseUri: Uri, serviceAccountToken: Option[AuthToken], cacheRefreshInterval: FiniteDuration)
 
   /**
     * Kafka config

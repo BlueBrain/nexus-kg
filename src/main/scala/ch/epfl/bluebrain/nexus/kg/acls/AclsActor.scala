@@ -32,7 +32,7 @@ class AclsActor(client: IamClient[Task])(implicit iamConfig: IamConfig) extends 
   private var acls: Future[Either[Throwable, FullAccessControlList]] = _
 
   override def preStart(): Unit = {
-    context.setReceiveTimeout(iamConfig.cacheTimeout)
+    context.setReceiveTimeout(iamConfig.cacheRefreshInterval)
     acls = taskAcls.runAsync
   }
 
