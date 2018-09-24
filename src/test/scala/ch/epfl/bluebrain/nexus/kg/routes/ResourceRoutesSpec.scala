@@ -480,7 +480,9 @@ class ResourceRoutesSpec
           )
         ).thenReturn(Task.pure(
           UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(account, project, i))))))
-        Get(s"/v1/resources/$account/$project/resource") ~> addCredentials(oauthToken) ~> routes ~> check {
+        Get(s"/v1/resources/$account/$project/resource") ~> addCredentials(oauthToken) ~> addHeader(
+          "Accept",
+          "application/json") ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
         }
@@ -530,7 +532,8 @@ class ResourceRoutesSpec
 
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.none[Task, Resource])
 
-      Get(s"/v1/resources/$account/$project/resource/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+      Get(s"/v1/resources/$account/$project/resource/nxv:$genUuid?rev=1") ~> addHeader("Accept", "application/json") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].code shouldEqual classNameOf[NotFound.type]
       }
