@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
+import ch.epfl.bluebrain.nexus.kg.acls.{AclsActor, AclsOps}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -108,8 +109,9 @@ object Main {
     implicit val store             = new AttachmentStore[Task, AkkaIn, AkkaOut]
     implicit val indexers          = clients
     implicit val cache             = DistributedCache.task()
-    implicit val saToken           = appConfig.iam.serviceAccountToken
-    implicit val projectResolution = ProjectResolution.task(cache, clients.adminClient)
+    implicit val iam               = clients.iamClient
+    implicit val aclsOps           = new AclsOps(AclsActor.start)
+    implicit val projectResolution = ProjectResolution.task(cache, aclsOps)
     val resources: Resources[Task] = Resources[Task]
     val resourceRoutes             = new ResourcesRoutes(resources).routes
     val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)

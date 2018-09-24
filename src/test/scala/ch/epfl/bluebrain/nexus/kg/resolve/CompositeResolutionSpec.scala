@@ -57,22 +57,6 @@ class CompositeResolutionSpec extends WordSpecLike with Resources with Matchers 
         .value
         .value
     }
-
-    "return all the resources from resolvers that return Some(res)" in {
-      compositeResolution.resolveAll(Ref(resource1Uri)).success.value shouldEqual List(
-        staticResolution1
-          .resolve(Ref(resource1Uri))
-          .success
-          .value
-          .value,
-        staticResolution3
-          .resolve(Ref(resource1Uri))
-          .success
-          .value
-          .value
-      )
-
-    }
   }
 
 }

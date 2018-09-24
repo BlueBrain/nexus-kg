@@ -5,16 +5,16 @@ import akka.http.scaladsl.model.headers.{BasicHttpCredentials, OAuth2BearerToken
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.Caller.{AnonymousCaller, AuthenticatedCaller}
-import ch.epfl.bluebrain.nexus.iam.client.IamClient
+import ch.epfl.bluebrain.nexus.iam.client.{Caller, IamClient}
 import ch.epfl.bluebrain.nexus.iam.client.types.Address._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error
 import ch.epfl.bluebrain.nexus.kg.Error._
+import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -35,13 +35,16 @@ class AuthDirectivesSpec
     with BeforeAndAfter
     with ScalatestRouteTest {
 
-  private implicit val client    = mock[AdminClient[Task]]
   private implicit val iamClient = mock[IamClient[Task]]
+  private implicit val aclsOps   = mock[AclsOps]
   private implicit val label     = ProjectLabel("uuidAccount", "uuidProject")
   private val readWrite          = Permissions(Read, Write)
   private val ownPublish         = Permissions(Own, Permission("publish"))
 
-  before(Mockito.reset(client))
+  before {
+    Mockito.reset(iamClient)
+    Mockito.reset(aclsOps)
+  }
 
   "Authentication directives" should {
 
@@ -53,8 +56,18 @@ class AuthDirectivesSpec
       }
     }
 
-    def permissionsRoute(perms: Permissions)(implicit token: Option[AuthToken]): Route = {
+    def aclsRoute(): Route = {
       import monix.execution.Scheduler.Implicits.global
+      handleRejections(RejectionHandling()) {
+        (get & acls) { acl =>
+          complete(StatusCodes.OK -> acl)
+        }
+      }
+    }
+
+    def permissionsRoute(perms: Permissions)(implicit
+                                             acls: FullAccessControlList,
+                                             caller: Caller): Route = {
       handleRejections(RejectionHandling()) {
         (get & hasPermission(perms)) {
           complete(StatusCodes.OK)
@@ -65,8 +78,10 @@ class AuthDirectivesSpec
     def identityRoute(implicit token: Option[AuthToken]): Route = {
       import monix.execution.Scheduler.Implicits.global
       handleRejections(RejectionHandling()) {
-        (get & callerIdentity) { identity =>
-          complete(StatusCodes.OK -> identity)
+        (get & caller) { implicit c =>
+          identity.apply { ident =>
+            complete(StatusCodes.OK -> ident)
+          }
         }
       }
     }
@@ -90,44 +105,48 @@ class AuthDirectivesSpec
       }
     }
 
+    "fetch acls" in {
+      val acls = FullAccessControlList((Anonymous, "some" / "path", ownPublish))
+      when(aclsOps.fetch()).thenReturn(Task.pure(acls))
+
+      Get("/") ~> aclsRoute() ~> check {
+        response.status shouldEqual StatusCodes.OK
+        responseAs[FullAccessControlList] shouldEqual acls
+      }
+    }
+
+    "return UnauthorizedAccess fetching acls" in {
+      when(aclsOps.fetch()).thenReturn(Task.raiseError(UnauthorizedAccess))
+
+      Get("/") ~> aclsRoute() ~> check {
+        status shouldEqual StatusCodes.Unauthorized
+        responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+      }
+    }
+
+    "return unknown error fetching acls" in {
+      when(aclsOps.fetch()).thenReturn(Task.raiseError(new RuntimeException()))
+
+      Get("/") ~> aclsRoute() ~> check {
+        status shouldEqual StatusCodes.BadGateway
+        responseAs[Error].code shouldEqual classNameOf[DownstreamServiceError.type]
+      }
+    }
+
     "pass when the permissions are present" in {
-      implicit val token: Option[AuthToken] = None
-      val acls                              = FullAccessControlList((Anonymous, "some" / "path", readWrite))
-      when(client.getProjectAcls(label.account, label.value, parents = true, self = true))
-        .thenReturn(Task.pure(Some(acls)))
+      implicit val acls           = FullAccessControlList((Anonymous, label.account / label.value, readWrite))
+      implicit val caller: Caller = AnonymousCaller
       Get("/") ~> permissionsRoute(readWrite) ~> check {
         response.status shouldEqual StatusCodes.OK
       }
     }
 
     "reject when the permissions aren't present" in {
-      implicit val token: Option[AuthToken] = None
-      val acls                              = FullAccessControlList((Anonymous, "some" / "path", ownPublish))
-      when(client.getProjectAcls(label.account, label.value, parents = true, self = true))
-        .thenReturn(Task.pure(Some(acls)))
+      implicit val acls           = FullAccessControlList((Anonymous, label.account / label.value, ownPublish))
+      implicit val caller: Caller = AnonymousCaller
       Get("/") ~> permissionsRoute(readWrite) ~> check {
         status shouldEqual StatusCodes.Unauthorized
         responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
-      }
-    }
-
-    "reject when the underlying admin client fails with UnauthorizedAccess" in {
-      implicit val token: Option[AuthToken] = None
-      when(client.getProjectAcls(label.account, label.value, parents = true, self = true))
-        .thenReturn(Task.raiseError(UnauthorizedAccess))
-      Get("/") ~> permissionsRoute(readWrite) ~> check {
-        status shouldEqual StatusCodes.Unauthorized
-        responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
-      }
-    }
-
-    "reject when the underlying admin client fails with another error" in {
-      implicit val token: Option[AuthToken] = None
-      when(client.getProjectAcls(label.account, label.value, parents = true, self = true))
-        .thenReturn(Task.raiseError(new RuntimeException()))
-      Get("/") ~> permissionsRoute(readWrite) ~> check {
-        status shouldEqual StatusCodes.BadGateway
-        responseAs[Error].code shouldEqual classNameOf[DownstreamServiceError.type]
       }
     }
 

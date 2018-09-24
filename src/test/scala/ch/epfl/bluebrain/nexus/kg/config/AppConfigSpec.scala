@@ -21,12 +21,12 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
 
       appConfig.description shouldEqual Description("kg")
       appConfig.http shouldEqual HttpConfig("127.0.0.1", 8080, "v1", "http://127.0.0.1:8080")
-      appConfig.cluster shouldEqual ClusterConfig(2.seconds, 5.seconds, 30, None)
+      appConfig.cluster shouldEqual ClusterConfig(2.seconds, 5 seconds, 30, None)
       appConfig.persistence shouldEqual PersistenceConfig("cassandra-journal",
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
       appConfig.attachments shouldEqual AttachmentsConfig(Paths.get("/tmp/"), "SHA-256")
-      appConfig.iam shouldEqual IamConfig("http://localhost:8080/iam", None)
+      appConfig.iam shouldEqual IamConfig("http://localhost:8080/iam", None, 30 seconds)
       appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       SparqlConfig("http://localhost:9999/bigdata", Some("user"), Some("pass"), "kg").akkaCredentials.value shouldEqual BasicHttpCredentials(
         "user",

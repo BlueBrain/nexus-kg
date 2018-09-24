@@ -5,13 +5,14 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directives.{extractCredentials, _}
 import akka.http.scaladsl.server.directives.FutureDirectives.onComplete
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive0, Directive1}
-import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.Caller.AuthenticatedCaller
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, FullAccessControlList, Identity, Permissions}
+import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.iam.client.{Caller, IamClient}
+import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.DownstreamServiceError
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, Rejection}
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -41,36 +42,18 @@ object AuthDirectives {
     * @param perms the permissions to check on the current project
     * @return pass if the ''perms'' is present on the current project, reject with [[AuthorizationFailedRejection]] otherwise
     */
-  def hasPermission(perms: Permissions)(implicit ref: ProjectLabel,
-                                        adminClient: AdminClient[Task],
-                                        token: Option[AuthToken],
-                                        s: Scheduler): Directive0 =
-    acls(ref, adminClient, token, s).flatMap {
-      case Some(acls) if acls.hasAnyPermission(perms) => pass
-      case _                                          => reject(AuthorizationFailedRejection)
-    }
+  def hasPermission(perms: Permissions)(implicit
+                                        acls: FullAccessControlList,
+                                        caller: Caller,
+                                        ref: ProjectLabel): Directive0 =
+    if (acls.exists(caller.identities, ref, perms)) pass
+    else reject(AuthorizationFailedRejection)
 
   /**
-    * Checks if the current project has the provided permissions
-    *
-    * @param perms the permissions to check on the current project
-    * @return pass if the ''perms'' is present on the current project, reject with [[AuthorizationFailedRejection]] otherwise
+    * Retrieves the ACLs for all the identities in all the paths using the provided service account token.
     */
-  def hasPermissionInAcl(perms: Permissions)(
-      implicit fullAccessControlList: Option[FullAccessControlList]): Directive0 =
-    fullAccessControlList match {
-      case Some(acls) if acls.hasAnyPermission(perms) => pass
-      case _                                          => reject(AuthorizationFailedRejection)
-    }
-
-  /**
-    * Fetch the ACLs for a given project
-    */
-  def acls(implicit ref: ProjectLabel,
-           adminClient: AdminClient[Task],
-           token: Option[AuthToken],
-           s: Scheduler): Directive1[Option[FullAccessControlList]] =
-    onComplete(adminClient.getProjectAcls(ref.account, ref.value, parents = true, self = true).runAsync).flatMap {
+  def acls(implicit aclsOps: AclsOps, s: Scheduler): Directive1[FullAccessControlList] =
+    onComplete(aclsOps.fetch().runAsync).flatMap {
       case Success(result)             => provide(result)
       case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
       case Failure(err)                => reject(authorizationRejection(err))
@@ -79,14 +62,18 @@ object AuthDirectives {
   /**
     * Authenticates the requested with the provided ''token'' and returns the ''caller''
     */
-  def callerIdentity(implicit iamClient: IamClient[Task],
-                     token: Option[AuthToken],
-                     s: Scheduler): Directive1[Identity] =
+  def caller(implicit iamClient: IamClient[Task], token: Option[AuthToken], s: Scheduler): Directive1[Caller] =
     onComplete(iamClient.getCaller(filterGroups = true).runAsync).flatMap {
-      case Success(caller)             => provide(findIdentity(caller))
+      case Success(caller)             => provide(caller)
       case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
       case Failure(err)                => reject(authorizationRejection(err))
     }
+
+  /**
+    * Returns the main caller's ''identity''.
+    */
+  def identity(implicit caller: Caller): Directive1[Identity] =
+    provide(findIdentity(caller))
 
   /**
     * Signals that the authentication was rejected with an unexpected error.
@@ -99,5 +86,4 @@ object AuthDirectives {
     CustomAuthRejection(
       DownstreamServiceError(
         Try(err.getMessage).filter(_ != null).getOrElse("error while authenticating on the downstream service")))
-
 }

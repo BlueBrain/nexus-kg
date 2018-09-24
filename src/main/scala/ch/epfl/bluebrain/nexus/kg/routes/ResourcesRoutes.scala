@@ -8,9 +8,11 @@ import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.DeprecatedId._
-import ch.epfl.bluebrain.nexus.kg._
+import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
+import ch.epfl.bluebrain.nexus.kg.{marshallers, DeprecatedId}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
@@ -46,6 +48,7 @@ import monix.execution.Scheduler.Implicits.global
   */
 class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCache[Task],
                                                   indexers: Clients[Task],
+                                                  aclsOps: AclsOps,
                                                   store: AttachmentStore[Task, AkkaIn, AkkaOut],
                                                   config: AppConfig) {
 
@@ -64,8 +67,8 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
     }
 
   private def resolver(implicit token: Option[AuthToken]): Route = {
-    def resolverRoute(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]): Route =
-      new ResourceRoutes(resources, resolverSchemaUri, "resolvers") {
+    def resolverRoute(acls: FullAccessControlList, caller: Caller)(implicit wrapped: LabeledProject): Route =
+      new ResourceRoutes(resources, resolverSchemaUri, "resolvers", acls, caller) {
         override def transformCreate(j: Json) =
           j.addContext(resolverCtxUri)
 
@@ -73,10 +76,10 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
           EitherT.rightT(transformCreate(j))
 
         override implicit def additional =
-          AdditionalValidation.resolver(acls, wrapped.accountRef, cache.projectRef)
+          AdditionalValidation.resolver(caller, wrapped.accountRef, cache.projectRef)
 
         override def list: Route =
-          (get & parameter('deprecated.as[Boolean].?) & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
+          (get & parameter('deprecated.as[Boolean].?) & hasPermission(resourceRead) & pathEndOrSingleSlash) {
             deprecated =>
               trace("listResolvers") {
                 val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated).map { r =>
@@ -88,11 +91,9 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
       }.routes
 
     (pathPrefix("resolvers") & project) { implicit wrapped =>
-      acls.apply(implicit acls => resolverRoute)
+      (acls & caller)(resolverRoute)
     } ~ (pathPrefix("resources") & project) { implicit wrapped =>
-      pathPrefix(isIdSegment(resolverSchemaUri)) {
-        acls.apply(implicit acls => resolverRoute)
-      }
+      (isIdSegment(resolverSchemaUri) & acls & caller)(resolverRoute)
     }
   }
 
@@ -100,9 +101,10 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
     val resourceRead = Permissions(Permission("views/read"), Permission("views/manage"))
 
     implicit val um = marshallers.sparqlQueryUnmarshaller
-    def search(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]) =
+
+    def search(implicit acls: FullAccessControlList, caller: Caller, wrapped: LabeledProject) =
       (pathPrefix(IdSegment / "sparql") & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
-        (callerIdentity & hasPermissionInAcl(resourceRead)) { implicit ident =>
+        (identity(caller) & hasPermission(resourceRead)) { implicit ident =>
           val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
             views.find(_.id == id) match {
               case Some(v: SparqlView) => sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
@@ -114,7 +116,7 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
       } ~
         (pathPrefix(IdSegment / "_search") & post & entity(as[Json]) & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
           (id, query, params) =>
-            (callerIdentity & hasPermissionInAcl(resourceRead)) { implicit ident =>
+            (identity(caller) & hasPermission(resourceRead)) { implicit ident =>
               val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
                 views.find(_.id == id) match {
                   case Some(v: ElasticView) => es.searchRaw(query, Set(v.index), params).map(Right(_))
@@ -125,8 +127,8 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
             }
         }
 
-    def viewRoutes(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]): Route =
-      new ResourceRoutes(resources, viewSchemaUri, "views") {
+    def viewRoutes(acls: FullAccessControlList, caller: Caller)(implicit wrapped: LabeledProject): Route =
+      new ResourceRoutes(resources, viewSchemaUri, "views", acls, caller) {
 
         override implicit def additional = AdditionalValidation.view
 
@@ -139,7 +141,7 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
         }
 
         override def list: Route =
-          (get & parameter('deprecated.as[Boolean].?) & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
+          (get & parameter('deprecated.as[Boolean].?) & hasPermission(resourceRead) & pathEndOrSingleSlash) {
             deprecated =>
               trace("listViews") {
                 complete(filterDeprecated(cache.views(wrapped.ref), deprecated).map(toQueryResults).runAsync)
@@ -162,17 +164,19 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
       }.routes
 
     (pathPrefix("views") & project) { implicit wrapped =>
-      acls.apply(implicit acls => viewRoutes ~ search)
+      (acls & caller) { (fullAcls, c) =>
+        viewRoutes(fullAcls, c) ~ search(fullAcls, c, wrapped)
+      }
     } ~ (pathPrefix("resources") & project) { implicit wrapped =>
-      pathPrefix(isIdSegment(viewSchemaUri)) {
-        acls.apply(implicit acls => viewRoutes ~ search)
+      (isIdSegment(viewSchemaUri) & acls & caller) { (fullAcls, c) =>
+        viewRoutes(fullAcls, c) ~ search(fullAcls, c, wrapped)
       }
     }
   }
 
   private def schema(implicit token: Option[AuthToken]): Route = {
-    def schemaRoutes(implicit wrapped: LabeledProject, acls: Option[FullAccessControlList]): Route =
-      new ResourceRoutes(resources, shaclSchemaUri, "schemas") {
+    def schemaRoutes(acls: FullAccessControlList, caller: Caller)(implicit wrapped: LabeledProject): Route =
+      new ResourceRoutes(resources, shaclSchemaUri, "schemas", acls, caller) {
 
         override def transformCreate(j: Json): Json =
           j.addContext(shaclCtxUri)
@@ -182,27 +186,27 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
       }.routes
 
     (pathPrefix("schemas") & project) { implicit wrapped =>
-      acls.apply(implicit acls => schemaRoutes)
+      (acls & caller)(schemaRoutes)
     } ~ (pathPrefix("resources") & project) { implicit wrapped =>
-      pathPrefix(isIdSegment(shaclSchemaUri)) {
-        acls.apply(implicit acls => schemaRoutes)
-      }
+      (isIdSegment(shaclSchemaUri) & acls & caller)(schemaRoutes)
     }
   }
 
   private def resource(implicit token: Option[AuthToken]): Route = {
     val resourceRead = Permissions(Permission("resources/read"), Permission("resources/manage"))
     (pathPrefix("resources") & project) { implicit wrapped =>
-      acls.apply { implicit acls =>
-        (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermissionInAcl(resourceRead) & pathEndOrSingleSlash) {
-          (deprecated, pagination) =>
-            trace("listResources") {
-              complete(cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, pagination)).runAsync)
+      acls.apply { implicit acl =>
+        caller.apply { implicit c =>
+          (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
+            (deprecated, pagination) =>
+              trace("listResources") {
+                complete(cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, pagination)).runAsync)
+              }
+          } ~
+            pathPrefix(IdSegment) { schema =>
+              new ResourceRoutes(resources, schema, "resources", acl, c).routes
             }
-        } ~
-          pathPrefix(IdSegment) { schema =>
-            new ResourceRoutes(resources, schema, "resources").routes
-          }
+        }
       }
     }
   }

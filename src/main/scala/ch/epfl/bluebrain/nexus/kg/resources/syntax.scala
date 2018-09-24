@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
 
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, AuthenticatedRef, GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{HttpConfig, IamConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -14,7 +14,6 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import ch.epfl.bluebrain.nexus.service.http.Path
-import ch.epfl.bluebrain.nexus.service.http.Path._
 import ch.epfl.bluebrain.nexus.service.http.UriOps._
 
 object syntax {
@@ -24,6 +23,7 @@ object syntax {
   }
 
   final implicit class IdentityIdSyntax(private val identity: Identity) extends AnyVal {
+    import ch.epfl.bluebrain.nexus.service.http.Path._
     def id(implicit iamConfig: IamConfig): IriNode = identity match {
       case UserRef(realm, sub)           => url"${iamConfig.baseUri.append("realms" / realm / "users" / sub)}"
       case GroupRef(realm, group)        => url"${iamConfig.baseUri.append("realms" / realm / "groups" / group)}"
@@ -55,5 +55,25 @@ object syntax {
       * @return a new [[Graph]] without the metadata triples
       */
     def removeMetadata(id: IriOrBNode): Graph = ResourceF.removeMetadata(graph, id)
+  }
+
+  final implicit class AclsSyntax(private val acls: FullAccessControlList) extends AnyVal {
+    import ch.epfl.bluebrain.nexus.iam.client.types.Address._
+
+    /**
+      * Checks if on the list of ACLs there are some which contains any of the provided ''identities'', ''perms'' in
+      * the root path, the account path or the project path.
+      *
+      * @param identities the list of identities to filter from the ''acls''
+      * @param label      the account and project label information to be used to generate the paths to filter
+      * @param perms      the permissions to filter
+      * @return true if the conditions are met, false otherwise
+      */
+    def exists(identities: Set[Identity], label: ProjectLabel, perms: Permissions): Boolean =
+      acls.acl.exists {
+        case FullAccessControl(identity, path, permissions) =>
+          identities.contains(identity) && permissions.containsAny(perms) &&
+            (path == / || path == Address(label.account) || path == label.account / label.value)
+      }
   }
 }

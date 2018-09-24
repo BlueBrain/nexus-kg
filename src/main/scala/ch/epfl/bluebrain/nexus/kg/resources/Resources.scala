@@ -39,7 +39,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, Node}
+import ch.epfl.bluebrain.nexus.rdf.{Graph, GraphConfiguration, Iri}
 import io.circe.Json
 
 /**
@@ -47,7 +47,9 @@ import io.circe.Json
   */
 class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: ProjectResolution[F], config: AppConfig) {
   self =>
-
+  //TODO: If we need to cast well known types, we should find a better way to do it
+  // on the rdf library side.
+  private implicit val graphConfig = GraphConfiguration(castDateTypes = false)
   type RejOrResourceV = EitherT[F, Rejection, ResourceV]
   type RejOrResource  = EitherT[F, Rejection, Resource]
   type OptResource    = OptionT[F, Resource]
@@ -341,7 +343,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def materialize(resource: Resource): RejOrResourceV =
     for {
       value <- materialize(resource.id, resource.value)
-    } yield resource.map(_ => value.copy(graph = value.graph.removeMetadata(resource.id.value)))
+    } yield resource.map(_ => value)
 
   /**
     * Materializes a resource flattening its context and producing a graph that contains the additional type information
@@ -365,23 +367,19 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     */
   private def imports(resId: ResId, graph: Graph): EitherT[F, Rejection, Set[ResourceV]] = {
     import cats.implicits._
-    def canImport(id: AbsoluteIri, g: Graph): Boolean =
-      g.select(_ == IriNode(id), _ == rdf.tpe, (o: Node) => (o == nxv.Schema || o == owl.Ontology)).nonEmpty
 
-    def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] = {
-      if (canImport(id, g))
-        g.objects(IriNode(id), owl.imports).unorderedFoldMap {
-          case IriNode(iri) => Set(Ref(iri))
-          case _            => Set.empty
-        } else Set.empty
-    }
+    def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
+      g.objects(IriNode(id), owl.imports).unorderedFoldMap {
+        case IriNode(iri) => Set(Ref(iri))
+        case _            => Set.empty
+      }
 
     def lookup(current: Map[Ref, ResourceV], remaining: List[Ref]): EitherT[F, Rejection, Set[ResourceV]] = {
       def load(ref: Ref): EitherT[F, Rejection, (Ref, ResourceV)] =
         current
           .find(_._1 == ref)
           .map(tuple => EitherT.rightT[F, Rejection](tuple))
-          .getOrElse(ref.resolveOr(resId.parent)(NotFound).flatMap(r => materialize(r)).map(ref -> _))
+          .getOrElse(ref.resolveOr(resId.parent)(NotFound).flatMap(materialize).map(ref -> _))
 
       if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
       else {
@@ -537,11 +535,8 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
 
   private final implicit class RefSyntax(ref: Ref) {
 
-    def resolve(projectRef: ProjectRef): F[Option[Resource]] =
-      resolution(projectRef)(self).resolve(ref)
-
     def resolveOr(projectRef: ProjectRef)(f: Ref => Rejection): EitherT[F, Rejection, Resource] =
-      EitherT.fromOptionF(resolve(projectRef), f(ref))
+      EitherT.fromOptionF(resolution(projectRef)(self).resolve(ref), f(ref))
   }
 
 }

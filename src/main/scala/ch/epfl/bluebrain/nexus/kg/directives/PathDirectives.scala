@@ -3,7 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.directives
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.server.PathMatcher.{Matched, Unmatched}
 import akka.http.scaladsl.server.PathMatchers.Segment
-import akka.http.scaladsl.server.{PathMatcher, PathMatcher0, PathMatcher1}
+import akka.http.scaladsl.server.directives.PathDirectives.pathPrefix
+import akka.http.scaladsl.server.{Directive0, PathMatcher, PathMatcher1}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.{Curie, Iri}
@@ -37,8 +38,8 @@ object PathDirectives {
     * @param iri     the iri to match against the segment
     * @param project the project with its prefixMappings used to expand the alias or curie into an [[AbsoluteIri]]
     */
-  def isIdSegment(iri: AbsoluteIri)(implicit project: Project): PathMatcher0 =
-    new PathMatcher[Unit] {
+  def isIdSegment(iri: AbsoluteIri)(implicit project: Project): Directive0 = {
+    val matcher = new PathMatcher[Unit] {
       def apply(path: Path) = path match {
         case Path.Segment(segment, tail) =>
           toIri(segment) match {
@@ -48,4 +49,6 @@ object PathDirectives {
         case _ => Unmatched
       }
     }
+    pathPrefix(matcher)
+  }
 }

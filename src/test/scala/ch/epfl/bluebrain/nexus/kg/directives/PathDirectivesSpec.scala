@@ -35,7 +35,7 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
       }
 
     def routeIsSegment(iri: AbsoluteIri): Route =
-      (get & pathPrefix(isIdSegment(iri)) & pathPrefix(Segment) & pathEndOrSingleSlash) { s =>
+      (get & isIdSegment(iri) & pathPrefix(Segment) & pathEndOrSingleSlash) { s =>
         complete(StatusCodes.OK -> s)
       }
 
