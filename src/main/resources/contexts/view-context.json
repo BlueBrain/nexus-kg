@@ -18,7 +18,7 @@
     "Alpha": "nxv:Alpha",
     "ElasticView": "nxv:ElasticView",
     "SparqlView": "nxv:SparqlView",
-    "uuid": "nxv:uuid",
+    "_uuid": "nxv:uuid",
     "resourceSchemas": {
       "@id": "nxv:resourceSchemas",
       "@type": "@id",

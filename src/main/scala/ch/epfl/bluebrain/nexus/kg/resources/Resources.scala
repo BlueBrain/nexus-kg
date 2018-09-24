@@ -384,7 +384,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
       else {
         val batch: EitherT[F, Rejection, List[(Ref, ResourceV)]] =
-          remaining.traverse(ref => load(ref))
+          remaining.traverse(load)
 
         batch.flatMap { list =>
           val nextRemaining: List[Ref] = list.flatMap {
