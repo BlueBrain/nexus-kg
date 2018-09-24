@@ -5,20 +5,21 @@ import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
-import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.syntax._
 import io.circe.{Encoder, Json, Printer}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+
 import scala.collection.immutable.Seq
 
 package object instances extends FailFastCirceSupport {
 
   override def unmarshallerContentTypes: Seq[ContentTypeRange] =
-    List(`application/json`, RdfMediaTypes.`application/ld+json`, RdfMediaTypes.`application/sparql-results+json`)
+    List(`application/json`, `application/ld+json`, `application/sparql-results+json`)
 
   /**
     * `Json` => HTTP entity
@@ -26,10 +27,13 @@ package object instances extends FailFastCirceSupport {
     * @return marshaller for JSON-LD value
     */
   final implicit def jsonLd(implicit printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
-                            keys: OrderedKeys = orderedKeys): ToEntityMarshaller[Json] =
-    Marshaller.withFixedContentType(RdfMediaTypes.`application/ld+json`) { json =>
-      HttpEntity(RdfMediaTypes.`application/ld+json`, printer.pretty(json.sortKeys))
-    }
+                            keys: OrderedKeys = orderedKeys): ToEntityMarshaller[Json] = {
+    val marshallers = Seq(`application/ld+json`, `application/json`).map(contentType =>
+      Marshaller.withFixedContentType[Json, MessageEntity](contentType) { json =>
+        HttpEntity(`application/ld+json`, printer.pretty(json.sortKeys))
+    })
+    Marshaller.oneOf(marshallers: _*)
+  }
 
   /**
     * `A` => HTTP entity
@@ -60,11 +64,15 @@ package object instances extends FailFastCirceSupport {
     * @return marshaller for Rejection value
     */
   implicit def rejection(implicit printer: Printer = Printer.noSpaces.copy(dropNullValues = true),
-                         ordered: OrderedKeys = orderedKeys): ToResponseMarshaller[Rejection] =
-    Marshaller.withFixedContentType(RdfMediaTypes.`application/ld+json`) { rejection =>
-      HttpResponse(status = statusCodeFrom(rejection),
-                   entity = HttpEntity(RdfMediaTypes.`application/ld+json`, printer.pretty(rejection.asJson.sortKeys)))
+                         ordered: OrderedKeys = orderedKeys): ToResponseMarshaller[Rejection] = {
+    val marshallers = Seq(`application/ld+json`, `application/json`).map { contentType =>
+      Marshaller.withFixedContentType[Rejection, HttpResponse](contentType) { rejection =>
+        HttpResponse(status = statusCodeFrom(rejection),
+                     entity = HttpEntity(contentType, printer.pretty(rejection.asJson.sortKeys)))
+      }
     }
+    Marshaller.oneOf(marshallers: _*)
+  }
 
   private def statusCodeFrom(rejection: Rejection): StatusCode = rejection match {
     case _: IsDeprecated             => StatusCodes.BadRequest
