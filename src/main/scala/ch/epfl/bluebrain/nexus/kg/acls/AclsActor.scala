@@ -94,7 +94,7 @@ object AclsActor {
     as.actorOf(
       ClusterSingletonProxy.props(singletonManagerPath = singletonManager.path.toStringWithoutAddress,
                                   settings = ClusterSingletonProxySettings(as)),
-      name = s"iamAclsProxy"
+      name = "iamAclsProxy"
     )
   }
   // $COVERAGE-ON$
