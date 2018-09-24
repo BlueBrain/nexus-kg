@@ -3,7 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.data.EitherT
 import cats.{Applicative, Monad, MonadError}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Identity}
+import ch.epfl.bluebrain.nexus.iam.client.Caller
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
@@ -60,18 +61,17 @@ object AdditionalValidation {
   /**
     * Additional validation used for checking ACLs on [[Resolver]] creation
     *
-    * @param acls       the [[FullAccessControlList]]
+    * @param caller     the [[Caller]] with all it's identities
     * @param accountRef the account reference
     * @tparam F the monadic effect type
     * @return a new validation that passes whenever the provided ''acls'' match the ones on the resolver's identities
     */
-  final def resolver[F[_]: Monad](acls: Option[FullAccessControlList],
+  final def resolver[F[_]: Monad](caller: Caller,
                                   accountRef: AccountRef,
                                   labelResolution: ProjectLabel => F[Option[ProjectRef]]): AdditionalValidation[F] = {
-    def aclContains(identities: List[Identity]): Boolean = {
-      val list = acls.map(_.acl.map(_.identity)).getOrElse(List.empty)
-      identities.forall(list.contains)
-    }
+
+    def aclContains(identities: List[Identity]): Boolean =
+      identities.forall(caller.identities.contains)
 
     def projectToLabel(value: String): Option[ProjectLabel] =
       value.trim.split("/") match {

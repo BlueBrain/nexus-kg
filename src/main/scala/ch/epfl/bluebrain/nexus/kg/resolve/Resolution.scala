@@ -17,13 +17,4 @@ trait Resolution[F[_]] {
     * @return an optional resolved resource in F
     */
   def resolve(ref: Ref): F[Option[Resource]]
-
-  /**
-    * Attempts to resolve the argument reference to a collection of resources that match the reference. The result may
-    * be empty.
-    *
-    * @param ref the reference to resolve
-    * @return the collection of resources that match the reference
-    */
-  def resolveAll(ref: Ref): F[List[Resource]]
 }

@@ -1,31 +1,29 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
 import cats.Monad
-import cats.instances.future._
-import cats.syntax.applicative._
+import cats.instances.list._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import cats.syntax.traverse._
+import ch.epfl.bluebrain.nexus.iam.client.types.FullAccessControlList
+import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import monix.eval.Task
 
-import scala.concurrent.{ExecutionContext, Future}
-
 /**
   * Resolution for a given project
   *
   * @param cache the distributed cache
-  * @param adminClient the admin client
   * @param staticResolution the static resolutions
+  * @param fetchAcls the function to fetch ACLs
   * @tparam F the monadic effect type
   */
-class ProjectResolution[F[_]: Monad](cache: DistributedCache[F],
-                                     staticResolution: Resolution[F],
-                                     adminClient: AdminClient[F])(implicit serviceAccountToken: Option[AuthToken]) {
+class ProjectResolution[F[_]](cache: DistributedCache[F],
+                              staticResolution: Resolution[F],
+                              fetchAcls: => F[FullAccessControlList])(implicit F: Monad[F]) {
 
   /**
     * Looks up the collection of defined resolvers for the argument project
@@ -39,23 +37,27 @@ class ProjectResolution[F[_]: Monad](cache: DistributedCache[F],
   def apply(ref: ProjectRef)(resources: Resources[F]): Resolution[F] =
     new Resolution[F] {
 
-      private val resolution = cache.resolvers(ref).map { res =>
-        val result = res.filterNot(_.deprecated).toList.sortBy(_.priority).map {
-          case r: InProjectResolver => InProjectResolution[F](r.ref, resources)
+      def resolverResolution(r: Resolver): F[Resolution[F]] =
+        r match {
+          case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, resources))
           case r: InAccountResolver =>
             val projects = cache.projects(r.accountRef)
-            MultiProjectResolution(resources, projects, r.resourceTypes, r.identities, adminClient, cache)
+            fetchAcls.map(MultiProjectResolution(resources, projects, r.resourceTypes, r.identities, cache, _))
           case r: CrossProjectResolver =>
-            MultiProjectResolution(resources, r.projects.pure, r.resourceTypes, r.identities, adminClient, cache)
+            fetchAcls.map(
+              MultiProjectResolution(resources, F.pure(r.projects), r.resourceTypes, r.identities, cache, _))
         }
-        CompositeResolution(staticResolution :: result)
+
+      private val resolution = cache.resolvers(ref).flatMap {
+        _.filterNot(_.deprecated).toList
+          .sortBy(_.priority)
+          .map(resolverResolution)
+          .sequence
+          .map(list => CompositeResolution(staticResolution :: list))
       }
 
       def resolve(ref: Ref): F[Option[Resource]] =
         resolution.flatMap(_.resolve(ref))
-
-      def resolveAll(ref: Ref): F[List[Resource]] =
-        resolution.flatMap(_.resolveAll(ref))
     }
 
 }
@@ -64,21 +66,9 @@ object ProjectResolution {
 
   /**
     * @param cache the distributed cache
-    * @param adminClient an IAM client
-    * @return a new [[ProjectResolution]] for the effect type [[Future]]
-    */
-  def future(cache: DistributedCache[Future], adminClient: AdminClient[Future])(
-      implicit ec: ExecutionContext,
-      serviceAccountToken: Option[AuthToken]): ProjectResolution[Future] =
-    new ProjectResolution(cache, StaticResolution[Future](iriResolution), adminClient)
-
-  /**
-    * @param cache the distributed cache
-    * @param adminClient an IAM client
     * @return a new [[ProjectResolution]] for the effect type [[Task]]
     */
-  def task(cache: DistributedCache[Task], adminClient: AdminClient[Task])(
-      implicit serviceAccountToken: Option[AuthToken]): ProjectResolution[Task] =
-    new ProjectResolution(cache, StaticResolution[Task](iriResolution), adminClient)
+  def task(cache: DistributedCache[Task], aclsOps: AclsOps): ProjectResolution[Task] =
+    new ProjectResolution(cache, StaticResolution[Task](iriResolution), aclsOps.fetch)
 
 }

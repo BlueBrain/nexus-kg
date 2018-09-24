@@ -4,7 +4,6 @@ import java.time.Clock
 
 import cats.Monad
 import cats.syntax.applicative._
-import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
@@ -18,8 +17,6 @@ import io.circe.Json
 class StaticResolution[F[_]: Monad](resources: Map[AbsoluteIri, Resource]) extends Resolution[F] {
 
   override def resolve(ref: Ref): F[Option[Resource]] = resources.get(ref.iri).pure
-
-  override def resolveAll(ref: Ref): F[List[Resource]] = resolve(ref).map(_.toList)
 }
 
 object StaticResolution {
