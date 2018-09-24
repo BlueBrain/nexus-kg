@@ -84,19 +84,17 @@ object AclsActor {
 
   /**
     * Instantiates an actor that maintains the ACLs for a maximum inactivity period of ''iamConfig.cacheTimeout''.
-    *
-    * @param name the name of the actor
     */
   // $COVERAGE-OFF$
-  final def start(name: String)(implicit client: IamClient[Task], iamConfig: IamConfig, as: ActorSystem): ActorRef = {
+  final def start(implicit client: IamClient[Task], iamConfig: IamConfig, as: ActorSystem): ActorRef = {
     val props = ClusterSingletonManager.props(Props(new AclsActor(client)),
                                               terminationMessage = Stop,
                                               settings = ClusterSingletonManagerSettings(as))
-    val singletonManager = as.actorOf(props, name)
+    val singletonManager = as.actorOf(props, "iamAcls")
     as.actorOf(
       ClusterSingletonProxy.props(singletonManagerPath = singletonManager.path.toStringWithoutAddress,
                                   settings = ClusterSingletonProxySettings(as)),
-      name = s"${name}Proxy"
+      name = s"iamAclsProxy"
     )
   }
   // $COVERAGE-ON$

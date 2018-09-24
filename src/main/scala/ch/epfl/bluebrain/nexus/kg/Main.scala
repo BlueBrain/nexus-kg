@@ -110,7 +110,7 @@ object Main {
     implicit val indexers          = clients
     implicit val cache             = DistributedCache.task()
     implicit val iam               = clients.iamClient
-    implicit val aclsOps           = new AclsOps(AclsActor.start("iam-acls"))
+    implicit val aclsOps           = new AclsOps(AclsActor.start)
     implicit val projectResolution = ProjectResolution.task(cache, aclsOps)
     val resources: Resources[Task] = Resources[Task]
     val resourceRoutes             = new ResourcesRoutes(resources).routes
