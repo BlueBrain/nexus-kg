@@ -59,6 +59,7 @@ object Vocabulary {
     val results       = Metadata("results")
     val maxScore      = Metadata("maxScore")
     val score         = Metadata("score")
+    val uuid          = Metadata("uuid")
 
     // Attachment metadata vocabulary
     val originalFileName = Metadata("originalFileName")
@@ -82,7 +83,6 @@ object Vocabulary {
     val group         = withSuffix("group")
 
     // View payload vocabulary
-    val uuid            = withSuffix("uuid")
     val resourceSchemas = withSuffix("resourceSchemas")
     val resourceTag     = withSuffix("resourceTag")
     val includeMetadata = withSuffix("includeMetadata")

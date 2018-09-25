@@ -232,7 +232,7 @@ class ResourceRoutesSpec
 
   abstract class View(perms: Permissions = manageViews) extends Context(perms) {
     val view = jsonContentOf("/view/elasticview.json")
-      .removeKeys("uuid")
+      .removeKeys("_uuid")
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
 
     val types           = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
@@ -327,7 +327,7 @@ class ResourceRoutesSpec
             eqProjectRef,
             mEq(projectMeta.base),
             mEq(schemaRef),
-            matches[Json](_.removeKeys("uuid") == viewWithCtx))(mEq(identity), isA[AdditionalValidation[Task]]))
+            matches[Json](_.removeKeys("_uuid") == viewWithCtx))(mEq(identity), isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/views/$account/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -348,7 +348,7 @@ class ResourceRoutesSpec
         private val expected =
           ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
-          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("uuid") == viewWithCtx))(
+          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewWithCtx))(
             mEq(identity),
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
@@ -371,7 +371,7 @@ class ResourceRoutesSpec
         private val expected =
           ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
-          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("uuid") == viewWithCtx))(
+          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewWithCtx))(
             mEq(identity),
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
@@ -381,7 +381,7 @@ class ResourceRoutesSpec
         }
         val mappingUpdated = Json.obj("mapping" -> Json.obj("key2" -> Json.fromString("value2")))
 
-        val uuidJson       = Json.obj("uuid" -> Json.fromString("uuid1"))
+        val uuidJson       = Json.obj("_uuid" -> Json.fromString("uuid1"))
         val expectedUpdate = expected.copy(value = view.deepMerge(uuidJson).appendContextOf(viewCtx))
         when(resources.fetch(id, Some(Latest(viewSchemaUri)))).thenReturn(OptionT.some[Task](expectedUpdate))
         val jsonUpdate = view.addContext(viewCtxUri) deepMerge Json.obj(

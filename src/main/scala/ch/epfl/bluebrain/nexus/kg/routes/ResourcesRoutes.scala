@@ -12,12 +12,12 @@ import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.DeprecatedId._
 import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
-import ch.epfl.bluebrain.nexus.kg.{marshallers, DeprecatedId}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -34,6 +34,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.kg.{marshallers, DeprecatedId}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import com.github.ghik.silencer.silent
@@ -133,7 +134,7 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
         override implicit def additional = AdditionalValidation.view
 
         private def transformView(source: Json, uuid: String): Json = {
-          val transformed = source deepMerge Json.obj("uuid" -> Json.fromString(uuid)).addContext(viewCtxUri)
+          val transformed = source deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuid)).addContext(viewCtxUri)
           transformed.hcursor.get[Json]("mapping") match {
             case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
             case _                      => transformed
@@ -158,7 +159,7 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
             .toRight(NotFound(resId.ref): Rejection)
             .flatMap(r =>
               EitherT.fromEither(
-                r.value.hcursor.get[String]("uuid").left.map(_ => UnexpectedState(resId.ref): Rejection)))
+                r.value.hcursor.get[String](nxv.uuid.prefix).left.map(_ => UnexpectedState(resId.ref): Rejection)))
             .map(uuid => transformView(j, uuid))
         }
       }.routes
