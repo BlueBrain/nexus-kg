@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
 import cats.Monad
-import cats.data.OptionT
 import cats.instances.list._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
@@ -40,19 +39,6 @@ class MultiProjectResolution[F[_]](resources: Resources[F],
 
   private def containsAny[A](a: Set[A], b: Set[A]): Boolean = b.isEmpty || b.exists(a.contains)
 
-  private def projectToLabel(project: ProjectRef): F[Option[ProjectLabel]] = {
-    val result = for {
-      // format: off
-      proj          <- OptionT(cache.project(project))
-      projectLabel   = proj.label
-      accountRef    <- OptionT(cache.accountRef(project))
-      account       <- OptionT(cache.account(accountRef))
-      accountLabel   = account.label
-    } yield ProjectLabel(accountLabel, projectLabel)
-    // format: on
-    result.value
-  }
-
   private def checkPermsAndResolve(ref: Ref, project: ProjectRef): F[Option[Resource]] =
     hasPermission(project).flatMap[Option[Resource]] {
       case false =>
@@ -65,7 +51,7 @@ class MultiProjectResolution[F[_]](resources: Resources[F],
     }
 
   private def hasPermission(project: ProjectRef): F[Boolean] =
-    projectToLabel(project).map {
+    project.toLabel(cache).map {
       case None        => false
       case Some(label) => acls.exists(identities.toSet, label, resourceRead)
     }

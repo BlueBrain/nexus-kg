@@ -90,7 +90,8 @@ package object instances extends FailFastCirceSupport {
     case _: Unexpected               => StatusCodes.InternalServerError
     case _: UnexpectedState          => StatusCodes.InternalServerError
     case _: AttachmentNotFound       => StatusCodes.NotFound
-    case _: ProjectNotFound          => StatusCodes.NotFound
+    case _: ProjectsNotFound         => StatusCodes.NotFound
+    case _: LabelsNotFound           => StatusCodes.NotFound
     case _: NotFound                 => StatusCodes.NotFound
     case _: AccountNotFound          => StatusCodes.NotFound
     case _: IncorrectRev             => StatusCodes.Conflict

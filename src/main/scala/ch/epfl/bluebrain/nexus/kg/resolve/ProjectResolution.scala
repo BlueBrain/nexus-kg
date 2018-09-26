@@ -37,7 +37,7 @@ class ProjectResolution[F[_]](cache: DistributedCache[F],
   def apply(ref: ProjectRef)(resources: Resources[F]): Resolution[F] =
     new Resolution[F] {
 
-      def resolverResolution(r: Resolver): F[Resolution[F]] =
+      def resolverResolution(r: StoredResolver): F[Resolution[F]] =
         r match {
           case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, resources))
           case r: InAccountResolver =>
