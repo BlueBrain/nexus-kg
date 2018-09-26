@@ -71,7 +71,7 @@ class ResolverIndexerSpec
     val json      = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
     val resource  = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
-    val resolver  = Resolver.stored(resourceV, accountRef).value
+    val resolver  = Resolver(resourceV, accountRef).value
     val ev        = Created(id, 2L, schema, types, json, clock.instant(), Anonymous)
 
     "index a resolver" in {

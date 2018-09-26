@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RevisionedId
 import ch.epfl.bluebrain.nexus.kg.RevisionedId._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.StoredResolver
+import ch.epfl.bluebrain.nexus.kg.resolve._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import journal.Logger
@@ -115,7 +115,7 @@ trait DistributedCache[F[_]] {
     * @param ref the project reference
     * @return the collection of known resolvers configured for the argument project
     */
-  def resolvers(ref: ProjectRef): F[Set[StoredResolver]]
+  def resolvers(ref: ProjectRef): F[Set[Resolver]]
 
   /**
     * Adds the resolver to the collection of project resolvers.
@@ -123,7 +123,7 @@ trait DistributedCache[F[_]] {
     * @param ref       the project reference
     * @param resolver  the resolver to add
     */
-  def addResolver(ref: ProjectRef, resolver: StoredResolver): F[Unit]
+  def addResolver(ref: ProjectRef, resolver: Resolver): F[Unit]
 
   /**
     * Removes the resolver identified by the argument id from the collection of project resolvers.
@@ -141,7 +141,7 @@ trait DistributedCache[F[_]] {
     * @param ref      the project reference
     * @param resolver the resolver
     */
-  def applyResolver(ref: ProjectRef, resolver: StoredResolver): F[Unit] =
+  def applyResolver(ref: ProjectRef, resolver: Resolver): F[Unit] =
     if (resolver.deprecated) removeResolver(ref, resolver.id, resolver.rev)
     else addResolver(ref, resolver)
 
@@ -210,7 +210,7 @@ object DistributedCache {
   private[async] def accountProjectsKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Set[ProjectRef]]] =
     LWWRegisterKey("account_projects_" + ref.id)
 
-  private[async] def projectResolversKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Set[StoredResolver]]] =
+  private[async] def projectResolversKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Set[Resolver]]] =
     LWWRegisterKey("project_resolvers_" + ref.id)
 
   private[async] def projectViewsKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Set[View]]] =
@@ -410,8 +410,8 @@ object DistributedCache {
     override def projects(ref: AccountRef): Future[Set[ProjectRef]] =
       getOrElse(accountProjectsKey(ref), Set.empty[ProjectRef])
 
-    override def resolvers(ref: ProjectRef): Future[Set[StoredResolver]] =
-      getOrElse(projectResolversKey(ref), Set.empty[StoredResolver])
+    override def resolvers(ref: ProjectRef): Future[Set[Resolver]] =
+      getOrElse(projectResolversKey(ref), Set.empty[Resolver])
 
     private def getOrElse[T](f: => LWWRegisterKey[RevisionedValue[T]], default: => T): Future[T] =
       (replicator ? Get(f, ReadLocal, None)).map {
@@ -421,17 +421,17 @@ object DistributedCache {
 
     override def addResolver(
         ref: ProjectRef,
-        resolver: StoredResolver,
+        resolver: Resolver,
     ): Future[Unit] = {
 
-      val empty = LWWRegister(RevisionedValue(0L, Set.empty[StoredResolver]))
+      val empty = LWWRegister(RevisionedValue(0L, Set.empty[Resolver]))
 
       val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(updateWithIncrement(_, resolver))
       (replicator ? update).flatMap(handleUpdate(s"add resolver ${resolver.id.show} to project ${ref.id}"))
     }
 
     override def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): Future[Unit] = {
-      val empty  = LWWRegister(RevisionedValue(0L, Set.empty[StoredResolver]))
+      val empty  = LWWRegister(RevisionedValue(0L, Set.empty[Resolver]))
       val update = Update(projectResolversKey(ref), empty, WriteMajority(tm.duration))(removeWithIncrement(_, id, rev))
       (replicator ? update).flatMap(handleUpdate(s"remove resolver ${id.show} from project ${ref.id}"))
     }
@@ -553,10 +553,10 @@ object DistributedCache {
       override def projects(ref: AccountRef): Task[Set[ProjectRef]] =
         Task.deferFuture(underlying.projects(ref))
 
-      override def resolvers(ref: ProjectRef): Task[Set[StoredResolver]] =
+      override def resolvers(ref: ProjectRef): Task[Set[Resolver]] =
         Task.deferFuture(underlying.resolvers(ref))
 
-      override def addResolver(ref: ProjectRef, resolver: StoredResolver): Task[Unit] =
+      override def addResolver(ref: ProjectRef, resolver: Resolver): Task[Unit] =
         Task.deferFuture(underlying.addResolver(ref, resolver))
 
       override def removeResolver(ref: ProjectRef, id: AbsoluteIri, rev: Long): Task[Unit] =

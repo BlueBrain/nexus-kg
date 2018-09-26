@@ -2,11 +2,10 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{AuthenticatedRef, GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -26,24 +25,15 @@ object ResolverEncoder {
   implicit def qrResolverEncoder: Encoder[QueryResults[Resolver]] =
     qrsEncoder[Resolver](resolverCtx mergeContext resourceCtx) mapJson (_ addContext resolverCtxUri)
 
-  private def crossProjectGraph(r: Resolver,
-                                projects: Set[String],
-                                resourceTypes: Set[AbsoluteIri],
-                                identities: List[Identity]) = {
-    val s: IriOrBNode                = IriNode(r.id)
-    val projectsTriples: Set[Triple] = projects.map(p => (s, nxv.projects, p: Node))
-    s -> Graph(
-      r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resourceTypes) ++ projectsTriples)
-  }
-
   implicit val resolverGraphEncoder: GraphEncoder[Resolver] = GraphEncoder {
     case r: InProjectResolver => IriNode(r.id) -> Graph(r.mainTriples(nxv.InProject))
-    case r @ CrossProjectResolver(resourceTypes, projects, identities, _, _, _, _, _) =>
-      crossProjectGraph(r, projects.map(_.id), resourceTypes, identities)
-    case r @ CrossProjectLabelResolver(resourceTypes, projects, identities, _, _, _, _, _) =>
-      crossProjectGraph(r, projects.map(_.show), resourceTypes, identities)
-    case r @ InAccountResolver(resourceTypes, identities, _, _, id, _, _, _) =>
-      val s = IriNode(id)
+    case r @ CrossProjectResolver(resourceTypes, _, identities, _, _, _, _, _) =>
+      val s: IriOrBNode            = IriNode(r.id)
+      val projTriples: Set[Triple] = r.projectsString.map(p => (s, nxv.projects, p: Node))
+      s -> Graph(
+        r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resourceTypes) ++ projTriples)
+    case r @ InAccountResolver(resourceTypes, identities, _, _, _, _, _, _) =>
+      val s = IriNode(r.id)
       s -> Graph(r.mainTriples(nxv.InAccount) ++ r.triplesFor(identities) ++ r.triplesFor(resourceTypes))
   }
 

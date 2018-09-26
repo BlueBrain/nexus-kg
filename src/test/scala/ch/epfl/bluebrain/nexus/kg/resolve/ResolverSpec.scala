@@ -60,17 +60,17 @@ class ResolverSpec
 
       "return an InProjectResolver" in {
         val resource = simpleV(id, inProject, types = Set(nxv.Resolver, nxv.InProject, nxv.Resource))
-        Resolver.exposed(resource, accountRef).value shouldEqual InProjectResolver(projectRef,
-                                                                                   iri,
-                                                                                   resource.rev,
-                                                                                   resource.deprecated,
-                                                                                   10)
+        Resolver(resource, accountRef).value shouldEqual InProjectResolver(projectRef,
+                                                                           iri,
+                                                                           resource.rev,
+                                                                           resource.deprecated,
+                                                                           10)
       }
 
-      "return a CrossProjectLabelResolver" in {
+      "return a CrossProjectResolver" in {
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val projects = Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2"))
-        val resolver = Resolver.exposed(resource, accountRef).value.asInstanceOf[CrossProjectLabelResolver]
+        val resolver = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectLabels]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set(nxv.Schema.value)
@@ -81,11 +81,11 @@ class ResolverSpec
         resolver.deprecated shouldEqual resource.deprecated
       }
 
-      "return a CrossProjectLabelResolver that does not have resourceTypes" in {
+      "return a CrossProjectResolver that does not have resourceTypes" in {
         val resource =
           simpleV(id, crossProject.removeKeys("resourceTypes"), types = Set(nxv.Resolver, nxv.CrossProject))
         val projects = Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2"))
-        val resolver = Resolver.exposed(resource, accountRef).value.asInstanceOf[CrossProjectLabelResolver]
+        val resolver = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectLabels]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set.empty
@@ -98,7 +98,7 @@ class ResolverSpec
 
       "return an InAccountResolver" in {
         val resource = simpleV(id, inAccount, types = Set(nxv.Resolver, nxv.InAccount))
-        val resolver = Resolver.exposed(resource, accountRef).value.asInstanceOf[InAccountResolver]
+        val resolver = Resolver(resource, accountRef).value.asInstanceOf[InAccountResolver]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set(nxv.Schema.value)
@@ -110,7 +110,7 @@ class ResolverSpec
 
       "return a InAccountResolver that does not have resourceTypes" in {
         val resource = simpleV(id, inAccount.removeKeys("resourceTypes"), types = Set(nxv.Resolver, nxv.InAccount))
-        val resolver = Resolver.exposed(resource, accountRef).value.asInstanceOf[InAccountResolver]
+        val resolver = Resolver(resource, accountRef).value.asInstanceOf[InAccountResolver]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set.empty
@@ -122,13 +122,13 @@ class ResolverSpec
 
       "fail when the types don't match" in {
         val resource = simpleV(id, inProject, types = Set(nxv.Resource))
-        Resolver.exposed(resource, accountRef) shouldEqual None
+        Resolver(resource, accountRef) shouldEqual None
       }
 
       "fail when payload on identity is wrong" in {
         val wrong    = jsonContentOf("/resolve/cross-project-wrong-1.json").appendContextOf(resolverCtx)
         val resource = simpleV(id, wrong, types = Set(nxv.Resolver, nxv.CrossProject))
-        Resolver.exposed(resource, accountRef) shouldEqual None
+        Resolver(resource, accountRef) shouldEqual None
       }
     }
 
@@ -141,14 +141,16 @@ class ResolverSpec
         val inProject: Resolver = InProjectResolver(projectRef, iri, 1L, false, 10)
 
         val crossProject: Resolver =
-          CrossProjectResolver(Set(nxv.Resolver, nxv.CrossProject),
-                               Set(ProjectRef("account1/project1"), ProjectRef("account1/project2")),
-                               identities,
-                               projectRef,
-                               iri2,
-                               1L,
-                               false,
-                               10)
+          CrossProjectResolver(
+            Set(nxv.Resolver, nxv.CrossProject),
+            Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
+            identities,
+            projectRef,
+            iri2,
+            1L,
+            false,
+            10
+          )
         val inAccount: Resolver =
           InAccountResolver(Set(nxv.Resolver, nxv.InAccount),
                             List(Anonymous, AuthenticatedRef(Some("some"))),
@@ -173,8 +175,8 @@ class ResolverSpec
         when(cache.projectRef(ProjectLabel("account1", "project1"))).thenReturn(Option(ProjectRef("uuid1")))
         when(cache.projectRef(ProjectLabel("account1", "project2"))).thenReturn(Option(ProjectRef("uuid2")))
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
-        val exposed  = Resolver.exposed(resource, accountRef).value.asInstanceOf[CrossProjectLabelResolver]
-        val stored   = exposed.toStored.value.right.value
+        val exposed  = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectLabels]
+        val stored   = exposed.referenced.value.right.value.asInstanceOf[CrossProjectRefs]
         stored.priority shouldEqual 50
         stored.identities should contain theSameElementsAs identities
         stored.resourceTypes shouldEqual Set(nxv.Schema.value)
@@ -201,9 +203,9 @@ class ResolverSpec
         }
 
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
-        val exposed  = Resolver.exposed(resource, accountRef).value.asInstanceOf[CrossProjectLabelResolver]
-        val stored   = exposed.toStored.value.right.value
-        stored.toExposed.value.right.value
+        val exposed  = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectLabels]
+        val stored   = exposed.referenced.value.right.value
+        stored.labeled.value.right.value.asInstanceOf[CrossProjectLabels] shouldEqual exposed
       }
     }
   }

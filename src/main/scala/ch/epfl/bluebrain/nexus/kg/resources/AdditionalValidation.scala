@@ -76,9 +76,9 @@ object AdditionalValidation {
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) =>
       {
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
-        Resolver.exposed(resource, accountRef) match {
-          case Some(resolver: CrossProjectLabelResolver) if aclContains(resolver.identities) =>
-            resolver.toStored.map(_.resourceValue(id, value.ctx))
+        Resolver(resource, accountRef) match {
+          case Some(resolver: CrossProjectResolver[_]) if aclContains(resolver.identities) =>
+            resolver.referenced.map(_.resourceValue(id, value.ctx))
           case Some(resolver: InAccountResolver) if aclContains(resolver.identities) =>
             EitherT.rightT[F, Rejection](value)
           case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)

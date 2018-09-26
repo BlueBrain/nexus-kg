@@ -5,6 +5,7 @@ import java.util.UUID
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.data.EitherT
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
@@ -74,20 +75,14 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
     def resolverRoute(acls: FullAccessControlList, caller: Caller)(implicit wrapped: LabeledProject): Route =
       new ResourceRoutes(resources, resolverSchemaUri, "resolvers", acls, caller) {
 
-        override def transformGet(resource: ResourceV) = {
-          val metadata = resource.metadata ++ resource.typeTriples
-          Resolver
-            .stored(resource, wrapped.accountRef)
-            .map {
-              case r: CrossProjectResolver =>
-                r.toExposed
-                  .map(_.resourceValue(resource.id, resource.value.ctx))
-                  .map(resValue => resource.map(_ => resValue.copy(graph = resValue.graph ++ Graph(metadata))))
-                  .getOrElse(resource)
-              case _ => Task.pure(resource)
-            }
-            .getOrElse(Task.pure(resource))
-        }
+        override def transformGet(resource: ResourceV) =
+          Resolver(resource, wrapped.accountRef) match {
+            case Some(r) =>
+              val metadata  = resource.metadata ++ resource.typeTriples
+              val resValueF = r.labeled.getOrElse(r).map(_.resourceValue(resource.id, resource.value.ctx))
+              resValueF.map(v => resource.map(_ => v.copy(graph = v.graph ++ Graph(metadata))))
+            case _ => Task.pure(resource)
+          }
 
         override def transformCreate(j: Json) =
           j.addContext(resolverCtxUri)
@@ -98,19 +93,13 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
         override implicit def additional =
           AdditionalValidation.resolver(caller, wrapped.accountRef)
 
-        private def toExposed(resolvers: List[StoredResolver]): Task[List[Resolver]] =
-          resolvers.foldLeft(Task.pure(List.empty[Resolver])) {
-            case (accTask, r: CrossProjectResolver) => accTask.flatMap(acc => r.toExposed.map(_ :: acc).getOrElse(acc))
-            case (accTask, r)                       => accTask.map(r :: _)
-          }
-
         override def list: Route =
           (get & parameter('deprecated.as[Boolean].?) & hasPermission(resourceRead) & pathEndOrSingleSlash) {
             deprecated =>
               trace("listResolvers") {
-                val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated).flatMap(toExposed).map { r =>
-                  toQueryResults(r.sortBy(_.priority))
-                }
+                val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated)
+                  .flatMap(list => (list.flatTraverse(_.labeled.value.map(_.toList))))
+                  .map(r => toQueryResults(r.sortBy(_.priority)))
                 complete(qr.runAsync)
               }
           }

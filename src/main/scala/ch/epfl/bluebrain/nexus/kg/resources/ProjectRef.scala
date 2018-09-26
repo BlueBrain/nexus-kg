@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
   *
   * @param id the underlying stable identifier for a project
   */
-final case class ProjectRef(id: String) extends AnyVal { self =>
+final case class ProjectRef(id: String) {
 
   /**
     * Attempt to fetch the [[ProjectLabel]] from the actual [[ProjectRef]]
@@ -20,13 +20,13 @@ final case class ProjectRef(id: String) extends AnyVal { self =>
     */
   def toLabel[F[_]: Monad](cache: DistributedCache[F]): F[Option[ProjectLabel]] =
     (for {
-      accountRef <- OptionT(cache.accountRef(self))
+      accountRef <- OptionT(cache.accountRef(this))
       account    <- OptionT(cache.account(accountRef))
-      project    <- OptionT(cache.project(self))
+      project    <- OptionT(cache.project(this))
     } yield ProjectLabel(account.label, project.label)).value
 }
 
 object ProjectRef {
 
-  final implicit val projectRefShow: Show[ProjectRef] = Show.fromToString
+  final implicit val projectRefShow: Show[ProjectRef] = Show.show(_.id)
 }

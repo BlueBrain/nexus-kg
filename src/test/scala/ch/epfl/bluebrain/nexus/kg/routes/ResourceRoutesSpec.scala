@@ -39,12 +39,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{
-  CrossProjectResolver,
-  InAccountResolver,
-  InProjectResolver,
-  StoredResolver
-}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, IllegalParameter, NotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -159,8 +154,6 @@ class ResourceRoutesSpec
 
     def genIri = url"${projectMeta.base}/$uuid"
 
-    def eqProjectRef = mEq(projectRef.id).asInstanceOf[ProjectRef]
-
     def schemaRef: Ref
 
     def response(deprecated: Boolean = false): Json =
@@ -223,7 +216,7 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$account/$project/nxv:$genUuid")
       )
 
-    val resolverSet = Set[StoredResolver](
+    val resolverSet = Set(
       InProjectResolver(projectRef, nxv.deprecated, 1L, deprecated = false, 20),
       InAccountResolver(Set(nxv.Schema), List(Anonymous), accountRef, projectRef, nxv.sub, 2L, deprecated = true, 1),
       CrossProjectResolver(Set(nxv.Schema),
@@ -284,7 +277,7 @@ class ResourceRoutesSpec
         private val expected = ResourceF
           .simpleF(id, resolverWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
-          resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(resolverWithCtx))(
+          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(resolverWithCtx))(
             identity = mEq(identity),
             additional = isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
@@ -336,7 +329,7 @@ class ResourceRoutesSpec
           ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
           resources.create(
-            eqProjectRef,
+            mEq(projectRef),
             mEq(projectMeta.base),
             mEq(schemaRef),
             matches[Json](_.removeKeys("_uuid") == viewWithCtx))(mEq(identity), isA[AdditionalValidation[Task]]))
@@ -451,7 +444,7 @@ class ResourceRoutesSpec
     "performing operations on resources" should {
       "create a context without @id" in new Ctx {
         when(
-          resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
+          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
             mEq(identity),
             isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)))
@@ -641,7 +634,7 @@ class ResourceRoutesSpec
 
       "create a schema without @id" in new Schema {
         when(
-          resources.create(eqProjectRef, mEq(projectMeta.base), mEq(schemaRef), mEq(schema))(
+          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(schema))(
             mEq(identity),
             isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
@@ -735,7 +728,6 @@ class ResourceRoutesSpec
             Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ Graph(temp.metadata ++ temp.typeTriples)))
 
         when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
-
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
 
         Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
