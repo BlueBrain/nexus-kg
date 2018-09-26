@@ -16,6 +16,8 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
+import scala.concurrent.duration._
+
 class DistributedCacheSpec
     extends TestKit(ActorSystem("ProjectsSpec"))
     with DefaultTimeout
@@ -24,6 +26,8 @@ class DistributedCacheSpec
     with ScalaFutures
     with BeforeAndAfterAll
     with Randomness {
+
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 100 millis)
 
   override protected def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 

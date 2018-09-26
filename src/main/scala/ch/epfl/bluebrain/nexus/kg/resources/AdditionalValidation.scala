@@ -5,13 +5,14 @@ import cats.{Applicative, Monad, MonadError}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload, ProjectNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 trait AdditionalValidation[F[_]] {
@@ -66,40 +67,18 @@ object AdditionalValidation {
     * @tparam F the monadic effect type
     * @return a new validation that passes whenever the provided ''acls'' match the ones on the resolver's identities
     */
-  final def resolver[F[_]: Monad](caller: Caller,
-                                  accountRef: AccountRef,
-                                  labelResolution: ProjectLabel => F[Option[ProjectRef]]): AdditionalValidation[F] = {
+  final def resolver[F[_]: Monad](caller: Caller, accountRef: AccountRef)(
+      implicit cache: DistributedCache[F]): AdditionalValidation[F] = {
 
     def aclContains(identities: List[Identity]): Boolean =
       identities.forall(caller.identities.contains)
 
-    def projectToLabel(value: String): Option[ProjectLabel] =
-      value.trim.split("/") match {
-        case Array(account, project) => Some(ProjectLabel(account, project))
-        case _                       => None
-      }
-
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) =>
       {
-        def invalidRef(ref: String): Rejection =
-          InvalidPayload(id.ref, s"'projects' values must be formatted as {account}/{project} and not as '$ref'")
-
-        def projectNotFound(label: ProjectLabel): Rejection =
-          ProjectNotFound(label)
-
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
         Resolver(resource, accountRef) match {
-          case Some(resolver: CrossProjectResolver) if aclContains(resolver.identities) =>
-            resolver.projects
-              .foldLeft(EitherT.rightT[F, Rejection](Set.empty[ProjectRef])) { (acc, c) =>
-                for {
-                  set    <- acc
-                  label  <- EitherT.fromOption[F](projectToLabel(c.id), invalidRef(c.id))
-                  ref    <- EitherT.fromOptionF(labelResolution(label), projectNotFound(label))
-                  newSet <- EitherT.rightT[F, Rejection](set + ref)
-                } yield newSet
-              }
-              .map(projects => resolver.copy(projects = projects).resourceValue(id, value.ctx))
+          case Some(resolver: CrossProjectResolver[_]) if aclContains(resolver.identities) =>
+            resolver.referenced.map(_.resourceValue(id, value.ctx))
           case Some(resolver: InAccountResolver) if aclContains(resolver.identities) =>
             EitherT.rightT[F, Rejection](value)
           case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)

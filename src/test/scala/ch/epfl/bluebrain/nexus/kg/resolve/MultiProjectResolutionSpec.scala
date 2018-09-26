@@ -42,6 +42,8 @@ class MultiProjectResolutionSpec
     with BeforeAndAfterAll
     with ScalaFutures {
 
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 100 millis)
+
   private def genProjectLabel = ProjectLabel(genString(), genString())
   private def genJson: Json   = Json.obj("key" -> Json.fromString(genString()))
 

@@ -26,17 +26,15 @@ object ResolverEncoder {
     qrsEncoder[Resolver](resolverCtx mergeContext resourceCtx) mapJson (_ addContext resolverCtxUri)
 
   implicit val resolverGraphEncoder: GraphEncoder[Resolver] = GraphEncoder {
-    case resolver: InProjectResolver => IriNode(resolver.id) -> Graph(resolver.mainTriples(nxv.InProject))
-    case resolver @ CrossProjectResolver(resourceTypes, projects, identities, _, id, _, _, _) =>
-      val s                            = IriNode(id)
-      val projectsTriples: Set[Triple] = projects.map(r => (s: IriOrBNode, nxv.projects, r.id: Node))
+    case r: InProjectResolver => IriNode(r.id) -> Graph(r.mainTriples(nxv.InProject))
+    case r @ CrossProjectResolver(resourceTypes, _, identities, _, _, _, _, _) =>
+      val s: IriOrBNode            = IriNode(r.id)
+      val projTriples: Set[Triple] = r.projectsString.map(p => (s, nxv.projects, p: Node))
       s -> Graph(
-        resolver.mainTriples(nxv.CrossProject) ++ resolver.triplesFor(identities) ++ resolver
-          .triplesFor(resourceTypes) ++ projectsTriples)
-    case resolver @ InAccountResolver(resourceTypes, identities, _, _, id, _, _, _) =>
-      val s = IriNode(id)
-      s -> Graph(
-        resolver.mainTriples(nxv.InAccount) ++ resolver.triplesFor(identities) ++ resolver.triplesFor(resourceTypes))
+        r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resourceTypes) ++ projTriples)
+    case r @ InAccountResolver(resourceTypes, identities, _, _, _, _, _, _) =>
+      val s = IriNode(r.id)
+      s -> Graph(r.mainTriples(nxv.InAccount) ++ r.triplesFor(identities) ++ r.triplesFor(resourceTypes))
   }
 
   private implicit def qqResolverEncoder(implicit enc: GraphEncoder[Resolver]): GraphEncoder[QueryResult[Resolver]] =

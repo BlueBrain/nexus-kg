@@ -5,6 +5,7 @@ import java.util.UUID
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.data.EitherT
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
@@ -27,6 +28,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.marshallers.{ExceptionHandling, RejectionHandling}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, UnexpectedState}
@@ -35,6 +38,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.{marshallers, DeprecatedId}
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import com.github.ghik.silencer.silent
@@ -70,6 +74,16 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
   private def resolver(implicit token: Option[AuthToken]): Route = {
     def resolverRoute(acls: FullAccessControlList, caller: Caller)(implicit wrapped: LabeledProject): Route =
       new ResourceRoutes(resources, resolverSchemaUri, "resolvers", acls, caller) {
+
+        override def transformGet(resource: ResourceV) =
+          Resolver(resource, wrapped.accountRef) match {
+            case Some(r) =>
+              val metadata  = resource.metadata ++ resource.typeTriples
+              val resValueF = r.labeled.getOrElse(r).map(_.resourceValue(resource.id, resource.value.ctx))
+              resValueF.map(v => resource.map(_ => v.copy(graph = v.graph ++ Graph(metadata))))
+            case _ => Task.pure(resource)
+          }
+
         override def transformCreate(j: Json) =
           j.addContext(resolverCtxUri)
 
@@ -77,15 +91,15 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
           EitherT.rightT(transformCreate(j))
 
         override implicit def additional =
-          AdditionalValidation.resolver(caller, wrapped.accountRef, cache.projectRef)
+          AdditionalValidation.resolver(caller, wrapped.accountRef)
 
         override def list: Route =
           (get & parameter('deprecated.as[Boolean].?) & hasPermission(resourceRead) & pathEndOrSingleSlash) {
             deprecated =>
               trace("listResolvers") {
-                val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated).map { r =>
-                  toQueryResults(r.sortBy(_.priority))
-                }
+                val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated)
+                  .flatMap(list => (list.flatTraverse(_.labeled.value.map(_.toList))))
+                  .map(r => toQueryResults(r.sortBy(_.priority)))
                 complete(qr.runAsync)
               }
           }

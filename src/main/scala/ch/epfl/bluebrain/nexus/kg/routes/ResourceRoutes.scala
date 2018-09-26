@@ -69,6 +69,9 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
   def transformUpdate(@silent id: AbsoluteIri, j: Json): EitherT[Task, Rejection, Json] =
     EitherT.rightT(j)
 
+  def transformGet(resource: ResourceV): Task[ResourceV] =
+    Task.pure(resource)
+
   implicit def additional: AdditionalValidation[Task] =
     AdditionalValidation.pass
 
@@ -225,7 +228,11 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
 
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
     def materializeRun(ref: => Ref): Future[Either[Rejection, ResourceV]] =
-      resource.toRight(NotFound(ref): Rejection).flatMap(resources.materializeWithMeta).value.runAsync
+      (for {
+        res          <- resource.toRight(NotFound(ref): Rejection)
+        materialized <- resources.materializeWithMeta(res)
+        transformed  <- EitherT.right[Rejection](transformGet(materialized))
+      } yield transformed).value.runAsync
   }
 
   private type RejectionOrAttachment = Either[AkkaRejection, Option[(Attachment.BinaryAttributes, AkkaOut)]]

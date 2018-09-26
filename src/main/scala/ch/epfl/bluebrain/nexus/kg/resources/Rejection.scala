@@ -79,11 +79,20 @@ object Rejection {
   final case class AccountNotFound(ref: ProjectRef) extends Rejection(s"Project '${ref.show}' without an account")
 
   /**
-    * Signals an attempt to interact with a resource that belongs to a project that doesn't exist.
+    * Signals the impossibility to resolve the project reference for project labels.
     *
-    * @param ref a reference to the project
+    * @param labels the project labels were references were not found
     */
-  final case class ProjectNotFound(ref: ProjectLabel) extends Rejection(s"Project '${ref.show}' not found.")
+  final case class ProjectsNotFound(labels: List[ProjectLabel])
+      extends Rejection(s"Project references for labels '${labels.map(_.show).mkString(", ")}' not found.")
+
+  /**
+    * Signals the impossibility to resolve the labels for project references.
+    *
+    * @param projects the project references where labels were not found
+    */
+  final case class LabelsNotFound(projects: List[ProjectRef])
+      extends Rejection(s"Labels for projects with ref '${projects.map(_.show).mkString(", ")}' not found.")
 
   /**
     * Signals an attempt to interact with a resource that belongs to a deprecated project.

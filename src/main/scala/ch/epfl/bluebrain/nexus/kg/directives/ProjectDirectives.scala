@@ -61,7 +61,7 @@ object ProjectDirectives {
           .flatMap {
             case Failure(UnauthorizedAccess)       => reject(AuthorizationFailedRejection)
             case Failure(err)                      => reject(authorizationRejection(err))
-            case Success((_, None))                => reject(CustomAuthRejection(ProjectNotFound(label)))
+            case Success((_, None))                => reject(CustomAuthRejection(ProjectsNotFound(List(label))))
             case Success((None, Some(value)))      => reject(CustomAuthRejection(AccountNotFound(ProjectRef(value.uuid))))
             case Success((Some(ref), Some(value))) => provide(LabeledProject(label, addDefaultMappings(value), ref))
           }

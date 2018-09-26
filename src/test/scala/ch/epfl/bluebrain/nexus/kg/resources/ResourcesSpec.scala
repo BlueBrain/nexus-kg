@@ -32,7 +32,7 @@ import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate
 import ch.epfl.bluebrain.nexus.sourcing.mem.MemoryAggregate._
 import com.typesafe.config.ConfigFactory
 import io.circe.Json
-import org.mockito.ArgumentMatchers.anyString
+import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{reset, when}
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
@@ -55,7 +55,7 @@ class ResourcesSpec
   private implicit val repo         = Repo(agg, clock)
   private implicit val store        = mock[AttachmentStore[CId, String, String]]
   private val cache                 = mock[DistributedCache[CId]]
-  when(cache.resolvers(ProjectRef(anyString()))).thenReturn(Set.empty[Resolver])
+  when(cache.resolvers(any[ProjectRef])).thenReturn(Set.empty[Resolver])
   private implicit val resolution =
     new ProjectResolution[CId](
       cache,
