@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.iam.client.Caller.{AnonymousCaller, Authenticated
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Identity}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -43,18 +44,26 @@ class AdditionalValidationSpec
 
   private implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private implicit val elastic      = mock[ElasticClient[Try]]
+  private implicit val cache        = mock[DistributedCache[CId]]
 
   before {
     Mockito.reset(elastic)
+    Mockito.reset(cache)
+  }
+
+  sealed trait Context {
+    when(cache.projectRef(ProjectLabel("account1", "project1")))
+      .thenReturn(Option(ProjectRef("account1-project1-uuid")))
+    when(cache.projectRef(ProjectLabel("account1", "project2")))
+      .thenReturn(Option(ProjectRef("account1-project2-uuid")))
   }
 
   "An AdditionalValidation" when {
-    implicit val config: ElasticConfig                      = ElasticConfig("http://localhost", "kg", "doc", "default")
-    val iri                                                 = Iri.absolute("http://example.com/id").right.value
-    val projectRef                                          = ProjectRef("ref")
-    val id                                                  = Id(projectRef, iri)
-    val accountRef                                          = AccountRef("accountRef")
-    val labelResol: ProjectLabel => CId[Option[ProjectRef]] = lb => Some(ProjectRef(s"${lb.account}-${lb.value}-uuid"))
+    implicit val config: ElasticConfig = ElasticConfig("http://localhost", "kg", "doc", "default")
+    val iri                            = Iri.absolute("http://example.com/id").right.value
+    val projectRef                     = ProjectRef("ref")
+    val id                             = Id(projectRef, iri)
+    val accountRef                     = AccountRef("accountRef")
     val matchingCaller: Caller = AuthenticatedCaller(
       AuthToken("some"),
       UserRef("ldap", "dmontero"),
@@ -65,7 +74,7 @@ class AdditionalValidationSpec
 
     "applied to generic resources" should {
 
-      "pass always" in {
+      "pass always" in new Context {
         val validation = AdditionalValidation.pass[CId]
         val resource   = simpleV(id, Json.obj(), types = Set(nxv.Resource.value) + nxv.InProject)
         validation(id, Ref(resourceSchemaUri), Set(nxv.Resource.value), resource.value, 1L).value.right.value shouldEqual resource.value
@@ -77,40 +86,34 @@ class AdditionalValidationSpec
       val crossProject = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
       val types        = Set[AbsoluteIri](nxv.CrossProject, nxv.Resolver)
 
-      "fail when identities in acls are different from identities on resolver" in {
+      "fail when identities in acls are different from identities on resolver" in new Context {
         val caller: Caller =
           AuthenticatedCaller(AuthToken("sone"),
                               UserRef("ldap", "dmontero2"),
                               Set[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero2")))
-        val validation = AdditionalValidation.resolver[CId](caller, accountRef, labelResol)
+        val validation = AdditionalValidation.resolver[CId](caller, accountRef)
         val resource   = simpleV(id, crossProject, types = types)
         validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[InvalidIdentity]
       }
 
-      "fail when the payload cannot be serialized" in {
+      "fail when the payload cannot be serialized" in new Context {
         val caller: Caller = AnonymousCaller
-        val validation     = AdditionalValidation.resolver[CId](caller, accountRef, labelResol)
+        val validation     = AdditionalValidation.resolver[CId](caller, accountRef)
         val resource       = simpleV(id, crossProject, types = Set(nxv.Resolver))
         validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.left.value shouldBe a[InvalidPayload]
       }
 
-      "fail when projects cannot be converted to account and project label" in {
-        val crossProjectNoLabel = jsonContentOf("/resolve/cross-project-no-label.json").appendContextOf(resolverCtx)
-        val validation          = AdditionalValidation.resolver[CId](matchingCaller, accountRef, labelResol)
-        val resource            = simpleV(id, crossProjectNoLabel, types = types)
-        validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[InvalidPayload]
-      }
-
       "fail when project not found in cache" in {
-        val notFoundResol: ProjectLabel => CId[Option[ProjectRef]] = _ => None
-        val validation                                             = AdditionalValidation.resolver[CId](matchingCaller, accountRef, notFoundResol)
-        val resource                                               = simpleV(id, crossProject, types = types)
-        validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[ProjectNotFound]
+        when(cache.projectRef(ProjectLabel("account1", "project1"))).thenReturn(None: Option[ProjectRef])
+        when(cache.projectRef(ProjectLabel("account1", "project2"))).thenReturn(None: Option[ProjectRef])
+        val validation = AdditionalValidation.resolver[CId](matchingCaller, accountRef)
+        val resource   = simpleV(id, crossProject, types = types)
+        validation(id, schema, types, resource.value, 1L).value.left.value shouldBe a[ProjectsNotFound]
 
       }
 
-      "pass when identities in acls are the same as the identities on resolver" in {
-        val validation = AdditionalValidation.resolver[CId](matchingCaller, accountRef, labelResol)
+      "pass when identities in acls are the same as the identities on resolver" in new Context {
+        val validation = AdditionalValidation.resolver[CId](matchingCaller, accountRef)
         val resource   = simpleV(id, crossProject, types = types)
         val expected   = jsonContentOf("/resolve/cross-project-modified.json")
         validation(id, schema, types, resource.value, 1L).value.right.value.source should equalIgnoreArrayOrder(

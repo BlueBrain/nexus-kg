@@ -17,7 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
-import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticResolution}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.StoredResolver
+import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.State.Initial
@@ -55,7 +56,7 @@ class ResourcesSpec
   private implicit val repo         = Repo(agg, clock)
   private implicit val store        = mock[AttachmentStore[CId, String, String]]
   private val cache                 = mock[DistributedCache[CId]]
-  when(cache.resolvers(ProjectRef(anyString()))).thenReturn(Set.empty[Resolver])
+  when(cache.resolvers(ProjectRef(anyString()))).thenReturn(Set.empty[StoredResolver])
   private implicit val resolution =
     new ProjectResolution[CId](
       cache,

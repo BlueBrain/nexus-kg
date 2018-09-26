@@ -4,7 +4,7 @@
     "https://bluebrain.github.io/nexus/contexts/resource",
     "https://bluebrain.github.io/nexus/contexts/resolver"
   ],
-  "_total": 2,
+  "_total": 3,
   "_results": [
     {
       "@id": "nxv:realm",
@@ -33,6 +33,25 @@
       "priority": 20,
       "_rev": 1,
       "_deprecated": false
+    },
+    {
+      "@id" : "nxv:group",
+      "@type" : [
+        "CrossProject",
+        "Resolver"
+      ],
+      "identities" : [
+        {
+          "@type" : "Anonymous"
+        }
+      ],
+      "priority" : 30,
+      "projects" : "{account}/{proj}",
+      "resourceTypes" : [
+        "nxv:Schema"
+      ],
+      "_rev" : 2,
+      "_deprecated" : false
     }
   ]
 }

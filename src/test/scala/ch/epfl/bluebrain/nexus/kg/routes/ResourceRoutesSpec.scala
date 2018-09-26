@@ -39,7 +39,12 @@ import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{InAccountResolver, InProjectResolver}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{
+  CrossProjectResolver,
+  InAccountResolver,
+  InProjectResolver,
+  StoredResolver
+}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, IllegalParameter, NotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -141,6 +146,8 @@ class ResourceRoutesSpec
 
     when(cache.project(labeledProject.label))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+    when(cache.project(projectRef))
+      .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
     when(cache.views(projectRef))
       .thenReturn(Task.pure(Set(defaultEsView, defaultSQLView): Set[IndexingView]))
     when(cache.accountRef(projectRef))
@@ -216,16 +223,17 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$account/$project/nxv:$genUuid")
       )
 
-    val resolverSet = Set(
+    val resolverSet = Set[StoredResolver](
       InProjectResolver(projectRef, nxv.deprecated, 1L, deprecated = false, 20),
-      InAccountResolver(Set(nxv.Schema),
-                        List(Anonymous),
-                        accountRef,
-                        projectRef,
-                        nxv.identities,
-                        2L,
-                        deprecated = true,
-                        1),
+      InAccountResolver(Set(nxv.Schema), List(Anonymous), accountRef, projectRef, nxv.sub, 2L, deprecated = true, 1),
+      CrossProjectResolver(Set(nxv.Schema),
+                           Set(projectRef),
+                           List(Anonymous),
+                           projectRef,
+                           nxv.group,
+                           2L,
+                           deprecated = false,
+                           30),
       InAccountResolver(Set(nxv.Schema), List(Anonymous), accountRef, projectRef, nxv.realm, 2L, deprecated = false, 10)
     )
   }
@@ -292,26 +300,30 @@ class ResourceRoutesSpec
       }
 
       "list resolvers" in new Resolver {
+        val json = jsonContentOf("/resources/resolvers-list.json",
+                                 Map(quote("{account}") -> accountMeta.label, quote("{proj}") -> projectMeta.label))
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list.json")
+          responseAs[Json] shouldEqual json
         }
         Get(s"/v1/resources/$account/$project/resolver") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list.json")
+          responseAs[Json] shouldEqual json
         }
       }
 
       "list resolvers not deprecated" in new Resolver {
+        val json = jsonContentOf("/resources/resolvers-list-no-deprecated.json",
+                                 Map(quote("{account}") -> accountMeta.label, quote("{proj}") -> projectMeta.label))
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list-no-deprecated.json")
+          responseAs[Json] shouldEqual json
         }
         Get(s"/v1/resources/$account/$project/resolver?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/resources/resolvers-list-no-deprecated.json")
+          responseAs[Json] shouldEqual json
         }
       }
     }
@@ -723,6 +735,7 @@ class ResourceRoutesSpec
             Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ Graph(temp.metadata ++ temp.typeTriples)))
 
         when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
+
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
 
         Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {

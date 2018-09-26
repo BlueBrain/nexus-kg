@@ -175,7 +175,7 @@ class ProjectDirectivesSpec
 
       Get("/account/project") ~> projectRoute() ~> check {
         status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[ProjectNotFound.type]
+        responseAs[Error].code shouldEqual classNameOf[ProjectsNotFound.type]
       }
     }
 
