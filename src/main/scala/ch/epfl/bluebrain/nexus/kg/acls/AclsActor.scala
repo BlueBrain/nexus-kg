@@ -1,11 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.acls
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, ReceiveTimeout}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.cluster.singleton._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Address._
 import ch.epfl.bluebrain.nexus.iam.client.types.FullAccessControlList
-import ch.epfl.bluebrain.nexus.kg.acls.AclsActor.{AclsFetchError, Fetch}
+import ch.epfl.bluebrain.nexus.kg.acls.AclsActor.{AclsFetchError, Fetch, Refresh}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
 import ch.epfl.bluebrain.nexus.service.indexer.stream.StreamCoordinator.Stop
 import monix.eval.Task
@@ -32,25 +32,27 @@ class AclsActor(client: IamClient[Task])(implicit iamConfig: IamConfig) extends 
   private var acls: Future[Either[Throwable, FullAccessControlList]] = _
 
   override def preStart(): Unit = {
-    context.setReceiveTimeout(iamConfig.cacheRefreshInterval)
+    context.system.scheduler.scheduleOnce(iamConfig.cacheRefreshInterval, self, Refresh)
     acls = taskAcls.runAsync
   }
 
-  override def unhandled(msg: Any): Unit = msg match {
-    case ReceiveTimeout => preStart()
-    case _              => super.unhandled(msg)
-  }
+  def fetch(requester: ActorRef, retryOnError: Boolean = false): Unit =
+    acls.foreach {
+      case Right(r) =>
+        requester ! r
+      case Left(err) =>
+        requester ! AclsFetchError(err)
+        if (retryOnError)
+          acls = taskAcls.runAsync
+    }
 
   override def receive: Receive = {
+    case Refresh =>
+      acls = taskAcls.runAsync
+      fetch(sender(), retryOnError = false)
+      val _ = context.system.scheduler.scheduleOnce(iamConfig.cacheRefreshInterval, self, Refresh)
     case Fetch =>
-      val requester = sender()
-      acls.foreach {
-        case Right(r) =>
-          requester ! r
-        case Left(err) =>
-          requester ! AclsFetchError(err)
-          acls = taskAcls.runAsync
-      }
+      val _ = fetch(sender())
     // $COVERAGE-OFF$
     case Stop =>
       log.info("Received stop signal, stopping")
@@ -70,6 +72,11 @@ object AclsActor {
     * Fetches the ACLs
     */
   final case object Fetch extends Msg
+
+  /**
+    * Forces refreshing ACLs
+    */
+  final case object Refresh extends Msg
 
   /**
     * Stops the Actor
