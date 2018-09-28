@@ -47,6 +47,7 @@ val pureconfigVersion           = "0.9.2"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.5"
 val wesoValidatorVersion        = "0.0.65-nexus1"
+val kryoVersion                 = "0.5.2"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"                % adminVersion
@@ -88,6 +89,7 @@ lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"       
 lazy val scalaTest            = "org.scalatest"           %% "scalatest"                   % scalaTestVersion
 lazy val shapeless            = "com.chuusai"             %% "shapeless"                   % shapelessVersion
 lazy val topQuadrantShacl     = "ch.epfl.bluebrain.nexus" %% "shacl-topquadrant-validator" % commonsVersion
+lazy val kryo                 = "com.github.romix.akka"   %% "akka-kryo-serialization"     % kryoVersion
 
 lazy val kg = project
   .in(file("."))
@@ -118,6 +120,7 @@ lazy val kg = project
       circeCore,
       elasticClient,
       journalCore,
+      kryo,
       logbackClassic,
       monixTail,
       pureconfig,

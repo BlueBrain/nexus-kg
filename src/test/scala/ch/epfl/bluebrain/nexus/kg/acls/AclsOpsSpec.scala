@@ -16,8 +16,6 @@ import ch.epfl.bluebrain.nexus.kg.acls.AclsOpsSpec._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import monix.execution.atomic.AtomicInt
-import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
@@ -38,6 +36,7 @@ class AclsOpsSpec
   private implicit val serviceAccountToken = config.serviceAccountToken
   val acls = FullAccessControlList(
     (GroupRef("ldap2", "bbp-ou-neuroinformatics"), /, Permissions(Permission("resources/manage"))))
+
   private implicit val tm = Timeout(3 seconds)
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 300 millis)
@@ -52,15 +51,9 @@ class AclsOpsSpec
     super.afterAll()
   }
 
-  before {
-    Mockito.reset(client)
-  }
-
   trait Context {
-    val count = AtomicInt(0)
     when(client.getAcls("*" / "*", parents = true, self = false)).thenReturn(Task.pure(acls))
-    val actorRef = startActor(count)
-    val aclsOps  = new AclsOps(actorRef)
+    val aclsOps = new AclsOps(startActor())
   }
 
   "An AclsOps" should {
@@ -68,15 +61,7 @@ class AclsOpsSpec
     "cache the ACLs" in new Context {
       (0 until 10).foreach { _ =>
         aclsOps.fetch().runAsync.futureValue shouldEqual acls
-        count.get shouldEqual 1
       }
-    }
-
-    "cache and update the ACLs after inactivity period" in new Context {
-      aclsOps.fetch().runAsync.futureValue shouldEqual acls
-      val _ = Thread.sleep(1000)
-      aclsOps.fetch().runAsync.futureValue shouldEqual acls
-      count.get shouldEqual 2
     }
 
     "handle exception" in new Context {
@@ -87,21 +72,11 @@ class AclsOpsSpec
 }
 
 object AclsOpsSpec {
-
-  private[acls] class FinalAclsActor(i: AtomicInt, client: IamClient[Task])(implicit iamConfig: IamConfig)
-      extends AclsActor(client) {
-
-    override def preStart(): Unit = {
-      super.preStart()
-      i.increment(1)
-    }
-  }
-
-  private[acls] def startActor(i: AtomicInt, name: String = genString())(implicit
-                                                                         client: IamClient[Task],
-                                                                         iamConfig: IamConfig,
-                                                                         as: ActorSystem): ActorRef = {
-    val props = ClusterSingletonManager.props(Props(new FinalAclsActor(i, client)),
+  private[acls] def startActor(name: String = genString())(implicit
+                                                           client: IamClient[Task],
+                                                           iamConfig: IamConfig,
+                                                           as: ActorSystem): ActorRef = {
+    val props = ClusterSingletonManager.props(Props(new AclsActor(client)),
                                               terminationMessage = Stop,
                                               settings = ClusterSingletonManagerSettings(as))
     val singletonManager = as.actorOf(props, name)

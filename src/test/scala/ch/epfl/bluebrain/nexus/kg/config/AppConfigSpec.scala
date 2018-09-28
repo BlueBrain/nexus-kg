@@ -26,7 +26,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
       appConfig.attachments shouldEqual AttachmentsConfig(Paths.get("/tmp/"), "SHA-256")
-      appConfig.iam shouldEqual IamConfig("http://localhost:8080/iam", None, 30 seconds)
+      appConfig.iam shouldEqual IamConfig("http://localhost:8080/iam", None, 10 seconds)
       appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       SparqlConfig("http://localhost:9999/bigdata", Some("user"), Some("pass"), "kg").akkaCredentials.value shouldEqual BasicHttpCredentials(
         "user",
