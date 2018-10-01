@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
+import java.util.UUID
+
 import cats.data.EitherT
 import cats.{Monad, Show}
 import cats.instances.all._
@@ -12,6 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts.resolverCtxUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder.resolverGraphEncoder
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -28,6 +31,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import io.circe.Json
+import scala.util.Try
 
 /**
   * Enumeration of Resolver types.
@@ -139,25 +143,28 @@ object Resolver {
         case Array(account, project) => Some(ProjectLabel(account, project))
         case _                       => None
       }
+    def projectToRefs(value: String): Option[ProjectRef] =
+      Try(UUID.fromString(value)).map(_ => ProjectRef(value)).toOption
 
-    def crossProject: Option[CrossProjectResolver[ProjectLabel]] =
+    def crossProject: Option[CrossProjectResolver[_]] =
+      // format: off
       (for {
-        projects <- c.downField(nxv.projects).values.asListOf[String].map(_.flatMap(projectToLabel))
-        identities <- c.downField(nxv.identities).downArray.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
-          case (err @ Left(_), _)   => err
-          case (Right(list), inner) => identity(inner).map(_ :: list)
-        }
-        priority <- c.downField(nxv.priority).focus.as[Int]
-        types = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty[AbsoluteIri])
-      } yield
-        CrossProjectResolver(types.toSet,
-                             projects.toSet,
-                             identities,
-                             res.id.parent,
-                             res.id.value,
-                             res.rev,
-                             res.deprecated,
-                             priority)).toOption
+        strings     <- c.downField(nxv.projects).values.asListOf[String].map(_.toSet)
+        labels       = strings.flatMap(projectToLabel)
+        refs         = if(labels.isEmpty) strings.flatMap(projectToRefs) else Set.empty[ProjectRef]
+        identities  <- identities(c.downField(nxv.identities).downArray)
+        priority    <- c.downField(nxv.priority).focus.as[Int]
+        types        = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty[AbsoluteIri]).toSet
+      } yield {
+        if(labels.nonEmpty)
+          CrossProjectResolver(types, labels, identities, res.id.parent, res.id.value, res.rev, res.deprecated, priority)
+        else if(refs.nonEmpty)
+          CrossProjectResolver(types, refs, identities, res.id.parent, res.id.value, res.rev, res.deprecated, priority)
+        else
+          CrossProjectResolver(types, strings, identities, res.id.parent, res.id.value, res.rev, res.deprecated, priority)
+
+      }).toOption
+    // format: on
 
     def inAccount: Option[Resolver] =
       (for {
@@ -176,6 +183,12 @@ object Resolver {
                           res.rev,
                           res.deprecated,
                           priority)).toOption
+
+    def identities(list: Iterable[GraphCursor]) =
+      list.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
+        case (err @ Left(_), _)   => err
+        case (Right(list), inner) => identity(inner).map(_ :: list)
+      }
 
     def identity(c: GraphCursor): EncoderResult[Identity] =
       c.downField(rdf.tpe).focus.as[AbsoluteIri].flatMap {

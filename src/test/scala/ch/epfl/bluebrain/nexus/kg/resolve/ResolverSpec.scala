@@ -47,14 +47,15 @@ class ResolverSpec
   }
 
   "A Resolver" when {
-    val inProject    = jsonContentOf("/resolve/in-project.json").appendContextOf(resolverCtx)
-    val crossProject = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
-    val inAccount    = jsonContentOf("/resolve/in-account.json").appendContextOf(resolverCtx)
-    val iri          = Iri.absolute("http://example.com/id").right.value
-    val projectRef   = ProjectRef("ref")
-    val id           = Id(projectRef, iri)
-    val accountRef   = AccountRef("accountRef")
-    val identities   = List[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero"))
+    val inProject        = jsonContentOf("/resolve/in-project.json").appendContextOf(resolverCtx)
+    val crossProject     = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
+    val crossProjectRefs = jsonContentOf("/resolve/cross-project-refs.json").appendContextOf(resolverCtx)
+    val inAccount        = jsonContentOf("/resolve/in-account.json").appendContextOf(resolverCtx)
+    val iri              = Iri.absolute("http://example.com/id").right.value
+    val projectRef       = ProjectRef("ref")
+    val id               = Id(projectRef, iri)
+    val accountRef       = AccountRef("accountRef")
+    val identities       = List[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero"))
 
     "constructing" should {
 
@@ -82,14 +83,12 @@ class ResolverSpec
       }
 
       "return a CrossProjectResolver that does not have resourceTypes" in {
-        val resource =
-          simpleV(id, crossProject.removeKeys("resourceTypes"), types = Set(nxv.Resolver, nxv.CrossProject))
-        val projects = Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2"))
-        val resolver = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectLabels]
+        val resource = simpleV(id, crossProjectRefs, types = Set(nxv.Resolver, nxv.CrossProject))
+        val resolver = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectRefs]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set.empty
-        resolver.projects shouldEqual projects
+        resolver.projects shouldEqual Set(ProjectRef("ee9bb6e8-2bee-45f8-8a57-82e05fff0169"))
         resolver.ref shouldEqual projectRef
         resolver.id shouldEqual iri
         resolver.rev shouldEqual resource.rev
