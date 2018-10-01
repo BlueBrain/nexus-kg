@@ -132,7 +132,7 @@ pipeline {
         }
         failure {
             echo "A job failed"
-            mail bcc: '', body: "<b>Build results for ${currentBuild.displayName.toString()}</b><br><br>Current build: ${currentBuild.displayName.toString()} ${currentBuild.results.toString()} <br>Integration-Tests build ${results.toString()}", cc: '', charset: 'UTF-8', from: '', mimeType: 'text/html', replyTo: '', subject: "ERROR CI: Project name -> ${currentBuild.displayName.toString()}", to: ${env.DISTRIBUTION};
+            mail bcc: '', body: "<b>Build results for ${currentBuild.displayName.toString()}</b><br><br>Current build: ${currentBuild.displayName.toString()} ${currentBuild.results.toString()} <br>Integration-Tests build ${results.toString()}", cc: '', charset: 'UTF-8', from: '', mimeType: 'text/html', replyTo: '', subject: "ERROR CI: Project name -> ${currentBuild.displayName.toString()}", to: "${env.DISTRIBUTION}";
         }
     }
 }
