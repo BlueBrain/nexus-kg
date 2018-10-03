@@ -16,4 +16,4 @@ in order to build the project, these dependencies need to be published locally.
 
 ## The service API
 
-Please refer to the [published documentation](https://bbp-nexus.epfl.ch/staging/docs/kg).
+Please refer to the [published documentation](https://bluebrain.github.io/nexus/docs/index.html).
