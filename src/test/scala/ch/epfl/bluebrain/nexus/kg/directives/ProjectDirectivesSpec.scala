@@ -47,7 +47,7 @@ class ProjectDirectivesSpec
 
   private case class PrefixMapping(prefix: String, namespace: AbsoluteIri)
   private implicit val pmDecoder: Decoder[PrefixMapping] =
-    Decoder.forProduct2[String, AbsoluteIri, PrefixMapping]("prefix", "namespace") {
+    Decoder.forProduct2[PrefixMapping, String, AbsoluteIri]("prefix", "namespace") {
       case (prefix, namespace) => PrefixMapping(prefix, namespace)
     }
   private implicit val pmEncoder: Encoder[Map[String, AbsoluteIri]] = Encoder.encodeJson.contramap { pm =>
@@ -57,7 +57,7 @@ class ProjectDirectivesSpec
   }
 
   private implicit def projectDecoder: Decoder[Project] =
-    Decoder.forProduct7[String, String, List[PrefixMapping], AbsoluteIri, Long, Boolean, String, Project](
+    Decoder.forProduct7[Project, String, String, List[PrefixMapping], AbsoluteIri, Long, Boolean, String](
       "name",
       "label",
       "prefixMappings",

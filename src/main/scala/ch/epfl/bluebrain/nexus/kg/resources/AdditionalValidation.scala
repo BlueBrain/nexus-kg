@@ -39,7 +39,7 @@ object AdditionalValidation {
     * @return a new validation that always returns Right(value) on the provided effect type
     */
   final def pass[F[_]: Applicative]: AdditionalValidation[F] =
-    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) => EitherT.rightT(value)
+    (_: ResId, _: Ref, _: Set[AbsoluteIri], value: Value, _: Long) => EitherT.rightT(value)
 
   /**
     * Additional validation used for checking the correctness of the ElasticSearch mappings

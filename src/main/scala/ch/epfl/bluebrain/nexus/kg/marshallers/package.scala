@@ -15,7 +15,7 @@ import io.circe.generic.extras.auto._
 import io.circe.generic.extras.semiauto.deriveEncoder
 import io.circe.parser.parse
 import io.circe.{Encoder, Json}
-import io.circe.refined._
+
 package object marshallers {
 
   private implicit def aEncoder[A: Show]: Encoder[A] = Encoder.encodeString.contramap(_.show)
