@@ -177,7 +177,7 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
 
   def getResource(id: AbsoluteIri): Route =
     (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash) { (revOpt, tagOpt) =>
-      (identity & hasPermission(resourceRead)) { implicit ident =>
+      (identity & hasPermission(resourceRead)) { _ =>
         trace(s"get$suffixTracing") {
           (revOpt, tagOpt) match {
             case (None, None) =>
@@ -196,7 +196,7 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
   def getResourceAttachment(id: AbsoluteIri): Route =
     (parameter('rev.as[Long].?) & parameter('tag.?)) { (revOpt, tagOpt) =>
       (pathPrefix("attachments" / Segment) & get & pathEndOrSingleSlash) { filename =>
-        (identity & hasPermission(resourceRead)) { implicit ident =>
+        (identity & hasPermission(resourceRead)) { _ =>
           val result = (revOpt, tagOpt) match {
             case (None, None) =>
               resources.fetchAttachment(Id(wrapped.ref, id), Some(Ref(schema)), filename).toEitherRun

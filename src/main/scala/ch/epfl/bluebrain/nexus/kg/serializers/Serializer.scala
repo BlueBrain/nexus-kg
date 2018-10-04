@@ -17,7 +17,6 @@ import io.circe.generic.extras.auto._
 import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.java8.time._
 import io.circe.parser.decode
-import io.circe.refined._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder, Json}
 
