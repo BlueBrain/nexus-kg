@@ -118,28 +118,25 @@ class ResourcesRoutes(resources: Resources[Task])(implicit cache: DistributedCac
     implicit val um = marshallers.sparqlQueryUnmarshaller
 
     def search(implicit acls: FullAccessControlList, caller: Caller, wrapped: LabeledProject) =
-      (pathPrefix(IdSegment / "sparql") & post & entity(as[String]) & pathEndOrSingleSlash) { (id, query) =>
-        (identity(caller) & hasPermission(resourceRead)) { _ =>
+      (pathPrefix(IdSegment / "sparql") & post & entity(as[String]) & pathEndOrSingleSlash & hasPermission(
+        resourceRead)) { (id, query) =>
+        val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
+          views.find(_.id == id) match {
+            case Some(v: SparqlView) => sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
+            case _                   => Task.pure(Left(NotFound(Ref(id))))
+          }
+        }
+        trace("searchSparql")(complete(result.runAsync))
+      } ~
+        (pathPrefix(IdSegment / "_search") & post & entity(as[Json]) & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermission(
+          resourceRead)) { (id, query, params) =>
           val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
             views.find(_.id == id) match {
-              case Some(v: SparqlView) => sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
-              case _                   => Task.pure(Left(NotFound(Ref(id))))
+              case Some(v: ElasticView) => es.searchRaw(query, Set(v.index), params).map(Right(_))
+              case _                    => Task.pure(Left(NotFound(Ref(id))))
             }
           }
-          trace("searchSparql")(complete(result.runAsync))
-        }
-      } ~
-        (pathPrefix(IdSegment / "_search") & post & entity(as[Json]) & extract(_.request.uri.query()) & pathEndOrSingleSlash) {
-          (id, query, params) =>
-            (identity(caller) & hasPermission(resourceRead)) { _ =>
-              val result: Task[Either[Rejection, Json]] = cache.views(wrapped.ref).flatMap { views =>
-                views.find(_.id == id) match {
-                  case Some(v: ElasticView) => es.searchRaw(query, Set(v.index), params).map(Right(_))
-                  case _                    => Task.pure(Left(NotFound(Ref(id))))
-                }
-              }
-              trace("searchElastic")(complete(result.runAsync))
-            }
+          trace("searchElastic")(complete(result.runAsync))
         }
 
     def viewRoutes(acls: FullAccessControlList, caller: Caller)(implicit wrapped: LabeledProject): Route =
