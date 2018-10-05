@@ -176,8 +176,8 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
     }
 
   def getResource(id: AbsoluteIri): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash) { (revOpt, tagOpt) =>
-      (identity & hasPermission(resourceRead)) { _ =>
+    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermission(resourceRead)) {
+      (revOpt, tagOpt) =>
         trace(s"get$suffixTracing") {
           (revOpt, tagOpt) match {
             case (None, None) =>
@@ -190,34 +190,31 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
               complete(resources.fetch(Id(wrapped.ref, id), tag, Some(Ref(schema))).materializeRun(Ref(id)))
           }
         }
-      }
     }
 
   def getResourceAttachment(id: AbsoluteIri): Route =
     (parameter('rev.as[Long].?) & parameter('tag.?)) { (revOpt, tagOpt) =>
-      (pathPrefix("attachments" / Segment) & get & pathEndOrSingleSlash) { filename =>
-        (identity & hasPermission(resourceRead)) { _ =>
-          val result = (revOpt, tagOpt) match {
-            case (None, None) =>
-              resources.fetchAttachment(Id(wrapped.ref, id), Some(Ref(schema)), filename).toEitherRun
-            case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrAttachment)
-            case (Some(rev), _) =>
-              resources.fetchAttachment(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).toEitherRun
-            case (_, Some(tag)) =>
-              resources.fetchAttachment(Id(wrapped.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
-          }
-          trace(s"getAttachment$suffixTracing") {
-            onSuccess(result) {
-              case Left(rej) => reject(rej)
-              case Right(Some((info, source))) =>
-                respondWithHeaders(filenameHeader(info)) {
-                  encodeResponse {
-                    complete(HttpEntity(contentType(info), info.byteSize, source))
-                  }
+      (pathPrefix("attachments" / Segment) & get & pathEndOrSingleSlash & hasPermission(resourceRead)) { filename =>
+        val result = (revOpt, tagOpt) match {
+          case (None, None) =>
+            resources.fetchAttachment(Id(wrapped.ref, id), Some(Ref(schema)), filename).toEitherRun
+          case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrAttachment)
+          case (Some(rev), _) =>
+            resources.fetchAttachment(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).toEitherRun
+          case (_, Some(tag)) =>
+            resources.fetchAttachment(Id(wrapped.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
+        }
+        trace(s"getAttachment$suffixTracing") {
+          onSuccess(result) {
+            case Left(rej) => reject(rej)
+            case Right(Some((info, source))) =>
+              respondWithHeaders(filenameHeader(info)) {
+                encodeResponse {
+                  complete(HttpEntity(contentType(info), info.byteSize, source))
                 }
-              case _ =>
-                complete(StatusCodes.NotFound)
-            }
+              }
+            case _ =>
+              complete(StatusCodes.NotFound)
           }
         }
       }
