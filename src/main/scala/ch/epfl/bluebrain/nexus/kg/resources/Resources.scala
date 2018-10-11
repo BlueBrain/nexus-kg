@@ -173,8 +173,8 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       graph        = value.graph
       _           <- validate(id, resource.schema, value.graph)
       joinedTypes  = graph.types(id.value).map(_.value)
-      _           <- additional(id, resource.schema, joinedTypes, value, rev + 1)
-      updated     <- repo.update(id, rev, joinedTypes, source)
+      newValue    <- additional(id, resource.schema, joinedTypes, value, rev + 1)
+      updated     <- repo.update(id, rev, joinedTypes, newValue.source)
     } yield updated
     // format: on
   }
