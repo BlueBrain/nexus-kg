@@ -35,23 +35,25 @@
       "_deprecated": false
     },
     {
-      "@id" : "nxv:group",
-      "@type" : [
+      "@id": "nxv:group",
+      "@type": [
         "CrossProject",
         "Resolver"
       ],
-      "identities" : [
+      "identities": [
         {
-          "@type" : "Anonymous"
+          "@type": "Anonymous"
         }
       ],
-      "priority" : 30,
-      "projects" : "{account}/{proj}",
-      "resourceTypes" : [
+      "priority": 30,
+      "projects": [
+        "{account}/{proj}"
+      ],
+      "resourceTypes": [
         "nxv:Schema"
       ],
-      "_rev" : 2,
-      "_deprecated" : false
+      "_rev": 2,
+      "_deprecated": false
     }
   ]
 }
