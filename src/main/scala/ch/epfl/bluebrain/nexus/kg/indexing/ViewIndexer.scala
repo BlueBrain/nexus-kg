@@ -8,11 +8,12 @@ import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.service.indexer.persistence.SequentialTagIndexer
+import ch.epfl.bluebrain.nexus.service.indexer.persistence.OffsetStorage.Volatile
+import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
 import monix.eval.Task
 import monix.execution.Scheduler
 
@@ -64,17 +65,21 @@ object ViewIndexer {
     * @param cache     the distributed cache
     */
   // $COVERAGE-OFF$
-  final def start(resources: Resources[Task], cache: DistributedCache[Task])(
-      implicit as: ActorSystem,
-      s: Scheduler,
-      persistence: PersistenceConfig): ActorRef = {
+  final def start(resources: Resources[Task], cache: DistributedCache[Task])(implicit as: ActorSystem,
+                                                                             s: Scheduler,
+                                                                             persistence: PersistenceConfig,
+                                                                             indexing: IndexingConfig): ActorRef = {
     val indexer = new ViewIndexer[Task](resources, cache)
-    SequentialTagIndexer.startLocal[Event](
-      (ev: Event) => indexer(ev).runAsync,
-      persistence.queryJournalPlugin,
-      tag = s"type=${nxv.View.value.show}",
-      name = "view-indexer"
-    )
+    SequentialTagIndexer.start(
+      IndexerConfig.builder
+        .name("view-indexer")
+        .tag(s"type=${nxv.View.value.show}")
+        .plugin(persistence.queryJournalPlugin)
+        .retry(indexing.retry.maxCount, indexing.retry.strategy)
+        .batch(indexing.batch, indexing.batchTimeout)
+        .offset(Volatile)
+        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))).map(_ => ()).runAsync)
+        .build)
   }
   // $COVERAGE-ON$
 }

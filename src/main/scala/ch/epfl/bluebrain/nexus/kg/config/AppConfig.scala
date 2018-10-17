@@ -14,6 +14,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 
 import scala.concurrent.duration.FiniteDuration
@@ -32,6 +34,7 @@ import scala.util.matching.Regex
   * @param sparql      Sparql endpoint configuration
   * @param elastic     ElasticSearch endpoint configuration
   * @param pagination  Pagination configuration
+  * @param indexing    Indexing configuration
   */
 final case class AppConfig(description: Description,
                            http: HttpConfig,
@@ -43,6 +46,7 @@ final case class AppConfig(description: Description,
                            sparql: SparqlConfig,
                            elastic: ElasticConfig,
                            pagination: PaginationConfig,
+                           indexing: IndexingConfig,
                            kafka: KafkaConfig)
 
 object AppConfig {
@@ -176,6 +180,26 @@ object AppConfig {
     val pagination: Pagination = Pagination(from, size)
   }
 
+  /**
+    * Retry configuration with Exponential backoff
+    *
+    * @param maxCount     the maximum number of times an index function is retried
+    * @param maxDuration  the maximum amount of time to wait between two retries
+    * @param randomFactor the jitter added between retries
+    */
+  final case class Retry(maxCount: Int, maxDuration: FiniteDuration, randomFactor: Double) {
+    val strategy: RetryStrategy = Backoff(maxDuration, randomFactor)
+  }
+
+  /**
+    * Indexing configuration
+    *
+    * @param batch        the maximum number of events taken on each batch
+    * @param batchTimeout the maximum amount of time to wait for the number of events to be taken on each batch
+    * @param retry        the retry configuration when indexing failures
+    */
+  final case class IndexingConfig(batch: Int, batchTimeout: FiniteDuration, retry: Retry)
+
   val iriResolution = Map(
     tagCtxUri         -> tagCtx,
     resourceCtxUri    -> resourceCtx,
@@ -219,5 +243,6 @@ object AppConfig {
   implicit def toHttp(implicit appConfig: AppConfig): HttpConfig               = appConfig.http
   implicit def toIam(implicit appConfig: AppConfig): IamConfig                 = appConfig.iam
   implicit def toAdmin(implicit appConfig: AppConfig): AdminConfig             = appConfig.admin
+  implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfig       = appConfig.indexing
 
 }
