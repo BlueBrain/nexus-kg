@@ -24,7 +24,7 @@
       "_originalFileName": "filename1.txt"
     }
   ],
-  "_constrainedBy": "nxs:resource",
+  "_constrainedBy": "nxs:resource.json",
   "_createdAt": "1970-01-01T01:00:00Z",
   "_createdBy": "http://localhost:8080/iam/realms/realm/users/dmontero",
   "_deprecated": false,

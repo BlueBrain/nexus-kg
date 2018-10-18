@@ -9,13 +9,13 @@ object Contexts {
 
   val base = url"https://bluebrain.github.io/nexus/contexts/".value
 
-  val errorCtxUri: AbsoluteIri    = base + "error"
-  val tagCtxUri: AbsoluteIri      = base + "tag"
-  val resourceCtxUri: AbsoluteIri = base + "resource"
-  val resolverCtxUri: AbsoluteIri = base + "resolver"
-  val viewCtxUri: AbsoluteIri     = base + "view"
-  val shaclCtxUri: AbsoluteIri    = base + "shacl-20170720"
-  val searchCtxUri: AbsoluteIri   = base + "search"
+  val errorCtxUri: AbsoluteIri    = base + "error,json"
+  val tagCtxUri: AbsoluteIri      = base + "tag.json"
+  val resourceCtxUri: AbsoluteIri = base + "resource.json"
+  val resolverCtxUri: AbsoluteIri = base + "resolver.json"
+  val viewCtxUri: AbsoluteIri     = base + "view.json"
+  val shaclCtxUri: AbsoluteIri    = base + "shacl-20170720.json"
+  val searchCtxUri: AbsoluteIri   = base + "search.json"
 
   val tagCtx: Json      = jsonContentOf("/contexts/tags-context.json")
   val resourceCtx: Json = jsonContentOf("/contexts/resource-context.json")

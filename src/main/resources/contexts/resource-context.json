@@ -54,5 +54,5 @@
     "_originalFileName": "nxv:originalFileName",
     "_byteSize": "dcat:byteSize"
   },
-  "@id": "https://bluebrain.github.io/nexus/contexts/resource"
+  "@id": "https://bluebrain.github.io/nexus/contexts/resource.json"
 }

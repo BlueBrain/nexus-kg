@@ -9,11 +9,11 @@ object Schemas {
 
   val base = url"https://bluebrain.github.io/nexus/schemas/".value
 
-  val shaclSchemaUri: AbsoluteIri    = base + "shacl"
-  val resolverSchemaUri: AbsoluteIri = base + "resolver"
-  val resourceSchemaUri: AbsoluteIri = base + "resource"
-  val viewSchemaUri: AbsoluteIri     = base + "view"
-  val ontologySchemaUri: AbsoluteIri = base + "ontology"
+  val shaclSchemaUri: AbsoluteIri    = base + "shacl-20170720.ttl"
+  val resolverSchemaUri: AbsoluteIri = base + "resolver.json"
+  val resourceSchemaUri: AbsoluteIri = base + "resource.json"
+  val viewSchemaUri: AbsoluteIri     = base + "view.json"
+  val ontologySchemaUri: AbsoluteIri = base + "ontology.json"
 
   val resolverSchema: Json = jsonContentOf("/schemas/resolver.json")
   val viewSchema: Json     = jsonContentOf("/schemas/view.json")
