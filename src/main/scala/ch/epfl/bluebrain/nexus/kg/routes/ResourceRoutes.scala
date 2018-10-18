@@ -115,64 +115,66 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
     }
 
   def update(id: AbsoluteIri): Route =
-    (put & entity(as[Json]) & projectNotDeprecated & parameter('rev.as[Long]) & pathEndOrSingleSlash) { (json, rev) =>
-      (identity & hasPermission(resourceWrite)) { implicit ident =>
-        trace(s"update$suffixTracing") {
-          complete(
-            transformUpdate(id, json)
-              .flatMap(transformed => resources.update(Id(wrapped.ref, id), rev, Some(Ref(schema)), transformed))
-              .value
-              .runAsync)
+    (put & entity(as[Json]) & projectNotDeprecated & hasPermission(resourceWrite) & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
+      (json, rev) =>
+        identity.apply { implicit ident =>
+          trace(s"update$suffixTracing") {
+            complete(
+              transformUpdate(id, json)
+                .flatMap(transformed => resources.update(Id(wrapped.ref, id), rev, Some(Ref(schema)), transformed))
+                .value
+                .runAsync)
+          }
         }
-      }
     }
 
   def tag(id: AbsoluteIri): Route =
-    (pathPrefix("tags") & projectNotDeprecated & put & entity(as[Json]) & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
-      (json, rev) =>
-        (identity & hasPermission(resourceWrite)) { implicit ident =>
-          trace(s"addTag$suffixTracing") {
-            val tagged = resources.tag(Id(wrapped.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri))
-            complete(Created -> tagged.value.runAsync)
-          }
-        }
-    }
-
-  def deprecate(id: AbsoluteIri): Route =
-    (delete & projectNotDeprecated & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
-      (identity & hasPermission(resourceWrite)) { implicit ident =>
-        trace(s"deprecate$suffixTracing") {
-          complete(resources.deprecate(Id(wrapped.ref, id), rev, Some(Ref(schema))).value.runAsync)
+    (pathPrefix("tags") & projectNotDeprecated & put & entity(as[Json]) & hasPermission(resourceWrite) & parameter(
+      'rev.as[Long]) & pathEndOrSingleSlash) { (json, rev) =>
+      identity.apply { implicit ident =>
+        trace(s"addTag$suffixTracing") {
+          val tagged = resources.tag(Id(wrapped.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri))
+          complete(Created -> tagged.value.runAsync)
         }
       }
     }
 
-  def addAttachment(id: AbsoluteIri): Route =
-    (pathPrefix("attachments" / Segment) & projectNotDeprecated & put & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
-      (filename, rev) =>
-        (identity & hasPermission(resourceWrite)) { implicit ident =>
-          fileUpload("file") {
-            case (metadata, byteSource) =>
-              val description = BinaryDescription(filename, metadata.contentType.value)
-              trace(s"addAttachment$suffixTracing") {
-                complete(
-                  resources
-                    .attach(Id(wrapped.ref, id), rev, Some(Ref(schema)), description, byteSource)
-                    .value
-                    .runAsync)
-              }
+  def deprecate(id: AbsoluteIri): Route =
+    (delete & projectNotDeprecated & hasPermission(resourceWrite) & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
+      rev =>
+        identity.apply { implicit ident =>
+          trace(s"deprecate$suffixTracing") {
+            complete(resources.deprecate(Id(wrapped.ref, id), rev, Some(Ref(schema))).value.runAsync)
           }
         }
     }
 
-  def removeAttachment(id: AbsoluteIri): Route =
-    (pathPrefix("attachments" / Segment) & projectNotDeprecated & delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
-      (filename, rev) =>
-        (identity & hasPermission(resourceWrite)) { implicit ident =>
-          trace(s"removeAttachment$suffixTracing") {
-            complete(resources.unattach(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
-          }
+  def addAttachment(id: AbsoluteIri): Route =
+    (pathPrefix("attachments" / Segment) & projectNotDeprecated & put & hasPermission(resourceWrite) & parameter(
+      'rev.as[Long]) & pathEndOrSingleSlash) { (filename, rev) =>
+      identity.apply { implicit ident =>
+        fileUpload("file") {
+          case (metadata, byteSource) =>
+            val description = BinaryDescription(filename, metadata.contentType.value)
+            trace(s"addAttachment$suffixTracing") {
+              complete(
+                resources
+                  .attach(Id(wrapped.ref, id), rev, Some(Ref(schema)), description, byteSource)
+                  .value
+                  .runAsync)
+            }
         }
+      }
+    }
+
+  def removeAttachment(id: AbsoluteIri): Route =
+    (pathPrefix("attachments" / Segment) & projectNotDeprecated & delete & hasPermission(resourceWrite) & parameter(
+      'rev.as[Long]) & pathEndOrSingleSlash) { (filename, rev) =>
+      identity.apply { implicit ident =>
+        trace(s"removeAttachment$suffixTracing") {
+          complete(resources.unattach(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
+        }
+      }
     }
 
   def getResource(id: AbsoluteIri): Route =
