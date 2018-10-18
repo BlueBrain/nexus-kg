@@ -346,6 +346,14 @@ class ResourceRoutesSpec
         }
       }
 
+      "reject when not enough permissions" in new View(Permissions(Permission("views/read"))) {
+        val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
+        Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Unauthorized
+          responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+        }
+      }
+
       "create a view with @id" in new View {
         val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
         val viewWithCtx = view.addContext(viewCtxUri) deepMerge Json.obj(
