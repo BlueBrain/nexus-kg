@@ -255,5 +255,5 @@
       "@container": "@set"
     }
   },
-  "@id": "https://bluebrain.github.io/nexus/contexts/shacl-20170720"
+  "@id": "https://bluebrain.github.io/nexus/contexts/shacl-20170720.json"
 }

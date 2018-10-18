@@ -1,5 +1,5 @@
 {
-  "@context": "https://bluebrain.github.io/nexus/contexts/resolver",
+  "@context": "https://bluebrain.github.io/nexus/contexts/resolver.json",
   "@id": "http://example.com/id",
   "@type": [
     "CrossProject",

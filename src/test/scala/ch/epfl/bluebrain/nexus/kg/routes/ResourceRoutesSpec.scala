@@ -173,8 +173,8 @@ class ResourceRoutesSpec
 
     def listingResponse(): Json = Json.obj(
       "@context" -> Json.arr(
-        Json.fromString("https://bluebrain.github.io/nexus/contexts/search"),
-        Json.fromString("https://bluebrain.github.io/nexus/contexts/resource")
+        Json.fromString("https://bluebrain.github.io/nexus/contexts/search.json"),
+        Json.fromString("https://bluebrain.github.io/nexus/contexts/resource.json")
       ),
       "_total" -> Json.fromInt(5),
       "_results" -> Json.arr(
