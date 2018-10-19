@@ -8,12 +8,10 @@ The project bundles the collection of modules that make up the Nexus KG Service.
 
 Please visit the [parent project](https://github.com/BlueBrain/nexus) for more information about Nexus.
 
-## Building the project
+Please refer to the [published documentation](https://bluebrain.github.io/nexus/docs/api/kg/) to explore the service API.
 
-The project depends on the [sbt nexus](https://github.com/bluebrain/sbt-nexus) plugin and
-[nexus-commons](https://github.com/bluebrain/nexus-commons).  Until stable versions of these dependencies are released,
-in order to build the project, these dependencies need to be published locally.
-
-## The service API
-
-Please refer to the [published documentation](https://bluebrain.github.io/nexus/docs/index.html).
+## Getting involved
+ There are several channels provided to address different issues:
+- **Feature request**: If there is a feature you would like to see in Blue Brain Nexus KG, please first consult the [list of open feature requests](https://github.com/BlueBrain/nexus/issues?q=is%3Aopen+is%3Aissue+label%3Afeature+label%3Akg). In case there isn't already one, please [open a feature request](https://github.com/BlueBrain/nexus/issues/new?labels=feature,kg) with a detailed explanation.
+- **Questions**: For any questions please visit the [documentation](https://bluebrain.github.io/nexus/docs/index.html). Alternatively, you can find us on our [Gitter channel](https://gitter.im/BlueBrain/nexus).
+- **Bug report**: If you have found a bug, please [create an issue](https://github.com/BlueBrain/nexus/issues/new?labels=bug,kg).
