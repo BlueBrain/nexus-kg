@@ -104,7 +104,7 @@ class ResourceRoutesSpec
   private val manageResolver                    = Permissions(Permission("resolvers/manage"))
   private val manageViews                       = Permissions(Permission("views/manage"))
   private val manageSchemas                     = Permissions(Permission("schemas/manage"))
-  private val routes                            = new ResourcesRoutes(resources).routes
+  private val routes                            = CombinedRoutes(resources)
 
   abstract class Context(perms: Permissions = manageRes) {
     val account = genString(length = 4)
@@ -450,6 +450,7 @@ class ResourceRoutesSpec
     }
 
     "performing operations on resources" should {
+
       "create a context without @id" in new Ctx {
         when(
           resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
@@ -514,6 +515,11 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
         }
+
+        Get(s"/v1/data/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual listingResponse()
+        }
       }
     }
 
@@ -527,6 +533,7 @@ class ResourceRoutesSpec
         simpleV(id, ctx, created = identity, updated = identity, schema = schemaRef).copy(attachments = Set(at1, at2))
 
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
+      when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
       val lb = labeledProject.copy(project = labeledProject.project.copy(
         prefixMappings = labeledProject.project.prefixMappings ++ defaultPrefixMapping + ("base" -> nxv.projects.value)))
       when(resources.materializeWithMeta(resource)(lb)).thenReturn(EitherT.rightT[Task, Rejection](
@@ -535,6 +542,12 @@ class ResourceRoutesSpec
       val replacements = Map(quote("{account}") -> account, quote("{proj}") -> project, quote("{uuid}") -> genUuid)
 
       Get(s"/v1/resources/$account/$project/resource/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(
+          jsonContentOf("/resources/resource-with-at.json", replacements))
+      }
+
+      Get(s"/v1/data/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(
           jsonContentOf("/resources/resource-with-at.json", replacements))

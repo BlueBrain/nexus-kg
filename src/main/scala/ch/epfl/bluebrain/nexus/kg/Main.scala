@@ -30,7 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
-import ch.epfl.bluebrain.nexus.kg.routes.{Clients, ResourcesRoutes, ServiceDescriptionRoutes}
+import ch.epfl.bluebrain.nexus.kg.routes.{Clients, CombinedRoutes, ServiceDescriptionRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
@@ -118,7 +118,7 @@ object Main {
     implicit val aclsOps           = new AclsOps(AclsActor.start)
     implicit val projectResolution = ProjectResolution.task(cache, aclsOps)
     val resources: Resources[Task] = Resources[Task]
-    val resourceRoutes             = new ResourcesRoutes(resources).routes
+    val resourceRoutes             = CombinedRoutes(resources)
     val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
     val serviceDesc                = ServiceDescriptionRoutes(appConfig.description).routes
 
