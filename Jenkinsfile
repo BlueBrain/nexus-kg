@@ -118,8 +118,11 @@ pipeline {
                 checkout scm
                 sh 'sbt releaseEarly universal:packageZipTarball'
                 sh "mv target/universal/kg*.tgz ./kg.tgz"
-                sh "oc start-build kg-build --from-file=kg.tgz --follow"
+                echo "Pushing to internal image registry..."
+                sh "oc start-build kg-build --from-file=kg.tgz --wait"
                 openshiftTag srcStream: 'kg', srcTag: 'latest', destStream: 'kg', destTag: version.substring(1), verbose: 'false'
+                echo "Pushing to Docker Hub..."
+                sh "oc start-build nexus-kg-build --from-file=kg.tgz --wait"
             }
         }
     }
