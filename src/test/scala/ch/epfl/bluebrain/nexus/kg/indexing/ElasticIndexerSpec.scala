@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
@@ -119,7 +119,7 @@ class ElasticIndexerSpec
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
           )
-        indexer(ev).futureValue shouldEqual Option(BulkOp.Index(index, doc, urlEncode(id.value), elasticJson))
+        indexer(ev).futureValue shouldEqual Option(BulkOp.Index(index, doc, id.value.asString, elasticJson))
       }
     }
 
@@ -164,7 +164,7 @@ class ElasticIndexerSpec
             "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
           )
         indexer(ev.copy(schema = Ref(nxv.Resource.value))).futureValue shouldEqual Option(
-          BulkOp.Index(index, doc, urlEncode(id.value), elasticJson))
+          BulkOp.Index(index, doc, id.value.asString, elasticJson))
 
       }
     }
@@ -190,7 +190,7 @@ class ElasticIndexerSpec
         when(resources.fetch(id, "one", None)).thenReturn(OptionT.some(res))
 
         val elasticJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
-        indexer(ev).futureValue shouldEqual Option(BulkOp.Index(index, doc, urlEncode(id.value), elasticJson))
+        indexer(ev).futureValue shouldEqual Option(BulkOp.Index(index, doc, id.value.asString, elasticJson))
       }
 
       "skip indexing a resource when it is not matching the tag defined on the view" in {
