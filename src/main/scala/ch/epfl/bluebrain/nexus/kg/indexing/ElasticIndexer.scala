@@ -15,7 +15,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
-import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -65,7 +64,7 @@ class ElasticIndexer[F[_]](view: ElasticView, resources: Resources[F])(implicit 
       if (view.sourceAsText) asJson(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces))
       else res.value deepMerge asJson(metaGraph)
     }
-    BulkOp.Index(view.index, config.elastic.docType, urlEncode(res.id.value), transformed.removeKeys("@context"))
+    BulkOp.Index(view.index, config.elastic.docType, res.id.value.asString, transformed.removeKeys("@context"))
   }
 
 }
