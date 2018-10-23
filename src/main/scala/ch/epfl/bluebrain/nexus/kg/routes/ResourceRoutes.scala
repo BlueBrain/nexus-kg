@@ -10,8 +10,6 @@ import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.{EitherT, OptionT}
 import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
-import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
@@ -29,6 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, 
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import com.github.ghik.silencer.silent
@@ -38,30 +37,18 @@ import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
 
-/**
-  * Routes for a specific resource and schema type defined by ''prefix'' abd ''schema'' operations
-  *
-  * @param resources the resources operations
-  * @param schema    the schema to which the routes match
-  * @param prefix    the prefix to which the routes match. E.g.: Resources, Schemas, Resolvers, Views
-  * @param acls      the ACLs for all identities in all projects
-  * @param caller    the [[Caller]] with all it's identities
-  */
-private[routes] class ResourceRoutes(resources: Resources[Task],
-                                     schema: AbsoluteIri,
-                                     prefix: String,
-                                     acls: FullAccessControlList,
-                                     caller: Caller)(implicit wrapped: LabeledProject,
-                                                     cache: DistributedCache[Task],
-                                                     indexers: Clients[Task],
-                                                     store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                                                     config: AppConfig) {
+private sealed abstract class ResourceRoutes(resources: Resources[Task],
+                                             schemaRef: Option[Ref],
+                                             prefix: String,
+                                             acls: FullAccessControlList,
+                                             caller: Caller)(implicit wrapped: LabeledProject,
+                                                             store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                                                             config: AppConfig) {
 
-  import indexers._
   implicit val acl = acls
   implicit val c   = caller
 
-  private val suffixTracing = prefix.capitalize
+  private[routes] val suffixTracing = prefix.capitalize
 
   def transformCreate(j: Json): Json = j
 
@@ -75,45 +62,6 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
   implicit def additional: AdditionalValidation[Task] =
     AdditionalValidation.pass
 
-  def routes: Route = {
-    create ~ list ~ pathPrefix(IdSegment) { id =>
-      // format: off
-      update(id) ~ createWithId(id) ~ tag(id) ~ deprecate(id) ~ addAttachment(id) ~ removeAttachment(id) ~ getResource(id) ~ getResourceAttachment(id)
-      // format: on
-    }
-  }
-
-  def list: Route =
-    (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
-      (deprecated, pagination) =>
-        trace(s"list$suffixTracing") {
-          complete(cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, schema, pagination)).runAsync)
-        }
-    }
-
-  def create: Route =
-    (projectNotDeprecated & post & entity(as[Json]) & pathEndOrSingleSlash) { source =>
-      (identity & hasPermission(resourceCreate)) { implicit ident =>
-        trace(s"create$suffixTracing") {
-          val created = resources.create(wrapped.ref, wrapped.base, Ref(schema), transformCreate(source))
-          complete(Created -> created.value.runAsync)
-        }
-      }
-    }
-
-  def createWithId(id: AbsoluteIri): Route =
-    (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
-      (identity & hasPermission(resourceCreate)) { implicit ident =>
-        trace(s"create$suffixTracing") {
-          complete(
-            Created -> resources
-              .createWithId(Id(wrapped.ref, id), Ref(schema), transformCreate(source))
-              .value
-              .runAsync)
-        }
-      }
-    }
-
   def update(id: AbsoluteIri): Route =
     (put & entity(as[Json]) & projectNotDeprecated & hasPermission(resourceWrite) & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
       (json, rev) =>
@@ -121,7 +69,7 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
           trace(s"update$suffixTracing") {
             complete(
               transformUpdate(id, json)
-                .flatMap(transformed => resources.update(Id(wrapped.ref, id), rev, Some(Ref(schema)), transformed))
+                .flatMap(transformed => resources.update(Id(wrapped.ref, id), rev, schemaRef, transformed))
                 .value
                 .runAsync)
           }
@@ -133,7 +81,7 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
       'rev.as[Long]) & pathEndOrSingleSlash) { (json, rev) =>
       identity.apply { implicit ident =>
         trace(s"addTag$suffixTracing") {
-          val tagged = resources.tag(Id(wrapped.ref, id), rev, Some(Ref(schema)), json.addContext(tagCtxUri))
+          val tagged = resources.tag(Id(wrapped.ref, id), rev, schemaRef, json.addContext(tagCtxUri))
           complete(Created -> tagged.value.runAsync)
         }
       }
@@ -144,7 +92,7 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
       rev =>
         identity.apply { implicit ident =>
           trace(s"deprecate$suffixTracing") {
-            complete(resources.deprecate(Id(wrapped.ref, id), rev, Some(Ref(schema))).value.runAsync)
+            complete(resources.deprecate(Id(wrapped.ref, id), rev, schemaRef).value.runAsync)
           }
         }
     }
@@ -157,11 +105,7 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
           case (metadata, byteSource) =>
             val description = BinaryDescription(filename, metadata.contentType.value)
             trace(s"addAttachment$suffixTracing") {
-              complete(
-                resources
-                  .attach(Id(wrapped.ref, id), rev, Some(Ref(schema)), description, byteSource)
-                  .value
-                  .runAsync)
+              complete(resources.attach(Id(wrapped.ref, id), rev, schemaRef, description, byteSource).value.runAsync)
             }
         }
       }
@@ -172,7 +116,7 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
       'rev.as[Long]) & pathEndOrSingleSlash) { (filename, rev) =>
       identity.apply { implicit ident =>
         trace(s"removeAttachment$suffixTracing") {
-          complete(resources.unattach(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).value.runAsync)
+          complete(resources.unattach(Id(wrapped.ref, id), rev, schemaRef, filename).value.runAsync)
         }
       }
     }
@@ -183,13 +127,13 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
         trace(s"get$suffixTracing") {
           (revOpt, tagOpt) match {
             case (None, None) =>
-              complete(resources.fetch(Id(wrapped.ref, id), Some(Ref(schema))).materializeRun(Ref(id)))
+              complete(resources.fetch(Id(wrapped.ref, id), schemaRef).materializeRun(Ref(id)))
             case (Some(_), Some(_)) =>
               reject(simultaneousParamsRejection)
             case (Some(rev), _) =>
-              complete(resources.fetch(Id(wrapped.ref, id), rev, Some(Ref(schema))).materializeRun(Ref(id)))
+              complete(resources.fetch(Id(wrapped.ref, id), rev, schemaRef).materializeRun(Ref(id)))
             case (_, Some(tag)) =>
-              complete(resources.fetch(Id(wrapped.ref, id), tag, Some(Ref(schema))).materializeRun(Ref(id)))
+              complete(resources.fetch(Id(wrapped.ref, id), tag, schemaRef).materializeRun(Ref(id)))
           }
         }
     }
@@ -199,12 +143,12 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
       (pathPrefix("attachments" / Segment) & get & pathEndOrSingleSlash & hasPermission(resourceRead)) { filename =>
         val result = (revOpt, tagOpt) match {
           case (None, None) =>
-            resources.fetchAttachment(Id(wrapped.ref, id), Some(Ref(schema)), filename).toEitherRun
+            resources.fetchAttachment(Id(wrapped.ref, id), schemaRef, filename).toEitherRun
           case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrAttachment)
           case (Some(rev), _) =>
-            resources.fetchAttachment(Id(wrapped.ref, id), rev, Some(Ref(schema)), filename).toEitherRun
+            resources.fetchAttachment(Id(wrapped.ref, id), rev, schemaRef, filename).toEitherRun
           case (_, Some(tag)) =>
-            resources.fetchAttachment(Id(wrapped.ref, id), tag, Some(Ref(schema)), filename).toEitherRun
+            resources.fetchAttachment(Id(wrapped.ref, id), tag, schemaRef, filename).toEitherRun
         }
         trace(s"getAttachment$suffixTracing") {
           onSuccess(result) {
@@ -259,22 +203,74 @@ private[routes] class ResourceRoutes(resources: Resources[Task],
 
 object ResourceRoutes {
 
-  private[routes] def apply(resources: Resources[Task], schema: AbsoluteIri, prefixSegment: String)(
-      implicit cache: DistributedCache[Task],
-      token: Option[AuthToken],
-      indexers: Clients[Task],
-      aclsOps: AclsOps,
-      store: AttachmentStore[Task, AkkaIn, AkkaOut],
-      config: AppConfig): Route = {
+  private[routes] class Schemed(resources: Resources[Task],
+                                schema: AbsoluteIri,
+                                prefix: String,
+                                acls: FullAccessControlList,
+                                caller: Caller)(implicit wrapped: LabeledProject,
+                                                cache: DistributedCache[Task],
+                                                indexers: Clients[Task],
+                                                store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                                                config: AppConfig)
+      extends ResourceRoutes(resources, Some(Ref(schema)), prefix, acls, caller) {
 
     import indexers._
 
-    // consumes the segment {prefixSegment}/{account}/{project}
-    (pathPrefix(prefixSegment) & project) { implicit wrapped =>
-      //Fetches the ACLs for the current project
-      (acls & caller) { (acl, c) =>
-        new ResourceRoutes(resources, schema, prefixSegment, acl, c).routes
+    def routes: Route = {
+      create ~ list ~ pathPrefix(IdSegment) { id =>
+        // format: off
+        update(id) ~ createWithId(id) ~ tag(id) ~ deprecate(id) ~ addAttachment(id) ~ removeAttachment(id) ~ getResource(id) ~ getResourceAttachment(id)
+        // format: on
+      }
+    }
+
+    def list: Route =
+      (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
+        (deprecated, pagination) =>
+          trace(s"list$suffixTracing") {
+            complete(cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, schema, pagination)).runAsync)
+          }
+      }
+
+    def create: Route =
+      (projectNotDeprecated & post & entity(as[Json]) & pathEndOrSingleSlash) { source =>
+        (identity & hasPermission(resourceCreate)) { implicit ident =>
+          trace(s"create$suffixTracing") {
+            val created = resources.create(wrapped.ref, wrapped.base, Ref(schema), transformCreate(source))
+            complete(Created -> created.value.runAsync)
+          }
+        }
+      }
+
+    def createWithId(id: AbsoluteIri): Route =
+      (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
+        (identity & hasPermission(resourceCreate)) { implicit ident =>
+          trace(s"create$suffixTracing") {
+            complete(
+              Created -> resources
+                .createWithId(Id(wrapped.ref, id), Ref(schema), transformCreate(source))
+                .value
+                .runAsync)
+          }
+        }
+      }
+  }
+
+  private[routes] class Unschemed(resources: Resources[Task],
+                                  prefix: String,
+                                  acls: FullAccessControlList,
+                                  caller: Caller)(implicit wrapped: LabeledProject,
+                                                  store: AttachmentStore[Task, AkkaIn, AkkaOut],
+                                                  config: AppConfig)
+      extends ResourceRoutes(resources, None, prefix, acls, caller) {
+
+    def routes: Route = {
+      pathPrefix(IdSegment) { id =>
+        // format: off
+        update(id) ~ tag(id) ~ deprecate(id) ~ addAttachment(id) ~ removeAttachment(id) ~ getResource(id) ~ getResourceAttachment(id)
+        // format: on
       }
     }
   }
+
 }
