@@ -52,44 +52,26 @@ object CombinedRoutes {
 
     (handleRejections(RejectionHandling()) & handleExceptions(ExceptionHandling())) {
       token { implicit optToken =>
-        pathPrefix(config.http.prefix) {
-          // Resolvers
-          (pathPrefix("resolvers") & project) { implicit labeledProject =>
-            (acls & caller)(new ResolverRoutes(resources, _, _).routes)
-          } ~ (pathPrefix("resources") & project) { implicit labeledProject =>
-            (isIdSegment(resolverSchemaUri) & acls & caller)(new ResolverRoutes(resources, _, _).routes)
-          } ~
-            // Views
-            (pathPrefix("views") & project) { implicit labeledProject =>
-              (acls & caller)(new ViewRoutes(resources, _, _).routes)
-            } ~ (pathPrefix("resources") & project) { implicit labeledProject =>
-            (isIdSegment(viewSchemaUri) & acls & caller)(new ViewRoutes(resources, _, _).routes)
-          } ~
-            // Schemas
-            (pathPrefix("schemas") & project) { implicit labeledProject =>
-              (acls & caller)(new SchemaRoutes(resources, _, _).routes)
-            } ~ (pathPrefix("resources") & project) { implicit labeledProject =>
-            (isIdSegment(shaclSchemaUri) & acls & caller)(new SchemaRoutes(resources, _, _).routes)
-          } ~
-            // Resources
-            (pathPrefix("resources") & project) { implicit labeledProject =>
-              (acls & caller) { (acl, c) =>
-                listResources(acl, c, labeledProject) ~
-                  pathPrefix(IdSegment) { schema =>
-                    new Schemed(resources, schema, "resources", acl, c).routes
-                  }
-              }
-            } ~
-            // Data
-            (pathPrefix("data") & project) { implicit labeledProject =>
-              (acls & caller) { (acl, c) =>
-                listResources(acl, c, labeledProject) ~
-                  new Unschemed(resources, "resources", acl, c).routes
+        pathPrefix(config.http.prefix / Segment) { segment =>
+          project.apply { implicit labeledProject =>
+            (acls & caller) { (acl, c) =>
+              segment match {
+                case "resolvers" => new ResolverRoutes(resources, acl, c).routes
+                case "views"     => new ViewRoutes(resources, acl, c).routes
+                case "schemas"   => new SchemaRoutes(resources, acl, c).routes
+                case "data" =>
+                  listResources(acl, c, labeledProject) ~ new Unschemed(resources, "resources", acl, c).routes
+                case "resources" =>
+                  isIdSegment(resolverSchemaUri).apply(new ResolverRoutes(resources, acl, c).routes) ~
+                    isIdSegment(viewSchemaUri).apply(new ViewRoutes(resources, acl, c).routes) ~
+                    listResources(acl, c, labeledProject) ~
+                    pathPrefix(IdSegment)(new Schemed(resources, _, "resources", acl, c).routes)
+                case _ => reject()
               }
             }
+          }
         }
       }
     }
   }
-
 }
