@@ -30,7 +30,16 @@ import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
-import ch.epfl.bluebrain.nexus.kg.routes.{Clients, CombinedRoutes, ServiceDescriptionRoutes}
+import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
+import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus.{
+  AdminHealthStatus,
+  CassandraHealthStatus,
+  ClusterHealthStatus,
+  ElasticSearchHealthStatus,
+  IamHealthStatus,
+  SparqlHealthStatus
+}
+import ch.epfl.bluebrain.nexus.kg.routes.{AppInfoRoutes, Clients, CombinedRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
@@ -120,7 +129,15 @@ object Main {
     val resources: Resources[Task] = Resources[Task]
     val resourceRoutes             = CombinedRoutes(resources)
     val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
-    val serviceDesc                = ServiceDescriptionRoutes(appConfig.description).routes
+    val healthStatusGroup = HealthStatusGroup(
+      new CassandraHealthStatus(),
+      new ClusterHealthStatus(cluster),
+      new IamHealthStatus(iam),
+      new AdminHealthStatus(clients.adminClient),
+      new ElasticSearchHealthStatus(clients.elastic),
+      new SparqlHealthStatus(clients.sparql)
+    )
+    val appInfoRoutes = AppInfoRoutes(appConfig.description, healthStatusGroup).routes
 
     val logger = Logging(as, getClass)
     System.setProperty(DocumentLoader.DISALLOW_REMOTE_CONTEXT_LOADING, "true")
@@ -133,7 +150,7 @@ object Main {
       logger.info("==== Cluster is Live ====")
 
       val routes: Route =
-        handleRejections(corsRejectionHandler)(cors(corsSettings)(apiRoutes ~ serviceDesc))
+        handleRejections(corsRejectionHandler)(cors(corsSettings)(apiRoutes ~ appInfoRoutes))
 
       val httpBinding = {
         Http().bindAndHandle(routes, appConfig.http.interface, appConfig.http.port)
