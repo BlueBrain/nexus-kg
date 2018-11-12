@@ -7,13 +7,16 @@ import akka.cluster.ddata.Replicator._
 import akka.cluster.ddata.{DistributedData, LWWRegister, LWWRegisterKey}
 import akka.pattern.ask
 import akka.util.Timeout
-import cats.syntax.show._
+import cats.Monad
+import cats.data.EitherT
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RevisionedId
 import ch.epfl.bluebrain.nexus.kg.RevisionedId._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import journal.Logger
@@ -82,6 +85,35 @@ trait DistributedCache[F[_]] {
     * @return Some(projectRef) if there is a project reference with state and None if there's no information on the project reference state
     */
   def projectRef(label: ProjectLabel): F[Option[ProjectRef]]
+
+  /**
+    * Attempts to convert the set of ''ProjectRef'' to ''ProjectLabel'' looking up at each ref.
+    *
+    * @param refs  the set of ''ProjectRef''
+    * @return Left(LabelsNotFound) when some of the project ref cannot be found on the cache, Right(projectLabels) otherwise.
+    *         The result is wrapped on an EitherT for the F effect type
+    */
+  def projectLabels(refs: Set[ProjectRef])(implicit F: Monad[F]): EitherT[F, Rejection, Map[ProjectRef, ProjectLabel]] =
+    EitherT(refs.map(ref => ref.toLabel(this).map(ref -> _)).toList.sequence.map { list =>
+      val failed = list.collect { case (v, None) => v }
+      if (failed.nonEmpty) Left(LabelsNotFound(failed))
+      else Right(list.collect { case (ref, Some(label)) => ref -> label }.toMap)
+    })
+
+  /**
+    * Attempts to convert the set of ''ProjectLabel'' to ''ProjectRef'' looking up at each label.
+    *
+    * @param labels the set of ''ProjectLabel''
+    * @return Left(ProjectsNotFound) when some of the labels cannot be found on the cache, Right(projectRefs) otherwise.
+    *         The result is wrapped on an EitherT for the F effect type
+    */
+  def projectRefs(labels: Set[ProjectLabel])(
+      implicit F: Monad[F]): EitherT[F, Rejection, Map[ProjectLabel, ProjectRef]] =
+    EitherT(labels.map(l => projectRef(l).map(l -> _)).toList.sequence.map { list =>
+      val failed = list.collect { case (v, None) => v }
+      if (failed.nonEmpty) Left(ProjectsNotFound(failed.toSet))
+      else Right(list.collect { case (label, Some(ref)) => label -> ref }.toMap)
+    })
 
   /**
     * Adds a project.

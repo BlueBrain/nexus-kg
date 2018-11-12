@@ -8,10 +8,10 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidPayload
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -26,9 +26,11 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
     val iri        = url"http://example.com/id".value
     val projectRef = ProjectRef("ref")
     val id         = Id(projectRef, iri)
+
     "constructing" should {
-      val sparqlview  = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-      val elasticview = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+      val sparqlview     = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
+      val elasticview    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+      val aggElasticView = jsonContentOf("/view/aggelasticview.json").appendContextOf(viewCtx)
 
       "return an ElasticView" in {
         val resource = simpleV(id, elasticview, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
@@ -52,6 +54,48 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
                                                           resource.rev,
                                                           resource.deprecated)
 
+      }
+
+      "return an AggregateElasticView from ProjectLabel ViewRef" in {
+        val resource = simpleV(id, aggElasticView, types = Set(nxv.View, nxv.AggregateElasticView, nxv.Alpha))
+        val views = Set(
+          ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
+          ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
+        )
+        View(resource).right.value shouldEqual AggregateElasticView(views,
+                                                                    projectRef,
+                                                                    "3aa14a1a-81e7-4147-8306-136d8270bb01",
+                                                                    iri,
+                                                                    resource.rev,
+                                                                    resource.deprecated)
+      }
+
+      "return an AggregateElasticView from ProjectRef ViewRef" in {
+        val aggElasticViewRefs = jsonContentOf("/view/aggelasticviewrefs.json").appendContextOf(viewCtx)
+
+        val resource = simpleV(id, aggElasticViewRefs, types = Set(nxv.View, nxv.AggregateElasticView, nxv.Alpha))
+        val views = Set(
+          ViewRef(ProjectRef("64b202b4-1060-42b5-9b4f-8d6a9d0d9113"), url"http://example.com/id2".value),
+          ViewRef(ProjectRef("d23d9578-255b-4e46-9e65-5c254bc9ad0a"), url"http://example.com/id3".value)
+        )
+        View(resource).right.value shouldEqual AggregateElasticView(views,
+                                                                    projectRef,
+                                                                    "3aa14a1a-81e7-4147-8306-136d8270bb01",
+                                                                    iri,
+                                                                    resource.rev,
+                                                                    resource.deprecated)
+      }
+
+      "fail on AggregateElasticView when types are wrong" in {
+        val resource = simpleV(id, aggElasticView, types = Set(nxv.View))
+        View(resource).left.value shouldBe a[InvalidPayload]
+      }
+
+      "fail on AggregateElasticView when ViewRef collection are wrong" in {
+        val wrongAggElasticView = jsonContentOf("/view/aggelasticviewwrong.json").appendContextOf(viewCtx)
+
+        val resource = simpleV(id, wrongAggElasticView, types = Set(nxv.View, nxv.AggregateElasticView, nxv.Alpha))
+        View(resource).left.value shouldBe a[InvalidPayload]
       }
 
       "fail on ElasticView when types are wrong" in {

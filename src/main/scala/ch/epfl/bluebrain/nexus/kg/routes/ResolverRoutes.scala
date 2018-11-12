@@ -4,6 +4,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import cats.data.EitherT
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
@@ -58,8 +59,9 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: FullAcce
   override def transformGet(resource: ResourceV) =
     Resolver(resource, wrapped.accountRef) match {
       case Some(r) =>
-        val metadata  = resource.metadata ++ resource.typeTriples
-        val resValueF = r.labeled.getOrElse(r).map(_.resourceValue(resource.id, resource.value.ctx))
+        val metadata = resource.metadata ++ resource.typeTriples
+        val resValueF =
+          r.labeled.getOrElse(r).map(r => resource.value.map(r, _.removeKeys("@context").addContext(resolverCtxUri)))
         resValueF.map(v => resource.map(_ => v.copy(graph = v.graph ++ Graph(metadata))))
       case _ => Task.pure(resource)
     }

@@ -3,17 +3,22 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.data.EitherT
 import cats.{Applicative, Monad, MonadError}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.Caller
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Identity}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView}
+import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder.viewGraphEncoder
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
+import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder.resolverGraphEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 
 trait AdditionalValidation[F[_]] {
 
@@ -48,14 +53,18 @@ object AdditionalValidation {
     * @return a new validation that passes whenever the provided mappings are compliant with the ElasticSearch mappings or
     *         when the view is not an ElasticView
     */
-  final def view[F[_]](implicit F: MonadError[F, Throwable],
-                       elastic: ElasticClient[F],
-                       config: ElasticConfig): AdditionalValidation[F] =
+  final def view[F[_]](caller: Caller, acls: FullAccessControlList)(
+      implicit F: MonadError[F, Throwable],
+      elastic: ElasticClient[F],
+      config: ElasticConfig,
+      cache: DistributedCache[F]): AdditionalValidation[F] =
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) => {
       val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
       EitherT.fromEither(View(resource)).flatMap {
         case es: ElasticView => EitherT(es.createIndex[F]).map(_ => value)
-        case _               => EitherT.rightT(value)
+        case agg: AggregateElasticView[_] =>
+          agg.referenced[F](caller, acls).map(r => value.map(r, _.removeKeys("@context").addContext(viewCtxUri)))
+        case _ => EitherT.rightT(value)
       }
     }
 
@@ -67,8 +76,9 @@ object AdditionalValidation {
     * @tparam F the monadic effect type
     * @return a new validation that passes whenever the provided ''acls'' match the ones on the resolver's identities
     */
-  final def resolver[F[_]: Monad](caller: Caller, accountRef: AccountRef)(
-      implicit cache: DistributedCache[F]): AdditionalValidation[F] = {
+  final def resolver[F[_]](caller: Caller, accountRef: AccountRef)(
+      implicit F: Monad[F],
+      cache: DistributedCache[F]): AdditionalValidation[F] = {
 
     def aclContains(identities: List[Identity]): Boolean =
       identities.forall(caller.identities.contains)
@@ -78,7 +88,7 @@ object AdditionalValidation {
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
         Resolver(resource, accountRef) match {
           case Some(resolver: CrossProjectResolver[_]) if aclContains(resolver.identities) =>
-            resolver.referenced.map(_.resourceValue(id, value.ctx))
+            resolver.referenced.map(r => value.map(r, _.removeKeys("@context").addContext(resolverCtxUri)))
           case Some(resolver: InAccountResolver) if aclContains(resolver.identities) =>
             EitherT.rightT[F, Rejection](value)
           case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)
