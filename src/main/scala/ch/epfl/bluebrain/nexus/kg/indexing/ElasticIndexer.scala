@@ -57,7 +57,7 @@ class ElasticIndexer[F[_]](view: ElasticView, resources: Resources[F])(implicit 
   private def transformAndIndex(res: Resource): BulkOp = {
     val primaryNode = IriNode(res.id.value)
 
-    def asJson(g: Graph): Json = g.asJson(ctx, Some(primaryNode)).getOrElse(g.asJson)
+    def asJson(g: Graph): Json = g.asJson(ctx, primaryNode).getOrElse(g.asJson)
 
     val transformed: Json = {
       val metaGraph = if (view.includeMetadata) Graph(res.metadata ++ res.typeTriples) else Graph()
