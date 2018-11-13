@@ -4,6 +4,7 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
+import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{HttpEntity, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -36,7 +37,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
@@ -135,7 +136,28 @@ class ResourceRoutesSpec
     val defaultEsView =
       ElasticView(Json.obj(), Set.empty, None, false, true, projectRef, nxv.defaultElasticIndex.value, uuid, 1L, false)
 
+    val otherEsView =
+      ElasticView(Json.obj(),
+                  Set.empty,
+                  None,
+                  false,
+                  true,
+                  projectRef,
+                  nxv.withSuffix("otherEs").value,
+                  uuid,
+                  1L,
+                  false)
+
     val defaultSQLView = SparqlView(projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
+
+    val aggView = AggregateElasticView(
+      Set(ViewRef(projectRef, nxv.defaultElasticIndex.value), ViewRef(projectRef, nxv.withSuffix("otherEs").value)),
+      projectRef,
+      uuid,
+      nxv.withSuffix("agg").value,
+      1L,
+      false
+    )
 
     implicit val labeledProject = LabeledProject(ProjectLabel(account, project), projectMeta, accountRef)
 
@@ -144,13 +166,15 @@ class ResourceRoutesSpec
     when(cache.project(projectRef))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
     when(cache.views(projectRef))
-      .thenReturn(Task.pure(Set(defaultEsView, defaultSQLView): Set[IndexingView]))
+      .thenReturn(Task.pure(Set(defaultEsView, defaultSQLView, aggView, otherEsView): Set[IndexingView]))
     when(cache.accountRef(projectRef))
       .thenReturn(Task.pure(Some(accountRef): Option[AccountRef]))
     when(cache.account(accountRef)).thenReturn(Task.pure(Some(accountMeta): Option[Account]))
     when(iamClient.getCaller(filterGroups = true))
       .thenReturn(Task.pure(AuthenticatedCaller(token.value, user, Set(Anonymous))))
     when(aclsOps.fetch()).thenReturn(Task.pure(FullAccessControlList((Anonymous, Address./, perms))))
+    when(cache.projectLabels(Set(projectRef)))
+      .thenReturn(EitherT.rightT[Task, Rejection](Map(projectRef -> labeledProject.label)))
 
     def genIri = url"${projectMeta.base}/$uuid"
 
@@ -231,7 +255,7 @@ class ResourceRoutesSpec
     )
   }
 
-  abstract class View(perms: Permissions = manageViews) extends Context(perms) {
+  abstract class Views(perms: Permissions = manageViews) extends Context(perms) {
     val view = jsonContentOf("/view/elasticview.json")
       .removeKeys("_uuid")
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
@@ -240,7 +264,7 @@ class ResourceRoutesSpec
     val schemaRef       = Ref(viewSchemaUri)
     private val mapping = jsonContentOf("/elastic/mapping.json")
 
-    val views = Set(
+    val views: Set[IndexingView] = Set(
       ElasticView(
         mapping,
         Set(nxv.Schema, nxv.Resource),
@@ -295,6 +319,7 @@ class ResourceRoutesSpec
       "list resolvers" in new Resolver {
         val json = jsonContentOf("/resources/resolvers-list.json",
                                  Map(quote("{account}") -> accountMeta.label, quote("{proj}") -> projectMeta.label))
+
         when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
         Get(s"/v1/resolvers/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -323,7 +348,7 @@ class ResourceRoutesSpec
 
     "performing operations on views" should {
 
-      "create a view without @id" in new View {
+      "create a view without @id" in new Views {
         val viewWithCtx = view.addContext(viewCtxUri)
         private val expected =
           ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
@@ -346,7 +371,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "reject when not enough permissions" in new View(Permissions(Permission("views/read"))) {
+      "reject when not enough permissions" in new Views(Permissions(Permission("views/read"))) {
         val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
         Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Unauthorized
@@ -354,7 +379,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "create a view with @id" in new View {
+      "create a view with @id" in new Views {
         val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
         val viewWithCtx = view.addContext(viewCtxUri) deepMerge Json.obj(
           "mapping" -> Json.fromString("""{"key":"value"}"""))
@@ -377,7 +402,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "update a view" in new View {
+      "update a view" in new Views {
         val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
         val viewWithCtx = view.addContext(viewCtxUri) deepMerge Json.obj(
           "mapping" -> Json.fromString("""{"key":"value"}"""))
@@ -418,7 +443,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "list views" in new View {
+      "list views" in new Views {
         when(cache.views(projectRef)).thenReturn(Task.pure(views))
         Get(s"/v1/views/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -430,7 +455,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "list views not deprecated" in new View {
+      "list views not deprecated" in new Views {
         when(cache.views(projectRef)).thenReturn(
           Task.pure(
             views + SparqlView(projectRef,
@@ -485,7 +510,7 @@ class ResourceRoutesSpec
       "list resources constrained by a schema" in new Ctx {
 
         when(
-          resources.list(mEq(Set(defaultEsView, defaultSQLView)),
+          resources.list(mEq(Set(defaultEsView, defaultSQLView, aggView, otherEsView)),
                          mEq(None),
                          mEq(resourceSchemaUri),
                          mEq(Pagination(0, 20)))(
@@ -504,7 +529,9 @@ class ResourceRoutesSpec
 
       "list resources" in new Ctx {
         when(
-          resources.list(mEq(Set(defaultEsView, defaultSQLView)), mEq(None), mEq(Pagination(0, 20)))(
+          resources.list(mEq(Set(defaultEsView, defaultSQLView, aggView, otherEsView)),
+                         mEq(None),
+                         mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
           )
@@ -565,7 +592,7 @@ class ResourceRoutesSpec
       }
     }
 
-    "search for resources on a custom ElasticView" in new View {
+    "search for resources on a ElasticView" in new Views {
       val query      = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
       val esResponse = jsonContentOf("/view/search-response.json")
 
@@ -581,7 +608,22 @@ class ResourceRoutesSpec
       }
     }
 
-    "return 400 Bad Request from Elastic Search " in new View {
+    "search for resources on a AggElasticView" in new Views {
+      val query      = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
+      val esResponse = jsonContentOf("/view/search-response.json")
+
+      when(
+        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}", s"kg_${otherEsView.name}")), mEq(Query()))(
+          any[HttpClient[Task, Json]]()))
+        .thenReturn(Task.pure(esResponse))
+
+      Post(s"/v1/views/$account/$project/nxv:agg/_search", query) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] shouldEqual esResponse
+      }
+    }
+
+    "return 400 Bad Request from Elastic Search " in new Views {
       val query      = Json.obj("query" -> Json.obj("error" -> Json.obj()))
       val esResponse = jsonContentOf("/view/search-error-response.json")
 
@@ -597,7 +639,7 @@ class ResourceRoutesSpec
       }
     }
 
-    "return 400 Bad Request from Elastic Search when response is not JSON" in new View {
+    "return 400 Bad Request from Elastic Search when response is not JSON" in new Views {
       val query      = Json.obj("query" -> Json.obj("error" -> Json.obj()))
       val esResponse = "some error response"
 
@@ -613,7 +655,7 @@ class ResourceRoutesSpec
       }
     }
 
-    "return 502 Bad Gateway when received unexpected response from ES" in new View {
+    "return 502 Bad Gateway when received unexpected response from ES" in new Views {
       val query      = Json.obj("query" -> Json.obj("error" -> Json.obj()))
       val esResponse = "some error response"
 
@@ -629,7 +671,7 @@ class ResourceRoutesSpec
       }
     }
 
-    "search for resources on a custom SparqlView" in new View {
+    "search for resources on a custom SparqlView" in new Views {
       val query  = "SELECT ?s where {?s ?p ?o} LIMIT 10"
       val result = Json.obj("key1" -> Json.fromString("value1"))
       when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
@@ -643,7 +685,7 @@ class ResourceRoutesSpec
       }
     }
 
-    "reject searching on a view that does not exists" in new View {
+    "reject searching on a view that does not exists" in new Views {
       Post(s"/v1/views/$account/$project/nxv:some/_search?size=23&other=value", Json.obj()) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound

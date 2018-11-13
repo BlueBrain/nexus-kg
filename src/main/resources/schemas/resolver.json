@@ -60,8 +60,8 @@
         },
         {
           "path": "nxv:projects",
-          "name": "Project UID",
-          "description": "The project UUID",
+          "name": "Project label",
+          "description": "The project label",
           "datatype": "xsd:string",
           "minCount": 1
         },

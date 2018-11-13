@@ -1,21 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
-import java.util.UUID
-
 import cats.data.EitherT
+import cats.implicits._
 import cats.{Monad, Show}
-import cats.instances.all._
-import cats.syntax.all._
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
-import ch.epfl.bluebrain.nexus.kg.config.Contexts.resolverCtxUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder.resolverGraphEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId}
@@ -23,15 +16,11 @@ import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.GraphResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
-import io.circe.Json
-import scala.util.Try
 
 /**
   * Enumeration of Resolver types.
@@ -64,40 +53,14 @@ sealed trait Resolver extends Product with Serializable {
   def priority: Int
 
   /**
-    * Converts a resolver to a [[ResourceF.Value]]
-    *
-    * @param id            the id of the resource
-    * @param flattenCtxObj the flatten context object (not wrapped in the @context key)
-    */
-  def resourceValue(id: ResId, flattenCtxObj: Json): ResourceF.Value = {
-    val GraphResult(s, graph) = resolverGraphEncoder(this)
-    val graphNoMeta           = graph.removeMetadata(id.value)
-    val json = graphNoMeta
-      .asJson(Json.obj("@context" -> flattenCtxObj), Some(s))
-      .getOrElse(graphNoMeta.asJson)
-      .removeKeys("@context")
-      .addContext(resolverCtxUri)
-    ResourceF.Value(json, flattenCtxObj, graphNoMeta)
-  }
-
-  /**
     * Attempts to convert the current resolver to a labeled resolver when required. This conversion is only targetting ''CrossProjectResolver[ProjectRef]'',
     * returning all the other resolvers unchanged.
     * For the case of ''CrossProjectResolver[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
     */
   def labeled[F[_]](implicit cache: DistributedCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
     this match {
-      case CrossProjectRefs(r) =>
-        EitherT(r.projects.map(ref => ref.toLabel(cache).map(ref -> _)).toList.sequence.map { list =>
-          val failed = list.collect { case (v, None) => v }
-          if (failed.nonEmpty)
-            Left(LabelsNotFound(failed))
-          else {
-            val succeed = list.collect { case (_, Some(v)) => v }.toSet
-            Right(CrossProjectResolver(r.resourceTypes, succeed, r.identities, ref, id, rev, deprecated, priority))
-          }
-        })
-      case o => EitherT.rightT(o)
+      case CrossProjectRefs(r) => cache.projectLabels(r.projects).map(p => r.copy(projects = p.values.toSet))
+      case o                   => EitherT.rightT(o)
     }
 
   /**
@@ -108,15 +71,7 @@ sealed trait Resolver extends Product with Serializable {
   def referenced[F[_]](implicit cache: DistributedCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
     this match {
       case CrossProjectLabels(r) =>
-        EitherT(r.projects.map(l => cache.projectRef(l).map(l -> _)).toList.sequence.map { list =>
-          val failed = list.collect { case (v, None) => v }
-          if (failed.nonEmpty)
-            Left(ProjectsNotFound(failed))
-          else {
-            val succeed = list.collect { case (_, Some(v)) => v }.toSet
-            Right(CrossProjectResolver(r.resourceTypes, succeed, r.identities, ref, id, rev, deprecated, priority))
-          }
-        })
+        cache.projectRefs(r.projects).map(p => r.copy(projects = p.values.toSet))
       case o => EitherT.rightT(o)
     }
 }
@@ -131,40 +86,28 @@ object Resolver {
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
   final def apply(res: ResourceV, accountRef: AccountRef): Option[Resolver] = {
-    val c = res.value.graph.cursor(res.id.value)
+    val c  = res.value.graph.cursor(res.id.value)
+    val id = res.id
 
     def inProject: Option[Resolver] =
       for {
         priority <- c.downField(nxv.priority).focus.as[Int].toOption
-      } yield InProjectResolver(res.id.parent, res.id.value, res.rev, res.deprecated, priority)
+      } yield InProjectResolver(id.parent, id.value, res.rev, res.deprecated, priority)
 
-    def projectToLabel(value: String): Option[ProjectLabel] =
-      value.trim.split("/") match {
-        case Array(account, project) => Some(ProjectLabel(account, project))
-        case _                       => None
+    def crossProject: Option[CrossProjectResolver[_]] = {
+      val result = for {
+        ids  <- identities(c.downField(nxv.identities).downArray)
+        prio <- c.downField(nxv.priority).focus.as[Int]
+        types = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty).toSet
+      } yield CrossProjectResolver(types, Set.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
+      result match {
+        case Right(r) =>
+          val nodes = c.downField(nxv.projects).values
+          nodes.asListOf[ProjectLabel].toOption.map(labels => r.copy(projects = labels.toSet)) orElse
+            nodes.asListOf[ProjectRef].toOption.map(refs => r.copy(projects = refs.toSet))
+        case Left(_) => None
       }
-    def projectToRefs(value: String): Option[ProjectRef] =
-      Try(UUID.fromString(value)).map(_ => ProjectRef(value)).toOption
-
-    def crossProject: Option[CrossProjectResolver[_]] =
-      // format: off
-      (for {
-        strings     <- c.downField(nxv.projects).values.asListOf[String].map(_.toSet)
-        labels       = strings.flatMap(projectToLabel)
-        refs         = if(labels.isEmpty) strings.flatMap(projectToRefs) else Set.empty[ProjectRef]
-        identities  <- identities(c.downField(nxv.identities).downArray)
-        priority    <- c.downField(nxv.priority).focus.as[Int]
-        types        = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty[AbsoluteIri]).toSet
-      } yield {
-        if(labels.nonEmpty)
-          CrossProjectResolver(types, labels, identities, res.id.parent, res.id.value, res.rev, res.deprecated, priority)
-        else if(refs.nonEmpty)
-          CrossProjectResolver(types, refs, identities, res.id.parent, res.id.value, res.rev, res.deprecated, priority)
-        else
-          CrossProjectResolver(types, strings, identities, res.id.parent, res.id.value, res.rev, res.deprecated, priority)
-
-      }).toOption
-    // format: on
+    }
 
     def inAccount: Option[Resolver] =
       (for {
@@ -184,10 +127,9 @@ object Resolver {
                           res.deprecated,
                           priority)).toOption
 
-    def identities(list: Iterable[GraphCursor]) =
-      list.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
-        case (err @ Left(_), _)   => err
-        case (Right(list), inner) => identity(inner).map(_ :: list)
+    def identities(iter: Iterable[GraphCursor]): Either[NodeEncoderError, List[Identity]] =
+      iter.toList.foldM(List.empty[Identity]) { (acc, innerCursor) =>
+        identity(innerCursor).map(_ :: acc)
       }
 
     def identity(c: GraphCursor): EncoderResult[Identity] =
@@ -248,8 +190,8 @@ object Resolver {
     val projectsString: Set[String] = projects.map(_.show)
   }
 
-  type CrossProjectLabels = CrossProjectResolver[ProjectLabel]
-  object CrossProjectLabels {
+  private[resolve] type CrossProjectLabels = CrossProjectResolver[ProjectLabel]
+  private[resolve] object CrossProjectLabels {
     final def unapply(arg: CrossProjectResolver[_]): Option[CrossProjectLabels] =
       arg.projects.toSeq match {
         case (_: ProjectLabel) +: _ => Some(arg.asInstanceOf[CrossProjectLabels])
@@ -257,8 +199,8 @@ object Resolver {
       }
   }
 
-  type CrossProjectRefs = CrossProjectResolver[ProjectRef]
-  object CrossProjectRefs {
+  private[resolve] type CrossProjectRefs = CrossProjectResolver[ProjectRef]
+  private[resolve] object CrossProjectRefs {
     final def unapply(arg: CrossProjectResolver[_]): Option[CrossProjectRefs] =
       arg.projects.toSeq match {
         case (_: ProjectRef) +: _ => Some(arg.asInstanceOf[CrossProjectRefs])

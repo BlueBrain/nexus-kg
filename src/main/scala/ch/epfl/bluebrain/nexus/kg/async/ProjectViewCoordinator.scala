@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Start
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
-import ch.epfl.bluebrain.nexus.kg.indexing.View
+import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
 import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
@@ -35,8 +35,8 @@ import scala.concurrent.duration._
   */
 //noinspection ActorMutableStateInspection
 class ProjectViewCoordinator(cache: DistributedCache[Task],
-                             selector: (View, LabeledProject) => ActorRef,
-                             onStop: View => Task[Boolean])
+                             selector: (SingleView, LabeledProject) => ActorRef,
+                             onStop: SingleView => Task[Boolean])
     extends Actor
     with Stash {
 
@@ -61,7 +61,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
     val start = for {
       account <- cache.account(accountRef).retryWhenNot { case Some(ac) => ac }
       proj    <- cache.project(projectRef).retryWhenNot { case Some(ac) => ac }
-      vs      <- cache.views(projectRef)
+      vs      <- cache.views(projectRef).map(_.collect { case v: SingleView => v })
     } yield Start(account, LabeledProject(ProjectLabel(account.label, proj.label), proj, accountRef), vs)
     val _ = start.map { msg =>
       replicator ! Subscribe(account, self)
@@ -83,8 +83,8 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
 
   def initialized(ac: Account,
                   wrapped: LabeledProject,
-                  views: Set[View],
-                  childMapping: Map[View, ActorRef])(): Receive = {
+                  views: Set[SingleView],
+                  childMapping: Map[SingleView, ActorRef])(): Receive = {
 
     def updateWrappedAc(account: Account): LabeledProject =
       wrapped.copy(label = wrapped.label.copy(account = account.label))
@@ -100,7 +100,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
         context.stop(ref)
       }
       Task.sequence(childMapping.keys.map(onStop)).runAsync
-      Map.empty[View, ActorRef]
+      Map.empty[SingleView, ActorRef]
     } else {
       val added   = views -- childMapping.keySet
       val removed = childMapping.keySet -- views
@@ -140,7 +140,8 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
 
       case c @ Changed(`view`) =>
         log.debug("View collection changed, updating state")
-        context.become(initialized(ac, wrapped, c.get(view).value.value, nextMapping))
+        context.become(
+          initialized(ac, wrapped, c.get(view).value.value.collect { case v: SingleView => v }, nextMapping))
 
       case Deleted(`view`) =>
         log.debug("View collection removed, updating state")
@@ -153,7 +154,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
 }
 
 object ProjectViewCoordinator {
-  private final case class Start(accountState: Account, wrapped: LabeledProject, views: Set[View])
+  private final case class Start(accountState: Account, wrapped: LabeledProject, views: Set[SingleView])
 
   final case class Msg(accountRef: AccountRef, projectRef: ProjectRef)
 
@@ -167,8 +168,8 @@ object ProjectViewCoordinator {
   }
 
   private[async] def props(cache: DistributedCache[Task],
-                           selector: (View, LabeledProject) => ActorRef,
-                           onStop: View => Task[Boolean]): Props =
+                           selector: (SingleView, LabeledProject) => ActorRef,
+                           onStop: SingleView => Task[Boolean]): Props =
     Props(new ProjectViewCoordinator(cache, selector, onStop))
 
   /**
@@ -183,8 +184,8 @@ object ProjectViewCoordinator {
     */
   final def start(
       cache: DistributedCache[Task],
-      selector: (View, LabeledProject) => ActorRef,
-      onStop: View => Task[Boolean],
+      selector: (SingleView, LabeledProject) => ActorRef,
+      onStop: SingleView => Task[Boolean],
       shardingSettings: Option[ClusterShardingSettings],
       shards: Int
   )(implicit as: ActorSystem): ActorRef = {

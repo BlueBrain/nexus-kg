@@ -9,7 +9,7 @@ object Contexts {
 
   val base = url"https://bluebrain.github.io/nexus/contexts/".value
 
-  val errorCtxUri: AbsoluteIri    = base + "error,json"
+  val errorCtxUri: AbsoluteIri    = base + "error.json"
   val tagCtxUri: AbsoluteIri      = base + "tag.json"
   val resourceCtxUri: AbsoluteIri = base + "resource.json"
   val resolverCtxUri: AbsoluteIri = base + "resolver.json"

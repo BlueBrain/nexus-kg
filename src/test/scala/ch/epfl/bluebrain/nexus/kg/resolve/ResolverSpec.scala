@@ -2,8 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import java.time.{Clock, Instant, ZoneId}
 
+import cats.data.EitherT
 import cats.{Id => CId}
-import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
-import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, Id, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
@@ -25,7 +25,6 @@ import org.mockito.Mockito
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 
 class ResolverSpec
     extends WordSpecLike
@@ -56,6 +55,8 @@ class ResolverSpec
     val id               = Id(projectRef, iri)
     val accountRef       = AccountRef("accountRef")
     val identities       = List[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero"))
+    val label1           = ProjectLabel("account1", "project1")
+    val label2           = ProjectLabel("account1", "project2")
 
     "constructing" should {
 
@@ -70,7 +71,7 @@ class ResolverSpec
 
       "return a CrossProjectResolver" in {
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
-        val projects = Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2"))
+        val projects = Set(label1, label2)
         val resolver = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectLabels]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
@@ -142,7 +143,7 @@ class ResolverSpec
         val crossProject: Resolver =
           CrossProjectResolver(
             Set(nxv.Resolver, nxv.CrossProject),
-            Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
+            Set(label1, label2),
             identities,
             projectRef,
             iri2,
@@ -171,8 +172,8 @@ class ResolverSpec
     "converting" should {
 
       "generate a CrossProjectResolver" in {
-        when(cache.projectRef(ProjectLabel("account1", "project1"))).thenReturn(Option(ProjectRef("uuid1")))
-        when(cache.projectRef(ProjectLabel("account1", "project2"))).thenReturn(Option(ProjectRef("uuid2")))
+        when(cache.projectRefs(Set(label1, label2)))
+          .thenReturn(EitherT.rightT[CId, Rejection](Map(label1 -> ProjectRef("uuid1"), label2 -> ProjectRef("uuid2"))))
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val exposed  = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectLabels]
         val stored   = exposed.referenced.value.right.value.asInstanceOf[CrossProjectRefs]
@@ -187,19 +188,10 @@ class ResolverSpec
       }
 
       "generate a CrossProjectLabelResolver" in {
-        when(cache.projectRef(ProjectLabel("account1", "project1"))).thenReturn(Option(ProjectRef("uuid1")))
-        when(cache.projectRef(ProjectLabel("account1", "project2"))).thenReturn(Option(ProjectRef("uuid2")))
-        List(
-          (ProjectRef("uuid1"), ProjectLabel("account1", "project1"), AccountRef("uuid1Ac")),
-          (ProjectRef("uuid2"), ProjectLabel("account1", "project2"), AccountRef("uuid2Ac"))
-        ).map {
-          case (projectRef, labels, accountRef) =>
-            when(cache.accountRef(projectRef)).thenReturn(Option(accountRef))
-            when(cache.account(accountRef))
-              .thenReturn(Option(Account("name", 1L, labels.account, false, accountRef.id)))
-            when(cache.project(projectRef)).thenReturn(
-              Option(Project("name", labels.value, Map.empty, url"http://example.com", 1L, false, projectRef.id)))
-        }
+        when(cache.projectLabels(Set(ProjectRef("uuid1"), ProjectRef("uuid2"))))
+          .thenReturn(EitherT.rightT[CId, Rejection](Map(ProjectRef("uuid1") -> label1, ProjectRef("uuid2") -> label2)))
+        when(cache.projectRefs(Set(label2, label1)))
+          .thenReturn(EitherT.rightT[CId, Rejection](Map(label1 -> ProjectRef("uuid1"), label2 -> ProjectRef("uuid2"))))
 
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val exposed  = Resolver(resource, accountRef).value.asInstanceOf[CrossProjectLabels]

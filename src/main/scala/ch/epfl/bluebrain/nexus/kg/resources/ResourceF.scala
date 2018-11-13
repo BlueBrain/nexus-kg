@@ -15,6 +15,8 @@ import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
+import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
+import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.GraphResult
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
@@ -144,6 +146,13 @@ object ResourceF {
       resolvedSource.id.map(IriNode(_)) orElse graph.primaryNode orElse Option(graph.triples.isEmpty).collect {
         case true => Node.blank
       }
+    }
+
+    def map[A](value: A, f: Json => Json)(implicit enc: GraphEncoder[A]): Value = {
+      val GraphResult(s, graph) = enc(value)
+      val graphNoMeta           = graph.removeMetadata(s)
+      val json                  = graphNoMeta.asJson(Json.obj("@context" -> ctx), s).getOrElse(graphNoMeta.asJson)
+      this.copy(source = f(json), graph = graphNoMeta)
     }
   }
 

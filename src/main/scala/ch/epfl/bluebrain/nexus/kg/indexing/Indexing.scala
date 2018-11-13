@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.async.{DistributedCache, ProjectViewCoordinato
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SingleView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.v0.MigrationIndexer
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -45,64 +45,48 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
 
   def startKafkaStream(): Unit = {
 
+    // format: off
+    def defaultEsView(projectRef: ProjectRef): ElasticView =
+      ElasticView(defaultEsMapping, Set.empty, None, includeMetadata = true, sourceAsText = true, projectRef, nxv.defaultElasticIndex.value, elasticUUID, 1L, deprecated = false)
+    // format: on
+
+    def defaultSparqlView(projectRef: ProjectRef): SparqlView =
+      SparqlView(projectRef, nxv.defaultSparqlIndex.value, sparqlUUID, 1L, deprecated = false)
+
+    def defaultInProjectResolver(projectRef: ProjectRef): InProjectResolver =
+      InProjectResolver(projectRef, nxv.InProject.value, 1L, deprecated = false, 1)
+
     def index(event: KafkaEvent): Future[Unit] = {
       val update = event match {
         case OrganizationCreated(_, label, uuid, rev, _, org) =>
-          cache
-            .addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid))
+          cache.addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid))
 
         case OrganizationUpdated(_, label, uuid, rev, _, org) =>
-          cache
-            .addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid))
+          cache.addAccount(AccountRef(uuid), Account(org.name, rev, label, deprecated = false, uuid))
+
         case OrganizationDeprecated(_, uuid, rev, _) =>
           cache.deprecateAccount(AccountRef(uuid), rev)
+
         case ProjectCreated(_, label, uuid, orgUUid, rev, _, proj) =>
+          val projectRef = ProjectRef(uuid)
+          val accountRef = AccountRef(orgUUid)
+          val project    = Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid)
           for {
-            _ <- cache
-              .addProject(
-                ProjectRef(uuid),
-                AccountRef(orgUUid),
-                Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid)
-              )
-            _ <- cache.addResolver(ProjectRef(uuid),
-                                   InProjectResolver(ProjectRef(uuid), nxv.InProject.value, 1L, deprecated = false, 1))
-            _ <- cache.addView(
-              ProjectRef(uuid),
-              ElasticView(
-                defaultEsMapping,
-                Set.empty,
-                None,
-                includeMetadata = true,
-                sourceAsText = true,
-                ProjectRef(uuid),
-                nxv.defaultElasticIndex.value,
-                elasticUUID,
-                1L,
-                deprecated = false
-              )
-            )
-            _ <- cache.addView(
-              ProjectRef(uuid),
-              SparqlView(
-                ProjectRef(uuid),
-                nxv.defaultSparqlIndex.value,
-                sparqlUUID,
-                1L,
-                deprecated = false
-              )
-            )
+            _ <- cache.addProject(projectRef, accountRef, project)
+            _ <- cache.addResolver(projectRef, defaultInProjectResolver(projectRef))
+            _ <- cache.addView(ProjectRef(uuid), defaultEsView(projectRef))
+            _ <- cache.addView(ProjectRef(uuid), defaultSparqlView(projectRef))
             _ = coordinator ! Msg(AccountRef(orgUUid), ProjectRef(uuid))
           } yield ()
+
         case ProjectUpdated(_, label, uuid, orgUUid, rev, _, proj) =>
-          cache
-            .addProject(
-              ProjectRef(uuid),
-              AccountRef(orgUUid),
-              Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid)
-            )
+          val projectRef = ProjectRef(uuid)
+          val accountRef = AccountRef(orgUUid)
+          val project    = Project(proj.name, label, proj.prefixMappings, proj.base, rev, deprecated = false, uuid)
+          cache.addProject(projectRef, accountRef, project)
+
         case ProjectDeprecated(_, uuid, orgUUid, rev, _) =>
-          cache
-            .deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), rev)
+          cache.deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), rev)
       }
       update.runAsync
     }
@@ -152,12 +136,12 @@ object Indexing {
     implicit val jsonClient    = HttpClient.withTaskUnmarshaller[Json]
     implicit val elasticClient = ElasticClient[Task](config.elastic.base)
 
-    def selector(view: View, labeledProject: LabeledProject): ActorRef = view match {
+    def selector(view: SingleView, labeledProject: LabeledProject): ActorRef = view match {
       case v: ElasticView => ElasticIndexer.start(v, resources, labeledProject)
       case v: SparqlView  => SparqlIndexer.start(v, resources, labeledProject)
     }
 
-    def onStop(view: View): Task[Boolean] = view match {
+    def onStop(view: SingleView): Task[Boolean] = view match {
       case v: ElasticView =>
         elasticClient.deleteIndex(v.index)
       case _: SparqlView =>

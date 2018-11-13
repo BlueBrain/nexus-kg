@@ -91,6 +91,8 @@ class ResourcesSpec
   }
 
   trait ViewResource extends Base {
+    def resolverFrom(json: Json) =
+      json appendContextOf viewCtx deepMerge Json.obj("@id" -> Json.fromString(id.show))
     val schema = Latest(viewSchemaUri)
     val view = jsonContentOf("/view/elasticview.json") appendContextOf viewCtx deepMerge Json.obj(
       "@id" -> Json.fromString(id.show))
@@ -168,6 +170,27 @@ class ResourcesSpec
           ResourceF.simpleF(resId, view, schema = schema, types = types)
       }
 
+      "prevent to create a resource that does not validate against the view schema" in new ViewResource {
+        val invalid = List.range(1, 3).map(i => jsonContentOf(s"/view/aggelasticviewwrong$i.json"))
+        forAll(invalid) { j =>
+          val json   = resolverFrom(j)
+          val report = resources.create(projectRef, base, schema, json).value.left.value
+          report shouldBe a[InvalidResource]
+        }
+      }
+
+      "create resources that validate against view schema" in {
+        val valid = List(jsonContentOf("/view/aggelasticviewrefs.json"), jsonContentOf("/view/aggelasticview.json"))
+        val tpes  = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
+        forAll(valid) { j =>
+          new ViewResource {
+            val json = resolverFrom(j)
+            resources.create(projectRef, base, schema, json).value.right.value shouldEqual
+              ResourceF.simpleF(resId, json, schema = schema, types = tpes)
+          }
+        }
+      }
+
       "create a new resource validated against the resolver schema without passing the id on the call (neither on the Json)" in new ResolverResource {
         private val resolverNoId = resolver removeKeys "@id"
         private val result       = resources.create(projectRef, base, schema, resolverNoId).value.right.value
@@ -198,7 +221,7 @@ class ResourcesSpec
         }
       }
 
-      "prevent to create a resource that does not validate" in new ResolverResource {
+      "prevent to create a resource that does not validate against the resolver schema" in new ResolverResource {
         val invalid = List.range(1, 3).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
         forAll(invalid) { j =>
           val json   = resolverFrom(j)
