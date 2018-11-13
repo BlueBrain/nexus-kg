@@ -36,6 +36,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
+import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 
 class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessControlList, caller: Caller)(
     implicit wrapped: LabeledProject,
@@ -45,6 +46,8 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
     config: AppConfig,
     um: FromEntityUnmarshaller[String])
     extends Schemed(resources, viewSchemaUri, "views", acls, caller) {
+
+  private val emptyEsList: Json = jsonContentOf("/elastic/empty-list.json")
 
   import indexers._
 
@@ -93,7 +96,10 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
                       case _                                                             => acc
                     }
               }
-              aggIndicesF.flatMap(indices => indexers.elastic.searchRaw(query, indices, params).map(Right.apply))
+              aggIndicesF.flatMap {
+                case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
+                case indices                    => indexers.elastic.searchRaw(query, indices, params).map(Right.apply)
+              }
 
             case _ => Task.pure(Left(NotFound(Ref(id))))
           }
