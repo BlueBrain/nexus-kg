@@ -144,8 +144,8 @@
         },
         {
           "path": "nxv:views",
-          "name": "UUID",
-          "description": "The underlying uuid generated for this view.",
+          "name": "viewsref",
+          "description": "the collection of views references.",
           "node": "this:ViewRefShape",
           "minCount": 1
         }
@@ -154,7 +154,7 @@
     {
       "@id": "this:ViewRefShape",
       "@type": "sh:NodeShape",
-      "nodeKind": "sh:BlankNodeOrIRI",
+      "nodeKind": "sh:BlankNode",
       "sh:closed": true,
       "property": [
         {
