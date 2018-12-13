@@ -78,7 +78,7 @@ object ViewIndexer {
         .retry(indexing.retry.maxCount, indexing.retry.strategy)
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)
-        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))).map(_ => ()).runAsync)
+        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))).map(_ => ()).runToFuture)
         .build)
   }
   // $COVERAGE-ON$

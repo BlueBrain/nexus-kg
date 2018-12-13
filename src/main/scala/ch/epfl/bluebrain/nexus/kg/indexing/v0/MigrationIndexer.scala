@@ -44,7 +44,7 @@ private[v0] class MigrationIndexer(repo: Repo[Task],
       process(event).value.map {
         case Right(res) => log.debug(s"Migrated v0 event '${event.id}' -> resource '${res.id}'")
         case Left(e)    => log.error(s"Couldn't migrate v0 event '${event.id}'", e)
-      }.runAsync
+      }.runToFuture
     case _ => Future.unit
   }
   // $COVERAGE-ON$

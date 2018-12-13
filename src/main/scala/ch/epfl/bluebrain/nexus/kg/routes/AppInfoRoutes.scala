@@ -22,7 +22,7 @@ class AppInfoRoutes(serviceDescription: ServiceDescription, healthStatus: Health
     (get & pathEndOrSingleSlash) {
       complete(serviceDescription)
     } ~ (pathPrefix("health") & get & pathEndOrSingleSlash) {
-      complete(healthStatus.check.runAsync)
+      complete(healthStatus.check.runToFuture)
     }
 
 }

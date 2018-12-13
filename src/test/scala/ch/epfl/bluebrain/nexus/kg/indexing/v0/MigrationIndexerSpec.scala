@@ -150,7 +150,7 @@ class MigrationIndexerSpec
         .when(repo.unattach(instanceId, rev, fileName, instant)(author))
         .thenReturn(success)
       val event = jsonContentOf("/v0/attachment-removed.json").as[Event].right.value
-      indexer.process(event).value.runAsync.futureValue shouldEqual Right(resource)
+      indexer.process(event).value.runToFuture.futureValue shouldEqual Right(resource)
 
     }
 
@@ -249,7 +249,7 @@ class MigrationIndexerSpec
         .thenReturn(asEitherT(resource.copy(id = contextId, rev = 3L)))
       Mockito.when(repo.tag(contextId, 3L, 3L, "published", instant)(author)).thenReturn(asEitherT(expected))
       val event = jsonContentOf("/v0/context-published.json").as[Event].right.value
-      indexer.process(event).value.runAsync.futureValue shouldEqual Right(expected)
+      indexer.process(event).value.runToFuture.futureValue shouldEqual Right(expected)
     }
 
     "process 'schema published' events" in {
@@ -266,7 +266,7 @@ class MigrationIndexerSpec
         .thenReturn(asEitherT(resource.copy(id = schemaId, rev = 3L)))
       Mockito.when(repo.tag(schemaId, 3L, 3L, "published", instant)(author)).thenReturn(asEitherT(expected))
       val event = jsonContentOf("/v0/schema-published.json").as[Event].right.value
-      indexer.process(event).value.runAsync.futureValue shouldEqual Right(expected)
+      indexer.process(event).value.runToFuture.futureValue shouldEqual Right(expected)
     }
   }
 

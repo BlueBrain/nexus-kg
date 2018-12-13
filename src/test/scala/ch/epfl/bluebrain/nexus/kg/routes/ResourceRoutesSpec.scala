@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.{ElasticClientError, ElasticUnexpectedError}
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
@@ -55,7 +56,6 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
@@ -76,7 +76,7 @@ class ResourceRoutesSpec
     with Randomness
     with TestHelper {
 
-  private implicit val appConfig = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
+  private implicit val appConfig = Settings(system).appConfig
   private val iamUri             = appConfig.iam.baseUri
   private val adminUri           = appConfig.admin.baseUri
   private implicit val clock     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -87,14 +87,15 @@ class ResourceRoutesSpec
   private implicit val store       = mock[AttachmentStore[Task, AkkaIn, AkkaOut]]
   private implicit val resources   = mock[Resources[Task]]
 
-  private implicit val ec       = system.dispatcher
-  private implicit val mt       = ActorMaterializer()
-  private implicit val utClient = HttpClient.taskHttpClient
-  private implicit val qrClient = HttpClient.withTaskUnmarshaller[QueryResults[Json]]
-  private val sparql            = mock[BlazegraphClient[Task]]
-  private implicit val elastic  = mock[ElasticClient[Task]]
-  private implicit val aclsOps  = mock[AclsOps]
-  private implicit val clients  = Clients(sparql)
+  private implicit val ec         = system.dispatcher
+  private implicit val mt         = ActorMaterializer()
+  private implicit val utClient   = untyped[Task]
+  private implicit val qrClient   = withUnmarshaller[Task, QueryResults[Json]]
+  private implicit val jsonClient = withUnmarshaller[Task, Json]
+  private val sparql              = mock[BlazegraphClient[Task]]
+  private implicit val elastic    = mock[ElasticClient[Task]]
+  private implicit val aclsOps    = mock[AclsOps]
+  private implicit val clients    = Clients(sparql)
 
   private val user                              = UserRef("realm", "dmontero")
   private implicit val identity: Identity       = user

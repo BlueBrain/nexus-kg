@@ -33,7 +33,7 @@ class AclsActor(client: IamClient[Task])(implicit iamConfig: IamConfig) extends 
 
   override def preStart(): Unit = {
     context.system.scheduler.scheduleOnce(iamConfig.cacheRefreshInterval, self, Refresh)
-    acls = taskAcls.runAsync
+    acls = taskAcls.runToFuture
   }
 
   def fetch(requester: ActorRef, retryOnError: Boolean = false): Unit =
@@ -43,12 +43,12 @@ class AclsActor(client: IamClient[Task])(implicit iamConfig: IamConfig) extends 
       case Left(err) =>
         requester ! AclsFetchError(err)
         if (retryOnError)
-          acls = taskAcls.runAsync
+          acls = taskAcls.runToFuture
     }
 
   override def receive: Receive = {
     case Refresh =>
-      acls = taskAcls.runAsync
+      acls = taskAcls.runToFuture
       fetch(sender(), retryOnError = false)
       val _ = context.system.scheduler.scheduleOnce(iamConfig.cacheRefreshInterval, self, Refresh)
     case Fetch =>

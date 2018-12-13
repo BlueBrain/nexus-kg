@@ -4,9 +4,7 @@ import java.nio.file.{Path, Paths}
 
 import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.http.scaladsl.model.Uri
-import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -43,20 +41,7 @@ class Settings(config: Config) extends Extension {
   private implicit val regexConverter: ConfigConvert[Regex] =
     ConfigConvert.viaString[Regex](catchReadError(s => s.r), _.toString)
 
-  val appConfig = AppConfig(
-    loadConfigOrThrow[Description](config, "app.description"),
-    loadConfigOrThrow[HttpConfig](config, "app.http"),
-    loadConfigOrThrow[ClusterConfig](config, "app.cluster"),
-    loadConfigOrThrow[PersistenceConfig](config, "app.persistence"),
-    loadConfigOrThrow[AttachmentsConfig](config, "app.attachments"),
-    loadConfigOrThrow[AdminConfig](config, "app.admin"),
-    loadConfigOrThrow[IamConfig](config, "app.iam"),
-    loadConfigOrThrow[SparqlConfig](config, "app.sparql"),
-    loadConfigOrThrow[ElasticConfig](config, "app.elastic"),
-    loadConfigOrThrow[PaginationConfig](config, "app.pagination"),
-    loadConfigOrThrow[IndexingConfig](config, "app.indexing"),
-    loadConfigOrThrow[KafkaConfig](config, "app.kafka")
-  )
+  val appConfig: AppConfig = loadConfigOrThrow[AppConfig](config, "app")
 
 }
 

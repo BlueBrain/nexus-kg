@@ -71,7 +71,7 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
               transformUpdate(id, json)
                 .flatMap(transformed => resources.update(Id(wrapped.ref, id), rev, schemaRef, transformed))
                 .value
-                .runAsync)
+                .runToFuture)
           }
         }
     }
@@ -82,7 +82,7 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
       identity.apply { implicit ident =>
         trace(s"addTag$suffixTracing") {
           val tagged = resources.tag(Id(wrapped.ref, id), rev, schemaRef, json.addContext(tagCtxUri))
-          complete(Created -> tagged.value.runAsync)
+          complete(Created -> tagged.value.runToFuture)
         }
       }
     }
@@ -92,7 +92,7 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
       rev =>
         identity.apply { implicit ident =>
           trace(s"deprecate$suffixTracing") {
-            complete(resources.deprecate(Id(wrapped.ref, id), rev, schemaRef).value.runAsync)
+            complete(resources.deprecate(Id(wrapped.ref, id), rev, schemaRef).value.runToFuture)
           }
         }
     }
@@ -105,7 +105,7 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
           case (metadata, byteSource) =>
             val description = BinaryDescription(filename, metadata.contentType.value)
             trace(s"addAttachment$suffixTracing") {
-              complete(resources.attach(Id(wrapped.ref, id), rev, schemaRef, description, byteSource).value.runAsync)
+              complete(resources.attach(Id(wrapped.ref, id), rev, schemaRef, description, byteSource).value.runToFuture)
             }
         }
       }
@@ -116,7 +116,7 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
       'rev.as[Long]) & pathEndOrSingleSlash) { (filename, rev) =>
       identity.apply { implicit ident =>
         trace(s"removeAttachment$suffixTracing") {
-          complete(resources.unattach(Id(wrapped.ref, id), rev, schemaRef, filename).value.runAsync)
+          complete(resources.unattach(Id(wrapped.ref, id), rev, schemaRef, filename).value.runToFuture)
         }
       }
     }
@@ -175,13 +175,13 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
         res          <- resource.toRight(NotFound(ref): Rejection)
         materialized <- resources.materializeWithMeta(res)
         transformed  <- EitherT.right[Rejection](transformGet(materialized))
-      } yield transformed).value.runAsync
+      } yield transformed).value.runToFuture
   }
 
   private type RejectionOrAttachment = Either[AkkaRejection, Option[(Attachment.BinaryAttributes, AkkaOut)]]
   private implicit class OptionTaskAttachmentSyntax(resource: OptionT[Task, (Attachment.BinaryAttributes, AkkaOut)]) {
     def toEitherRun: Future[RejectionOrAttachment] =
-      resource.value.map[RejectionOrAttachment](Right.apply).runAsync
+      resource.value.map[RejectionOrAttachment](Right.apply).runToFuture
   }
 
   private def filenameHeader(info: Attachment.BinaryAttributes) = {
@@ -228,7 +228,8 @@ object ResourceRoutes {
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
         (deprecated, pagination) =>
           trace(s"list$suffixTracing") {
-            complete(cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, schema, pagination)).runAsync)
+            complete(
+              cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, schema, pagination)).runToFuture)
           }
       }
 
@@ -237,7 +238,7 @@ object ResourceRoutes {
         (identity & hasPermission(resourceCreate)) { implicit ident =>
           trace(s"create$suffixTracing") {
             val created = resources.create(wrapped.ref, wrapped.base, Ref(schema), transformCreate(source))
-            complete(Created -> created.value.runAsync)
+            complete(Created -> created.value.runToFuture)
           }
         }
       }
@@ -250,7 +251,7 @@ object ResourceRoutes {
               Created -> resources
                 .createWithId(Id(wrapped.ref, id), Ref(schema), transformCreate(source))
                 .value
-                .runAsync)
+                .runToFuture)
           }
         }
       }

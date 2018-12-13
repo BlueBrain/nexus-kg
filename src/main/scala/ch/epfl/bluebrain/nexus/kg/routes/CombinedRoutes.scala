@@ -45,7 +45,8 @@ object CombinedRoutes {
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
         (deprecated, pagination) =>
           trace("listResources") {
-            complete(cache.views(labeledProject.ref).flatMap(v => resources.list(v, deprecated, pagination)).runAsync)
+            complete(
+              cache.views(labeledProject.ref).flatMap(v => resources.list(v, deprecated, pagination)).runToFuture)
           }
       }
     }

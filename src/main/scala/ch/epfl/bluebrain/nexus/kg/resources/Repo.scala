@@ -2,11 +2,15 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant}
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import cats.Monad
 import cats.data.{EitherT, OptionT}
+import cats.effect.{Effect, Timer}
 import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.SourcingConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources
 import ch.epfl.bluebrain.nexus.kg.resources.Command._
@@ -19,6 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
+import ch.epfl.bluebrain.nexus.sourcing.akka.AkkaAggregate
 import io.circe.Json
 
 /**
@@ -232,7 +237,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
 
   private def evaluate(id: ResId, cmd: Command): EitherT[F, Rejection, Resource] =
     for {
-      result   <- EitherT(agg.eval(toIdentifier(id), cmd))
+      result   <- EitherT(agg.evaluateS(toIdentifier(id), cmd))
       resource <- result.resourceT(UnexpectedState(id.ref))
     } yield resource
 }
@@ -244,13 +249,7 @@ object Repo {
     *
     * @tparam F the effect type under which the aggregate operates
     */
-  type Agg[F[_]] = Aggregate[F] {
-    type Identifier = String
-    type Command    = resources.Command
-    type Event      = resources.Event
-    type State      = resources.State
-    type Rejection  = resources.Rejection
-  }
+  type Agg[F[_]] = Aggregate[F, String, resources.Event, resources.State, resources.Command, resources.Rejection]
 
   final val initial: State = State.Initial
 
@@ -347,6 +346,25 @@ object Repo {
     }
   }
 
-  final def apply[F[_]: Monad](agg: Agg[F], clock: Clock): Repo[F] =
-    new Repo(agg, clock, resId => s"${resId.parent.id}-${resId.value.show}")
+  private def aggregate[F[_]: Effect: Timer](implicit as: ActorSystem,
+                                             mt: ActorMaterializer,
+                                             sourcing: SourcingConfig,
+                                             F: Monad[F]): F[Agg[F]] =
+    AkkaAggregate.sharded[F](
+      "resources",
+      initial,
+      next,
+      (st, cmd) => F.pure(eval(st, cmd)),
+      sourcing.passivationStrategy(),
+      sourcing.retry.retryStrategy,
+      sourcing.akkaSourcingConfig,
+      sourcing.shards
+    )
+
+  final def apply[F[_]: Effect: Timer](implicit as: ActorSystem,
+                                       mt: ActorMaterializer,
+                                       sourcing: SourcingConfig,
+                                       clock: Clock = Clock.systemUTC): F[Repo[F]] =
+    aggregate[F].map(agg => new Repo[F](agg, clock, resId => s"${resId.parent.id}-${resId.value.show}"))
+
 }

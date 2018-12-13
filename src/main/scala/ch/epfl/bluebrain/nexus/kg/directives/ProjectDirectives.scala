@@ -57,7 +57,7 @@ object ProjectDirectives {
             case (None, proj @ Some(_)) => client.getAccount(accountLabel).map(_.map(ac => AccountRef(ac.uuid)) -> proj)
             case o                      => Task.pure(o)
           }
-        onComplete(result.runAsync)
+        onComplete(result.runToFuture)
           .flatMap {
             case Failure(UnauthorizedAccess)       => reject(AuthorizationFailedRejection)
             case Failure(err)                      => reject(authorizationRejection(err))

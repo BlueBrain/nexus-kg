@@ -61,7 +61,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
         val qr = filterDeprecated(cache.views(wrapped.ref), deprecated)
           .flatMap(_.flatTraverse(_.labeled.value.map(_.toList)))
           .map(toQueryResults)
-        complete(qr.runAsync)
+        complete(qr.runToFuture)
       }
     }
 
@@ -74,7 +74,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
             case _                   => Task.pure(Left(NotFound(Ref(id))))
           }
         }
-        trace("searchSparql")(complete(result.runAsync))
+        trace("searchSparql")(complete(result.runToFuture))
     }
 
   private def elasticSearch: Route =
@@ -104,7 +104,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
             case _ => Task.pure(Left(NotFound(Ref(id))))
           }
         }
-        trace("searchElastic")(complete(result.runAsync))
+        trace("searchElastic")(complete(result.runToFuture))
       }
     }
 

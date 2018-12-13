@@ -25,7 +25,6 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.service.http.Path
 import ch.epfl.bluebrain.nexus.service.http.UriOps._
-import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import org.mockito.Mockito
 import org.mockito.Mockito._
@@ -50,7 +49,7 @@ class ElasticIndexerSpec
   import system.dispatcher
 
   private val resources          = mock[Resources[Future]]
-  private implicit val appConfig = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
+  private implicit val appConfig = Settings(system).appConfig
   val label                      = ProjectLabel("bbp", "core")
   val projectMeta = Project("name",
                             "core",

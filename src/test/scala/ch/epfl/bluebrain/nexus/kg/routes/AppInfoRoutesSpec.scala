@@ -13,7 +13,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.{HealthStatusGroup, ServiceDescription}
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
-import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
@@ -29,7 +28,7 @@ class AppInfoRoutesSpec
     with BeforeAndAfter
     with ScalatestRouteTest {
 
-  private implicit val appConfig = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
+  private implicit val appConfig = Settings(system).appConfig
   private val iam                = mock[IamClient[Task]]
   private val admin              = mock[AdminClient[Task]]
   private val elastic            = mock[ElasticClient[Task]]

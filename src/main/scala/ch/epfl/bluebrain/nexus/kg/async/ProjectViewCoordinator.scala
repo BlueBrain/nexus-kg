@@ -68,7 +68,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
       replicator ! Subscribe(project, self)
       replicator ! Subscribe(view, self)
       msg
-    }.runAsync pipeTo self
+    }.runToFuture pipeTo self
   }
 
   def receive: Receive = {
@@ -99,7 +99,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
         ref ! Stop
         context.stop(ref)
       }
-      Task.sequence(childMapping.keys.map(onStop)).runAsync
+      Task.sequence(childMapping.keys.map(onStop)).runToFuture
       Map.empty[SingleView, ActorRef]
     } else {
       val added   = views -- childMapping.keySet
@@ -111,7 +111,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
         ref ! Stop
         context.stop(ref)
       }
-      Task.sequence(removed.map(onStop)).runAsync
+      Task.sequence(removed.map(onStop)).runToFuture
 
       // construct actors for the new view updates
       if (added.nonEmpty) log.debug(s"Creating view coordinators for $added")
