@@ -53,7 +53,7 @@ object AuthDirectives {
     * Retrieves the ACLs for all the identities in all the paths using the provided service account token.
     */
   def acls(implicit aclsOps: AclsOps, s: Scheduler): Directive1[FullAccessControlList] =
-    onComplete(aclsOps.fetch().runAsync).flatMap {
+    onComplete(aclsOps.fetch().runToFuture).flatMap {
       case Success(result)             => provide(result)
       case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
       case Failure(err)                => reject(authorizationRejection(err))
@@ -63,7 +63,7 @@ object AuthDirectives {
     * Authenticates the requested with the provided ''token'' and returns the ''caller''
     */
   def caller(implicit iamClient: IamClient[Task], token: Option[AuthToken], s: Scheduler): Directive1[Caller] =
-    onComplete(iamClient.getCaller(filterGroups = true).runAsync).flatMap {
+    onComplete(iamClient.getCaller(filterGroups = true).runToFuture).flatMap {
       case Success(caller)             => provide(caller)
       case Failure(UnauthorizedAccess) => reject(AuthorizationFailedRejection)
       case Failure(err)                => reject(authorizationRejection(err))

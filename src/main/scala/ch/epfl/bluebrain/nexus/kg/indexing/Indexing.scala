@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.KafkaEvent._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, KafkaEvent, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
@@ -27,7 +28,6 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 import org.apache.kafka.common.serialization.StringDeserializer
-
 import scala.concurrent.Future
 
 // $COVERAGE-OFF$
@@ -88,7 +88,7 @@ private class Indexing(resources: Resources[Task], cache: DistributedCache[Task]
         case ProjectDeprecated(_, uuid, orgUUid, rev, _) =>
           cache.deprecateProject(ProjectRef(uuid), AccountRef(orgUUid), rev)
       }
-      update.runAsync
+      update.runToFuture
     }
 
     KafkaConsumer.start(consumerSettings, index, config.kafka.adminTopic, "admin-events", committable = false, None)
@@ -132,8 +132,8 @@ object Indexing {
                                                                        config: AppConfig): Unit = {
 
     implicit val mt            = ActorMaterializer()
-    implicit val ul            = HttpClient.taskHttpClient
-    implicit val jsonClient    = HttpClient.withTaskUnmarshaller[Json]
+    implicit val ul            = untyped[Task]
+    implicit val jsonClient    = withUnmarshaller[Task, Json]
     implicit val elasticClient = ElasticClient[Task](config.elastic.base)
 
     def selector(view: SingleView, labeledProject: LabeledProject): ActorRef = view match {

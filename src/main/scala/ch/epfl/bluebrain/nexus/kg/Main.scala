@@ -13,9 +13,10 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
+import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
@@ -25,23 +26,14 @@ import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
-import ch.epfl.bluebrain.nexus.kg.persistence.TaskAggregate
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
 import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
-import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus.{
-  AdminHealthStatus,
-  CassandraHealthStatus,
-  ClusterHealthStatus,
-  ElasticSearchHealthStatus,
-  IamHealthStatus,
-  SparqlHealthStatus
-}
+import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
 import ch.epfl.bluebrain.nexus.kg.routes.{AppInfoRoutes, Clients, CombinedRoutes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
-import ch.epfl.bluebrain.nexus.sourcing.akka.{ShardingAggregate, SourcingAkkaSettings}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.github.jsonldjava.core.DocumentLoader
@@ -50,10 +42,12 @@ import io.circe.Json
 import kamon.Kamon
 import kamon.system.SystemMetrics
 import monix.eval.Task
+import monix.execution.Scheduler
+import monix.execution.schedulers.CanBlock
 import org.apache.jena.query.ResultSet
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success}
 
 //noinspection TypeAnnotation
@@ -81,21 +75,22 @@ object Main {
 
     implicit val appConfig = Settings(config).appConfig
 
-    implicit val as = ActorSystem(appConfig.description.fullName, config)
-    implicit val ec = as.dispatcher
-    implicit val mt = ActorMaterializer()
-    implicit val tm = Timeout(appConfig.cluster.replicationTimeout)
+    implicit val as                = ActorSystem(appConfig.description.fullName, config)
+    implicit val ec                = as.dispatcher
+    implicit val mt                = ActorMaterializer()
+    implicit val tm                = Timeout(appConfig.cluster.replicationTimeout)
+    implicit val eff: Effect[Task] = Task.catsEffect(Scheduler.global)
 
-    implicit val utClient   = HttpClient.taskHttpClient
-    implicit val jsonClient = HttpClient.withTaskUnmarshaller[Json]
-    implicit val rsClient   = HttpClient.withTaskUnmarshaller[ResultSet]
+    implicit val utClient   = untyped[Task]
+    implicit val jsonClient = withUnmarshaller[Task, Json]
+    implicit val rsClient   = withUnmarshaller[Task, ResultSet]
     implicit val esDecoders = ElasticDecoder[Json]
-    implicit val qrClient   = HttpClient.withTaskUnmarshaller[QueryResults[Json]]
+    implicit val qrClient   = withUnmarshaller[Task, QueryResults[Json]]
 
     def clients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
       val sparql           = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
       implicit val elastic = ElasticClient[Task](elasticConfig.base)
-      implicit val cl      = HttpClient.akkaHttpClient
+      implicit val cl      = untyped[Future]
 
       implicit val adminClient = AdminClient.task(appConfig.admin)
       implicit val iamClient   = IamClient.task()(IamUri(appConfig.iam.baseUri), as)
@@ -111,12 +106,9 @@ object Main {
     }
 
     implicit val clock = Clock.systemUTC
+    implicit val pm    = CanBlock.permit
 
-    val sourcingSettings = SourcingAkkaSettings(journalPluginId = appConfig.persistence.queryJournalPlugin)
-
-    val resourceAggregate =
-      TaskAggregate.fromFuture(ShardingAggregate("resources", sourcingSettings)(Repo.initial, Repo.next, Repo.eval))
-    implicit val repo              = Repo(resourceAggregate, clock)
+    implicit val repo              = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
     implicit val attConfig         = appConfig.attachments
     implicit val lc                = AttachmentStore.LocationResolver[Task]()
     implicit val stream            = AttachmentStore.Stream.task(appConfig.attachments)

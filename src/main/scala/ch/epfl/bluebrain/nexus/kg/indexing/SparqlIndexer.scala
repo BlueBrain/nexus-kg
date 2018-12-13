@@ -17,8 +17,9 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
-import ch.epfl.bluebrain.nexus.rdf.akka.iri._
+import ch.epfl.bluebrain.nexus.rdf.syntax.akka._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
+import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.apache.jena.query.ResultSet
@@ -58,7 +59,7 @@ private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[
       case Right(r)  => client.replace(res.id, r.value.graph)
     }
 
-  private implicit def toGraphUri(id: ResId): Uri = id.value + "graph"
+  private implicit def toGraphUri(id: ResId): Uri = id.value.toAkkaUri + "graph"
 }
 
 object SparqlIndexer {
@@ -76,10 +77,11 @@ object SparqlIndexer {
       mt: ActorMaterializer,
       ul: UntypedHttpClient[Task],
       s: Scheduler,
-      ucl: HttpClient[Task, ResultSet],
+      uclRs: HttpClient[Task, ResultSet],
       config: AppConfig): ActorRef = {
 
-    implicit val lb = labeledProject
+    implicit val lb      = labeledProject
+    implicit val uclJson = HttpClient.withUnmarshaller[Task, Json]
 
     val properties: Map[String, String] = {
       val props = new Properties()
@@ -94,7 +96,7 @@ object SparqlIndexer {
         _ <- client.createNamespace(properties)
         _ <- if (view.rev > 1) client.copy(namespace = view.copy(rev = view.rev - 1).name).deleteNamespace
         else Task.pure(true)
-      } yield ()).runAsync
+      } yield ()).runToFuture
 
     SequentialTagIndexer.start(
       IndexerConfig.builder
@@ -104,7 +106,7 @@ object SparqlIndexer {
         .retry(config.indexing.retry.maxCount, config.indexing.retry.strategy)
         .batch(config.indexing.batch, config.indexing.batchTimeout)
         .init(init)
-        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))).map(_ => ()).runAsync)
+        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))).map(_ => ()).runToFuture)
         .build)
   }
   // $COVERAGE-ON$

@@ -46,7 +46,7 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: FullAcce
         val qr = filterDeprecated(cache.resolvers(wrapped.ref), deprecated)
           .flatMap(_.flatTraverse(_.labeled.value.map(_.toList)))
           .map(r => toQueryResults(r.sortBy(_.priority)))
-        complete(qr.runAsync)
+        complete(qr.runToFuture)
       }
     }
 

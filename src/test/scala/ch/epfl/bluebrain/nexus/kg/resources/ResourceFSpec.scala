@@ -3,6 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.format.DateTimeFormatter
 import java.time.{Clock, Instant, ZoneId, ZoneOffset}
 
+import akka.actor.ActorSystem
+import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
@@ -19,15 +21,19 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
-import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
-class ResourceFSpec extends WordSpecLike with Matchers with EitherValues with TestHelper {
+class ResourceFSpec
+    extends TestKit(ActorSystem("ResourceFSpec"))
+    with WordSpecLike
+    with Matchers
+    with EitherValues
+    with TestHelper {
 
   private implicit def toNode(instant: Instant): Node =
     Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime.value)
-  private implicit val appConfig = new Settings(ConfigFactory.parseResources("app.conf").resolve()).appConfig
+  private implicit val appConfig = Settings(system).appConfig
 
   "A ResourceF" should {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())

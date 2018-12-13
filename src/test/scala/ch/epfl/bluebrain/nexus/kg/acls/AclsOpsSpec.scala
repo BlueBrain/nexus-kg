@@ -60,13 +60,13 @@ class AclsOpsSpec
 
     "cache the ACLs" in new Context {
       (0 until 10).foreach { _ =>
-        aclsOps.fetch().runAsync.futureValue shouldEqual acls
+        aclsOps.fetch().runToFuture.futureValue shouldEqual acls
       }
     }
 
     "handle exception" in new Context {
       when(client.getAcls("*" / "*", parents = true, self = false)).thenReturn(Task.raiseError(UnauthorizedAccess))
-      whenReady(aclsOps.fetch().runAsync.failed)(_ shouldEqual UnauthorizedAccess)
+      whenReady(aclsOps.fetch().runToFuture.failed)(_ shouldEqual UnauthorizedAccess)
     }
   }
 }

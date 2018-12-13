@@ -92,10 +92,10 @@ object ElasticIndexer {
       (for {
         _ <- view.createIndex[Task]
         _ <- if (view.rev > 1) client.deleteIndex(view.copy(rev = view.rev - 1).index) else Task.pure(true)
-      } yield ()).runAsync
+      } yield ()).runToFuture
 
     val index = (l: List[Event]) =>
-      Task.sequence(l.removeDupIds.map(indexer(_))).flatMap(list => client.bulk(list.flatten)).runAsync
+      Task.sequence(l.removeDupIds.map(indexer(_))).flatMap(list => client.bulk(list.flatten)).runToFuture
 
     SequentialTagIndexer.start(
       IndexerConfig.builder

@@ -27,4 +27,5 @@ final case class Clients[F[_]](sparql: BlazegraphClient[F])(implicit val elastic
                                                             val iamClient: IamClient[F],
                                                             val rsSearch: HttpClient[F, QueryResults[Json]],
                                                             val httpClient: UntypedHttpClient[Task],
+                                                            implicit val uclJson: HttpClient[Task, Json],
                                                             val mt: ActorMaterializer)
