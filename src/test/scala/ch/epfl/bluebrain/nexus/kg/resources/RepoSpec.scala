@@ -15,8 +15,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary._
+import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
@@ -48,7 +48,7 @@ class RepoSpec
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
   private val repo           = Repo[IO].ioValue
-  private implicit val store = mock[AttachmentStore[IO, String, String]]
+  private implicit val store = mock[BinaryStore[IO, String, String]]
 
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
   private def randomIri()  = Iri.absolute(s"http://example.com/$uuid").right.value
@@ -193,10 +193,10 @@ class RepoSpec
         private val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
         repo.attach(id, 1L, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, schema = Latest(schema)).copy(attachments = Set(attributes))
+          ResourceF.simpleF(id, value, 2L, schema = Latest(schema)).copy(binary = Set(attributes))
         when(store.save(id, desc2, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
         repo.attach(id, 2L, desc2, source2).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 3L, schema = Latest(schema)).copy(attachments = Set(attributes, attributes2))
+          ResourceF.simpleF(id, value, 3L, schema = Latest(schema)).copy(binary = Set(attributes, attributes2))
       }
 
       "prevent to add attachment to a resource that does not exist" in new Context {
@@ -315,11 +315,11 @@ class RepoSpec
         repo.attach(id, 3L, desc2, source2Updated).value.accepted shouldBe a[Resource]
         when(store.fetch(attributes)).thenReturn(Right(source))
 
-        repo.getAttachment(id, "name").value.some shouldEqual (attributes -> source)
+        repo.getBinary(id, "name").value.some shouldEqual (attributes -> source)
       }
 
       "return None when the resource attachment does not exist" in new Context {
-        repo.getAttachment(id, "name4").value.ioValue shouldEqual None
+        repo.getBinary(id, "name4").value.ioValue shouldEqual None
       }
 
       "return a specific revision of the resource attachment" in new Context {
@@ -331,12 +331,12 @@ class RepoSpec
         when(store.save(id, desc2, source2Updated)).thenReturn(EitherT.rightT[IO, Rejection](attributes2Updated))
         repo.attach(id, 3L, desc2, source2Updated).value.accepted shouldBe a[Resource]
 
-        repo.getAttachment(id, 2L, "name2").value.ioValue shouldEqual None
+        repo.getBinary(id, 2L, "name2").value.ioValue shouldEqual None
         when(store.fetch(attributes2)).thenReturn(Right(source2))
-        repo.getAttachment(id, 3L, "name2").value.some shouldEqual (attributes2 -> source2)
+        repo.getBinary(id, 3L, "name2").value.some shouldEqual (attributes2 -> source2)
         when(store.fetch(attributes2Updated)).thenReturn(Right(source2Updated))
-        repo.getAttachment(id, 4L, "name2").value.some shouldEqual (attributes2Updated -> source2Updated)
-        repo.getAttachment(id, 4L, "name2").value.some shouldEqual repo.getAttachment(id, "name2").value.some
+        repo.getBinary(id, 4L, "name2").value.some shouldEqual (attributes2Updated -> source2Updated)
+        repo.getBinary(id, 4L, "name2").value.some shouldEqual repo.getBinary(id, "name2").value.some
       }
 
       "return a specific tag of the resource attachment" in new Context {
@@ -351,12 +351,12 @@ class RepoSpec
         repo.tag(id, 5L, 3L, "two").value.accepted shouldBe a[Resource]
         repo.tag(id, 6L, 4L, "three").value.accepted shouldBe a[Resource]
 
-        repo.getAttachment(id, "one", "name2").value.ioValue shouldEqual None
+        repo.getBinary(id, "one", "name2").value.ioValue shouldEqual None
         when(store.fetch(attributes2)).thenReturn(Right(source2))
-        repo.getAttachment(id, "two", "name2").value.some shouldEqual (attributes2 -> source2)
+        repo.getBinary(id, "two", "name2").value.some shouldEqual (attributes2 -> source2)
         when(store.fetch(attributes2Updated)).thenReturn(Right(source2Updated))
-        repo.getAttachment(id, "three", "name2").value.some shouldEqual (attributes2Updated -> source2Updated)
-        repo.getAttachment(id, "three", "name2").value.some shouldEqual repo.getAttachment(id, "name2").value.some
+        repo.getBinary(id, "three", "name2").value.some shouldEqual (attributes2Updated -> source2Updated)
+        repo.getBinary(id, "three", "name2").value.some shouldEqual repo.getBinary(id, "name2").value.some
       }
     }
   }

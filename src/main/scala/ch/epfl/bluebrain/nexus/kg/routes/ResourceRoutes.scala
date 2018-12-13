@@ -1,10 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.javadsl.server.Rejections.validationRejection
-import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.StatusCodes.Created
-import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.{EitherT, OptionT}
@@ -22,12 +19,8 @@ import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryDescription
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.{Attachment, AttachmentStore}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
-import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import com.github.ghik.silencer.silent
@@ -41,9 +34,7 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
                                              schemaRef: Option[Ref],
                                              prefix: String,
                                              acls: FullAccessControlList,
-                                             caller: Caller)(implicit wrapped: LabeledProject,
-                                                             store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                                                             config: AppConfig) {
+                                             caller: Caller)(implicit wrapped: LabeledProject, config: AppConfig) {
 
   implicit val acl = acls
   implicit val c   = caller
@@ -97,30 +88,6 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
         }
     }
 
-  def addAttachment(id: AbsoluteIri): Route =
-    (pathPrefix("attachments" / Segment) & projectNotDeprecated & put & hasPermission(resourceWrite) & parameter(
-      'rev.as[Long]) & pathEndOrSingleSlash) { (filename, rev) =>
-      identity.apply { implicit ident =>
-        fileUpload("file") {
-          case (metadata, byteSource) =>
-            val description = BinaryDescription(filename, metadata.contentType.value)
-            trace(s"addAttachment$suffixTracing") {
-              complete(resources.attach(Id(wrapped.ref, id), rev, schemaRef, description, byteSource).value.runToFuture)
-            }
-        }
-      }
-    }
-
-  def removeAttachment(id: AbsoluteIri): Route =
-    (pathPrefix("attachments" / Segment) & projectNotDeprecated & delete & hasPermission(resourceWrite) & parameter(
-      'rev.as[Long]) & pathEndOrSingleSlash) { (filename, rev) =>
-      identity.apply { implicit ident =>
-        trace(s"removeAttachment$suffixTracing") {
-          complete(resources.unattach(Id(wrapped.ref, id), rev, schemaRef, filename).value.runToFuture)
-        }
-      }
-    }
-
   def getResource(id: AbsoluteIri): Route =
     (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermission(resourceRead)) {
       (revOpt, tagOpt) =>
@@ -138,34 +105,6 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
         }
     }
 
-  def getResourceAttachment(id: AbsoluteIri): Route =
-    (parameter('rev.as[Long].?) & parameter('tag.?)) { (revOpt, tagOpt) =>
-      (pathPrefix("attachments" / Segment) & get & pathEndOrSingleSlash & hasPermission(resourceRead)) { filename =>
-        val result = (revOpt, tagOpt) match {
-          case (None, None) =>
-            resources.fetchAttachment(Id(wrapped.ref, id), schemaRef, filename).toEitherRun
-          case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrAttachment)
-          case (Some(rev), _) =>
-            resources.fetchAttachment(Id(wrapped.ref, id), rev, schemaRef, filename).toEitherRun
-          case (_, Some(tag)) =>
-            resources.fetchAttachment(Id(wrapped.ref, id), tag, schemaRef, filename).toEitherRun
-        }
-        trace(s"getAttachment$suffixTracing") {
-          onSuccess(result) {
-            case Left(rej) => reject(rej)
-            case Right(Some((info, source))) =>
-              respondWithHeaders(filenameHeader(info)) {
-                encodeResponse {
-                  complete(HttpEntity(contentType(info), info.byteSize, source))
-                }
-              }
-            case _ =>
-              complete(StatusCodes.NotFound)
-          }
-        }
-      }
-    }
-
   private val simultaneousParamsRejection: AkkaRejection =
     validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
 
@@ -177,20 +116,6 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
         transformed  <- EitherT.right[Rejection](transformGet(materialized))
       } yield transformed).value.runToFuture
   }
-
-  private type RejectionOrAttachment = Either[AkkaRejection, Option[(Attachment.BinaryAttributes, AkkaOut)]]
-  private implicit class OptionTaskAttachmentSyntax(resource: OptionT[Task, (Attachment.BinaryAttributes, AkkaOut)]) {
-    def toEitherRun: Future[RejectionOrAttachment] =
-      resource.value.map[RejectionOrAttachment](Right.apply).runToFuture
-  }
-
-  private def filenameHeader(info: Attachment.BinaryAttributes) = {
-    val filename = urlEncodeOrElse(info.filename)("attachment")
-    RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename")
-  }
-
-  private def contentType(info: Attachment.BinaryAttributes) =
-    ContentType.parse(info.mediaType).getOrElse(`application/octet-stream`)
 
   private[routes] val resourceRead =
     Permissions(Permission(s"$prefix/read"), Permission(s"$prefix/manage"))
@@ -210,7 +135,6 @@ object ResourceRoutes {
                                 caller: Caller)(implicit wrapped: LabeledProject,
                                                 cache: DistributedCache[Task],
                                                 indexers: Clients[Task],
-                                                store: AttachmentStore[Task, AkkaIn, AkkaOut],
                                                 config: AppConfig)
       extends ResourceRoutes(resources, Some(Ref(schema)), prefix, acls, caller) {
 
@@ -218,9 +142,7 @@ object ResourceRoutes {
 
     def routes: Route = {
       create ~ list ~ pathPrefix(IdSegment) { id =>
-        // format: off
-        update(id) ~ createWithId(id) ~ tag(id) ~ deprecate(id) ~ addAttachment(id) ~ removeAttachment(id) ~ getResource(id) ~ getResourceAttachment(id)
-        // format: on
+        update(id) ~ createWithId(id) ~ tag(id) ~ deprecate(id) ~ getResource(id)
       }
     }
 
@@ -260,16 +182,12 @@ object ResourceRoutes {
   private[routes] class Unschemed(resources: Resources[Task],
                                   prefix: String,
                                   acls: FullAccessControlList,
-                                  caller: Caller)(implicit wrapped: LabeledProject,
-                                                  store: AttachmentStore[Task, AkkaIn, AkkaOut],
-                                                  config: AppConfig)
+                                  caller: Caller)(implicit wrapped: LabeledProject, config: AppConfig)
       extends ResourceRoutes(resources, None, prefix, acls, caller) {
 
     def routes: Route = {
       pathPrefix(IdSegment) { id =>
-        // format: off
-        update(id) ~ tag(id) ~ deprecate(id) ~ addAttachment(id) ~ removeAttachment(id) ~ getResource(id) ~ getResourceAttachment(id)
-        // format: on
+        update(id) ~ tag(id) ~ deprecate(id) ~ getResource(id)
       }
     }
   }

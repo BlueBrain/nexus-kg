@@ -18,6 +18,18 @@
       "@id": "nxv:updatedBy",
       "@type": "@id"
     },
+    "Resource": {
+      "@id": "nxv:Resource",
+      "@type": "@id"
+    },
+    "Schema": {
+      "@id": "nxv:Schema",
+      "@type": "@id"
+    },
+    "Binary": {
+      "@id": "nxv:Binary",
+      "@type": "@id"
+    },
     "_deprecated": "nxv:deprecated",
     "_createdAt": "nxv:createdAt",
     "_updatedAt": "nxv:updatedAt",

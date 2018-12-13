@@ -46,9 +46,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, IllegalParameter, NotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, Digest}
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryAttributes, Digest}
+import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
+import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -84,7 +84,7 @@ class ResourceRoutesSpec
   private implicit val adminClient = mock[AdminClient[Task]]
   private implicit val iamClient   = mock[IamClient[Task]]
   private implicit val cache       = mock[DistributedCache[Task]]
-  private implicit val store       = mock[AttachmentStore[Task, AkkaIn, AkkaOut]]
+  private implicit val store       = mock[BinaryStore[Task, AkkaIn, AkkaOut]]
   private implicit val resources   = mock[Resources[Task]]
 
   private implicit val ec         = system.dispatcher
@@ -558,7 +558,7 @@ class ResourceRoutesSpec
       val at2 =
         BinaryAttributes("uuid2", Paths.get("some2"), "filename2.txt", "text/plain", 2048, Digest("SHA-256", "digest2"))
       val resourceV =
-        simpleV(id, ctx, created = identity, updated = identity, schema = schemaRef).copy(attachments = Set(at1, at2))
+        simpleV(id, ctx, created = identity, updated = identity, schema = schemaRef).copy(binary = Set(at1, at2))
 
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))

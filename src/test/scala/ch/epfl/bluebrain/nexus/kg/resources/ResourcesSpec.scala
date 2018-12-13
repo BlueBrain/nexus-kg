@@ -22,8 +22,8 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryDescription, Digest, StoredSummary}
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryDescription, Digest, StoredSummary}
+import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -60,7 +60,7 @@ class ResourcesSpec
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
   implicit private val repo  = Repo[IO].ioValue
-  private implicit val store = mock[AttachmentStore[IO, String, String]]
+  private implicit val store = mock[BinaryStore[IO, String, String]]
   private val cache          = mock[DistributedCache[IO]]
   when(cache.resolvers(any[ProjectRef])).thenReturn(IO.pure(Set.empty[Resolver]))
   private implicit val resolution =
@@ -364,7 +364,7 @@ class ResourcesSpec
       "add an attachment to a resource" in new Attachment {
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.attach(resId, 1L, None, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, 2L, schema = schema, types = types).copy(attachments = Set(attributes))
+          ResourceF.simpleF(resId, resolver, 2L, schema = schema, types = types).copy(binary = Set(attributes))
       }
 
       "prevent adding an attachment to a resource when the provided schema does not match the created schema" in new Attachment {

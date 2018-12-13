@@ -3,7 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.config.Schemas.binarySchemaUri
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.BinaryAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -112,7 +114,7 @@ object Event {
   ) extends Event
 
   /**
-    * A witness that a resource's attachment has been added.
+    * A witness that a binary resource has been added.
     *
     * @param id       the resource identifier
     * @param rev      the revision that this event generated
@@ -120,28 +122,22 @@ object Event {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class AttachmentAdded(
+  final case class CreatedBinary(
       id: Id[ProjectRef],
       rev: Long,
       value: BinaryAttributes,
       instant: Instant,
       identity: Identity
-  ) extends Event
+  ) extends Event {
 
-  /**
-    * A witness that a resource's attachment has been removed.
-    *
-    * @param id       the resource identifier
-    * @param rev      the revision that this event generated
-    * @param filename the filename of the attachment removed
-    * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
-    */
-  final case class AttachmentRemoved(
-      id: Id[ProjectRef],
-      rev: Long,
-      filename: String,
-      instant: Instant,
-      identity: Identity
-  ) extends Event
+    /**
+      * the schema that has been used to constrain the resource
+      */
+    val schema: Ref = Ref(binarySchemaUri)
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.Binary.value)
+  }
 }

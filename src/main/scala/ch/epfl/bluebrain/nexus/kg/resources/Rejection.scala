@@ -41,6 +41,13 @@ object Rejection {
       extends Rejection(s"Resource '${ref.show}' attachment with filename '$filename' does not exists.")
 
   /**
+    * Signals an attempt to interact with a resource that is expected to be a binary resource but it isn't.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class NotBinaryResource(ref: Ref) extends Rejection(s"Resource '${ref.show}' is not a binary resource.")
+
+  /**
     * Signals an attempt to change the type of a resource (from a schema to something else or from something else to a schema).
     *
     * @param ref a reference to the resource

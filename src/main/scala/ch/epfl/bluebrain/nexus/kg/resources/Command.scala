@@ -3,9 +3,11 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.BinaryAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 
 /**
   * Enumeration of resource command types.
@@ -110,7 +112,7 @@ object Command {
   ) extends Command
 
   /**
-    * An intent to add an attachment to a resource.
+    * An intent to create a binary resource.
     *
     * @param id       the resource identifier
     * @param rev      the last known revision of the resource when this command was created
@@ -118,26 +120,21 @@ object Command {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class AddAttachment(id: Id[ProjectRef],
-                                 rev: Long,
-                                 value: BinaryAttributes,
-                                 instant: Instant,
-                                 identity: Identity)
-      extends Command
+  final case class CreateBinary(id: Id[ProjectRef],
+                                rev: Long,
+                                value: BinaryAttributes,
+                                instant: Instant,
+                                identity: Identity)
+      extends Command {
 
-  /**
-    * An intent to remove an attachment from a resource.
-    *
-    * @param id       the resource identifier
-    * @param rev      the revision that this event generated
-    * @param filename the filename of the attachment to remove
-    * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
-    */
-  final case class RemoveAttachment(id: Id[ProjectRef],
-                                    rev: Long,
-                                    filename: String,
-                                    instant: Instant,
-                                    identity: Identity)
-      extends Command
+    /**
+      * the schema that is used to constrain the resource
+      */
+    val schema: Ref = Ref(binarySchemaUri)
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.Binary.value)
+  }
 }

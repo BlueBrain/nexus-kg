@@ -9,7 +9,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.BinaryAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.generic.extras.Configuration

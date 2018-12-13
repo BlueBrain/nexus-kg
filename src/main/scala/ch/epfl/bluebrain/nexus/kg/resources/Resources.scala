@@ -1,19 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.util.UUID
-
 import cats.Monad
 import cats.data.{EitherT, OptionT}
-import cats.instances.either._
-import cats.instances.vector._
-import cats.syntax.functor._
-import cats.syntax.traverse._
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
@@ -25,8 +21,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryAttributes, BinaryDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder
 import ch.epfl.bluebrain.nexus.rdf.Graph._
@@ -95,6 +91,42 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       assigned <- materialize(id, source)
       resource <- create(id, schema, assigned)
     } yield resource
+
+  def createBinary[In](projectRef: ProjectRef, base: AbsoluteIri, attach: BinaryDescription, source: In)(
+      implicit identity: Identity,
+      store: BinaryStore[F, In, _]): RejOrResource =
+    createBinaryWithId(Id(projectRef, base + uuid()), 1L, attach, source)
+
+  /**
+    * Creates/replaces a binary resource.
+    *
+    * @param id        the id of the resource
+    * @param rev       the last known revision of the resource
+    * @param attach    the attachment description metadata
+    * @param source    the source of the attachment
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def createBinaryWithId[In](id: ResId, rev: Long, attach: BinaryDescription, source: In)(
+      implicit identity: Identity,
+      store: BinaryStore[F, In, _]): RejOrResource =
+    repo.createBinary(id, rev, attach, source)
+
+  /**
+    * Creates/replaces a binary resource.
+    *
+    * @param id        the id of the resource
+    * @param rev       the last known revision of the resource
+    * @param schemaOpt optional schema reference that constrains the resource
+    * @param attach    the attachment description metadata
+    * @param source    the source of the attachment
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def createBinary[In](id: ResId, rev: Long, schemaOpt: Option[Ref], attach: BinaryDescription, source: In)(
+      implicit identity: Identity,
+      store: BinaryStore[F, In, _]): RejOrResource =
+    checkSchema(id, schemaOpt)(repo.createBinary(id, rev, attach, source))
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
       implicit identity: Identity,
@@ -217,75 +249,39 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     checkSchema(id, schemaOpt)(repo.tag(id, rev, targetRev, tag))
 
   /**
-    * Adds an attachment to a resource.
-    *
-    * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param attach    the attachment description metadata
-    * @param source    the source of the attachment
-    * @tparam In the storage input type
-    * @return either a rejection or the new resource representation in the F context
-    */
-  def attach[In](id: ResId, rev: Long, schemaOpt: Option[Ref], attach: BinaryDescription, source: In)(
-      implicit identity: Identity,
-      store: AttachmentStore[F, In, _]): RejOrResource =
-    checkSchema(id, schemaOpt)(repo.attach(id, rev, attach, source))
-
-  /**
-    * Removes an attachment from a resource.
-    *
-    * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param filename  the attachment filename
-    * @return either a rejection or the new resource representation in the F context
-    */
-  def unattach(id: ResId, rev: Long, schemaOpt: Option[Ref], filename: String)(
-      implicit identity: Identity): RejOrResource =
-    checkSchema(id, schemaOpt)(repo.unattach(id, rev, filename))
-
-  /**
-    * Attempts to stream the resource's attachment identified by the argument id and the filename.
+    * Attempts to stream the binary resource for the latest revision.
     *
     * @param id        the id of the resource.
-    * @param filename  the filename of the attachment
-    * @param schemaOpt optional schema reference that constrains the resource
     * @tparam Out the type for the output streaming of the attachment binary
     * @return the optional streamed attachment in the F context
     */
-  def fetchAttachment[Out](id: ResId, schemaOpt: Option[Ref], filename: String)(
-      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    checkSchemaAtt(id, schemaOpt)(repo.getAttachment(id, filename))
+  def fetchBinary[Out](id: ResId)(implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    repo.getBinary(id)
 
   /**
-    * Attempts to stream the resource's attachment identified by the argument id, the revision and the filename.
+    * Attempts to stream the binary resource with specific revision.
     *
     * @param id        the id of the resource.
     * @param rev       the revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param filename  the filename of the attachment
     * @tparam Out the type for the output streaming of the attachment binary
     * @return the optional streamed attachment in the F context
     */
-  def fetchAttachment[Out](id: ResId, rev: Long, schemaOpt: Option[Ref], filename: String)(
-      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    checkSchemaAtt(id, schemaOpt)(repo.getAttachment(id, rev, filename))
+  def fetchBinary[Out](id: ResId, rev: Long)(
+      implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    repo.getBinary(id, rev)
 
   /**
-    * Attempts to stream the resource's attachment identified by the argument id, the tag and the filename. The
+    * Attempts to stream the binary resource with specific tag. The
     * tag is transformed into a revision value using the latest resource tag to revision mapping.
     *
     * @param id        the id of the resource.
     * @param tag       the tag of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param filename  the filename of the attachment
     * @tparam Out the type for the output streaming of the attachment binary
     * @return the optional streamed attachment in the F context
     */
-  def fetchAttachment[Out](id: ResId, tag: String, schemaOpt: Option[Ref], filename: String)(
-      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    checkSchemaAtt(id, schemaOpt)(repo.getAttachment(id, tag, filename))
+  def fetchBinary[Out](id: ResId, tag: String)(
+      implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
+    repo.getBinary(id, tag)
 
   /**
     * Lists resources for the given project
@@ -443,13 +439,6 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     } yield assigned
   // format: on
 
-  private def checkSchemaAtt[Out](id: ResId, schemaOpt: Option[Ref])(
-      op: => OptionT[F, (BinaryAttributes, Out)]): OptionT[F, (BinaryAttributes, Out)] =
-    schemaOpt match {
-      case Some(_) => fetch(id, schemaOpt).flatMap(_ => op)
-      case _       => op
-    }
-
   private def checkSchema(id: ResId, schemaOpt: Option[Ref])(op: => RejOrResource): RejOrResource =
     schemaOpt match {
       case Some(schema) => fetch(id, schemaOpt).toRight[Rejection](NotFound(schema)).flatMap(_ => op)
@@ -511,9 +500,6 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
 
     def replaceBNode(bnode: BNode, id: AbsoluteIri): ResourceF.Value =
       value.copy(graph = value.graph.replaceNode(bnode, id))
-
-    def uuid(): String =
-      UUID.randomUUID().toString.toLowerCase
 
     idOrGenInput match {
       case Left(id) =>

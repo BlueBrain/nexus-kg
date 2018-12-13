@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.UserRef
 import ch.epfl.bluebrain.nexus.kg.resources.Event.{AttachmentAdded, Created, Deprecated, TagAdded}
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, Digest}
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryAttributes, Digest}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._

@@ -10,8 +10,8 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary
+import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.v0.Event
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -116,8 +116,8 @@ class MigrationIndexerSpec
           argument.filename == "cACint_L23MC.hoc" &&
           argument.mediaType == "application/neuron-hoc" &&
           argument.byteSize == 11641L &&
-          argument.digest == Attachment.Digest("SHA-256",
-                                               "37d393c115f239bdc1782d494125dcd3e6a6aa2766ed0e28e837780830563ce2")
+          argument.digest == Binary.Digest("SHA-256",
+                                           "37d393c115f239bdc1782d494125dcd3e6a6aa2766ed0e28e837780830563ce2")
         }
       }
       val author  = UserRef("BBP", "f:9d46ddd6-134e-44d6-aa74-456789abcdef:alice")
@@ -143,8 +143,8 @@ class MigrationIndexerSpec
           asOptionT(
             resource.copy(
               id = instanceId,
-              attachments = Set(
-                BinaryAttributes(Paths.get("null"), "fileName", "mediaType", 123L, Attachment.Digest("algo", "value")))
+              binary =
+                Set(BinaryAttributes(Paths.get("null"), "fileName", "mediaType", 123L, Binary.Digest("algo", "value")))
             )))
       Mockito
         .when(repo.unattach(instanceId, rev, fileName, instant)(author))

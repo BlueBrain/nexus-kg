@@ -19,8 +19,6 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes.Schemed
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -34,7 +32,6 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: FullAcce
     implicit wrapped: LabeledProject,
     cache: DistributedCache[Task],
     indexers: Clients[Task],
-    store: AttachmentStore[Task, AkkaIn, AkkaOut],
     config: AppConfig)
     extends Schemed(resources, resolverSchemaUri, "resolvers", acls, caller) {
 

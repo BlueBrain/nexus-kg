@@ -27,8 +27,6 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, UnexpectedState}
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes.Schemed
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -42,7 +40,6 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
     implicit wrapped: LabeledProject,
     cache: DistributedCache[Task],
     indexers: Clients[Task],
-    store: AttachmentStore[Task, AkkaIn, AkkaOut],
     config: AppConfig,
     um: FromEntityUnmarshaller[String])
     extends Schemed(resources, viewSchemaUri, "views", acls, caller) {

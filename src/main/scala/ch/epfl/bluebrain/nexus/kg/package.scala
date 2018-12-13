@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus
 
 import java.net.URLEncoder
+import java.util.UUID
 
 import cats.Show
 import cats.syntax.show._
@@ -30,4 +31,7 @@ package object kg {
     */
   def urlEncodeOrElse(s: String)(default: => String): String =
     Try(URLEncoder.encode(s, "UTF-8")).getOrElse(default)
+
+  def uuid(): String =
+    UUID.randomUUID().toString.toLowerCase
 }

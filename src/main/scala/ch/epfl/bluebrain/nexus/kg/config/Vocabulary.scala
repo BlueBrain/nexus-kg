@@ -97,6 +97,7 @@ object Vocabulary {
 
     // @type platform ids
     val Schema               = withSuffix("Schema")
+    val Binary               = withSuffix("Binary")
     val Resource             = withSuffix("Resource")
     val Ontology             = withSuffix("Ontology")
     val Resolver             = withSuffix("Resolver")

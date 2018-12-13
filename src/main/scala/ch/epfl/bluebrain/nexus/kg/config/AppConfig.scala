@@ -16,8 +16,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
@@ -25,7 +23,6 @@ import ch.epfl.bluebrain.nexus.sourcing.akka.{RetryStrategy => SourcingRetryStra
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
-import scala.util.matching.Regex
 
 /**
   * Application
@@ -34,7 +31,7 @@ import scala.util.matching.Regex
   * @param http        http interface configuration
   * @param cluster     akka cluster configuration
   * @param persistence persistence configuration
-  * @param attachments attachments configuration
+  * @param binaries    binaries configuration
   * @param admin       admin client configuration
   * @param iam         IAM client configuration
   * @param sparql      Sparql endpoint configuration
@@ -46,7 +43,7 @@ final case class AppConfig(description: Description,
                            http: HttpConfig,
                            cluster: ClusterConfig,
                            persistence: PersistenceConfig,
-                           attachments: AttachmentsConfig,
+                           binaries: BinaryConfig,
                            admin: AdminConfig,
                            iam: IamConfig,
                            sparql: SparqlConfig,
@@ -205,12 +202,12 @@ object AppConfig {
   final case class PersistenceConfig(journalPlugin: String, snapshotStorePlugin: String, queryJournalPlugin: String)
 
   /**
-    * Attachments configuration
+    * Binary configuration
     *
-    * @param volume          the base [[Path]] where the attachments are stored
+    * @param volume          the base [[Path]] where the binaries are stored
     * @param digestAlgorithm algorithm for checksum calculation
     */
-  final case class AttachmentsConfig(volume: Path, digestAlgorithm: String)
+  final case class BinaryConfig(volume: Path, digestAlgorithm: String)
 
   /**
     * IAM config
@@ -225,24 +222,8 @@ object AppConfig {
     * Kafka config
     *
     * @param adminTopic the topic for account and project events
-    * @param migration  the v0 events migration config
     */
-  final case class KafkaConfig(adminTopic: String, migration: MigrationConfig)
-
-  /**
-    * Migration config
-    *
-    * @param enabled    whether the v0 event migration is enabled
-    * @param topic      the Kafka topic to read v0 events from
-    * @param baseUri    the base URI for v0 ids
-    * @param projectRef the target project reference, where events will be migrated to
-    * @param pattern    the regex pattern to select event ids that will be migrated
-    */
-  final case class MigrationConfig(enabled: Boolean,
-                                   topic: String,
-                                   baseUri: AbsoluteIri,
-                                   projectRef: ProjectRef,
-                                   pattern: Regex)
+  final case class KafkaConfig(adminTopic: String)
 
   /**
     * Collection of configurable settings specific to the Sparql indexer.
