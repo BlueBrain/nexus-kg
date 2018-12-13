@@ -58,6 +58,12 @@ final case class AppConfig(description: Description,
 
 object AppConfig {
 
+  /**
+    * Partial configuration for aggregate passivation strategy.
+    *
+    * @param lapsedSinceLastInteraction   duration since last interaction with the aggregate after which the passivation should occur
+    * @param lapsedSinceRecoveryCompleted duration since the aggregate recovered after which the passivation should occur
+    */
   final case class PassivationStrategyConfig(
       lapsedSinceLastInteraction: Option[FiniteDuration],
       lapsedSinceRecoveryCompleted: Option[FiniteDuration],
