@@ -41,7 +41,7 @@ object Vocabulary {
     val score         = Metadata("score")
     val uuid          = Metadata("uuid")
 
-    // Attachment metadata vocabulary
+    // File metadata vocabulary
     val originalFileName = Metadata("originalFileName")
     val digest           = Metadata("digest")
     val algorithm        = Metadata("algorithm")
@@ -79,7 +79,7 @@ object Vocabulary {
 
     // @type platform ids
     val Schema               = withSuffix("Schema")
-    val Binary               = withSuffix("Binary")
+    val File                 = withSuffix("File")
     val Resource             = withSuffix("Resource")
     val Ontology             = withSuffix("Ontology")
     val Resolver             = withSuffix("Resolver")

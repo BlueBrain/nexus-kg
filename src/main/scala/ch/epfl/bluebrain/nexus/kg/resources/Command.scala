@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -112,29 +112,29 @@ object Command {
   ) extends Command
 
   /**
-    * An intent to create a binary resource.
+    * An intent to create a file resource.
     *
     * @param id       the resource identifier
     * @param rev      the last known revision of the resource when this command was created
-    * @param value    the metadata of the attachment
+    * @param value    the file metadata
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class CreateBinary(id: Id[ProjectRef],
-                                rev: Long,
-                                value: BinaryAttributes,
-                                instant: Instant,
-                                identity: Identity)
+  final case class CreateFile(id: Id[ProjectRef],
+                              rev: Long,
+                              value: FileAttributes,
+                              instant: Instant,
+                              identity: Identity)
       extends Command {
 
     /**
       * the schema that is used to constrain the resource
       */
-    val schema: Ref = Ref(binarySchemaUri)
+    val schema: Ref = Ref(fileSchemaUri)
 
     /**
       * the collection of known resource types
       */
-    val types: Set[AbsoluteIri] = Set(nxv.Binary.value)
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
   }
 }

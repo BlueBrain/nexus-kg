@@ -3,9 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.config.Schemas.binarySchemaUri
+import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -114,18 +114,18 @@ object Event {
   ) extends Event
 
   /**
-    * A witness that a binary resource has been added.
+    * A witness that a file resource has been added.
     *
     * @param id       the resource identifier
     * @param rev      the revision that this event generated
-    * @param value    the metadata of the attachment
+    * @param value    the metadata of the file
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class CreatedBinary(
+  final case class CreatedFile(
       id: Id[ProjectRef],
       rev: Long,
-      value: BinaryAttributes,
+      value: FileAttributes,
       instant: Instant,
       identity: Identity
   ) extends Event {
@@ -133,11 +133,11 @@ object Event {
     /**
       * the schema that has been used to constrain the resource
       */
-    val schema: Ref = Ref(binarySchemaUri)
+    val schema: Ref = Ref(fileSchemaUri)
 
     /**
       * the collection of known resource types
       */
-    val types: Set[AbsoluteIri] = Set(nxv.Binary.value)
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
   }
 }

@@ -31,7 +31,7 @@ import scala.concurrent.duration.FiniteDuration
   * @param http        http interface configuration
   * @param cluster     akka cluster configuration
   * @param persistence persistence configuration
-  * @param binaries    binaries configuration
+  * @param files    files configuration
   * @param admin       admin client configuration
   * @param iam         IAM client configuration
   * @param sparql      Sparql endpoint configuration
@@ -43,7 +43,7 @@ final case class AppConfig(description: Description,
                            http: HttpConfig,
                            cluster: ClusterConfig,
                            persistence: PersistenceConfig,
-                           binaries: BinaryConfig,
+                           files: FileConfig,
                            admin: AdminConfig,
                            iam: IamConfig,
                            sparql: SparqlConfig,
@@ -202,12 +202,12 @@ object AppConfig {
   final case class PersistenceConfig(journalPlugin: String, snapshotStorePlugin: String, queryJournalPlugin: String)
 
   /**
-    * Binary configuration
+    * File configuration
     *
-    * @param volume          the base [[Path]] where the binaries are stored
+    * @param volume          the base [[Path]] where the files are stored
     * @param digestAlgorithm algorithm for checksum calculation
     */
-  final case class BinaryConfig(volume: Path, digestAlgorithm: String)
+  final case class FileConfig(volume: Path, digestAlgorithm: String)
 
   /**
     * IAM config

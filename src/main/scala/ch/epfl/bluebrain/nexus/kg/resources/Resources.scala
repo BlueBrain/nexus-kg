@@ -21,8 +21,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryAttributes, BinaryDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder
 import ch.epfl.bluebrain.nexus.rdf.Graph._
@@ -92,41 +92,35 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       resource <- create(id, schema, assigned)
     } yield resource
 
-  def createBinary[In](projectRef: ProjectRef, base: AbsoluteIri, attach: BinaryDescription, source: In)(
-      implicit identity: Identity,
-      store: BinaryStore[F, In, _]): RejOrResource =
-    createBinaryWithId(Id(projectRef, base + uuid()), None, attach, source)
-
   /**
-    * Creates/replaces a binary resource.
+    * Creates a file resource.
     *
-    * @param id        the id of the resource
-    * @param rev       the optional last known revision of the resource
-    * @param attach    the attachment description metadata
-    * @param source    the source of the attachment
+    * @param projectRef reference for the project in which the resource is going to be created.
+    * @param base       base used to generate new ids.
+    * @param fileDesc   the file description metadata
+    * @param source     the source of the file
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createBinaryWithId[In](id: ResId, rev: Option[Long], attach: BinaryDescription, source: In)(
+  def createFile[In](projectRef: ProjectRef, base: AbsoluteIri, fileDesc: FileDescription, source: In)(
       implicit identity: Identity,
-      store: BinaryStore[F, In, _]): RejOrResource =
-    repo.createBinary(id, rev, attach, source)
+      store: FileStore[F, In, _]): RejOrResource =
+    replaceFileWithId(Id(projectRef, base + uuid()), None, fileDesc, source)
 
   /**
-    * Creates/replaces a binary resource.
+    * Creates/replaces a file resource.
     *
-    * @param id        the id of the resource
-    * @param rev       the optional last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param attach    the attachment description metadata
-    * @param source    the source of the attachment
+    * @param id       the id of the resource
+    * @param rev      the optional last known revision of the resource
+    * @param fileDesc the file description metadata
+    * @param source   the source of the file
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createBinary[In](id: ResId, rev: Option[Long], schemaOpt: Option[Ref], attach: BinaryDescription, source: In)(
+  def replaceFileWithId[In](id: ResId, rev: Option[Long], fileDesc: FileDescription, source: In)(
       implicit identity: Identity,
-      store: BinaryStore[F, In, _]): RejOrResource =
-    checkSchema(id, schemaOpt)(repo.createBinary(id, rev, attach, source))
+      store: FileStore[F, In, _]): RejOrResource =
+    repo.replaceFile(id, rev, fileDesc, source)
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
       implicit identity: Identity,
@@ -249,39 +243,37 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     checkSchema(id, schemaOpt)(repo.tag(id, rev, targetRev, tag))
 
   /**
-    * Attempts to stream the binary resource for the latest revision.
+    * Attempts to stream the file resource for the latest revision.
     *
-    * @param id        the id of the resource.
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
+    * @param id the id of the resource.
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def fetchBinary[Out](id: ResId)(implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    repo.getBinary(id)
+  def fetchFile[Out](id: ResId)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    repo.getFile(id)
 
   /**
-    * Attempts to stream the binary resource with specific revision.
+    * Attempts to stream the file resource with specific revision.
     *
-    * @param id        the id of the resource.
-    * @param rev       the revision of the resource
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
+    * @param id  the id of the resource.
+    * @param rev the revision of the resource
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def fetchBinary[Out](id: ResId, rev: Long)(
-      implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    repo.getBinary(id, rev)
+  def fetchFile[Out](id: ResId, rev: Long)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    repo.getFile(id, rev)
 
   /**
-    * Attempts to stream the binary resource with specific tag. The
+    * Attempts to stream the file resource with specific tag. The
     * tag is transformed into a revision value using the latest resource tag to revision mapping.
     *
-    * @param id        the id of the resource.
-    * @param tag       the tag of the resource
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
+    * @param id  the id of the resource.
+    * @param tag the tag of the resource
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def fetchBinary[Out](id: ResId, tag: String)(
-      implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    repo.getBinary(id, tag)
+  def fetchFile[Out](id: ResId, tag: String)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    repo.getFile(id, tag)
 
   /**
     * Lists resources for the given project

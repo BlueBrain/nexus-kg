@@ -26,8 +26,8 @@
       "@id": "nxv:Schema",
       "@type": "@id"
     },
-    "Binary": {
-      "@id": "nxv:Binary",
+    "File": {
+      "@id": "nxv:File",
       "@type": "@id"
     },
     "_deprecated": "nxv:deprecated",

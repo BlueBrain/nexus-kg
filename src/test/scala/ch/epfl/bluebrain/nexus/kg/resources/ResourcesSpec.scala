@@ -22,8 +22,8 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryDescription, Digest, StoredSummary}
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -60,7 +60,7 @@ class ResourcesSpec
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
   implicit private val repo  = Repo[IO].ioValue
-  private implicit val store = mock[BinaryStore[IO, String, String]]
+  private implicit val store = mock[FileStore[IO, String, String]]
   private val cache          = mock[DistributedCache[IO]]
   when(cache.resolvers(any[ProjectRef])).thenReturn(IO.pure(Set.empty[Resolver]))
   private implicit val resolution =
@@ -113,11 +113,11 @@ class ResourcesSpec
     val types    = Set[AbsoluteIri](nxv.Schema)
   }
 
-  trait Binary extends Base {
+  trait File extends Base {
     val value      = Json.obj()
-    val schema     = Latest(binarySchemaUri)
-    val types      = Set[AbsoluteIri](nxv.Binary)
-    val desc       = BinaryDescription("name", "text/plain")
+    val schema     = Latest(fileSchemaUri)
+    val types      = Set[AbsoluteIri](nxv.File)
+    val desc       = FileDescription("name", "text/plain")
     val source     = "some text"
     val relative   = Paths.get("./other")
     val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
@@ -363,14 +363,14 @@ class ResourcesSpec
       }
     }
 
-    "performing add binary operations" should {
-      "create binary resource" in new Binary {
-        resources.createBinaryWithId(resId, None, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(resId, value, schema = schema, types = types).copy(binary = Some(attributes))
+    "performing write file operations" should {
+      "create a file resource" in new File {
+        resources.replaceFileWithId(resId, None, desc, source).value.accepted shouldEqual
+          ResourceF.simpleF(resId, value, schema = schema, types = types).copy(file = Some(attributes))
       }
     }
 
-    "performing fetch operations" should {
+    "performing read operations" should {
 
       "return a resource" in new ResolverResource {
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]

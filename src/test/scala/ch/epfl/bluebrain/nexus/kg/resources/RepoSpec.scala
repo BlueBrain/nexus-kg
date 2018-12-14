@@ -15,8 +15,8 @@ import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary._
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.File._
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
@@ -48,7 +48,7 @@ class RepoSpec
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
   private val repo           = Repo[IO].ioValue
-  private implicit val store = mock[BinaryStore[IO, String, String]]
+  private implicit val store = mock[FileStore[IO, String, String]]
 
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
   private def randomIri()  = Iri.absolute(s"http://example.com/$uuid").right.value
@@ -66,10 +66,10 @@ class RepoSpec
     implicit val identity: Identity = Anonymous
   }
 
-  trait Binary extends Context {
+  trait File extends Context {
     override val value  = Json.obj()
-    override val schema = Schemas.binarySchemaUri
-    val types           = Set(nxv.Binary.value)
+    override val schema = Schemas.fileSchemaUri
+    val types           = Set(nxv.File.value)
   }
 
   "A Repo" when {
@@ -186,51 +186,51 @@ class RepoSpec
       }
     }
 
-    "performing binary operations" should {
-      val desc        = BinaryDescription("name", "text/plain")
+    "performing file operations" should {
+      val desc        = FileDescription("name", "text/plain")
       val source      = "some text"
-      val desc2       = BinaryDescription("name2", "text/plain")
+      val desc2       = FileDescription("name2", "text/plain")
       val source2     = "some text2"
       val relative    = Paths.get("./other")
       val attributes  = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
       val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
-      "create binary to new resource" in new Binary {
+      "create file resource" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
 
-        repo.createBinary(id, None, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(binary = Some(attributes))
+        repo.replaceFile(id, None, desc, source).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(attributes))
       }
 
-      "update the binary resource" in new Binary {
+      "update the file resource" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
         when(store.save(id, desc, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
 
-        repo.createBinary(id, None, desc, source).value.accepted shouldBe a[Resource]
-        repo.createBinary(id, Some(1L), desc, source2).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(binary = Some(attributes2))
+        repo.replaceFile(id, None, desc, source).value.accepted shouldBe a[Resource]
+        repo.replaceFile(id, Some(1L), desc, source2).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(attributes2))
       }
 
-      "prevent to add a binary to a resource with an incorrect revision" in new Binary {
+      "prevent to update a file resource with an incorrect revision" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
 
-        repo.createBinary(id, None, desc, source).value.accepted shouldBe a[Resource]
-        repo.createBinary(id, Some(3L), desc, source).value.rejected[IncorrectRev] shouldEqual
+        repo.replaceFile(id, None, desc, source).value.accepted shouldBe a[Resource]
+        repo.replaceFile(id, Some(3L), desc, source).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L)
       }
 
-      "prevent to add a binary to a resource that is deprecated" in new Binary {
+      "prevent update a file resource to a deprecated resource" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.createBinary(id, None, desc, source).value.accepted shouldBe a[Resource]
+        repo.replaceFile(id, None, desc, source).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.createBinary(id, Some(2L), desc, source).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
+        repo.replaceFile(id, Some(2L), desc, source).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
       }
 
-      "prevent to add a binary to a resource which fails on attempting to store" in new Binary {
+      "prevent to create a file resource which fails on attempting to store" in new File {
         when(store.save(id, desc, source))
-          .thenReturn(EitherT.leftT[IO, BinaryAttributes](Unexpected("error"): Rejection))
-        repo.createBinary(id, None, desc, source).value.rejected[Unexpected] shouldEqual Unexpected("error")
+          .thenReturn(EitherT.leftT[IO, FileAttributes](Unexpected("error"): Rejection))
+        repo.replaceFile(id, None, desc, source).value.rejected[Unexpected] shouldEqual Unexpected("error")
       }
     }
 
@@ -268,44 +268,44 @@ class RepoSpec
       }
     }
 
-    "performing get binary operations" should {
+    "performing get file operations" should {
       val relative    = Paths.get("./other")
-      val desc        = BinaryDescription("name", "text/plain")
+      val desc        = FileDescription("name", "text/plain")
       val source      = "some text"
       val attributes  = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-      val desc2       = BinaryDescription("name2", "text/plain")
+      val desc2       = FileDescription("name2", "text/plain")
       val source2     = "some text2"
       val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
-      "get a binary resource" in new Binary {
+      "get a file resource" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.createBinary(id, None, desc, source).value.accepted shouldBe a[Resource]
+        repo.replaceFile(id, None, desc, source).value.accepted shouldBe a[Resource]
 
         when(store.save(id, desc2, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
-        repo.createBinary(id, Some(1L), desc2, source2).value.accepted shouldBe a[Resource]
+        repo.replaceFile(id, Some(1L), desc2, source2).value.accepted shouldBe a[Resource]
 
         when(store.fetch(attributes2)).thenReturn(Right(source2))
         when(store.fetch(attributes)).thenReturn(Right(source))
 
-        repo.getBinary(id).value.some shouldEqual (attributes2 -> source2)
+        repo.getFile(id).value.some shouldEqual (attributes2 -> source2)
 
         //by rev
-        repo.getBinary(id, 2L).value.some shouldEqual (attributes2 -> source2)
+        repo.getFile(id, 2L).value.some shouldEqual (attributes2 -> source2)
 
-        repo.getBinary(id, 1L).value.some shouldEqual (attributes -> source)
+        repo.getFile(id, 1L).value.some shouldEqual (attributes -> source)
 
         //by tag
         repo.tag(id, 2L, 1L, "one").value.accepted shouldBe a[Resource]
         repo.tag(id, 3L, 2L, "two").value.accepted shouldBe a[Resource]
-        repo.getBinary(id, "one").value.some shouldEqual (attributes  -> source)
-        repo.getBinary(id, "two").value.some shouldEqual (attributes2 -> source2)
+        repo.getFile(id, "one").value.some shouldEqual (attributes  -> source)
+        repo.getFile(id, "two").value.some shouldEqual (attributes2 -> source2)
 
       }
 
-      "return None when the resource binary does not exist" in new Binary {
-        repo.getBinary(id, "name4").value.ioValue shouldEqual None
-        repo.getBinary(id, 2L).value.ioValue shouldEqual None
-        repo.getBinary(id).value.ioValue shouldEqual None
+      "return None when the file resource does not exist" in new File {
+        repo.getFile(id, "name4").value.ioValue shouldEqual None
+        repo.getFile(id, 2L).value.ioValue shouldEqual None
+        repo.getFile(id).value.ioValue shouldEqual None
       }
     }
   }

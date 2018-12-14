@@ -19,8 +19,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryAttributes, BinaryDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
@@ -96,61 +96,58 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     evaluate(id, AddTag(id, rev, targetRev, tag, instant, identity))
 
   /**
-    * Creates or replace a binary resource.
+    * Creates or replace a file resource.
     *
-    * @param id      the id of the resource
-    * @param rev     the optional last known revision of the resource
-    * @param attach  the attachment description metadata
-    * @param source  the source of the attachment
-    * @param instant an optionally provided operation instant
+    * @param id       the id of the resource
+    * @param rev      the optional last known revision of the resource
+    * @param fileDesc the file description metadata
+    * @param source   the source of the file
+    * @param instant  an optionally provided operation instant
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createBinary[In](id: ResId,
-                       rev: Option[Long],
-                       attach: BinaryDescription,
-                       source: In,
-                       instant: Instant = clock.instant)(
-      implicit identity: Identity,
-      store: BinaryStore[F, In, _]): EitherT[F, Rejection, Resource] =
+  def replaceFile[In](id: ResId,
+                      rev: Option[Long],
+                      fileDesc: FileDescription,
+                      source: In,
+                      instant: Instant = clock.instant)(implicit identity: Identity,
+                                                        store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
     store
-      .save(id, attach, source)
-      .flatMap(attr => evaluate(id, CreateBinary(id, rev.getOrElse(0L), attr, instant, identity)))
+      .save(id, fileDesc, source)
+      .flatMap(attr => evaluate(id, CreateFile(id, rev.getOrElse(0L), attr, instant, identity)))
 
   /**
-    * Attempts to stream the resource's attachment identified by the argument id and the filename.
+    * Attempts to stream the file resource identified by the argument id.
     *
-    * @param id       the id of the resource.
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
+    * @param id the id of the resource.
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def getBinary[Out](id: ResId)(implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    get(id) subflatMap (_.binary.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+  def getFile[Out](id: ResId)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
 
   /**
-    * Attempts to stream the binary resource identified by the argument id and the revision.
+    * Attempts to stream the file resource identified by the argument id and the revision.
     *
     * @param id       the id of the resource.
     * @param rev      the revision of the resource
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def getBinary[Out](id: ResId, rev: Long)(
-      implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    get(id, rev) subflatMap (_.binary.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+  def getFile[Out](id: ResId, rev: Long)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id, rev) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
 
   /**
-    * Attempts to stream the binary resource identified by the argument id and the tag. The
+    * Attempts to stream the file resource identified by the argument id and the tag. The
     * tag is transformed into a revision value using the latest resource tag to revision mapping.
     *
     * @param id       the id of the resource.
     * @param tag      the tag of the resource
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def getBinary[Out](id: ResId, tag: String)(
-      implicit store: BinaryStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    get(id, tag) subflatMap (_.binary.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+  def getFile[Out](id: ResId, tag: String)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id, tag) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
 
   /**
     * Attempts to read the resource identified by the argument id.
@@ -215,8 +212,8 @@ object Repo {
     (state, ev) match {
       case (Initial, Created(id, 1L, schema, types, value, tm, ident)) =>
         Current(id, 1L, types, false, Map.empty, None, tm, tm, ident, ident, schema, value)
-      case (Initial, e @ CreatedBinary(id, 1L, binary, tm, ident)) =>
-        Current(id, 1L, e.types, false, Map.empty, Some(binary), tm, tm, ident, ident, e.schema, Json.obj())
+      case (Initial, e @ CreatedFile(id, 1L, file, tm, ident)) =>
+        Current(id, 1L, e.types, false, Map.empty, Some(file), tm, tm, ident, ident, e.schema, Json.obj())
       case (Initial, _) => Initial
       case (c: Current, TagAdded(_, rev, targetRev, name, tm, ident)) =>
         c.copy(rev = rev, tags = c.tags + (name -> targetRev), updated = tm, updatedBy = ident)
@@ -225,27 +222,27 @@ object Repo {
         c.copy(rev = rev, updated = tm, updatedBy = ident, deprecated = true)
       case (c: Current, Updated(_, rev, types, value, tm, ident)) =>
         c.copy(rev = rev, types = types, source = value, updated = tm, updatedBy = ident)
-      case (c: Current, CreatedBinary(_, rev, binary, tm, ident)) =>
-        c.copy(rev = rev, binary = Some(binary), updated = tm, updatedBy = ident)
+      case (c: Current, CreatedFile(_, rev, file, tm, ident)) =>
+        c.copy(rev = rev, file = Some(file), updated = tm, updatedBy = ident)
     }
 
   final def eval(state: State, cmd: Command): Either[Rejection, Event] = {
 
     def create(c: Create): Either[Rejection, Created] =
       state match {
-        case _ if c.schema == binarySchemaUri => Left(NotBinaryResource(c.id.ref))
-        case Initial                          => Right(Created(c.id, 1L, c.schema, c.types, c.source, c.instant, c.identity))
-        case _                                => Left(AlreadyExists(c.id.ref))
+        case _ if c.schema == fileSchemaUri => Left(NotFileResource(c.id.ref))
+        case Initial                        => Right(Created(c.id, 1L, c.schema, c.types, c.source, c.instant, c.identity))
+        case _                              => Left(AlreadyExists(c.id.ref))
       }
 
-    def createBinary(c: CreateBinary): Either[Rejection, CreatedBinary] =
+    def replaceFile(c: CreateFile): Either[Rejection, CreatedFile] =
       state match {
-        case Initial                      => Right(CreatedBinary(c.id, 1L, c.value, c.instant, c.identity))
+        case Initial                      => Right(CreatedFile(c.id, 1L, c.value, c.instant, c.identity))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
         case s: Current if s.schema == c.schema && s.types == c.types =>
-          Right(CreatedBinary(s.id, s.rev + 1, c.value, c.instant, c.identity))
-        case _ => Left(NotBinaryResource(c.id.ref))
+          Right(CreatedFile(s.id, s.rev + 1, c.value, c.instant, c.identity))
+        case _ => Left(NotFileResource(c.id.ref))
       }
 
     def update(c: Update): Either[Rejection, Updated] =
@@ -259,7 +256,7 @@ object Repo {
 
     def forbiddenUpdates(s: Current, c: Update): Boolean =
       // format: off
-      (s.types.contains(nxv.Binary) || c.types.contains(nxv.Binary)) ||
+      (s.types.contains(nxv.File) || c.types.contains(nxv.File)) ||
       ((s.types.contains(nxv.Schema) && !c.types.contains(nxv.Schema)) || (!s.types.contains(nxv.Schema) && c.types.contains(nxv.Schema))) ||
       ((s.types.contains(nxv.Resolver) && !c.types.contains(nxv.Resolver)) || (!s.types.contains(nxv.Resolver) && c.types.contains(nxv.Resolver))) ||
       ((s.types.contains(nxv.Ontology) && !c.types.contains(nxv.Ontology)) || (!s.types.contains(nxv.Ontology) && c.types.contains(nxv.Ontology)))
@@ -283,11 +280,11 @@ object Repo {
       }
 
     cmd match {
-      case cmd: Create       => create(cmd)
-      case cmd: CreateBinary => createBinary(cmd)
-      case cmd: Update       => update(cmd)
-      case cmd: Deprecate    => deprecate(cmd)
-      case cmd: AddTag       => tag(cmd)
+      case cmd: Create     => create(cmd)
+      case cmd: CreateFile => replaceFile(cmd)
+      case cmd: Update     => update(cmd)
+      case cmd: Deprecate  => deprecate(cmd)
+      case cmd: AddTag     => tag(cmd)
     }
   }
 

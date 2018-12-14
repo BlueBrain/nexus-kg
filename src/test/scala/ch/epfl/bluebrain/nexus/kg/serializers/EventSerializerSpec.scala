@@ -10,8 +10,8 @@ import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.UserRef
-import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, CreatedBinary, Deprecated, TagAdded}
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryAttributes, Digest}
+import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, CreatedFile, Deprecated, TagAdded}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -56,10 +56,10 @@ class EventSerializerSpec
                                                                                    rep).noSpaces,
         Deprecated(key, 1L, types, instant, identity)       -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
         TagAdded(key, 1L, 2L, "tagName", instant, identity) -> jsonContentOf("/serialization/tagged-resp.json", rep).noSpaces,
-        CreatedBinary(
+        CreatedFile(
           key,
           1L,
-          BinaryAttributes(
+          FileAttributes(
             "uuid",
             Paths.get("/test/path"),
             "test-file.json",

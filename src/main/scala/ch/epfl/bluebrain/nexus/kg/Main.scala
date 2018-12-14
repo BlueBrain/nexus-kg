@@ -27,8 +27,8 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
@@ -109,10 +109,10 @@ object Main {
     implicit val pm    = CanBlock.permit
 
     implicit val repo              = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
-    implicit val attConfig         = appConfig.binaries
-    implicit val lc                = BinaryStore.LocationResolver[Task]()
-    implicit val stream            = BinaryStore.Stream.task(appConfig.binaries)
-    implicit val store             = new BinaryStore[Task, AkkaIn, AkkaOut]
+    implicit val attConfig         = appConfig.files
+    implicit val lc                = FileStore.LocationResolver[Task]()
+    implicit val stream            = FileStore.Stream.task(appConfig.files)
+    implicit val store             = new FileStore[Task, AkkaIn, AkkaOut]
     implicit val indexers          = clients
     implicit val cache             = DistributedCache.task()
     implicit val iam               = clients.iamClient

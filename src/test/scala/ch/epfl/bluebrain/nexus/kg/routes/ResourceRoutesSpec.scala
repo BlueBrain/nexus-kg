@@ -50,9 +50,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, IllegalParameter, NotFound, Unexpected}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryAttributes, Digest}
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -90,7 +90,7 @@ class ResourceRoutesSpec
   private implicit val adminClient = mock[AdminClient[Task]]
   private implicit val iamClient   = mock[IamClient[Task]]
   private implicit val cache       = mock[DistributedCache[Task]]
-  private implicit val store       = mock[BinaryStore[Task, AkkaIn, AkkaOut]]
+  private implicit val store       = mock[FileStore[Task, AkkaIn, AkkaOut]]
   private implicit val resources   = mock[Resources[Task]]
 
   private implicit val ec         = system.dispatcher
@@ -112,7 +112,7 @@ class ResourceRoutesSpec
   private val manageResolver                    = Permissions(Permission("resolvers/manage"))
   private val manageViews                       = Permissions(Permission("views/manage"))
   private val manageSchemas                     = Permissions(Permission("schemas/manage"))
-  private val manageBinaries                    = Permissions(Permission("binaries/manage"))
+  private val manageFiles                       = Permissions(Permission("files/manage"))
   private val routes                            = CombinedRoutes(resources)
 
   abstract class Context(perms: Permissions = manageRes) {
@@ -227,9 +227,9 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$account/$project/resource/nxv:$genUuid"))
   }
 
-  abstract class Binary(perms: Permissions = manageBinaries) extends Context(perms) {
+  abstract class File(perms: Permissions = manageFiles) extends Context(perms) {
     val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
-    val schemaRef = Ref(binarySchemaUri)
+    val schemaRef = Ref(fileSchemaUri)
 
     val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
   }
@@ -565,28 +565,28 @@ class ResourceRoutesSpec
       }
     }
 
-    "get a binary resource" in new Binary {
+    "get a file resource" in new File {
       val path    = Paths.get(getClass.getResource("/resources/file.txt").toURI)
-      val at1     = BinaryAttributes("uuid1", path, "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
+      val at1     = FileAttributes("uuid1", path, "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
       val content = new String(Files.readAllBytes(path))
       val source =
         Source.single(ByteString(content)).mapMaterializedValue(_ => FileIO.fromPath(path).to(Sink.ignore).run())
 
-      when(resources.fetchBinary(id, 1L)).thenReturn(OptionT.some[Task](at1 -> source))
+      when(resources.fetchFile(id, 1L)).thenReturn(OptionT.some[Task](at1 -> source))
 
-      Get(s"/v1/binaries/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+      Get(s"/v1/files/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         contentType.value shouldEqual "text/plain"
         responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
       }
     }
 
-    "get the binary metadata" in new Binary {
+    "get the file metadata" in new File {
       val resource = ResourceF.simpleF(id, Json.obj(), created = identity, updated = identity, schema = schemaRef)
       val at1 =
-        BinaryAttributes("uuid1", Paths.get("some1"), "filename1.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
+        FileAttributes("uuid1", Paths.get("some1"), "filename1.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
       val resourceV =
-        simpleV(id, Json.obj(), created = identity, updated = identity, schema = schemaRef).copy(binary = Some(at1))
+        simpleV(id, Json.obj(), created = identity, updated = identity, schema = schemaRef).copy(file = Some(at1))
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
       val lb = labeledProject.copy(project = labeledProject.project.copy(
@@ -599,22 +599,21 @@ class ResourceRoutesSpec
                                    quote("{proj}")    -> projectMeta.label,
                                    quote("{id}")      -> s"nxv:$genUuid"))
 
-      Get(s"/v1/binaries/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        metadataRanges: _*) ~> routes ~> check {
+      Get(s"/v1/files/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(metadataRanges: _*) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual json
       }
     }
 
-    "reject getting a binary with both tag and rev query params" in new Binary {
-      Get(s"/v1/binaries/$account/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
+    "reject getting a file with both tag and rev query params" in new File {
+      Get(s"/v1/files/$account/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]
       }
     }
 
-    "reject getting a binary metadata with both tag and rev query params" in new Binary {
-      Get(s"/v1/binaries/$account/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> Accept(
+    "reject getting a file metadata with both tag and rev query params" in new File {
+      Get(s"/v1/files/$account/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> Accept(
         metadataRanges: _*) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]

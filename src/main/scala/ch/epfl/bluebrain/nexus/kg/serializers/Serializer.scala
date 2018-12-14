@@ -9,7 +9,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.generic.extras.Configuration
@@ -55,9 +55,9 @@ object Serializer {
     }
   }
 
-  private implicit def binaryAttributesEncoder: Encoder[BinaryAttributes] = deriveEncoder[BinaryAttributes]
+  private implicit def fileAttributesEncoder: Encoder[FileAttributes] = deriveEncoder[FileAttributes]
 
-  private implicit def binaryAttributesDecoder: Decoder[BinaryAttributes] = deriveDecoder[BinaryAttributes]
+  private implicit def fileAttributesDecoder: Decoder[FileAttributes] = deriveDecoder[FileAttributes]
 
   private implicit val encodeResId: Encoder[ResId] =
     Encoder.forProduct2("project", "id")(r => (r.parent.id, r.value.show))

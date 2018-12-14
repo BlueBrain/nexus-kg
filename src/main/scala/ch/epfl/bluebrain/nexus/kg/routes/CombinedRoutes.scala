@@ -18,8 +18,8 @@ import ch.epfl.bluebrain.nexus.kg.marshallers
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.marshallers.{ExceptionHandling, RejectionHandling}
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes.{Schemed, Unschemed}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import monix.eval.Task
@@ -34,7 +34,7 @@ object CombinedRoutes {
     */
   def apply(resources: Resources[Task])(implicit cache: DistributedCache[Task],
                                         indexers: Clients[Task],
-                                        store: BinaryStore[Task, AkkaIn, AkkaOut],
+                                        store: FileStore[Task, AkkaIn, AkkaOut],
                                         aclsOps: AclsOps,
                                         config: AppConfig): Route = {
     import indexers._
@@ -60,7 +60,7 @@ object CombinedRoutes {
                 case "resolvers" => new ResolverRoutes(resources, acl, c).routes
                 case "views"     => new ViewRoutes(resources, acl, c).routes
                 case "schemas"   => new SchemaRoutes(resources, acl, c).routes
-                case "binaries"  => new BinaryRoutes(resources, acl, c).routes
+                case "files"     => new FileRoutes(resources, acl, c).routes
                 case "data" =>
                   listResources(acl, c, labeledProject) ~ new Unschemed(resources, "resources", acl, c).routes
                 case "resources" =>

@@ -21,9 +21,9 @@ import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.{BinaryDescription, _}
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore
-import ch.epfl.bluebrain.nexus.kg.resources.binary.BinaryStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileDescription, _}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes.Schemed
 import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
@@ -33,30 +33,30 @@ import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
 
-class BinaryRoutes private[routes] (resources: Resources[Task], acls: FullAccessControlList, caller: Caller)(
+class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessControlList, caller: Caller)(
     implicit wrapped: LabeledProject,
     cache: DistributedCache[Task],
     indexers: Clients[Task],
-    store: BinaryStore[Task, AkkaIn, AkkaOut],
+    store: FileStore[Task, AkkaIn, AkkaOut],
     config: AppConfig)
-    extends Schemed(resources, binarySchemaUri, "binaries", acls, caller) {
+    extends Schemed(resources, fileSchemaUri, "files", acls, caller) {
 
   private val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
 
   private val simultaneousParamsRejection: AkkaRejection =
     validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
 
-  private type RejectionOrBinary = Either[AkkaRejection, Option[(BinaryAttributes, AkkaOut)]]
+  private type RejectionOrFile = Either[AkkaRejection, Option[(FileAttributes, AkkaOut)]]
 
   override def createWithId(id: AbsoluteIri): Route =
     (put & parameter('rev.as[Long].?) & pathPrefix(IdSegment) & pathEndOrSingleSlash) { (rev, id) =>
       (projectNotDeprecated & hasPermission(resourceWrite) & identity) { implicit ident =>
         fileUpload("file") {
           case (metadata, byteSource) =>
-            val description = BinaryDescription(metadata.fileName, metadata.contentType.value)
-            trace(s"createBinaries") {
+            val description = FileDescription(metadata.fileName, metadata.contentType.value)
+            trace(s"createFiles") {
               val resId = Id(wrapped.ref, id)
-              complete(resources.createBinaryWithId(resId, rev, description, byteSource).value.runToFuture)
+              complete(resources.replaceFileWithId(resId, rev, description, byteSource).value.runToFuture)
             }
         }
       }
@@ -66,9 +66,9 @@ class BinaryRoutes private[routes] (resources: Resources[Task], acls: FullAccess
     (post & pathEndOrSingleSlash & projectNotDeprecated & hasPermission(resourceWrite) & identity) { implicit ident =>
       fileUpload("file") {
         case (metadata, byteSource) =>
-          val description = BinaryDescription(metadata.fileName, metadata.contentType.value)
-          trace(s"createBinaries") {
-            complete(resources.createBinary(wrapped.ref, wrapped.base, description, byteSource).value.runToFuture)
+          val description = FileDescription(metadata.fileName, metadata.contentType.value)
+          trace(s"createFiles") {
+            complete(resources.createFile(wrapped.ref, wrapped.base, description, byteSource).value.runToFuture)
           }
       }
     }
@@ -78,22 +78,22 @@ class BinaryRoutes private[routes] (resources: Resources[Task], acls: FullAccess
   override def getResource(id: AbsoluteIri): Route =
     optionalHeaderValueByType[Accept](()) {
       case Some(h) if h.mediaRanges == metadataRanges => super.getResource(id)
-      case _                                          => getBinary(id)
+      case _                                          => getFile(id)
     }
 
-  private def getBinary(id: AbsoluteIri): Route =
+  private def getFile(id: AbsoluteIri): Route =
     (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermission(resourceRead)) {
       (revOpt, tagOpt) =>
         val result = (revOpt, tagOpt) match {
           case (None, None) =>
-            resources.fetchBinary(Id(wrapped.ref, id)).toEitherRun
-          case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrBinary)
+            resources.fetchFile(Id(wrapped.ref, id)).toEitherRun
+          case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrFile)
           case (Some(rev), _) =>
-            resources.fetchBinary(Id(wrapped.ref, id), rev).toEitherRun
+            resources.fetchFile(Id(wrapped.ref, id), rev).toEitherRun
           case (_, Some(tag)) =>
-            resources.fetchBinary(Id(wrapped.ref, id), tag).toEitherRun
+            resources.fetchFile(Id(wrapped.ref, id), tag).toEitherRun
         }
-        trace(s"getBinaries") {
+        trace(s"getFiles") {
           onSuccess(result) {
             case Left(rej) =>
               reject(rej)
@@ -107,17 +107,17 @@ class BinaryRoutes private[routes] (resources: Resources[Task], acls: FullAccess
         }
     }
 
-  private implicit class OptionTaskAttachmentSyntax(resource: OptionT[Task, (BinaryAttributes, AkkaOut)]) {
+  private implicit class OptionTaskFileSyntax(resource: OptionT[Task, (FileAttributes, AkkaOut)]) {
 
-    def toEitherRun: Future[RejectionOrBinary] =
-      resource.value.map[RejectionOrBinary](Right.apply).runToFuture
+    def toEitherRun: Future[RejectionOrFile] =
+      resource.value.map[RejectionOrFile](Right.apply).runToFuture
   }
 
-  private def filenameHeader(info: BinaryAttributes) = {
-    val filename = urlEncodeOrElse(info.filename)("attachment")
+  private def filenameHeader(info: FileAttributes) = {
+    val filename = urlEncodeOrElse(info.filename)("file")
     RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename")
   }
 
-  private def contentType(info: BinaryAttributes) =
+  private def contentType(info: FileAttributes) =
     ContentType.parse(info.mediaType).getOrElse(`application/octet-stream`)
 }
