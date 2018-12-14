@@ -230,7 +230,7 @@ object Repo {
 
     def create(c: Create): Either[Rejection, Created] =
       state match {
-        case _ if c.schema == fileSchemaUri => Left(NotFileResource(c.id.ref))
+        case _ if c.schema == Ref(fileSchemaUri) => Left(NotFileResource(c.id.ref))
         case Initial                        => Right(Created(c.id, 1L, c.schema, c.types, c.source, c.instant, c.identity))
         case _                              => Left(AlreadyExists(c.id.ref))
       }

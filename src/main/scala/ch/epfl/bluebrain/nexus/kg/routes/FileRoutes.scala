@@ -54,7 +54,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
         fileUpload("file") {
           case (metadata, byteSource) =>
             val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace(s"createFiles") {
+            trace("createFiles") {
               val resId = Id(wrapped.ref, id)
               complete(resources.replaceFileWithId(resId, rev, description, byteSource).value.runToFuture)
             }
@@ -67,7 +67,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
-          trace(s"createFiles") {
+          trace("createFiles") {
             complete(resources.createFile(wrapped.ref, wrapped.base, description, byteSource).value.runToFuture)
           }
       }
@@ -93,7 +93,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
           case (_, Some(tag)) =>
             resources.fetchFile(Id(wrapped.ref, id), tag).toEitherRun
         }
-        trace(s"getFiles") {
+        trace("getFiles") {
           onSuccess(result) {
             case Left(rej) =>
               reject(rej)
