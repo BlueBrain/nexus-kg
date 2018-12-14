@@ -10,7 +10,6 @@ import cats.effect.{Effect, Timer}
 import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.SourcingConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources
@@ -24,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
-import ch.epfl.bluebrain.nexus.sourcing.akka.AkkaAggregate
+import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
 import io.circe.Json
 
 /**
@@ -298,7 +297,7 @@ object Repo {
       next,
       (st, cmd) => F.pure(eval(st, cmd)),
       sourcing.passivationStrategy(),
-      sourcing.retry.retryStrategy,
+      sourcing.retryStrategy,
       sourcing.akkaSourcingConfig,
       sourcing.shards
     )

@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
 import ch.epfl.bluebrain.nexus.kg.acls.{AclsActor, AclsOps}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticConfig, SparqlConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
