@@ -113,7 +113,10 @@ class ResourcesSpec
     val types    = Set[AbsoluteIri](nxv.Schema)
   }
 
-  trait Attachment extends ResolverResource {
+  trait Binary extends Base {
+    val value      = Json.obj()
+    val schema     = Latest(binarySchemaUri)
+    val types      = Set[AbsoluteIri](nxv.Binary)
     val desc       = BinaryDescription("name", "text/plain")
     val source     = "some text"
     val relative   = Paths.get("./other")
@@ -360,33 +363,10 @@ class ResourcesSpec
       }
     }
 
-    "performing add attachment operations" should {
-      "add an attachment to a resource" in new Attachment {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.attach(resId, 1L, None, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, 2L, schema = schema, types = types).copy(binary = Set(attributes))
-      }
-
-      "prevent adding an attachment to a resource when the provided schema does not match the created schema" in new Attachment {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(randomIri())
-        resources.attach(resId, 1L, Some(schemaRef), desc, source).value.rejected[NotFound] shouldEqual NotFound(
-          schemaRef)
-      }
-    }
-
-    "performing remove attachments operations" should {
-      "remove an attachment from a resource" in new Attachment {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.attach(resId, 1L, None, desc, source).value.accepted shouldBe a[Resource]
-        resources.unattach(resId, 2L, None, "name").value.accepted shouldBe a[Resource]
-      }
-
-      "prevent removing an attachment from resource when the provided schema does not match the created schema" in new Attachment {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.attach(resId, 1L, None, desc, source).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(randomIri())
-        resources.unattach(resId, 2L, Some(schemaRef), "name").value.rejected[NotFound] shouldEqual NotFound(schemaRef)
+    "performing add binary operations" should {
+      "create binary resource" in new Binary {
+        resources.createBinaryWithId(resId, None, desc, source).value.accepted shouldEqual
+          ResourceF.simpleF(resId, value, schema = schema, types = types).copy(binary = Some(attributes))
       }
     }
 

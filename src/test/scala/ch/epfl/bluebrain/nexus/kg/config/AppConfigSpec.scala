@@ -4,8 +4,6 @@ import java.nio.file.Paths
 
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{Matchers, OptionValues, WordSpecLike}
 
@@ -34,11 +32,6 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
       appConfig.elastic shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
       appConfig.kafka.adminTopic shouldEqual "admin-events"
-      appConfig.kafka.migration.enabled shouldEqual false
-      appConfig.kafka.migration.topic shouldEqual "v0-events"
-      appConfig.kafka.migration.baseUri shouldEqual url"http://bbp-nexus.epfl.ch/staging/v0/".value
-      appConfig.kafka.migration.projectRef shouldEqual ProjectRef("bbp/v0")
-      appConfig.kafka.migration.pattern.toString shouldEqual "bbp/.*"
 
       implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       implicitly[ElasticConfig] shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")

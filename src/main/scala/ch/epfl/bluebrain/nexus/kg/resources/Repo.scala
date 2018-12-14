@@ -99,17 +99,23 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * Creates or replace a binary resource.
     *
     * @param id      the id of the resource
-    * @param rev     the last known revision of the resource
+    * @param rev     the optional last known revision of the resource
     * @param attach  the attachment description metadata
     * @param source  the source of the attachment
     * @param instant an optionally provided operation instant
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createBinary[In](id: ResId, rev: Long, attach: BinaryDescription, source: In, instant: Instant = clock.instant)(
+  def createBinary[In](id: ResId,
+                       rev: Option[Long],
+                       attach: BinaryDescription,
+                       source: In,
+                       instant: Instant = clock.instant)(
       implicit identity: Identity,
       store: BinaryStore[F, In, _]): EitherT[F, Rejection, Resource] =
-    store.save(id, attach, source).flatMap(attr => evaluate(id, CreateBinary(id, rev, attr, instant, identity)))
+    store
+      .save(id, attach, source)
+      .flatMap(attr => evaluate(id, CreateBinary(id, rev.getOrElse(0L), attr, instant, identity)))
 
   /**
     * Attempts to stream the resource's attachment identified by the argument id and the filename.
@@ -234,7 +240,7 @@ object Repo {
 
     def createBinary(c: CreateBinary): Either[Rejection, CreatedBinary] =
       state match {
-        case Initial                      => Left(NotFound(c.id.ref))
+        case Initial                      => Right(CreatedBinary(c.id, 1L, c.value, c.instant, c.identity))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
         case s: Current if s.schema == c.schema && s.types == c.types =>

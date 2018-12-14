@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -64,6 +64,12 @@ class RepoSpec
     val value                       = randomJson()
     val schema                      = Iri.absolute("http://example.com/schema").right.value
     implicit val identity: Identity = Anonymous
+  }
+
+  trait Binary extends Context {
+    override val value  = Json.obj()
+    override val schema = Schemas.binarySchemaUri
+    val types           = Set(nxv.Binary.value)
   }
 
   "A Repo" when {
@@ -180,84 +186,51 @@ class RepoSpec
       }
     }
 
-    "performing add attachment operations" should {
+    "performing binary operations" should {
+      val desc        = BinaryDescription("name", "text/plain")
+      val source      = "some text"
+      val desc2       = BinaryDescription("name2", "text/plain")
+      val source2     = "some text2"
+      val relative    = Paths.get("./other")
+      val attributes  = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
+      val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
-      "add several attachments to a resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        private val desc        = BinaryDescription("name", "text/plain")
-        private val source      = "some text"
-        private val desc2       = BinaryDescription("name2", "text/plain")
-        private val source2     = "some text2"
-        private val relative    = Paths.get("./other")
-        private val attributes  = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-        private val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
+      "create binary to new resource" in new Binary {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.attach(id, 1L, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, schema = Latest(schema)).copy(binary = Set(attributes))
-        when(store.save(id, desc2, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
-        repo.attach(id, 2L, desc2, source2).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 3L, schema = Latest(schema)).copy(binary = Set(attributes, attributes2))
+
+        repo.createBinary(id, None, desc, source).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(binary = Some(attributes))
       }
 
-      "prevent to add attachment to a resource that does not exist" in new Context {
-        repo.attach(id, 1L, BinaryDescription("name", "text/plain"), "text").value.rejected[NotFound] shouldEqual
-          NotFound(id.ref)
+      "update the binary resource" in new Binary {
+        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+        when(store.save(id, desc, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
+
+        repo.createBinary(id, None, desc, source).value.accepted shouldBe a[Resource]
+        repo.createBinary(id, Some(1L), desc, source2).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(binary = Some(attributes2))
       }
 
-      "prevent to add attachment to a resource with an incorrect revision" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.attach(id, 3L, BinaryDescription("name", "text/plain"), "text").value.rejected[IncorrectRev] shouldEqual
+      "prevent to add a binary to a resource with an incorrect revision" in new Binary {
+        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+
+        repo.createBinary(id, None, desc, source).value.accepted shouldBe a[Resource]
+        repo.createBinary(id, Some(3L), desc, source).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L)
       }
 
-      "prevent to add attachment to a resource that is deprecated" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+      "prevent to add a binary to a resource that is deprecated" in new Binary {
+        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+        repo.createBinary(id, None, desc, source).value.accepted shouldBe a[Resource]
+
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.attach(id, 3L, BinaryDescription("name", "text/plain"), "text").value.rejected[IsDeprecated] shouldEqual
-          IsDeprecated(id.ref)
+        repo.createBinary(id, Some(2L), desc, source).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
       }
 
-      "prevent to add attachment to a resource which fails on attempting to store" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        private val desc   = BinaryDescription("name", "text/plain")
-        private val source = "some text"
+      "prevent to add a binary to a resource which fails on attempting to store" in new Binary {
         when(store.save(id, desc, source))
           .thenReturn(EitherT.leftT[IO, BinaryAttributes](Unexpected("error"): Rejection))
-        repo.attach(id, 1L, desc, source).value.rejected[Unexpected] shouldEqual Unexpected("error")
-      }
-    }
-
-    "performing remove attachments operations" should {
-      "remove an attachment from a resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        private val desc       = BinaryDescription("name", "text/plain")
-        private val source     = "some text"
-        private val relative   = Paths.get("./other")
-        private val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.attach(id, 1L, desc, source).value.accepted shouldBe a[Resource]
-        repo.unattach(id, 2L, "name").value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 3L, schema = Latest(schema))
-      }
-
-      "prevent to remove attachment from a resource that does not exist" in new Context {
-        repo.unattach(id, 2L, "name").value.rejected[NotFound] shouldEqual NotFound(id.ref)
-      }
-
-      "prevent to remove attachment from a resource with an incorrect revision" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.unattach(id, 3L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L)
-      }
-
-      "prevent to remove attachment from a deprecated resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.unattach(id, 2L, "name").value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
-      }
-
-      "prevent to remove attachment from a resource without the provided attachment filename" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.unattach(id, 1L, "name").value.rejected[AttachmentNotFound] shouldEqual AttachmentNotFound(id.ref, "name")
+        repo.createBinary(id, None, desc, source).value.rejected[Unexpected] shouldEqual Unexpected("error")
       }
     }
 
@@ -275,7 +248,8 @@ class RepoSpec
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set(nxv.Resource), json).value.accepted shouldBe a[Resource]
-        repo.get(id, 1L).value.some shouldEqual ResourceF.simpleF(id, value, 1L, schema = Latest(schema))
+        repo.get(id, 1L).value.some shouldEqual
+          ResourceF.simpleF(id, value, 1L, schema = Latest(schema))
         repo.get(id, 2L).value.some shouldEqual
           ResourceF.simpleF(id, json, 2L, schema = Latest(schema), types = Set(nxv.Resource))
         repo.get(id, 2L).value.some shouldEqual repo.get(id).value.some
@@ -294,69 +268,44 @@ class RepoSpec
       }
     }
 
-    "performing get attachment operations" should {
-      val relative           = Paths.get("./other")
-      val desc               = BinaryDescription("name", "text/plain")
-      val source             = "some text"
-      val attributes         = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-      val desc2              = BinaryDescription("name2", "text/plain")
-      val source2            = "some text2"
-      val attributes2        = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
-      val source2Updated     = "some text2 other"
-      val attributes2Updated = desc2.process(StoredSummary(relative, 40L, Digest("MD5", "910232")))
+    "performing get binary operations" should {
+      val relative    = Paths.get("./other")
+      val desc        = BinaryDescription("name", "text/plain")
+      val source      = "some text"
+      val attributes  = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
+      val desc2       = BinaryDescription("name2", "text/plain")
+      val source2     = "some text2"
+      val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
-      "get a resource attachment" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+      "get a binary resource" in new Binary {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.attach(id, 1L, desc, source).value.accepted shouldBe a[Resource]
+        repo.createBinary(id, None, desc, source).value.accepted shouldBe a[Resource]
+
         when(store.save(id, desc2, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
-        repo.attach(id, 2L, desc2, source2).value.accepted shouldBe a[Resource]
-        when(store.save(id, desc2, source2Updated)).thenReturn(EitherT.rightT[IO, Rejection](attributes2Updated))
-        repo.attach(id, 3L, desc2, source2Updated).value.accepted shouldBe a[Resource]
+        repo.createBinary(id, Some(1L), desc2, source2).value.accepted shouldBe a[Resource]
+
+        when(store.fetch(attributes2)).thenReturn(Right(source2))
         when(store.fetch(attributes)).thenReturn(Right(source))
 
-        repo.getBinary(id, "name").value.some shouldEqual (attributes -> source)
+        repo.getBinary(id).value.some shouldEqual (attributes2 -> source2)
+
+        //by rev
+        repo.getBinary(id, 2L).value.some shouldEqual (attributes2 -> source2)
+
+        repo.getBinary(id, 1L).value.some shouldEqual (attributes -> source)
+
+        //by tag
+        repo.tag(id, 2L, 1L, "one").value.accepted shouldBe a[Resource]
+        repo.tag(id, 3L, 2L, "two").value.accepted shouldBe a[Resource]
+        repo.getBinary(id, "one").value.some shouldEqual (attributes  -> source)
+        repo.getBinary(id, "two").value.some shouldEqual (attributes2 -> source2)
+
       }
 
-      "return None when the resource attachment does not exist" in new Context {
+      "return None when the resource binary does not exist" in new Binary {
         repo.getBinary(id, "name4").value.ioValue shouldEqual None
-      }
-
-      "return a specific revision of the resource attachment" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.attach(id, 1L, desc, source).value.accepted shouldBe a[Resource]
-        when(store.save(id, desc2, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
-        repo.attach(id, 2L, desc2, source2).value.accepted shouldBe a[Resource]
-        when(store.save(id, desc2, source2Updated)).thenReturn(EitherT.rightT[IO, Rejection](attributes2Updated))
-        repo.attach(id, 3L, desc2, source2Updated).value.accepted shouldBe a[Resource]
-
-        repo.getBinary(id, 2L, "name2").value.ioValue shouldEqual None
-        when(store.fetch(attributes2)).thenReturn(Right(source2))
-        repo.getBinary(id, 3L, "name2").value.some shouldEqual (attributes2 -> source2)
-        when(store.fetch(attributes2Updated)).thenReturn(Right(source2Updated))
-        repo.getBinary(id, 4L, "name2").value.some shouldEqual (attributes2Updated -> source2Updated)
-        repo.getBinary(id, 4L, "name2").value.some shouldEqual repo.getBinary(id, "name2").value.some
-      }
-
-      "return a specific tag of the resource attachment" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.attach(id, 1L, desc, source).value.accepted shouldBe a[Resource]
-        when(store.save(id, desc2, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
-        repo.attach(id, 2L, desc2, source2).value.accepted shouldBe a[Resource]
-        when(store.save(id, desc2, source2Updated)).thenReturn(EitherT.rightT[IO, Rejection](attributes2Updated))
-        repo.attach(id, 3L, desc2, source2Updated).value.accepted shouldBe a[Resource]
-        repo.tag(id, 4L, 2L, "one").value.accepted shouldBe a[Resource]
-        repo.tag(id, 5L, 3L, "two").value.accepted shouldBe a[Resource]
-        repo.tag(id, 6L, 4L, "three").value.accepted shouldBe a[Resource]
-
-        repo.getBinary(id, "one", "name2").value.ioValue shouldEqual None
-        when(store.fetch(attributes2)).thenReturn(Right(source2))
-        repo.getBinary(id, "two", "name2").value.some shouldEqual (attributes2 -> source2)
-        when(store.fetch(attributes2Updated)).thenReturn(Right(source2Updated))
-        repo.getBinary(id, "three", "name2").value.some shouldEqual (attributes2Updated -> source2Updated)
-        repo.getBinary(id, "three", "name2").value.some shouldEqual repo.getBinary(id, "name2").value.some
+        repo.getBinary(id, 2L).value.ioValue shouldEqual None
+        repo.getBinary(id).value.ioValue shouldEqual None
       }
     }
   }

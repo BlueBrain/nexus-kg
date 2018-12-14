@@ -140,11 +140,10 @@ object ResourceRoutes {
 
     import indexers._
 
-    def routes: Route = {
+    def routes: Route =
       create ~ list ~ pathPrefix(IdSegment) { id =>
         update(id) ~ createWithId(id) ~ tag(id) ~ deprecate(id) ~ getResource(id)
       }
-    }
 
     def list: Route =
       (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
@@ -185,11 +184,10 @@ object ResourceRoutes {
                                   caller: Caller)(implicit wrapped: LabeledProject, config: AppConfig)
       extends ResourceRoutes(resources, None, prefix, acls, caller) {
 
-    def routes: Route = {
+    def routes: Route =
       pathPrefix(IdSegment) { id =>
         update(id) ~ tag(id) ~ deprecate(id) ~ getResource(id)
       }
-    }
   }
 
 }

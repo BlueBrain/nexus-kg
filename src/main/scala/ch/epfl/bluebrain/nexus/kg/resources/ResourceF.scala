@@ -7,7 +7,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{dcat, nxv}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.resources.binary.Binary.BinaryAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -79,18 +79,15 @@ final case class ResourceF[P, S, A](
   def metadata(implicit config: AppConfig, wrapped: LabeledProject, ev: S =:= Ref): Set[Triple] = {
 
     def triplesFor(at: BinaryAttributes): Set[Triple] = {
-      val blank       = Node.blank
       val blankDigest = Node.blank
       Set(
         (blankDigest, nxv.algorithm, at.digest.algorithm),
         (blankDigest, nxv.value, at.digest.value),
-        (blank, rdf.tpe, dcat.Distribution),
-        (blank, dcat.byteSize, at.byteSize),
-        (blank, nxv.digest, blankDigest),
-        (blank, dcat.mediaType, at.mediaType),
-        (blank, nxv.originalFileName, at.filename),
-        (blank, dcat.downloadURL, AccessId(id.value, schema.iri) + "attachments" + at.filename),
-        (IriNode(id.value), dcat.distribution, blank)
+        (node, rdf.tpe, nxv.Binary),
+        (node, nxv.bytes, at.byteSize),
+        (node, nxv.digest, blankDigest),
+        (node, nxv.mediaType, at.mediaType),
+        (node, nxv.originalFileName, at.filename)
       )
     }
     val schemaIri     = ev(schema).iri

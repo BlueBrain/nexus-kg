@@ -1,14 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
+import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.Uri.Query
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import akka.http.scaladsl.model.{HttpEntity, StatusCodes, Uri}
+import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.stream.scaladsl.{FileIO, Sink, Source}
 import akka.stream.ActorMaterializer
+import akka.util.ByteString
 import cats.data.{EitherT, OptionT}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
@@ -16,6 +19,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.{ElasticClientError, ElasticUnexpectedError}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
@@ -62,6 +66,7 @@ import monix.eval.Task
 import org.mockito.ArgumentMatchers.{any, eq => mEq}
 import org.mockito.Mockito.when
 import org.scalatest._
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 
 class ResourceRoutesSpec
@@ -73,6 +78,7 @@ class ResourceRoutesSpec
     with BeforeAndAfter
     with ScalatestRouteTest
     with test.Resources
+    with ScalaFutures
     with Randomness
     with TestHelper {
 
@@ -106,6 +112,7 @@ class ResourceRoutesSpec
   private val manageResolver                    = Permissions(Permission("resolvers/manage"))
   private val manageViews                       = Permissions(Permission("views/manage"))
   private val manageSchemas                     = Permissions(Permission("schemas/manage"))
+  private val manageBinaries                    = Permissions(Permission("binaries/manage"))
   private val routes                            = CombinedRoutes(resources)
 
   abstract class Context(perms: Permissions = manageRes) {
@@ -218,6 +225,13 @@ class ResourceRoutesSpec
     def ctxResponse: Json =
       response() deepMerge Json.obj(
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$account/$project/resource/nxv:$genUuid"))
+  }
+
+  abstract class Binary(perms: Permissions = manageBinaries) extends Context(perms) {
+    val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
+    val schemaRef = Ref(binarySchemaUri)
+
+    val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
   }
 
   abstract class Schema(perms: Permissions = manageSchemas) extends Context(perms) {
@@ -551,15 +565,28 @@ class ResourceRoutesSpec
       }
     }
 
-    "get a resource with attachments" in new Ctx {
-      val resource = ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)
+    "get a binary resource" in new Binary {
+      val path    = Paths.get(getClass.getResource("/resources/file.txt").toURI)
+      val at1     = BinaryAttributes("uuid1", path, "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
+      val content = new String(Files.readAllBytes(path))
+      val source =
+        Source.single(ByteString(content)).mapMaterializedValue(_ => FileIO.fromPath(path).to(Sink.ignore).run())
+
+      when(resources.fetchBinary(id, 1L)).thenReturn(OptionT.some[Task](at1 -> source))
+
+      Get(s"/v1/binaries/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        contentType.value shouldEqual "text/plain"
+        responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+      }
+    }
+
+    "get the binary metadata" in new Binary {
+      val resource = ResourceF.simpleF(id, Json.obj(), created = identity, updated = identity, schema = schemaRef)
       val at1 =
         BinaryAttributes("uuid1", Paths.get("some1"), "filename1.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
-      val at2 =
-        BinaryAttributes("uuid2", Paths.get("some2"), "filename2.txt", "text/plain", 2048, Digest("SHA-256", "digest2"))
       val resourceV =
-        simpleV(id, ctx, created = identity, updated = identity, schema = schemaRef).copy(binary = Set(at1, at2))
-
+        simpleV(id, Json.obj(), created = identity, updated = identity, schema = schemaRef).copy(binary = Some(at1))
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
       val lb = labeledProject.copy(project = labeledProject.project.copy(
@@ -567,18 +594,30 @@ class ResourceRoutesSpec
       when(resources.materializeWithMeta(resource)(lb)).thenReturn(EitherT.rightT[Task, Rejection](
         resourceV.copy(value = resourceV.value.copy(graph = Graph(resourceV.metadata)))))
 
-      val replacements = Map(quote("{account}") -> account, quote("{proj}") -> project, quote("{uuid}") -> genUuid)
+      val json = jsonContentOf("/resources/file-metadata.json",
+                               Map(quote("{account}") -> accountMeta.label,
+                                   quote("{proj}")    -> projectMeta.label,
+                                   quote("{id}")      -> s"nxv:$genUuid"))
 
-      Get(s"/v1/resources/$account/$project/resource/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+      Get(s"/v1/binaries/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(
+        metadataRanges: _*) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(
-          jsonContentOf("/resources/resource-with-at.json", replacements))
+        responseAs[Json] shouldEqual json
       }
+    }
 
-      Get(s"/v1/data/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(
-          jsonContentOf("/resources/resource-with-at.json", replacements))
+    "reject getting a binary with both tag and rev query params" in new Binary {
+      Get(s"/v1/binaries/$account/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]
+      }
+    }
+
+    "reject getting a binary metadata with both tag and rev query params" in new Binary {
+      Get(s"/v1/binaries/$account/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> Accept(
+        metadataRanges: _*) ~> routes ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]
       }
     }
 
@@ -759,25 +798,8 @@ class ResourceRoutesSpec
         }
       }
 
-      "remove attachment from a schema" in new Schema {
-        when(resources.unattach(id, 1L, Some(schemaRef), "name")).thenReturn(EitherT.rightT[Task, Rejection](
-          ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
-
-        Delete(s"/v1/schemas/$account/$project/nxv:$genUuid/attachments/name?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual schemaResponse()
-        }
-      }
-
       "reject getting a schema with both tag and rev query params" in new Schema {
         Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.BadRequest
-          responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]
-        }
-      }
-
-      "reject getting a schema attachment with both tag and rev query params" in new Schema {
-        Get(s"/v1/schemas/$account/$project/nxv:$genUuid/attachments/some?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.BadRequest
           responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]
         }

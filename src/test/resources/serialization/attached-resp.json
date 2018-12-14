@@ -19,5 +19,5 @@
     "sub": "sub:1234",
     "type": "UserRef"
   },
-  "type": "AttachmentAdded"
+  "type": "CreatedBinary"
 }

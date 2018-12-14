@@ -95,19 +95,19 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def createBinary[In](projectRef: ProjectRef, base: AbsoluteIri, attach: BinaryDescription, source: In)(
       implicit identity: Identity,
       store: BinaryStore[F, In, _]): RejOrResource =
-    createBinaryWithId(Id(projectRef, base + uuid()), 1L, attach, source)
+    createBinaryWithId(Id(projectRef, base + uuid()), None, attach, source)
 
   /**
     * Creates/replaces a binary resource.
     *
     * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
+    * @param rev       the optional last known revision of the resource
     * @param attach    the attachment description metadata
     * @param source    the source of the attachment
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createBinaryWithId[In](id: ResId, rev: Long, attach: BinaryDescription, source: In)(
+  def createBinaryWithId[In](id: ResId, rev: Option[Long], attach: BinaryDescription, source: In)(
       implicit identity: Identity,
       store: BinaryStore[F, In, _]): RejOrResource =
     repo.createBinary(id, rev, attach, source)
@@ -116,14 +116,14 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * Creates/replaces a binary resource.
     *
     * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
+    * @param rev       the optional last known revision of the resource
     * @param schemaOpt optional schema reference that constrains the resource
     * @param attach    the attachment description metadata
     * @param source    the source of the attachment
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createBinary[In](id: ResId, rev: Long, schemaOpt: Option[Ref], attach: BinaryDescription, source: In)(
+  def createBinary[In](id: ResId, rev: Option[Long], schemaOpt: Option[Ref], attach: BinaryDescription, source: In)(
       implicit identity: Identity,
       store: BinaryStore[F, In, _]): RejOrResource =
     checkSchema(id, schemaOpt)(repo.createBinary(id, rev, attach, source))

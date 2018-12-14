@@ -41,7 +41,7 @@ class BinaryRoutes private[routes] (resources: Resources[Task], acls: FullAccess
     config: AppConfig)
     extends Schemed(resources, binarySchemaUri, "binaries", acls, caller) {
 
-  private val metadataRanges: Seq[ContentTypeRange] = List(`application/json`, `application/ld+json`)
+  private val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
 
   private val simultaneousParamsRejection: AkkaRejection =
     validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
@@ -49,7 +49,7 @@ class BinaryRoutes private[routes] (resources: Resources[Task], acls: FullAccess
   private type RejectionOrBinary = Either[AkkaRejection, Option[(BinaryAttributes, AkkaOut)]]
 
   override def createWithId(id: AbsoluteIri): Route =
-    (put & parameter('rev.as[Long]) & pathPrefix(IdSegment) & pathEndOrSingleSlash) { (rev, id) =>
+    (put & parameter('rev.as[Long].?) & pathPrefix(IdSegment) & pathEndOrSingleSlash) { (rev, id) =>
       (projectNotDeprecated & hasPermission(resourceWrite) & identity) { implicit ident =>
         fileUpload("file") {
           case (metadata, byteSource) =>
