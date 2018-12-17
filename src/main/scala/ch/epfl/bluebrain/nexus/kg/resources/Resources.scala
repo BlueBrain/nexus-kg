@@ -105,22 +105,36 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def createFile[In](projectRef: ProjectRef, base: AbsoluteIri, fileDesc: FileDescription, source: In)(
       implicit identity: Identity,
       store: FileStore[F, In, _]): RejOrResource =
-    replaceFileWithId(Id(projectRef, base + uuid()), None, fileDesc, source)
+    createFileWithId(Id(projectRef, base + uuid()), fileDesc, source)
 
   /**
-    * Creates/replaces a file resource.
+    * Creates a file resource.
     *
     * @param id       the id of the resource
-    * @param rev      the optional last known revision of the resource
+    * @param fileDesc   the file description metadata
+    * @param source     the source of the file
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def createFileWithId[In](id: ResId, fileDesc: FileDescription, source: In)(
+      implicit identity: Identity,
+      store: FileStore[F, In, _]): RejOrResource =
+    repo.createFile(id, fileDesc, source)
+
+  /**
+    * Replaces a file resource.
+    *
+    * @param id       the id of the resource
+    * @param rev      the last known revision of the resource
     * @param fileDesc the file description metadata
     * @param source   the source of the file
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def replaceFileWithId[In](id: ResId, rev: Option[Long], fileDesc: FileDescription, source: In)(
+  def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In)(
       implicit identity: Identity,
       store: FileStore[F, In, _]): RejOrResource =
-    repo.replaceFile(id, rev, fileDesc, source)
+    repo.updateFile(id, rev, fileDesc, source)
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
       implicit identity: Identity,

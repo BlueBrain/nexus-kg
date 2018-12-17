@@ -49,21 +49,21 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
   private type RejectionOrFile = Either[AkkaRejection, Option[(FileAttributes, AkkaOut)]]
 
   override def createWithId(id: AbsoluteIri): Route =
-    (put & parameter('rev.as[Long].?) & pathPrefix(IdSegment) & pathEndOrSingleSlash) { (rev, id) =>
-      (projectNotDeprecated & hasPermission(resourceWrite) & identity) { implicit ident =>
+    (put & pathPrefix(IdSegment) & pathEndOrSingleSlash) { id =>
+      (projectNotDeprecated & hasPermission(resourceCreate) & identity) { implicit ident =>
         fileUpload("file") {
           case (metadata, byteSource) =>
             val description = FileDescription(metadata.fileName, metadata.contentType.value)
             trace("createFiles") {
               val resId = Id(wrapped.ref, id)
-              complete(resources.replaceFileWithId(resId, rev, description, byteSource).value.runToFuture)
+              complete(resources.createFileWithId(resId, description, byteSource).value.runToFuture)
             }
         }
       }
     }
 
   override def create: Route =
-    (post & pathEndOrSingleSlash & projectNotDeprecated & hasPermission(resourceWrite) & identity) { implicit ident =>
+    (post & pathEndOrSingleSlash & projectNotDeprecated & hasPermission(resourceCreate) & identity) { implicit ident =>
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -73,7 +73,19 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
       }
     }
 
-  override def update(id: AbsoluteIri): Route = reject()
+  override def update(id: AbsoluteIri): Route =
+    (put & parameter('rev.as[Long]) & pathPrefix(IdSegment) & pathEndOrSingleSlash) { (rev, id) =>
+      (projectNotDeprecated & hasPermission(resourceWrite) & identity) { implicit ident =>
+        fileUpload("file") {
+          case (metadata, byteSource) =>
+            val description = FileDescription(metadata.fileName, metadata.contentType.value)
+            trace("updateFiles") {
+              val resId = Id(wrapped.ref, id)
+              complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
+            }
+        }
+      }
+    }
 
   override def getResource(id: AbsoluteIri): Route =
     optionalHeaderValueByType[Accept](()) {

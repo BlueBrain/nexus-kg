@@ -41,7 +41,6 @@ object Command {
     * An intent for resource creation.
     *
     * @param id       the resource identifier
-    * @param rev      the last known revision of the resource when this command was created
     * @param schema   the schema that is used to constrain the resource
     * @param types    the collection of known resource types (asserted or inferred)
     * @param source   the source representation of the resource
@@ -50,13 +49,18 @@ object Command {
     */
   final case class Create(
       id: Id[ProjectRef],
-      rev: Long,
       schema: Ref,
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,
       identity: Identity
-  ) extends Command
+  ) extends Command {
+
+    /**
+      * the initial command revision
+      */
+    val rev: Long = 0L
+  }
 
   /**
     * An intent for resource update.
@@ -115,22 +119,44 @@ object Command {
     * An intent to create a file resource.
     *
     * @param id       the resource identifier
-    * @param rev      the last known revision of the resource when this command was created
     * @param value    the file metadata
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class CreateFile(id: Id[ProjectRef],
-                              rev: Long,
-                              value: FileAttributes,
-                              instant: Instant,
-                              identity: Identity)
+  final case class CreateFile(id: Id[ProjectRef], value: FileAttributes, instant: Instant, identity: Identity)
       extends Command {
+
+    /**
+      * the initial command revision
+      */
+    val rev: Long = 0L
 
     /**
       * the schema that is used to constrain the resource
       */
     val schema: Ref = Ref(fileSchemaUri)
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
+  }
+
+  /**
+    * An intent to update a file resource.
+    *
+    * @param id       the resource identifier
+    * @param rev      the last known revision of the resource when this command was created
+    * @param value    the file metadata
+    * @param instant  the instant when this event was recorded
+    * @param identity the identity which generated this event
+    */
+  final case class UpdateFile(id: Id[ProjectRef],
+                              rev: Long,
+                              value: FileAttributes,
+                              instant: Instant,
+                              identity: Identity)
+      extends Command {
 
     /**
       * the collection of known resource types

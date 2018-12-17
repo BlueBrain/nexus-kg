@@ -1,7 +1,6 @@
 {
   "project": "org/projectName",
   "id": "https://bbp.epfl.ch/nexus/data/resourceName",
-  "rev": 1,
   "value": {
     "uuid": "uuid",
     "filePath": "/test/path",

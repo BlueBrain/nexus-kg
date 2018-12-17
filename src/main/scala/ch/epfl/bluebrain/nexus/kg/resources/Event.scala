@@ -41,7 +41,6 @@ object Event {
     * A witness to a resource creation.
     *
     * @param id       the resource identifier
-    * @param rev      the revision that this event generated
     * @param schema   the schema that was used to constrain the resource
     * @param types    the collection of known resource types
     * @param source   the source representation of the resource
@@ -50,13 +49,18 @@ object Event {
     */
   final case class Created(
       id: Id[ProjectRef],
-      rev: Long,
       schema: Ref,
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,
       identity: Identity
-  ) extends Event
+  ) extends Event {
+
+    /**
+      * the revision that this event generated
+      */
+    val rev: Long = 1L
+  }
 
   /**
     * A witness to a resource update.
@@ -114,7 +118,38 @@ object Event {
   ) extends Event
 
   /**
-    * A witness that a file resource has been added.
+    * A witness that a file resource has been created.
+    *
+    * @param id       the resource identifier
+    * @param value    the metadata of the file
+    * @param instant  the instant when this event was recorded
+    * @param identity the identity which generated this event
+    */
+  final case class CreatedFile(
+      id: Id[ProjectRef],
+      value: FileAttributes,
+      instant: Instant,
+      identity: Identity
+  ) extends Event {
+
+    /**
+      * the revision that this event generated
+      */
+    val rev: Long = 1L
+
+    /**
+      * the schema that has been used to constrain the resource
+      */
+    val schema: Ref = Ref(fileSchemaUri)
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
+  }
+
+  /**
+    * A witness that a file resource has been updated.
     *
     * @param id       the resource identifier
     * @param rev      the revision that this event generated
@@ -122,18 +157,13 @@ object Event {
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class CreatedFile(
+  final case class UpdatedFile(
       id: Id[ProjectRef],
       rev: Long,
       value: FileAttributes,
       instant: Instant,
       identity: Identity
   ) extends Event {
-
-    /**
-      * the schema that has been used to constrain the resource
-      */
-    val schema: Ref = Ref(fileSchemaUri)
 
     /**
       * the collection of known resource types

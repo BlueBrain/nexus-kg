@@ -27,7 +27,7 @@ class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors with
 
     val mapping = Map(
       Set(s"type=${nxv.Schema.value.show}", s"type=${nxv.Resource.value.show}", "project=uuid") ->
-        Created(id, 1L, Ref(shaclSchemaUri), Set(nxv.Schema, nxv.Resource), genJson(), clock.instant(), Anonymous),
+        Created(id, Ref(shaclSchemaUri), Set(nxv.Schema, nxv.Resource), genJson(), clock.instant(), Anonymous),
       Set(s"type=${nxv.Resolver.value.show}", s"type=${nxv.Resource.value.show}", "project=uuid") ->
         Updated(id, 1L, Set(nxv.Resource, nxv.Resolver), genJson(), clock.instant(), Anonymous),
       Set(s"type=${nxv.Resource.value.show}", "project=uuid") ->

@@ -366,7 +366,7 @@ class ResourcesSpec
 
     "performing write file operations" should {
       "create a file resource" in new File {
-        resources.replaceFileWithId(resId, None, desc, source).value.accepted shouldEqual
+        resources.createFileWithId(resId, desc, source).value.accepted shouldEqual
           ResourceF.simpleF(resId, value, schema = schema, types = types).copy(file = Some(attributes))
       }
     }

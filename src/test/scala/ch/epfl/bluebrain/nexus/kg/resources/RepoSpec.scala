@@ -199,7 +199,7 @@ class RepoSpec
       "create file resource" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
 
-        repo.replaceFile(id, None, desc, source).value.accepted shouldEqual
+        repo.createFile(id, desc, source).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(attributes))
       }
 
@@ -207,31 +207,31 @@ class RepoSpec
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
         when(store.save(id, desc, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
 
-        repo.replaceFile(id, None, desc, source).value.accepted shouldBe a[Resource]
-        repo.replaceFile(id, Some(1L), desc, source2).value.accepted shouldEqual
+        repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
+        repo.updateFile(id, 1L, desc, source2).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(attributes2))
       }
 
       "prevent to update a file resource with an incorrect revision" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
 
-        repo.replaceFile(id, None, desc, source).value.accepted shouldBe a[Resource]
-        repo.replaceFile(id, Some(3L), desc, source).value.rejected[IncorrectRev] shouldEqual
+        repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
+        repo.updateFile(id, 3L, desc, source).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L)
       }
 
       "prevent update a file resource to a deprecated resource" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.replaceFile(id, None, desc, source).value.accepted shouldBe a[Resource]
+        repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.replaceFile(id, Some(2L), desc, source).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
+        repo.updateFile(id, 2L, desc, source).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
       }
 
       "prevent to create a file resource which fails on attempting to store" in new File {
         when(store.save(id, desc, source))
           .thenReturn(EitherT.leftT[IO, FileAttributes](Unexpected("error"): Rejection))
-        repo.replaceFile(id, None, desc, source).value.rejected[Unexpected] shouldEqual Unexpected("error")
+        repo.createFile(id, desc, source).value.rejected[Unexpected] shouldEqual Unexpected("error")
       }
     }
 
@@ -280,10 +280,10 @@ class RepoSpec
 
       "get a file resource" in new File {
         when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        repo.replaceFile(id, None, desc, source).value.accepted shouldBe a[Resource]
+        repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
 
         when(store.save(id, desc2, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
-        repo.replaceFile(id, Some(1L), desc2, source2).value.accepted shouldBe a[Resource]
+        repo.updateFile(id, 1L, desc2, source2).value.accepted shouldBe a[Resource]
 
         when(store.fetch(attributes2)).thenReturn(Right(source2))
         when(store.fetch(attributes)).thenReturn(Right(source))

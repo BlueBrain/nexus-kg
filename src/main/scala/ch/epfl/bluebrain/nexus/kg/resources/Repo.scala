@@ -49,7 +49,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def create(id: ResId, schema: Ref, types: Set[AbsoluteIri], source: Json, instant: Instant = clock.instant)(
       implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, Create(id, 0L, schema, types, source, instant, identity))
+    evaluate(id, Create(id, schema, types, source, instant, identity))
 
   /**
     * Updates a resource.
@@ -95,7 +95,22 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     evaluate(id, AddTag(id, rev, targetRev, tag, instant, identity))
 
   /**
-    * Creates or replace a file resource.
+    * Creates a file resource.
+    *
+    * @param id       the id of the resource
+    * @param fileDesc the file description metadata
+    * @param source   the source of the file
+    * @param instant  an optionally provided operation instant
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def createFile[In](id: ResId, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
+      implicit identity: Identity,
+      store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
+    store.save(id, fileDesc, source).flatMap(attr => evaluate(id, CreateFile(id, attr, instant, identity)))
+
+  /**
+    * Replaces a file resource.
     *
     * @param id       the id of the resource
     * @param rev      the optional last known revision of the resource
@@ -105,15 +120,10 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def replaceFile[In](id: ResId,
-                      rev: Option[Long],
-                      fileDesc: FileDescription,
-                      source: In,
-                      instant: Instant = clock.instant)(implicit identity: Identity,
-                                                        store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
-    store
-      .save(id, fileDesc, source)
-      .flatMap(attr => evaluate(id, CreateFile(id, rev.getOrElse(0L), attr, instant, identity)))
+  def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
+      implicit identity: Identity,
+      store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
+    store.save(id, fileDesc, source).flatMap(attr => evaluate(id, UpdateFile(id, rev, attr, instant, identity)))
 
   /**
     * Attempts to stream the file resource identified by the argument id.
@@ -209,10 +219,10 @@ object Repo {
 
   final def next(state: State, ev: Event): State =
     (state, ev) match {
-      case (Initial, Created(id, 1L, schema, types, value, tm, ident)) =>
-        Current(id, 1L, types, false, Map.empty, None, tm, tm, ident, ident, schema, value)
-      case (Initial, e @ CreatedFile(id, 1L, file, tm, ident)) =>
-        Current(id, 1L, e.types, false, Map.empty, Some(file), tm, tm, ident, ident, e.schema, Json.obj())
+      case (Initial, e @ Created(id, schema, types, value, tm, ident)) =>
+        Current(id, e.rev, types, false, Map.empty, None, tm, tm, ident, ident, schema, value)
+      case (Initial, e @ CreatedFile(id, file, tm, ident)) =>
+        Current(id, e.rev, e.types, false, Map.empty, Some(file), tm, tm, ident, ident, e.schema, Json.obj())
       case (Initial, _) => Initial
       case (c: Current, TagAdded(_, rev, targetRev, name, tm, ident)) =>
         c.copy(rev = rev, tags = c.tags + (name -> targetRev), updated = tm, updatedBy = ident)
@@ -221,7 +231,7 @@ object Repo {
         c.copy(rev = rev, updated = tm, updatedBy = ident, deprecated = true)
       case (c: Current, Updated(_, rev, types, value, tm, ident)) =>
         c.copy(rev = rev, types = types, source = value, updated = tm, updatedBy = ident)
-      case (c: Current, CreatedFile(_, rev, file, tm, ident)) =>
+      case (c: Current, UpdatedFile(_, rev, file, tm, ident)) =>
         c.copy(rev = rev, file = Some(file), updated = tm, updatedBy = ident)
     }
 
@@ -230,18 +240,23 @@ object Repo {
     def create(c: Create): Either[Rejection, Created] =
       state match {
         case _ if c.schema == Ref(fileSchemaUri) => Left(NotFileResource(c.id.ref))
-        case Initial                             => Right(Created(c.id, 1L, c.schema, c.types, c.source, c.instant, c.identity))
+        case Initial                             => Right(Created(c.id, c.schema, c.types, c.source, c.instant, c.identity))
         case _                                   => Left(AlreadyExists(c.id.ref))
       }
 
-    def replaceFile(c: CreateFile): Either[Rejection, CreatedFile] =
+    def createFile(c: CreateFile): Either[Rejection, CreatedFile] =
       state match {
-        case Initial                      => Right(CreatedFile(c.id, 1L, c.value, c.instant, c.identity))
-        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
-        case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
-        case s: Current if s.schema == c.schema && s.types == c.types =>
-          Right(CreatedFile(s.id, s.rev + 1, c.value, c.instant, c.identity))
-        case _ => Left(NotFileResource(c.id.ref))
+        case Initial => Right(CreatedFile(c.id, c.value, c.instant, c.identity))
+        case _       => Left(AlreadyExists(c.id.ref))
+      }
+
+    def updateFile(c: UpdateFile): Either[Rejection, UpdatedFile] =
+      state match {
+        case Initial                         => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev    => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.deprecated      => Left(IsDeprecated(c.id.ref))
+        case s: Current if !s.file.isDefined => Left(NotFileResource(c.id.ref))
+        case s: Current                      => Right(UpdatedFile(s.id, s.rev + 1, c.value, c.instant, c.identity))
       }
 
     def update(c: Update): Either[Rejection, Updated] =
@@ -280,7 +295,8 @@ object Repo {
 
     cmd match {
       case cmd: Create     => create(cmd)
-      case cmd: CreateFile => replaceFile(cmd)
+      case cmd: CreateFile => createFile(cmd)
+      case cmd: UpdateFile => updateFile(cmd)
       case cmd: Update     => update(cmd)
       case cmd: Deprecate  => deprecate(cmd)
       case cmd: AddTag     => tag(cmd)

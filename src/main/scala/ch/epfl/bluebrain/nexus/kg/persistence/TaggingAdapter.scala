@@ -17,10 +17,10 @@ class TaggingAdapter extends WriteEventAdapter {
     types.map(t => s"type=${t.show}") + s"project=${id.parent.id}"
 
   override def toJournal(event: Any): Any = event match {
-    case Created(id, _, _, types, _, _, _) => Tagged(event, tagsFrom(id, types))
-    case Updated(id, _, types, _, _, _)    => Tagged(event, tagsFrom(id, types))
-    case Deprecated(id, _, types, _, _)    => Tagged(event, tagsFrom(id, types))
-    case ev: Event                         => Tagged(ev, tagsFrom(ev.id, types = Set.empty))
-    case _                                 => event
+    case Created(id, _, types, _, _, _) => Tagged(event, tagsFrom(id, types))
+    case Updated(id, _, types, _, _, _) => Tagged(event, tagsFrom(id, types))
+    case Deprecated(id, _, types, _, _) => Tagged(event, tagsFrom(id, types))
+    case ev: Event                      => Tagged(ev, tagsFrom(ev.id, types = Set.empty))
+    case _                              => event
   }
 }
