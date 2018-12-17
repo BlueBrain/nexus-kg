@@ -12,6 +12,7 @@ object Schemas {
   val shaclSchemaUri: AbsoluteIri    = base + "shacl-20170720.ttl"
   val resolverSchemaUri: AbsoluteIri = base + "resolver.json"
   val resourceSchemaUri: AbsoluteIri = base + "resource.json"
+  val fileSchemaUri: AbsoluteIri     = base + "file.json"
   val viewSchemaUri: AbsoluteIri     = base + "view.json"
   val ontologySchemaUri: AbsoluteIri = base + "ontology.json"
 

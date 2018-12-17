@@ -10,8 +10,8 @@ import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.UserRef
-import ch.epfl.bluebrain.nexus.kg.resources.Event.{AttachmentAdded, Created, Deprecated, TagAdded}
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, Digest}
+import ch.epfl.bluebrain.nexus.kg.resources.Event._
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -50,26 +50,15 @@ class EventSerializerSpec
     val rep = Map(quote("{timestamp}") -> instant.toString)
 
     "using EventSerializer" should {
-      val value = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
+      val value    = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
+      val digest   = Digest("md5", "1234")
+      val fileAttr = FileAttributes("uuid", Paths.get("/test/path"), "test-file.json", "application/json", 128L, digest)
       val results = List(
-        Created(key, 1L, schema, types, value, instant, identity) -> jsonContentOf("/serialization/created-resp.json",
-                                                                                   rep).noSpaces,
-        Deprecated(key, 1L, types, instant, identity)       -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
-        TagAdded(key, 1L, 2L, "tagName", instant, identity) -> jsonContentOf("/serialization/tagged-resp.json", rep).noSpaces,
-        AttachmentAdded(
-          key,
-          1L,
-          BinaryAttributes(
-            "uuid",
-            Paths.get("/test/path"),
-            "test-file.json",
-            "application/json",
-            128L,
-            Digest("md5", "1234")
-          ),
-          instant,
-          identity
-        ) -> jsonContentOf("/serialization/attached-resp.json", rep).noSpaces
+        Created(key, schema, types, value, instant, identity) -> jsonContentOf("/serialization/created-resp.json", rep).noSpaces,
+        Deprecated(key, 1L, types, instant, identity)         -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
+        TagAdded(key, 1L, 2L, "tagName", instant, identity)   -> jsonContentOf("/serialization/tagged-resp.json", rep).noSpaces,
+        CreatedFile(key, fileAttr, instant, identity)         -> jsonContentOf("/serialization/created-file-resp.json", rep).noSpaces,
+        UpdatedFile(key, 2L, fileAttr, instant, identity)     -> jsonContentOf("/serialization/updated-file-resp.json", rep).noSpaces
       )
 
       "encode known events to UTF-8" in {

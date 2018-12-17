@@ -7,9 +7,9 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{dcat, nxv}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -27,18 +27,18 @@ import io.circe.Json
 /**
   * A resource representation.
   *
-  * @param id          the unique identifier of the resource
-  * @param rev         the revision of the resource
-  * @param types       the collection of known types of this resource
-  * @param deprecated  whether the resource is deprecated of not
-  * @param tags        the collection of tag names to revisions of the resource
-  * @param attachments the collection of attachments
-  * @param created     the instant when this resource was created
-  * @param updated     the last instant when this resource was updated
-  * @param createdBy   the identity that created this resource
-  * @param updatedBy   the last identity that updated this resource
-  * @param schema      the schema that this resource conforms to
-  * @param value       the resource value
+  * @param id         the unique identifier of the resource
+  * @param rev        the revision of the resource
+  * @param types      the collection of known types of this resource
+  * @param deprecated whether the resource is deprecated of not
+  * @param tags       the collection of tag names to revisions of the resource
+  * @param file     the optional file
+  * @param created    the instant when this resource was created
+  * @param updated    the last instant when this resource was updated
+  * @param createdBy  the identity that created this resource
+  * @param updatedBy  the last identity that updated this resource
+  * @param schema     the schema that this resource conforms to
+  * @param value      the resource value
   * @tparam P the parent type of the resource identifier
   * @tparam S the schema type
   * @tparam A the resource value type
@@ -49,7 +49,7 @@ final case class ResourceF[P, S, A](
     types: Set[AbsoluteIri],
     deprecated: Boolean,
     tags: Map[String, Long],
-    attachments: Set[BinaryAttributes],
+    file: Option[FileAttributes],
     created: Instant,
     updated: Instant,
     createdBy: Identity,
@@ -78,23 +78,21 @@ final case class ResourceF[P, S, A](
     */
   def metadata(implicit config: AppConfig, wrapped: LabeledProject, ev: S =:= Ref): Set[Triple] = {
 
-    def triplesFor(at: BinaryAttributes): Set[Triple] = {
-      val blank       = Node.blank
+    def triplesFor(at: FileAttributes): Set[Triple] = {
       val blankDigest = Node.blank
       Set(
         (blankDigest, nxv.algorithm, at.digest.algorithm),
         (blankDigest, nxv.value, at.digest.value),
-        (blank, rdf.tpe, dcat.Distribution),
-        (blank, dcat.byteSize, at.byteSize),
-        (blank, nxv.digest, blankDigest),
-        (blank, dcat.mediaType, at.mediaType),
-        (blank, nxv.originalFileName, at.filename),
-        (blank, dcat.downloadURL, AccessId(id.value, schema.iri) + "attachments" + at.filename),
-        (IriNode(id.value), dcat.distribution, blank)
+        (node, rdf.tpe, nxv.File),
+        (node, nxv.bytes, at.byteSize),
+        (node, nxv.digest, blankDigest),
+        (node, nxv.mediaType, at.mediaType),
+        (node, nxv.originalFileName, at.filename)
       )
     }
-    val schemaIri = ev(schema).iri
-    Set[Triple](
+    val schemaIri   = ev(schema).iri
+    val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
+    fileTriples + (
       (node, nxv.rev, rev),
       (node, nxv.deprecated, deprecated),
       (node, nxv.createdAt, created),
@@ -104,7 +102,7 @@ final case class ResourceF[P, S, A](
       (node, nxv.constrainedBy, schemaIri),
       (node, nxv.project, wrapped.label.projectAccessId),
       (node, nxv.self, AccessId(id.value, schemaIri))
-    ) ++ attachments.flatMap(triplesFor)
+    )
   }
 
   /**
@@ -182,7 +180,7 @@ object ResourceF {
               types,
               deprecated,
               Map.empty,
-              Set.empty,
+              None,
               clock.instant(),
               clock.instant(),
               created,
@@ -216,7 +214,7 @@ object ResourceF {
               types,
               deprecated,
               Map.empty,
-              Set.empty,
+              None,
               clock.instant(),
               clock.instant(),
               created,

@@ -1,19 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.util.UUID
-
 import cats.Monad
 import cats.data.{EitherT, OptionT}
-import cats.instances.either._
-import cats.instances.vector._
-import cats.syntax.functor._
-import cats.syntax.traverse._
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
@@ -25,8 +21,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryAttributes, BinaryDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder
 import ch.epfl.bluebrain.nexus.rdf.Graph._
@@ -95,6 +91,50 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       assigned <- materialize(id, source)
       resource <- create(id, schema, assigned)
     } yield resource
+
+  /**
+    * Creates a file resource.
+    *
+    * @param projectRef reference for the project in which the resource is going to be created.
+    * @param base       base used to generate new ids.
+    * @param fileDesc   the file description metadata
+    * @param source     the source of the file
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def createFile[In](projectRef: ProjectRef, base: AbsoluteIri, fileDesc: FileDescription, source: In)(
+      implicit identity: Identity,
+      store: FileStore[F, In, _]): RejOrResource =
+    createFileWithId(Id(projectRef, base + uuid()), fileDesc, source)
+
+  /**
+    * Creates a file resource.
+    *
+    * @param id       the id of the resource
+    * @param fileDesc   the file description metadata
+    * @param source     the source of the file
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def createFileWithId[In](id: ResId, fileDesc: FileDescription, source: In)(
+      implicit identity: Identity,
+      store: FileStore[F, In, _]): RejOrResource =
+    repo.createFile(id, fileDesc, source)
+
+  /**
+    * Replaces a file resource.
+    *
+    * @param id       the id of the resource
+    * @param rev      the last known revision of the resource
+    * @param fileDesc the file description metadata
+    * @param source   the source of the file
+    * @tparam In the storage input type
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In)(
+      implicit identity: Identity,
+      store: FileStore[F, In, _]): RejOrResource =
+    repo.updateFile(id, rev, fileDesc, source)
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
       implicit identity: Identity,
@@ -217,75 +257,37 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     checkSchema(id, schemaOpt)(repo.tag(id, rev, targetRev, tag))
 
   /**
-    * Adds an attachment to a resource.
+    * Attempts to stream the file resource for the latest revision.
     *
-    * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param attach    the attachment description metadata
-    * @param source    the source of the attachment
-    * @tparam In the storage input type
-    * @return either a rejection or the new resource representation in the F context
+    * @param id the id of the resource.
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def attach[In](id: ResId, rev: Long, schemaOpt: Option[Ref], attach: BinaryDescription, source: In)(
-      implicit identity: Identity,
-      store: AttachmentStore[F, In, _]): RejOrResource =
-    checkSchema(id, schemaOpt)(repo.attach(id, rev, attach, source))
+  def fetchFile[Out](id: ResId)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    repo.getFile(id)
 
   /**
-    * Removes an attachment from a resource.
+    * Attempts to stream the file resource with specific revision.
     *
-    * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param filename  the attachment filename
-    * @return either a rejection or the new resource representation in the F context
+    * @param id  the id of the resource.
+    * @param rev the revision of the resource
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def unattach(id: ResId, rev: Long, schemaOpt: Option[Ref], filename: String)(
-      implicit identity: Identity): RejOrResource =
-    checkSchema(id, schemaOpt)(repo.unattach(id, rev, filename))
+  def fetchFile[Out](id: ResId, rev: Long)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    repo.getFile(id, rev)
 
   /**
-    * Attempts to stream the resource's attachment identified by the argument id and the filename.
-    *
-    * @param id        the id of the resource.
-    * @param filename  the filename of the attachment
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
-    */
-  def fetchAttachment[Out](id: ResId, schemaOpt: Option[Ref], filename: String)(
-      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    checkSchemaAtt(id, schemaOpt)(repo.getAttachment(id, filename))
-
-  /**
-    * Attempts to stream the resource's attachment identified by the argument id, the revision and the filename.
-    *
-    * @param id        the id of the resource.
-    * @param rev       the revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param filename  the filename of the attachment
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
-    */
-  def fetchAttachment[Out](id: ResId, rev: Long, schemaOpt: Option[Ref], filename: String)(
-      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    checkSchemaAtt(id, schemaOpt)(repo.getAttachment(id, rev, filename))
-
-  /**
-    * Attempts to stream the resource's attachment identified by the argument id, the tag and the filename. The
+    * Attempts to stream the file resource with specific tag. The
     * tag is transformed into a revision value using the latest resource tag to revision mapping.
     *
-    * @param id        the id of the resource.
-    * @param tag       the tag of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param filename  the filename of the attachment
-    * @tparam Out the type for the output streaming of the attachment binary
-    * @return the optional streamed attachment in the F context
+    * @param id  the id of the resource.
+    * @param tag the tag of the resource
+    * @tparam Out the type for the output streaming of the file
+    * @return the optional streamed file in the F context
     */
-  def fetchAttachment[Out](id: ResId, tag: String, schemaOpt: Option[Ref], filename: String)(
-      implicit store: AttachmentStore[F, _, Out]): OptionT[F, (BinaryAttributes, Out)] =
-    checkSchemaAtt(id, schemaOpt)(repo.getAttachment(id, tag, filename))
+  def fetchFile[Out](id: ResId, tag: String)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    repo.getFile(id, tag)
 
   /**
     * Lists resources for the given project
@@ -443,13 +445,6 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     } yield assigned
   // format: on
 
-  private def checkSchemaAtt[Out](id: ResId, schemaOpt: Option[Ref])(
-      op: => OptionT[F, (BinaryAttributes, Out)]): OptionT[F, (BinaryAttributes, Out)] =
-    schemaOpt match {
-      case Some(_) => fetch(id, schemaOpt).flatMap(_ => op)
-      case _       => op
-    }
-
   private def checkSchema(id: ResId, schemaOpt: Option[Ref])(op: => RejOrResource): RejOrResource =
     schemaOpt match {
       case Some(schema) => fetch(id, schemaOpt).toRight[Rejection](NotFound(schema)).flatMap(_ => op)
@@ -511,9 +506,6 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
 
     def replaceBNode(bnode: BNode, id: AbsoluteIri): ResourceF.Value =
       value.copy(graph = value.graph.replaceNode(bnode, id))
-
-    def uuid(): String =
-      UUID.randomUUID().toString.toLowerCase
 
     idOrGenInput match {
       case Left(id) =>

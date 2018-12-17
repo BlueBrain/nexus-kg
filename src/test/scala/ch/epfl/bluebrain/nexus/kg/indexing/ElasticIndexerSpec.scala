@@ -73,7 +73,7 @@ class ElasticIndexerSpec
                "@id"      -> Json.fromString(id.value.show),
                "key"      -> Json.fromInt(2))
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-    val ev                    = Created(id, 2L, schema, Set.empty, json, clock.instant(), Anonymous)
+    val ev                    = Created(id, schema, Set.empty, json, clock.instant(), Anonymous)
     val defaultEsMapping =
       jsonContentOf("/elastic/mapping.json", Map(quote("{{docType}}") -> appConfig.elastic.docType))
 
@@ -201,7 +201,7 @@ class ElasticIndexerSpec
         val instant = clock.instant()
         val updated = Updated(id, 3L, Set.empty, Json.obj("key" -> Json.fromString("updated")), instant, Anonymous)
         val ev2 =
-          Created(id.copy(parent = ProjectRef("other")), 2L, schema, Set.empty, json, clock.instant(), Anonymous)
+          Created(id.copy(parent = ProjectRef("other")), schema, Set.empty, json, clock.instant(), Anonymous)
 
         List(ev, updated, ev2).removeDupIds shouldEqual List(updated, ev2)
       }

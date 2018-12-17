@@ -2,12 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.config
 
 import java.nio.file.Path
 
-import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
-import akka.util.Timeout
-import cats.ApplicativeError
-import cats.effect.Timer
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
@@ -16,16 +12,12 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
-import ch.epfl.bluebrain.nexus.sourcing.akka.{RetryStrategy => SourcingRetryStrategy, _}
+import ch.epfl.bluebrain.nexus.sourcing.akka._
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
-import scala.util.matching.Regex
 
 /**
   * Application
@@ -34,7 +26,7 @@ import scala.util.matching.Regex
   * @param http        http interface configuration
   * @param cluster     akka cluster configuration
   * @param persistence persistence configuration
-  * @param attachments attachments configuration
+  * @param files    files configuration
   * @param admin       admin client configuration
   * @param iam         IAM client configuration
   * @param sparql      Sparql endpoint configuration
@@ -46,7 +38,7 @@ final case class AppConfig(description: Description,
                            http: HttpConfig,
                            cluster: ClusterConfig,
                            persistence: PersistenceConfig,
-                           attachments: AttachmentsConfig,
+                           files: FileConfig,
                            admin: AdminConfig,
                            iam: IamConfig,
                            sparql: SparqlConfig,
@@ -57,101 +49,6 @@ final case class AppConfig(description: Description,
                            sourcing: SourcingConfig)
 
 object AppConfig {
-
-  /**
-    * Partial configuration for aggregate passivation strategy.
-    *
-    * @param lapsedSinceLastInteraction   duration since last interaction with the aggregate after which the passivation should occur
-    * @param lapsedSinceRecoveryCompleted duration since the aggregate recovered after which the passivation should occur
-    */
-  final case class PassivationStrategyConfig(
-      lapsedSinceLastInteraction: Option[FiniteDuration],
-      lapsedSinceRecoveryCompleted: Option[FiniteDuration],
-  )
-
-  /**
-    * Retry strategy configuration.
-    *
-    * @param strategy     the type of strategy; possible options are "never", "once" and "exponential"
-    * @param initialDelay the initial delay before retrying that will be multiplied with the 'factor' for each attempt
-    *                     (applicable only for strategy "exponential")
-    * @param maxRetries   maximum number of retries in case of failure (applicable only for strategy "exponential")
-    * @param factor       the exponential factor (applicable only for strategy "exponential")
-    */
-  final case class RetryStrategyConfig(
-      strategy: String,
-      initialDelay: FiniteDuration,
-      maxRetries: Int,
-      factor: Int
-  ) {
-
-    /**
-      * Computes a retry strategy from the provided configuration.
-      */
-    def retryStrategy[F[_]: Timer, E](implicit F: ApplicativeError[F, E]): SourcingRetryStrategy[F] =
-      strategy match {
-        case "exponential" =>
-          SourcingRetryStrategy.exponentialBackoff(initialDelay, maxRetries, factor)
-        case "once" =>
-          SourcingRetryStrategy.once
-        case _ =>
-          SourcingRetryStrategy.never
-      }
-  }
-
-  /**
-    * Sourcing configuration.
-    *
-    * @param askTimeout                        timeout for the message exchange with the aggregate actor
-    * @param queryJournalPlugin                the query (read) plugin journal id
-    * @param commandEvaluationTimeout          timeout for evaluating commands
-    * @param commandEvaluationExecutionContext the execution context where commands are to be evaluated
-    * @param shards                            the number of shards for the aggregate
-    * @param passivation                       the passivation strategy configuration
-    * @param retry                             the retry strategy configuration
-    */
-  final case class SourcingConfig(
-      askTimeout: FiniteDuration,
-      queryJournalPlugin: String,
-      commandEvaluationTimeout: FiniteDuration,
-      commandEvaluationExecutionContext: String,
-      shards: Int,
-      passivation: PassivationStrategyConfig,
-      retry: RetryStrategyConfig,
-  ) {
-
-    /**
-      * Computes an [[AkkaSourcingConfig]] using an implicitly available actor system.
-      *
-      * @param as the underlying actor system
-      */
-    def akkaSourcingConfig(implicit as: ActorSystem): AkkaSourcingConfig =
-      AkkaSourcingConfig(
-        askTimeout = Timeout(askTimeout),
-        readJournalPluginId = queryJournalPlugin,
-        commandEvaluationMaxDuration = commandEvaluationTimeout,
-        commandEvaluationExecutionContext =
-          if (commandEvaluationExecutionContext == "akka") as.dispatcher
-          else ExecutionContext.global
-      )
-
-    /**
-      * Computes a passivation strategy from the provided configuration and the passivation evaluation function.
-      *
-      * @param shouldPassivate whether aggregate should passivate after a message exchange
-      * @tparam State   the type of the aggregate state
-      * @tparam Command the type of the aggregate command
-      */
-    def passivationStrategy[State, Command](
-        shouldPassivate: (String, String, State, Option[Command]) => Boolean =
-          (_: String, _: String, _: State, _: Option[Command]) => false
-    ): PassivationStrategy[State, Command] =
-      PassivationStrategy(
-        passivation.lapsedSinceLastInteraction,
-        passivation.lapsedSinceRecoveryCompleted,
-        shouldPassivate
-      )
-  }
 
   /**
     * Service description
@@ -205,12 +102,12 @@ object AppConfig {
   final case class PersistenceConfig(journalPlugin: String, snapshotStorePlugin: String, queryJournalPlugin: String)
 
   /**
-    * Attachments configuration
+    * File configuration
     *
-    * @param volume          the base [[Path]] where the attachments are stored
+    * @param volume          the base [[Path]] where the files are stored
     * @param digestAlgorithm algorithm for checksum calculation
     */
-  final case class AttachmentsConfig(volume: Path, digestAlgorithm: String)
+  final case class FileConfig(volume: Path, digestAlgorithm: String)
 
   /**
     * IAM config
@@ -225,24 +122,8 @@ object AppConfig {
     * Kafka config
     *
     * @param adminTopic the topic for account and project events
-    * @param migration  the v0 events migration config
     */
-  final case class KafkaConfig(adminTopic: String, migration: MigrationConfig)
-
-  /**
-    * Migration config
-    *
-    * @param enabled    whether the v0 event migration is enabled
-    * @param topic      the Kafka topic to read v0 events from
-    * @param baseUri    the base URI for v0 ids
-    * @param projectRef the target project reference, where events will be migrated to
-    * @param pattern    the regex pattern to select event ids that will be migrated
-    */
-  final case class MigrationConfig(enabled: Boolean,
-                                   topic: String,
-                                   baseUri: AbsoluteIri,
-                                   projectRef: ProjectRef,
-                                   pattern: Regex)
+  final case class KafkaConfig(adminTopic: String)
 
   /**
     * Collection of configurable settings specific to the Sparql indexer.

@@ -64,7 +64,7 @@ class SparqlIndexerSpec
     val schema: Ref           = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
     val json                  = Json.obj("key" -> Json.fromInt(2))
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-    val ev                    = Created(id, 2L, schema, Set.empty, json, clock.instant(), Anonymous)
+    val ev                    = Created(id, schema, Set.empty, json, clock.instant(), Anonymous)
 
     "throw when the event resource is not found on the resources" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.none[Future, Resource])

@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings, Vocabulary}
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
@@ -78,13 +78,10 @@ class ResourceFSpec
 
     "remove the metadata from a resource" in {
       val jsonMeta = json deepMerge Json.obj("@id" -> Json.fromString(id.value.asString)) deepMerge Json.obj(
-        nxv.rev.value.asString -> Json.fromLong(10L)) deepMerge Json.obj(
-        "@context"             -> Json.obj("key" -> Json.fromString(Vocabulary.dcat.distribution.value.asString)))
+        nxv.rev.value.asString -> Json.fromLong(10L))
       simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).value.graph
         .removeMetadata(resId.value)
-        .triples shouldEqual Set[Triple](
-        (IriNode(id), Vocabulary.dcat.distribution, "value")
-      )
+        .triples shouldEqual Set.empty[Triple]
     }
   }
 

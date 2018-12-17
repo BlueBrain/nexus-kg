@@ -3,7 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.BinaryAttributes
+import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -39,7 +41,6 @@ object Event {
     * A witness to a resource creation.
     *
     * @param id       the resource identifier
-    * @param rev      the revision that this event generated
     * @param schema   the schema that was used to constrain the resource
     * @param types    the collection of known resource types
     * @param source   the source representation of the resource
@@ -48,13 +49,18 @@ object Event {
     */
   final case class Created(
       id: Id[ProjectRef],
-      rev: Long,
       schema: Ref,
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,
       identity: Identity
-  ) extends Event
+  ) extends Event {
+
+    /**
+      * the revision that this event generated
+      */
+    val rev: Long = 1L
+  }
 
   /**
     * A witness to a resource update.
@@ -112,36 +118,56 @@ object Event {
   ) extends Event
 
   /**
-    * A witness that a resource's attachment has been added.
+    * A witness that a file resource has been created.
     *
     * @param id       the resource identifier
-    * @param rev      the revision that this event generated
-    * @param value    the metadata of the attachment
+    * @param value    the metadata of the file
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class AttachmentAdded(
+  final case class CreatedFile(
       id: Id[ProjectRef],
-      rev: Long,
-      value: BinaryAttributes,
+      value: FileAttributes,
       instant: Instant,
       identity: Identity
-  ) extends Event
+  ) extends Event {
+
+    /**
+      * the revision that this event generated
+      */
+    val rev: Long = 1L
+
+    /**
+      * the schema that has been used to constrain the resource
+      */
+    val schema: Ref = Ref(fileSchemaUri)
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
+  }
 
   /**
-    * A witness that a resource's attachment has been removed.
+    * A witness that a file resource has been updated.
     *
     * @param id       the resource identifier
     * @param rev      the revision that this event generated
-    * @param filename the filename of the attachment removed
+    * @param value    the metadata of the file
     * @param instant  the instant when this event was recorded
     * @param identity the identity which generated this event
     */
-  final case class AttachmentRemoved(
+  final case class UpdatedFile(
       id: Id[ProjectRef],
       rev: Long,
-      filename: String,
+      value: FileAttributes,
       instant: Instant,
       identity: Identity
-  ) extends Event
+  ) extends Event {
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
+  }
 }

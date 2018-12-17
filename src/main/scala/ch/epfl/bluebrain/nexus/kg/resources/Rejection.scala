@@ -32,13 +32,11 @@ object Rejection {
   final case class IsDeprecated(ref: Ref) extends Rejection(s"Resource '${ref.show}' is deprecated.")
 
   /**
-    * Signals an attempt to interact with a resource's attachment that doesn't exist.
+    * Signals an attempt to interact with a resource that is expected to be a file resource but it isn't.
     *
-    * @param ref      a reference to the resource
-    * @param filename a reference's attachment filename
+    * @param ref a reference to the resource
     */
-  final case class AttachmentNotFound(ref: Ref, filename: String)
-      extends Rejection(s"Resource '${ref.show}' attachment with filename '$filename' does not exists.")
+  final case class NotFileResource(ref: Ref) extends Rejection(s"Resource '${ref.show}' is not a file resource.")
 
   /**
     * Signals an attempt to change the type of a resource (from a schema to something else or from something else to a schema).

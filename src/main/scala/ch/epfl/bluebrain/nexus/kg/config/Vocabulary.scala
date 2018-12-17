@@ -12,26 +12,6 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
   */
 object Vocabulary {
 
-  object dcat {
-    val base: Iri.AbsoluteIri          = url"http://www.w3.org/ns/dcat#".value
-    private[Vocabulary] implicit val _ = IriNode(base)
-
-    /**
-      * @param suffix the segment to suffix to the base
-      * @return an [[IriNode]] composed by the ''base'' plus the provided ''suffix''
-      */
-    def withSuffix(suffix: String): IriNode = url"${base.show + suffix}"
-
-    // Attachment metadata vocabulary
-    val distribution = Metadata("distribution")
-    val byteSize     = Metadata("byteSize")
-    val downloadURL  = Metadata("downloadURL")
-    val accessURL    = Metadata("accessURL")
-    val mediaType    = Metadata("mediaType")
-
-    val Distribution = withSuffix("Distribution")
-  }
-
   /**
     * Nexus vocabulary.
     */
@@ -61,11 +41,13 @@ object Vocabulary {
     val score         = Metadata("score")
     val uuid          = Metadata("uuid")
 
-    // Attachment metadata vocabulary
+    // File metadata vocabulary
     val originalFileName = Metadata("originalFileName")
     val digest           = Metadata("digest")
     val algorithm        = Metadata("algorithm")
     val value            = Metadata("value")
+    val bytes            = Metadata("bytes")
+    val mediaType        = Metadata("mediaType")
 
     // Elasticsearch sourceAsText predicate
     val originalSource = Metadata("original_source")
@@ -97,6 +79,7 @@ object Vocabulary {
 
     // @type platform ids
     val Schema               = withSuffix("Schema")
+    val File                 = withSuffix("File")
     val Resource             = withSuffix("Resource")
     val Ontology             = withSuffix("Ontology")
     val Resolver             = withSuffix("Resolver")

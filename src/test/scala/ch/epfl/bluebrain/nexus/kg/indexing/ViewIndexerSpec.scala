@@ -71,7 +71,7 @@ class ViewIndexerSpec
     val resource  = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
     val view      = View(resourceV).right.value
-    val ev        = Created(id, 2L, schema, types, json, clock.instant(), Anonymous)
+    val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
 
     "index a view" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))

@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -22,8 +23,8 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.Attachment.{BinaryDescription, Digest, StoredSummary}
-import ch.epfl.bluebrain.nexus.kg.resources.attachment.AttachmentStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -60,7 +61,7 @@ class ResourcesSpec
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
   implicit private val repo  = Repo[IO].ioValue
-  private implicit val store = mock[AttachmentStore[IO, String, String]]
+  private implicit val store = mock[FileStore[IO, String, String]]
   private val cache          = mock[DistributedCache[IO]]
   when(cache.resolvers(any[ProjectRef])).thenReturn(IO.pure(Set.empty[Resolver]))
   private implicit val resolution =
@@ -113,8 +114,11 @@ class ResourcesSpec
     val types    = Set[AbsoluteIri](nxv.Schema)
   }
 
-  trait Attachment extends ResolverResource {
-    val desc       = BinaryDescription("name", "text/plain")
+  trait File extends Base {
+    val value      = Json.obj()
+    val schema     = Latest(fileSchemaUri)
+    val types      = Set[AbsoluteIri](nxv.File)
+    val desc       = FileDescription("name", "text/plain")
     val source     = "some text"
     val relative   = Paths.get("./other")
     val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
@@ -360,37 +364,14 @@ class ResourcesSpec
       }
     }
 
-    "performing add attachment operations" should {
-      "add an attachment to a resource" in new Attachment {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.attach(resId, 1L, None, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, 2L, schema = schema, types = types).copy(attachments = Set(attributes))
-      }
-
-      "prevent adding an attachment to a resource when the provided schema does not match the created schema" in new Attachment {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(randomIri())
-        resources.attach(resId, 1L, Some(schemaRef), desc, source).value.rejected[NotFound] shouldEqual NotFound(
-          schemaRef)
+    "performing write file operations" should {
+      "create a file resource" in new File {
+        resources.createFileWithId(resId, desc, source).value.accepted shouldEqual
+          ResourceF.simpleF(resId, value, schema = schema, types = types).copy(file = Some(attributes))
       }
     }
 
-    "performing remove attachments operations" should {
-      "remove an attachment from a resource" in new Attachment {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.attach(resId, 1L, None, desc, source).value.accepted shouldBe a[Resource]
-        resources.unattach(resId, 2L, None, "name").value.accepted shouldBe a[Resource]
-      }
-
-      "prevent removing an attachment from resource when the provided schema does not match the created schema" in new Attachment {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.attach(resId, 1L, None, desc, source).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(randomIri())
-        resources.unattach(resId, 2L, Some(schemaRef), "name").value.rejected[NotFound] shouldEqual NotFound(schemaRef)
-      }
-    }
-
-    "performing fetch operations" should {
+    "performing read operations" should {
 
       "return a resource" in new ResolverResource {
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
