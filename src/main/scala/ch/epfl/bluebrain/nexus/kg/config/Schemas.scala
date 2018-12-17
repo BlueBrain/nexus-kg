@@ -24,5 +24,4 @@ object Schemas {
   val resolverRef = Ref(resolverSchemaUri)
   val shaclRef    = Ref(shaclSchemaUri)
 
-
 }
