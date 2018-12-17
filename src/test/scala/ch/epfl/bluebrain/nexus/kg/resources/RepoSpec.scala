@@ -115,20 +115,6 @@ class RepoSpec
         private val json  = randomJson()
         repo.update(id, 2L, types, json).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
       }
-
-      "prevent to update a resource that was a Schema with a resource of another type" in new Context {
-        repo.create(id, Latest(schema), Set(nxv.Schema), value).value.accepted shouldBe a[Resource]
-        private val json = randomJson()
-        repo.update(id, 1L, Set(nxv.Ontology), json).value.rejected[UpdateSchemaTypes] shouldEqual UpdateSchemaTypes(
-          id.ref)
-      }
-
-      "prevent to update a resource that was a Resolver with a resource of another type" in new Context {
-        repo.create(id, Latest(schema), Set(nxv.Resolver), value).value.accepted shouldBe a[Resource]
-        private val json = randomJson()
-        repo.update(id, 1L, Set(nxv.Schema), json).value.rejected[UpdateSchemaTypes] shouldEqual UpdateSchemaTypes(
-          id.ref)
-      }
     }
 
     "performing deprecate operations" should {

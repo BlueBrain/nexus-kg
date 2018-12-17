@@ -1,11 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import akka.http.javadsl.server.Rejections.validationRejection
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.headers.{Accept, RawHeader}
-import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCodes, _}
-import akka.http.scaladsl.server.Directives.{complete, fileUpload, parameter, pathPrefix, reject, _}
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
@@ -21,7 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileDescription, _}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
@@ -42,9 +41,6 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
     extends Schemed(resources, fileSchemaUri, "files", acls, caller) {
 
   private val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
-
-  private val simultaneousParamsRejection: AkkaRejection =
-    validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
 
   private type RejectionOrFile = Either[AkkaRejection, Option[(FileAttributes, AkkaOut)]]
 

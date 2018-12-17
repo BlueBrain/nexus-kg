@@ -23,7 +23,6 @@ import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import com.github.ghik.silencer.silent
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -41,12 +40,6 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
 
   private[routes] val suffixTracing = prefix.capitalize
 
-  def transformCreate(j: Json): Json = j
-
-  @SuppressWarnings(Array("UnusedMethodParameter"))
-  def transformUpdate(@silent id: AbsoluteIri, j: Json): EitherT[Task, Rejection, Json] =
-    EitherT.rightT(j)
-
   def transformGet(resource: ResourceV): Task[ResourceV] =
     Task.pure(resource)
 
@@ -55,14 +48,10 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
 
   def update(id: AbsoluteIri): Route =
     (put & entity(as[Json]) & projectNotDeprecated & hasPermission(resourceWrite) & parameter('rev.as[Long]) & pathEndOrSingleSlash) {
-      (json, rev) =>
+      (source, rev) =>
         identity.apply { implicit ident =>
           trace(s"update$suffixTracing") {
-            complete(
-              transformUpdate(id, json)
-                .flatMap(transformed => resources.update(Id(wrapped.ref, id), rev, schemaRef, transformed))
-                .value
-                .runToFuture)
+            complete(resources.update(Id(wrapped.ref, id), rev, schemaRef, source).value.runToFuture)
           }
         }
     }
@@ -105,7 +94,7 @@ private sealed abstract class ResourceRoutes(resources: Resources[Task],
         }
     }
 
-  private val simultaneousParamsRejection: AkkaRejection =
+  private[routes] val simultaneousParamsRejection: AkkaRejection =
     validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
 
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
@@ -158,8 +147,7 @@ object ResourceRoutes {
       (projectNotDeprecated & post & entity(as[Json]) & pathEndOrSingleSlash) { source =>
         (identity & hasPermission(resourceCreate)) { implicit ident =>
           trace(s"create$suffixTracing") {
-            val created = resources.create(wrapped.ref, wrapped.base, Ref(schema), transformCreate(source))
-            complete(Created -> created.value.runToFuture)
+            complete(Created -> resources.create(wrapped.ref, wrapped.base, Ref(schema), source).value.runToFuture)
           }
         }
       }
@@ -168,11 +156,7 @@ object ResourceRoutes {
       (put & entity(as[Json]) & projectNotDeprecated & pathEndOrSingleSlash) { source =>
         (identity & hasPermission(resourceCreate)) { implicit ident =>
           trace(s"create$suffixTracing") {
-            complete(
-              Created -> resources
-                .createWithId(Id(wrapped.ref, id), Ref(schema), transformCreate(source))
-                .value
-                .runToFuture)
+            complete(Created -> resources.createWithId(Id(wrapped.ref, id), Ref(schema), source).value.runToFuture)
           }
         }
       }

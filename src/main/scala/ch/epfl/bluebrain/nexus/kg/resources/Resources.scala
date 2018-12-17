@@ -140,20 +140,11 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       implicit identity: Identity,
       additional: AdditionalValidation[F]): RejOrResource = {
 
-    def checkAndJoinTypes(types: Set[AbsoluteIri]): EitherT[F, Rejection, Set[AbsoluteIri]] =
-      EitherT.fromEither(schema.iri match {
-        case `shaclSchemaUri` if types.isEmpty || types.contains(nxv.Schema)      => Right(types + nxv.Schema)
-        case `shaclSchemaUri`                                                     => Left(IncorrectTypes(id.ref, types))
-        case `ontologySchemaUri` if types.isEmpty || types.contains(nxv.Ontology) => Right(types + nxv.Ontology)
-        case `ontologySchemaUri`                                                  => Left(IncorrectTypes(id.ref, types))
-        case _                                                                    => Right(types)
-      })
-
     for {
-      _           <- validate(id, schema, value.graph)
-      joinedTypes <- checkAndJoinTypes(value.graph.types(id.value).map(_.value))
-      newValue    <- additional(id, schema, joinedTypes, value, 1L)
-      created     <- repo.create(id, schema, joinedTypes, newValue.source)
+      _ <- validate(id, schema, value.graph)
+      joinedTypes = value.graph.types(id.value).map(_.value)
+      newValue <- additional(id, schema, joinedTypes, value, 1L)
+      created  <- repo.create(id, schema, joinedTypes, newValue.source)
     } yield created
   }
 

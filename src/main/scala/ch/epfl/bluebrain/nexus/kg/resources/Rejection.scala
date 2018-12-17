@@ -39,14 +39,6 @@ object Rejection {
   final case class NotFileResource(ref: Ref) extends Rejection(s"Resource '${ref.show}' is not a file resource.")
 
   /**
-    * Signals an attempt to change the type of a resource (from a schema to something else or from something else to a schema).
-    *
-    * @param ref a reference to the resource
-    */
-  final case class UpdateSchemaTypes(ref: Ref)
-      extends Rejection(s"Resource '${ref.show}' cannot change it's schema type.")
-
-  /**
     * Signals an attempt to perform a request with an invalid payload.
     *
     * @param ref a reference to the resource

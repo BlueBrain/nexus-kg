@@ -77,7 +77,6 @@ package object instances extends FailFastCirceSupport {
   private def statusCodeFrom(rejection: Rejection): StatusCode = rejection match {
     case _: IsDeprecated             => StatusCodes.BadRequest
     case _: ProjectIsDeprecated      => StatusCodes.BadRequest
-    case _: UpdateSchemaTypes        => StatusCodes.BadRequest
     case _: IncorrectTypes           => StatusCodes.BadRequest
     case _: IllegalContextValue      => StatusCodes.BadRequest
     case _: UnableToSelectResourceId => StatusCodes.BadRequest

@@ -312,11 +312,10 @@ class ResourceRoutesSpec
     "performing operations on resolvers" should {
 
       "create a resolver without @id" in new Resolver {
-        val resolverWithCtx = resolver.addContext(resolverCtxUri)
         private val expected = ResourceF
-          .simpleF(id, resolverWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
+          .simpleF(id, resolver, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
-          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(resolverWithCtx))(
+          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(resolver))(
             identity = mEq(identity),
             additional = isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
@@ -364,15 +363,14 @@ class ResourceRoutesSpec
     "performing operations on views" should {
 
       "create a view without @id" in new Views {
-        val viewWithCtx = view.addContext(viewCtxUri)
         private val expected =
-          ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
+          ResourceF.simpleF(id, view, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
           resources.create(
             mEq(projectRef),
             mEq(projectMeta.base),
             mEq(schemaRef),
-            matches[Json](_.removeKeys("_uuid") == viewWithCtx))(mEq(identity), isA[AdditionalValidation[Task]]))
+            matches[Json](_.removeKeys("_uuid") == view))(mEq(identity), isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/views/$account/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -395,66 +393,58 @@ class ResourceRoutesSpec
       }
 
       "create a view with @id" in new Views {
-        val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
-        val viewWithCtx = view.addContext(viewCtxUri) deepMerge Json.obj(
-          "mapping" -> Json.fromString("""{"key":"value"}"""))
+        val mapping     = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
+        val viewMapping = view deepMerge mapping
         private val expected =
-          ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
+          ResourceF.simpleF(id, viewMapping, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
-          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewWithCtx))(
+          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
             mEq(identity),
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
-        Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
+        Put(s"/v1/views/$account/$project/nxv:$genUuid", viewMapping) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
         }
 
-        Put(s"/v1/resources/$account/$project/view/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
+        Put(s"/v1/resources/$account/$project/view/nxv:$genUuid", viewMapping) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(viewResponse())
         }
       }
 
       "update a view" in new Views {
-        val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
-        val viewWithCtx = view.addContext(viewCtxUri) deepMerge Json.obj(
-          "mapping" -> Json.fromString("""{"key":"value"}"""))
+        val mapping     = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
+        val viewMapping = view deepMerge mapping
         private val expected =
-          ResourceF.simpleF(id, viewWithCtx, created = identity, updated = identity, schema = schemaRef, types = types)
+          ResourceF.simpleF(id, viewMapping, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
-          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewWithCtx))(
+          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
             mEq(identity),
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
-        Put(s"/v1/views/$account/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
+        Put(s"/v1/views/$account/$project/nxv:$genUuid", viewMapping) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
-        }
-        val mappingUpdated = Json.obj("mapping" -> Json.obj("key2" -> Json.fromString("value2")))
+          val uuid = responseAs[Json].hcursor.get[String]("_uuid").getOrElse("")
 
-        val uuidJson       = Json.obj("_uuid" -> Json.fromString("uuid1"))
-        val expectedUpdate = expected.copy(value = view.deepMerge(uuidJson).appendContextOf(viewCtx))
-        when(resources.fetch(id, Some(Latest(viewSchemaUri)))).thenReturn(OptionT.some[Task](expectedUpdate))
-        val jsonUpdate = view.addContext(viewCtxUri) deepMerge Json.obj(
-          "mapping" -> Json.fromString("""{"key2":"value2"}""")) deepMerge uuidJson
-        when(
-          resources.update(mEq(id), mEq(1L), mEq(Some(Latest(viewSchemaUri))), mEq(jsonUpdate))(
+          val mappingUpdated = Json.obj("mapping" -> Json.obj("key2" -> Json.fromString("value2")))
+
+          val uuidJson       = Json.obj("_uuid" -> Json.fromString(uuid))
+          val expectedUpdate = expected.copy(value = view.deepMerge(uuidJson))
+          val jsonUpdate     = view deepMerge mappingUpdated
+          when(resources.update(mEq(id), mEq(1L), mEq(Some(Latest(viewSchemaUri))), mEq(jsonUpdate))(
             mEq(identity),
             isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](expectedUpdate.copy(rev = 2L)))
-        when(resources.materializeWithMeta(expectedUpdate))
-          .thenReturn(EitherT.rightT[Task, Rejection](simpleV(expectedUpdate)))
-        Put(s"/v1/views/$account/$project/nxv:$genUuid?rev=1", view deepMerge mappingUpdated) ~> addCredentials(
-          oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
-        }
-
-        Put(s"/v1/resources/$account/$project/view/nxv:$genUuid?rev=1", view deepMerge mappingUpdated) ~> addCredentials(
-          oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
+          val resource = simpleV(expectedUpdate.map(_.appendContextOf(viewCtx)))
+          when(resources.materializeWithMeta(expectedUpdate))
+            .thenReturn(EitherT.rightT[Task, Rejection](resource))
+          Put(s"/v1/views/$account/$project/nxv:$genUuid?rev=1", jsonUpdate) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            responseAs[Json] should equalIgnoreArrayOrder(
+              viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
+          }
         }
       }
 
