@@ -1,14 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import java.util.UUID
-
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
-import cats.data.EitherT
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
@@ -16,7 +13,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -24,17 +20,15 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticViewRefs, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, UnexpectedState}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes.Schemed
 import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 
 class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessControlList, caller: Caller)(
     implicit wrapped: LabeledProject,
@@ -105,17 +99,6 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
       }
     }
 
-  override def transformCreate(j: Json): Json =
-    transformView(j, UUID.randomUUID().toString.toLowerCase)
-
-  override def transformUpdate(id: AbsoluteIri, j: Json): EitherT[Task, Rejection, Json] = {
-    val resId = Id(wrapped.ref, id)
-    def fetchUuid(r: Resource): EitherT[Task, Rejection, String] =
-      EitherT.fromEither(r.value.hcursor.get[String](nxv.uuid.prefix).left.map(_ => UnexpectedState(resId.ref)))
-    val schemaOpt = Some(Latest(viewSchemaUri))
-    resources.fetch(resId, schemaOpt).toRight(NotFound(resId.ref)).flatMap(fetchUuid).map(transformView(j, _))
-  }
-
   override def transformGet(resource: ResourceV) =
     View(resource) match {
       case Right(r) =>
@@ -125,12 +108,4 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
         resValueF.map(v => resource.map(_ => v.copy(graph = v.graph ++ Graph(metadata))))
       case _ => Task.pure(resource)
     }
-
-  private def transformView(source: Json, uuid: String): Json = {
-    val transformed = source deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuid)).addContext(viewCtxUri)
-    transformed.hcursor.get[Json]("mapping") match {
-      case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
-      case _                      => transformed
-    }
-  }
 }

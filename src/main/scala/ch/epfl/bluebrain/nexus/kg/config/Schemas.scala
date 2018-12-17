@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
+import ch.epfl.bluebrain.nexus.kg.resources.Ref
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
@@ -18,5 +19,9 @@ object Schemas {
 
   val resolverSchema: Json = jsonContentOf("/schemas/resolver.json")
   val viewSchema: Json     = jsonContentOf("/schemas/view.json")
+
+  val viewRef     = Ref(viewSchemaUri)
+  val resolverRef = Ref(resolverSchemaUri)
+  val shaclRef    = Ref(shaclSchemaUri)
 
 }

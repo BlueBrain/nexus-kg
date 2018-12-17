@@ -90,7 +90,7 @@ class ResourcesSpec
 
   trait ResolverResource extends Base {
     def resolverFrom(json: Json) =
-      json appendContextOf resolverCtx deepMerge Json.obj("@id" -> Json.fromString(id.show))
+      json.addContext(resolverCtxUri) deepMerge Json.obj("@id" -> Json.fromString(id.show))
 
     val schema   = Latest(resolverSchemaUri)
     val resolver = resolverFrom(jsonContentOf("/resolve/cross-project.json"))
@@ -101,9 +101,9 @@ class ResourcesSpec
 
   trait ViewResource extends Base {
     def resolverFrom(json: Json) =
-      json appendContextOf viewCtx deepMerge Json.obj("@id" -> Json.fromString(id.show))
+      json.addContext(viewCtxUri) deepMerge Json.obj("@id" -> Json.fromString(id.show))
     val schema = Latest(viewSchemaUri)
-    val view = jsonContentOf("/view/elasticview.json") appendContextOf viewCtx deepMerge Json.obj(
+    val view = jsonContentOf("/view/elasticview.json").addContext(viewCtxUri) deepMerge Json.obj(
       "@id" -> Json.fromString(id.show))
     val types = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
   }
@@ -178,8 +178,10 @@ class ResourcesSpec
       }
 
       "create a new resource validated against the view schema without passing the id on the call (but provided on the Json)" in new ViewResource {
-        resources.create(projectRef, base, schema, view).value.accepted shouldEqual
-          ResourceF.simpleF(resId, view, schema = schema, types = types)
+        private val expected = ResourceF.simpleF(resId, view, schema = schema, types = types)
+        val result           = resources.create(projectRef, base, schema, view).value.accepted
+        result.copy(value = result.value.removeKeys("_uuid")) shouldEqual
+          expected.copy(value = result.value.removeKeys("_uuid"))
       }
 
       "prevent to create a resource that does not validate against the view schema" in new ViewResource {
@@ -196,9 +198,11 @@ class ResourcesSpec
         val tpes  = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
         forAll(valid) { j =>
           new ViewResource {
-            val json = resolverFrom(j)
-            resources.create(projectRef, base, schema, json).value.accepted shouldEqual
-              ResourceF.simpleF(resId, json, schema = schema, types = tpes)
+            val json     = resolverFrom(j)
+            val result   = resources.create(projectRef, base, schema, json).value.accepted
+            val expected = ResourceF.simpleF(resId, json, schema = schema, types = tpes)
+            result.copy(value = result.value.removeKeys("_uuid")) shouldEqual
+              expected.copy(value = result.value.removeKeys("_uuid"))
           }
         }
       }
@@ -260,12 +264,6 @@ class ResourcesSpec
         private val notFoundIri = randomIri()
         private val json        = resolver removeKeys "@context" addContext resolverCtxUri addContext notFoundIri
         resources.create(projectRef, base, schema, json).value.rejected[NotFound] shouldEqual NotFound(Ref(notFoundIri))
-      }
-
-      "prevent creating a schema which doesn't have nxv:Schema type" in new ResolverSchema {
-        private val json = resolver deepMerge Json.obj("@type" -> Json.fromString("nxv:Resource"))
-        resources.createWithId(resId, schema, json).value.rejected[IncorrectTypes] shouldEqual
-          IncorrectTypes(resId.ref, Set(nxv.Resource.value))
       }
 
       "prevent creating a schema with wrong imports" in new ResolverSchema {

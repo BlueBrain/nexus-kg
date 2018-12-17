@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import cats.data.EitherT
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.Caller
@@ -21,10 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes.Schemed
 import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import com.github.ghik.silencer.silent
-import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -46,12 +42,6 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: FullAcce
         complete(qr.runToFuture)
       }
     }
-
-  override def transformCreate(j: Json) =
-    j.addContext(resolverCtxUri)
-
-  override def transformUpdate(@silent id: AbsoluteIri, j: Json) =
-    EitherT.rightT(transformCreate(j))
 
   override def transformGet(resource: ResourceV) =
     Resolver(resource, wrapped.accountRef) match {
