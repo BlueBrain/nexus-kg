@@ -32,7 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
-import ch.epfl.bluebrain.nexus.kg.routes.{AppInfoRoutes, Clients, CombinedRoutes}
+import ch.epfl.bluebrain.nexus.kg.routes.{AppInfoRoutes, Clients, Routes}
 import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
@@ -119,7 +119,7 @@ object Main {
     implicit val aclsOps           = new AclsOps(AclsActor.start)
     implicit val projectResolution = ProjectResolution.task(cache, aclsOps)
     val resources: Resources[Task] = Resources[Task]
-    val resourceRoutes             = CombinedRoutes(resources)
+    val resourceRoutes             = Routes(resources)
     val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
     val healthStatusGroup = HealthStatusGroup(
       new CassandraHealthStatus(),

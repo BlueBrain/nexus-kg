@@ -60,9 +60,10 @@ class ResourcesSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  implicit private val repo  = Repo[IO].ioValue
-  private implicit val store = mock[FileStore[IO, String, String]]
-  private val cache          = mock[DistributedCache[IO]]
+  implicit private val repo       = Repo[IO].ioValue
+  private implicit val store      = mock[FileStore[IO, String, String]]
+  private val cache               = mock[DistributedCache[IO]]
+  private implicit val additional = AdditionalValidation.pass[IO]
   when(cache.resolvers(any[ProjectRef])).thenReturn(IO.pure(Set.empty[Resolver]))
   private implicit val resolution =
     new ProjectResolution[IO](
@@ -151,7 +152,7 @@ class ResourcesSpec
       "create a new resource validated against empty schema (resource schema) with the id passed on the call and the payload only containing @context" in new ResolverResource {
         private val schemaRef = Ref(resourceSchemaUri)
         private val json      = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
-        private val resource  = resources.createWithId(resId, schemaRef, json).value.accepted
+        private val resource  = resources.create(resId, schemaRef, json).value.accepted
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
 
@@ -160,7 +161,7 @@ class ResourcesSpec
         private val json =
           Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
                    "@id"      -> Json.fromString(resId.value.asString))
-        private val resource = resources.createWithId(resId, schemaRef, json).value.accepted
+        private val resource = resources.create(resId, schemaRef, json).value.accepted
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
 
@@ -169,7 +170,7 @@ class ResourcesSpec
         private val genId     = randomIri()
         private val json = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
                                     "@id" -> Json.fromString(genId.show))
-        resources.createWithId(resId, schemaRef, json).value.rejected[IncorrectId] shouldEqual IncorrectId(resId.ref)
+        resources.create(resId, schemaRef, json).value.rejected[IncorrectId] shouldEqual IncorrectId(resId.ref)
       }
 
       "create a new resource validated against the resolver schema without passing the id on the call (but provided on the Json)" in new ResolverResource {
@@ -216,7 +217,7 @@ class ResourcesSpec
       }
 
       "create a new resource validated against the resolver schema passing the id on the call (the provided on the Json)" in new ResolverResource {
-        resources.createWithId(resId, schema, resolver).value.accepted shouldEqual
+        resources.create(resId, schema, resolver).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
       }
 
@@ -268,12 +269,12 @@ class ResourcesSpec
 
       "prevent creating a schema with wrong imports" in new ResolverSchema {
         private val json = resolver deepMerge Json.obj("imports" -> Json.fromString("http://example.com/some"))
-        resources.createWithId(resId, schema, json).value.rejected[NotFound] shouldEqual
+        resources.create(resId, schema, json).value.rejected[NotFound] shouldEqual
           NotFound(Ref(url"http://example.com/some".value))
       }
 
       "create a new schema passing the id on the call (the provided on the Json)" in new ResolverSchema {
-        resources.createWithId(resId, schema, resolver).value.accepted shouldEqual
+        resources.create(resId, schema, resolver).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, types = types, schema = schema)
       }
 
@@ -364,7 +365,7 @@ class ResourcesSpec
 
     "performing write file operations" should {
       "create a file resource" in new File {
-        resources.createFileWithId(resId, desc, source).value.accepted shouldEqual
+        resources.createFile(resId, desc, source).value.accepted shouldEqual
           ResourceF.simpleF(resId, value, schema = schema, types = types).copy(file = Some(attributes))
       }
     }

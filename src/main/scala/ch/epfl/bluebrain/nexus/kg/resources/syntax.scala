@@ -109,9 +109,7 @@ object syntax {
       * @param projectLabel the project to check for permissions validity
       * @param permissions  the permissions to filter
       */
-    def hasProjectPermission(acls: FullAccessControlList,
-                             projectLabel: ProjectLabel,
-                             permissions: Permissions): Boolean = {
+    def hasPermission(acls: FullAccessControlList, projectLabel: ProjectLabel, permissions: Permissions): Boolean = {
 
       def verify(identity: Identity, perms: Permissions): Boolean =
         caller.identities.contains(identity) && perms.containsAny(permissions)
@@ -136,6 +134,6 @@ object syntax {
     def hasPermission(acls: FullAccessControlList,
                       projects: Set[ProjectLabel],
                       permissions: Permissions): Set[ProjectLabel] =
-      projects.filter(hasProjectPermission(acls, _, permissions))
+      projects.filter(hasPermission(acls, _, permissions))
   }
 }

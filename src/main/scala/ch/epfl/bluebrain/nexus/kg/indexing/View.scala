@@ -288,7 +288,23 @@ object View {
       deprecated: Boolean
   ) extends AggregateView {
     val valueString: Set[ViewRef[String]] = value.map(v => v.copy(project = v.project.show))
-    def projects: Set[P]                  = value.map(_.project)
+
+    def projects: Set[P] = value.map(_.project)
+
+    def indices[F[_]](implicit cache: DistributedCache[F],
+                      acls: FullAccessControlList,
+                      caller: Caller,
+                      config: ElasticConfig,
+                      F: Monad[F]): F[Set[String]] =
+      value.foldLeft(F.pure(Set.empty[String])) {
+        case (accF, ViewRef(ref: ProjectRef, id)) =>
+          for {
+            acc   <- accF
+            views <- cache.views(ref).map(_.collect { case v: ElasticView if v.ref == ref && v.id == id => v })
+            lb    <- ref.toLabel(cache)
+          } yield lb.filter(caller.hasPermission(acls, _, viewsRead)).map(_ => acc ++ views.map(_.index)).getOrElse(acc)
+        case (accF, _) => accF
+      }
   }
 
   /**
