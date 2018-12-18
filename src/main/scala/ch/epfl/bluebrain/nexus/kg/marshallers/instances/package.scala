@@ -93,6 +93,7 @@ package object instances extends FailFastCirceSupport {
     case _: LabelsNotFound           => StatusCodes.NotFound
     case _: NotFound                 => StatusCodes.NotFound
     case _: AccountNotFound          => StatusCodes.NotFound
+    case InvalidResourceIri          => StatusCodes.NotFound
     case _: IncorrectRev             => StatusCodes.Conflict
     case _: AlreadyExists            => StatusCodes.Conflict
     case _: DownstreamServiceError   => StatusCodes.BadGateway

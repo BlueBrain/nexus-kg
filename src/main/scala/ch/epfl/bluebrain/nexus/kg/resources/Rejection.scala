@@ -183,6 +183,12 @@ object Rejection {
   final case class MissingParameter(override val message: String) extends Rejection(message)
 
   /**
+    * Signals that the provided client URI does not match any service endpoint
+    */
+  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
+  final case object InvalidResourceIri extends Rejection("Provided IRI does not match any service endpoint")
+
+  /**
     * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.circe.JenaModel.JenaModelErr]].
     *
     * @param error the error to be transformed

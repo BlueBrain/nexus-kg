@@ -47,7 +47,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, IllegalParameter, NotFound, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
@@ -815,6 +815,13 @@ class ResourceRoutesSpec
         Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.InternalServerError
           responseAs[Error].code shouldEqual classNameOf[Unexpected.type]
+        }
+      }
+
+      "reject when the resource is not available" in new Schema {
+        Get(s"/v1/other/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.NotFound
+          responseAs[Json] shouldEqual jsonContentOf("/resources/rejection.json")
         }
       }
     }
