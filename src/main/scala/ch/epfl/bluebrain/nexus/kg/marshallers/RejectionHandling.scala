@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.marshallers
 
 import akka.http.javadsl.server.AuthorizationFailedRejection
-import akka.http.scaladsl.model.StatusCodes._
+import akka.http.scaladsl.model.StatusCodes.{NotFound, _}
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server._
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection
@@ -44,6 +44,7 @@ object RejectionHandling {
         case _: AuthorizationFailedRejection =>
           complete(Unauthorized -> (UnauthorizedAccess: HttpRejection))
       }
+      .handleNotFound(complete(NotFound -> (InvalidResourceIri: Rejection)))
       .handleAll[MalformedRequestContentRejection] { rejection =>
         val aggregate = rejection.map(_.message).mkString(", ")
         complete(BadRequest -> (WrongOrInvalidJson(Some(aggregate)): HttpRejection))

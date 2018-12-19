@@ -18,7 +18,7 @@ object ResourceEncoder {
 
   implicit def resourceEncoder(implicit config: AppConfig, wrapped: LabeledProject): Encoder[Resource] = {
     implicit val graphEnc: GraphEncoder[Resource] =
-      GraphEncoder(res => IriNode(res.id.value) -> Graph(res.metadata ++ res.typeTriples))
+      GraphEncoder(res => IriNode(res.id.value) -> Graph(res.metadata))
     Encoder.encodeJson.contramap { res =>
       res.asJson(resourceCtx).removeKeys("@context").addContext(resourceCtxUri)
     }

@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
-import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
@@ -65,9 +64,9 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param source     the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(projectRef: ProjectRef, base: AbsoluteIri, schema: Ref, source: Json)(implicit identity: Identity,
-                                                                                   additional: AdditionalValidation[F] =
-                                                                                     pass): RejOrResource =
+  def create(projectRef: ProjectRef, base: AbsoluteIri, schema: Ref, source: Json)(
+      implicit identity: Identity,
+      additional: AdditionalValidation[F]): RejOrResource =
     // format: off
     for {
       rawValue       <- materialize(projectRef, source)
@@ -85,8 +84,8 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param source the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def createWithId(id: ResId, schema: Ref, source: Json)(implicit identity: Identity,
-                                                         additional: AdditionalValidation[F] = pass): RejOrResource =
+  def create(id: ResId, schema: Ref, source: Json)(implicit identity: Identity,
+                                                   additional: AdditionalValidation[F]): RejOrResource =
     for {
       assigned <- materialize(id, source)
       resource <- create(id, schema, assigned)
@@ -105,7 +104,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def createFile[In](projectRef: ProjectRef, base: AbsoluteIri, fileDesc: FileDescription, source: In)(
       implicit identity: Identity,
       store: FileStore[F, In, _]): RejOrResource =
-    createFileWithId(Id(projectRef, base + uuid()), fileDesc, source)
+    createFile(Id(projectRef, base + uuid()), fileDesc, source)
 
   /**
     * Creates a file resource.
@@ -116,9 +115,8 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createFileWithId[In](id: ResId, fileDesc: FileDescription, source: In)(
-      implicit identity: Identity,
-      store: FileStore[F, In, _]): RejOrResource =
+  def createFile[In](id: ResId, fileDesc: FileDescription, source: In)(implicit identity: Identity,
+                                                                       store: FileStore[F, In, _]): RejOrResource =
     repo.createFile(id, fileDesc, source)
 
   /**
@@ -191,7 +189,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     */
   def update(id: ResId, rev: Long, schemaOpt: Option[Ref], source: Json)(
       implicit identity: Identity,
-      additional: AdditionalValidation[F] = pass): RejOrResource = {
+      additional: AdditionalValidation[F]): RejOrResource = {
     def checkSchema(res: Resource): EitherT[F, Rejection, Unit] = schemaOpt match {
       case Some(schema) if schema != res.schema => EitherT.leftT(NotFound(schema))
       case _                                    => EitherT.rightT(())
@@ -347,8 +345,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def materializeWithMeta(resource: Resource)(implicit wrapped: LabeledProject): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
-      value = resourceV.value.copy(
-        graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata ++ resourceV.typeTriples))
+      value = resourceV.value.copy(graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata))
     } yield resourceV.map(_ => value)
 
   /**

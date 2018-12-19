@@ -47,7 +47,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, IllegalParameter, NotFound, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
@@ -113,7 +113,7 @@ class ResourceRoutesSpec
   private val manageViews                       = Permissions(Permission("views/manage"))
   private val manageSchemas                     = Permissions(Permission("schemas/manage"))
   private val manageFiles                       = Permissions(Permission("files/manage"))
-  private val routes                            = CombinedRoutes(resources)
+  private val routes                            = Routes(resources)
 
   abstract class Context(perms: Permissions = manageRes) {
     val account = genString(length = 4)
@@ -398,7 +398,7 @@ class ResourceRoutesSpec
         private val expected =
           ResourceF.simpleF(id, viewMapping, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
-          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
+          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
             mEq(identity),
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
@@ -420,7 +420,7 @@ class ResourceRoutesSpec
         private val expected =
           ResourceF.simpleF(id, viewMapping, created = identity, updated = identity, schema = schemaRef, types = types)
         when(
-          resources.createWithId(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
+          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
             mEq(identity),
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
@@ -495,7 +495,7 @@ class ResourceRoutesSpec
       }
 
       "create a context with @id" in new Ctx {
-        when(resources.createWithId(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(identity), isA[AdditionalValidation[Task]]))
+        when(resources.create(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(identity), isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, ctx, created = identity, updated = identity, schema = schemaRef)))
 
@@ -544,11 +544,6 @@ class ResourceRoutesSpec
           UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(account, project, i))))))
 
         Get(s"/v1/resources/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual listingResponse()
-        }
-
-        Get(s"/v1/data/$account/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
         }
@@ -738,8 +733,7 @@ class ResourceRoutesSpec
       }
 
       "create a schema with @id" in new Schema {
-        when(
-          resources.createWithId(mEq(id), mEq(schemaRef), mEq(schema))(mEq(identity), isA[AdditionalValidation[Task]]))
+        when(resources.create(mEq(id), mEq(schemaRef), mEq(schema))(mEq(identity), isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = identity, updated = identity, schema = schemaRef)))
 
@@ -799,8 +793,7 @@ class ResourceRoutesSpec
         val temp     = simpleV(id, schema, created = identity, updated = identity, schema = schemaRef)
         val ctx      = schema.appendContextOf(shaclCtx)
         val resourceV =
-          temp.copy(value =
-            Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ Graph(temp.metadata ++ temp.typeTriples)))
+          temp.copy(value = Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ Graph(temp.metadata)))
 
         when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
@@ -822,6 +815,13 @@ class ResourceRoutesSpec
         Get(s"/v1/schemas/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.InternalServerError
           responseAs[Error].code shouldEqual classNameOf[Unexpected.type]
+        }
+      }
+
+      "reject when the resource is not available" in new Schema {
+        Get(s"/v1/other/$account/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.NotFound
+          responseAs[Json] shouldEqual jsonContentOf("/resources/rejection.json")
         }
       }
     }

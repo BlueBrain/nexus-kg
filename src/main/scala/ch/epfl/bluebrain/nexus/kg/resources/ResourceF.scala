@@ -102,13 +102,13 @@ final case class ResourceF[P, S, A](
       (node, nxv.constrainedBy, schemaIri),
       (node, nxv.project, wrapped.label.projectAccessId),
       (node, nxv.self, AccessId(id.value, schemaIri))
-    )
+    ) ++ typeTriples
   }
 
   /**
     * The triples for the type of this resource.
     */
-  lazy val typeTriples: Set[Triple] = types.map(tpe => (node, rdf.tpe, tpe): Triple)
+  private lazy val typeTriples: Set[Triple] = types.map(tpe => (node, rdf.tpe, tpe): Triple)
 }
 
 object ResourceF {

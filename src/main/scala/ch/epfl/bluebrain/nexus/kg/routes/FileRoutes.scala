@@ -2,8 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.MediaTypes.`application/json`
-import akka.http.scaladsl.model.headers.{Accept, RawHeader}
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{Accept, RawHeader}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.OptionT
@@ -24,7 +24,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
-import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes.Schemed
 import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
@@ -38,79 +37,93 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
     indexers: Clients[Task],
     store: FileStore[Task, AkkaIn, AkkaOut],
     config: AppConfig)
-    extends Schemed(resources, fileSchemaUri, "files", acls, caller) {
+    extends CommonRoutes(resources, "files", acls, caller) {
 
   private val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
-
   private type RejectionOrFile = Either[AkkaRejection, Option[(FileAttributes, AkkaOut)]]
 
-  override def createWithId(id: AbsoluteIri): Route =
-    (put & pathPrefix(IdSegment) & pathEndOrSingleSlash) { id =>
-      (projectNotDeprecated & hasPermission(resourceCreate) & identity) { implicit ident =>
+  def routes: Route = {
+    val fileRefOpt = Option(fileRef)
+    create(fileRef) ~ list(fileRef) ~
+      pathPrefix(IdSegment) { id =>
+        concat(
+          update(id, fileRefOpt),
+          create(id, fileRef),
+          tag(id, fileRefOpt),
+          deprecate(id, fileRefOpt),
+          fetch(id, fileRefOpt)
+        )
+      }
+  }
+
+  override def create(id: AbsoluteIri, schema: Ref): Route =
+    pathPrefix(IdSegment) { id =>
+      (put & projectNotDeprecated & pathEndOrSingleSlash) {
+        (hasPermission(resourceCreate) & identity) { implicit ident =>
+          fileUpload("file") {
+            case (metadata, byteSource) =>
+              val description = FileDescription(metadata.fileName, metadata.contentType.value)
+              trace("createFiles") {
+                val resId = Id(wrapped.ref, id)
+                complete(resources.createFile(resId, description, byteSource).value.runToFuture)
+              }
+          }
+        }
+      }
+    }
+
+  override def create(schema: Ref): Route =
+    (post & projectNotDeprecated & pathEndOrSingleSlash) {
+      (hasPermission(resourceCreate) & identity) { implicit ident =>
         fileUpload("file") {
           case (metadata, byteSource) =>
             val description = FileDescription(metadata.fileName, metadata.contentType.value)
             trace("createFiles") {
-              val resId = Id(wrapped.ref, id)
-              complete(resources.createFileWithId(resId, description, byteSource).value.runToFuture)
+              complete(resources.createFile(wrapped.ref, wrapped.base, description, byteSource).value.runToFuture)
             }
         }
       }
     }
 
-  override def create: Route =
-    (post & pathEndOrSingleSlash & projectNotDeprecated & hasPermission(resourceCreate) & identity) { implicit ident =>
-      fileUpload("file") {
-        case (metadata, byteSource) =>
-          val description = FileDescription(metadata.fileName, metadata.contentType.value)
-          trace("createFiles") {
-            complete(resources.createFile(wrapped.ref, wrapped.base, description, byteSource).value.runToFuture)
+  override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
+    pathPrefix(IdSegment) { id =>
+      (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash) { rev =>
+        (hasPermission(resourceWrite) & identity) { implicit ident =>
+          fileUpload("file") {
+            case (metadata, byteSource) =>
+              val description = FileDescription(metadata.fileName, metadata.contentType.value)
+              trace("updateFiles") {
+                val resId = Id(wrapped.ref, id)
+                complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
+              }
           }
-      }
-    }
-
-  override def update(id: AbsoluteIri): Route =
-    (put & parameter('rev.as[Long]) & pathPrefix(IdSegment) & pathEndOrSingleSlash) { (rev, id) =>
-      (projectNotDeprecated & hasPermission(resourceWrite) & identity) { implicit ident =>
-        fileUpload("file") {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("updateFiles") {
-              val resId = Id(wrapped.ref, id)
-              complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
-            }
         }
       }
     }
 
-  override def getResource(id: AbsoluteIri): Route =
+  override def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     optionalHeaderValueByType[Accept](()) {
-      case Some(h) if h.mediaRanges == metadataRanges => super.getResource(id)
+      case Some(h) if h.mediaRanges == metadataRanges => super.fetch(id, schemaOpt)
       case _                                          => getFile(id)
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermission(resourceRead)) {
+    (get & parameter('rev.as[Long].?) & parameter('tag.?) & hasPermission(resourceRead) & pathEndOrSingleSlash) {
       (revOpt, tagOpt) =>
         val result = (revOpt, tagOpt) match {
-          case (None, None) =>
-            resources.fetchFile(Id(wrapped.ref, id)).toEitherRun
           case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrFile)
-          case (Some(rev), _) =>
-            resources.fetchFile(Id(wrapped.ref, id), rev).toEitherRun
-          case (_, Some(tag)) =>
-            resources.fetchFile(Id(wrapped.ref, id), tag).toEitherRun
+          case (None, None)       => resources.fetchFile(Id(wrapped.ref, id)).toEitherRun
+          case (Some(rev), _)     => resources.fetchFile(Id(wrapped.ref, id), rev).toEitherRun
+          case (_, Some(tag))     => resources.fetchFile(Id(wrapped.ref, id), tag).toEitherRun
         }
         trace("getFiles") {
           onSuccess(result) {
-            case Left(rej) =>
-              reject(rej)
+            case Left(rej) => reject(rej)
             case Right(Some((info, source))) =>
               (respondWithHeaders(filenameHeader(info)) & encodeResponse) {
                 complete(HttpEntity(contentType(info), info.byteSize, source))
               }
-            case _ =>
-              complete(StatusCodes.NotFound)
+            case _ => complete(StatusCodes.NotFound)
           }
         }
     }

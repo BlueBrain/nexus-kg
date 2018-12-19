@@ -60,7 +60,7 @@ class ElasticIndexer[F[_]](view: ElasticView, resources: Resources[F])(implicit 
     def asJson(g: Graph): Json = g.asJson(ctx, primaryNode).getOrElse(g.asJson)
 
     val transformed: Json = {
-      val metaGraph = if (view.includeMetadata) Graph(res.metadata ++ res.typeTriples) else Graph()
+      val metaGraph = if (view.includeMetadata) Graph(res.metadata) else Graph()
       if (view.sourceAsText) asJson(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces))
       else res.value deepMerge asJson(metaGraph)
     }
