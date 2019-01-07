@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriOrBNode, Literal}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
@@ -64,7 +65,6 @@ object syntax {
   }
 
   final implicit class AclsSyntax(private val acls: AccessControlLists) extends AnyVal {
-    import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 
     /**
       * Checks if on the list of ACLs there are some which contains any of the provided ''identities'', ''perms'' in
