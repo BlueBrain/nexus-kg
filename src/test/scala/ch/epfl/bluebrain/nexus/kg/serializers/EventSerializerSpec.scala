@@ -8,8 +8,7 @@ import java.util.regex.Pattern.quote
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.UserRef
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
@@ -43,9 +42,9 @@ class EventSerializerSpec
 
     val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
 
-    val types              = Set(url"https://bbp.epfl.ch/nexus/types/type1".value, url"https://bbp.epfl.ch/nexus/types/type2".value)
-    val instant            = Clock.systemUTC.instant()
-    val identity: Identity = UserRef("realm", "sub:1234")
+    val types            = Set(url"https://bbp.epfl.ch/nexus/types/type1".value, url"https://bbp.epfl.ch/nexus/types/type2".value)
+    val instant          = Clock.systemUTC.instant()
+    val subject: Subject = User("sub:1234", "realm")
 
     val rep = Map(quote("{timestamp}") -> instant.toString)
 
@@ -54,11 +53,11 @@ class EventSerializerSpec
       val digest   = Digest("md5", "1234")
       val fileAttr = FileAttributes("uuid", Paths.get("/test/path"), "test-file.json", "application/json", 128L, digest)
       val results = List(
-        Created(key, schema, types, value, instant, identity) -> jsonContentOf("/serialization/created-resp.json", rep).noSpaces,
-        Deprecated(key, 1L, types, instant, identity)         -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
-        TagAdded(key, 1L, 2L, "tagName", instant, identity)   -> jsonContentOf("/serialization/tagged-resp.json", rep).noSpaces,
-        CreatedFile(key, fileAttr, instant, identity)         -> jsonContentOf("/serialization/created-file-resp.json", rep).noSpaces,
-        UpdatedFile(key, 2L, fileAttr, instant, identity)     -> jsonContentOf("/serialization/updated-file-resp.json", rep).noSpaces
+        Created(key, schema, types, value, instant, Anonymous) -> jsonContentOf("/serialization/created-resp.json", rep).noSpaces,
+        Deprecated(key, 1L, types, instant, subject)           -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
+        TagAdded(key, 1L, 2L, "tagName", instant, subject)     -> jsonContentOf("/serialization/tagged-resp.json", rep).noSpaces,
+        CreatedFile(key, fileAttr, instant, subject)           -> jsonContentOf("/serialization/created-file-resp.json", rep).noSpaces,
+        UpdatedFile(key, 2L, fileAttr, instant, subject)       -> jsonContentOf("/serialization/updated-file-resp.json", rep).noSpaces
       )
 
       "encode known events to UTF-8" in {
@@ -74,10 +73,9 @@ class EventSerializerSpec
         forAll(results) {
           case (event, json) =>
             val serializer = findConcreteSerializer[EventSerializer](event)
-            serializer.fromBinary(json.getBytes(UTF8), "event") shouldEqual event
+            serializer.fromBinary(json.getBytes(UTF8), "Event") shouldEqual event
         }
       }
-
     }
   }
 }

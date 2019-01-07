@@ -7,12 +7,12 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Account
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
-import ch.epfl.bluebrain.nexus.iam.client.types.Address./
-import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, FullAccessControlList}
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, AuthToken}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.{HealthStatusGroup, ServiceDescription}
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
@@ -60,7 +60,7 @@ class AppInfoRoutesSpec
     "return the health status when everything is up" in {
       when(statusGroup.cassandra.check).thenReturn(Task.pure(true))
       when(statusGroup.cluster.check).thenReturn(Task.pure(true))
-      when(iam.getAcls(/)).thenReturn(Task.pure(FullAccessControlList()))
+      when(iam.acls(/)).thenReturn(Task.pure(AccessControlLists()))
       when(admin.getAccount("test")).thenReturn(Task.pure[Option[Account]](None))
       when(elastic.existsIndex("test")).thenReturn(Task.pure(false))
       when(sparql.namespaceExists).thenReturn(Task.pure(false))
@@ -80,7 +80,7 @@ class AppInfoRoutesSpec
     "return the health status when everything is down" in {
       when(statusGroup.cassandra.check).thenReturn(Task.pure(false))
       when(statusGroup.cluster.check).thenReturn(Task.pure(false))
-      when(iam.getAcls(/)).thenReturn(Task.raiseError(new RuntimeException()))
+      when(iam.acls(/)).thenReturn(Task.raiseError(new RuntimeException()))
       when(admin.getAccount("test")).thenReturn(Task.raiseError(new RuntimeException()))
       when(elastic.existsIndex("test")).thenReturn(Task.raiseError(new RuntimeException()))
       when(sparql.namespaceExists).thenReturn(Task.raiseError(new RuntimeException()))

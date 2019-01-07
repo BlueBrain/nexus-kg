@@ -24,17 +24,12 @@
       ],
       "identities" : [
         {
-          "@type" : "GroupRef",
-          "group" : "bbp-ou-neuroinformatics",
-          "realm" : "ldap2"
-        },
-        {
-          "@type" : "UserRef",
+          "@type" : "User",
           "realm" : "ldap",
-          "sub" : "dmontero"
+          "subject" : "dmontero"
         }
       ],
-      "priority" : 10,
+      "priority" : 11,
       "projects" : [
         "account1/project1",
         "account1/project2"
@@ -54,14 +49,11 @@
       ],
       "identities" : [
         {
-          "@type" : "Anonymous"
-        },
-        {
-          "@type" : "AuthenticatedRef",
+          "@type" : "Authenticated",
           "realm" : "some"
         }
       ],
-      "priority" : 10,
+      "priority" : 12,
       "resourceTypes" : [
         "nxv:Resolver",
         "nxv:InAccount"

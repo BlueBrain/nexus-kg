@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -38,7 +38,7 @@ class ResourceFSpec
   "A ResourceF" should {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
-    val identity: Identity = UserRef("someRealm", "dmontero")
+    val identity: Identity = User("dmontero", "someRealm")
     val userIri            = Iri.absolute(s"${appConfig.iam.baseUri}/realms/someRealm/users/dmontero").right.value
     val anonIri            = Iri.absolute(s"${appConfig.iam.baseUri}/anonymous").right.value
 

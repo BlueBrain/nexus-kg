@@ -9,7 +9,7 @@ import cats.data.{EitherT, OptionT}
 import cats.effect.{Effect, Timer}
 import cats.syntax.functor._
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -41,45 +41,45 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
   /**
     * Creates a new resource.
     *
-    * @param id       the id of the resource
-    * @param schema   the schema that constrains the resource
-    * @param types    the collection of known types of the resource
-    * @param source   the source representation
-    * @param identity the identity that generated the change
-    * @param instant  an optionally provided operation instant
+    * @param id      the id of the resource
+    * @param schema  the schema that constrains the resource
+    * @param types   the collection of known types of the resource
+    * @param source  the source representation
+    * @param subject the subject that generated the change
+    * @param instant an optionally provided operation instant
     * @return either a rejection or the newly created resource in the F context
     */
   def create(id: ResId, schema: Ref, types: Set[AbsoluteIri], source: Json, instant: Instant = clock.instant)(
-      implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, Create(id, schema, types, source, instant, identity))
+      implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, Create(id, schema, types, source, instant, subject))
 
   /**
     * Updates a resource.
     *
-    * @param id       the id of the resource
-    * @param rev      the last known revision of the resource
-    * @param types    the new collection of known resource types
-    * @param source   the source representation
-    * @param identity the identity that generated the change
-    * @param instant  an optionally provided operation instant
+    * @param id      the id of the resource
+    * @param rev     the last known revision of the resource
+    * @param types   the new collection of known resource types
+    * @param source  the source representation
+    * @param subject the subject that generated the change
+    * @param instant an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
   def update(id: ResId, rev: Long, types: Set[AbsoluteIri], source: Json, instant: Instant = clock.instant)(
-      implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, Update(id, rev, types, source, instant, identity))
+      implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, Update(id, rev, types, source, instant, subject))
 
   /**
     * Deprecates a resource.
     *
-    * @param id       the id of the resource
-    * @param rev      the last known revision of the resource
-    * @param identity the identity that generated the change
-    * @param instant  an optionally provided operation instant
+    * @param id      the id of the resource
+    * @param rev     the last known revision of the resource
+    * @param subject the subject that generated the change
+    * @param instant an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
   def deprecate(id: ResId, rev: Long, instant: Instant = clock.instant)(
-      implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, Deprecate(id, rev, instant, identity))
+      implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, Deprecate(id, rev, instant, subject))
 
   /**
     * Tags a resource. This operation aliases the provided ''targetRev'' with the  provided ''tag''.
@@ -88,13 +88,13 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param rev       the last known revision of the resource
     * @param targetRev the revision that is being aliased with the provided ''tag''
     * @param tag       the tag of the alias for the provided ''rev''
-    * @param identity  the identity that generated the change
-    * @param instant  an optionally provided operation instant
+    * @param subject   the identity that generated the change
+    * @param instant   an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
   def tag(id: ResId, rev: Long, targetRev: Long, tag: String, instant: Instant = clock.instant)(
-      implicit identity: Identity): EitherT[F, Rejection, Resource] =
-    evaluate(id, AddTag(id, rev, targetRev, tag, instant, identity))
+      implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, AddTag(id, rev, targetRev, tag, instant, subject))
 
   /**
     * Creates a file resource.
@@ -107,9 +107,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return either a rejection or the new resource representation in the F context
     */
   def createFile[In](id: ResId, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
-      implicit identity: Identity,
+      implicit subject: Subject,
       store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
-    store.save(id, fileDesc, source).flatMap(attr => evaluate(id, CreateFile(id, attr, instant, identity)))
+    store.save(id, fileDesc, source).flatMap(attr => evaluate(id, CreateFile(id, attr, instant, subject)))
 
   /**
     * Replaces a file resource.
@@ -123,9 +123,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return either a rejection or the new resource representation in the F context
     */
   def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
-      implicit identity: Identity,
+      implicit subject: Subject,
       store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
-    store.save(id, fileDesc, source).flatMap(attr => evaluate(id, UpdateFile(id, rev, attr, instant, identity)))
+    store.save(id, fileDesc, source).flatMap(attr => evaluate(id, UpdateFile(id, rev, attr, instant, subject)))
 
   /**
     * Attempts to stream the file resource identified by the argument id.
@@ -243,23 +243,23 @@ object Repo {
     def create(c: Create): Either[Rejection, Created] =
       state match {
         case _ if c.schema == Ref(fileSchemaUri) => Left(NotFileResource(c.id.ref))
-        case Initial                             => Right(Created(c.id, c.schema, types, source, c.instant, c.identity))
+        case Initial                             => Right(Created(c.id, c.schema, types, source, c.instant, c.subject))
         case _                                   => Left(AlreadyExists(c.id.ref))
       }
 
     def createFile(c: CreateFile): Either[Rejection, CreatedFile] =
       state match {
-        case Initial => Right(CreatedFile(c.id, c.value, c.instant, c.identity))
+        case Initial => Right(CreatedFile(c.id, c.value, c.instant, c.subject))
         case _       => Left(AlreadyExists(c.id.ref))
       }
 
     def updateFile(c: UpdateFile): Either[Rejection, UpdatedFile] =
       state match {
-        case Initial                         => Left(NotFound(c.id.ref))
-        case s: Current if s.rev != c.rev    => Left(IncorrectRev(c.id.ref, c.rev))
-        case s: Current if s.deprecated      => Left(IsDeprecated(c.id.ref))
-        case s: Current if !s.file.isDefined => Left(NotFileResource(c.id.ref))
-        case s: Current                      => Right(UpdatedFile(s.id, s.rev + 1, c.value, c.instant, c.identity))
+        case Initial                      => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
+        case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
+        case s: Current if s.file.isEmpty => Left(NotFileResource(c.id.ref))
+        case s: Current                   => Right(UpdatedFile(s.id, s.rev + 1, c.value, c.instant, c.subject))
       }
 
     def update(c: Update): Either[Rejection, Updated] =
@@ -267,7 +267,7 @@ object Repo {
         case Initial                      => Left(NotFound(c.id.ref))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
-        case s: Current                   => Right(Updated(s.id, s.rev + 1, types, source, c.instant, c.identity))
+        case s: Current                   => Right(Updated(s.id, s.rev + 1, types, source, c.instant, c.subject))
       }
 
     def tag(c: AddTag): Either[Rejection, TagAdded] =
@@ -276,7 +276,7 @@ object Repo {
         case s: Current if s.rev < c.rev       => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.rev < c.targetRev => Left(IncorrectRev(c.id.ref, c.targetRev))
         case s: Current if s.deprecated        => Left(IsDeprecated(c.id.ref))
-        case s: Current                        => Right(TagAdded(s.id, s.rev + 1, c.targetRev, c.tag, c.instant, c.identity))
+        case s: Current                        => Right(TagAdded(s.id, s.rev + 1, c.targetRev, c.tag, c.instant, c.subject))
       }
 
     def deprecate(c: Deprecate): Either[Rejection, Deprecated] =
@@ -284,7 +284,7 @@ object Repo {
         case Initial                     => Left(NotFound(c.id.ref))
         case s: Current if s.rev < c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated  => Left(IsDeprecated(c.id.ref))
-        case s: Current                  => Right(Deprecated(s.id, s.rev + 1, s.types, c.instant, c.identity))
+        case s: Current                  => Right(Deprecated(s.id, s.rev + 1, s.types, c.instant, c.subject))
       }
 
     cmd match {

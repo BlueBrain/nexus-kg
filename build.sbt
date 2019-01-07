@@ -26,27 +26,26 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "0.3.8"
-val iamVersion                  = "0.10.27"
+val iamVersion                  = "0.11.4"
 val commonsVersion              = "0.10.41"
 val rdfVersion                  = "0.2.29"
-val serviceVersion              = "0.10.21"
+val serviceVersion              = "0.10.23"
 val sourcingVersion             = "0.12.2"
 val akkaVersion                 = "2.5.19"
 val akkaCorsVersion             = "0.3.3"
-val akkaHttpVersion             = "10.1.5"
+val akkaHttpVersion             = "10.1.7"
 val akkaPersistenceInMemVersion = "2.5.1.1"
-val akkaPersistenceCassVersion  = "0.91"
+val akkaPersistenceCassVersion  = "0.92"
 val catsVersion                 = "1.5.0"
 val catsEffectVersion           = "1.1.0"
-val circeVersion                = "0.10.1"
+val circeVersion                = "0.11.0"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
 val mockitoVersion              = "2.23.4"
 val monixVersion                = "3.0.0-RC1"
-val pureconfigVersion           = "0.9.2"
+val pureconfigVersion           = "0.10.1"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.5"
-val wesoValidatorVersion        = "0.0.65-nexus1"
 val kryoVersion                 = "0.5.2"
 
 // Dependencies modules
@@ -63,6 +62,7 @@ lazy val serviceTest          = "ch.epfl.bluebrain.nexus" %% "service-test"     
 lazy val serviceKafka         = "ch.epfl.bluebrain.nexus" %% "service-kafka"               % serviceVersion
 lazy val serviceKamon         = "ch.epfl.bluebrain.nexus" %% "service-kamon"               % serviceVersion
 lazy val serviceHttp          = "ch.epfl.bluebrain.nexus" %% "service-http"                % serviceVersion
+lazy val serviceSerialization = "ch.epfl.bluebrain.nexus" %% "service-serialization"       % serviceVersion
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"               % sourcingVersion
 lazy val sourcingAkka         = "ch.epfl.bluebrain.nexus" %% "sourcing-akka"               % sourcingVersion
 lazy val shaclValidator       = "ch.epfl.bluebrain.nexus" %% "shacl-validator"             % commonsVersion
@@ -128,6 +128,7 @@ lazy val kg = project
       serviceKafka,
       serviceKamon,
       serviceHttp,
+      serviceSerialization,
       topQuadrantShacl,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,

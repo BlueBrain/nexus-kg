@@ -8,9 +8,10 @@ import akka.util.Timeout
 import ch.epfl.bluebrain.nexus.commons.test.Randomness._
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
-import ch.epfl.bluebrain.nexus.iam.client.types.Address._
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.GroupRef
-import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Permission, Permissions}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Group
+import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.kg.acls.AclsActor.Stop
 import ch.epfl.bluebrain.nexus.kg.acls.AclsOpsSpec._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
@@ -24,6 +25,7 @@ import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, Matchers, WordSpecLike}
 import scala.concurrent.duration._
 class AclsOpsSpec
     extends TestKit(ActorSystem("AclsOpsSpec"))
+    with TestHelper
     with WordSpecLike
     with Matchers
     with ScalaFutures
@@ -34,8 +36,8 @@ class AclsOpsSpec
   private implicit val client              = mock[IamClient[Task]]
   private implicit val config              = IamConfig("http://base.com", None, 1 second)
   private implicit val serviceAccountToken = config.serviceAccountToken
-  val acls = FullAccessControlList(
-    (GroupRef("ldap2", "bbp-ou-neuroinformatics"), /, Permissions(Permission("resources/manage"))))
+  val acls = AccessControlLists(
+    / -> resourceAcls(AccessControlList(Group("myGroup", "myRealm") -> Set(Permission.unsafe("resources/manage")))))
 
   private implicit val tm = Timeout(3 seconds)
 
@@ -52,7 +54,7 @@ class AclsOpsSpec
   }
 
   trait Context {
-    when(client.getAcls("*" / "*", parents = true, self = false)).thenReturn(Task.pure(acls))
+    when(client.acls("*" / "*", ancestors = true, self = false)).thenReturn(Task.pure(acls))
     val aclsOps = new AclsOps(startActor())
   }
 
@@ -65,7 +67,7 @@ class AclsOpsSpec
     }
 
     "handle exception" in new Context {
-      when(client.getAcls("*" / "*", parents = true, self = false)).thenReturn(Task.raiseError(UnauthorizedAccess))
+      when(client.acls("*" / "*", ancestors = true, self = false)).thenReturn(Task.raiseError(UnauthorizedAccess))
       whenReady(aclsOps.fetch().runToFuture.failed)(_ shouldEqual UnauthorizedAccess)
     }
   }

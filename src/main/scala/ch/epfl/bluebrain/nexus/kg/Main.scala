@@ -20,7 +20,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
-import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamUri}
+import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.kg.acls.{AclsActor, AclsOps}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -93,7 +93,7 @@ object Main {
       implicit val cl      = untyped[Future]
 
       implicit val adminClient = AdminClient.task(appConfig.admin)
-      implicit val iamClient   = IamClient.task()(IamUri(appConfig.iam.baseUri), as)
+      implicit val iamClient   = IamClient[Task]
       Clients(sparql)
     }
 

@@ -7,10 +7,10 @@
   "_total": 4,
   "_results": [
     {
-      "@id": "nxv:sub",
+      "@id": "nxv:subject",
       "@type": [
-        "Resolver",
-        "InAccount"
+        "InAccount",
+        "Resolver"
       ],
       "identities": [
         {

@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -65,7 +65,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return either a rejection or the newly created resource in the F context
     */
   def create(projectRef: ProjectRef, base: AbsoluteIri, schema: Ref, source: Json)(
-      implicit identity: Identity,
+      implicit subject: Subject,
       additional: AdditionalValidation[F]): RejOrResource =
     // format: off
     for {
@@ -84,7 +84,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param source the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId, schema: Ref, source: Json)(implicit identity: Identity,
+  def create(id: ResId, schema: Ref, source: Json)(implicit subject: Subject,
                                                    additional: AdditionalValidation[F]): RejOrResource =
     for {
       assigned <- materialize(id, source)
@@ -102,7 +102,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return either a rejection or the new resource representation in the F context
     */
   def createFile[In](projectRef: ProjectRef, base: AbsoluteIri, fileDesc: FileDescription, source: In)(
-      implicit identity: Identity,
+      implicit subject: Subject,
       store: FileStore[F, In, _]): RejOrResource =
     createFile(Id(projectRef, base + uuid()), fileDesc, source)
 
@@ -115,7 +115,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createFile[In](id: ResId, fileDesc: FileDescription, source: In)(implicit identity: Identity,
+  def createFile[In](id: ResId, fileDesc: FileDescription, source: In)(implicit subject: Subject,
                                                                        store: FileStore[F, In, _]): RejOrResource =
     repo.createFile(id, fileDesc, source)
 
@@ -130,12 +130,12 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return either a rejection or the new resource representation in the F context
     */
   def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In)(
-      implicit identity: Identity,
+      implicit subject: Subject,
       store: FileStore[F, In, _]): RejOrResource =
     repo.updateFile(id, rev, fileDesc, source)
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
-      implicit identity: Identity,
+      implicit subject: Subject,
       additional: AdditionalValidation[F]): RejOrResource = {
 
     for {
@@ -188,7 +188,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return either a rejection or the updated resource in the F context
     */
   def update(id: ResId, rev: Long, schemaOpt: Option[Ref], source: Json)(
-      implicit identity: Identity,
+      implicit subject: Subject,
       additional: AdditionalValidation[F]): RejOrResource = {
     def checkSchema(res: Resource): EitherT[F, Rejection, Unit] = schemaOpt match {
       case Some(schema) if schema != res.schema => EitherT.leftT(NotFound(schema))
@@ -216,7 +216,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param schemaOpt optional schema reference that constrains the resource
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
-  def deprecate(id: ResId, rev: Long, schemaOpt: Option[Ref])(implicit identity: Identity): RejOrResource =
+  def deprecate(id: ResId, rev: Long, schemaOpt: Option[Ref])(implicit subject: Subject): RejOrResource =
     checkSchema(id, schemaOpt)(repo.deprecate(id, rev))
 
   /**
@@ -228,7 +228,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param json      the json payload which contains the targetRev and the tag
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
-  def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], json: Json)(implicit identity: Identity): RejOrResource = {
+  def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], json: Json)(implicit subject: Subject): RejOrResource = {
     val result = for {
       graph <- (json deepMerge Contexts.tagCtx).asGraph
       cursor = graph.cursor()
@@ -242,7 +242,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   }
 
   private def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], targetRev: Long, tag: String)(
-      implicit identity: Identity): RejOrResource =
+      implicit subject: Subject): RejOrResource =
     checkSchema(id, schemaOpt)(repo.tag(id, rev, targetRev, tag))
 
   /**

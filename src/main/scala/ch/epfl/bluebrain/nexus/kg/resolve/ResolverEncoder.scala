@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{AuthenticatedRef, GroupRef, UserRef}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
@@ -67,11 +67,10 @@ object ResolverEncoder {
     private def triplesFor(identity: Identity): (BNode, Set[Triple]) = {
       val ss = blank
       identity match {
-        case UserRef(realm, sub)           => ss -> Set((ss, rdf.tpe, nxv.UserRef), (ss, nxv.realm, realm), (ss, nxv.sub, sub))
-        case GroupRef(realm, g)            => ss -> Set((ss, rdf.tpe, nxv.GroupRef), (ss, nxv.realm, realm), (ss, nxv.group, g))
-        case AuthenticatedRef(Some(realm)) => ss -> Set((ss, rdf.tpe, nxv.AuthenticatedRef), (ss, nxv.realm, realm))
-        case AuthenticatedRef(_)           => ss -> Set((ss, rdf.tpe, nxv.AuthenticatedRef))
-        case _                             => ss -> Set((ss, rdf.tpe, nxv.Anonymous))
+        case User(sub, realm)     => ss -> Set((ss, rdf.tpe, nxv.User), (ss, nxv.realm, realm), (ss, nxv.subject, sub))
+        case Group(group, realm)  => ss -> Set((ss, rdf.tpe, nxv.Group), (ss, nxv.realm, realm), (ss, nxv.group, group))
+        case Authenticated(realm) => ss -> Set((ss, rdf.tpe, nxv.Authenticated), (ss, nxv.realm, realm))
+        case _                    => ss -> Set((ss, rdf.tpe, nxv.Anonymous))
       }
     }
   }

@@ -13,10 +13,11 @@
     }
   },
   "instant": "{timestamp}",
-  "identity": {
+  "subject": {
+    "@id":"http://localhost:8080/iam/realms/realm/users/sub:1234",
+    "@type": "User",
     "realm": "realm",
-    "sub": "sub:1234",
-    "type": "UserRef"
+    "subject": "sub:1234"
   },
   "type": "CreatedFile"
 }

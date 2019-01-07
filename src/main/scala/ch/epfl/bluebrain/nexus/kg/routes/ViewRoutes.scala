@@ -5,7 +5,6 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
-import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -24,7 +23,7 @@ import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
-class ViewRoutes private[routes] (resources: Resources[Task], acls: FullAccessControlList, caller: Caller)(
+class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit wrapped: LabeledProject,
     cache: DistributedCache[Task],
     indexers: Clients[Task],

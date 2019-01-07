@@ -10,21 +10,22 @@ import cats.data.OptionT
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{GroupRef, UserRef}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Group, User}
 import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.simpleF
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import io.circe.Json
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
-import ch.epfl.bluebrain.nexus.iam.client.types.Address._
 
 import scala.collection.immutable.ListSet
 import scala.concurrent.Future
@@ -38,6 +39,7 @@ class MultiProjectResolutionSpec
     with Randomness
     with BeforeAndAfter
     with EitherValues
+    with TestHelper
     with OptionValues
     with BeforeAndAfterAll
     with ScalaFutures {
@@ -49,7 +51,8 @@ class MultiProjectResolutionSpec
 
   private implicit val clock: Clock = Clock.systemUTC
 
-  private val resources = mock[Resources[Future]]
+  private val resources   = mock[Resources[Future]]
+  private val managePerms = Set(Permission.unsafe("resources/manage"))
 
   private val base  = Iri.absolute("https://nexus.example.com").getOrElse(fail)
   private val resId = base + "some-id"
@@ -58,13 +61,14 @@ class MultiProjectResolutionSpec
   private val (proj1, proj2, proj3) = (genProjectLabel, genProjectLabel, genProjectLabel)
   private val projects              = Future.successful(ListSet(proj1Id, proj2Id, proj3Id).map(_.ref)) // we want to ensure traversal order
   private val types                 = Set(nxv.Schema.value, nxv.Resource.value)
-  private val group                 = GroupRef("ldap2", "bbp-ou-neuroinformatics")
-  private val identities            = List[Identity](group, UserRef("ldap", "dmontero"))
+  private val group                 = Group("bbp-ou-neuroinformatics", "ldap2")
+  private val identities            = List[Identity](group, User("dmontero", "ldap"))
   implicit val timeout              = Timeout(1 second)
   implicit val ec                   = system.dispatcher
   private val cache                 = DistributedCache.future()
-  val acls                          = FullAccessControlList((group, /, Permissions(Permission("resources/manage"))))
-  private val resolution            = MultiProjectResolution[Future](resources, projects, types, identities, cache, acls)
+  val acls                          = AccessControlLists(/ -> resourceAcls(AccessControlList(group -> managePerms)))
+
+  private val resolution = MultiProjectResolution[Future](resources, projects, types, identities, cache, acls)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -109,8 +113,8 @@ class MultiProjectResolutionSpec
         when(resources.fetch(id, None)).thenReturn(OptionT.some[Future](value))
         value
       }
+      val acl = AccessControlLists(proj2.account / proj2.value -> resourceAcls(AccessControlList(group -> managePerms)))
 
-      val acl           = FullAccessControlList((group, proj2.account / proj2.value, Permissions(Permission("resources/manage"))))
       val newResolution = MultiProjectResolution[Future](resources, projects, types, identities, cache, acl)
 
       newResolution.resolve(Latest(resId)).futureValue shouldEqual Some(value2)

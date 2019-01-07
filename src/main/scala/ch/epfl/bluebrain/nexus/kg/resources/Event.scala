@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.Instant
 
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
@@ -30,9 +30,9 @@ sealed trait Event extends Product with Serializable {
   def instant: Instant
 
   /**
-    * @return the identity which generated this event
+    * @return the subject which created this event
     */
-  def identity: Identity
+  def subject: Subject
 }
 
 object Event {
@@ -40,12 +40,12 @@ object Event {
   /**
     * A witness to a resource creation.
     *
-    * @param id       the resource identifier
-    * @param schema   the schema that was used to constrain the resource
-    * @param types    the collection of known resource types
-    * @param source   the source representation of the resource
-    * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
+    * @param id      the resource identifier
+    * @param schema  the schema that was used to constrain the resource
+    * @param types   the collection of known resource types
+    * @param source  the source representation of the resource
+    * @param instant the instant when this event was recorded
+    * @param subject the identity which generated this event
     */
   final case class Created(
       id: Id[ProjectRef],
@@ -53,7 +53,7 @@ object Event {
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Event {
 
     /**
@@ -65,12 +65,12 @@ object Event {
   /**
     * A witness to a resource update.
     *
-    * @param id       the resource identifier
-    * @param rev      the revision that this event generated
-    * @param types    the collection of new known resource types
-    * @param source   the source representation of the new resource value
-    * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
+    * @param id      the resource identifier
+    * @param rev     the revision that this event generated
+    * @param types   the collection of new known resource types
+    * @param source  the source representation of the new resource value
+    * @param instant the instant when this event was recorded
+    * @param subject the identity which generated this event
     */
   final case class Updated(
       id: Id[ProjectRef],
@@ -78,24 +78,24 @@ object Event {
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Event
 
   /**
     * A witness to a resource deprecation.
     *
-    * @param id       the resource identifier
-    * @param rev      the revision that this event generated
-    * @param types    the collection of new known resource types
-    * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
+    * @param id      the resource identifier
+    * @param rev     the revision that this event generated
+    * @param types   the collection of new known resource types
+    * @param instant the instant when this event was recorded
+    * @param subject the identity which generated this event
     */
   final case class Deprecated(
       id: Id[ProjectRef],
       rev: Long,
       types: Set[AbsoluteIri],
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Event
 
   /**
@@ -106,7 +106,7 @@ object Event {
     * @param targetRev the revision that is being aliased with the provided ''tag''
     * @param tag       the tag of the alias for the provided ''rev''
     * @param instant   the instant when this event was recorded
-    * @param identity  the identity which generated this event
+    * @param subject   the identity which generated this event
     */
   final case class TagAdded(
       id: Id[ProjectRef],
@@ -114,22 +114,22 @@ object Event {
       targetRev: Long,
       tag: String,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Event
 
   /**
     * A witness that a file resource has been created.
     *
-    * @param id       the resource identifier
-    * @param value    the metadata of the file
-    * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
+    * @param id      the resource identifier
+    * @param value   the metadata of the file
+    * @param instant the instant when this event was recorded
+    * @param subject the identity which generated this event
     */
   final case class CreatedFile(
       id: Id[ProjectRef],
       value: FileAttributes,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Event {
 
     /**
@@ -155,14 +155,14 @@ object Event {
     * @param rev      the revision that this event generated
     * @param value    the metadata of the file
     * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
+    * @param subject the identity which generated this event
     */
   final case class UpdatedFile(
       id: Id[ProjectRef],
       rev: Long,
       value: FileAttributes,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Event {
 
     /**

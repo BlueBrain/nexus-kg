@@ -10,12 +10,12 @@
   ],
   "identities" : [
     {
-      "@type" : "UserRef",
+      "@type" : "User",
       "realm" : "ldap",
-      "sub" : "dmontero"
+      "subject" : "dmontero"
     },
     {
-      "@type" : "GroupRef",
+      "@type" : "Group",
       "group" : "bbp-ou-neuroinformatics",
       "realm" : "ldap2"
     }

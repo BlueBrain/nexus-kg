@@ -4,8 +4,7 @@ import cats.data.EitherT
 import cats.{Applicative, Monad, MonadError}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.iam.client.Caller
-import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Identity}
+import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -53,11 +52,10 @@ object AdditionalValidation {
     * @return a new validation that passes whenever the provided mappings are compliant with the ElasticSearch mappings or
     *         when the view is not an ElasticView
     */
-  final def view[F[_]](caller: Caller, acls: FullAccessControlList)(
-      implicit F: MonadError[F, Throwable],
-      elastic: ElasticClient[F],
-      config: ElasticConfig,
-      cache: DistributedCache[F]): AdditionalValidation[F] =
+  final def view[F[_]](caller: Caller, acls: AccessControlLists)(implicit F: MonadError[F, Throwable],
+                                                                 elastic: ElasticClient[F],
+                                                                 config: ElasticConfig,
+                                                                 cache: DistributedCache[F]): AdditionalValidation[F] =
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) => {
       val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
       EitherT.fromEither(View(resource)).flatMap {

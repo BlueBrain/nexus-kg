@@ -1,24 +1,25 @@
 package ch.epfl.bluebrain.nexus.kg.serializers
 
-import java.io.NotSerializableException
-import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Path, Paths}
 
+import akka.actor.ExtendedActorSystem
 import akka.serialization.SerializerWithStringManifest
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
-import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.service.serialization.AkkaCoproductSerializer
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.java8.time._
-import io.circe.parser.decode
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder, Json}
+import shapeless.{:+:, CNil}
 
 import scala.util.Try
 
@@ -28,32 +29,19 @@ import scala.util.Try
   */
 object Serializer {
 
-  private implicit val config: Configuration              = Configuration.default.withDiscriminator("type")
-  private final val EventName                             = "event"
-  private implicit val identityEncoder: Encoder[Identity] = deriveEncoder[Identity]
-  private implicit val identityDecoder: Decoder[Identity] = deriveDecoder[Identity]
+  private implicit val config: Configuration = Configuration.default.withDiscriminator("type")
 
   private implicit def refEncoder: Encoder[Ref] = Encoder { ref =>
     Json.fromString(ref.iri.show)
   }
-  private implicit def refDecoder: Decoder[Ref] = iriDecoder.map(Ref(_))
-
-  private implicit def iriEncoder: Encoder[AbsoluteIri] = Encoder { iri =>
-    Json.fromString(iri.show)
-  }
-  private implicit def iriDecoder: Decoder[AbsoluteIri] = Decoder.decodeString.emapTry { iri =>
-    Iri.absolute(iri).left.map(err => new IllegalArgumentException(err)).toTry
-  }
+  private implicit def refDecoder: Decoder[Ref] = absoluteIriDecoder.map(Ref(_))
 
   private implicit def pathEncoder: Encoder[Path] = Encoder { path =>
     Json.fromString(path.toString)
   }
 
-  private implicit def pathDecoder: Decoder[Path] = Decoder.decodeString.emapTry { path =>
-    Try {
-      Paths.get(path)
-    }
-  }
+  private implicit def pathDecoder: Decoder[Path] =
+    Decoder.decodeString.emapTry(p => Try(Paths.get(p)))
 
   private implicit def fileAttributesEncoder: Encoder[FileAttributes] = deriveEncoder[FileAttributes]
 
@@ -67,13 +55,14 @@ object Serializer {
       Id(ProjectRef(proj), id)
     }
 
-  private val enc = deriveEncoder[Event]
-  private val dec = deriveDecoder[Event]
-
-  implicit val eventEncoder: Encoder[Event] =
+  implicit def eventEncoder(implicit iamClientConfig: IamClientConfig): Encoder[Event] = {
+    val enc = deriveEncoder[Event]
     Encoder.instance { ev =>
       enc(ev).removeKeys("id") deepMerge ev.id.asJson
     }
+  }
+
+  private val dec = deriveDecoder[Event]
 
   implicit val eventDecoder: Decoder[Event] =
     Decoder.instance { hc =>
@@ -85,31 +74,19 @@ object Serializer {
       } yield event
     }
 
-  class EventSerializer extends SerializerWithStringManifest {
-    override final def manifest(o: AnyRef): String =
-      o match {
-        case _: Event => EventName
-        case _        => throw new IllegalArgumentException(s"Unable to generate manifest for '$o'")
-      }
+  class EventSerializer(system: ExtendedActorSystem) extends SerializerWithStringManifest {
 
-    override final def toBinary(o: AnyRef): Array[Byte] =
-      o match {
-        case ev: Event => ev.asJson.noSpaces.getBytes(UTF_8)
-        case _         => throw new IllegalArgumentException(s"Unable to encode to binary; unknown type '$o'")
+    private implicit val appConfig = Settings(system).appConfig
 
-      }
+    private val serializer = new AkkaCoproductSerializer[Event :+: CNil](1050)
 
-    override final def fromBinary(bytes: Array[Byte], manifest: String): AnyRef =
-      manifest match {
-        case `EventName` =>
-          decode[Event](new String(bytes, UTF_8)) match {
-            case Left(err)    => throw err
-            case Right(value) => value
-          }
-        case _ => throw new NotSerializableException(manifest)
-      }
-    //"nexus-json".getBytes.map(_.toInt).sum
-    val identifier = 1050
+    override final def manifest(o: AnyRef): String = serializer.manifest(o)
+
+    override final def toBinary(o: AnyRef): Array[Byte] = serializer.toBinary(o)
+
+    override final def fromBinary(bytes: Array[Byte], manifest: String): AnyRef = serializer.fromBinary(bytes, manifest)
+
+    override val identifier = serializer.identifier
 
   }
 }

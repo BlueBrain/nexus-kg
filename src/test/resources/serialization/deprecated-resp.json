@@ -2,8 +2,16 @@
   "project": "org/projectName",
   "id": "https://bbp.epfl.ch/nexus/data/resourceName",
   "rev": 1,
-  "types":["https://bbp.epfl.ch/nexus/types/type1","https://bbp.epfl.ch/nexus/types/type2"],
+  "types": [
+    "https://bbp.epfl.ch/nexus/types/type1",
+    "https://bbp.epfl.ch/nexus/types/type2"
+  ],
   "instant": "{timestamp}",
-  "identity": {"realm":"realm","sub":"sub:1234","type":"UserRef"},
+  "subject": {
+    "@id":"http://localhost:8080/iam/realms/realm/users/sub:1234",
+    "@type": "User",
+    "realm": "realm",
+    "subject": "sub:1234"
+  },
   "type": "Deprecated"
 }

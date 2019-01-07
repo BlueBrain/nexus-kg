@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg
 import java.time.Clock
 import java.util.UUID
 
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.resourceSchemaUri
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -18,8 +18,21 @@ import org.scalatest.EitherValues
 import org.scalatest.matchers.{MatchResult, Matcher}
 
 import scala.reflect.ClassTag
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 
 trait TestHelper extends MockitoMatchers with EitherValues {
+
+  private val clock = Clock.systemUTC()
+
+  def resourceAcls(acl: AccessControlList): ResourceAccessControlList =
+    ResourceAccessControlList(url"http://example.com/id".value,
+                              1L,
+                              Set.empty,
+                              clock.instant(),
+                              Anonymous,
+                              clock.instant(),
+                              Anonymous,
+                              acl)
 
   def simpleV[P](id: Id[P],
                  value: Json,

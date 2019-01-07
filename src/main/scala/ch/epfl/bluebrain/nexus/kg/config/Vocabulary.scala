@@ -61,7 +61,7 @@ object Vocabulary {
     val projects      = withSuffix("projects")
     val identities    = withSuffix("identities")
     val realm         = withSuffix("realm")
-    val sub           = withSuffix("sub")
+    val subject       = withSuffix("subject")
     val group         = withSuffix("group")
 
     // View payload vocabulary
@@ -90,9 +90,9 @@ object Vocabulary {
     val ElasticView          = withSuffix("ElasticView")
     val SparqlView           = withSuffix("SparqlView")
     val AggregateElasticView = withSuffix("AggregateElasticView")
-    val UserRef              = withSuffix("UserRef")
-    val GroupRef             = withSuffix("GroupRef")
-    val AuthenticatedRef     = withSuffix("AuthenticatedRef")
+    val User                 = withSuffix("User")
+    val Group                = withSuffix("Group")
+    val Authenticated        = withSuffix("Authenticated")
     val Anonymous            = withSuffix("Anonymous")
     val Alpha                = withSuffix("Alpha")
   }
