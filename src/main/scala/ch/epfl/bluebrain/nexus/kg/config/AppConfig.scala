@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -16,6 +17,7 @@ import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.sourcing.akka._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -116,7 +118,11 @@ object AppConfig {
     * @param serviceAccountToken  the service account token to execute calls to IAM
     * @param cacheRefreshInterval the maximum tolerated inactivity period after which the cached ACLs will be refreshed
     */
-  final case class IamConfig(baseUri: Uri, serviceAccountToken: Option[AuthToken], cacheRefreshInterval: FiniteDuration)
+  final case class IamConfig(baseUri: Uri,
+                             serviceAccountToken: Option[AuthToken],
+                             cacheRefreshInterval: FiniteDuration) {
+    val iamClient: IamClientConfig = IamClientConfig(url"${baseUri.toString}".value)
+  }
 
   /**
     * Kafka config
@@ -225,6 +231,7 @@ object AppConfig {
   implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig    = appConfig.pagination
   implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                = appConfig.http
   implicit def toIam(implicit appConfig: AppConfig): IamConfig                  = appConfig.iam
+  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig      = appConfig.iam.iamClient
   implicit def toAdmin(implicit appConfig: AppConfig): AdminConfig              = appConfig.admin
   implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfig        = appConfig.indexing
   implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig = appConfig.sourcing

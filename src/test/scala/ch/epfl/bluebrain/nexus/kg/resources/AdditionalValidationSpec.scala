@@ -9,10 +9,8 @@ import cats.instances.try_
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticServerError
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.iam.client.Caller
-import ch.epfl.bluebrain.nexus.iam.client.Caller.{AnonymousCaller, AuthenticatedCaller}
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, GroupRef, UserRef}
-import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, _}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
@@ -23,7 +21,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.Json
@@ -63,21 +62,20 @@ class AdditionalValidationSpec
     val id                                     = Id(projectRef, iri)
     val accountRef                             = AccountRef("accountRef")
     implicit val F: MonadError[Try, Throwable] = try_.catsStdInstancesForTry
-    val user                                   = UserRef("ldap", "dmontero")
-    val matchingCaller: Caller = AuthenticatedCaller(
-      AuthToken("some"),
-      user,
-      Set[Identity](user, UserRef("ldap", "dmontero2"), GroupRef("ldap2", "bbp-ou-neuroinformatics"))
-    )
+    val user                                   = User("dmontero", "ldap")
+    val matchingCaller: Caller =
+      Caller(user, Set[Identity](user, User("dmontero2", "ldap"), Group("bbp-ou-neuroinformatics", "ldap2")))
 
     val label1 = ProjectLabel("account1", "project1")
     val label2 = ProjectLabel("account1", "project2")
-    val acls   = FullAccessControlList((user: Identity, Address(label1.account), Permissions(Permission("views/manage"))))
 
     val labels = Set(label1, label2)
     val ref1   = ProjectRef("64b202b4-1060-42b5-9b4f-8d6a9d0d9113")
     val ref2   = ProjectRef("d23d9578-255b-4e46-9e65-5c254bc9ad0a")
 
+    val path = Path(s"/${label1.account}").right.value
+    val acls =
+      AccessControlLists(path -> resourceAcls(AccessControlList(user -> Set(Permission.unsafe("views/manage")))))
     "applied to generic resources" should {
 
       "pass always" in {
@@ -94,16 +92,15 @@ class AdditionalValidationSpec
 
       "fail when identities in acls are different from identities on resolver" in {
         val caller: Caller =
-          AuthenticatedCaller(AuthToken("sone"),
-                              UserRef("ldap", "dmontero2"),
-                              Set[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero2")))
+          Caller(User("dmontero2", "ldap"),
+                 Set[Identity](Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero2", "ldap")))
         val validation = AdditionalValidation.resolver[Try](caller, accountRef)
         val resource   = simpleV(id, crossProject, types = types)
         validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidIdentity]
       }
 
       "fail when the payload cannot be serialized" in {
-        val caller: Caller = AnonymousCaller
+        val caller: Caller = Caller.anonymous
         val validation     = AdditionalValidation.resolver[Try](caller, accountRef)
         val resource       = simpleV(id, crossProject, types = Set(nxv.Resolver))
         validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.success.value.left.value shouldBe a[
@@ -220,12 +217,15 @@ class AdditionalValidationSpec
       "fail no permissions found on project referenced on AggregateElasticView" in {
         val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
 
-        val aclsWrongPerms = List(
-          FullAccessControlList((user: Identity, Address(label1.account), Permissions(Permission("schemas/manage")))),
-          FullAccessControlList(
-            (Anonymous: Identity, Address(label1.account), Permissions(Permission("views/manage")))),
-          FullAccessControlList((user: Identity, Address("other/project"), Permissions(Permission("views/manage"))))
-        )
+        val aclsWrongPerms =
+          List(
+            AccessControlLists(
+              path -> resourceAcls(AccessControlList(user -> Set(Permission.unsafe("schemas/manage"))))),
+            AccessControlLists(
+              path -> resourceAcls(AccessControlList(Anonymous -> Set(Permission.unsafe("views/manage"))))),
+            AccessControlLists(
+              "other" / "project" -> resourceAcls(AccessControlList(user -> Set(Permission.unsafe("views/manage")))))
+          )
 
         val resource = simpleV(id, aggElasticView, types = types)
         forAll(aclsWrongPerms) { a =>

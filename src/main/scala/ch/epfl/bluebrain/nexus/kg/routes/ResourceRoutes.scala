@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -20,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
-class ResourceRoutes private[routes] (resources: Resources[Task], acls: FullAccessControlList, caller: Caller)(
+class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit wrapped: LabeledProject,
     cache: DistributedCache[Task],
     indexers: Clients[Task],

@@ -134,11 +134,11 @@ object Resolver {
 
     def identity(c: GraphCursor): EncoderResult[Identity] =
       c.downField(rdf.tpe).focus.as[AbsoluteIri].flatMap {
-        case nxv.UserRef.value =>
-          (c.downField(nxv.realm).focus.as[String], c.downField(nxv.sub).focus.as[String]).mapN(UserRef.apply)
-        case nxv.GroupRef.value =>
-          (c.downField(nxv.realm).focus.as[String], c.downField(nxv.group).focus.as[String]).mapN(GroupRef.apply)
-        case nxv.AuthenticatedRef.value        => Right(AuthenticatedRef(c.downField(nxv.realm).focus.as[String].toOption))
+        case nxv.User.value =>
+          (c.downField(nxv.subject).focus.as[String], c.downField(nxv.realm).focus.as[String]).mapN(User.apply)
+        case nxv.Group.value =>
+          (c.downField(nxv.group).focus.as[String], c.downField(nxv.realm).focus.as[String]).mapN(Group.apply)
+        case nxv.Authenticated.value           => c.downField(nxv.realm).focus.as[String].map(Authenticated.apply)
         case iri if iri == nxv.Anonymous.value => Right(Anonymous)
         case t                                 => Left(IllegalConversion(s"The type '$t' cannot be converted into an Identity"))
       }

@@ -10,14 +10,14 @@
   ],
   "identities" : [
     {
-      "@type" : "GroupRef",
+      "@type" : "Group",
       "group" : "bbp-ou-neuroinformatics",
       "realm" : "ldap2"
     },
     {
-      "@type" : "UserRef",
+      "@type" : "User",
       "realm" : "ldap",
-      "sub" : "dmontero"
+      "subject" : "dmontero"
     }
   ],
   "priority" : 10,

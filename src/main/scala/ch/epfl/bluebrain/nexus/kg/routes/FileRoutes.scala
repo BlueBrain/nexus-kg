@@ -8,13 +8,12 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.OptionT
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
-import ch.epfl.bluebrain.nexus.iam.client.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{hasPermission, identity}
+import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
@@ -31,7 +30,7 @@ import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
 
-class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessControlList, caller: Caller)(
+class FileRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit wrapped: LabeledProject,
     cache: DistributedCache[Task],
     indexers: Clients[Task],
@@ -58,37 +57,33 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
     pathPrefix(IdSegment) { id =>
-      (put & projectNotDeprecated & pathEndOrSingleSlash) {
-        (hasPermission(resourceCreate) & identity) { implicit ident =>
-          fileUpload("file") {
-            case (metadata, byteSource) =>
-              val description = FileDescription(metadata.fileName, metadata.contentType.value)
-              trace("createFiles") {
-                val resId = Id(wrapped.ref, id)
-                complete(resources.createFile(resId, description, byteSource).value.runToFuture)
-              }
-          }
-        }
-      }
-    }
-
-  override def create(schema: Ref): Route =
-    (post & projectNotDeprecated & pathEndOrSingleSlash) {
-      (hasPermission(resourceCreate) & identity) { implicit ident =>
+      (put & projectNotDeprecated & hasPermission(resourceCreate) & pathEndOrSingleSlash) {
         fileUpload("file") {
           case (metadata, byteSource) =>
             val description = FileDescription(metadata.fileName, metadata.contentType.value)
             trace("createFiles") {
-              complete(resources.createFile(wrapped.ref, wrapped.base, description, byteSource).value.runToFuture)
+              val resId = Id(wrapped.ref, id)
+              complete(resources.createFile(resId, description, byteSource).value.runToFuture)
             }
         }
       }
     }
 
+  override def create(schema: Ref): Route =
+    (post & projectNotDeprecated & hasPermission(resourceCreate) & pathEndOrSingleSlash) {
+      fileUpload("file") {
+        case (metadata, byteSource) =>
+          val description = FileDescription(metadata.fileName, metadata.contentType.value)
+          trace("createFiles") {
+            complete(resources.createFile(wrapped.ref, wrapped.base, description, byteSource).value.runToFuture)
+          }
+      }
+    }
+
   override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     pathPrefix(IdSegment) { id =>
-      (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash) { rev =>
-        (hasPermission(resourceWrite) & identity) { implicit ident =>
+      (put & parameter('rev.as[Long]) & projectNotDeprecated & hasPermission(resourceWrite) & pathEndOrSingleSlash) {
+        rev =>
           fileUpload("file") {
             case (metadata, byteSource) =>
               val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -97,7 +92,6 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: FullAccessCo
                 complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
               }
           }
-        }
       }
     }
 

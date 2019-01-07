@@ -4,14 +4,14 @@
   "resourceTypes": ["nxv:Schema"],
   "identities": [
     {
-      "@type": "GroupRef",
+      "@type": "Group",
       "realm": "ldap2",
       "group": "bbp-ou-neuroinformatics"
     },
     {
-      "@type": "UserRef",
+      "@type": "User",
       "realm": "ldap",
-      "sub": "dmontero"
+      "subject": "dmontero"
     }
   ],
   "priority": 5000

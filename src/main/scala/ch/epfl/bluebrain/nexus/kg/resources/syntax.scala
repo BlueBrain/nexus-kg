@@ -4,22 +4,16 @@ import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
 import java.util.UUID
 
-import ch.epfl.bluebrain.nexus.iam.client.Caller
-import ch.epfl.bluebrain.nexus.iam.client.types.Address.Segment
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, AuthenticatedRef, GroupRef, UserRef}
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{HttpConfig, IamConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode, Literal}
+import ch.epfl.bluebrain.nexus.rdf.Node.{IriOrBNode, Literal}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
-import ch.epfl.bluebrain.nexus.service.http.Path
-import ch.epfl.bluebrain.nexus.service.http.UriOps._
 
 import scala.util.{Success, Try}
 
@@ -43,17 +37,6 @@ object syntax {
 
   final implicit class ResourceSyntax(resource: ResourceF[_, _, _]) {
     def isSchema: Boolean = resource.types.contains(nxv.Schema.value)
-  }
-
-  final implicit class IdentityIdSyntax(private val identity: Identity) extends AnyVal {
-    import ch.epfl.bluebrain.nexus.service.http.Path._
-    def id(implicit iamConfig: IamConfig): IriNode = identity match {
-      case UserRef(realm, sub)           => url"${iamConfig.baseUri.append("realms" / realm / "users" / sub)}"
-      case GroupRef(realm, group)        => url"${iamConfig.baseUri.append("realms" / realm / "groups" / group)}"
-      case AuthenticatedRef(Some(realm)) => url"${iamConfig.baseUri.append("realms" / realm / "authenticated")}"
-      case AuthenticatedRef(_)           => url"${iamConfig.baseUri.append(Path("authenticated"))}"
-      case Anonymous                     => url"${iamConfig.baseUri.append(Path("anonymous"))}"
-    }
   }
 
   final implicit def toNode(instant: Instant): Node =
@@ -80,8 +63,8 @@ object syntax {
     def removeMetadata(id: IriOrBNode): Graph = ResourceF.removeMetadata(graph, id)
   }
 
-  final implicit class AclsSyntax(private val acls: FullAccessControlList) extends AnyVal {
-    import ch.epfl.bluebrain.nexus.iam.client.types.Address._
+  final implicit class AclsSyntax(private val acls: AccessControlLists) extends AnyVal {
+    import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 
     /**
       * Checks if on the list of ACLs there are some which contains any of the provided ''identities'', ''perms'' in
@@ -92,11 +75,11 @@ object syntax {
       * @param perms      the permissions to filter
       * @return true if the conditions are met, false otherwise
       */
-    def exists(identities: Set[Identity], label: ProjectLabel, perms: Permissions): Boolean =
-      acls.acl.exists {
-        case FullAccessControl(identity, path, permissions) =>
-          identities.contains(identity) && permissions.containsAny(perms) &&
-            (path == / || path == Address(label.account) || path == label.account / label.value)
+    def exists(identities: Set[Identity], label: ProjectLabel, perms: Set[Permission]): Boolean =
+      acls.filter(identities).value.exists {
+        case (path, v) =>
+          (path == / || path == Segment(label.account, /) || path == label.account / label.value) &&
+            v.value.permissions.exists(perms.contains)
       }
   }
 
@@ -109,19 +92,8 @@ object syntax {
       * @param projectLabel the project to check for permissions validity
       * @param permissions  the permissions to filter
       */
-    def hasPermission(acls: FullAccessControlList, projectLabel: ProjectLabel, permissions: Permissions): Boolean = {
-
-      def verify(identity: Identity, perms: Permissions): Boolean =
-        caller.identities.contains(identity) && perms.containsAny(permissions)
-
-      val (org, proj) = projectLabel.account -> projectLabel.value
-      acls.acl.exists {
-        case FullAccessControl(ident, Segment(`proj`, Segment(`org`, Address./)), perms) => verify(ident, perms)
-        case FullAccessControl(ident, Segment(`org`, Address./), perms)                  => verify(ident, perms)
-        case FullAccessControl(ident, Address./, perms)                                  => verify(ident, perms)
-        case _                                                                           => false
-      }
-    }
+    def hasPermission(acls: AccessControlLists, projectLabel: ProjectLabel, permissions: Set[Permission]): Boolean =
+      acls.exists(caller.identities, projectLabel, permissions)
 
     /**
       * Filters from the provided ''projects'' the ones where the caller has some of the passed ''permissions'' on the ''acls''.
@@ -131,9 +103,9 @@ object syntax {
       * @param permissions the permissions to filter
       * @return a set of [[ProjectLabel]]
       */
-    def hasPermission(acls: FullAccessControlList,
+    def hasPermission(acls: AccessControlLists,
                       projects: Set[ProjectLabel],
-                      permissions: Permissions): Set[ProjectLabel] =
+                      permissions: Set[Permission]): Set[ProjectLabel] =
       projects.filter(hasPermission(acls, _, permissions))
   }
 }

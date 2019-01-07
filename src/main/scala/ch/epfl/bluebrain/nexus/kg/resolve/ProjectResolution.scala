@@ -5,7 +5,7 @@ import cats.instances.list._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.traverse._
-import ch.epfl.bluebrain.nexus.iam.client.types.FullAccessControlList
+import ch.epfl.bluebrain.nexus.iam.client.types.AccessControlLists
 import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
@@ -23,7 +23,7 @@ import monix.eval.Task
   */
 class ProjectResolution[F[_]](cache: DistributedCache[F],
                               staticResolution: Resolution[F],
-                              fetchAcls: => F[FullAccessControlList])(implicit F: Monad[F]) {
+                              fetchAcls: => F[AccessControlLists])(implicit F: Monad[F]) {
 
   /**
     * Looks up the collection of defined resolvers for the argument project
@@ -37,8 +37,8 @@ class ProjectResolution[F[_]](cache: DistributedCache[F],
   def apply(ref: ProjectRef)(resources: Resources[F]): Resolution[F] =
     new Resolution[F] {
 
-      def resolverResolution(r: Resolver): F[Resolution[F]] =
-        r match {
+      def resolverResolution(resolver: Resolver): F[Resolution[F]] =
+        resolver match {
           case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, resources))
           case r: InAccountResolver =>
             val projects = cache.projects(r.accountRef)
@@ -69,6 +69,6 @@ object ProjectResolution {
     * @return a new [[ProjectResolution]] for the effect type [[Task]]
     */
   def task(cache: DistributedCache[Task], aclsOps: AclsOps): ProjectResolution[Task] =
-    new ProjectResolution(cache, StaticResolution[Task](iriResolution), aclsOps.fetch)
+    new ProjectResolution(cache, StaticResolution[Task](iriResolution), aclsOps.fetch())
 
 }

@@ -4,8 +4,8 @@ import java.time.Instant
 
 import cats.Applicative
 import cats.data.EitherT
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -59,8 +59,8 @@ object State {
     * @param file       the optional file
     * @param created    the instant when the resource was created
     * @param updated    the instant when the resource was last updated
-    * @param createdBy  the identity that created the resource
-    * @param updatedBy  the identity that last updated the resource
+    * @param createdBy  the subject that created the resource
+    * @param updatedBy  the subject that last updated the resource
     * @param schema     the schema reference that constrains this resource
     * @param source     the source representation of the resource
     */
@@ -73,8 +73,8 @@ object State {
       file: Option[FileAttributes],
       created: Instant,
       updated: Instant,
-      createdBy: Identity,
-      updatedBy: Identity,
+      createdBy: Subject,
+      updatedBy: Subject,
       schema: Ref,
       source: Json
   ) extends State {

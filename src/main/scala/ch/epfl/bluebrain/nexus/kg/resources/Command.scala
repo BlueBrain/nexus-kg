@@ -2,12 +2,12 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.Instant
 
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
-import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 
 /**
   * Enumeration of resource command types.
@@ -32,7 +32,7 @@ sealed trait Command extends Product with Serializable {
   /**
     * @return the identity which created this command
     */
-  def identity: Identity
+  def subject: Subject
 }
 
 object Command {
@@ -40,12 +40,12 @@ object Command {
   /**
     * An intent for resource creation.
     *
-    * @param id       the resource identifier
-    * @param schema   the schema that is used to constrain the resource
-    * @param types    the collection of known resource types (asserted or inferred)
-    * @param source   the source representation of the resource
-    * @param instant  the instant when this command was created
-    * @param identity the identity which created this command
+    * @param id      the resource identifier
+    * @param schema  the schema that is used to constrain the resource
+    * @param types   the collection of known resource types (asserted or inferred)
+    * @param source  the source representation of the resource
+    * @param instant the instant when this command was created
+    * @param subject the identity which created this command
     */
   final case class Create(
       id: Id[ProjectRef],
@@ -53,7 +53,7 @@ object Command {
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Command {
 
     /**
@@ -65,12 +65,12 @@ object Command {
   /**
     * An intent for resource update.
     *
-    * @param id       the resource identifier
-    * @param rev      the last known revision of the resource when this command was created
-    * @param types    the collection of known resource types (asserted or inferred)
-    * @param source   the new source representation of the resource
-    * @param instant  the instant when this command was created
-    * @param identity the identity which created this command
+    * @param id      the resource identifier
+    * @param rev     the last known revision of the resource when this command was created
+    * @param types   the collection of known resource types (asserted or inferred)
+    * @param source  the new source representation of the resource
+    * @param instant the instant when this command was created
+    * @param subject the identity which created this command
     */
   final case class Update(
       id: Id[ProjectRef],
@@ -78,7 +78,7 @@ object Command {
       types: Set[AbsoluteIri],
       source: Json,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Command
 
   /**
@@ -93,7 +93,7 @@ object Command {
       id: Id[ProjectRef],
       rev: Long,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Command
 
   /**
@@ -112,7 +112,7 @@ object Command {
       targetRev: Long,
       tag: String,
       instant: Instant,
-      identity: Identity
+      subject: Subject
   ) extends Command
 
   /**
@@ -121,9 +121,9 @@ object Command {
     * @param id       the resource identifier
     * @param value    the file metadata
     * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
+    * @param subject the subject which generated this event
     */
-  final case class CreateFile(id: Id[ProjectRef], value: FileAttributes, instant: Instant, identity: Identity)
+  final case class CreateFile(id: Id[ProjectRef], value: FileAttributes, instant: Instant, subject: Subject)
       extends Command {
 
     /**
@@ -149,13 +149,9 @@ object Command {
     * @param rev      the last known revision of the resource when this command was created
     * @param value    the file metadata
     * @param instant  the instant when this event was recorded
-    * @param identity the identity which generated this event
+    * @param subject the subject which generated this event
     */
-  final case class UpdateFile(id: Id[ProjectRef],
-                              rev: Long,
-                              value: FileAttributes,
-                              instant: Instant,
-                              identity: Identity)
+  final case class UpdateFile(id: Id[ProjectRef], rev: Long, value: FileAttributes, instant: Instant, subject: Subject)
       extends Command {
 
     /**

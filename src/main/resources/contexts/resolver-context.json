@@ -18,9 +18,9 @@
     "CrossProject": "nxv:CrossProject",
     "InAccount": "nxv:InAccount",
     "InProject": "nxv:InProject",
-    "UserRef": "nxv:UserRef",
-    "GroupRef": "nxv:GroupRef",
-    "AuthenticatedRef": "nxv:AuthenticatedRef",
+    "User": "nxv:User",
+    "Group": "nxv:Group",
+    "Authenticated": "nxv:Authenticated",
     "Anonymous": "nxv:Anonymous",
     "priority": "nxv:priority",
     "resourceTypes": {
@@ -37,7 +37,7 @@
       "@container": "@set"
     },
     "realm": "nxv:realm",
-    "sub": "nxv:sub",
+    "subject": "nxv:subject",
     "group": "nxv:group"
   },
   "@id": "https://bluebrain.github.io/nexus/contexts/resolver.json"

@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, UserRef}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
@@ -27,6 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, 
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -65,14 +66,12 @@ class ResourcesSpec
   private val cache               = mock[DistributedCache[IO]]
   private implicit val additional = AdditionalValidation.pass[IO]
   when(cache.resolvers(any[ProjectRef])).thenReturn(IO.pure(Set.empty[Resolver]))
+  val acls = AccessControlLists(
+    "some" / "path" -> resourceAcls(
+      AccessControlList(User("sub", "realm") -> Set(Permission.unsafe("resources/manage")))))
+
   private implicit val resolution =
-    new ProjectResolution[IO](
-      cache,
-      StaticResolution(AppConfig.iriResolution),
-      IO.pure(
-        FullAccessControlList(
-          (UserRef("realm", "sub"), Address("some/path"), Permissions(Permission("resources/manage")))))
-    )
+    new ProjectResolution[IO](cache, StaticResolution(AppConfig.iriResolution), IO.pure(acls))
   private val resources: Resources[IO] = Resources[IO]
 
   private def randomIri() = Iri.absolute(s"http://example.com/$uuid").right.value
@@ -82,11 +81,11 @@ class ResourcesSpec
   }
 
   trait Base {
-    implicit val identity: Identity = Anonymous
-    val projectRef                  = ProjectRef(uuid)
-    val base                        = Iri.absolute(s"http://example.com/base").right.value
-    val id                          = Iri.absolute(s"http://example.com/$uuid").right.value
-    val resId                       = Id(projectRef, id)
+    implicit val subject: Subject = Anonymous
+    val projectRef                = ProjectRef(uuid)
+    val base                      = Iri.absolute(s"http://example.com/base").right.value
+    val id                        = Iri.absolute(s"http://example.com/$uuid").right.value
+    val resId                     = Id(projectRef, id)
   }
 
   trait ResolverResource extends Base {

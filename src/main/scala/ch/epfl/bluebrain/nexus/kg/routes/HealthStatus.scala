@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
 import journal.Logger
 import monix.eval.Task
-import ch.epfl.bluebrain.nexus.iam.client.types.Address./
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 
 import scala.concurrent.Future
 
@@ -59,7 +59,7 @@ object HealthStatus {
     private implicit val log                      = Logger(s"${getClass.getSimpleName}")
     private implicit val token: Option[AuthToken] = None
 
-    override def check: Task[Boolean] = client.getAcls(/).map(_ => true).transformAndCatchError("fetch ACLs")
+    override def check: Task[Boolean] = client.acls(/).map(_ => true).transformAndCatchError("fetch ACLs")
   }
 
   class AdminHealthStatus(client: AdminClient[Task]) extends HealthStatus {

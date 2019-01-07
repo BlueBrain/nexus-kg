@@ -5,6 +5,11 @@
   "targetRev": 2,
   "tag": "tagName",
   "instant": "{timestamp}",
-  "identity": {"realm":"realm","sub":"sub:1234","type":"UserRef"},
+  "subject": {
+    "@id":"http://localhost:8080/iam/realms/realm/users/sub:1234",
+    "@type": "User",
+    "realm": "realm",
+    "subject": "sub:1234"
+  },
   "type": "TagAdded"
 }

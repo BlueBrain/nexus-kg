@@ -6,8 +6,7 @@ import cats.data.EitherT
 import cats.implicits._
 import cats.{Monad, MonadError, Show}
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticFailure}
-import ch.epfl.bluebrain.nexus.iam.client.Caller
-import ch.epfl.bluebrain.nexus.iam.client.types.{FullAccessControlList, Permission, Permissions}
+import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -82,8 +81,8 @@ sealed trait View extends Product with Serializable {
     * For the case of ''AggregateElasticView of ViewRef[ProjectLabel]'',
     * the conversion is successful when the the mapping ''projectLabel -> projectRef'' and the viewId exists on the ''cache''
     */
-  def referenced[F[_]](caller: Caller, acls: FullAccessControlList)(implicit cache: DistributedCache[F],
-                                                                    F: Monad[F]): EitherT[F, Rejection, View] = {
+  def referenced[F[_]](caller: Caller, acls: AccessControlLists)(implicit cache: DistributedCache[F],
+                                                                 F: Monad[F]): EitherT[F, Rejection, View] = {
     this match {
       case AggregateElasticViewLabels(r) =>
         val labelIris = r.value.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
@@ -112,7 +111,7 @@ sealed trait View extends Product with Serializable {
 }
 
 object View {
-  val viewsRead = Permissions(Permission("views/read"), Permission("views/manage"))
+  val viewsRead = Set(Permission.unsafe("views/read"), Permission.unsafe("views/manage"))
 
   /**
     * Enumeration of single view types.
@@ -292,7 +291,7 @@ object View {
     def projects: Set[P] = value.map(_.project)
 
     def indices[F[_]](implicit cache: DistributedCache[F],
-                      acls: FullAccessControlList,
+                      acls: AccessControlLists,
                       caller: Caller,
                       config: ElasticConfig,
                       F: Monad[F]): F[Set[String]] =

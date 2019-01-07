@@ -3,10 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.acls
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.cluster.singleton._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
-import ch.epfl.bluebrain.nexus.iam.client.types.Address._
-import ch.epfl.bluebrain.nexus.iam.client.types.FullAccessControlList
+import ch.epfl.bluebrain.nexus.iam.client.types.AccessControlLists
 import ch.epfl.bluebrain.nexus.kg.acls.AclsActor.{AclsFetchError, Fetch, Refresh}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.service.indexer.stream.StreamCoordinator.Stop
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -22,14 +22,14 @@ import scala.util.control.NonFatal
   */
 class AclsActor(client: IamClient[Task])(implicit iamConfig: IamConfig) extends Actor with ActorLogging {
 
-  private val taskAcls: Task[Either[Throwable, FullAccessControlList]] = client
-    .getAcls("*" / "*", parents = true, self = false)(iamConfig.serviceAccountToken)
+  private val taskAcls: Task[Either[Throwable, AccessControlLists]] = client
+    .acls("*" / "*", ancestors = true, self = false)(iamConfig.serviceAccountToken)
     .map(Right.apply)
     .onErrorRecover {
       case NonFatal(th) => Left(th)
     }
 
-  private var acls: Future[Either[Throwable, FullAccessControlList]] = _
+  private var acls: Future[Either[Throwable, AccessControlLists]] = _
 
   override def preStart(): Unit = {
     context.system.scheduler.scheduleOnce(iamConfig.cacheRefreshInterval, self, Refresh)
@@ -49,7 +49,7 @@ class AclsActor(client: IamClient[Task])(implicit iamConfig: IamConfig) extends 
   override def receive: Receive = {
     case Refresh =>
       acls = taskAcls.runToFuture
-      fetch(sender(), retryOnError = false)
+      fetch(sender())
       val _ = context.system.scheduler.scheduleOnce(iamConfig.cacheRefreshInterval, self, Refresh)
     case Fetch =>
       val _ = fetch(sender())
@@ -85,7 +85,8 @@ object AclsActor {
 
   /**
     * Response message when [[IamClient]] signals an error when fetching ACLs
-    * @param err
+    *
+    * @param err the underlying error
     */
   final case class AclsFetchError(err: Throwable) extends Msg
 

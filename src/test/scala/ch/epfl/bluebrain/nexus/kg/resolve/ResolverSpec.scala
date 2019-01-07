@@ -54,7 +54,7 @@ class ResolverSpec
     val projectRef       = ProjectRef("ref")
     val id               = Id(projectRef, iri)
     val accountRef       = AccountRef("accountRef")
-    val identities       = List[Identity](GroupRef("ldap2", "bbp-ou-neuroinformatics"), UserRef("ldap", "dmontero"))
+    val identities       = List[Identity](Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero", "ldap"))
     val label1           = ProjectLabel("account1", "project1")
     val label2           = ProjectLabel("account1", "project2")
 
@@ -144,28 +144,28 @@ class ResolverSpec
           CrossProjectResolver(
             Set(nxv.Resolver, nxv.CrossProject),
             Set(label1, label2),
-            identities,
+            List(User("dmontero", "ldap")),
             projectRef,
             iri2,
             1L,
             false,
-            10
+            11
           )
         val inAccount: Resolver =
           InAccountResolver(Set(nxv.Resolver, nxv.InAccount),
-                            List(Anonymous, AuthenticatedRef(Some("some"))),
+                            List(Authenticated("some")),
                             accountRef,
                             projectRef,
                             iri3,
                             1L,
                             false,
-                            10)
+                            12)
 
         val resolvers: QueryResults[Resolver] = QueryResults(2L,
                                                              List(UnscoredQueryResult(inProject),
                                                                   UnscoredQueryResult(crossProject),
                                                                   UnscoredQueryResult(inAccount)))
-        resolvers.asJson should equalIgnoreArrayOrder(jsonContentOf("/resolve/resolver-list-resp.json"))
+        resolvers.asJson shouldEqual jsonContentOf("/resolve/resolver-list-resp.json")
       }
     }
 

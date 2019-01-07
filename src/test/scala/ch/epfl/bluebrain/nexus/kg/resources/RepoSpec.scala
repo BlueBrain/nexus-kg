@@ -8,8 +8,7 @@ import cats.data.EitherT
 import cats.effect.{ContextShift, IO, Timer}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -59,12 +58,12 @@ class RepoSpec
   }
 
   trait Context {
-    val projectRef                  = ProjectRef(uuid)
-    val iri                         = randomIri()
-    val id                          = Id(projectRef, iri)
-    val value                       = randomJson()
-    val schema                      = Iri.absolute("http://example.com/schema").right.value
-    implicit val identity: Identity = Anonymous
+    val projectRef                = ProjectRef(uuid)
+    val iri                       = randomIri()
+    val id                        = Id(projectRef, iri)
+    val value                     = randomJson()
+    val schema                    = Iri.absolute("http://example.com/schema").right.value
+    implicit val subject: Subject = Anonymous
   }
 
   trait File extends Context {

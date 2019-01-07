@@ -8,9 +8,9 @@
   ],
   "identities": [
     {
-      "@type": "UserRef",
+      "@type": "User",
       "realm": "ldap",
-      "sub": "dmontero"
+      "subject": "dmontero"
     }
   ],
   "priority": 100
