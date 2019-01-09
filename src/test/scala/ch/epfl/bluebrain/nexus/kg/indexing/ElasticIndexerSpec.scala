@@ -51,22 +51,32 @@ class ElasticIndexerSpec
   private val resources          = mock[Resources[Future]]
   private implicit val appConfig = Settings(system).appConfig
   val label                      = ProjectLabel("bbp", "core")
-  val projectMeta = Project("name",
-                            "core",
-                            Map("ex" -> url"https://bbp.epfl.ch/nexus/data/".value, "resource" -> nxv.Resource.value),
-                            nxv.projects.value,
-                            1L,
-                            false,
-                            "uuid")
-  private implicit val labeledProject = LabeledProject(label, projectMeta, AccountRef("uuid"))
+  val mappings                   = Map("ex" -> url"https://bbp.epfl.ch/nexus/data/".value, "resource" -> nxv.Resource.value)
+  val projectMeta =
+    Project(genIri,
+            "core",
+            "bbp",
+            None,
+            nxv.projects.value,
+            mappings,
+            genUUID,
+            1L,
+            false,
+            Instant.EPOCH,
+            genIri,
+            Instant.EPOCH,
+            genIri)
+
+  private implicit val labeledProject = LabeledProject(label, projectMeta, OrganizationRef(genUUID))
 
   before {
     Mockito.reset(resources)
   }
 
   "An ElasticIndexer" when {
-    val doc         = appConfig.elastic.docType
-    val id: ResId   = Id(ProjectRef("org/projectName"), url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+    val doc = appConfig.elastic.docType
+    val id: ResId = Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
+                       url"https://bbp.epfl.ch/nexus/data/resourceName".value)
     val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
     val json =
       Json.obj("@context" -> Json.obj("key" -> Json.fromString(s"${nxv.base.show}key")),
@@ -88,7 +98,7 @@ class ElasticIndexerSpec
         sourceAsText = true,
         id.parent,
         nxv.defaultElasticIndex.value,
-        UUID.randomUUID().toString,
+        genUUID,
         1L,
         deprecated = false
       )
@@ -131,7 +141,7 @@ class ElasticIndexerSpec
         sourceAsText = true,
         id.parent,
         nxv.defaultElasticIndex.value,
-        UUID.randomUUID().toString,
+        genUUID,
         1L,
         deprecated = false
       )
@@ -177,7 +187,7 @@ class ElasticIndexerSpec
         sourceAsText = false,
         id.parent,
         nxv.defaultElasticIndex.value,
-        UUID.randomUUID().toString,
+        genUUID,
         1L,
         deprecated = false
       )
@@ -201,9 +211,9 @@ class ElasticIndexerSpec
         val instant = clock.instant()
         val updated = Updated(id, 3L, Set.empty, Json.obj("key" -> Json.fromString("updated")), instant, Anonymous)
         val ev2 =
-          Created(id.copy(parent = ProjectRef("other")), schema, Set.empty, json, clock.instant(), Anonymous)
+          Created(id.copy(parent = ProjectRef(genUUID)), schema, Set.empty, json, clock.instant(), Anonymous)
 
-        List(ev, updated, ev2).removeDupIds shouldEqual List(updated, ev2)
+        List(ev, updated, ev2).removeDupIds should contain theSameElementsAs List(ev2, updated)
       }
     }
   }

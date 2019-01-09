@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{AccountNotFound, NotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, OrganizationNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.OffsetStorage.Volatile
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
@@ -40,11 +40,11 @@ private class ResolverIndexer[F[_]](resources: Resources[F], cache: DistributedC
     val projectRef = event.id.parent
 
     val result: EitherT[F, Rejection, Unit] = for {
-      resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
-      materialized <- resources.materialize(resource)
-      accountRef   <- EitherT.fromOptionF(cache.accountRef(projectRef), AccountNotFound(projectRef))
-      resolver     <- EitherT.fromOption(Resolver(materialized, accountRef), NotFound(event.id.ref))
-      applied      <- EitherT.liftF(cache.applyResolver(projectRef, resolver))
+      resource        <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
+      materialized    <- resources.materialize(resource)
+      organizationRef <- EitherT.fromOptionF(cache.organizationRef(projectRef), OrganizationNotFound(projectRef))
+      resolver        <- EitherT.fromOption(Resolver(materialized, organizationRef), NotFound(event.id.ref))
+      applied         <- EitherT.liftF(cache.applyResolver(projectRef, resolver))
     } yield applied
 
     result.value
@@ -58,8 +58,8 @@ private class ResolverIndexer[F[_]](resources: Resources[F], cache: DistributedC
           F.raiseError(new RetriableErr(msg))
       }
       .flatMap {
-        case Right(_)                                  => F.pure(())
-        case Left(err @ AccountNotFound(`projectRef`)) => F.raiseError(new RetriableErr(err.msg))
+        case Right(_)                                       => F.pure(())
+        case Left(err @ OrganizationNotFound(`projectRef`)) => F.raiseError(new RetriableErr(err.msg))
         case Left(err) =>
           logger.error(
             s"Error while attempting to fetch/resolve event '${event.id.show} (rev = ${event.rev})', cause: '${err.message}'")

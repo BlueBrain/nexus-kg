@@ -4,7 +4,7 @@ import java.nio.file.Path
 
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
-import ch.epfl.bluebrain.nexus.admin.client.config.AdminConfig
+import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
@@ -41,7 +41,7 @@ final case class AppConfig(description: Description,
                            cluster: ClusterConfig,
                            persistence: PersistenceConfig,
                            files: FileConfig,
-                           admin: AdminConfig,
+                           admin: AdminClientConfig,
                            iam: IamConfig,
                            sparql: SparqlConfig,
                            elastic: ElasticConfig,
@@ -127,7 +127,7 @@ object AppConfig {
   /**
     * Kafka config
     *
-    * @param adminTopic the topic for account and project events
+    * @param adminTopic the topic for organization and project events
     */
   final case class KafkaConfig(adminTopic: String)
 
@@ -232,7 +232,7 @@ object AppConfig {
   implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                = appConfig.http
   implicit def toIam(implicit appConfig: AppConfig): IamConfig                  = appConfig.iam
   implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig      = appConfig.iam.iamClient
-  implicit def toAdmin(implicit appConfig: AppConfig): AdminConfig              = appConfig.admin
+  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig        = appConfig.admin
   implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfig        = appConfig.indexing
   implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig = appConfig.sourcing
 

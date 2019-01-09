@@ -19,8 +19,8 @@
   ],
   "priority": 50,
   "projects": [
-    "account1-project2-uuid",
-    "account1-project1-uuid"
+    "{account1-project2-uuid}",
+    "{account1-project1-uuid}"
   ],
   "resourceTypes": [
     "nxv:Schema"

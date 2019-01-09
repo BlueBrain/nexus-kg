@@ -10,7 +10,7 @@ import akka.util.Timeout
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.RevisionedId
 import ch.epfl.bluebrain.nexus.kg.RevisionedId._
@@ -31,36 +31,36 @@ import scala.concurrent.{ExecutionContext, Future}
 trait DistributedCache[F[_]] {
 
   /**
-    * Looks up the state of the argument account.
+    * Looks up the state of the argument organization.
     *
-    * @param ref the account reference
-    * @return Some(account) if there is an account with state and None if there's no information on the account state
+    * @param ref the organization reference
+    * @return Some(organization) if there is an organization with state and None if there's no information on the organization state
     */
-  def account(ref: AccountRef): F[Option[Account]]
+  def organization(ref: OrganizationRef): F[Option[Organization]]
 
   /**
-    * Looks up the state of the argument account ref.
+    * Looks up the state of the argument organization ref.
     *
     * @param ref the project reference
-    * @return Some(accountRef) if there is an account reference with state and None if there's no information on the account reference state
+    * @return Some(organizationRef) if there is an organization reference with state and None if there's no information on the organization reference state
     */
-  def accountRef(ref: ProjectRef): F[Option[AccountRef]]
+  def organizationRef(ref: ProjectRef): F[Option[OrganizationRef]]
 
   /**
-    * Adds an account.
+    * Adds an organization.
     *
-    * @param ref       the account reference
-    * @param account   the account to add
+    * @param ref          the organization reference
+    * @param organization the organization to add
     */
-  def addAccount(ref: AccountRef, account: Account): F[Unit]
+  def addOrganization(ref: OrganizationRef, organization: Organization): F[Unit]
 
   /**
-    * Deprecates an account.
+    * Deprecates an organization.
     *
-    * @param ref the account reference
-    * @param rev the account revision
+    * @param ref the organization reference
+    * @param rev the organization revision
     */
-  def deprecateAccount(ref: AccountRef, rev: Long): F[Unit]
+  def deprecateOrganization(ref: OrganizationRef, rev: Long): F[Unit]
 
   /**
     * Looks up the state of the argument project.
@@ -118,28 +118,28 @@ trait DistributedCache[F[_]] {
   /**
     * Adds a project.
     *
-    * @param ref        the project reference
-    * @param accountRef the account reference
-    * @param project    the project to add
+    * @param ref             the project reference
+    * @param organizationRef the organization reference
+    * @param project         the project to add
     */
-  def addProject(ref: ProjectRef, accountRef: AccountRef, project: Project): F[Unit]
+  def addProject(ref: ProjectRef, organizationRef: OrganizationRef, project: Project): F[Unit]
 
   /**
     * Deprecates a project.
     *
-    * @param ref        the project reference
-    * @param accountRef the account reference
-    * @param rev        the project revision
+    * @param ref             the project reference
+    * @param organizationRef the organization reference
+    * @param rev             the project revision
     */
-  def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): F[Unit]
+  def deprecateProject(ref: ProjectRef, organizationRef: OrganizationRef, rev: Long): F[Unit]
 
   /**
-    * Looks up the projects belonging to the argument account.
+    * Looks up the projects belonging to the argument organization.
     *
-    * @param ref the account reference
-    * @return the collection of project references belonging to this account
+    * @param ref the organization reference
+    * @return the collection of project references belonging to this organization
     */
-  def projects(ref: AccountRef): F[Set[ProjectRef]]
+  def projects(ref: OrganizationRef): F[Set[ProjectRef]]
 
   /**
     * Looks up the collection of defined resolvers for the argument project.
@@ -224,11 +224,11 @@ trait DistributedCache[F[_]] {
 
 object DistributedCache {
 
-  private[async] def accountKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[Account]]] =
-    LWWRegisterKey("account_state_" + ref.id)
+  private[async] def organizationKey(ref: OrganizationRef): LWWRegisterKey[RevisionedValue[Option[Organization]]] =
+    LWWRegisterKey("organization_state_" + ref.id)
 
-  private[async] def accountRefKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[AccountRef]]] =
-    LWWRegisterKey("account_key_state_" + ref.id)
+  private[async] def organizationRefKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[OrganizationRef]]] =
+    LWWRegisterKey("organization_key_state_" + ref.id)
 
   private[async] def projectKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[Project]]] =
     LWWRegisterKey("project_state_" + ref.id)
@@ -236,11 +236,12 @@ object DistributedCache {
   private[async] def projectSegmentKey(ref: ProjectLabel): LWWRegisterKey[RevisionedValue[Option[ProjectRef]]] =
     LWWRegisterKey("project_segment_" + ref.show)
 
-  private[async] def accountSegmentInverseKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Option[String]]] =
-    LWWRegisterKey("account_segment_" + ref.id)
+  private[async] def organizationSegmentInverseKey(
+      ref: OrganizationRef): LWWRegisterKey[RevisionedValue[Option[String]]] =
+    LWWRegisterKey("organization_segment_" + ref.id)
 
-  private[async] def accountProjectsKey(ref: AccountRef): LWWRegisterKey[RevisionedValue[Set[ProjectRef]]] =
-    LWWRegisterKey("account_projects_" + ref.id)
+  private[async] def organizationProjectsKey(ref: OrganizationRef): LWWRegisterKey[RevisionedValue[Set[ProjectRef]]] =
+    LWWRegisterKey("organization_projects_" + ref.id)
 
   private[async] def projectResolversKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Set[Resolver]]] =
     LWWRegisterKey("project_resolvers_" + ref.id)
@@ -264,66 +265,67 @@ object DistributedCache {
 
     private implicit def rvClock[A]: Clock[RevisionedValue[A]] = RevisionedValue.revisionedValueClock
 
-    private def update(ref: AccountRef, ac: Account) = {
+    private def update(ref: OrganizationRef, ac: Organization) = {
 
-      def updateAccount() = {
-        val empty  = LWWRegister(RevisionedValue[Option[Account]](0L, None))
-        val value  = RevisionedValue[Option[Account]](ac.rev, Some(ac))
-        val update = Update(accountKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-        (replicator ? update).flatMap(handleUpdate(s"update account ${ac.label}"))
+      def updateOrganization() = {
+        val empty  = LWWRegister(RevisionedValue[Option[Organization]](0L, None))
+        val value  = RevisionedValue[Option[Organization]](ac.rev, Some(ac))
+        val update = Update(organizationKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+        (replicator ? update).flatMap(handleUpdate(s"update organization ${ac.label}"))
       }
 
-      def updateAccountLabel() = {
+      def updateOrganizationLabel() = {
         val empty  = LWWRegister(RevisionedValue[Option[String]](0L, None))
         val value  = RevisionedValue[Option[String]](ac.rev, Some(ac.label))
-        val update = Update(accountSegmentInverseKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-        (replicator ? update).flatMap(handleUpdate(s"update account label for ${ac.label}"))
+        val update = Update(organizationSegmentInverseKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+        (replicator ? update).flatMap(handleUpdate(s"update organization label for ${ac.label}"))
       }
 
-      updateAccount().flatMap(_ => updateAccountLabel())
+      updateOrganization().flatMap(_ => updateOrganizationLabel())
     }
 
-    override def account(ref: AccountRef): Future[Option[Account]] =
-      getOrElse(accountKey(ref), none[Account])
+    override def organization(ref: OrganizationRef): Future[Option[Organization]] =
+      getOrElse(organizationKey(ref), none[Organization])
 
-    override def accountRef(ref: ProjectRef): Future[Option[AccountRef]] =
-      getOrElse(accountRefKey(ref), none[AccountRef])
+    override def organizationRef(ref: ProjectRef): Future[Option[OrganizationRef]] =
+      getOrElse(organizationRefKey(ref), none[OrganizationRef])
 
-    private def addAccountRef(ref: ProjectRef, accRef: AccountRef, rev: Long): Future[Unit] = {
-      accountRef(ref).flatMap {
+    private def addOrganizationRef(ref: ProjectRef, accRef: OrganizationRef, rev: Long): Future[Unit] = {
+      organizationRef(ref).flatMap {
         case Some(_) => Future.successful(())
         case _ =>
-          val empty  = LWWRegister(RevisionedValue[Option[AccountRef]](0L, None))
-          val value  = RevisionedValue[Option[AccountRef]](rev, Some(accRef))
-          val update = Update(accountRefKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-          (replicator ? update).flatMap(handleUpdate(s"update account label for ${accRef.id}"))
+          val empty  = LWWRegister(RevisionedValue[Option[OrganizationRef]](0L, None))
+          val value  = RevisionedValue[Option[OrganizationRef]](rev, Some(accRef))
+          val update = Update(organizationRefKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
+          (replicator ? update).flatMap(handleUpdate(s"update organization label for ${accRef.id}"))
       }
     }
 
-    private def accountSegment(ref: AccountRef): Future[Option[String]] =
-      getOrElse(accountSegmentInverseKey(ref), none[String])
+    private def organizationSegment(ref: OrganizationRef): Future[Option[String]] =
+      getOrElse(organizationSegmentInverseKey(ref), none[String])
 
-    override def addAccount(ref: AccountRef, ac: Account): Future[Unit] =
-      account(ref).flatMap {
+    override def addOrganization(ref: OrganizationRef, ac: Organization): Future[Unit] =
+      organization(ref).flatMap {
         case None                      => update(ref, ac)
         case Some(a) if ac.rev > a.rev => update(ref, ac)
         case Some(a) =>
           log.warn(
-            s"Account ${ac.label} already indexed at higher revision, current revision: ${a.rev}, update revision: ${ac.rev}")
+            s"Organization ${ac.label} already indexed at higher revision, current revision: ${a.rev}, update revision: ${ac.rev}")
           Future.successful(())
       }
 
-    override def deprecateAccount(ref: AccountRef, rev: Long): Future[Unit] =
-      account(ref).flatMap {
+    override def deprecateOrganization(ref: OrganizationRef, rev: Long): Future[Unit] =
+      organization(ref).flatMap {
         case Some(a) if !a.deprecated && rev > a.rev => update(ref, a.copy(rev = rev, deprecated = true))
         case Some(a) =>
           log.warn(
-            s"Trying to deprecate an account '${a.label}' that is already indexed at higher revision, current revision: ${a.rev}, update revision: $rev")
+            s"Trying to deprecate an organization '${a.label}' that is already indexed at higher revision, current revision: ${a.rev}, update revision: $rev")
           Future.successful(())
         case _ =>
-          log.warn(s"Trying to deprecate account which is not in the cache: uuid:'${ref.id}', rev: $rev")
+          log.warn(s"Trying to deprecate organization which is not in the cache: uuid:'${ref.id}', rev: $rev")
           Future.failed(
-            new RetriableErr(s"Trying to deprecate account which is not in the cache: uuid:'${ref.id}', rev: $rev"))
+            new RetriableErr(
+              s"Trying to deprecate organization which is not in the cache: uuid:'${ref.id}', rev: $rev"))
       }
 
     private def updateProject(ref: ProjectRef, proj: Project): Future[Unit] = {
@@ -334,69 +336,73 @@ object DistributedCache {
     }
 
     private def updateProjectLabelToUuid(ref: ProjectRef,
-                                         accountRef: AccountRef,
+                                         organizationRef: OrganizationRef,
                                          proj: Project,
-                                         accountLabelOpt: Option[String]): Future[Unit] = accountLabelOpt match {
-      case Some(accountLabel) =>
+                                         orgLabelOpt: Option[String]): Future[Unit] = orgLabelOpt match {
+      case Some(organizationLabel) =>
         val empty = LWWRegister(RevisionedValue[Option[ProjectRef]](0L, None))
         val value = RevisionedValue[Option[ProjectRef]](proj.rev, Some(ref))
-        val update = Update(projectSegmentKey(ProjectLabel(accountLabel, proj.label)),
+        val update = Update(projectSegmentKey(ProjectLabel(organizationLabel, proj.label)),
                             empty,
                             WriteMajority(tm.duration))(_.withValue(value))
         (replicator ? update).flatMap(handleUpdate(s"update project label to uuid mapping for ${proj.label}"))
       case None =>
-        log.warn(s"Couldn't find account label for ${accountRef.id} while updating project ${proj.label}")
+        log.warn(s"Couldn't find organization label for ${organizationRef.id} while updating project ${proj.label}")
         Future.failed(
-          new RetriableErr(s"Couldn't find account label for ${accountRef.id} while updating project ${proj.label}"))
+          new RetriableErr(
+            s"Couldn't find organization label for ${organizationRef.id} while updating project ${proj.label}"))
     }
 
-    private def updateProject(ref: ProjectRef, accountRef: AccountRef, proj: Project): Future[Unit] = {
+    private def updateProject(ref: ProjectRef, organizationRef: OrganizationRef, proj: Project): Future[Unit] = {
       for {
-        _          <- updateProject(ref, proj)
-        _          <- addProjectToAccount(ref, accountRef)
-        _          <- addAccountRef(ref, accountRef, proj.rev)
-        accountSeg <- accountSegment(accountRef)
-        _          <- updateProjectLabelToUuid(ref, accountRef, proj, accountSeg)
+        _                   <- updateProject(ref, proj)
+        _                   <- addProjectToOrganization(ref, organizationRef)
+        _                   <- addOrganizationRef(ref, organizationRef, proj.rev)
+        organizationSegment <- organizationSegment(organizationRef)
+        _                   <- updateProjectLabelToUuid(ref, organizationRef, proj, organizationSegment)
       } yield ()
     }
 
     /**
       * @return Successful [[Future]] if update succeeded, failure otherwise
       */
-    private def addProjectToAccount(ref: ProjectRef, accountRef: AccountRef): Future[Unit] = {
-      projects(accountRef).flatMap { projects =>
+    private def addProjectToOrganization(ref: ProjectRef, organizationRef: OrganizationRef): Future[Unit] = {
+      projects(organizationRef).flatMap { projects =>
         if (projects.contains(ref)) Future.successful(())
         else {
           val empty = LWWRegister(RevisionedValue(0L, Set.empty[ProjectRef]))
-          val update = Update(accountProjectsKey(accountRef), empty, WriteMajority(tm.duration)) { currentState =>
-            val currentRevision = currentState.value.rev
-            val currentValue    = currentState.value.value
-            currentValue.find(_.id == ref.id) match {
-              case Some(_) =>
-                currentState
-              case None =>
-                currentState.withValue(RevisionedValue(currentRevision + 1, currentValue + ref))
-            }
+          val update = Update(organizationProjectsKey(organizationRef), empty, WriteMajority(tm.duration)) {
+            currentState =>
+              val currentRevision = currentState.value.rev
+              val currentValue    = currentState.value.value
+              currentValue.find(_.id == ref.id) match {
+                case Some(_) =>
+                  currentState
+                case None =>
+                  currentState.withValue(RevisionedValue(currentRevision + 1, currentValue + ref))
+              }
           }
-          (replicator ? update).flatMap(handleUpdate(s"add project ${ref.id} to account ${accountRef.id}"))
+          (replicator ? update).flatMap(handleUpdate(s"add project ${ref.id} to organization ${organizationRef.id}"))
         }
       }
     }
 
-    private def removeProjectFromAccount(ref: ProjectRef, accountRef: AccountRef): Future[Unit] = {
-      projects(accountRef).flatMap { projects =>
+    private def removeProjectFromOrganization(ref: ProjectRef, organizationRef: OrganizationRef): Future[Unit] = {
+      projects(organizationRef).flatMap { projects =>
         if (projects.contains(ref)) {
           val empty = LWWRegister(RevisionedValue(0L, Set.empty[ProjectRef]))
-          val update = Update(accountProjectsKey(accountRef), empty, WriteMajority(tm.duration)) { currentState =>
-            val currentRevision = currentState.value.rev
-            val currentValue    = currentState.value.value
-            currentValue.find(_.id == ref.id) match {
-              case Some(r) =>
-                currentState.withValue(RevisionedValue(currentRevision + 1, currentValue - r))
-              case None => currentState
-            }
+          val update = Update(organizationProjectsKey(organizationRef), empty, WriteMajority(tm.duration)) {
+            currentState =>
+              val currentRevision = currentState.value.rev
+              val currentValue    = currentState.value.value
+              currentValue.find(_.id == ref.id) match {
+                case Some(r) =>
+                  currentState.withValue(RevisionedValue(currentRevision + 1, currentValue - r))
+                case None => currentState
+              }
           }
-          (replicator ? update).flatMap(handleUpdate(s"remove project ${ref.id} from account ${accountRef.id}"))
+          (replicator ? update).flatMap(
+            handleUpdate(s"remove project ${ref.id} from organization ${organizationRef.id}"))
         } else Future.successful(())
       }
     }
@@ -413,24 +419,24 @@ object DistributedCache {
         case _         => Future(None)
       }
 
-    override def addProject(ref: ProjectRef, accountRef: AccountRef, proj: Project): Future[Unit] =
+    override def addProject(ref: ProjectRef, organizationRef: OrganizationRef, proj: Project): Future[Unit] =
       project(ref).flatMap {
-        case None                        => updateProject(ref, accountRef, proj)
-        case Some(p) if proj.rev > p.rev => updateProject(ref, accountRef, proj)
+        case None                        => updateProject(ref, organizationRef, proj)
+        case Some(p) if proj.rev > p.rev => updateProject(ref, organizationRef, proj)
         case Some(p) =>
           log.warn(
-            s"Account ${proj.label} already indexed at higher revision, current revision: ${p.rev}, update revision: ${proj.rev}")
+            s"Organization ${proj.label} already indexed at higher revision, current revision: ${p.rev}, update revision: ${proj.rev}")
           Future.successful(())
       }
 
-    override def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): Future[Unit] =
+    override def deprecateProject(ref: ProjectRef, organizationRef: OrganizationRef, rev: Long): Future[Unit] =
       project(ref).flatMap {
         case Some(p) if !p.deprecated && rev > p.rev =>
           updateProject(ref, p.copy(rev = rev, deprecated = true))
-            .flatMap(_ => removeProjectFromAccount(ref, accountRef))
+            .flatMap(_ => removeProjectFromOrganization(ref, organizationRef))
         case Some(p) =>
           log.warn(
-            s"Account ${p.label} already indexed at higher revision, current revision: ${p.rev}, update revision: $rev")
+            s"Organization ${p.label} already indexed at higher revision, current revision: ${p.rev}, update revision: $rev")
           Future.successful(())
 
         case _ =>
@@ -439,8 +445,8 @@ object DistributedCache {
             new RetriableErr(s"Trying to deprecate project which is not in the cache: uuid:'${ref.id}', rev: $rev"))
       }
 
-    override def projects(ref: AccountRef): Future[Set[ProjectRef]] =
-      getOrElse(accountProjectsKey(ref), Set.empty[ProjectRef])
+    override def projects(ref: OrganizationRef): Future[Set[ProjectRef]] =
+      getOrElse(organizationProjectsKey(ref), Set.empty[ProjectRef])
 
     override def resolvers(ref: ProjectRef): Future[Set[Resolver]] =
       getOrElse(projectResolversKey(ref), Set.empty[Resolver])
@@ -561,28 +567,28 @@ object DistributedCache {
       override def project(label: ProjectLabel): Task[Option[Project]] =
         Task.deferFuture(underlying.project(label))
 
-      override def account(ref: AccountRef): Task[Option[Account]] =
-        Task.deferFuture(underlying.account(ref))
+      override def organization(ref: OrganizationRef): Task[Option[Organization]] =
+        Task.deferFuture(underlying.organization(ref))
 
-      override def accountRef(ref: ProjectRef): Task[Option[AccountRef]] =
-        Task.deferFuture(underlying.accountRef(ref))
+      override def organizationRef(ref: ProjectRef): Task[Option[OrganizationRef]] =
+        Task.deferFuture(underlying.organizationRef(ref))
 
-      override def addAccount(ref: AccountRef, account: Account): Task[Unit] =
-        Task.deferFuture(underlying.addAccount(ref, account))
+      override def addOrganization(ref: OrganizationRef, organization: Organization): Task[Unit] =
+        Task.deferFuture(underlying.addOrganization(ref, organization))
 
-      override def deprecateAccount(ref: AccountRef, rev: Long): Task[Unit] =
-        Task.deferFuture(underlying.deprecateAccount(ref, rev))
+      override def deprecateOrganization(ref: OrganizationRef, rev: Long): Task[Unit] =
+        Task.deferFuture(underlying.deprecateOrganization(ref, rev))
 
       override def project(ref: ProjectRef): Task[Option[Project]] =
         Task.deferFuture(underlying.project(ref))
 
-      override def addProject(ref: ProjectRef, accountRef: AccountRef, project: Project): Task[Unit] =
-        Task.deferFuture(underlying.addProject(ref, accountRef, project))
+      override def addProject(ref: ProjectRef, organizationRef: OrganizationRef, project: Project): Task[Unit] =
+        Task.deferFuture(underlying.addProject(ref, organizationRef, project))
 
-      override def deprecateProject(ref: ProjectRef, accountRef: AccountRef, rev: Long): Task[Unit] =
-        Task.deferFuture(underlying.deprecateProject(ref, accountRef, rev))
+      override def deprecateProject(ref: ProjectRef, organizationRef: OrganizationRef, rev: Long): Task[Unit] =
+        Task.deferFuture(underlying.deprecateProject(ref, organizationRef, rev))
 
-      override def projects(ref: AccountRef): Task[Set[ProjectRef]] =
+      override def projects(ref: OrganizationRef): Task[Set[ProjectRef]] =
         Task.deferFuture(underlying.projects(ref))
 
       override def resolvers(ref: ProjectRef): Task[Set[Resolver]] =

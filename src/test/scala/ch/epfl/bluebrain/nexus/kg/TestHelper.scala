@@ -71,7 +71,9 @@ trait TestHelper extends MockitoMatchers with EitherValues {
     Value(res.value, res.value.contextValue, res.value.asGraph.right.value)
   )
 
-  def uuid: String = UUID.randomUUID().toString
+  def genUUID: UUID = UUID.randomUUID()
+
+  def genIri: AbsoluteIri = url"http://example.com/".value + genUUID.toString
 
   def equalIgnoreArrayOrder(json: Json) = IgnoredArrayOrder(json)
 

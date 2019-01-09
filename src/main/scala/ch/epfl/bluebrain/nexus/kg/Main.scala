@@ -16,6 +16,7 @@ import akka.util.Timeout
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -47,7 +48,7 @@ import monix.execution.schedulers.CanBlock
 import org.apache.jena.query.ResultSet
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Await
 import scala.util.{Failure, Success}
 
 //noinspection TypeAnnotation
@@ -90,9 +91,8 @@ object Main {
     def clients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
       val sparql           = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
       implicit val elastic = ElasticClient[Task](elasticConfig.base)
-      implicit val cl      = untyped[Future]
 
-      implicit val adminClient = AdminClient.task(appConfig.admin)
+      implicit val adminClient = AdminClient[Task](appConfig.admin, HttpClient.untyped[Task])
       implicit val iamClient   = IamClient[Task]
       Clients(sparql)
     }

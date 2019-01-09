@@ -77,7 +77,7 @@ object ElasticIndexer {
     *
     * @param view           the view for which to start the index
     * @param resources      the resources operations
-    * @param labeledProject project to which the resource belongs containing label information (account label and project label)
+    * @param labeledProject project to which the resource belongs containing label information (organization label and project label)
     */
   // $COVERAGE-OFF$
   final def start(view: ElasticView, resources: Resources[Task], labeledProject: LabeledProject)(

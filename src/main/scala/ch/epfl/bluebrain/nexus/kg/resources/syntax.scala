@@ -23,16 +23,16 @@ object syntax {
   implicit val projectLabelEncoder: NodeEncoder[ProjectLabel] = node =>
     NodeEncoder.stringEncoder(node).flatMap { value =>
       value.trim.split("/") match {
-        case Array(account, project) => Right(ProjectLabel(account, project))
-        case _                       => Left(IllegalConversion("Expected a ProjectLabel, but found otherwise"))
+        case Array(organization, project) => Right(ProjectLabel(organization, project))
+        case _                            => Left(IllegalConversion("Expected a ProjectLabel, but found otherwise"))
       }
   }
 
   implicit val projectUuidEncoder: NodeEncoder[ProjectRef] = node =>
     NodeEncoder.stringEncoder(node).flatMap { value =>
       Try(UUID.fromString(value)) match {
-        case Success(_) => Right(ProjectRef(value))
-        case _          => Left(IllegalConversion("Expected a ProjectRef, but found otherwise"))
+        case Success(uuid) => Right(ProjectRef(uuid))
+        case _             => Left(IllegalConversion("Expected a ProjectRef, but found otherwise"))
       }
   }
 
@@ -68,17 +68,17 @@ object syntax {
 
     /**
       * Checks if on the list of ACLs there are some which contains any of the provided ''identities'', ''perms'' in
-      * the root path, the account path or the project path.
+      * the root path, the organization path or the project path.
       *
       * @param identities the list of identities to filter from the ''acls''
-      * @param label      the account and project label information to be used to generate the paths to filter
+      * @param label      the organization and project label information to be used to generate the paths to filter
       * @param perms      the permissions to filter
       * @return true if the conditions are met, false otherwise
       */
     def exists(identities: Set[Identity], label: ProjectLabel, perms: Set[Permission]): Boolean =
       acls.filter(identities).value.exists {
         case (path, v) =>
-          (path == / || path == Segment(label.account, /) || path == label.account / label.value) &&
+          (path == / || path == Segment(label.organization, /) || path == label.organization / label.value) &&
             v.value.permissions.exists(perms.contains)
       }
   }

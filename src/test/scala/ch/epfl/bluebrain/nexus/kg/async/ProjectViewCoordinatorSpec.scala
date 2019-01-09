@@ -1,16 +1,18 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
+import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.cluster.Cluster
 import akka.testkit.{DefaultTimeout, TestKit, TestProbe}
-import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.admin.client.types._
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
-import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.github.ghik.silencer.silent
 import monix.eval.Task
@@ -22,6 +24,7 @@ import scala.concurrent.duration._
 
 class ProjectViewCoordinatorSpec
     extends TestKit(ActorSystem("ProjectViewCoordinatorSpec"))
+    with TestHelper
     with DefaultTimeout
     with WordSpecLike
     with Matchers
@@ -37,20 +40,42 @@ class ProjectViewCoordinatorSpec
 
   override protected def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
-  private def genUUID = java.util.UUID.randomUUID.toString
-  private val cache   = DistributedCache.task()
+  private val cache = DistributedCache.task()
 
   "A ProjectViewCoordinator" should {
+    val creator = genIri
+
     "manage lifecycle of views" in {
-      val base           = url"https://nexus.example.com/$genUUID".value
-      val projUUID       = genUUID
-      val accUUID        = genUUID
-      val viewUUID       = genUUID
-      val viewUUID2      = genUUID
-      val projectRef     = ProjectRef(projUUID)
-      val accountRef     = AccountRef(accUUID)
-      val project        = Project("some-project", "some-label-proj", Map.empty, base, 1L, deprecated = false, projUUID)
-      val account        = Account("some-org", 1L, "some-label", deprecated = false, accUUID)
+      val base            = url"https://nexus.example.com/$genUUID".value
+      val projUUID        = genUUID
+      val orgUuid         = genUUID
+      val viewUUID        = genUUID
+      val viewUUID2       = genUUID
+      val projectRef      = ProjectRef(projUUID)
+      val organizationRef = OrganizationRef(orgUuid)
+      val project = Project(genIri,
+                            "some-project",
+                            "some-org",
+                            None,
+                            base,
+                            Map.empty,
+                            projUUID,
+                            1L,
+                            deprecated = false,
+                            Instant.EPOCH,
+                            creator,
+                            Instant.EPOCH,
+                            creator)
+      val organization = Organization(genIri,
+                                      "some-org",
+                                      "description",
+                                      orgUuid,
+                                      1L,
+                                      deprecated = false,
+                                      Instant.EPOCH,
+                                      creator,
+                                      Instant.EPOCH,
+                                      creator)
       val viewId         = base + "projects/some-project/search"
       val viewId2        = base + "projects/some-project2/search"
       val view           = SparqlView(projectRef, viewId, viewUUID, 1L, deprecated = false)
@@ -59,7 +84,7 @@ class ProjectViewCoordinatorSpec
       val counterStop    = new AtomicInteger(0)
       val childActor     = system.actorOf(Props(new DummyActor))
       val probe          = TestProbe()
-      val labeledProject = LabeledProject(ProjectLabel(account.label, project.label), project, accountRef)
+      val labeledProject = LabeledProject(ProjectLabel(organization.label, project.label), project, organizationRef)
 
       def selector(view: View, lp: LabeledProject): ActorRef = view match {
         case v: SparqlView =>
@@ -77,9 +102,9 @@ class ProjectViewCoordinatorSpec
 
       probe watch childActor
       val coordinator = ProjectViewCoordinator.start(cache, selector, onStop, None, 1)
-      cache.addAccount(accountRef, account).runToFuture.futureValue shouldEqual (())
-      cache.addProject(projectRef, accountRef, project).runToFuture.futureValue shouldEqual (())
-      coordinator ! Msg(accountRef, projectRef)
+      cache.addOrganization(organizationRef, organization).runToFuture.futureValue shouldEqual (())
+      cache.addProject(projectRef, organizationRef, project).runToFuture.futureValue shouldEqual (())
+      coordinator ! Msg(organizationRef, projectRef)
       cache.addView(projectRef, view).runToFuture.futureValue shouldEqual (())
       eventually(counter.get shouldEqual 1)
       cache.removeView(projectRef, viewId, 2L).runToFuture.futureValue shouldEqual (())
@@ -88,7 +113,7 @@ class ProjectViewCoordinatorSpec
       cache.addView(projectRef, view2).runToFuture.futureValue shouldEqual (())
       eventually(counter.get shouldEqual 2)
       cache
-        .addProject(projectRef, accountRef, project.copy(deprecated = true, rev = 2L))
+        .addProject(projectRef, organizationRef, project.copy(deprecated = true, rev = 2L))
         .runToFuture
         .futureValue shouldEqual (())
       eventually(counterStop.get shouldEqual 2)

@@ -60,7 +60,7 @@ class ViewIndexerSpec
   "A ViewIndexer" should {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
     val iri                   = Iri.absolute("http://example.com/id").right.value
-    val projectRef            = ProjectRef("ref")
+    val projectRef            = ProjectRef(genUUID)
     val id                    = Id(projectRef, iri)
     //TODO: Change to view SHACL schema when we have one
     val schema = Ref(Schemas.resolverSchemaUri)
