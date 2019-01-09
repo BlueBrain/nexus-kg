@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources.file
 
 import java.nio.file.Paths
+import java.util.UUID
 
 import cats.data.EitherT
 import cats.{Id => CId}
@@ -13,13 +14,14 @@ import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
 class LocationResolverSpec extends WordSpecLike with Matchers with EitherValues {
   "A LocationResolver" should {
-    val key = Id(ProjectRef("org/projectName"), url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+    val key = Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
+                 url"https://bbp.epfl.ch/nexus/data/resourceName".value)
 
     "resolve a location" in {
       implicit val config = FileConfig(Paths.get("/tmp"), "SHA-256")
       val resolver        = LocationResolver[CId]()
       val expectedPath =
-        Paths.get("org/projectName/0/1/7/f/9/8/3/7/017f9837-5bea-4e79-bdbd-e64246cd81ec")
+        Paths.get("4947db1e-33d8-462b-9754-3e8ae74fcd4e/0/1/7/f/9/8/3/7/017f9837-5bea-4e79-bdbd-e64246cd81ec")
       resolver(key, "017f9837-5bea-4e79-bdbd-e64246cd81ec") shouldEqual EitherT.rightT(
         Location(Paths.get(s"/tmp/$expectedPath"), expectedPath))
     }

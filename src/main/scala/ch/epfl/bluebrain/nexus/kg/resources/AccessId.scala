@@ -24,13 +24,13 @@ object AccessId {
                                                             http: HttpConfig): AbsoluteIri = {
 
     def prefix(resource: String): AbsoluteIri =
-      url"${http.publicUri.append(http.prefix / resource / wrapped.label.account / wrapped.label.value)}".value
+      url"${http.publicUri.append(http.prefix / resource / wrapped.label.organization / wrapped.label.value)}".value
 
     def aliasOrCurieFor(iri: AbsoluteIri): String =
-      (wrapped.project.prefixMappings.collectFirst {
+      (wrapped.project.apiMappings.collectFirst {
         case (p, `iri`) => p
       } orElse
-        wrapped.project.prefixMappings.collectFirst {
+        wrapped.project.apiMappings.collectFirst {
           case (p, ns) if iri.asString.startsWith(ns.asString) =>
             s"$p:${urlEncode(iri.asString.stripPrefix(ns.asString))}"
         }).getOrElse(urlEncode(iri.asString))

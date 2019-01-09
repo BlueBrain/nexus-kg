@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.admin.client.types.Account
+import ch.epfl.bluebrain.nexus.admin.client.types.Organization
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
@@ -61,7 +61,7 @@ class AppInfoRoutesSpec
       when(statusGroup.cassandra.check).thenReturn(Task.pure(true))
       when(statusGroup.cluster.check).thenReturn(Task.pure(true))
       when(iam.acls(/)).thenReturn(Task.pure(AccessControlLists()))
-      when(admin.getAccount("test")).thenReturn(Task.pure[Option[Account]](None))
+      when(admin.fetchOrganization("test")).thenReturn(Task.pure[Option[Organization]](None))
       when(elastic.existsIndex("test")).thenReturn(Task.pure(false))
       when(sparql.namespaceExists).thenReturn(Task.pure(false))
       Get("/health") ~> routes ~> check {
@@ -81,7 +81,7 @@ class AppInfoRoutesSpec
       when(statusGroup.cassandra.check).thenReturn(Task.pure(false))
       when(statusGroup.cluster.check).thenReturn(Task.pure(false))
       when(iam.acls(/)).thenReturn(Task.raiseError(new RuntimeException()))
-      when(admin.getAccount("test")).thenReturn(Task.raiseError(new RuntimeException()))
+      when(admin.fetchOrganization("test")).thenReturn(Task.raiseError(new RuntimeException()))
       when(elastic.existsIndex("test")).thenReturn(Task.raiseError(new RuntimeException()))
       when(sparql.namespaceExists).thenReturn(Task.raiseError(new RuntimeException()))
       Get("/health") ~> routes ~> check {

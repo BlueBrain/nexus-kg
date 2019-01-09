@@ -39,7 +39,7 @@ class AuthDirectivesSpec
   private implicit val config    = IamClientConfig(url"http://nexus.example.com/iam/v1".value)
   private implicit val iamClient = mock[IamClient[Task]]
   private implicit val aclsOps   = mock[AclsOps]
-  private implicit val label     = ProjectLabel("uuidAccount", "uuidProject")
+  private implicit val label     = ProjectLabel("organizationLabel", "projectLabel")
   private val readWrite          = Set(Permission.unsafe("read"), Permission.unsafe("write"))
   private val ownPublish         = Set(Permission.unsafe("own"), Permission.unsafe("publish"))
 
@@ -135,7 +135,7 @@ class AuthDirectivesSpec
 
     "pass when the permissions are present" in {
       implicit val acls =
-        AccessControlLists(label.account / label.value -> resourceAcls(AccessControlList(Anonymous -> readWrite)))
+        AccessControlLists(label.organization / label.value -> resourceAcls(AccessControlList(Anonymous -> readWrite)))
       implicit val caller: Caller = Caller.anonymous
       Get("/") ~> permissionsRoute(readWrite) ~> check {
         response.status shouldEqual StatusCodes.OK
@@ -144,7 +144,7 @@ class AuthDirectivesSpec
 
     "reject when the permissions aren't present" in {
       implicit val acls =
-        AccessControlLists(label.account / label.value -> resourceAcls(AccessControlList(Anonymous -> ownPublish)))
+        AccessControlLists(label.organization / label.value -> resourceAcls(AccessControlList(Anonymous -> ownPublish)))
       implicit val caller: Caller = Caller.anonymous
       Get("/") ~> permissionsRoute(readWrite) ~> check {
         status shouldEqual StatusCodes.Unauthorized

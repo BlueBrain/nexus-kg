@@ -45,7 +45,7 @@ sealed trait View extends Product with Serializable {
   /**
     * @return the underlying uuid generated for this view
     */
-  def uuid: String
+  def uuid: UUID
 
   /**
     * @return the view revision
@@ -150,13 +150,13 @@ object View {
         includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
         sourceAsText  = c.downField(nxv.sourceAsText).focus.as[Boolean].getOrElse(false)
       } yield
-        ElasticView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid.toString.toLowerCase, res.rev, res.deprecated)
+        ElasticView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
 
     def sparql(): Either[Rejection, View] =
       uuidEither
         .toInvalidPayloadEither(res.id.ref)
-        .map(uuid => SparqlView(res.id.parent, res.id.value, uuid.toString.toLowerCase, res.rev, res.deprecated))
+        .map(uuid => SparqlView(res.id.parent, res.id.value, uuid, res.rev, res.deprecated))
 
     def multiEsView(): Either[Rejection, View] = {
       val id = res.id
@@ -171,8 +171,7 @@ object View {
       val result = for {
         uuid <- uuidEither.toInvalidPayloadEither(res.id.ref)
         emptyViewRefs = Set.empty[ViewRef[String]]
-      } yield
-        AggregateElasticView(emptyViewRefs, id.parent, uuid.toString.toLowerCase, id.value, res.rev, res.deprecated)
+      } yield AggregateElasticView(emptyViewRefs, id.parent, uuid, id.value, res.rev, res.deprecated)
 
       val cursorList = c.downField(nxv.views).downArray.toList
       result.flatMap { v =>
@@ -213,7 +212,7 @@ object View {
       sourceAsText: Boolean,
       ref: ProjectRef,
       id: AbsoluteIri,
-      uuid: String,
+      uuid: UUID,
       rev: Long,
       deprecated: Boolean
   ) extends SingleView {
@@ -263,7 +262,7 @@ object View {
   final case class SparqlView(
       ref: ProjectRef,
       id: AbsoluteIri,
-      uuid: String,
+      uuid: UUID,
       rev: Long,
       deprecated: Boolean
   ) extends SingleView
@@ -281,7 +280,7 @@ object View {
   final case class AggregateElasticView[P: Show](
       value: Set[ViewRef[P]],
       ref: ProjectRef,
-      uuid: String,
+      uuid: UUID,
       id: AbsoluteIri,
       rev: Long,
       deprecated: Boolean

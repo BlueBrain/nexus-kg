@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
+import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.MonadError
@@ -32,9 +33,11 @@ import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import java.util.regex.Pattern.quote
 
 import scala.util.Try
 
+//noinspection NameBooleanParameters
 class AdditionalValidationSpec
     extends WordSpecLike
     with Matchers
@@ -58,9 +61,9 @@ class AdditionalValidationSpec
   "An AdditionalValidation" when {
     implicit val config: ElasticConfig         = ElasticConfig("http://localhost", "kg", "doc", "default")
     val iri                                    = Iri.absolute("http://example.com/id").right.value
-    val projectRef                             = ProjectRef("ref")
+    val projectRef                             = ProjectRef(genUUID)
     val id                                     = Id(projectRef, iri)
-    val accountRef                             = AccountRef("accountRef")
+    val organizationRef                        = OrganizationRef(genUUID)
     implicit val F: MonadError[Try, Throwable] = try_.catsStdInstancesForTry
     val user                                   = User("dmontero", "ldap")
     val matchingCaller: Caller =
@@ -70,10 +73,10 @@ class AdditionalValidationSpec
     val label2 = ProjectLabel("account1", "project2")
 
     val labels = Set(label1, label2)
-    val ref1   = ProjectRef("64b202b4-1060-42b5-9b4f-8d6a9d0d9113")
-    val ref2   = ProjectRef("d23d9578-255b-4e46-9e65-5c254bc9ad0a")
+    val ref1   = ProjectRef(UUID.fromString("64b202b4-1060-42b5-9b4f-8d6a9d0d9113"))
+    val ref2   = ProjectRef(UUID.fromString("d23d9578-255b-4e46-9e65-5c254bc9ad0a"))
 
-    val path = Path(s"/${label1.account}").right.value
+    val path = Path(s"/${label1.organization}").right.value
     val acls =
       AccessControlLists(path -> resourceAcls(AccessControlList(user -> Set(Permission.unsafe("views/manage")))))
     "applied to generic resources" should {
@@ -94,14 +97,14 @@ class AdditionalValidationSpec
         val caller: Caller =
           Caller(User("dmontero2", "ldap"),
                  Set[Identity](Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero2", "ldap")))
-        val validation = AdditionalValidation.resolver[Try](caller, accountRef)
+        val validation = AdditionalValidation.resolver[Try](caller, organizationRef)
         val resource   = simpleV(id, crossProject, types = types)
         validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidIdentity]
       }
 
       "fail when the payload cannot be serialized" in {
         val caller: Caller = Caller.anonymous
-        val validation     = AdditionalValidation.resolver[Try](caller, accountRef)
+        val validation     = AdditionalValidation.resolver[Try](caller, organizationRef)
         val resource       = simpleV(id, crossProject, types = Set(nxv.Resolver))
         validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.success.value.left.value shouldBe a[
           InvalidPayload]
@@ -112,19 +115,24 @@ class AdditionalValidationSpec
         when(cache.projectRefs(labels))
           .thenReturn(EitherT.leftT[Try, Map[ProjectLabel, ProjectRef]](ProjectsNotFound(labels): Rejection))
 
-        val validation = AdditionalValidation.resolver[Try](matchingCaller, accountRef)
+        val validation = AdditionalValidation.resolver[Try](matchingCaller, organizationRef)
         val resource   = simpleV(id, crossProject, types = types)
         validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[ProjectsNotFound]
       }
 
       "pass when identities in acls are the same as the identities on resolver" in {
-        val labels = Set(label2, label1)
+        val labels      = Set(label2, label1)
+        val projectRef1 = ProjectRef(genUUID)
+        val projectRef2 = ProjectRef(genUUID)
         when(cache.projectRefs(labels))
-          .thenReturn(EitherT.rightT[Try, Rejection](
-            Map(label1 -> ProjectRef("account1-project1-uuid"), label2 -> ProjectRef("account1-project2-uuid"))))
-        val validation = AdditionalValidation.resolver[Try](matchingCaller, accountRef)
+          .thenReturn(EitherT.rightT[Try, Rejection](Map(label1 -> projectRef1, label2 -> projectRef2)))
+        val validation = AdditionalValidation.resolver[Try](matchingCaller, organizationRef)
         val resource   = simpleV(id, crossProject, types = types)
-        val expected   = jsonContentOf("/resolve/cross-project-modified.json")
+        val expected = jsonContentOf(
+          "/resolve/cross-project-modified.json",
+          Map(quote("{account1-project2-uuid}") -> projectRef2.id.toString,
+              quote("{account1-project1-uuid}") -> projectRef1.id.toString)
+        )
         validation(id, schema, types, resource.value, 1L).value.success.value.right.value.source should equalIgnoreArrayOrder(
           expected)
       }
@@ -146,7 +154,7 @@ class AdditionalValidationSpec
                            true,
                            projectRef,
                            iri,
-                           "3aa14a1a-81e7-4147-8306-136d8270bb01",
+                           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
                            1L,
                            false)
 

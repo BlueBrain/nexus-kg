@@ -74,7 +74,7 @@ class ResourcesSpec
     new ProjectResolution[IO](cache, StaticResolution(AppConfig.iriResolution), IO.pure(acls))
   private val resources: Resources[IO] = Resources[IO]
 
-  private def randomIri() = Iri.absolute(s"http://example.com/$uuid").right.value
+  private def randomIri() = Iri.absolute(s"http://example.com/$genUUID").right.value
 
   before {
     reset(store)
@@ -82,9 +82,9 @@ class ResourcesSpec
 
   trait Base {
     implicit val subject: Subject = Anonymous
-    val projectRef                = ProjectRef(uuid)
+    val projectRef                = ProjectRef(genUUID)
     val base                      = Iri.absolute(s"http://example.com/base").right.value
-    val id                        = Iri.absolute(s"http://example.com/$uuid").right.value
+    val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
     val resId                     = Id(projectRef, id)
   }
 

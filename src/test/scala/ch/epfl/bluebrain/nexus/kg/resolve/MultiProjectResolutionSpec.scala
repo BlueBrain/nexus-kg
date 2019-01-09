@@ -1,14 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
-import java.time.Clock
-import java.util.UUID
+import java.time.{Clock, Instant}
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import akka.util.Timeout
 import cats.data.OptionT
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Group, User}
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -57,9 +56,9 @@ class MultiProjectResolutionSpec
   private val base  = Iri.absolute("https://nexus.example.com").getOrElse(fail)
   private val resId = base + "some-id"
   private val (proj1Id, proj2Id, proj3Id) =
-    (UUID.randomUUID().toString, UUID.randomUUID().toString, UUID.randomUUID().toString)
+    (genUUID, genUUID, genUUID)
   private val (proj1, proj2, proj3) = (genProjectLabel, genProjectLabel, genProjectLabel)
-  private val projects              = Future.successful(ListSet(proj1Id, proj2Id, proj3Id).map(_.ref)) // we want to ensure traversal order
+  private val projects              = Future.successful(ListSet(proj1Id, proj2Id, proj3Id).map(ProjectRef(_))) // we want to ensure traversal order
   private val types                 = Set(nxv.Schema.value, nxv.Resource.value)
   private val group                 = Group("bbp-ou-neuroinformatics", "ldap2")
   private val identities            = List[Identity](group, User("dmontero", "ldap"))
@@ -74,17 +73,42 @@ class MultiProjectResolutionSpec
     super.beforeAll()
     List(proj1 -> proj1Id, proj2 -> proj2Id, proj3 -> proj3Id).foreach {
       case (proj, id) =>
-        val metadata = Project(proj.value, proj.value, Map(), base, 1L, false, id)
-        val uuid     = UUID.randomUUID().toString
-        cache.addAccount(AccountRef(uuid), Account(proj.account, 1L, proj.account, false, uuid)).futureValue
-        cache.addProject(id.ref, AccountRef(uuid), metadata).futureValue
+        val metadata = Project(genIri,
+                               proj.value,
+                               "bbp",
+                               None,
+                               base,
+                               Map(),
+                               id,
+                               0L,
+                               false,
+                               Instant.EPOCH,
+                               genIri,
+                               Instant.EPOCH,
+                               genIri)
+        val uuid = genUUID
+        cache
+          .addOrganization(OrganizationRef(uuid),
+                           Organization(genIri,
+                                        proj.organization,
+                                        "description",
+                                        uuid,
+                                        1L,
+                                        false,
+                                        Instant.EPOCH,
+                                        genIri,
+                                        Instant.EPOCH,
+                                        genIri))
+          .futureValue
+        cache.addProject(ProjectRef(id), OrganizationRef(uuid), metadata).futureValue
     }
   }
 
   before(Mockito.reset(resources))
 
   "A MultiProjectResolution" should {
-    val (id1, id2, id3) = (Id(proj1Id.ref, resId), Id(proj2Id.ref, resId), Id(proj3Id.ref, resId))
+    val (id1, id2, id3) =
+      (Id(ProjectRef(proj1Id), resId), Id(ProjectRef(proj2Id), resId), Id(ProjectRef(proj3Id), resId))
     "look in all projects to resolve a resource" in {
       val value = simpleF(id3, genJson, types = types)
       when(resources.fetch(id1, None)).thenReturn(OptionT.none[Future, Resource])
@@ -113,7 +137,8 @@ class MultiProjectResolutionSpec
         when(resources.fetch(id, None)).thenReturn(OptionT.some[Future](value))
         value
       }
-      val acl = AccessControlLists(proj2.account / proj2.value -> resourceAcls(AccessControlList(group -> managePerms)))
+      val acl =
+        AccessControlLists(proj2.organization / proj2.value -> resourceAcls(AccessControlList(group -> managePerms)))
 
       val newResolution = MultiProjectResolution[Future](resources, projects, types, identities, cache, acl)
 
@@ -122,13 +147,9 @@ class MultiProjectResolutionSpec
 
     "return none if the resource is not found in any project" in {
       List(proj1Id, proj2Id, proj3Id).foreach { id =>
-        when(resources.fetch(Id(id.ref, resId), None)).thenReturn(OptionT.none[Future, Resource])
+        when(resources.fetch(Id(ProjectRef(id), resId), None)).thenReturn(OptionT.none[Future, Resource])
       }
       resolution.resolve(Latest(resId)).futureValue shouldEqual None
     }
-  }
-
-  private implicit class ProjectOps(uuid: String) {
-    def ref = ProjectRef(uuid)
   }
 }

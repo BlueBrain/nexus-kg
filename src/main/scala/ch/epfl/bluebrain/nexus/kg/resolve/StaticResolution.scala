@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
 import java.time.Clock
+import java.util.UUID
 
 import cats.Monad
 import cats.syntax.applicative._
@@ -20,6 +21,7 @@ class StaticResolution[F[_]: Monad](resources: Map[AbsoluteIri, Resource]) exten
 }
 
 object StaticResolution {
+  private val uuid = UUID.randomUUID()
 
   /**
     * Constructs a [[StaticResolution]] from mapping between URI and JSON content of the resource.
@@ -29,6 +31,6 @@ object StaticResolution {
   final def apply[F[_]: Monad](resources: Map[AbsoluteIri, Json])(
       implicit clock: Clock = Clock.systemUTC): StaticResolution[F] =
     new StaticResolution[F](resources.map {
-      case (iri, json) => (iri, ResourceF.simpleF(Id(ProjectRef("static"), iri), json))
+      case (iri, json) => (iri, ResourceF.simpleF(Id(ProjectRef(uuid), iri), json))
     })
 }

@@ -62,11 +62,12 @@ object Rejection {
   final case class NotFound(ref: Ref) extends Rejection(s"Resource '${ref.show}' not found.")
 
   /**
-    * Signals an attempt to interact with a project that doesn't have an account.
+    * Signals an attempt to interact with a project that doesn't have an organization.
     *
     * @param ref a reference to the resource
     */
-  final case class AccountNotFound(ref: ProjectRef) extends Rejection(s"Project '${ref.show}' without an account")
+  final case class OrganizationNotFound(ref: ProjectRef)
+      extends Rejection(s"Project '${ref.show}' without an organization")
 
   /**
     * Signals the impossibility to resolve the project reference for project labels.
@@ -168,7 +169,7 @@ object Rejection {
   final case class IllegalParameter(override val message: String) extends Rejection(message)
 
   /**
-    * Signals that the logged account does not have one of the provided identities
+    * Signals that the logged organization does not have one of the provided identities
     *
     */
   @SuppressWarnings(Array("IncorrectlyNamedExceptions"))

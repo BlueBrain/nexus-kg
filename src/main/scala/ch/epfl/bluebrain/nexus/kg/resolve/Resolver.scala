@@ -81,11 +81,11 @@ object Resolver {
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.resolve.Resolver]].
     *
-    * @param res        a materialized resource
-    * @param accountRef the account reference
+    * @param res             a materialized resource
+    * @param organizationRef the organization reference
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
-  final def apply(res: ResourceV, accountRef: AccountRef): Option[Resolver] = {
+  final def apply(res: ResourceV, organizationRef: OrganizationRef): Option[Resolver] = {
     val c  = res.value.graph.cursor(res.id.value)
     val id = res.id
 
@@ -120,7 +120,7 @@ object Resolver {
       } yield
         InAccountResolver(types.toSet,
                           identities,
-                          accountRef,
+                          organizationRef,
                           res.id.parent,
                           res.id.value,
                           res.rev,
@@ -161,12 +161,12 @@ object Resolver {
   ) extends Resolver
 
   /**
-    * A resolver that looks within all projects belonging to its parent account.
+    * A resolver that looks within all projects belonging to its parent organization.
     */
   final case class InAccountResolver(
       resourceTypes: Set[AbsoluteIri],
       identities: List[Identity],
-      accountRef: AccountRef,
+      organizationRef: OrganizationRef,
       ref: ProjectRef,
       id: AbsoluteIri,
       rev: Long,

@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.serializers
 import java.nio.charset.Charset
 import java.nio.file.Paths
 import java.time.Clock
+import java.util.UUID
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -38,7 +39,8 @@ class EventSerializerSpec
   "A Serializer" when {
 
     val key: ResId =
-      Id(ProjectRef("org/projectName"), url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+      Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
+         url"https://bbp.epfl.ch/nexus/data/resourceName".value)
 
     val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
 

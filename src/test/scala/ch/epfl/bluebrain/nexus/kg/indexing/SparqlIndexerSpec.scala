@@ -1,12 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.time.{Clock, Instant, ZoneId}
+import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.{EitherT, OptionT}
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
@@ -44,15 +45,37 @@ class SparqlIndexerSpec
 
   import system.dispatcher
 
-  private val resources  = mock[Resources[Future]]
-  private val client     = mock[SparqlClient[Future]]
-  private val projectRef = ProjectRef(uuid)
-  private val accountRef = AccountRef(uuid)
+  private val resources       = mock[Resources[Future]]
+  private val client          = mock[SparqlClient[Future]]
+  private val projectRef      = ProjectRef(genUUID)
+  private val organizationRef = OrganizationRef(genUUID)
   private val project =
-    Project("some-project", "some-label-proj", Map.empty, nxv.project.value, 1L, deprecated = false, projectRef.id)
-  private val account                 = Account("some-org", 1L, "some-label", deprecated = false, accountRef.id)
-  private implicit val labeledProject = LabeledProject(ProjectLabel(account.label, project.label), project, accountRef)
-  private val indexer                 = new SparqlIndexer(client, resources)
+    Project(genIri,
+            "some-label-proj",
+            "some-label",
+            None,
+            nxv.project.value,
+            Map(),
+            projectRef.id,
+            1L,
+            false,
+            Instant.EPOCH,
+            genIri,
+            Instant.EPOCH,
+            genIri)
+  private val organization = Organization(genIri,
+                                          "some-label",
+                                          "description",
+                                          organizationRef.id,
+                                          1L,
+                                          deprecated = false,
+                                          Instant.EPOCH,
+                                          genIri,
+                                          Instant.EPOCH,
+                                          genIri)
+  private implicit val labeledProject =
+    LabeledProject(ProjectLabel(organization.label, project.label), project, organizationRef)
+  private val indexer = new SparqlIndexer(client, resources)
 
   before {
     Mockito.reset(resources)
@@ -60,7 +83,8 @@ class SparqlIndexerSpec
   }
 
   "An SparqlIndexer" should {
-    val id: ResId             = Id(ProjectRef("org/projectName"), url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+    val id: ResId = Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
+                       url"https://bbp.epfl.ch/nexus/data/resourceName".value)
     val schema: Ref           = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
     val json                  = Json.obj("key" -> Json.fromInt(2))
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())

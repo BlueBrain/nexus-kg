@@ -65,7 +65,7 @@ object HealthStatus {
   class AdminHealthStatus(client: AdminClient[Task]) extends HealthStatus {
     private implicit val log                      = Logger(s"${getClass.getSimpleName}")
     private implicit val token: Option[AuthToken] = None
-    override def check: Task[Boolean]             = client.getAccount("test").transformAndCatchError("fetch account")
+    override def check: Task[Boolean]             = client.fetchOrganization("test").transformAndCatchError("fetch organization")
   }
 
   class ElasticSearchHealthStatus(client: ElasticClient[Task]) extends HealthStatus {

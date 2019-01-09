@@ -51,14 +51,14 @@ class RepoSpec
   private implicit val store = mock[FileStore[IO, String, String]]
 
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
-  private def randomIri()  = Iri.absolute(s"http://example.com/$uuid").right.value
+  private def randomIri()  = Iri.absolute(s"http://example.com/$genUUID").right.value
 
   before {
     Mockito.reset(store)
   }
 
   trait Context {
-    val projectRef                = ProjectRef(uuid)
+    val projectRef                = ProjectRef(genUUID)
     val iri                       = randomIri()
     val id                        = Id(projectRef, iri)
     val value                     = randomJson()

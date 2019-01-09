@@ -1,17 +1,19 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
+import java.util.UUID
+
 import akka.actor.{Actor, ActorRef, ActorSystem, Props, Stash}
 import akka.cluster.ddata.DistributedData
 import akka.cluster.ddata.Replicator.{Changed, Deleted, Subscribe}
 import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
-import ch.epfl.bluebrain.nexus.admin.client.types.{Account, Project}
+import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Start
 import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
-import ch.epfl.bluebrain.nexus.kg.resources.{AccountRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
@@ -23,10 +25,10 @@ import monix.execution.Scheduler.Implicits.global
 import scala.concurrent.duration._
 
 /**
-  * Manages the indices that are configured to be run for the selected project. It monitors changes in the account,
+  * Manages the indices that are configured to be run for the selected project. It monitors changes in the organization,
   * project and view resources stored in the distributed data registers.
   *
-  * It expects its name to use ''{ACCOUNT_UUID}_{PROJECT_UUID}'' format. Attempting to create the actor without using
+  * It expects its name to use ''{ORGANIZATION_UUID}_{PROJECT_UUID}'' format. Attempting to create the actor without using
   * the expected format will result in an error.
   *
   * @param cache    the distributed cache
@@ -42,12 +44,12 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
 
   private val replicator = DistributedData(context.system).replicator
 
-  private val Array(accountUuid, projectUuid) = self.path.name.split('_')
-  private val accountRef                      = AccountRef(accountUuid)
-  private val projectRef                      = ProjectRef(projectUuid)
-  private val account                         = accountKey(accountRef)
-  private val project                         = projectKey(projectRef)
-  private val view                            = projectViewsKey(projectRef)
+  private val Array(organizationUuid, projectUuid) = self.path.name.split('_').map(UUID.fromString)
+  private val organizationRef                      = OrganizationRef(organizationUuid)
+  private val projectRef                           = ProjectRef(projectUuid)
+  private val organization                         = organizationKey(organizationRef)
+  private val project                              = projectKey(projectRef)
+  private val view                                 = projectViewsKey(projectRef)
 
   private val log = Logger(s"${getClass.getSimpleName} ($projectUuid)")
 
@@ -59,12 +61,12 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
     log.debug("Initializing")
 
     val start = for {
-      account <- cache.account(accountRef).retryWhenNot { case Some(ac) => ac }
-      proj    <- cache.project(projectRef).retryWhenNot { case Some(ac) => ac }
-      vs      <- cache.views(projectRef).map(_.collect { case v: SingleView => v })
-    } yield Start(account, LabeledProject(ProjectLabel(account.label, proj.label), proj, accountRef), vs)
+      org  <- cache.organization(organizationRef).retryWhenNot { case Some(ac) => ac }
+      proj <- cache.project(projectRef).retryWhenNot { case Some(ac) => ac }
+      vs   <- cache.views(projectRef).map(_.collect { case v: SingleView => v })
+    } yield Start(org, LabeledProject(ProjectLabel(org.label, proj.label), proj, organizationRef), vs)
     val _ = start.map { msg =>
-      replicator ! Subscribe(account, self)
+      replicator ! Subscribe(organization, self)
       replicator ! Subscribe(project, self)
       replicator ! Subscribe(view, self)
       msg
@@ -81,20 +83,20 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
       stash()
   }
 
-  def initialized(ac: Account,
+  def initialized(ac: Organization,
                   wrapped: LabeledProject,
                   views: Set[SingleView],
                   childMapping: Map[SingleView, ActorRef])(): Receive = {
 
-    def updateWrappedAc(account: Account): LabeledProject =
-      wrapped.copy(label = wrapped.label.copy(account = account.label))
+    def updateWrappedAc(organization: Organization): LabeledProject =
+      wrapped.copy(label = wrapped.label.copy(organization = organization.label))
     def updateWrappedProj(project: Project): LabeledProject =
       wrapped.copy(label = wrapped.label.copy(value = project.label), project = project)
 
-    // stop children if the account or project is deprecated
+    // stop children if the organization or project is deprecated
     val stopChildren = ac.deprecated || wrapped.project.deprecated
     val nextMapping = if (stopChildren) {
-      log.debug("Account and/or project are deprecated, stopping any running children")
+      log.debug("Organization and/or project are deprecated, stopping any running children")
       childMapping.values.foreach { ref =>
         ref ! Stop
         context.stop(ref)
@@ -121,14 +123,14 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
     }
 
     {
-      case c @ Changed(`account`) =>
-        val (newWrapped, newAccount) =
-          c.get(account).value.value.map(a => updateWrappedAc(a) -> a).getOrElse(wrapped -> ac)
-        log.debug(s"Account deprecation changed (${ac.deprecated} -> ${newAccount.deprecated})")
-        context.become(initialized(newAccount, newWrapped, views, nextMapping))
+      case c @ Changed(`organization`) =>
+        val (newWrapped, newOrganization) =
+          c.get(organization).value.value.map(a => updateWrappedAc(a) -> a).getOrElse(wrapped -> ac)
+        log.debug(s"Organization deprecation changed (${ac.deprecated} -> ${newOrganization.deprecated})")
+        context.become(initialized(newOrganization, newWrapped, views, nextMapping))
 
-      case Deleted(`account`) => // should not happen, maintain previous state
-        log.warn("Received account data entry deleted notification, discarding")
+      case Deleted(`organization`) => // should not happen, maintain previous state
+        log.warn("Received organization data entry deleted notification, discarding")
 
       case c @ Changed(`project`) =>
         val newWrapped = c.get(project).value.value.map(updateWrappedProj).getOrElse(wrapped)
@@ -154,17 +156,17 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
 }
 
 object ProjectViewCoordinator {
-  private final case class Start(accountState: Account, wrapped: LabeledProject, views: Set[SingleView])
+  private final case class Start(orgState: Organization, wrapped: LabeledProject, views: Set[SingleView])
 
-  final case class Msg(accountRef: AccountRef, projectRef: ProjectRef)
+  final case class Msg(orgRef: OrganizationRef, projectRef: ProjectRef)
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
-    case Msg(AccountRef(acc), ProjectRef(proj)) => math.abs(s"${acc}_$proj".hashCode) % shards toString
-    case ShardRegion.StartEntity(id)            => (id.hashCode                       % shards) toString
+    case Msg(OrganizationRef(acc), ProjectRef(proj)) => math.abs(s"${acc}_$proj".hashCode) % shards toString
+    case ShardRegion.StartEntity(id)                 => (id.hashCode                       % shards) toString
   }
 
   private[async] val entityExtractor: ExtractEntityId = {
-    case msg @ Msg(AccountRef(acc), ProjectRef(proj)) => (s"${acc}_$proj", msg)
+    case msg @ Msg(OrganizationRef(acc), ProjectRef(proj)) => (s"${acc}_$proj", msg)
   }
 
   private[async] def props(cache: DistributedCache[Task],

@@ -69,7 +69,7 @@ object ViewEncoder {
 
     def mainTriples(tpe: AbsoluteIri*): Set[Triple] =
       Set[Triple]((s, rdf.tpe, nxv.View),
-                  (s, nxv.uuid, view.uuid),
+                  (s, nxv.uuid, view.uuid.toString),
                   (s, nxv.deprecated, view.deprecated),
                   (s, nxv.rev, view.rev)) ++ tpe.map(t => (s, rdf.tpe, t): Triple).toSet
 

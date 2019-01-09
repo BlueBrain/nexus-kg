@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.time.{Clock, Instant, ZoneId}
+import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
@@ -24,7 +25,7 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
   "A View" when {
     val mapping    = jsonContentOf("/elastic/mapping.json")
     val iri        = url"http://example.com/id".value
-    val projectRef = ProjectRef("ref")
+    val projectRef = ProjectRef(genUUID)
     val id         = Id(projectRef, iri)
 
     "constructing" should {
@@ -34,23 +35,25 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
 
       "return an ElasticView" in {
         val resource = simpleV(id, elasticview, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
-        View(resource).right.value shouldEqual ElasticView(mapping,
-                                                           Set(nxv.Schema, nxv.Resource),
-                                                           Some("one"),
-                                                           false,
-                                                           true,
-                                                           projectRef,
-                                                           iri,
-                                                           "3aa14a1a-81e7-4147-8306-136d8270bb01",
-                                                           resource.rev,
-                                                           resource.deprecated)
+        View(resource).right.value shouldEqual ElasticView(
+          mapping,
+          Set(nxv.Schema, nxv.Resource),
+          Some("one"),
+          false,
+          true,
+          projectRef,
+          iri,
+          UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
+          resource.rev,
+          resource.deprecated
+        )
       }
 
       "return an SparqlView" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.View, nxv.SparqlView))
         View(resource).right.value shouldEqual SparqlView(projectRef,
                                                           iri,
-                                                          "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1",
+                                                          UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
                                                           resource.rev,
                                                           resource.deprecated)
 
@@ -62,12 +65,13 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
           ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
           ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
         )
-        View(resource).right.value shouldEqual AggregateElasticView(views,
-                                                                    projectRef,
-                                                                    "3aa14a1a-81e7-4147-8306-136d8270bb01",
-                                                                    iri,
-                                                                    resource.rev,
-                                                                    resource.deprecated)
+        View(resource).right.value shouldEqual AggregateElasticView(
+          views,
+          projectRef,
+          UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
+          iri,
+          resource.rev,
+          resource.deprecated)
       }
 
       "return an AggregateElasticView from ProjectRef ViewRef" in {
@@ -75,15 +79,18 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
 
         val resource = simpleV(id, aggElasticViewRefs, types = Set(nxv.View, nxv.AggregateElasticView, nxv.Alpha))
         val views = Set(
-          ViewRef(ProjectRef("64b202b4-1060-42b5-9b4f-8d6a9d0d9113"), url"http://example.com/id2".value),
-          ViewRef(ProjectRef("d23d9578-255b-4e46-9e65-5c254bc9ad0a"), url"http://example.com/id3".value)
+          ViewRef(ProjectRef(UUID.fromString("64b202b4-1060-42b5-9b4f-8d6a9d0d9113")),
+                  url"http://example.com/id2".value),
+          ViewRef(ProjectRef(UUID.fromString("d23d9578-255b-4e46-9e65-5c254bc9ad0a")),
+                  url"http://example.com/id3".value)
         )
-        View(resource).right.value shouldEqual AggregateElasticView(views,
-                                                                    projectRef,
-                                                                    "3aa14a1a-81e7-4147-8306-136d8270bb01",
-                                                                    iri,
-                                                                    resource.rev,
-                                                                    resource.deprecated)
+        View(resource).right.value shouldEqual AggregateElasticView(
+          views,
+          projectRef,
+          UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
+          iri,
+          resource.rev,
+          resource.deprecated)
       }
 
       "fail on AggregateElasticView when types are wrong" in {
@@ -135,7 +142,7 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
                                         true,
                                         projectRef,
                                         iri,
-                                        "3aa14a1a-81e7-4147-8306-136d8270bb01",
+                                        UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
                                         1L,
                                         false)
         val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(elastic)))
@@ -143,7 +150,8 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
       }
 
       "return the json representation for a queryresults list with SparqlView" in {
-        val sparql: View              = SparqlView(projectRef, iri, "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1", 1L, false)
+        val sparql: View =
+          SparqlView(projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
         val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(sparql)))
         views.asJson should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp-sparql.json"))
       }

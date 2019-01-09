@@ -42,24 +42,35 @@ class ResourceFSpec
     val userIri            = Iri.absolute(s"${appConfig.iam.baseUri}/realms/someRealm/users/dmontero").right.value
     val anonIri            = Iri.absolute(s"${appConfig.iam.baseUri}/anonymous").right.value
 
-    val projectRef = ProjectRef(uuid)
-    val genUuid    = uuid
-    val id         = Iri.absolute(s"http://example.com/$genUuid").right.value
+    val projectRef = ProjectRef(genUUID)
+    val id         = Iri.absolute(s"http://example.com/${projectRef.id}").right.value
     val resId      = Id(projectRef, id)
     val json       = Json.obj("key" -> Json.fromString("value"))
     val schema     = Ref(shaclSchemaUri)
     val label      = ProjectLabel("bbp", "core")
-    val prefixMappings = Map[String, AbsoluteIri](
+    val apiMappings = Map[String, AbsoluteIri](
       "nxv"           -> nxv.base,
       "ex"            -> url"http://example.com/",
       "resource"      -> Schemas.resourceSchemaUri,
       "elasticsearch" -> nxv.defaultElasticIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )
-    val projectMeta = Project("name", "core", prefixMappings, nxv.projects, 1L, false, "uuid")
+    val projectMeta = Project(id,
+                              "core",
+                              "bbp",
+                              None,
+                              nxv.projects,
+                              apiMappings,
+                              projectRef.id,
+                              1L,
+                              false,
+                              Instant.EPOCH,
+                              userIri,
+                              Instant.EPOCH,
+                              anonIri)
 
     "compute the metadata graph for a resource" in {
-      implicit val labeledProject = LabeledProject(label, projectMeta, AccountRef("uuid"))
+      implicit val labeledProject = LabeledProject(label, projectMeta, OrganizationRef(genUUID))
       val resource = ResourceF
         .simpleF(resId, json, 2L, schema = schema, types = Set(nxv.Schema))
         .copy(createdBy = identity, updatedBy = Anonymous)
@@ -70,7 +81,7 @@ class ResourceFSpec
         (IriNode(id), nxv.createdAt, clock.instant()),
         (IriNode(id), nxv.createdBy, IriNode(userIri)),
         (IriNode(id), nxv.updatedBy, IriNode(anonIri)),
-        (IriNode(id), nxv.self, url"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:$genUuid"),
+        (IriNode(id), nxv.self, url"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:${projectRef.id}"),
         (IriNode(id), nxv.project, url"http://localhost:8080/admin/projects/bbp/core"),
         (IriNode(id), nxv.constrainedBy, IriNode(schema.iri))
       )

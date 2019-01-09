@@ -26,8 +26,8 @@ object PathDirectives {
     Segment flatMap toIri
 
   private def toIri(s: String)(implicit project: Project): Option[AbsoluteIri] =
-    project.prefixMappings.get(s) orElse
-      Curie(s).flatMap(_.toIriUnsafePrefix(project.prefixMappings)).toOption orElse
+    project.apiMappings.get(s) orElse
+      Curie(s).flatMap(_.toIriUnsafePrefix(project.apiMappings)).toOption orElse
       Iri.url(s).toOption orElse
       Iri.absolute(project.base.asString + s).toOption
 

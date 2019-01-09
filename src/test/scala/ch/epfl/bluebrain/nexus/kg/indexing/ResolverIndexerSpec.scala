@@ -61,8 +61,8 @@ class ResolverIndexerSpec
   "A ResolverIndexer" should {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
     val iri                   = Iri.absolute("http://example.com/id").right.value
-    val accountRef            = AccountRef("acRef")
-    val projectRef            = ProjectRef("ref")
+    val organizationRef       = OrganizationRef(genUUID)
+    val projectRef            = ProjectRef(genUUID)
     val id                    = Id(projectRef, iri)
     val schema                = Ref(Schemas.resolverSchemaUri)
 
@@ -71,13 +71,13 @@ class ResolverIndexerSpec
     val json      = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
     val resource  = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
-    val resolver  = Resolver(resourceV, accountRef).value
+    val resolver  = Resolver(resourceV, organizationRef).value
     val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
 
     "index a resolver" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.accountRef(projectRef)).thenReturn(Future.successful(Option(accountRef)))
+      when(cache.organizationRef(projectRef)).thenReturn(Future.successful(Option(organizationRef)))
       when(cache.applyResolver(projectRef, resolver)).thenReturn(Future.successful(()))
 
       indexer(ev).futureValue shouldEqual (())
@@ -97,10 +97,10 @@ class ResolverIndexerSpec
       verify(cache, times(0)).applyResolver(projectRef, resolver)
     }
 
-    "raise RetriableError when the accountRef cannot be fetched from the cache" in {
+    "raise RetriableError when the organizationRef cannot be fetched from the cache" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.accountRef(projectRef)).thenReturn(Future.successful(None))
+      when(cache.organizationRef(projectRef)).thenReturn(Future.successful(None))
       whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
       verify(cache, times(0)).applyResolver(projectRef, resolver)
     }
@@ -108,7 +108,7 @@ class ResolverIndexerSpec
     "raise RetriableError when cache fails due to an AskTimeoutException" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.accountRef(projectRef)).thenReturn(Future.failed(new AskTimeoutException("error")))
+      when(cache.organizationRef(projectRef)).thenReturn(Future.failed(new AskTimeoutException("error")))
       whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
       verify(cache, times(0)).applyResolver(projectRef, resolver)
     }
@@ -116,7 +116,7 @@ class ResolverIndexerSpec
     "raise RetriableError when cache fails due to an OperationTimedOut" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.accountRef(projectRef)).thenReturn(Future.failed(new OperationTimedOut("error")))
+      when(cache.organizationRef(projectRef)).thenReturn(Future.failed(new OperationTimedOut("error")))
       whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
       verify(cache, times(0)).applyResolver(projectRef, resolver)
     }

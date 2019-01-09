@@ -42,7 +42,7 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: AccessCo
       }
   }
 
-  override implicit def additional     = AdditionalValidation.resolver(caller, wrapped.accountRef)
+  override implicit def additional     = AdditionalValidation.resolver(caller, wrapped.organizationRef)
   override def transform(r: ResourceV) = transformation(r)
 
   override def list(schema: Ref): Route =
