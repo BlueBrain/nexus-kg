@@ -84,7 +84,6 @@ object Vocabulary {
     val Ontology             = withSuffix("Ontology")
     val Resolver             = withSuffix("Resolver")
     val InProject            = withSuffix("InProject")
-    val InAccount            = withSuffix("InAccount")
     val CrossProject         = withSuffix("CrossProject")
     val View                 = withSuffix("View")
     val ElasticView          = withSuffix("ElasticView")

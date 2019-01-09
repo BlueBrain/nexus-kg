@@ -40,11 +40,10 @@ private class ResolverIndexer[F[_]](resources: Resources[F], cache: DistributedC
     val projectRef = event.id.parent
 
     val result: EitherT[F, Rejection, Unit] = for {
-      resource        <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
-      materialized    <- resources.materialize(resource)
-      organizationRef <- EitherT.fromOptionF(cache.organizationRef(projectRef), OrganizationNotFound(projectRef))
-      resolver        <- EitherT.fromOption(Resolver(materialized, organizationRef), NotFound(event.id.ref))
-      applied         <- EitherT.liftF(cache.applyResolver(projectRef, resolver))
+      resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
+      materialized <- resources.materialize(resource)
+      resolver     <- EitherT.fromOption(Resolver(materialized), NotFound(event.id.ref))
+      applied      <- EitherT.liftF(cache.applyResolver(projectRef, resolver))
     } yield applied
 
     result.value

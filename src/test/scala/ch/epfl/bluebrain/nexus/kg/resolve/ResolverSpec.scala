@@ -5,7 +5,6 @@ import java.util.UUID
 
 import cats.data.EitherT
 import cats.{Id => CId}
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
@@ -50,11 +49,9 @@ class ResolverSpec
     val inProject        = jsonContentOf("/resolve/in-project.json").appendContextOf(resolverCtx)
     val crossProject     = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
     val crossProjectRefs = jsonContentOf("/resolve/cross-project-refs.json").appendContextOf(resolverCtx)
-    val inAccount        = jsonContentOf("/resolve/in-account.json").appendContextOf(resolverCtx)
     val iri              = Iri.absolute("http://example.com/id").right.value
     val projectRef       = ProjectRef(genUUID)
     val id               = Id(projectRef, iri)
-    val organizationRef  = OrganizationRef(genUUID)
     val identities       = List[Identity](Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero", "ldap"))
     val label1           = ProjectLabel("account1", "project1")
     val label2           = ProjectLabel("account1", "project2")
@@ -63,17 +60,13 @@ class ResolverSpec
 
       "return an InProjectResolver" in {
         val resource = simpleV(id, inProject, types = Set(nxv.Resolver, nxv.InProject, nxv.Resource))
-        Resolver(resource, organizationRef).value shouldEqual InProjectResolver(projectRef,
-                                                                                iri,
-                                                                                resource.rev,
-                                                                                resource.deprecated,
-                                                                                10)
+        Resolver(resource).value shouldEqual InProjectResolver(projectRef, iri, resource.rev, resource.deprecated, 10)
       }
 
       "return a CrossProjectResolver" in {
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val projects = Set(label1, label2)
-        val resolver = Resolver(resource, organizationRef).value.asInstanceOf[CrossProjectLabels]
+        val resolver = Resolver(resource).value.asInstanceOf[CrossProjectLabels]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set(nxv.Schema.value)
@@ -86,7 +79,7 @@ class ResolverSpec
 
       "return a CrossProjectResolver that does not have resourceTypes" in {
         val resource = simpleV(id, crossProjectRefs, types = Set(nxv.Resolver, nxv.CrossProject))
-        val resolver = Resolver(resource, organizationRef).value.asInstanceOf[CrossProjectRefs]
+        val resolver = Resolver(resource).value.asInstanceOf[CrossProjectRefs]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set.empty
@@ -97,39 +90,15 @@ class ResolverSpec
         resolver.deprecated shouldEqual resource.deprecated
       }
 
-      "return an InAccountResolver" in {
-        val resource = simpleV(id, inAccount, types = Set(nxv.Resolver, nxv.InAccount))
-        val resolver = Resolver(resource, organizationRef).value.asInstanceOf[InAccountResolver]
-        resolver.priority shouldEqual 50
-        resolver.identities should contain theSameElementsAs identities
-        resolver.resourceTypes shouldEqual Set(nxv.Schema.value)
-        resolver.ref shouldEqual projectRef
-        resolver.id shouldEqual iri
-        resolver.rev shouldEqual resource.rev
-        resolver.deprecated shouldEqual resource.deprecated
-      }
-
-      "return a InAccountResolver that does not have resourceTypes" in {
-        val resource = simpleV(id, inAccount.removeKeys("resourceTypes"), types = Set(nxv.Resolver, nxv.InAccount))
-        val resolver = Resolver(resource, organizationRef).value.asInstanceOf[InAccountResolver]
-        resolver.priority shouldEqual 50
-        resolver.identities should contain theSameElementsAs identities
-        resolver.resourceTypes shouldEqual Set.empty
-        resolver.ref shouldEqual projectRef
-        resolver.id shouldEqual iri
-        resolver.rev shouldEqual resource.rev
-        resolver.deprecated shouldEqual resource.deprecated
-      }
-
       "fail when the types don't match" in {
         val resource = simpleV(id, inProject, types = Set(nxv.Resource))
-        Resolver(resource, organizationRef) shouldEqual None
+        Resolver(resource) shouldEqual None
       }
 
       "fail when payload on identity is wrong" in {
         val wrong    = jsonContentOf("/resolve/cross-project-wrong-1.json").appendContextOf(resolverCtx)
         val resource = simpleV(id, wrong, types = Set(nxv.Resolver, nxv.CrossProject))
-        Resolver(resource, organizationRef) shouldEqual None
+        Resolver(resource) shouldEqual None
       }
     }
 
@@ -137,7 +106,6 @@ class ResolverSpec
 
       "return the list representation" in {
         val iri2 = Iri.absolute("http://example.com/id2").right.value
-        val iri3 = Iri.absolute("http://example.com/id3").right.value
 
         val inProject: Resolver = InProjectResolver(projectRef, iri, 1L, false, 10)
 
@@ -152,20 +120,8 @@ class ResolverSpec
             false,
             11
           )
-        val inAccount: Resolver =
-          InAccountResolver(Set(nxv.Resolver, nxv.InAccount),
-                            List(Authenticated("some")),
-                            organizationRef,
-                            projectRef,
-                            iri3,
-                            1L,
-                            false,
-                            12)
-
-        val resolvers: QueryResults[Resolver] = QueryResults(2L,
-                                                             List(UnscoredQueryResult(inProject),
-                                                                  UnscoredQueryResult(crossProject),
-                                                                  UnscoredQueryResult(inAccount)))
+        val resolvers: QueryResults[Resolver] =
+          QueryResults(2L, List(UnscoredQueryResult(inProject), UnscoredQueryResult(crossProject)))
         resolvers.asJson shouldEqual jsonContentOf("/resolve/resolver-list-resp.json")
       }
     }
@@ -179,7 +135,7 @@ class ResolverSpec
         when(cache.projectRefs(Set(label1, label2)))
           .thenReturn(EitherT.rightT[CId, Rejection](Map(label1 -> ProjectRef(uuid1), label2 -> ProjectRef(uuid2))))
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
-        val exposed  = Resolver(resource, organizationRef).value.asInstanceOf[CrossProjectLabels]
+        val exposed  = Resolver(resource).value.asInstanceOf[CrossProjectLabels]
         val stored   = exposed.referenced.value.right.value.asInstanceOf[CrossProjectRefs]
         stored.priority shouldEqual 50
         stored.identities should contain theSameElementsAs identities
@@ -198,7 +154,7 @@ class ResolverSpec
           .thenReturn(EitherT.rightT[CId, Rejection](Map(label1 -> ProjectRef(uuid1), label2 -> ProjectRef(uuid2))))
 
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
-        val exposed  = Resolver(resource, organizationRef).value.asInstanceOf[CrossProjectLabels]
+        val exposed  = Resolver(resource).value.asInstanceOf[CrossProjectLabels]
         val stored   = exposed.referenced.value.right.value
         stored.labeled.value.right.value.asInstanceOf[CrossProjectLabels] shouldEqual exposed
       }

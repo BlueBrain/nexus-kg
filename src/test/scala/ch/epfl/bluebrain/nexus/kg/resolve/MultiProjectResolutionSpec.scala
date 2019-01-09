@@ -75,7 +75,7 @@ class MultiProjectResolutionSpec
       case (proj, id) =>
         val metadata = Project(genIri,
                                proj.value,
-                               "bbp",
+                               proj.organization,
                                None,
                                base,
                                Map(),

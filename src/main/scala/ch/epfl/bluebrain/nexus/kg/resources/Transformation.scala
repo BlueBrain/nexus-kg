@@ -67,7 +67,7 @@ object Transformation {
                                      wrapped: LabeledProject,
                                      cache: DistributedCache[F],
                                      enc: GraphEncoder[Resolver]): F[ResourceV] =
-        Resolver(resource, wrapped.organizationRef) match {
+        Resolver(resource) match {
           case Some(r) =>
             val metadata = resource.metadata
             val resValueF =

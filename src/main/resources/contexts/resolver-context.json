@@ -16,7 +16,6 @@
     "dcat": "http://www.w3.org/ns/dcat#",
     "Resolver": "nxv:Resolver",
     "CrossProject": "nxv:CrossProject",
-    "InAccount": "nxv:InAccount",
     "InProject": "nxv:InProject",
     "User": "nxv:User",
     "Group": "nxv:Group",

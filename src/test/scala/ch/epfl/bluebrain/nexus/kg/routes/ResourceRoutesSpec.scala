@@ -281,14 +281,6 @@ class ResourceRoutesSpec
 
     val resolverSet = Set(
       InProjectResolver(projectRef, nxv.deprecated, 1L, deprecated = false, 20),
-      InAccountResolver(Set(nxv.Schema),
-                        List(Anonymous),
-                        organizationRef,
-                        projectRef,
-                        nxv.subject,
-                        2L,
-                        deprecated = true,
-                        1),
       CrossProjectResolver(Set(nxv.Schema),
                            Set(projectRef),
                            List(Anonymous),
@@ -296,15 +288,7 @@ class ResourceRoutesSpec
                            nxv.group,
                            2L,
                            deprecated = false,
-                           30),
-      InAccountResolver(Set(nxv.Schema),
-                        List(Anonymous),
-                        organizationRef,
-                        projectRef,
-                        nxv.realm,
-                        2L,
-                        deprecated = false,
-                        10)
+                           30)
     )
   }
 

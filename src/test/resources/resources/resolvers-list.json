@@ -4,44 +4,8 @@
     "https://bluebrain.github.io/nexus/contexts/resource.json",
     "https://bluebrain.github.io/nexus/contexts/resolver.json"
   ],
-  "_total": 4,
+  "_total": 2,
   "_results": [
-    {
-      "@id": "nxv:subject",
-      "@type": [
-        "InAccount",
-        "Resolver"
-      ],
-      "identities": [
-        {
-          "@type": "Anonymous"
-        }
-      ],
-      "priority": 1,
-      "resourceTypes": [
-        "nxv:Schema"
-      ],
-      "_rev": 2,
-      "_deprecated": true
-    },
-    {
-      "@id": "nxv:realm",
-      "@type": [
-        "Resolver",
-        "InAccount"
-      ],
-      "identities": [
-        {
-          "@type": "Anonymous"
-        }
-      ],
-      "priority": 10,
-      "resourceTypes": [
-        "nxv:Schema"
-      ],
-      "_rev": 2,
-      "_deprecated": false
-    },
     {
       "@id": "nxv:deprecated",
       "@type": [
