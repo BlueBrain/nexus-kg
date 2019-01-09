@@ -1,11 +1,10 @@
 {
   "@id": "http://example.com/id",
-  "@type": ["Resolver", "InAccount"],
+  "@type": ["Resolver", "CrossProject"],
   "resourceTypes": ["nxv:Schema"],
   "identities": [
     {
       "@type": "Group",
-      "realm": "ldap2",
       "group": "bbp-ou-neuroinformatics"
     },
     {
@@ -14,5 +13,5 @@
       "subject": "dmontero"
     }
   ],
-  "priority": 5000
+  "priority": 50
 }

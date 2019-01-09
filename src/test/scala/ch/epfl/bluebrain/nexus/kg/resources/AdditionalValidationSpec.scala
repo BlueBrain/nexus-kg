@@ -63,7 +63,6 @@ class AdditionalValidationSpec
     val iri                                    = Iri.absolute("http://example.com/id").right.value
     val projectRef                             = ProjectRef(genUUID)
     val id                                     = Id(projectRef, iri)
-    val organizationRef                        = OrganizationRef(genUUID)
     implicit val F: MonadError[Try, Throwable] = try_.catsStdInstancesForTry
     val user                                   = User("dmontero", "ldap")
     val matchingCaller: Caller =
@@ -97,14 +96,14 @@ class AdditionalValidationSpec
         val caller: Caller =
           Caller(User("dmontero2", "ldap"),
                  Set[Identity](Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero2", "ldap")))
-        val validation = AdditionalValidation.resolver[Try](caller, organizationRef)
+        val validation = AdditionalValidation.resolver[Try](caller)
         val resource   = simpleV(id, crossProject, types = types)
         validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidIdentity]
       }
 
       "fail when the payload cannot be serialized" in {
         val caller: Caller = Caller.anonymous
-        val validation     = AdditionalValidation.resolver[Try](caller, organizationRef)
+        val validation     = AdditionalValidation.resolver[Try](caller)
         val resource       = simpleV(id, crossProject, types = Set(nxv.Resolver))
         validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.success.value.left.value shouldBe a[
           InvalidPayload]
@@ -115,7 +114,7 @@ class AdditionalValidationSpec
         when(cache.projectRefs(labels))
           .thenReturn(EitherT.leftT[Try, Map[ProjectLabel, ProjectRef]](ProjectsNotFound(labels): Rejection))
 
-        val validation = AdditionalValidation.resolver[Try](matchingCaller, organizationRef)
+        val validation = AdditionalValidation.resolver[Try](matchingCaller)
         val resource   = simpleV(id, crossProject, types = types)
         validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[ProjectsNotFound]
       }
@@ -126,7 +125,7 @@ class AdditionalValidationSpec
         val projectRef2 = ProjectRef(genUUID)
         when(cache.projectRefs(labels))
           .thenReturn(EitherT.rightT[Try, Rejection](Map(label1 -> projectRef1, label2 -> projectRef2)))
-        val validation = AdditionalValidation.resolver[Try](matchingCaller, organizationRef)
+        val validation = AdditionalValidation.resolver[Try](matchingCaller)
         val resource   = simpleV(id, crossProject, types = types)
         val expected = jsonContentOf(
           "/resolve/cross-project-modified.json",

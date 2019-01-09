@@ -40,9 +40,6 @@ class ProjectResolution[F[_]](cache: DistributedCache[F],
       def resolverResolution(resolver: Resolver): F[Resolution[F]] =
         resolver match {
           case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, resources))
-          case r: InAccountResolver =>
-            val projects = cache.projects(r.organizationRef)
-            fetchAcls.map(MultiProjectResolution(resources, projects, r.resourceTypes, r.identities, cache, _))
           case CrossProjectRefs(r) =>
             fetchAcls.map(
               MultiProjectResolution(resources, F.pure(r.projects), r.resourceTypes, r.identities, cache, _))

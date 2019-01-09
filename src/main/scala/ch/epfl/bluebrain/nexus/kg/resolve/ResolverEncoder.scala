@@ -5,7 +5,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InAccountResolver, InProjectResolver}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -32,9 +32,6 @@ object ResolverEncoder {
       val projTriples: Set[Triple] = r.projectsString.map(p => (s, nxv.projects, p: Node))
       s -> Graph(
         r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resourceTypes) ++ projTriples)
-    case r @ InAccountResolver(resourceTypes, identities, _, _, _, _, _, _) =>
-      val s = IriNode(r.id)
-      s -> Graph(r.mainTriples(nxv.InAccount) ++ r.triplesFor(identities) ++ r.triplesFor(resourceTypes))
   }
 
   private implicit def qqResolverEncoder(implicit enc: GraphEncoder[Resolver]): GraphEncoder[QueryResult[Resolver]] =

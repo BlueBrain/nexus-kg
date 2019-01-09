@@ -82,10 +82,9 @@ object Resolver {
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.resolve.Resolver]].
     *
     * @param res             a materialized resource
-    * @param organizationRef the organization reference
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
-  final def apply(res: ResourceV, organizationRef: OrganizationRef): Option[Resolver] = {
+  final def apply(res: ResourceV): Option[Resolver] = {
     val c  = res.value.graph.cursor(res.id.value)
     val id = res.id
 
@@ -109,24 +108,6 @@ object Resolver {
       }
     }
 
-    def inAccount: Option[Resolver] =
-      (for {
-        identities <- c.downField(nxv.identities).downArray.foldLeft[EncoderResult[List[Identity]]](Right(List.empty)) {
-          case (err @ Left(_), _)   => err
-          case (Right(list), inner) => identity(inner).map(_ :: list)
-        }
-        priority <- c.downField(nxv.priority).focus.as[Int]
-        types = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty[AbsoluteIri])
-      } yield
-        InAccountResolver(types.toSet,
-                          identities,
-                          organizationRef,
-                          res.id.parent,
-                          res.id.value,
-                          res.rev,
-                          res.deprecated,
-                          priority)).toOption
-
     def identities(iter: Iterable[GraphCursor]): Either[NodeEncoderError, List[Identity]] =
       iter.toList.foldM(List.empty[Identity]) { (acc, innerCursor) =>
         identity(innerCursor).map(_ :: acc)
@@ -145,7 +126,6 @@ object Resolver {
 
     if (Set(nxv.Resolver.value, nxv.CrossProject.value).subsetOf(res.types)) crossProject
     else if (Set(nxv.Resolver.value, nxv.InProject.value).subsetOf(res.types)) inProject
-    else if (Set(nxv.Resolver.value, nxv.InAccount.value).subsetOf(res.types)) inAccount
     else None
   }
 
@@ -153,20 +133,6 @@ object Resolver {
     * A resolver that looks only within its own project.
     */
   final case class InProjectResolver(
-      ref: ProjectRef,
-      id: AbsoluteIri,
-      rev: Long,
-      deprecated: Boolean,
-      priority: Int
-  ) extends Resolver
-
-  /**
-    * A resolver that looks within all projects belonging to its parent organization.
-    */
-  final case class InAccountResolver(
-      resourceTypes: Set[AbsoluteIri],
-      identities: List[Identity],
-      organizationRef: OrganizationRef,
       ref: ProjectRef,
       id: AbsoluteIri,
       rev: Long,

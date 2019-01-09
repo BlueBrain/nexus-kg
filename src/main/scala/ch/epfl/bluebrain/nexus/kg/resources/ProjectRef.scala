@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.util.UUID
 
 import cats.{Monad, Show}
-import cats.data.OptionT
+import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 
 /**
@@ -21,11 +21,7 @@ final case class ProjectRef(id: UUID) {
     * @return an option of [[ProjectLabel]] wrapped on ''F[_]''
     */
   def toLabel[F[_]: Monad](cache: DistributedCache[F]): F[Option[ProjectLabel]] =
-    (for {
-      organizationRef <- OptionT(cache.organizationRef(this))
-      organization    <- OptionT(cache.organization(organizationRef))
-      project         <- OptionT(cache.project(this))
-    } yield ProjectLabel(organization.label, project.label)).value
+    cache.project(this).map(_.map(project => ProjectLabel(project.organization, project.label)))
 }
 
 object ProjectRef {

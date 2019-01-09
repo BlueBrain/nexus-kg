@@ -70,13 +70,11 @@ object AdditionalValidation {
     * Additional validation used for checking ACLs on [[Resolver]] creation
     *
     * @param caller     the [[Caller]] with all it's identities
-    * @param organizationRef the organization reference
     * @tparam F the monadic effect type
     * @return a new validation that passes whenever the provided ''acls'' match the ones on the resolver's identities
     */
-  final def resolver[F[_]](caller: Caller, organizationRef: OrganizationRef)(
-      implicit F: Monad[F],
-      cache: DistributedCache[F]): AdditionalValidation[F] = {
+  final def resolver[F[_]](caller: Caller)(implicit F: Monad[F],
+                                           cache: DistributedCache[F]): AdditionalValidation[F] = {
 
     def aclContains(identities: List[Identity]): Boolean =
       identities.forall(caller.identities.contains)
@@ -84,11 +82,9 @@ object AdditionalValidation {
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) =>
       {
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
-        Resolver(resource, organizationRef) match {
+        Resolver(resource) match {
           case Some(resolver: CrossProjectResolver[_]) if aclContains(resolver.identities) =>
             resolver.referenced.map(r => value.map(r, _.removeKeys("@context").addContext(resolverCtxUri)))
-          case Some(resolver: InAccountResolver) if aclContains(resolver.identities) =>
-            EitherT.rightT[F, Rejection](value)
           case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)
           case Some(_) =>
             EitherT.leftT[F, Value](

@@ -3,14 +3,11 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import java.time.{Clock, Instant, ZoneId}
 
 import akka.actor.ActorSystem
-import akka.pattern.AskTimeoutException
 import akka.testkit.TestKit
 import cats.data.{EitherT, OptionT}
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.resolverCtx
@@ -61,7 +58,6 @@ class ResolverIndexerSpec
   "A ResolverIndexer" should {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
     val iri                   = Iri.absolute("http://example.com/id").right.value
-    val organizationRef       = OrganizationRef(genUUID)
     val projectRef            = ProjectRef(genUUID)
     val id                    = Id(projectRef, iri)
     val schema                = Ref(Schemas.resolverSchemaUri)
@@ -71,13 +67,12 @@ class ResolverIndexerSpec
     val json      = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
     val resource  = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
-    val resolver  = Resolver(resourceV, organizationRef).value
+    val resolver  = Resolver(resourceV).value
     val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
 
     "index a resolver" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.organizationRef(projectRef)).thenReturn(Future.successful(Option(organizationRef)))
       when(cache.applyResolver(projectRef, resolver)).thenReturn(Future.successful(()))
 
       indexer(ev).futureValue shouldEqual (())
@@ -94,30 +89,6 @@ class ResolverIndexerSpec
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.leftT[Future, ResourceV](Unexpected("error"): Rejection))
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(0)).applyResolver(projectRef, resolver)
-    }
-
-    "raise RetriableError when the organizationRef cannot be fetched from the cache" in {
-      when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
-      when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.organizationRef(projectRef)).thenReturn(Future.successful(None))
-      whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
-      verify(cache, times(0)).applyResolver(projectRef, resolver)
-    }
-
-    "raise RetriableError when cache fails due to an AskTimeoutException" in {
-      when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
-      when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.organizationRef(projectRef)).thenReturn(Future.failed(new AskTimeoutException("error")))
-      whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
-      verify(cache, times(0)).applyResolver(projectRef, resolver)
-    }
-
-    "raise RetriableError when cache fails due to an OperationTimedOut" in {
-      when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
-      when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.organizationRef(projectRef)).thenReturn(Future.failed(new OperationTimedOut("error")))
-      whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
       verify(cache, times(0)).applyResolver(projectRef, resolver)
     }
   }

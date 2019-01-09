@@ -40,26 +40,6 @@
       ],
       "_rev" : 1,
       "_deprecated" : false
-    },
-    {
-      "@id" : "http://example.com/id3",
-      "@type" : [
-        "Resolver",
-        "InAccount"
-      ],
-      "identities" : [
-        {
-          "@type" : "Authenticated",
-          "realm" : "some"
-        }
-      ],
-      "priority" : 12,
-      "resourceTypes" : [
-        "nxv:Resolver",
-        "nxv:InAccount"
-      ],
-      "_rev" : 1,
-      "_deprecated" : false
     }
   ]
 }
