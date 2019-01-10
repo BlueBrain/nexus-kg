@@ -11,7 +11,7 @@ final case class ProjectLabel(organization: String, value: String) {
     * @return the project accessId
     */
   def projectAccessId(implicit config: AdminClientConfig): AbsoluteIri =
-    config.baseIri + "projects" / organization / value
+    config.baseUri + "projects" / organization / value
 }
 
 object ProjectLabel {

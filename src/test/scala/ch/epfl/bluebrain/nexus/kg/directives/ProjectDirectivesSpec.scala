@@ -56,26 +56,30 @@ class ProjectDirectivesSpec
   private implicit val projectDecoder: Decoder[Project] =
     Decoder.instance { hc =>
       for {
-        organization <- hc.get[String]("organization")
-        description  <- hc.getOrElse[Option[String]]("description")(None)
-        base         <- hc.get[AbsoluteIri]("base")
-        apiMap       <- hc.get[Map[String, AbsoluteIri]]("apiMappings")
-        label        <- hc.get[String]("label")
-        uuid         <- hc.get[String]("uuid").map(UUID.fromString)
-        rev          <- hc.get[Long]("rev")
-        deprecated   <- hc.get[Boolean]("deprecated")
-        createdBy    <- hc.get[AbsoluteIri]("createdBy")
-        createdAt    <- hc.get[Instant]("createdAt")
-        updatedBy    <- hc.get[AbsoluteIri]("updatedBy")
-        updatedAt    <- hc.get[Instant]("updatedAt")
+        organization     <- hc.get[String]("organizationLabel")
+        description      <- hc.getOrElse[Option[String]]("description")(None)
+        base             <- hc.get[AbsoluteIri]("base")
+        vocab            <- hc.get[AbsoluteIri]("vocab")
+        apiMap           <- hc.get[Map[String, AbsoluteIri]]("apiMappings")
+        label            <- hc.get[String]("label")
+        uuid             <- hc.get[String]("uuid").map(UUID.fromString)
+        organizationUuid <- hc.get[String]("organizationUuid").map(UUID.fromString)
+        rev              <- hc.get[Long]("rev")
+        deprecated       <- hc.get[Boolean]("deprecated")
+        createdBy        <- hc.get[AbsoluteIri]("createdBy")
+        createdAt        <- hc.get[Instant]("createdAt")
+        updatedBy        <- hc.get[AbsoluteIri]("updatedBy")
+        updatedAt        <- hc.get[Instant]("updatedAt")
       } yield
         Project(id,
                 label,
                 organization,
                 description,
                 base,
+                vocab,
                 apiMap,
                 uuid,
+                organizationUuid,
                 rev,
                 deprecated,
                 createdAt,
@@ -117,7 +121,9 @@ class ProjectDirectivesSpec
       "organization",
       None,
       nxv.projects,
+      genIri,
       apiMappings,
+      genUUID,
       genUUID,
       1L,
       false,

@@ -84,7 +84,7 @@ class ResourceRoutesSpec
 
   private implicit val appConfig = Settings(system).appConfig
   private val iamUri             = appConfig.iam.baseUri
-  private val adminUri           = appConfig.admin.baseIri
+  private val adminUri           = appConfig.admin.baseUri
   private implicit val clock     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   private implicit val adminClient = mock[AdminClient[Task]]
@@ -134,7 +134,9 @@ class ResourceRoutesSpec
               organization,
               None,
               nxv.projects,
+              genIri,
               mappings,
+              genUUID,
               genUUID,
               1L,
               false,

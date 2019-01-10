@@ -50,19 +50,23 @@ class SparqlIndexerSpec
   private val projectRef      = ProjectRef(genUUID)
   private val organizationRef = OrganizationRef(genUUID)
   private val project =
-    Project(genIri,
-            "some-label-proj",
-            "some-label",
-            None,
-            nxv.project.value,
-            Map(),
-            projectRef.id,
-            1L,
-            false,
-            Instant.EPOCH,
-            genIri,
-            Instant.EPOCH,
-            genIri)
+    Project(
+      genIri,
+      "some-label-proj",
+      "some-label",
+      None,
+      nxv.project.value,
+      genIri,
+      Map(),
+      projectRef.id,
+      organizationRef.id,
+      1L,
+      false,
+      Instant.EPOCH,
+      genIri,
+      Instant.EPOCH,
+      genIri
+    )
   private val organization = Organization(genIri,
                                           "some-label",
                                           "description",
