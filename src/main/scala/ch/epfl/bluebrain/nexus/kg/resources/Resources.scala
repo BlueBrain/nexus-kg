@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
@@ -13,7 +14,6 @@ import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
@@ -342,7 +342,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     *
     * @param resource the resource to materialize
     */
-  def materializeWithMeta(resource: Resource)(implicit wrapped: LabeledProject): RejOrResourceV =
+  def materializeWithMeta(resource: Resource)(implicit project: Project): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
       value = resourceV.value.copy(graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata))

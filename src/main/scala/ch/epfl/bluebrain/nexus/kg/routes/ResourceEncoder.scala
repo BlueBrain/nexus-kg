@@ -1,10 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, ResourceV}
 import ch.epfl.bluebrain.nexus.rdf.Graph
@@ -16,7 +16,7 @@ import io.circe.{Encoder, Json}
 
 object ResourceEncoder {
 
-  implicit def resourceEncoder(implicit config: AppConfig, wrapped: LabeledProject): Encoder[Resource] = {
+  implicit def resourceEncoder(implicit config: AppConfig, project: Project): Encoder[Resource] = {
     implicit val graphEnc: GraphEncoder[Resource] =
       GraphEncoder(res => IriNode(res.id.value) -> Graph(res.metadata))
     Encoder.encodeJson.contramap { res =>

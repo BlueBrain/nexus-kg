@@ -9,10 +9,9 @@ import akka.testkit.{DefaultTimeout, TestKit, TestProbe}
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Msg
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.github.ghik.silencer.silent
 import monix.eval.Task
@@ -32,7 +31,7 @@ class ProjectViewCoordinatorSpec
     with ScalaFutures
     with BeforeAndAfterAll {
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(30 seconds, 3 seconds)
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(50 seconds, 3 seconds)
 
   private val cluster = Cluster(system)
 
@@ -78,19 +77,18 @@ class ProjectViewCoordinatorSpec
                                       creator,
                                       Instant.EPOCH,
                                       creator)
-      val viewId         = base + "projects/some-project/search"
-      val viewId2        = base + "projects/some-project2/search"
-      val view           = SparqlView(projectRef, viewId, viewUUID, 1L, deprecated = false)
-      val view2          = SparqlView(projectRef, viewId2, viewUUID2, 1L, deprecated = false)
-      val counter        = new AtomicInteger(0)
-      val counterStop    = new AtomicInteger(0)
-      val childActor     = system.actorOf(Props(new DummyActor))
-      val probe          = TestProbe()
-      val labeledProject = LabeledProject(ProjectLabel(organization.label, project.label), project, organizationRef)
+      val viewId      = base + "projects/some-project/search"
+      val viewId2     = base + "projects/some-project2/search"
+      val view        = SparqlView(projectRef, viewId, viewUUID, 1L, deprecated = false)
+      val view2       = SparqlView(projectRef, viewId2, viewUUID2, 1L, deprecated = false)
+      val counter     = new AtomicInteger(0)
+      val counterStop = new AtomicInteger(0)
+      val childActor  = system.actorOf(Props(new DummyActor))
+      val probe       = TestProbe()
 
-      def selector(view: View, lp: LabeledProject): ActorRef = view match {
+      def selector(view: View, p: Project): ActorRef = view match {
         case v: SparqlView =>
-          if (lp == labeledProject)
+          if (p == project)
             v shouldEqual view
           counter.incrementAndGet()
           childActor
@@ -115,7 +113,7 @@ class ProjectViewCoordinatorSpec
       cache.addView(projectRef, view2).runToFuture.futureValue shouldEqual (())
       eventually(counter.get shouldEqual 2)
       cache
-        .addProject(projectRef, organizationRef, project.copy(deprecated = true, rev = 2L))
+        .deprecateProject(projectRef, organizationRef, 2L)
         .runToFuture
         .futureValue shouldEqual (())
       eventually(counterStop.get shouldEqual 2)

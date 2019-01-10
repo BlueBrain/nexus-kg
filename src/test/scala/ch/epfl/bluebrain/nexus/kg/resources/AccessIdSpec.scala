@@ -7,7 +7,6 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -29,24 +28,21 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
     )
     val mappings = Map("test-schema" -> url"http://schemas.nexus.example.com/test/v0.1.0/".value) ++ defaultPrefixMapping
     val uuid     = UUID.fromString("20fdc0fc-841a-11e8-adc0-fa7ae01bbebc")
-    val project = Project(genIri,
-                          "core",
-                          "bbp",
-                          None,
-                          url"http://unused.com",
-                          genIri,
-                          mappings,
-                          uuid,
-                          genUUID,
-                          0L,
-                          false,
-                          Instant.EPOCH,
-                          genIri,
-                          Instant.EPOCH,
-                          genIri)
-
-    implicit val toLabel: LabeledProject =
-      LabeledProject(ProjectLabel("bbp", "core"), project, OrganizationRef(genUUID))
+    implicit val project = Project(genIri,
+                                   "core",
+                                   "bbp",
+                                   None,
+                                   url"http://unused.com",
+                                   genIri,
+                                   mappings,
+                                   uuid,
+                                   genUUID,
+                                   0L,
+                                   false,
+                                   Instant.EPOCH,
+                                   genIri,
+                                   Instant.EPOCH,
+                                   genIri)
 
     "generate the access id" in {
       val list = List(

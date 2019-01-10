@@ -8,19 +8,17 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test.{Resources => TestResources}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 import ch.epfl.bluebrain.nexus.kg.resources.ElasticDecoders._
+
 class ElasticDecodersSpec extends WordSpecLike with Matchers with TestResources with EitherValues with TestHelper {
 
   "ElasticDecoder" should {
 
     implicit val http = HttpConfig("http://resources.nexus.com", 80, "v1", "http://resources.nexus.com")
-    implicit def toLabel(implicit project: Project): LabeledProject =
-      LabeledProject(ProjectLabel("bbp", "testproject"), project, OrganizationRef(genUUID))
 
     val elasticPayload = jsonContentOf("/resources/elastic-resource.json")
     val uuid           = UUID.fromString("20fdc0fc-841a-11e8-adc0-fa7ae01bbebc")

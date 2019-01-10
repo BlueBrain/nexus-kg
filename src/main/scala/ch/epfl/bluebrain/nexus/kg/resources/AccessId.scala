@@ -1,13 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
+import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.service.http.Path._
 import ch.epfl.bluebrain.nexus.service.http.UriOps._
-import ch.epfl.bluebrain.nexus.kg.urlEncode
 
 object AccessId {
 
@@ -20,17 +20,17 @@ object AccessId {
     * @param resourceId the resource identifier
     * @param schemaId   the schema identifier
     */
-  def apply(resourceId: AbsoluteIri, schemaId: AbsoluteIri)(implicit wrapped: LabeledProject,
+  def apply(resourceId: AbsoluteIri, schemaId: AbsoluteIri)(implicit project: Project,
                                                             http: HttpConfig): AbsoluteIri = {
 
     def prefix(resource: String): AbsoluteIri =
-      url"${http.publicUri.append(http.prefix / resource / wrapped.label.organization / wrapped.label.value)}".value
+      url"${http.publicUri.append(http.prefix / resource / project.organizationLabel / project.label)}".value
 
     def aliasOrCurieFor(iri: AbsoluteIri): String =
-      (wrapped.project.apiMappings.collectFirst {
+      (project.apiMappings.collectFirst {
         case (p, `iri`) => p
       } orElse
-        wrapped.project.apiMappings.collectFirst {
+        project.apiMappings.collectFirst {
           case (p, ns) if iri.asString.startsWith(ns.asString) =>
             s"$p:${urlEncode(iri.asString.stripPrefix(ns.asString))}"
         }).getOrElse(urlEncode(iri.asString))

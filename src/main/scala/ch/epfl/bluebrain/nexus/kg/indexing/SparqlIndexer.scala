@@ -7,13 +7,13 @@ import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.MonadError
 import cats.syntax.flatMap._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -35,7 +35,7 @@ import scala.collection.JavaConverters._
   */
 private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[F])(
     implicit F: MonadError[F, Throwable],
-    labeledProject: LabeledProject) {
+    project: Project) {
 
   /**
     * When an event is received, the current state is obtained.
@@ -68,20 +68,19 @@ object SparqlIndexer {
   /**
     * Starts the index process for an sparql client
     *
-    * @param view           the view for which to start the index
-    * @param resources      the resources operations
-    * @param labeledProject project to which the resource belongs containing label information (organization label and project label)
+    * @param view      the view for which to start the index
+    * @param resources the resources operations
+    * @param project   the project to which the resource belongs
     */
   // $COVERAGE-OFF$
-  final def start(view: SparqlView, resources: Resources[Task], labeledProject: LabeledProject)(
-      implicit as: ActorSystem,
-      mt: ActorMaterializer,
-      ul: UntypedHttpClient[Task],
-      s: Scheduler,
-      uclRs: HttpClient[Task, ResultSet],
-      config: AppConfig): ActorRef = {
+  final def start(view: SparqlView, resources: Resources[Task], project: Project)(implicit as: ActorSystem,
+                                                                                  mt: ActorMaterializer,
+                                                                                  ul: UntypedHttpClient[Task],
+                                                                                  s: Scheduler,
+                                                                                  uclRs: HttpClient[Task, ResultSet],
+                                                                                  config: AppConfig): ActorRef = {
 
-    implicit val lb      = labeledProject
+    implicit val lb      = project
     implicit val uclJson = HttpClient.withUnmarshaller[Task, Json]
 
     val properties: Map[String, String] = {

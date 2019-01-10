@@ -39,14 +39,6 @@ trait DistributedCache[F[_]] {
   def organization(ref: OrganizationRef): F[Option[Organization]]
 
   /**
-    * Looks up the state of the argument organization ref.
-    *
-    * @param ref the project reference
-    * @return Some(organizationRef) if there is an organization reference with state and None if there's no information on the organization reference state
-    */
-  def organizationRef(ref: ProjectRef): F[Option[OrganizationRef]]
-
-  /**
     * Adds an organization.
     *
     * @param ref          the organization reference
@@ -227,9 +219,6 @@ object DistributedCache {
   private[async] def organizationKey(ref: OrganizationRef): LWWRegisterKey[RevisionedValue[Option[Organization]]] =
     LWWRegisterKey("organization_state_" + ref.id)
 
-  private[async] def organizationRefKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[OrganizationRef]]] =
-    LWWRegisterKey("organization_key_state_" + ref.id)
-
   private[async] def projectKey(ref: ProjectRef): LWWRegisterKey[RevisionedValue[Option[Project]]] =
     LWWRegisterKey("project_state_" + ref.id)
 
@@ -287,20 +276,6 @@ object DistributedCache {
     override def organization(ref: OrganizationRef): Future[Option[Organization]] =
       getOrElse(organizationKey(ref), none[Organization])
 
-    override def organizationRef(ref: ProjectRef): Future[Option[OrganizationRef]] =
-      getOrElse(organizationRefKey(ref), none[OrganizationRef])
-
-    private def addOrganizationRef(ref: ProjectRef, accRef: OrganizationRef, rev: Long): Future[Unit] = {
-      organizationRef(ref).flatMap {
-        case Some(_) => Future.successful(())
-        case _ =>
-          val empty  = LWWRegister(RevisionedValue[Option[OrganizationRef]](0L, None))
-          val value  = RevisionedValue[Option[OrganizationRef]](rev, Some(accRef))
-          val update = Update(organizationRefKey(ref), empty, WriteMajority(tm.duration))(_.withValue(value))
-          (replicator ? update).flatMap(handleUpdate(s"update organization label for ${accRef.id}"))
-      }
-    }
-
     private def organizationSegment(ref: OrganizationRef): Future[Option[String]] =
       getOrElse(organizationSegmentInverseKey(ref), none[String])
 
@@ -357,7 +332,6 @@ object DistributedCache {
       for {
         _                   <- updateProject(ref, proj)
         _                   <- addProjectToOrganization(ref, organizationRef)
-        _                   <- addOrganizationRef(ref, organizationRef, proj.rev)
         organizationSegment <- organizationSegment(organizationRef)
         _                   <- updateProjectLabelToUuid(ref, organizationRef, proj, organizationSegment)
       } yield ()
@@ -569,9 +543,6 @@ object DistributedCache {
 
       override def organization(ref: OrganizationRef): Task[Option[Organization]] =
         Task.deferFuture(underlying.organization(ref))
-
-      override def organizationRef(ref: ProjectRef): Task[Option[OrganizationRef]] =
-        Task.deferFuture(underlying.organizationRef(ref))
 
       override def addOrganization(ref: OrganizationRef, organization: Organization): Task[Unit] =
         Task.deferFuture(underlying.addOrganization(ref, organization))

@@ -3,11 +3,11 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.Monad
 import cats.syntax.applicative._
 import cats.syntax.functor._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resolverCtxUri, viewCtxUri}
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.rdf.Graph
@@ -23,7 +23,7 @@ abstract class Transformation[F[_], V] {
     * @return the transformed resource wrapped on the effect type ''F''
     */
   def apply(resource: ResourceV)(implicit config: AppConfig,
-                                 wrapped: LabeledProject,
+                                 project: Project,
                                  cache: DistributedCache[F],
                                  enc: GraphEncoder[V]): F[ResourceV]
 }
@@ -40,7 +40,7 @@ object Transformation {
   final def view[F[_]: Monad]: Transformation[F, View] =
     new Transformation[F, View] {
       def apply(resource: ResourceV)(implicit config: AppConfig,
-                                     wrapped: LabeledProject,
+                                     project: Project,
                                      cache: DistributedCache[F],
                                      enc: GraphEncoder[View]): F[ResourceV] =
         View(resource) match {
@@ -64,7 +64,7 @@ object Transformation {
     new Transformation[F, Resolver] {
 
       def apply(resource: ResourceV)(implicit config: AppConfig,
-                                     wrapped: LabeledProject,
+                                     project: Project,
                                      cache: DistributedCache[F],
                                      enc: GraphEncoder[Resolver]): F[ResourceV] =
         Resolver(resource) match {

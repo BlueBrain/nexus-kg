@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import akka.actor.{ActorRef, ActorSystem}
 import cats.MonadError
 import cats.syntax.flatMap._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
@@ -10,7 +11,6 @@ import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
@@ -32,7 +32,7 @@ import monix.execution.Scheduler
   * @param resources the resources operations
   */
 class ElasticIndexer[F[_]](view: ElasticView, resources: Resources[F])(implicit config: AppConfig,
-                                                                       labeledProject: LabeledProject,
+                                                                       project: Project,
                                                                        F: MonadError[F, Throwable]) {
 
   /**
@@ -75,18 +75,17 @@ object ElasticIndexer {
   /**
     * Starts the index process for an ElasticSearch client
     *
-    * @param view           the view for which to start the index
-    * @param resources      the resources operations
-    * @param labeledProject project to which the resource belongs containing label information (organization label and project label)
+    * @param view      the view for which to start the index
+    * @param resources the resources operations
+    * @param project   the project to which the resource belongs
     */
   // $COVERAGE-OFF$
-  final def start(view: ElasticView, resources: Resources[Task], labeledProject: LabeledProject)(
-      implicit client: ElasticClient[Task],
-      s: Scheduler,
-      as: ActorSystem,
-      config: AppConfig): ActorRef = {
+  final def start(view: ElasticView, resources: Resources[Task], project: Project)(implicit client: ElasticClient[Task],
+                                                                                   s: Scheduler,
+                                                                                   as: ActorSystem,
+                                                                                   config: AppConfig): ActorRef = {
 
-    implicit val lb = labeledProject
+    implicit val p = project
 
     val indexer = new ElasticIndexer(view, resources)
     val init = () =>
