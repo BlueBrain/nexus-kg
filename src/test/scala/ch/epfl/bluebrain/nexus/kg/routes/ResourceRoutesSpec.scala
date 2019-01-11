@@ -40,7 +40,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -84,7 +83,7 @@ class ResourceRoutesSpec
 
   private implicit val appConfig = Settings(system).appConfig
   private val iamUri             = appConfig.iam.baseUri
-  private val adminUri           = appConfig.admin.baseIri
+  private val adminUri           = appConfig.admin.baseUri
   private implicit val clock     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   private implicit val adminClient = mock[AdminClient[Task]]
@@ -128,13 +127,15 @@ class ResourceRoutesSpec
     )
     val mappings =
       Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri)
-    val projectMeta =
+    implicit val projectMeta =
       Project(genIri,
               project,
               organization,
               None,
               nxv.projects,
+              genIri,
               mappings,
+              genUUID,
               genUUID,
               1L,
               false,
@@ -192,23 +193,20 @@ class ResourceRoutesSpec
       false
     )
 
-    implicit val labeledProject = LabeledProject(ProjectLabel(organization, project), projectMeta, organizationRef)
-
-    when(cache.project(labeledProject.label))
+    private val label = ProjectLabel(organization, project)
+    when(cache.project(label))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
     when(cache.project(projectRef))
       .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
     when(cache.views(projectRef))
       .thenReturn(Task.pure(Set(defaultEsView, defaultSQLView, aggView, otherEsView): Set[IndexingView]))
-    when(cache.organizationRef(projectRef))
-      .thenReturn(Task.pure(Some(organizationRef): Option[OrganizationRef]))
     when(cache.organization(organizationRef)).thenReturn(Task.pure(Option(organizationMeta)))
     when(iamClient.identities)
       .thenReturn(Task.pure(Caller(user, Set(Anonymous))))
     val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
     when(aclsOps.fetch()).thenReturn(Task.pure(acls))
     when(cache.projectLabels(Set(projectRef)))
-      .thenReturn(EitherT.rightT[Task, Rejection](Map(projectRef -> labeledProject.label)))
+      .thenReturn(EitherT.rightT[Task, Rejection](Map(projectRef -> label)))
 
     def schemaRef: Ref
 
@@ -597,10 +595,9 @@ class ResourceRoutesSpec
         simpleV(id, Json.obj(), created = subject, updated = subject, schema = schemaRef).copy(file = Some(at1))
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
-      val lb = labeledProject.copy(
-        project = labeledProject.project.copy(
-          apiMappings = labeledProject.project.apiMappings ++ defaultPrefixMapping + ("base" -> nxv.projects.value)))
-      when(resources.materializeWithMeta(resource)(lb)).thenReturn(EitherT.rightT[Task, Rejection](
+      val newProject =
+        projectMeta.copy(apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping + ("base" -> nxv.projects.value))
+      when(resources.materializeWithMeta(resource)(newProject)).thenReturn(EitherT.rightT[Task, Rejection](
         resourceV.copy(value = resourceV.value.copy(graph = Graph(resourceV.metadata)))))
 
       val json = jsonContentOf("/resources/file-metadata.json",

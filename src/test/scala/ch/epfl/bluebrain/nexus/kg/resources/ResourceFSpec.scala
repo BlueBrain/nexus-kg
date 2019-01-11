@@ -12,7 +12,6 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -47,7 +46,6 @@ class ResourceFSpec
     val resId      = Id(projectRef, id)
     val json       = Json.obj("key" -> Json.fromString("value"))
     val schema     = Ref(shaclSchemaUri)
-    val label      = ProjectLabel("bbp", "core")
     val apiMappings = Map[String, AbsoluteIri](
       "nxv"           -> nxv.base,
       "ex"            -> url"http://example.com/",
@@ -55,22 +53,23 @@ class ResourceFSpec
       "elasticsearch" -> nxv.defaultElasticIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )
-    val projectMeta = Project(id,
-                              "core",
-                              "bbp",
-                              None,
-                              nxv.projects,
-                              apiMappings,
-                              projectRef.id,
-                              1L,
-                              false,
-                              Instant.EPOCH,
-                              userIri,
-                              Instant.EPOCH,
-                              anonIri)
+    implicit val projectMeta = Project(id,
+                                       "core",
+                                       "bbp",
+                                       None,
+                                       nxv.projects,
+                                       genIri,
+                                       apiMappings,
+                                       projectRef.id,
+                                       genUUID,
+                                       1L,
+                                       false,
+                                       Instant.EPOCH,
+                                       userIri,
+                                       Instant.EPOCH,
+                                       anonIri)
 
     "compute the metadata graph for a resource" in {
-      implicit val labeledProject = LabeledProject(label, projectMeta, OrganizationRef(genUUID))
       val resource = ResourceF
         .simpleF(resId, json, 2L, schema = schema, types = Set(nxv.Schema))
         .copy(createdBy = identity, updatedBy = Anonymous)

@@ -62,7 +62,7 @@ object AppInfoRoutes {
                                      admin: AdminHealthStatus,
                                      elastic: ElasticSearchHealthStatus,
                                      sparql: SparqlHealthStatus) {
-    final def check: Task[Health] =
+    def check: Task[Health] =
       for {
         cassUp    <- cassandra.check
         clusterUp <- cluster.check

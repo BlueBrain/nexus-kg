@@ -8,23 +8,23 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
-import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
 import ch.epfl.bluebrain.nexus.kg.Error._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
-import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.Decoder
 import io.circe.generic.auto._
 import monix.eval.Task
@@ -56,26 +56,30 @@ class ProjectDirectivesSpec
   private implicit val projectDecoder: Decoder[Project] =
     Decoder.instance { hc =>
       for {
-        organization <- hc.get[String]("organization")
-        description  <- hc.getOrElse[Option[String]]("description")(None)
-        base         <- hc.get[AbsoluteIri]("base")
-        apiMap       <- hc.get[Map[String, AbsoluteIri]]("apiMappings")
-        label        <- hc.get[String]("label")
-        uuid         <- hc.get[String]("uuid").map(UUID.fromString)
-        rev          <- hc.get[Long]("rev")
-        deprecated   <- hc.get[Boolean]("deprecated")
-        createdBy    <- hc.get[AbsoluteIri]("createdBy")
-        createdAt    <- hc.get[Instant]("createdAt")
-        updatedBy    <- hc.get[AbsoluteIri]("updatedBy")
-        updatedAt    <- hc.get[Instant]("updatedAt")
+        organization     <- hc.get[String]("organizationLabel")
+        description      <- hc.getOrElse[Option[String]]("description")(None)
+        base             <- hc.get[AbsoluteIri]("base")
+        vocab            <- hc.get[AbsoluteIri]("vocab")
+        apiMap           <- hc.get[Map[String, AbsoluteIri]]("apiMappings")
+        label            <- hc.get[String]("label")
+        uuid             <- hc.get[String]("uuid").map(UUID.fromString)
+        organizationUuid <- hc.get[String]("organizationUuid").map(UUID.fromString)
+        rev              <- hc.get[Long]("rev")
+        deprecated       <- hc.get[Boolean]("deprecated")
+        createdBy        <- hc.get[AbsoluteIri]("createdBy")
+        createdAt        <- hc.get[Instant]("createdAt")
+        updatedBy        <- hc.get[AbsoluteIri]("updatedBy")
+        updatedAt        <- hc.get[Instant]("updatedAt")
       } yield
         Project(id,
                 label,
                 organization,
                 description,
                 base,
+                vocab,
                 apiMap,
                 uuid,
+                organizationUuid,
                 rev,
                 deprecated,
                 createdAt,
@@ -97,7 +101,7 @@ class ProjectDirectivesSpec
       }
     }
 
-    def projectNotDepRoute(implicit proj: Project, ref: ProjectLabel): Route =
+    def projectNotDepRoute(implicit proj: Project): Route =
       handleRejections(RejectionHandling()) {
         (get & projectNotDeprecated) {
           complete(StatusCodes.OK)
@@ -117,7 +121,9 @@ class ProjectDirectivesSpec
       "organization",
       None,
       nxv.projects,
+      genIri,
       apiMappings,
+      genUUID,
       genUUID,
       1L,
       false,
@@ -139,69 +145,30 @@ class ProjectDirectivesSpec
     )
     val projectMetaResp = projectMeta.copy(apiMappings = apiMappingsFinal)
 
-    val organizationRef = OrganizationRef(genUUID)
-
-    val projectRef = ProjectRef(projectMeta.uuid)
-
     "fetch the project from the cache" in {
 
       when(cache.project(label)).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
-      when(cache.organizationRef(projectRef)).thenReturn(Task.pure(Some(organizationRef): Option[OrganizationRef]))
 
       Get("/organization/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMetaResp, organizationRef)
+        responseAs[Project] shouldEqual projectMetaResp
       }
     }
 
     "fetch the project from admin client when not present on the cache" in {
       when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.fetchProject("organization", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
-      when(cache.organizationRef(projectRef)).thenReturn(Task.pure(Some(organizationRef): Option[OrganizationRef]))
 
       Get("/organization/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMetaResp, organizationRef)
+        responseAs[Project] shouldEqual projectMetaResp
       }
     }
 
     "fetch the project from admin client when cache throws an error" in {
       when(cache.project(label)).thenReturn(Task.raiseError(new RuntimeException))
       when(client.fetchProject("organization", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
-      when(cache.organizationRef(projectRef)).thenReturn(Task.pure(Some(organizationRef): Option[OrganizationRef]))
 
       Get("/organization/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMetaResp, organizationRef)
-      }
-    }
-
-    "fetch organization from admin when not found on cache" in {
-      when(cache.project(label)).thenReturn(Task.raiseError(new RuntimeException))
-      when(client.fetchProject("organization", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
-      when(cache.organizationRef(projectRef)).thenReturn(Task.pure(None: Option[OrganizationRef]))
-      val organization = Organization(genIri,
-                                      "organization",
-                                      "description",
-                                      organizationRef.id,
-                                      1L,
-                                      false,
-                                      Instant.EPOCH,
-                                      creator,
-                                      Instant.EPOCH,
-                                      creator)
-      when(client.fetchOrganization("organization")).thenReturn(Task.pure(Option(organization)))
-
-      Get("/organization/project") ~> projectRoute() ~> check {
-        responseAs[LabeledProject] shouldEqual LabeledProject(label, projectMetaResp, organizationRef)
-      }
-    }
-
-    "reject when organization ref not found neither on the cache nor in admin" in {
-      when(cache.project(label)).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
-      when(cache.organizationRef(projectRef)).thenReturn(Task.pure(None: Option[OrganizationRef]))
-      when(client.fetchOrganization("organization")).thenReturn(Task.pure(None: Option[Organization]))
-
-      Get("/organization/project") ~> projectRoute() ~> check {
-        status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[OrganizationNotFound.type]
+        responseAs[Project] shouldEqual projectMetaResp
       }
     }
 
@@ -239,13 +206,13 @@ class ProjectDirectivesSpec
     }
 
     "pass when available project is not deprecated" in {
-      Get("/") ~> projectNotDepRoute(projectMeta, label) ~> check {
+      Get("/") ~> projectNotDepRoute(projectMeta) ~> check {
         status shouldEqual StatusCodes.OK
       }
     }
 
     "reject when available project is deprecated" in {
-      Get("/") ~> projectNotDepRoute(projectMeta.copy(deprecated = true), label) ~> check {
+      Get("/") ~> projectNotDepRoute(projectMeta.copy(deprecated = true)) ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].code shouldEqual classNameOf[ProjectIsDeprecated.type]
       }

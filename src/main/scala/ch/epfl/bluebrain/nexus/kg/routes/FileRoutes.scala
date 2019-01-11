@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.headers.{Accept, RawHeader}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.OptionT
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
@@ -14,7 +15,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -31,7 +31,7 @@ import monix.execution.Scheduler.Implicits.global
 import scala.concurrent.Future
 
 class FileRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
-    implicit wrapped: LabeledProject,
+    implicit project: Project,
     cache: DistributedCache[Task],
     indexers: Clients[Task],
     store: FileStore[Task, AkkaIn, AkkaOut],
@@ -62,7 +62,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
           case (metadata, byteSource) =>
             val description = FileDescription(metadata.fileName, metadata.contentType.value)
             trace("createFiles") {
-              val resId = Id(wrapped.ref, id)
+              val resId = Id(projectRef, id)
               complete(resources.createFile(resId, description, byteSource).value.runToFuture)
             }
         }
@@ -75,7 +75,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
           trace("createFiles") {
-            complete(resources.createFile(wrapped.ref, wrapped.base, description, byteSource).value.runToFuture)
+            complete(resources.createFile(projectRef, project.base, description, byteSource).value.runToFuture)
           }
       }
     }
@@ -88,7 +88,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
             case (metadata, byteSource) =>
               val description = FileDescription(metadata.fileName, metadata.contentType.value)
               trace("updateFiles") {
-                val resId = Id(wrapped.ref, id)
+                val resId = Id(projectRef, id)
                 complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
               }
           }
@@ -106,9 +106,9 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
       (revOpt, tagOpt) =>
         val result = (revOpt, tagOpt) match {
           case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrFile)
-          case (None, None)       => resources.fetchFile(Id(wrapped.ref, id)).toEitherRun
-          case (Some(rev), _)     => resources.fetchFile(Id(wrapped.ref, id), rev).toEitherRun
-          case (_, Some(tag))     => resources.fetchFile(Id(wrapped.ref, id), tag).toEitherRun
+          case (None, None)       => resources.fetchFile(Id(projectRef, id)).toEitherRun
+          case (Some(rev), _)     => resources.fetchFile(Id(projectRef, id), rev).toEitherRun
+          case (_, Some(tag))     => resources.fetchFile(Id(projectRef, id), tag).toEitherRun
         }
         trace("getFiles") {
           onSuccess(result) {

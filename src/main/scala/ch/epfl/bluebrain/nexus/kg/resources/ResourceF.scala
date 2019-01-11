@@ -2,17 +2,18 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant}
 
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
@@ -76,7 +77,7 @@ final case class ResourceF[P, S, A](
   /**
     * Computes the metadata triples for this resource.
     */
-  def metadata(implicit config: AppConfig, wrapped: LabeledProject, ev: S =:= Ref): Set[Triple] = {
+  def metadata(implicit config: AppConfig, project: Project, ev: S =:= Ref): Set[Triple] = {
 
     def triplesFor(at: FileAttributes): Set[Triple] = {
       val blankDigest = Node.blank
@@ -92,6 +93,7 @@ final case class ResourceF[P, S, A](
     }
     val schemaIri   = ev(schema).iri
     val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
+    val projectUri  = config.admin.baseUri + "projects" / project.organizationLabel / project.label
     fileTriples + (
       (node, nxv.rev, rev),
       (node, nxv.deprecated, deprecated),
@@ -100,7 +102,7 @@ final case class ResourceF[P, S, A](
       (node, nxv.createdBy, createdBy.id),
       (node, nxv.updatedBy, updatedBy.id),
       (node, nxv.constrainedBy, schemaIri),
-      (node, nxv.project, wrapped.label.projectAccessId),
+      (node, nxv.project, projectUri),
       (node, nxv.self, AccessId(id.value, schemaIri))
     ) ++ typeTriples
   }

@@ -2,13 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -20,7 +20,7 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
-    implicit wrapped: LabeledProject,
+    implicit project: Project,
     cache: DistributedCache[Task],
     indexers: Clients[Task],
     store: FileStore[Task, AkkaIn, AkkaOut],
@@ -53,7 +53,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
     (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
       (deprecated, pagination) =>
         trace(s"list$resourceName") {
-          complete(cache.views(wrapped.ref).flatMap(v => resources.list(v, deprecated, pagination)).runToFuture)
+          complete(cache.views(projectRef).flatMap(v => resources.list(v, deprecated, pagination)).runToFuture)
         }
     }
 }

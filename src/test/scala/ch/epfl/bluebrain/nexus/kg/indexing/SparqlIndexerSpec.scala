@@ -7,13 +7,12 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.{EitherT, OptionT}
 import cats.instances.future._
-import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -49,32 +48,25 @@ class SparqlIndexerSpec
   private val client          = mock[SparqlClient[Future]]
   private val projectRef      = ProjectRef(genUUID)
   private val organizationRef = OrganizationRef(genUUID)
-  private val project =
-    Project(genIri,
-            "some-label-proj",
-            "some-label",
-            None,
-            nxv.project.value,
-            Map(),
-            projectRef.id,
-            1L,
-            false,
-            Instant.EPOCH,
-            genIri,
-            Instant.EPOCH,
-            genIri)
-  private val organization = Organization(genIri,
-                                          "some-label",
-                                          "description",
-                                          organizationRef.id,
-                                          1L,
-                                          deprecated = false,
-                                          Instant.EPOCH,
-                                          genIri,
-                                          Instant.EPOCH,
-                                          genIri)
-  private implicit val labeledProject =
-    LabeledProject(ProjectLabel(organization.label, project.label), project, organizationRef)
+  private implicit val project =
+    Project(
+      genIri,
+      "some-label-proj",
+      "some-label",
+      None,
+      nxv.project.value,
+      genIri,
+      Map(),
+      projectRef.id,
+      organizationRef.id,
+      1L,
+      false,
+      Instant.EPOCH,
+      genIri,
+      Instant.EPOCH,
+      genIri
+    )
+
   private val indexer = new SparqlIndexer(client, resources)
 
   before {

@@ -11,9 +11,8 @@ import akka.pattern.pipe
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.kg.async.DistributedCache._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator.Start
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef}
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
@@ -37,7 +36,7 @@ import scala.concurrent.duration._
   */
 //noinspection ActorMutableStateInspection
 class ProjectViewCoordinator(cache: DistributedCache[Task],
-                             selector: (SingleView, LabeledProject) => ActorRef,
+                             selector: (SingleView, Project) => ActorRef,
                              onStop: SingleView => Task[Boolean])
     extends Actor
     with Stash {
@@ -48,7 +47,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
   private val organizationRef                      = OrganizationRef(organizationUuid)
   private val projectRef                           = ProjectRef(projectUuid)
   private val organization                         = organizationKey(organizationRef)
-  private val project                              = projectKey(projectRef)
+  private val projKey                              = projectKey(projectRef)
   private val view                                 = projectViewsKey(projectRef)
 
   private val log = Logger(s"${getClass.getSimpleName} ($projectUuid)")
@@ -64,37 +63,35 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
       org  <- cache.organization(organizationRef).retryWhenNot { case Some(ac) => ac }
       proj <- cache.project(projectRef).retryWhenNot { case Some(ac) => ac }
       vs   <- cache.views(projectRef).map(_.collect { case v: SingleView => v })
-    } yield Start(org, LabeledProject(ProjectLabel(org.label, proj.label), proj, organizationRef), vs)
+    } yield Start(org, proj, vs)
     val _ = start.map { msg =>
       replicator ! Subscribe(organization, self)
-      replicator ! Subscribe(project, self)
+      replicator ! Subscribe(projKey, self)
       replicator ! Subscribe(view, self)
       msg
     }.runToFuture pipeTo self
   }
 
   def receive: Receive = {
-    case s @ Start(ac, wrapped, views) =>
+    case s @ Start(ac, project, views) =>
       log.debug(s"Started with state '$s'")
-      context.become(initialized(ac, wrapped, views, Map.empty))
+      context.become(initialized(ac, project, views, Map.empty))
       unstashAll()
     case other =>
       log.debug(s"Received non Start message '$other', stashing until the actor is initialized")
       stash()
   }
 
-  def initialized(ac: Organization,
-                  wrapped: LabeledProject,
+  def initialized(org: Organization,
+                  project: Project,
                   views: Set[SingleView],
                   childMapping: Map[SingleView, ActorRef])(): Receive = {
 
-    def updateWrappedAc(organization: Organization): LabeledProject =
-      wrapped.copy(label = wrapped.label.copy(organization = organization.label))
-    def updateWrappedProj(project: Project): LabeledProject =
-      wrapped.copy(label = wrapped.label.copy(value = project.label), project = project)
+    def updateOrganization(organization: Organization): Project =
+      project.copy(organizationLabel = organization.label)
 
     // stop children if the organization or project is deprecated
-    val stopChildren = ac.deprecated || wrapped.project.deprecated
+    val stopChildren = org.deprecated || project.deprecated
     val nextMapping = if (stopChildren) {
       log.debug("Organization and/or project are deprecated, stopping any running children")
       childMapping.values.foreach { ref =>
@@ -117,37 +114,37 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
 
       // construct actors for the new view updates
       if (added.nonEmpty) log.debug(s"Creating view coordinators for $added")
-      val newActorsMapping = views.intersect(added).map(v => v -> selector(v, wrapped))
+      val newActorsMapping = views.intersect(added).map(v => v -> selector(v, project))
 
       childMapping -- removed ++ newActorsMapping
     }
 
     {
       case c @ Changed(`organization`) =>
-        val (newWrapped, newOrganization) =
-          c.get(organization).value.value.map(a => updateWrappedAc(a) -> a).getOrElse(wrapped -> ac)
-        log.debug(s"Organization deprecation changed (${ac.deprecated} -> ${newOrganization.deprecated})")
-        context.become(initialized(newOrganization, newWrapped, views, nextMapping))
+        val (newProject, newOrganization) =
+          c.get(organization).value.value.map(org => updateOrganization(org) -> org).getOrElse(project -> org)
+        log.debug(s"Organization deprecation changed (${org.deprecated} -> ${newOrganization.deprecated})")
+        context.become(initialized(newOrganization, newProject, views, nextMapping))
 
       case Deleted(`organization`) => // should not happen, maintain previous state
         log.warn("Received organization data entry deleted notification, discarding")
 
-      case c @ Changed(`project`) =>
-        val newWrapped = c.get(project).value.value.map(updateWrappedProj).getOrElse(wrapped)
-        log.debug(s"Project deprecation changed (${wrapped.project.deprecated} -> ${newWrapped.project.deprecated})")
-        context.become(initialized(ac, newWrapped, views, nextMapping))
+      case c @ Changed(`projKey`) =>
+        val newProject = c.get(projKey).value.value.getOrElse(project)
+        log.debug(s"Project deprecation changed (${project.deprecated} -> ${newProject.deprecated})")
+        context.become(initialized(org, newProject, views, nextMapping))
 
-      case Deleted(`project`) => // should not happen, maintain previous state
+      case Deleted(`projKey`) => // should not happen, maintain previous state
         log.warn("Received project data entry deleted notification, discarding")
 
       case c @ Changed(`view`) =>
         log.debug("View collection changed, updating state")
         context.become(
-          initialized(ac, wrapped, c.get(view).value.value.collect { case v: SingleView => v }, nextMapping))
+          initialized(org, project, c.get(view).value.value.collect { case v: SingleView => v }, nextMapping))
 
       case Deleted(`view`) =>
         log.debug("View collection removed, updating state")
-        context.become(initialized(ac, wrapped, Set.empty, nextMapping))
+        context.become(initialized(org, project, Set.empty, nextMapping))
 
       case _ => // drop
     }
@@ -156,7 +153,7 @@ class ProjectViewCoordinator(cache: DistributedCache[Task],
 }
 
 object ProjectViewCoordinator {
-  private final case class Start(orgState: Organization, wrapped: LabeledProject, views: Set[SingleView])
+  private final case class Start(orgState: Organization, project: Project, views: Set[SingleView])
 
   final case class Msg(orgRef: OrganizationRef, projectRef: ProjectRef)
 
@@ -170,7 +167,7 @@ object ProjectViewCoordinator {
   }
 
   private[async] def props(cache: DistributedCache[Task],
-                           selector: (SingleView, LabeledProject) => ActorRef,
+                           selector: (SingleView, Project) => ActorRef,
                            onStop: SingleView => Task[Boolean]): Props =
     Props(new ProjectViewCoordinator(cache, selector, onStop))
 
@@ -186,7 +183,7 @@ object ProjectViewCoordinator {
     */
   final def start(
       cache: DistributedCache[Task],
-      selector: (SingleView, LabeledProject) => ActorRef,
+      selector: (SingleView, Project) => ActorRef,
       onStop: SingleView => Task[Boolean],
       shardingSettings: Option[ClusterShardingSettings],
       shards: Int

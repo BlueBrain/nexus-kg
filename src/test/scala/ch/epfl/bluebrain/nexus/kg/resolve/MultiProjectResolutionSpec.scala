@@ -73,34 +73,38 @@ class MultiProjectResolutionSpec
     super.beforeAll()
     List(proj1 -> proj1Id, proj2 -> proj2Id, proj3 -> proj3Id).foreach {
       case (proj, id) =>
+        val organizationUuid = genUUID
         val metadata = Project(genIri,
                                proj.value,
                                proj.organization,
                                None,
                                base,
+                               genIri,
                                Map(),
                                id,
+                               organizationUuid,
                                0L,
                                false,
                                Instant.EPOCH,
                                genIri,
                                Instant.EPOCH,
                                genIri)
-        val uuid = genUUID
         cache
-          .addOrganization(OrganizationRef(uuid),
-                           Organization(genIri,
-                                        proj.organization,
-                                        "description",
-                                        uuid,
-                                        1L,
-                                        false,
-                                        Instant.EPOCH,
-                                        genIri,
-                                        Instant.EPOCH,
-                                        genIri))
+          .addOrganization(
+            OrganizationRef(organizationUuid),
+            Organization(genIri,
+                         proj.organization,
+                         "description",
+                         organizationUuid,
+                         1L,
+                         false,
+                         Instant.EPOCH,
+                         genIri,
+                         Instant.EPOCH,
+                         genIri)
+          )
           .futureValue
-        cache.addProject(ProjectRef(id), OrganizationRef(uuid), metadata).futureValue
+        cache.addProject(ProjectRef(id), OrganizationRef(organizationUuid), metadata).futureValue
     }
   }
 

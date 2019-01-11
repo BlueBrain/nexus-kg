@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Updated}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
@@ -52,13 +51,15 @@ class ElasticIndexerSpec
   private implicit val appConfig = Settings(system).appConfig
   val label                      = ProjectLabel("bbp", "core")
   val mappings                   = Map("ex" -> url"https://bbp.epfl.ch/nexus/data/".value, "resource" -> nxv.Resource.value)
-  val projectMeta =
+  implicit val projectMeta =
     Project(genIri,
-            "core",
-            "bbp",
+            label.value,
+            label.organization,
             None,
             nxv.projects.value,
+            genIri,
             mappings,
+            genUUID,
             genUUID,
             1L,
             false,
@@ -66,8 +67,6 @@ class ElasticIndexerSpec
             genIri,
             Instant.EPOCH,
             genIri)
-
-  private implicit val labeledProject = LabeledProject(label, projectMeta, OrganizationRef(genUUID))
 
   before {
     Mockito.reset(resources)

@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.stream.ActorMaterializer
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
@@ -9,7 +10,6 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.kg.async.{DistributedCache, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.directives.LabeledProject
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SingleView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import com.github.ghik.silencer.silent
@@ -117,9 +117,9 @@ object Indexing {
     implicit val jsonClient    = withUnmarshaller[Task, Json]
     implicit val elasticClient = ElasticClient[Task](config.elastic.base)
 
-    def selector(view: SingleView, labeledProject: LabeledProject): ActorRef = view match {
-      case v: ElasticView => ElasticIndexer.start(v, resources, labeledProject)
-      case v: SparqlView  => SparqlIndexer.start(v, resources, labeledProject)
+    def selector(view: SingleView, project: Project): ActorRef = view match {
+      case v: ElasticView => ElasticIndexer.start(v, resources, project)
+      case v: SparqlView  => SparqlIndexer.start(v, resources, project)
     }
 
     def onStop(view: SingleView): Task[Boolean] = view match {

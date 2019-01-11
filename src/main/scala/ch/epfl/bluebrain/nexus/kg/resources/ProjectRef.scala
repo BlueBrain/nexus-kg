@@ -21,7 +21,7 @@ final case class ProjectRef(id: UUID) {
     * @return an option of [[ProjectLabel]] wrapped on ''F[_]''
     */
   def toLabel[F[_]: Monad](cache: DistributedCache[F]): F[Option[ProjectLabel]] =
-    cache.project(this).map(_.map(project => ProjectLabel(project.organization, project.label)))
+    cache.project(this).map(_.map(project => ProjectLabel(project.organizationLabel, project.label)))
 }
 
 object ProjectRef {
