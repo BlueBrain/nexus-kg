@@ -51,7 +51,7 @@ class MultiProjectResolutionSpec
   private implicit val clock: Clock = Clock.systemUTC
 
   private val resources   = mock[Resources[Future]]
-  private val managePerms = Set(Permission.unsafe("resources/manage"))
+  private val managePerms = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
 
   private val base  = Iri.absolute("https://nexus.example.com").getOrElse(fail)
   private val resId = base + "some-id"

@@ -77,7 +77,9 @@ class AdditionalValidationSpec
 
     val path = Path(s"/${label1.organization}").right.value
     val acls =
-      AccessControlLists(path -> resourceAcls(AccessControlList(user -> Set(Permission.unsafe("views/manage")))))
+      AccessControlLists(
+        path -> resourceAcls(
+          AccessControlList(user -> Set(Permission.unsafe("views/read"), Permission.unsafe("views/write")))))
     "applied to generic resources" should {
 
       "pass always" in {
