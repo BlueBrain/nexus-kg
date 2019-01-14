@@ -26,7 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
+import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -440,17 +440,19 @@ class ResourcesSpec
         private val materialized = resources.materializeWithMeta(resource).value.accepted
         materialized.value.source shouldEqual resolver
         materialized.value.ctx shouldEqual resolverCtx.contextValue
-        materialized.value.graph shouldEqual Graph(materialized.value.graph.triples ++ materialized.metadata)
+        materialized.value.graph.triples should contain allElementsOf materialized.metadata
       }
 
       "materialize a plain JSON resource with its metadata" in new MaterializeResource {
-        private val json         = Json.obj("foo" -> Json.fromString("bar"))
+        private val json         = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
         private val resource     = resources.create(projectRef, base, Latest(resourceSchemaUri), json).value.accepted
         private val materialized = resources.materializeWithMeta(resource).value.accepted
         materialized.value.source shouldEqual json
         materialized.value.ctx shouldEqual Json.obj("@base"  -> Json.fromString(base.asString),
                                                     "@vocab" -> Json.fromString(voc.asString))
-        materialized.value.graph shouldEqual Graph(materialized.metadata)
+        private val triples = materialized.metadata ++ Set(
+          (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar")))
+        materialized.value.graph.triples should contain allElementsOf triples
       }
     }
   }
