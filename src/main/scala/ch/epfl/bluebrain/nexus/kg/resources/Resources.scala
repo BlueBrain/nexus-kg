@@ -345,7 +345,16 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def materializeWithMeta(resource: Resource)(implicit project: Project): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
-      value = resourceV.value.copy(graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata))
+      triples = resourceV.value.graph.triples
+      value = if (triples.isEmpty) {
+        resourceV.value.copy(graph = Graph(resourceV.metadata),
+                             ctx = Json.obj(
+                               "@base"  -> Json.fromString(project.base.asString),
+                               "@vocab" -> Json.fromString(project.vocab.asString)
+                             ))
+      } else {
+        resourceV.value.copy(graph = Graph(triples ++ resourceV.metadata))
+      }
     } yield resourceV.map(_ => value)
 
   /**
@@ -356,7 +365,6 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param graph the resource graph for which imports are looked up
     */
   private def imports(resId: ResId, graph: Graph): EitherT[F, Rejection, Set[ResourceV]] = {
-    import cats.implicits._
 
     def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
       g.objects(IriNode(id), owl.imports).unorderedFoldMap {

@@ -7,6 +7,7 @@ import akka.stream.ActorMaterializer
 import cats.data.EitherT
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -25,7 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -74,8 +75,6 @@ class ResourcesSpec
     new ProjectResolution[IO](cache, StaticResolution(AppConfig.iriResolution), IO.pure(acls))
   private val resources: Resources[IO] = Resources[IO]
 
-  private def randomIri() = Iri.absolute(s"http://example.com/$genUUID").right.value
-
   before {
     reset(store)
   }
@@ -83,7 +82,7 @@ class ResourcesSpec
   trait Base {
     implicit val subject: Subject = Anonymous
     val projectRef                = ProjectRef(genUUID)
-    val base                      = Iri.absolute(s"http://example.com/base").right.value
+    val base                      = Iri.absolute(s"http://example.com/base/").right.value
     val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
     val resId                     = Id(projectRef, id)
   }
@@ -126,13 +125,32 @@ class ResourcesSpec
     when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
   }
 
+  trait MaterializeResource extends ResolverResource {
+    val voc = Iri.absolute(s"http://example.com/voc/").right.value
+    implicit val project = Project(genIri,
+                                   "proj",
+                                   "org",
+                                   None,
+                                   base,
+                                   voc,
+                                   Map.empty,
+                                   projectRef.id,
+                                   genUUID,
+                                   1L,
+                                   deprecated = false,
+                                   Instant.EPOCH,
+                                   subject.id,
+                                   Instant.EPOCH,
+                                   subject.id)
+  }
+
   "A Resources bundle" when {
 
     "performing create operations" should {
 
       "create a new resource validated against empty schema (resource schema) with a payload only containing @id and @context" in new ResolverResource {
         private val schemaRef = Ref(resourceSchemaUri)
-        private val genId     = randomIri()
+        private val genId     = genIri
         private val genRes    = Id(projectRef, genId)
         private val json =
           Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
@@ -166,7 +184,7 @@ class ResourcesSpec
 
       "prevent to create a new resource validated against empty schema (resource schema) with the id passed on the call not matching the @id on the payload" in new ResolverResource {
         private val schemaRef = Ref(resourceSchemaUri)
-        private val genId     = randomIri()
+        private val genId     = genIri
         private val json = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
                                     "@id" -> Json.fromString(genId.show))
         resources.create(resId, schemaRef, json).value.rejected[IncorrectId] shouldEqual IncorrectId(resId.ref)
@@ -246,7 +264,7 @@ class ResourcesSpec
       }
 
       "prevent to create a resource with non existing schema" in new ResolverResource {
-        private val refSchema = Ref(randomIri())
+        private val refSchema = Ref(genIri)
         resources.create(projectRef, base, refSchema, resolver).value.rejected[NotFound] shouldEqual NotFound(refSchema)
       }
 
@@ -260,7 +278,7 @@ class ResourcesSpec
       }
 
       "prevent to create a resource with wrong context that cannot be resolved" in new ResolverResource {
-        private val notFoundIri = randomIri()
+        private val notFoundIri = genIri
         private val json        = resolver removeKeys "@context" addContext resolverCtxUri addContext notFoundIri
         resources.create(projectRef, base, schema, json).value.rejected[NotFound] shouldEqual NotFound(Ref(notFoundIri))
       }
@@ -310,7 +328,7 @@ class ResourcesSpec
 
       "prevent to update a resource (resolver) when the provided schema does not match the created schema" in new ResolverResource {
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(randomIri())
+        private val schemaRef = Ref(genIri)
         resources.update(resId, 1L, Some(schemaRef), resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(
           schemaRef)
       }
@@ -342,7 +360,7 @@ class ResourcesSpec
 
       "prevent tagging a resource when the provided schema does not match the created schema" in new ResolverResource {
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(randomIri())
+        private val schemaRef = Ref(genIri)
         resources.tag(resId, 1L, Some(schemaRef), tag).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
       }
     }
@@ -356,7 +374,7 @@ class ResourcesSpec
 
       "prevent deprecating a resource when the provided schema does not match the created schema" in new ResolverResource {
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(randomIri())
+        private val schemaRef = Ref(genIri)
         resources.deprecate(resId, 1L, Some(schemaRef)).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
       }
     }
@@ -404,7 +422,7 @@ class ResourcesSpec
 
       "return None when the provided schema does not match the created schema" in new ResolverResource {
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(randomIri())
+        private val schemaRef = Ref(genIri)
         resources.fetch(resId, Some(schemaRef)).value.ioValue shouldEqual None
       }
     }
@@ -415,6 +433,24 @@ class ResourcesSpec
         private val materialized = resources.materialize(resource).value.accepted
         materialized.value.source shouldEqual resolver
         materialized.value.ctx shouldEqual resolverCtx.contextValue
+      }
+
+      "materialize a resource with its metadata" in new MaterializeResource {
+        private val resource     = resources.create(projectRef, base, schema, resolver).value.accepted
+        private val materialized = resources.materializeWithMeta(resource).value.accepted
+        materialized.value.source shouldEqual resolver
+        materialized.value.ctx shouldEqual resolverCtx.contextValue
+        materialized.value.graph shouldEqual Graph(materialized.value.graph.triples ++ materialized.metadata)
+      }
+
+      "materialize a plain JSON resource with its metadata" in new MaterializeResource {
+        private val json         = Json.obj("foo" -> Json.fromString("bar"))
+        private val resource     = resources.create(projectRef, base, Latest(resourceSchemaUri), json).value.accepted
+        private val materialized = resources.materializeWithMeta(resource).value.accepted
+        materialized.value.source shouldEqual json
+        materialized.value.ctx shouldEqual Json.obj("@base"  -> Json.fromString(base.asString),
+                                                    "@vocab" -> Json.fromString(voc.asString))
+        materialized.value.graph shouldEqual Graph(materialized.metadata)
       }
     }
   }
