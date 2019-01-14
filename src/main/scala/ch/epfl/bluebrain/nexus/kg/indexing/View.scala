@@ -111,7 +111,7 @@ sealed trait View extends Product with Serializable {
 }
 
 object View {
-  val viewsRead = Set(Permission.unsafe("views/read"), Permission.unsafe("views/manage"))
+  val viewsRead = Set(Permission.unsafe("views/read"))
 
   /**
     * Enumeration of single view types.

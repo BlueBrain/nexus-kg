@@ -30,7 +30,7 @@ class MultiProjectResolution[F[_]](resources: Resources[F],
                                    acls: AccessControlLists)(implicit F: Monad[F])
     extends Resolution[F] {
 
-  private val resourceRead = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/manage"))
+  private val resourceRead = Set(Permission.unsafe("resources/read"))
 
   override def resolve(ref: Ref): F[Option[Resource]] = {
     val sequence = projects.flatMap(_.map(p => checkPermsAndResolve(ref, p)).toList.sequence)

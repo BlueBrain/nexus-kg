@@ -51,14 +51,14 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
   val projectRef = ProjectRef(project.uuid)
 
   def create(schema: Ref): Route =
-    (post & entity(as[Json]) & projectNotDeprecated & hasPermission(resourceCreate) & pathEndOrSingleSlash) { source =>
+    (post & entity(as[Json]) & projectNotDeprecated & hasPermission(resourceWrite) & pathEndOrSingleSlash) { source =>
       trace(s"create$resourceName") {
         complete(Created -> resources.create(projectRef, project.base, schema, source).value.runToFuture)
       }
     }
 
   def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & entity(as[Json]) & projectNotDeprecated & hasPermission(resourceCreate) & pathEndOrSingleSlash) { source =>
+    (put & entity(as[Json]) & projectNotDeprecated & hasPermission(resourceWrite) & pathEndOrSingleSlash) { source =>
       trace(s"create$resourceName") {
         complete(Created -> resources.create(Id(projectRef, id), schema, source).value.runToFuture)
       }
@@ -126,8 +126,7 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
   private[routes] val simultaneousParamsRejection: AkkaRejection =
     validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
 
-  private[routes] val resourceRead   = Set(Permission.unsafe(s"$prefix/read"), Permission.unsafe(s"$prefix/manage"))
-  private[routes] val resourceWrite  = Set(Permission.unsafe(s"$prefix/write"), Permission.unsafe(s"$prefix/manage"))
-  private[routes] val resourceCreate = Set(Permission.unsafe(s"$prefix/create"), Permission.unsafe(s"$prefix/manage"))
+  private[routes] val resourceRead  = Set(Permission.unsafe(s"$prefix/read"))
+  private[routes] val resourceWrite = Set(Permission.unsafe(s"$prefix/write"))
 
 }

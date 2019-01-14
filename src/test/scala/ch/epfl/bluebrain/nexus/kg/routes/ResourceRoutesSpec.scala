@@ -107,11 +107,11 @@ class ResourceRoutesSpec
   private implicit val token: Option[AuthToken] = Some(AuthToken("valid"))
   private val oauthToken                        = OAuth2BearerToken("valid")
   private val read                              = Set(Permission.unsafe("resources/read"))
-  private val manageRes                         = Set(Permission.unsafe("resources/manage"))
-  private val manageResolver                    = Set(Permission.unsafe("resolvers/manage"))
-  private val manageViews                       = Set(Permission.unsafe("views/manage"))
-  private val manageSchemas                     = Set(Permission.unsafe("schemas/manage"))
-  private val manageFiles                       = Set(Permission.unsafe("files/manage"))
+  private val manageRes                         = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
+  private val manageResolver                    = Set(Permission.unsafe("resolvers/read"), Permission.unsafe("resolvers/write"))
+  private val manageViews                       = Set(Permission.unsafe("views/read"), Permission.unsafe("views/write"))
+  private val manageSchemas                     = Set(Permission.unsafe("schemas/read"), Permission.unsafe("schemas/write"))
+  private val manageFiles                       = Set(Permission.unsafe("files/read"), Permission.unsafe("files/write"))
   private val routes                            = Routes(resources)
 
   abstract class Context(perms: Set[Permission] = manageRes) {
