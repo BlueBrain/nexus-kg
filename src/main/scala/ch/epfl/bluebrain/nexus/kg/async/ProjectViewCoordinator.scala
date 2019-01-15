@@ -31,9 +31,17 @@ import scala.collection.JavaConverters._
 import scala.collection._
 import immutable.Set
 
-class ProjectViewsLifeCycle private (resources: Resources[Task],
-                                     project: Project,
-                                     views: ConcurrentHashMap[SingleView, ActorRef])(
+/**
+  * Coordinator for the running views' streams inside the provided project
+  * Manages the start and stop of [[SparqlIndexer]] and [[ElasticIndexer]]
+  *
+  * @param resources the resources operations
+  * @param project   the project for this coordinator
+  * @param views     the already running views
+  */
+class ProjectViewCoordinator private (resources: Resources[Task],
+                                      project: Project,
+                                      views: ConcurrentHashMap[SingleView, ActorRef])(
     implicit viewCache: ViewCache[Task],
     esClient: ElasticClient[Task],
     config: AppConfig,
@@ -42,26 +50,27 @@ class ProjectViewsLifeCycle private (resources: Resources[Task],
 
   //TODO: After the project has been updated we also have to recreate the elasticSearch/blazegraph indices as if it were a view update.
 
-  val viewEventChanges: OnKeyValueStoreChange[UUID, Set[View]] = (onChange: KeyValueStoreChanges[UUID, Set[View]]) => {
-    val viewsScala = views.asScala
-    val addedOrModified = onChange.values.foldLeft(Set.empty[SingleView]) {
-      case (acc, ValueAdded(uuid: UUID, ListSet(value))) if uuid == project.uuid    => acc ++ singleViews(value)
-      case (acc, ValueModified(uuid: UUID, ListSet(value))) if uuid == project.uuid => acc ++ singleViews(value)
-      case (acc, _)                                                                 => acc
+  private val viewEventChanges: OnKeyValueStoreChange[UUID, Set[View]] =
+    (onChange: KeyValueStoreChanges[UUID, Set[View]]) => {
+      val viewsScala = views.asScala
+      val addedOrModified = onChange.values.foldLeft(Set.empty[SingleView]) {
+        case (acc, ValueAdded(uuid: UUID, ListSet(value))) if uuid == project.uuid    => acc ++ singleViews(value)
+        case (acc, ValueModified(uuid: UUID, ListSet(value))) if uuid == project.uuid => acc ++ singleViews(value)
+        case (acc, _)                                                                 => acc
+      }
+      val toRemove = (viewsScala.keySet -- addedOrModified).map(v => v -> viewsScala.get(v))
+      toRemove.foreach {
+        case (v, actorRef) =>
+          (onStop(v) *> Task.pure(actorRef.map(as.stop))).runToFuture
+      }
+      val toAdd = addedOrModified.map(v => v -> onStart(v))
+      views.clear()
+      views.putAll(toAdd.toMap.asJava)
+      logger.debug(s"Change on view. Added views '$addedOrModified' to project '${project.projectLabel.show}'")
+      logger.debug(s"Change on view. Deleted views '${toRemove.map(_._1)}' from project '${project.projectLabel.show}'")
     }
-    val toRemove = (viewsScala.keySet -- addedOrModified).map(v => v -> viewsScala.get(v))
-    toRemove.foreach {
-      case (v, actorRef) =>
-        (onStop(v) *> Task.pure(actorRef.map(as.stop))).runToFuture
-    }
-    val toAdd = addedOrModified.map(v => v -> onStart(v))
-    views.clear()
-    views.putAll(toAdd.toMap.asJava)
-    logger.debug(s"Change on view. Added views '$addedOrModified' to project '${project.projectLabel.show}'")
-    logger.debug(s"Change on view. Deleted views '${toRemove.map(_._1)}' from project '${project.projectLabel.show}'")
-  }
 
-  val subscription = viewCache.subscribe(viewEventChanges)
+  private val subscription = viewCache.subscribe(viewEventChanges)
 
   private val sparql              = config.sparql
   private implicit val mt         = ActorMaterializer()
@@ -89,7 +98,12 @@ class ProjectViewsLifeCycle private (resources: Resources[Task],
   private def singleViews(values: Set[View]): Set[SingleView] =
     values.collect { case v: SingleView => v }
 
-  def deprecateViews: Task[Unit] = {
+  /**
+    * When the views on the project should be deprecated, all the indices that those views hold
+    * will be deleted and the actors that manage those views (ElasticIndexer or SparqlIndexer) will
+    * be stopped
+    */
+  def deprecateProjectViews: Task[Unit] = {
     logger.info(
       s"Organization '${project.organizationLabel}' or project '${project.label}' is deprecated. Removing indices.")
 
@@ -99,16 +113,30 @@ class ProjectViewsLifeCycle private (resources: Resources[Task],
     Task.sequence(onStopSeq) *> Task.unit
   }
 
-  def updateProject(proj: Project): Task[ProjectViewsLifeCycle] =
-    subscription.flatMap(viewCache.unsubscribe) *> Task.pure(new ProjectViewsLifeCycle(resources, proj, views))
+  /**
+    * When the current project gets updated, the current subscription to the view cache finishes
+    * and a new ProjectViewCoordinator is created (with a new subscription), containing the new project
+    *
+    * @param proj the new project metadata
+    * @return a new [[ProjectViewCoordinator]] containing the new project metadata wrapped in a [[Task]]
+    */
+  def updateProject(proj: Project): Task[ProjectViewCoordinator] =
+    subscription.flatMap(viewCache.unsubscribe) *> Task.pure(new ProjectViewCoordinator(resources, proj, views))
 
 }
 
-object ProjectViewsLifeCycle {
+object ProjectViewCoordinator {
+
+  /**
+    * Constructs a [[ProjectViewCoordinator]] that coordinates the running views' streams inside the provided project
+    *
+    * @param resources the resources operations
+    * @param project   the project for this coordinator
+    */
   final def apply(resources: Resources[Task], project: Project)(implicit viewCache: ViewCache[Task],
                                                                 esClient: ElasticClient[Task],
                                                                 config: AppConfig,
                                                                 ucl: HttpClient[Task, ResultSet],
-                                                                as: ActorSystem): ProjectViewsLifeCycle =
-    new ProjectViewsLifeCycle(resources, project, new ConcurrentHashMap[SingleView, ActorRef]())
+                                                                as: ActorSystem): ProjectViewCoordinator =
+    new ProjectViewCoordinator(resources, project, new ConcurrentHashMap[SingleView, ActorRef]())
 }

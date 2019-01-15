@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.untyped
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
-import ch.epfl.bluebrain.nexus.kg.async.{CacheAggregator, ProjectViewsLifeCycle}
+import ch.epfl.bluebrain.nexus.kg.async.{CacheAggregator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.service.kafka.KafkaConsumer
@@ -45,8 +45,8 @@ private class Indexing(resources: Resources[Task], cache: CacheAggregator[Task])
   private val orgsPrefix     = config.http.baseIri + "orgs"
   private val projectsPrefix = config.http.baseIri + "projects"
 
-  private val projViewMap: concurrent.Map[UUID, ProjectViewsLifeCycle] =
-    new ConcurrentHashMap[UUID, ProjectViewsLifeCycle]().asScala
+  private val projViewMap: concurrent.Map[UUID, ProjectViewCoordinator] =
+    new ConcurrentHashMap[UUID, ProjectViewCoordinator]().asScala
 
 //  private val defaultEsMapping =
 //    jsonContentOf("/elastic/mapping.json", Map(Pattern.quote("{{docType}}") -> config.elastic.docType))
@@ -74,11 +74,11 @@ private class Indexing(resources: Resources[Task], cache: CacheAggregator[Task])
 
     implicit val icc: IamClientConfig = config.iam.iamClient
 
-    def updateProjectOnViewsLifeCycle(project: Project): Task[Option[ProjectViewsLifeCycle]] =
+    def updateProjectOnCoordinator(project: Project): Task[Option[ProjectViewCoordinator]] =
       projViewMap
         .get(project.uuid)
         .map(_.updateProject(project))
-        .getOrElse(Task.pure(ProjectViewsLifeCycle(resources, project)))
+        .getOrElse(Task.pure(ProjectViewCoordinator(resources, project)))
         .map(projViewMap.put(project.uuid, _))
 
     def index(event: Event): Future[Unit] = {
@@ -86,21 +86,21 @@ private class Indexing(resources: Resources[Task], cache: CacheAggregator[Task])
       val update = event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
           cache.project.list(OrganizationRef(uuid)).map(_.map(proj => projViewMap.get(proj.uuid)).flatten).flatMap {
-            viewLifeCycle =>
-              Task.sequence(viewLifeCycle.map(_.deprecateViews))
+            coordinator =>
+              Task.sequence(coordinator.map(_.deprecateProjectViews))
           } *> Task.unit
         case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
           // format: off
           val project = Project(projectsPrefix + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
-          cache.project.replace(project).flatMap(_ => updateProjectOnViewsLifeCycle(project)) *> Task.unit
+          cache.project.replace(project).flatMap(_ => updateProjectOnCoordinator(project)) *> Task.unit
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
           cache.project.get(ProjectRef(uuid)).flatMap {
             case Some(project) =>
               // format: off
               val newProject = Project(projectsPrefix + label, label, project.organizationLabel, desc, base, vocab, am, uuid, project.organizationUuid, rev, deprecated = false, instant, subject.id, instant, subject.id)
               // format: on
-              cache.project.replace(newProject).flatMap(_ => updateProjectOnViewsLifeCycle(newProject)) *> Task.unit
+              cache.project.replace(newProject).flatMap(_ => updateProjectOnCoordinator(newProject)) *> Task.unit
             case None => Task.unit
           }
         case ProjectDeprecated(uuid, rev, _, _) =>
