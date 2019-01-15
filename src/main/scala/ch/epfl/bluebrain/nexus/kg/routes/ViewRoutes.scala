@@ -35,7 +35,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   private val emptyEsList: Json                          = jsonContentOf("/elastic/empty-list.json")
   private val transformation: Transformation[Task, View] = Transformation.view
 
-  private implicit val CacheAggregator(_, projectCache, viewCache, _) = cache
+  private implicit val CacheAggregator(projectCache, viewCache, _) = cache
 
   import indexers._
 

@@ -28,8 +28,8 @@ object Routes {
                                         aclsOps: AclsOps,
                                         config: AppConfig): Route = {
     import indexers._
-    implicit val um                                             = marshallers.sparqlQueryUnmarshaller
-    implicit val CacheAggregator(_, projectCache, viewCache, _) = cache
+    implicit val um                                          = marshallers.sparqlQueryUnmarshaller
+    implicit val CacheAggregator(projectCache, viewCache, _) = cache
 
     (handleRejections(RejectionHandling()) & handleExceptions(ExceptionHandling())) {
       token { implicit optToken =>

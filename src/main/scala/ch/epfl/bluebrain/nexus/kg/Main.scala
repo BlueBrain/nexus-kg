@@ -115,7 +115,7 @@ object Main {
     implicit val store     = new FileStore[Task, AkkaIn, AkkaOut]
     implicit val indexers  = clients
     implicit val cache =
-      CacheAggregator(OrganizationCache[Task], ProjectCache[Task], ViewCache[Task], ResolverCache[Task])
+      CacheAggregator(ProjectCache[Task], ViewCache[Task], ResolverCache[Task])
     implicit val iam               = clients.iamClient
     implicit val aclsOps           = new AclsOps(AclsActor.start)
     implicit val projectResolution = ProjectResolution.task(cache.resolver, cache.project, aclsOps)
