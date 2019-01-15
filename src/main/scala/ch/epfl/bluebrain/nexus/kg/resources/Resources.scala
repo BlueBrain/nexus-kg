@@ -338,14 +338,32 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
 
   /**
     * Materializes a resource flattening its context and producing a graph that contains the additional type information
-    * and the system generated metadata. While flattening the context references are transitively resolved.
+    * and the system generated metadata. While flattening the context references are transitively resolved. If the
+    * provided context and resulting graph are empty, the parent project's base and vocab settings are injected as the
+    * context in order to recompute the graph from the original JSON source.
     *
     * @param resource the resource to materialize
     */
   def materializeWithMeta(resource: Resource)(implicit project: Project): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
-      value = resourceV.value.copy(graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata))
+      value <- if (resourceV.value.graph.triples.isEmpty && resourceV.value.ctx == Json.obj()) {
+        val ctx = Json.obj(
+          "@base"  -> Json.fromString(project.base.asString),
+          "@vocab" -> Json.fromString(project.vocab.asString)
+        )
+        EitherT.fromEither[F](
+          resourceV.value.source
+            .deepMerge(Json.obj("@context" -> ctx))
+            .asGraph
+            .bimap(
+              e => Rejection.fromJenaModelErr(e),
+              graph => resourceV.value.copy(graph = graph ++ Graph(resourceV.metadata), ctx = ctx)
+            ))
+      } else {
+        EitherT.rightT[F, Rejection](
+          resourceV.value.copy(graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata)))
+      }
     } yield resourceV.map(_ => value)
 
   /**
@@ -356,7 +374,6 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param graph the resource graph for which imports are looked up
     */
   private def imports(resId: ResId, graph: Graph): EitherT[F, Rejection, Set[ResourceV]] = {
-    import cats.implicits._
 
     def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
       g.objects(IriNode(id), owl.imports).unorderedFoldMap {
