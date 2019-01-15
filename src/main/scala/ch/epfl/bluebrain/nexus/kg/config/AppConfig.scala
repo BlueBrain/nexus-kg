@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
@@ -79,7 +80,13 @@ object AppConfig {
     * @param prefix     prefix to add to HTTP routes
     * @param publicUri  public URI of the service
     */
-  final case class HttpConfig(interface: String, port: Int, prefix: String, publicUri: Uri)
+  final case class HttpConfig(interface: String, port: Int, prefix: String, publicUri: Uri) {
+
+    /**
+      * The base IRI for all resource IDs.
+      */
+    val baseIri: AbsoluteIri = url"$publicUri/$prefix".value
+  }
 
   /**
     * Cluster configuration
