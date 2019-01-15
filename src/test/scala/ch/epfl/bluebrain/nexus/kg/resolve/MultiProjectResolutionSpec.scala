@@ -6,13 +6,16 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import akka.util.Timeout
 import cats.data.OptionT
-import cats.instances.future._
-import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
+import cats.effect.{IO, Timer}
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.io.IOOptionValues
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Group, User}
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.simpleF
@@ -23,11 +26,9 @@ import io.circe.Json
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest._
-import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 
 import scala.collection.immutable.ListSet
-import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class MultiProjectResolutionSpec
@@ -41,16 +42,17 @@ class MultiProjectResolutionSpec
     with TestHelper
     with OptionValues
     with BeforeAndAfterAll
-    with ScalaFutures {
+    with IOOptionValues {
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 100 millis)
 
   private def genProjectLabel = ProjectLabel(genString(), genString())
   private def genJson: Json   = Json.obj("key" -> Json.fromString(genString()))
 
+  private implicit val appConfig    = Settings(system).appConfig
   private implicit val clock: Clock = Clock.systemUTC
 
-  private val resources   = mock[Resources[Future]]
+  private val resources   = mock[Resources[IO]]
   private val managePerms = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
 
   private val base  = Iri.absolute("https://nexus.example.com").getOrElse(fail)
@@ -58,16 +60,18 @@ class MultiProjectResolutionSpec
   private val (proj1Id, proj2Id, proj3Id) =
     (genUUID, genUUID, genUUID)
   private val (proj1, proj2, proj3) = (genProjectLabel, genProjectLabel, genProjectLabel)
-  private val projects              = Future.successful(ListSet(proj1Id, proj2Id, proj3Id).map(ProjectRef(_))) // we want to ensure traversal order
+  private val projects              = IO.pure(ListSet(proj1Id, proj2Id, proj3Id).map(ProjectRef(_))) // we want to ensure traversal order
   private val types                 = Set(nxv.Schema.value, nxv.Resource.value)
   private val group                 = Group("bbp-ou-neuroinformatics", "ldap2")
   private val identities            = List[Identity](group, User("dmontero", "ldap"))
   implicit val timeout              = Timeout(1 second)
   implicit val ec                   = system.dispatcher
-  private val cache                 = DistributedCache.future()
-  val acls                          = AccessControlLists(/ -> resourceAcls(AccessControlList(group -> managePerms)))
+  implicit val timer: Timer[IO]     = IO.timer(system.dispatcher)
 
-  private val resolution = MultiProjectResolution[Future](resources, projects, types, identities, cache, acls)
+  private val projectCache = ProjectCache[IO]
+  val acls                 = AccessControlLists(/ -> resourceAcls(AccessControlList(group -> managePerms)))
+
+  private val resolution = MultiProjectResolution[IO](resources, projects, types, identities, projectCache, acls)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -89,22 +93,7 @@ class MultiProjectResolutionSpec
                                genIri,
                                Instant.EPOCH,
                                genIri)
-        cache
-          .addOrganization(
-            OrganizationRef(organizationUuid),
-            Organization(genIri,
-                         proj.organization,
-                         "description",
-                         organizationUuid,
-                         1L,
-                         false,
-                         Instant.EPOCH,
-                         genIri,
-                         Instant.EPOCH,
-                         genIri)
-          )
-          .futureValue
-        cache.addProject(ProjectRef(id), OrganizationRef(organizationUuid), metadata).futureValue
+        projectCache.replace(metadata).ioValue
     }
   }
 
@@ -115,11 +104,11 @@ class MultiProjectResolutionSpec
       (Id(ProjectRef(proj1Id), resId), Id(ProjectRef(proj2Id), resId), Id(ProjectRef(proj3Id), resId))
     "look in all projects to resolve a resource" in {
       val value = simpleF(id3, genJson, types = types)
-      when(resources.fetch(id1, None)).thenReturn(OptionT.none[Future, Resource])
-      when(resources.fetch(id2, None)).thenReturn(OptionT.none[Future, Resource])
-      when(resources.fetch(id3, None)).thenReturn(OptionT.some[Future](value))
+      when(resources.fetch(id1, None)).thenReturn(OptionT.none[IO, Resource])
+      when(resources.fetch(id2, None)).thenReturn(OptionT.none[IO, Resource])
+      when(resources.fetch(id3, None)).thenReturn(OptionT.some[IO](value))
 
-      resolution.resolve(Latest(resId)).futureValue.value shouldEqual value
+      resolution.resolve(Latest(resId)).some shouldEqual value
       verify(resources, times(1)).fetch(id1, None)
       verify(resources, times(1)).fetch(id2, None)
     }
@@ -129,31 +118,31 @@ class MultiProjectResolutionSpec
       val value2 = simpleF(id2, genJson, types = Set(nxv.Schema.value))
       val value3 = simpleF(id3, genJson, types = Set(nxv.Ontology.value))
       List(id1 -> value1, id2 -> value2, id3 -> value3).foreach {
-        case (id, value) => when(resources.fetch(id, None)).thenReturn(OptionT.some[Future](value))
+        case (id, value) => when(resources.fetch(id, None)).thenReturn(OptionT.some[IO](value))
       }
 
-      resolution.resolve(Latest(resId)).futureValue shouldEqual Some(value2)
+      resolution.resolve(Latest(resId)).ioValue shouldEqual Some(value2)
     }
 
     "filter results according to the resolvers' identities" in {
       val List(_, value2, _) = List(id1, id2, id3).map { id =>
         val value = simpleF(id, genJson, types = types)
-        when(resources.fetch(id, None)).thenReturn(OptionT.some[Future](value))
+        when(resources.fetch(id, None)).thenReturn(OptionT.some[IO](value))
         value
       }
       val acl =
         AccessControlLists(proj2.organization / proj2.value -> resourceAcls(AccessControlList(group -> managePerms)))
 
-      val newResolution = MultiProjectResolution[Future](resources, projects, types, identities, cache, acl)
+      val newResolution = MultiProjectResolution[IO](resources, projects, types, identities, projectCache, acl)
 
-      newResolution.resolve(Latest(resId)).futureValue shouldEqual Some(value2)
+      newResolution.resolve(Latest(resId)).ioValue shouldEqual Some(value2)
     }
 
     "return none if the resource is not found in any project" in {
       List(proj1Id, proj2Id, proj3Id).foreach { id =>
-        when(resources.fetch(Id(ProjectRef(id), resId), None)).thenReturn(OptionT.none[Future, Resource])
+        when(resources.fetch(Id(ProjectRef(id), resId), None)).thenReturn(OptionT.none[IO, Resource])
       }
-      resolution.resolve(Latest(resId)).futureValue shouldEqual None
+      resolution.resolve(Latest(resId)).ioValue shouldEqual None
     }
   }
 }

@@ -2,18 +2,18 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
+import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.MonadError
-import cats.data.EitherT
 import cats.instances.try_
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticServerError
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
-import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, _}
+import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -22,18 +22,17 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
+import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
 import io.circe.parser.parse
 import org.mockito.Mockito
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import java.util.regex.Pattern.quote
 
 import scala.util.Try
 
@@ -51,11 +50,13 @@ class AdditionalValidationSpec
 
   private implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private implicit val elastic      = mock[ElasticClient[Try]]
-  private implicit val cache        = mock[DistributedCache[Try]]
+  private implicit val projectCache = mock[ProjectCache[Try]]
+  private implicit val viewCache    = mock[ViewCache[Try]]
 
   before {
     Mockito.reset(elastic)
-    Mockito.reset(cache)
+    Mockito.reset(projectCache)
+    Mockito.reset(viewCache)
   }
 
   "An AdditionalValidation" when {
@@ -113,8 +114,8 @@ class AdditionalValidationSpec
 
       "fail when project not found in cache" in {
         val labels = Set(label2, label1)
-        when(cache.projectRefs(labels))
-          .thenReturn(EitherT.leftT[Try, Map[ProjectLabel, ProjectRef]](ProjectsNotFound(labels): Rejection))
+        when(projectCache.getProjectRefs(labels))
+          .thenReturn(Try(Map[ProjectLabel, Option[ProjectRef]](label1 -> None, label2 -> None)))
 
         val validation = AdditionalValidation.resolver[Try](matchingCaller)
         val resource   = simpleV(id, crossProject, types = types)
@@ -125,8 +126,8 @@ class AdditionalValidationSpec
         val labels      = Set(label2, label1)
         val projectRef1 = ProjectRef(genUUID)
         val projectRef2 = ProjectRef(genUUID)
-        when(cache.projectRefs(labels))
-          .thenReturn(EitherT.rightT[Try, Rejection](Map(label1 -> projectRef1, label2 -> projectRef2)))
+        when(projectCache.getProjectRefs(labels))
+          .thenReturn(Try(Map(label1 -> Option(projectRef1), label2 -> Option(projectRef2))))
         val validation = AdditionalValidation.resolver[Try](matchingCaller)
         val resource   = simpleV(id, crossProject, types = types)
         val expected = jsonContentOf(
@@ -200,8 +201,8 @@ class AdditionalValidationSpec
       "fail when project not found in cache for a AggregateElasticView" in {
         val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
 
-        when(cache.projectRefs(labels)(F))
-          .thenReturn(EitherT.leftT[Try, Map[ProjectLabel, ProjectRef]](ProjectsNotFound(labels): Rejection))
+        when(projectCache.getProjectRefs(labels))
+          .thenReturn(Try(Map[ProjectLabel, Option[ProjectRef]](label1 -> None)))
 
         val validation = AdditionalValidation.view[Try](matchingCaller, acls)
         val resource   = simpleV(id, aggElasticView, types = types)
@@ -213,10 +214,10 @@ class AdditionalValidationSpec
 
         val id2 = url"http://example.com/id3"
         val id3 = url"http://example.com/other"
-        when(cache.projectRefs(labels)(F))
-          .thenReturn(EitherT.rightT[Try, Rejection](Map(label1 -> ref1, label2 -> ref2)))
-        when(cache.views(ref1)).thenReturn(Try(Set[View](es, es.copy(id = id3))))
-        when(cache.views(ref2)).thenReturn(Try(Set[View](es.copy(id = id2), es.copy(id = id3))))
+        when(projectCache.getProjectRefs(labels))
+          .thenReturn(Try(Map(label1 -> Option(ref1), label2 -> Option(ref2))))
+        when(viewCache.get(ref1)).thenReturn(Try(Set[View](es, es.copy(id = id3))))
+        when(viewCache.get(ref2)).thenReturn(Try(Set[View](es.copy(id = id2), es.copy(id = id3))))
 
         val validation = AdditionalValidation.view[Try](matchingCaller, acls)
         val resource   = simpleV(id, aggElasticView, types = types)
@@ -250,10 +251,10 @@ class AdditionalValidationSpec
         val id1 = url"http://example.com/id2"
         val id2 = url"http://example.com/id3"
         val id3 = url"http://example.com/other"
-        when(cache.projectRefs(labels)(F))
-          .thenReturn(EitherT.rightT[Try, Rejection](Map(label1 -> ref1, label2 -> ref2)))
-        when(cache.views(ref1)).thenReturn(Try(Set[View](es.copy(id = id1), es.copy(id = id3))))
-        when(cache.views(ref2)).thenReturn(Try(Set[View](es.copy(id = id2), es.copy(id = id3))))
+        when(projectCache.getProjectRefs(labels))
+          .thenReturn(Try(Map(label1 -> Option(ref1), label2 -> Option(ref2))))
+        when(viewCache.get(ref1)).thenReturn(Try(Set[View](es.copy(id = id1), es.copy(id = id3))))
+        when(viewCache.get(ref2)).thenReturn(Try(Set[View](es.copy(id = id2), es.copy(id = id3))))
 
         val validation = AdditionalValidation.view[Try](matchingCaller, acls)
         val resource   = simpleV(id, aggElasticView, types = types)

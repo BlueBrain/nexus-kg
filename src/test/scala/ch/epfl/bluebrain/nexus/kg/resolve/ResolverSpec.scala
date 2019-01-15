@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 
-import cats.data.EitherT
 import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
@@ -11,7 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
@@ -39,10 +38,10 @@ class ResolverSpec
 
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
-  private implicit val cache = mock[DistributedCache[CId]]
+  private implicit val projectCache = mock[ProjectCache[CId]]
 
   before {
-    Mockito.reset(cache)
+    Mockito.reset(projectCache)
   }
 
   "A Resolver" when {
@@ -132,8 +131,8 @@ class ResolverSpec
       val uuid2 = genUUID
 
       "generate a CrossProjectResolver" in {
-        when(cache.projectRefs(Set(label1, label2)))
-          .thenReturn(EitherT.rightT[CId, Rejection](Map(label1 -> ProjectRef(uuid1), label2 -> ProjectRef(uuid2))))
+        when(projectCache.getProjectRefs(Set(label1, label2)))
+          .thenReturn(Map(label1 -> Option(ProjectRef(uuid1)), label2 -> Option(ProjectRef(uuid2))))
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val exposed  = Resolver(resource).value.asInstanceOf[CrossProjectLabels]
         val stored   = exposed.referenced.value.right.value.asInstanceOf[CrossProjectRefs]
@@ -148,10 +147,10 @@ class ResolverSpec
       }
 
       "generate a CrossProjectLabelResolver" in {
-        when(cache.projectLabels(Set(ProjectRef(uuid1), ProjectRef(uuid2))))
-          .thenReturn(EitherT.rightT[CId, Rejection](Map(ProjectRef(uuid1) -> label1, ProjectRef(uuid2) -> label2)))
-        when(cache.projectRefs(Set(label2, label1)))
-          .thenReturn(EitherT.rightT[CId, Rejection](Map(label1 -> ProjectRef(uuid1), label2 -> ProjectRef(uuid2))))
+        when(projectCache.getProjectLabels(Set(ProjectRef(uuid1), ProjectRef(uuid2))))
+          .thenReturn(Map(ProjectRef(uuid1) -> Option(label1), ProjectRef(uuid2) -> Option(label2)))
+        when(projectCache.getProjectRefs(Set(label2, label1)))
+          .thenReturn(Map(label1 -> Option(ProjectRef(uuid1)), label2 -> Option(ProjectRef(uuid2))))
 
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val exposed  = Resolver(resource).value.asInstanceOf[CrossProjectLabels]

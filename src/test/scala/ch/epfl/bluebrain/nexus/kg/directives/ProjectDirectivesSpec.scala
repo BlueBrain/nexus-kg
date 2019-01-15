@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.Error._
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
@@ -42,12 +42,12 @@ class ProjectDirectivesSpec
     with ScalatestRouteTest
     with TestHelper {
 
-  private implicit val cache                   = mock[DistributedCache[Task]]
+  private implicit val projectCache            = mock[ProjectCache[Task]]
   private implicit val client                  = mock[AdminClient[Task]]
   private implicit val cred: Option[AuthToken] = None
 
   before {
-    Mockito.reset(cache)
+    Mockito.reset(projectCache)
     Mockito.reset(client)
   }
 
@@ -147,7 +147,7 @@ class ProjectDirectivesSpec
 
     "fetch the project from the cache" in {
 
-      when(cache.project(label)).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      when(projectCache.getBy(label)).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
 
       Get("/organization/project") ~> projectRoute() ~> check {
         responseAs[Project] shouldEqual projectMetaResp
@@ -155,7 +155,7 @@ class ProjectDirectivesSpec
     }
 
     "fetch the project from admin client when not present on the cache" in {
-      when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.fetchProject("organization", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
 
       Get("/organization/project") ~> projectRoute() ~> check {
@@ -164,7 +164,7 @@ class ProjectDirectivesSpec
     }
 
     "fetch the project from admin client when cache throws an error" in {
-      when(cache.project(label)).thenReturn(Task.raiseError(new RuntimeException))
+      when(projectCache.getBy(label)).thenReturn(Task.raiseError(new RuntimeException))
       when(client.fetchProject("organization", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
 
       Get("/organization/project") ~> projectRoute() ~> check {
@@ -173,7 +173,7 @@ class ProjectDirectivesSpec
     }
 
     "reject when not found neither in the cache nor doing IAM call" in {
-      when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.fetchProject("organization", "project")).thenReturn(Task.pure(None: Option[Project]))
 
       Get("/organization/project") ~> projectRoute() ~> check {
@@ -184,7 +184,7 @@ class ProjectDirectivesSpec
 
     "reject when IAM signals UnauthorizedAccess" in {
       val label = ProjectLabel("organization", "project")
-      when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.fetchProject("organization", "project")).thenReturn(Task.raiseError(UnauthorizedAccess))
 
       Get("/organization/project") ~> projectRoute() ~> check {
@@ -195,7 +195,7 @@ class ProjectDirectivesSpec
 
     "reject when IAM signals another error" in {
       val label = ProjectLabel("organization", "project")
-      when(cache.project(label)).thenReturn(Task.pure(None: Option[Project]))
+      when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.fetchProject("organization", "project"))
         .thenReturn(Task.raiseError(new RuntimeException("Something went wrong")))
 

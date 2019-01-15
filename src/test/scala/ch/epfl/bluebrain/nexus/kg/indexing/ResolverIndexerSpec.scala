@@ -9,7 +9,7 @@ import cats.instances.future._
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ResolverCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.resolverCtx
 import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -46,13 +46,13 @@ class ResolverIndexerSpec
 
   import system.dispatcher
 
-  private val resources = mock[Resources[Future]]
-  private val cache     = mock[DistributedCache[Future]]
-  private val indexer   = new ResolverIndexer(resources, cache)
+  private val resources     = mock[Resources[Future]]
+  private val resolverCache = mock[ResolverCache[Future]]
+  private val indexer       = new ResolverIndexer(resources, resolverCache)
 
   before {
     Mockito.reset(resources)
-    Mockito.reset(cache)
+    Mockito.reset(resolverCache)
   }
 
   "A ResolverIndexer" should {
@@ -73,23 +73,23 @@ class ResolverIndexerSpec
     "index a resolver" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.applyResolver(projectRef, resolver)).thenReturn(Future.successful(()))
+      when(resolverCache.put(resolver)).thenReturn(Future.successful(()))
 
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(1)).applyResolver(projectRef, resolver)
+      verify(resolverCache, times(1)).put(resolver)
     }
 
     "skip indexing a resolver when the resource cannot be found" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.none[Future, Resource])
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(0)).applyResolver(projectRef, resolver)
+      verify(resolverCache, times(0)).put(resolver)
     }
 
     "skip indexing a resolver when the resource cannot be materialized" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.leftT[Future, ResourceV](Unexpected("error"): Rejection))
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(0)).applyResolver(projectRef, resolver)
+      verify(resolverCache, times(0)).put(resolver)
     }
   }
 
