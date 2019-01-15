@@ -5,7 +5,7 @@ import cats.syntax.applicative._
 import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resolverCtxUri, viewCtxUri}
 import ch.epfl.bluebrain.nexus.kg.indexing.View
@@ -24,7 +24,7 @@ abstract class Transformation[F[_], V] {
     */
   def apply(resource: ResourceV)(implicit config: AppConfig,
                                  project: Project,
-                                 cache: DistributedCache[F],
+                                 projectCache: ProjectCache[F],
                                  enc: GraphEncoder[V]): F[ResourceV]
 }
 
@@ -41,7 +41,7 @@ object Transformation {
     new Transformation[F, View] {
       def apply(resource: ResourceV)(implicit config: AppConfig,
                                      project: Project,
-                                     cache: DistributedCache[F],
+                                     projectCache: ProjectCache[F],
                                      enc: GraphEncoder[View]): F[ResourceV] =
         View(resource) match {
           case Right(r) =>
@@ -65,16 +65,16 @@ object Transformation {
 
       def apply(resource: ResourceV)(implicit config: AppConfig,
                                      project: Project,
-                                     cache: DistributedCache[F],
+                                     projectCache: ProjectCache[F],
                                      enc: GraphEncoder[Resolver]): F[ResourceV] =
         Resolver(resource) match {
           case Some(r) =>
             val metadata = resource.metadata
-            val resValueF =
+            val valueF =
               r.labeled
                 .getOrElse(r)
                 .map(r => resource.value.map(r, _.removeKeys("@context").addContext(resolverCtxUri)))
-            resValueF.map(v => resource.map(_ => v.copy(graph = v.graph ++ Graph(metadata))))
+            valueF.map(v => resource.map(_ => v.copy(graph = v.graph ++ Graph(metadata))))
           case _ => resource.pure
         }
     }

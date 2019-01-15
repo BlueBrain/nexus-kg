@@ -5,13 +5,14 @@ import cats.implicits._
 import cats.{Monad, Show}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId}
+import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId, _}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -57,10 +58,18 @@ sealed trait Resolver extends Product with Serializable {
     * returning all the other resolvers unchanged.
     * For the case of ''CrossProjectResolver[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
     */
-  def labeled[F[_]](implicit cache: DistributedCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
+  def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
     this match {
-      case CrossProjectRefs(r) => cache.projectLabels(r.projects).map(p => r.copy(projects = p.values.toSet))
-      case o                   => EitherT.rightT(o)
+      case CrossProjectRefs(r) =>
+        val refToLabel = projectCache.getProjectLabels(r.projects)
+        EitherT(
+          refToLabel.map(
+            resultOrFailures(_)
+              .map(res => r.copy(projects = res.map { case (_, label) => label }.toSet))
+              .left
+              .map(LabelsNotFound)))
+      case o =>
+        EitherT.rightT(o)
     }
 
   /**
@@ -68,11 +77,18 @@ sealed trait Resolver extends Product with Serializable {
     * returning all the other resolvers unchanged.
     * For the case of ''CrossProjectResolver[ProjectLabel]'', the conversion is successful when the the mapping ''projectLabel -> projectRef'' exists on the ''cache''
     */
-  def referenced[F[_]](implicit cache: DistributedCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
+  def referenced[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
     this match {
       case CrossProjectLabels(r) =>
-        cache.projectRefs(r.projects).map(p => r.copy(projects = p.values.toSet))
-      case o => EitherT.rightT(o)
+        val labelToRef = projectCache.getProjectRefs(r.projects)
+        EitherT(
+          labelToRef.map(
+            resultOrFailures(_)
+              .map(res => r.copy(projects = res.map { case (_, ref) => ref }.toSet))
+              .left
+              .map(ProjectsNotFound)))
+      case o =>
+        EitherT.rightT(o)
     }
 }
 

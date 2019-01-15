@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.kg.acls.{AclsActor, AclsOps}
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
@@ -108,16 +108,17 @@ object Main {
     implicit val clock = Clock.systemUTC
     implicit val pm    = CanBlock.permit
 
-    implicit val repo              = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
-    implicit val attConfig         = appConfig.files
-    implicit val lc                = FileStore.LocationResolver[Task]()
-    implicit val stream            = FileStore.Stream.task(appConfig.files)
-    implicit val store             = new FileStore[Task, AkkaIn, AkkaOut]
-    implicit val indexers          = clients
-    implicit val cache             = DistributedCache.task()
+    implicit val repo      = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
+    implicit val attConfig = appConfig.files
+    implicit val lc        = FileStore.LocationResolver[Task]()
+    implicit val stream    = FileStore.Stream.task(appConfig.files)
+    implicit val store     = new FileStore[Task, AkkaIn, AkkaOut]
+    implicit val indexers  = clients
+    implicit val cache =
+      CacheAggregator(OrganizationCache[Task], ProjectCache[Task], ViewCache[Task], ResolverCache[Task])
     implicit val iam               = clients.iamClient
     implicit val aclsOps           = new AclsOps(AclsActor.start)
-    implicit val projectResolution = ProjectResolution.task(cache, aclsOps)
+    implicit val projectResolution = ProjectResolution.task(cache.resolver, cache.project, aclsOps)
     val resources: Resources[Task] = Resources[Task]
     val resourceRoutes             = Routes(resources)
     val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)

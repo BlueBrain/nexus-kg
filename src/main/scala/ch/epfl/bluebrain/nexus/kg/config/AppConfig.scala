@@ -14,28 +14,32 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreConfig
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.sourcing.akka._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 
 import scala.concurrent.duration.FiniteDuration
 
 /**
   * Application
   *
-  * @param description service description
-  * @param http        http interface configuration
-  * @param cluster     akka cluster configuration
-  * @param persistence persistence configuration
-  * @param files    files configuration
-  * @param admin       admin client configuration
-  * @param iam         IAM client configuration
-  * @param sparql      Sparql endpoint configuration
-  * @param elastic     ElasticSearch endpoint configuration
-  * @param pagination  Pagination configuration
-  * @param indexing    Indexing configuration
+  * @param description   service description
+  * @param http          http interface configuration
+  * @param cluster       akka cluster configuration
+  * @param persistence   persistence configuration
+  * @param files         files configuration
+  * @param admin         admin client configuration
+  * @param iam           IAM client configuration
+  * @param sparql        Sparql endpoint configuration
+  * @param elastic       ElasticSearch endpoint configuration
+  * @param pagination    Pagination configuration
+  * @param keyValueStore Distributed data configuration
+  * @param indexing      Indexing configuration
+  * @param kafka         Kafka configuration
+  * @param sourcing      Sourcing configuration
   */
 final case class AppConfig(description: Description,
                            http: HttpConfig,
@@ -47,6 +51,7 @@ final case class AppConfig(description: Description,
                            sparql: SparqlConfig,
                            elastic: ElasticConfig,
                            pagination: PaginationConfig,
+                           keyValueStore: KeyValueStoreConfig,
                            indexing: IndexingConfig,
                            kafka: KafkaConfig,
                            sourcing: SourcingConfig)
@@ -232,15 +237,16 @@ object AppConfig {
 
   val tracing = new TracingDirectives()
 
-  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig            = appConfig.sparql
-  implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig          = appConfig.elastic
-  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig  = appConfig.persistence
-  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig    = appConfig.pagination
-  implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                = appConfig.http
-  implicit def toIam(implicit appConfig: AppConfig): IamConfig                  = appConfig.iam
-  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig      = appConfig.iam.iamClient
-  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig        = appConfig.admin
-  implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfig        = appConfig.indexing
-  implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig = appConfig.sourcing
+  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig              = appConfig.sparql
+  implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig            = appConfig.elastic
+  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig    = appConfig.persistence
+  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig      = appConfig.pagination
+  implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                  = appConfig.http
+  implicit def toIam(implicit appConfig: AppConfig): IamConfig                    = appConfig.iam
+  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig        = appConfig.iam.iamClient
+  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig          = appConfig.admin
+  implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfig          = appConfig.indexing
+  implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig   = appConfig.sourcing
+  implicit def toStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig = appConfig.keyValueStore
 
 }

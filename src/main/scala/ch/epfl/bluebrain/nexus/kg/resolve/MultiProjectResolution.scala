@@ -6,7 +6,7 @@ import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.traverse._
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri
@@ -14,19 +14,19 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
 /**
   * Common resolution logic for resolvers that look through several projects.
   *
-  * @param resources  the resources operations
-  * @param projects   the set of projects to traverse
-  * @param types      the set of resource types to filter against
-  * @param identities the resolver identities
-  * @param cache      the distributed cache
-  * @param acls       the ACLs for all identities in all projects
+  * @param resources    the resources operations
+  * @param projects     the set of projects to traverse
+  * @param types        the set of resource types to filter against
+  * @param identities   the resolver identities
+  * @param projectCache the project cache
+  * @param acls         the ACLs for all identities in all projects
   * @tparam F the resolution effect type
   */
 class MultiProjectResolution[F[_]](resources: Resources[F],
                                    projects: F[Set[ProjectRef]],
                                    types: Set[Iri.AbsoluteIri],
                                    identities: List[Identity],
-                                   cache: DistributedCache[F],
+                                   projectCache: ProjectCache[F],
                                    acls: AccessControlLists)(implicit F: Monad[F])
     extends Resolution[F] {
 
@@ -50,8 +50,8 @@ class MultiProjectResolution[F[_]](resources: Resources[F],
         }
     }
 
-  private def hasPermission(project: ProjectRef): F[Boolean] =
-    project.toLabel(cache).map {
+  private def hasPermission(projectRef: ProjectRef): F[Boolean] =
+    projectCache.getLabel(projectRef).map {
       case None        => false
       case Some(label) => acls.exists(identities.toSet, label, resourceRead)
     }
@@ -66,7 +66,7 @@ object MultiProjectResolution {
                          projects: F[Set[ProjectRef]],
                          types: Set[Iri.AbsoluteIri],
                          identities: List[Identity],
-                         cache: DistributedCache[F],
+                         projectCache: ProjectCache[F],
                          acls: AccessControlLists): MultiProjectResolution[F] =
-    new MultiProjectResolution(resources, projects, types, identities, cache, acls)
+    new MultiProjectResolution(resources, projects, types, identities, projectCache, acls)
 }

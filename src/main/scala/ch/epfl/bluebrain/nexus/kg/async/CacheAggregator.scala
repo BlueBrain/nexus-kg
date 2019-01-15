@@ -1,0 +1,15 @@
+package ch.epfl.bluebrain.nexus.kg.async
+
+/**
+  * Aggregator of the caches used in the service
+  *
+  * @param organization the organization cache
+  * @param project      the project cache
+  * @param view         the view cache
+  * @param resolver     the resolver cache
+  * @tparam F the effet type
+  */
+final case class CacheAggregator[F[_]](organization: OrganizationCache[F],
+                                       project: ProjectCache[F],
+                                       view: ViewCache[F],
+                                       resolver: ResolverCache[F])

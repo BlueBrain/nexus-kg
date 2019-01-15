@@ -5,13 +5,14 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.FutureDirectives.onComplete
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive0, Directive1}
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.DownstreamServiceError
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, Rejection}
 import monix.eval.Task
 import monix.execution.Scheduler
 
@@ -38,8 +39,8 @@ object AuthDirectives {
   def hasPermission(perms: Set[Permission])(implicit
                                             acls: AccessControlLists,
                                             caller: Caller,
-                                            ref: ProjectLabel): Directive0 =
-    if (acls.exists(caller.identities, ref, perms)) pass
+                                            project: Project): Directive0 =
+    if (acls.exists(caller.identities, project.projectLabel, perms)) pass
     else reject(AuthorizationFailedRejection)
 
   /**

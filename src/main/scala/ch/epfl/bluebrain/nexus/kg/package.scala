@@ -34,4 +34,17 @@ package object kg {
 
   def uuid(): String =
     UUID.randomUUID().toString.toLowerCase
+
+  /**
+    * Converts a map where the values are Option into a Left(values) with the None values or a Right(map) with the Some values
+    *
+    * @param map the map
+    * @tparam A the map key type
+    * @tparam B the map value type
+    */
+  def resultOrFailures[A, B](map: Map[A, Option[B]]): Either[Set[A], Map[A, B]] = {
+    val failed = map.collect { case (v, None) => v }
+    if (failed.nonEmpty) Left(failed.toSet)
+    else Right(map.collect { case (k, Some(v)) => k -> v })
+  }
 }
