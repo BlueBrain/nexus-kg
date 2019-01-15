@@ -53,7 +53,7 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     * @param refs the set of ''ProjectRef''
     */
   def getProjectLabels(refs: Set[ProjectRef]): F[Map[ProjectRef, Option[ProjectLabel]]] =
-    refs.map(ref => getLabel(ref).map(ref -> _)).toList.sequence.map(_.toMap)
+    refs.toList.traverse(ref => getLabel(ref).map(ref -> _)).map(_.toMap)
 
   /**
     * Attempts to convert the set of ''ProjectLabel'' to ''ProjectRef'' looking up at each label.
@@ -61,7 +61,7 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     * @param labels the set of ''ProjectLabel''
     */
   def getProjectRefs(labels: Set[ProjectLabel]): F[Map[ProjectLabel, Option[ProjectRef]]] =
-    labels.map(label => getBy(label).map(label -> _.map(_.ref))).toList.sequence.map(_.toMap)
+    labels.toList.traverse(label => getBy(label).map(label -> _.map(_.ref))).map(_.toMap)
 
   /**
     * Fetches all the projects
