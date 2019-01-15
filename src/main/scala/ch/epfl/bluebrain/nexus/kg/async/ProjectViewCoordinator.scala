@@ -49,9 +49,34 @@ class ProjectViewCoordinator private (resources: Resources[Task],
     as: ActorSystem) {
 
   //TODO: After the project has been updated we also have to recreate the elasticSearch/blazegraph indices as if it were a view update.
+  private val logger              = Logger[this.type]
+  private val sparql              = config.sparql
+  private implicit val mt         = ActorMaterializer()
+  private implicit val ul         = untyped[Task]
+  private implicit val jsonClient = withUnmarshaller[Task, Json]
+  private val ListSet             = TypeCase[Set[View]]
 
-  private val viewEventChanges: OnKeyValueStoreChange[UUID, Set[View]] =
-    (onChange: KeyValueStoreChanges[UUID, Set[View]]) => {
+  private val viewEventChanges: OnKeyValueStoreChange[UUID, Set[View]] = new OnKeyValueStoreChange[UUID, Set[View]] {
+
+    private def onStart(view: SingleView): ActorRef = view match {
+      case v: ElasticView => ElasticIndexer.start(v, resources, project)
+      case v: SparqlView  => SparqlIndexer.start(v, resources, project)
+    }
+
+    private def onStop(view: SingleView): Task[Unit] = view match {
+      case v: ElasticView =>
+        logger.info(s"ElasticView index '${v.index}' is removed from project '${project.projectLabel.show}'")
+        esClient.deleteIndex(v.index) *> Task.pure(views.remove(view)) *> Task.unit
+      case _: SparqlView =>
+        logger.info(s"Blazegraph keyspace '${view.name}' is removed from project '${project.projectLabel.show}'")
+        BlazegraphClient[Task](sparql.base, view.name, sparql.akkaCredentials).deleteNamespace *> Task.pure(
+          views.remove(view)) *> Task.unit
+    }
+
+    private def singleViews(values: Set[View]): Set[SingleView] =
+      values.collect { case v: SingleView => v }
+
+    override def apply(onChange: KeyValueStoreChanges[UUID, Set[View]]): Unit = {
       val viewsScala = views.asScala
       val addedOrModified = onChange.values.foldLeft(Set.empty[SingleView]) {
         case (acc, ValueAdded(uuid: UUID, ListSet(value))) if uuid == project.uuid    => acc ++ singleViews(value)
@@ -61,7 +86,7 @@ class ProjectViewCoordinator private (resources: Resources[Task],
       val toRemove = (viewsScala.keySet -- addedOrModified).map(v => v -> viewsScala.get(v))
       toRemove.foreach {
         case (v, actorRef) =>
-          (onStop(v) *> Task.pure(actorRef.map(as.stop))).runToFuture
+          (onStop(v) *> Task.pure(actorRef.foreach(as.stop))).runToFuture
       }
       val toAdd = addedOrModified.map(v => v -> onStart(v))
       views.clear()
@@ -69,48 +94,19 @@ class ProjectViewCoordinator private (resources: Resources[Task],
       logger.debug(s"Change on view. Added views '$addedOrModified' to project '${project.projectLabel.show}'")
       logger.debug(s"Change on view. Deleted views '${toRemove.map(_._1)}' from project '${project.projectLabel.show}'")
     }
+  }
 
   private val subscription = viewCache.subscribe(viewEventChanges)
 
-  private val sparql              = config.sparql
-  private implicit val mt         = ActorMaterializer()
-  private implicit val ul         = untyped[Task]
-  private implicit val jsonClient = withUnmarshaller[Task, Json]
-  private val ListSet             = TypeCase[Set[View]]
-
-  private val logger = Logger[this.type]
-
-  private def onStart(view: SingleView): ActorRef = view match {
-    case v: ElasticView => ElasticIndexer.start(v, resources, project)
-    case v: SparqlView  => SparqlIndexer.start(v, resources, project)
-  }
-
-  private def onStop(view: SingleView): Task[Unit] = view match {
-    case v: ElasticView =>
-      logger.info(s"ElasticView index '${v.index}' is removed from project '${project.projectLabel.show}'")
-      esClient.deleteIndex(v.index) *> Task.pure(views.remove(view)) *> Task.unit
-    case _: SparqlView =>
-      logger.info(s"Blazegraph keyspace '${view.name}' is removed from project '${project.projectLabel.show}'")
-      BlazegraphClient[Task](sparql.base, view.name, sparql.akkaCredentials).deleteNamespace *> Task.pure(
-        views.remove(view)) *> Task.unit
-  }
-
-  private def singleViews(values: Set[View]): Set[SingleView] =
-    values.collect { case v: SingleView => v }
-
   /**
-    * When the views on the project should be deprecated, all the indices that those views hold
-    * will be deleted and the actors that manage those views (ElasticIndexer or SparqlIndexer) will
-    * be stopped
+    * When the views on the project should be deprecated, all the actors that manage those views
+    * (ElasticIndexer or SparqlIndexer) will be stopped
     */
-  def deprecateProjectViews: Task[Unit] = {
+  def deprecateProjectViews(): Unit = {
     logger.info(
-      s"Organization '${project.organizationLabel}' or project '${project.label}' is deprecated. Removing indices.")
-
-    val onStopSeq = views.asScala.map {
-      case (view, actor) => onStop(view).map(_ => as.stop(actor))
-    }
-    Task.sequence(onStopSeq) *> Task.unit
+      s"Organization '${project.organizationLabel}' or project '${project.label}' is deprecated. Stopping actors that manage indices.")
+    views.asScala.map { case (_, actor) => as.stop(actor) }
+    views.clear()
   }
 
   /**

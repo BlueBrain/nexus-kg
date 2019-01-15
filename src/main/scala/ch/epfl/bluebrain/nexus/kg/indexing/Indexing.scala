@@ -74,7 +74,7 @@ private class Indexing(resources: Resources[Task], cache: CacheAggregator[Task])
 
     implicit val icc: IamClientConfig = config.iam.iamClient
 
-    def updateProjectOnCoordinator(project: Project): Task[Option[ProjectViewCoordinator]] =
+    def updateCoordinatorFor(project: Project): Task[Option[ProjectViewCoordinator]] =
       projViewMap
         .get(project.uuid)
         .map(_.updateProject(project))
@@ -85,26 +85,28 @@ private class Indexing(resources: Resources[Task], cache: CacheAggregator[Task])
 
       val update = event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
-          cache.project.list(OrganizationRef(uuid)).map(_.map(proj => projViewMap.get(proj.uuid)).flatten).flatMap {
-            coordinator =>
-              Task.sequence(coordinator.map(_.deprecateProjectViews))
-          } *> Task.unit
+          cache.project
+            .list(OrganizationRef(uuid))
+            .map(_.flatMap(proj => projViewMap.get(proj.uuid)))
+            .map(_.foreach(coordinator => coordinator.deprecateProjectViews())) *> Task.unit
         case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
           // format: off
           val project = Project(projectsPrefix + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
-          cache.project.replace(project).flatMap(_ => updateProjectOnCoordinator(project)) *> Task.unit
+          cache.project.replace(project).flatMap(_ => updateCoordinatorFor(project)) *> Task.unit
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
           cache.project.get(ProjectRef(uuid)).flatMap {
             case Some(project) =>
               // format: off
               val newProject = Project(projectsPrefix + label, label, project.organizationLabel, desc, base, vocab, am, uuid, project.organizationUuid, rev, deprecated = false, instant, subject.id, instant, subject.id)
               // format: on
-              cache.project.replace(newProject).flatMap(_ => updateProjectOnCoordinator(newProject)) *> Task.unit
+              cache.project.replace(newProject).flatMap(_ => updateCoordinatorFor(newProject)) *> Task.unit
             case None => Task.unit
           }
         case ProjectDeprecated(uuid, rev, _, _) =>
-          cache.project.deprecate(ProjectRef(uuid), rev)
+          cache.project
+            .deprecate(ProjectRef(uuid), rev)
+            .map(_ => projViewMap.get(uuid).foreach(_.deprecateProjectViews())) *> Task.unit
       }
       update.runToFuture
     }
