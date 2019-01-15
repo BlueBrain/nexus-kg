@@ -40,6 +40,8 @@ class ProjectViewsLifeCycle private (resources: Resources[Task],
     ucl: HttpClient[Task, ResultSet],
     as: ActorSystem) {
 
+  //TODO: After the project has been updated we also have to recreate the elasticSearch/blazegraph indices as if it were a view update.
+
   val viewEventChanges: OnKeyValueStoreChange[UUID, Set[View]] = (onChange: KeyValueStoreChanges[UUID, Set[View]]) => {
     val viewsScala = views.asScala
     val addedOrModified = onChange.values.foldLeft(Set.empty[SingleView]) {
