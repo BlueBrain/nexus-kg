@@ -64,11 +64,6 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     labels.toList.traverse(label => getBy(label).map(label -> _.map(_.ref))).map(_.toMap)
 
   /**
-    * Fetches all the projects
-    */
-  def list(): F[List[Project]] = store.values.map(_.toList.sorted)
-
-  /**
     * Fetches all the projects that belong to the provided organization
     *
     * @param organizationRef the organization to filter the projects

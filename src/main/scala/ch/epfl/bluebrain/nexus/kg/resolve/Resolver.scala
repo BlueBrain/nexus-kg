@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId, _}
+import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -64,10 +64,8 @@ sealed trait Resolver extends Product with Serializable {
         val refToLabel = projectCache.getProjectLabels(r.projects)
         EitherT(
           refToLabel.map(
-            resultOrFailures(_)
-              .map(res => r.copy(projects = res.map { case (_, label) => label }.toSet))
-              .left
-              .map(LabelsNotFound)))
+            resultOrFailures(_).bimap(LabelsNotFound,
+                                      res => r.copy(projects = res.map { case (_, label) => label }.toSet))))
       case o =>
         EitherT.rightT(o)
     }

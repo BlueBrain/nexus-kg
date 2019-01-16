@@ -72,10 +72,8 @@ sealed trait View extends Product with Serializable {
     this match {
       case AggregateElasticViewRefs(v) =>
         val refToLabel = projectCache.getProjectLabels(v.projects)
-        EitherT(refToLabel.map(resultOrFailures(_) match {
-          case Right(res)     => Right(v.copy(value = v.value.map(vr => vr.map(res(vr.project)))))
-          case Left(failures) => Left(LabelsNotFound(failures))
-        }))
+        EitherT(refToLabel.map(
+          resultOrFailures(_).bimap(LabelsNotFound, res => v.copy(value = v.value.map(vr => vr.map(res(vr.project)))))))
       case o => EitherT.rightT(o)
     }
 
