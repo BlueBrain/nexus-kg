@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.CacheAggregator
+import ch.epfl.bluebrain.nexus.kg.async.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -22,7 +22,7 @@ import monix.execution.Scheduler.Implicits.global
 
 class ResolverRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit project: Project,
-    cache: CacheAggregator[Task],
+    cache: Caches[Task],
     indexers: Clients[Task],
     config: AppConfig)
     extends CommonRoutes(resources, "resolvers", acls, caller, cache.view) {

@@ -7,7 +7,7 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.CacheAggregator
+import ch.epfl.bluebrain.nexus.kg.async.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -26,7 +26,7 @@ import monix.execution.Scheduler.Implicits.global
 
 class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit project: Project,
-    cache: CacheAggregator[Task],
+    cache: Caches[Task],
     indexers: Clients[Task],
     config: AppConfig,
     um: FromEntityUnmarshaller[String])
@@ -35,7 +35,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   private val emptyEsList: Json                          = jsonContentOf("/elastic/empty-list.json")
   private val transformation: Transformation[Task, View] = Transformation.view
 
-  private implicit val CacheAggregator(projectCache, viewCache, _) = cache
+  private implicit val Caches(projectCache, viewCache, _) = cache
 
   import indexers._
 

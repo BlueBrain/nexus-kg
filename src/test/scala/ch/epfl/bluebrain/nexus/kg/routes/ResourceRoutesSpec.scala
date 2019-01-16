@@ -95,7 +95,7 @@ class ResourceRoutesSpec
   private implicit val store         = mock[FileStore[Task, AkkaIn, AkkaOut]]
   private implicit val resources     = mock[Resources[Task]]
 
-  private implicit val cacheAgg = CacheAggregator(projectCache, viewCache, resolverCache)
+  private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache)
 
   private implicit val ec         = system.dispatcher
   private implicit val mt         = ActorMaterializer()

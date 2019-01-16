@@ -91,6 +91,8 @@ object AppConfig {
       * The base IRI for all resource IDs.
       */
     val baseIri: AbsoluteIri = url"$publicUri/$prefix".value
+
+    val projectsIri: AbsoluteIri = baseIri + "projects"
   }
 
   /**

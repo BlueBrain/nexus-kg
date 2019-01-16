@@ -8,4 +8,4 @@ package ch.epfl.bluebrain.nexus.kg.async
   * @param resolver     the resolver cache
   * @tparam F the effet type
   */
-final case class CacheAggregator[F[_]](project: ProjectCache[F], view: ViewCache[F], resolver: ResolverCache[F])
+final case class Caches[F[_]](project: ProjectCache[F], view: ViewCache[F], resolver: ResolverCache[F])
