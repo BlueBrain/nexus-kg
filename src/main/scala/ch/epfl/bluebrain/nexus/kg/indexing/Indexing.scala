@@ -1,8 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.stream.ActorMaterializer
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
@@ -10,7 +11,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.events.decoders._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.untyped
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectViewCoordinator}
+import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectViewCoordinator, ProjectViewCoordinatorActor}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef, Resources}
@@ -25,8 +26,9 @@ import scala.concurrent.Future
 
 // $COVERAGE-OFF$
 @silent
-private class Indexing(resources: Resources[Task], cache: Caches[Task], coordinator: ActorRef)(implicit as: ActorSystem,
-                                                                                               config: AppConfig) {
+private class Indexing(resources: Resources[Task], cache: Caches[Task], coordinator: ProjectViewCoordinator[Task])(
+    implicit as: ActorSystem,
+    config: AppConfig) {
 // TODO: uncomment when KafkaEvents are present in the AdminClient
   private val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
@@ -61,15 +63,13 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
 
       val update = event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
-          cache.project
-            .list(OrganizationRef(uuid))
-            .map(_.foreach(proj => coordinator ! ProjectViewCoordinator.ProjectCreated(proj.uuid)))
+          coordinator.stop(OrganizationRef(uuid))
 
         case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
           // format: off
           val project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
-          cache.project.replace(project).map(_ => coordinator ! ProjectViewCoordinator.ProjectCreated(uuid))
+          cache.project.replace(project) *> coordinator.start(project)
 
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
           cache.project.get(ProjectRef(uuid)).flatMap {
@@ -77,16 +77,11 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
               // format: off
               val newProject = Project(config.http.projectsIri + label, label, project.organizationLabel, desc, base, vocab, am, uuid, project.organizationUuid, rev, deprecated = false, instant, subject.id, instant, subject.id)
               // format: on
-              cache.project.replace(newProject).map { _ =>
-                if (newProject.label != project.label || newProject.organizationLabel != project.organizationLabel || newProject.vocab != project.vocab || newProject.base != project.base)
-                  coordinator ! ProjectViewCoordinator.ProjectUpdated(newProject.uuid)
-              }
+              cache.project.replace(newProject) *> coordinator.change(newProject, project)
             case None => Task.unit
           }
         case ProjectDeprecated(uuid, rev, _, _) =>
-          cache.project
-            .deprecate(ProjectRef(uuid), rev)
-            .map(_ => coordinator ! ProjectViewCoordinator.ProjectCreated(uuid))
+          cache.project.deprecate(ProjectRef(uuid), rev) *> coordinator.stop(ProjectRef(uuid))
       }
       update.runToFuture
     }
@@ -127,7 +122,8 @@ object Indexing {
     implicit val ul            = untyped[Task]
     implicit val elasticClient = ElasticClient[Task](config.elastic.base)
 
-    val coordinator = ProjectViewCoordinator.start(resources, cache, None, config.cluster.shards)
+    val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
+    val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)
 
     val indexing = new Indexing(resources, cache, coordinator)
 //    indexing.startKafkaStream()
