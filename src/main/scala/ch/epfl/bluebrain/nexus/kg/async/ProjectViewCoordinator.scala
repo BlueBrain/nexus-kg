@@ -59,7 +59,7 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(implicit F: 
     */
   def change(newProject: Project, project: Project): F[Unit] = {
     if (newProject.label != project.label || newProject.organizationLabel != project.organizationLabel || newProject.vocab != project.vocab || newProject.base != project.base)
-      ref ! ProjectChanges(newProject.uuid, newProject.base, newProject.vocab, project.projectLabel)
+      ref ! ProjectChanges(newProject.uuid, newProject)
     F.unit
   }
 }
