@@ -84,14 +84,25 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
         (query, params) =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
             case Some(v: ElasticView) => indexers.elastic.searchRaw(query, Set(v.index), params).map(Right.apply)
-            case Some(v: AggregateElasticView[_]) =>
-              v.indices.flatMap {
+            case Some(AggregateElasticViewRefs(v)) =>
+              allowedIndices(v).flatMap {
                 case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
-                case indices                    => indexers.elastic.searchRaw(query, indices, params).map(Right.apply)
+                case indices                    => indexers.elastic.searchRaw(query, indices.toSet, params).map(Right.apply)
               }
             case _ => Task.pure(Left(NotFound(Ref(id))))
           }
           trace("searchElastic")(complete(result.runToFuture))
       }
+    }
+
+  private def allowedIndices(v: AggregateElasticViewRefs): Task[List[String]] =
+    v.value.toList.foldM(List.empty[String]) {
+      case (acc, ViewRef(ref, id)) =>
+        (cache.view.getBy[ElasticView](ref, id) -> cache.project.getLabel(ref)).mapN {
+          case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, resourceRead) =>
+            view.index :: acc
+          case _ =>
+            acc
+        }
     }
 }

@@ -119,10 +119,9 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
         toRemove.foreach { case (v, ref) => stopView(v, ref) }
 
       case ProjectChanges(_, newProject) =>
-        val _ = Future.sequence(children.map { case (view, ref) => stopView(view, ref).map(_ => view) }).map {
-          case views =>
-            context.become(initialized(newProject))
-            self ! ViewsChanges(project.uuid, views.toSet)
+        val _ = Future.sequence(children.map { case (view, ref) => stopView(view, ref).map(_ => view) }).map { views =>
+          context.become(initialized(newProject))
+          self ! ViewsChanges(project.uuid, views.toSet)
         }
       case Stop(_) =>
         children.foreach { case (view, ref) => stopView(view, ref, deleteIndices = false) }
@@ -150,12 +149,12 @@ object ProjectViewCoordinatorActor {
   }
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
-    case (msg: Msg)                  => math.abs(msg.uuid.hashCode) % shards toString
+    case msg: Msg                    => math.abs(msg.uuid.hashCode) % shards toString
     case ShardRegion.StartEntity(id) => (id.hashCode                % shards) toString
   }
 
   private[async] val entityExtractor: ExtractEntityId = {
-    case (msg: Msg) => (msg.uuid.toString, msg)
+    case msg: Msg => (msg.uuid.toString, msg)
   }
 
   /**

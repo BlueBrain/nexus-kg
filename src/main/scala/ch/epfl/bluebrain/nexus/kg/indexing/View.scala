@@ -320,7 +320,7 @@ object View {
     def map[A](a: A): ViewRef[A] = copy(project = a)
   }
 
-  private[indexing] type AggregateElasticViewLabels = AggregateElasticView[ProjectLabel]
+  type AggregateElasticViewLabels = AggregateElasticView[ProjectLabel]
   object AggregateElasticViewLabels {
     final def unapply(arg: AggregateElasticView[_]): Option[AggregateElasticViewLabels] =
       arg.value.toSeq match {
@@ -329,7 +329,7 @@ object View {
       }
   }
 
-  private[indexing] type AggregateElasticViewRefs = AggregateElasticView[ProjectRef]
+  type AggregateElasticViewRefs = AggregateElasticView[ProjectRef]
   object AggregateElasticViewRefs {
     final def unapply(arg: AggregateElasticView[_]): Option[AggregateElasticViewRefs] =
       arg.value.toSeq match {
