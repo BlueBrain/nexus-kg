@@ -5,7 +5,7 @@ import cats.{Applicative, Monad, MonadError}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
@@ -55,7 +55,8 @@ object AdditionalValidation {
   final def view[F[_]](caller: Caller, acls: AccessControlLists)(implicit F: MonadError[F, Throwable],
                                                                  elastic: ElasticClient[F],
                                                                  config: ElasticConfig,
-                                                                 cache: DistributedCache[F]): AdditionalValidation[F] =
+                                                                 projectCache: ProjectCache[F],
+                                                                 viewCache: ViewCache[F]): AdditionalValidation[F] =
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) => {
       val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
       EitherT.fromEither(View(resource)).flatMap {
@@ -74,7 +75,7 @@ object AdditionalValidation {
     * @return a new validation that passes whenever the provided ''acls'' match the ones on the resolver's identities
     */
   final def resolver[F[_]](caller: Caller)(implicit F: Monad[F],
-                                           cache: DistributedCache[F]): AdditionalValidation[F] = {
+                                           projectCache: ProjectCache[F]): AdditionalValidation[F] = {
 
     def aclContains(identities: List[Identity]): Boolean =
       identities.forall(caller.identities.contains)

@@ -7,14 +7,14 @@ import cats.implicits._
 import cats.{Monad, MonadError, Show}
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticFailure}
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticViewRefs, _}
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidPayload, NotFound, ProjectsNotFound, Unexpected}
+import ch.epfl.bluebrain.nexus.kg.indexing.View._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.{DeprecatedId, RevisionedId}
+import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, DeprecatedId, RevisionedId}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
@@ -68,10 +68,12 @@ sealed trait View extends Product with Serializable {
     * returning all the other views unchanged.
     * For the case of ''AggregateElasticView of ViewRef[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
     */
-  def labeled[F[_]](implicit cache: DistributedCache[F], F: Monad[F]): EitherT[F, Rejection, View] =
+  def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, View] =
     this match {
-      case AggregateElasticViewRefs(r) =>
-        cache.projectLabels(r.projects).map(projMap => r.copy(value = r.value.map(vr => vr.map(projMap(vr.project)))))
+      case AggregateElasticViewRefs(v) =>
+        val refToLabel = projectCache.getProjectLabels(v.projects)
+        EitherT(refToLabel.map(
+          resultOrFailures(_).bimap(LabelsNotFound, res => v.copy(value = v.value.map(vr => vr.map(res(vr.project)))))))
       case o => EitherT.rightT(o)
     }
 
@@ -81,7 +83,8 @@ sealed trait View extends Product with Serializable {
     * For the case of ''AggregateElasticView of ViewRef[ProjectLabel]'',
     * the conversion is successful when the the mapping ''projectLabel -> projectRef'' and the viewId exists on the ''cache''
     */
-  def referenced[F[_]](caller: Caller, acls: AccessControlLists)(implicit cache: DistributedCache[F],
+  def referenced[F[_]](caller: Caller, acls: AccessControlLists)(implicit projectCache: ProjectCache[F],
+                                                                 viewCache: ViewCache[F],
                                                                  F: Monad[F]): EitherT[F, Rejection, View] = {
     this match {
       case AggregateElasticViewLabels(r) =>
@@ -91,20 +94,22 @@ sealed trait View extends Product with Serializable {
         val projectsPerms = caller.hasPermission(acls, labelIris.keySet, viewsRead)
         val inaccessible  = labelIris.keySet -- projectsPerms
         if (inaccessible.nonEmpty) EitherT.leftT[F, View](ProjectsNotFound(inaccessible))
-        else
-          cache.projectRefs(r.projects).flatMap { projMap =>
+        else {
+          val labelToRef = projectCache.getProjectRefs(r.projects)
+          EitherT(labelToRef.map(resultOrFailures(_).left.map(ProjectsNotFound))).flatMap { projMap =>
             val view: View = r.copy(value = r.value.map(vr => vr.map(projMap(vr.project))))
             projMap.foldLeft(EitherT.rightT[F, Rejection](view)) {
-              case (acc, (lb, ref)) =>
+              case (acc, (label, ref)) =>
                 acc.flatMap { _ =>
-                  EitherT(cache.views(ref).map { views =>
-                    val toTarget = labelIris.getOrElse(lb, Set.empty)
+                  EitherT(viewCache.get(ref).map { views =>
+                    val toTarget = labelIris.getOrElse(label, Set.empty)
                     val found    = views.collect { case es: ElasticView if toTarget.contains(es.id) => es.id }
                     (toTarget -- found).headOption.map(iri => NotFound(Ref(iri))).toLeft(view)
                   })
                 }
             }
           }
+        }
       case o => EitherT.rightT(o)
     }
   }
@@ -289,18 +294,18 @@ object View {
 
     def projects: Set[P] = value.map(_.project)
 
-    def indices[F[_]](implicit cache: DistributedCache[F],
+    def indices[F[_]](implicit projectCache: ProjectCache[F],
+                      viewCache: ViewCache[F],
                       acls: AccessControlLists,
                       caller: Caller,
                       config: ElasticConfig,
                       F: Monad[F]): F[Set[String]] =
       value.foldLeft(F.pure(Set.empty[String])) {
         case (accF, ViewRef(ref: ProjectRef, id)) =>
-          for {
-            acc   <- accF
-            views <- cache.views(ref).map(_.collect { case v: ElasticView if v.ref == ref && v.id == id => v })
-            lb    <- ref.toLabel(cache)
-          } yield lb.filter(caller.hasPermission(acls, _, viewsRead)).map(_ => acc ++ views.map(_.index)).getOrElse(acc)
+          (accF, viewCache.getBy[ElasticView](ref, id), projectCache.getLabel(ref)).mapN {
+            case (acc, Some(view), Some(label)) if caller.hasPermission(acls, label, viewsRead) => acc + view.index
+            case (acc, _, _)                                                                    => acc
+          }
         case (accF, _) => accF
       }
   }

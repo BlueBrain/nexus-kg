@@ -35,7 +35,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -67,6 +67,7 @@ import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
+import shapeless.Typeable
 
 class ResourceRoutesSpec
     extends WordSpecLike
@@ -86,11 +87,15 @@ class ResourceRoutesSpec
   private val adminUri           = appConfig.admin.baseUri
   private implicit val clock     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
-  private implicit val adminClient = mock[AdminClient[Task]]
-  private implicit val iamClient   = mock[IamClient[Task]]
-  private implicit val cache       = mock[DistributedCache[Task]]
-  private implicit val store       = mock[FileStore[Task, AkkaIn, AkkaOut]]
-  private implicit val resources   = mock[Resources[Task]]
+  private implicit val adminClient   = mock[AdminClient[Task]]
+  private implicit val iamClient     = mock[IamClient[Task]]
+  private implicit val projectCache  = mock[ProjectCache[Task]]
+  private implicit val viewCache     = mock[ViewCache[Task]]
+  private implicit val resolverCache = mock[ResolverCache[Task]]
+  private implicit val store         = mock[FileStore[Task, AkkaIn, AkkaOut]]
+  private implicit val resources     = mock[Resources[Task]]
+
+  private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache)
 
   private implicit val ec         = system.dispatcher
   private implicit val mt         = ActorMaterializer()
@@ -194,19 +199,30 @@ class ResourceRoutesSpec
     )
 
     private val label = ProjectLabel(organization, project)
-    when(cache.project(label))
-      .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
-    when(cache.project(projectRef))
-      .thenReturn(Task.pure(Some(projectMeta): Option[Project]))
-    when(cache.views(projectRef))
-      .thenReturn(Task.pure(Set(defaultEsView, defaultSQLView, aggView, otherEsView): Set[IndexingView]))
-    when(cache.organization(organizationRef)).thenReturn(Task.pure(Option(organizationMeta)))
-    when(iamClient.identities)
-      .thenReturn(Task.pure(Caller(user, Set(Anonymous))))
+    when(projectCache.getBy(label)).thenReturn(Task.pure(Option(projectMeta)))
+    when(projectCache.getLabel(projectRef)).thenReturn(Task.pure(Option(label)))
+    when(projectCache.get(projectRef)).thenReturn(Task.pure(Option(projectMeta)))
+    when(viewCache.get(projectRef))
+      .thenReturn(Task.pure(Set[IndexingView](defaultEsView, defaultSQLView, aggView, otherEsView)))
+    when(
+      viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.defaultElasticIndex.value))(any[Typeable[IndexingView]]))
+      .thenReturn(Task.pure(Option(defaultEsView)))
+
+    when(viewCache.getBy[ElasticView](mEq(projectRef), mEq(nxv.defaultElasticIndex.value))(any[Typeable[ElasticView]]))
+      .thenReturn(Task.pure(Option(defaultEsView)))
+    when(
+      viewCache.getBy[ElasticView](mEq(projectRef), mEq(nxv.withSuffix("otherEs").value))(any[Typeable[ElasticView]]))
+      .thenReturn(Task.pure(Option(otherEsView)))
+    when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.withSuffix("agg").value))(any[Typeable[IndexingView]]))
+      .thenReturn(Task.pure(Option(aggView)))
+    when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.withSuffix("some").value))(any[Typeable[IndexingView]]))
+      .thenReturn(Task.pure(None: Option[IndexingView]))
+    when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.defaultSparqlIndex.value))(any[Typeable[IndexingView]]))
+      .thenReturn(Task.pure(Option(defaultSQLView)))
+    when(iamClient.identities).thenReturn(Task.pure(Caller(user, Set(Anonymous))))
     val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
     when(aclsOps.fetch()).thenReturn(Task.pure(acls))
-    when(cache.projectLabels(Set(projectRef)))
-      .thenReturn(EitherT.rightT[Task, Rejection](Map(projectRef -> label)))
+    when(projectCache.getProjectLabels(Set(projectRef))).thenReturn(Task.pure(Map(projectRef -> Option(label))))
 
     def schemaRef: Ref
 
@@ -277,7 +293,7 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid")
       )
 
-    val resolverSet = Set(
+    val resolverList = List(
       InProjectResolver(projectRef, nxv.deprecated, 1L, deprecated = false, 20),
       CrossProjectResolver(Set(nxv.Schema),
                            Set(projectRef),
@@ -355,7 +371,7 @@ class ResourceRoutesSpec
           jsonContentOf("/resources/resolvers-list.json",
                         Map(quote("{account}") -> organizationMeta.label, quote("{proj}") -> projectMeta.label))
 
-        when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
+        when(resolverCache.get(projectRef)).thenReturn(Task.pure(resolverList))
         Get(s"/v1/resolvers/$organization/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual json
@@ -370,7 +386,7 @@ class ResourceRoutesSpec
         val json =
           jsonContentOf("/resources/resolvers-list-no-deprecated.json",
                         Map(quote("{account}") -> organizationMeta.label, quote("{proj}") -> projectMeta.label))
-        when(cache.resolvers(projectRef)).thenReturn(Task.pure(resolverSet))
+        when(resolverCache.get(projectRef)).thenReturn(Task.pure(resolverList))
         Get(s"/v1/resolvers/$organization/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual json
@@ -470,7 +486,7 @@ class ResourceRoutesSpec
       }
 
       "list views" in new Views {
-        when(cache.views(projectRef)).thenReturn(Task.pure(views))
+        when(viewCache.get(projectRef)).thenReturn(Task.pure(views))
         Get(s"/v1/views/$organization/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
@@ -482,7 +498,7 @@ class ResourceRoutesSpec
       }
 
       "list views not deprecated" in new Views {
-        when(cache.views(projectRef)).thenReturn(
+        when(viewCache.get(projectRef)).thenReturn(
           Task.pure(
             views + SparqlView(projectRef,
                                url"http://example.com/id3".value,

@@ -82,7 +82,7 @@ object Rejection {
     *
     * @param projects the project references where labels were not found
     */
-  final case class LabelsNotFound(projects: List[ProjectRef])
+  final case class LabelsNotFound(projects: Set[ProjectRef])
       extends Rejection(s"Labels for projects with ref '${projects.map(_.show).mkString(", ")}' not found.")
 
   /**

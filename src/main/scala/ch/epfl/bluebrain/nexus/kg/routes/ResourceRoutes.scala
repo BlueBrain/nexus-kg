@@ -4,7 +4,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -15,19 +15,22 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit project: Project,
-    cache: DistributedCache[Task],
+    cache: Caches[Task],
     indexers: Clients[Task],
     store: FileStore[Task, AkkaIn, AkkaOut],
     config: AppConfig)
-    extends CommonRoutes(resources, "resources", acls, caller) {
+    extends CommonRoutes(resources, "resources", acls, caller, cache.view) {
 
   import indexers._
+
+  private implicit val viewCache = cache.view
 
   def routes: Route =
     list ~ pathPrefix(IdSegment) {
@@ -53,7 +56,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
     (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
       (deprecated, pagination) =>
         trace(s"list$resourceName") {
-          complete(cache.views(projectRef).flatMap(v => resources.list(v, deprecated, pagination)).runToFuture)
+          complete(cache.view.get(project.ref).flatMap(v => resources.list(v, deprecated, pagination)).runToFuture)
         }
     }
 }

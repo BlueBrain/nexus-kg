@@ -1,10 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.directives
 
+import java.time.Instant
+
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.{BasicHttpCredentials, OAuth2BearerToken}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
@@ -15,7 +18,6 @@ import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.DownstreamServiceError
 import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
@@ -39,9 +41,23 @@ class AuthDirectivesSpec
   private implicit val config    = IamClientConfig(url"http://nexus.example.com/iam/v1".value)
   private implicit val iamClient = mock[IamClient[Task]]
   private implicit val aclsOps   = mock[AclsOps]
-  private implicit val label     = ProjectLabel("organizationLabel", "projectLabel")
-  private val readWrite          = Set(Permission.unsafe("read"), Permission.unsafe("write"))
-  private val ownPublish         = Set(Permission.unsafe("own"), Permission.unsafe("publish"))
+  private implicit val project = Project(genIri,
+                                         "projectLabel",
+                                         "organizationLabel",
+                                         None,
+                                         genIri,
+                                         genIri,
+                                         Map.empty,
+                                         genUUID,
+                                         genUUID,
+                                         1L,
+                                         false,
+                                         Instant.EPOCH,
+                                         genIri,
+                                         Instant.EPOCH,
+                                         genIri)
+  private val readWrite  = Set(Permission.unsafe("read"), Permission.unsafe("write"))
+  private val ownPublish = Set(Permission.unsafe("own"), Permission.unsafe("publish"))
 
   before {
     Mockito.reset(iamClient)
@@ -135,7 +151,8 @@ class AuthDirectivesSpec
 
     "pass when the permissions are present" in {
       implicit val acls =
-        AccessControlLists(label.organization / label.value -> resourceAcls(AccessControlList(Anonymous -> readWrite)))
+        AccessControlLists(
+          project.organizationLabel / project.label -> resourceAcls(AccessControlList(Anonymous -> readWrite)))
       implicit val caller: Caller = Caller.anonymous
       Get("/") ~> permissionsRoute(readWrite) ~> check {
         response.status shouldEqual StatusCodes.OK
@@ -144,7 +161,8 @@ class AuthDirectivesSpec
 
     "reject when the permissions aren't present" in {
       implicit val acls =
-        AccessControlLists(label.organization / label.value -> resourceAcls(AccessControlList(Anonymous -> ownPublish)))
+        AccessControlLists(
+          project.organizationLabel / project.label -> resourceAcls(AccessControlList(Anonymous -> ownPublish)))
       implicit val caller: Caller = Caller.anonymous
       Get("/") ~> permissionsRoute(readWrite) ~> check {
         status shouldEqual StatusCodes.Unauthorized

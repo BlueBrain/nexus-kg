@@ -6,7 +6,7 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{authorizationRejection, CustomAuthRejection}
@@ -32,7 +32,7 @@ object ProjectDirectives {
   /**
     * Fetches project configuration from the cache if possible, from nexus admin otherwise.
     */
-  def project(implicit cache: DistributedCache[Task],
+  def project(implicit projectCache: ProjectCache[Task],
               client: AdminClient[Task],
               cred: Option[AuthToken],
               s: Scheduler): Directive1[Project] = {
@@ -40,8 +40,8 @@ object ProjectDirectives {
     pathPrefix(Segment / Segment).tflatMap {
       case (orgLabel, projectLabel) =>
         val label = ProjectLabel(orgLabel, projectLabel)
-        val result = cache
-          .project(label)
+        val result = projectCache
+          .getBy(label)
           .flatMap {
             case value @ Some(_) => Task.pure(value)
             case _               => client.fetchProject(orgLabel, projectLabel)

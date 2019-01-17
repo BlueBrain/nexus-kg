@@ -106,4 +106,17 @@ object syntax {
                       permissions: Set[Permission]): Set[ProjectLabel] =
       projects.filter(hasPermission(acls, _, permissions))
   }
+
+  implicit class ProjectSyntax(private val project: Project) extends AnyVal {
+
+    /**
+      * @return the [[ProjectLabel]] consisting of both the organization segment and the project segment
+      */
+    def projectLabel: ProjectLabel = ProjectLabel(project.organizationLabel, project.label)
+
+    /**
+      * @return the project reference
+      */
+    def ref: ProjectRef = ProjectRef(project.uuid)
+  }
 }

@@ -7,7 +7,7 @@ import cats.syntax.functor._
 import cats.syntax.traverse._
 import ch.epfl.bluebrain.nexus.iam.client.types.AccessControlLists
 import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -16,12 +16,14 @@ import monix.eval.Task
 /**
   * Resolution for a given project
   *
-  * @param cache the distributed cache
+  * @param resolverCache the resolver cache
+  * @param projectCache the project cache
   * @param staticResolution the static resolutions
   * @param fetchAcls the function to fetch ACLs
   * @tparam F the monadic effect type
   */
-class ProjectResolution[F[_]](cache: DistributedCache[F],
+class ProjectResolution[F[_]](resolverCache: ResolverCache[F],
+                              projectCache: ProjectCache[F],
                               staticResolution: Resolution[F],
                               fetchAcls: => F[AccessControlLists])(implicit F: Monad[F]) {
 
@@ -42,12 +44,11 @@ class ProjectResolution[F[_]](cache: DistributedCache[F],
           case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, resources))
           case CrossProjectRefs(r) =>
             fetchAcls.map(
-              MultiProjectResolution(resources, F.pure(r.projects), r.resourceTypes, r.identities, cache, _))
+              MultiProjectResolution(resources, F.pure(r.projects), r.resourceTypes, r.identities, projectCache, _))
         }
 
-      private val resolution = cache.resolvers(ref).flatMap {
-        _.filterNot(_.deprecated).toList
-          .sortBy(_.priority)
+      private val resolution = resolverCache.get(ref).flatMap {
+        _.filterNot(_.deprecated)
           .map(resolverResolution)
           .sequence
           .map(list => CompositeResolution(staticResolution :: list))
@@ -62,10 +63,12 @@ class ProjectResolution[F[_]](cache: DistributedCache[F],
 object ProjectResolution {
 
   /**
-    * @param cache the distributed cache
+    * @param resolverCache the distributed cache
     * @return a new [[ProjectResolution]] for the effect type [[Task]]
     */
-  def task(cache: DistributedCache[Task], aclsOps: AclsOps): ProjectResolution[Task] =
-    new ProjectResolution(cache, StaticResolution[Task](iriResolution), aclsOps.fetch())
+  def task(resolverCache: ResolverCache[Task],
+           projectCache: ProjectCache[Task],
+           aclsOps: AclsOps): ProjectResolution[Task] =
+    new ProjectResolution(resolverCache, projectCache, StaticResolution[Task](iriResolution), aclsOps.fetch())
 
 }

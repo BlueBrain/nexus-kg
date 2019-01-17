@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.DistributedCache
+import ch.epfl.bluebrain.nexus.kg.async.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -49,12 +49,12 @@ class ViewIndexerSpec
   import system.dispatcher
 
   private val resources = mock[Resources[Future]]
-  private val cache     = mock[DistributedCache[Future]]
-  private val indexer   = new ViewIndexer(resources, cache)
+  private val viewCache = mock[ViewCache[Future]]
+  private val indexer   = new ViewIndexer(resources, viewCache)
 
   before {
     Mockito.reset(resources)
-    Mockito.reset(cache)
+    Mockito.reset(viewCache)
   }
 
   "A ViewIndexer" should {
@@ -76,40 +76,40 @@ class ViewIndexerSpec
     "index a view" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.applyView(projectRef, view)).thenReturn(Future.successful(()))
+      when(viewCache.put(view)).thenReturn(Future.successful(()))
 
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(1)).applyView(projectRef, view)
+      verify(viewCache, times(1)).put(view)
     }
 
     "skip indexing a resolver when the resource cannot be found" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.none[Future, Resource])
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(0)).applyView(projectRef, view)
+      verify(viewCache, times(0)).put(view)
     }
 
     "skip indexing a resolver when the resource cannot be materialized" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.leftT[Future, ResourceV](Unexpected("error"): Rejection))
       indexer(ev).futureValue shouldEqual (())
-      verify(cache, times(0)).applyView(projectRef, view)
+      verify(viewCache, times(0)).put(view)
     }
 
     "raise RetriableError when cache fails due to an AskTimeoutException" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.applyView(projectRef, view))
+      when(viewCache.put(view))
         .thenReturn(Future.failed(new AskTimeoutException("error")))
       whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
-      verify(cache, times(1)).applyView(projectRef, view)
+      verify(viewCache, times(1)).put(view)
     }
 
     "raise RetriableError when cache fails due to an OperationTimedOut" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
       when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
-      when(cache.applyView(projectRef, view)).thenReturn(Future.failed(new OperationTimedOut("error")))
+      when(viewCache.put(view)).thenReturn(Future.failed(new OperationTimedOut("error")))
       whenReady(indexer(ev).failed)(_ shouldBe a[RetriableErr])
-      verify(cache, times(1)).applyView(projectRef, view)
+      verify(viewCache, times(1)).put(view)
     }
   }
 
