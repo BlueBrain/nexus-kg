@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
@@ -50,14 +51,14 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
   private def asJson(view: View): Json =
     view
       .asJson(viewCtx.appendContextOf(resourceCtx))
-      .removeKeys("@context", "_rev", "_deprecated")
+      .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
       .addContext(viewCtxUri)
       .addContext(resourceCtxUri)
 
   private def asJson(resolver: Resolver): Json =
     resolver
       .asJson(resolverCtx.appendContextOf(resourceCtx))
-      .removeKeys("@context", "_rev", "_deprecated")
+      .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
       .addContext(resolverCtxUri)
       .addContext(resourceCtxUri)
 
