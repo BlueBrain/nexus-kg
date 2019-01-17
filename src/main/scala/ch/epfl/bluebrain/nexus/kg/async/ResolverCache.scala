@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.async.Cache.storeWrappedError
 import ch.epfl.bluebrain.nexus.kg.async.ResolverCache.RevisionedResolvers
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueStoreConfig}
 
 /**
@@ -32,7 +33,18 @@ class ResolverCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedResol
     *
     * @param ref the project unique reference
     */
-  def get(ref: ProjectRef): F[List[Resolver]] = super.get(ref.id).map(_.map(_.value.sorted).getOrElse(List.empty))
+  def get(ref: ProjectRef): F[List[Resolver]] = get(ref.id).map(_.map(_.value.sorted).getOrElse(List.empty))
+
+  /**
+    * Fetches resolver from the provided project and with the provided id
+    *
+    * @param ref the project unique reference
+    * @param id  the resolver unique id in the provided project
+    */
+  def get(ref: ProjectRef, id: AbsoluteIri): F[Option[Resolver]] =
+    get(ref.id).map(_.collectFirstSome { r =>
+      r.value.find(_.id == id)
+    })
 
   /**
     * Adds/updates or deprecates a resolver on the provided project.
