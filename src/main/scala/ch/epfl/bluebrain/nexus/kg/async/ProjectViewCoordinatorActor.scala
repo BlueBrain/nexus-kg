@@ -19,8 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SingleView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIndexer, SparqlIndexer, View}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef, Resources}
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChanges
 import ch.epfl.bluebrain.nexus.service.indexer.cache.OnKeyValueStoreChange
@@ -66,12 +65,12 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
   def startActor(view: SingleView, project: Project): ActorRef
 
   /**
-    * Triggered once an indexer actor has been stopped
+    * Triggered once an indexer actor has been stopped to clean up the indices
     *
     * @param view    the view linked to the indexer actor
     * @param project the project of the current coordinator
     */
-  def onActorStopped(view: SingleView, project: Project): Task[Unit]
+  def deleteViewIndices(view: SingleView, project: Project): Task[Unit]
 
   /**
     * Triggered when a change to key value store occurs.
@@ -87,35 +86,43 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
   }
 
   def initialized(project: Project): Receive = {
-    case ViewsChanges(_, views) =>
-      //Start new actors
-      views.map {
-        case view if !children.contains(view) =>
-          val ref = startActor(view, project)
-          children += view -> ref
-        case _ =>
-      }
-      log.debug("Change on view. Added views '{}' to project '{}'", views, project.projectLabel.show)
+    def stopView(v: SingleView, ref: ActorRef, deleteIndices: Boolean = true) = {
+      stopActor(ref)
+      if (deleteIndices) deleteViewIndices(v, project).runToFuture
+      children -= v
+    }
 
-      //Stop removed actors
-      val toRemove = (children.keySet -- views).map(v => v -> children(v))
-      toRemove.map {
-        case (v, ref) =>
-          stopActor(ref)
-          children -= v
-          onActorStopped(v, project).runToFuture
-      }
-      log.debug("Change on view. Deleted views '{}' from project '{}'", toRemove.map(_._1), project.projectLabel.show)
+    def startView(view: SingleView) = {
+      val ref = startActor(view, project)
+      children += view -> ref
+    }
 
-    case _: ProjectChanges =>
-    //TODO: After the project has been updated we also have to recreate the elasticSearch/blazegraph indices as if it were a view update.
+    {
+      case ViewsChanges(_, views) =>
+        views.map {
+          case view if !children.keySet.exists(_.id == view.id) => startView(view)
+          case view: ElasticView =>
+            children
+              .collectFirst {
+                case (v: ElasticView, ref) if v.id == view.id && view != v.copy(rev = view.rev) => v -> ref
+              }
+              .foreach {
+                case (oldView, ref) =>
+                  startView(view)
+                  stopView(oldView, ref)
+              }
+          case _ =>
+        }
 
-    case Stop(_) =>
-      children.foreach {
-        case (view, ref) =>
-          stopActor(ref)
-          children -= view
-      }
+        val toRemove = children.filterNot { case (v, _) => views.exists(_.id == v.id) }
+        toRemove.foreach { case (v, ref) => stopView(v, ref) }
+
+      case _: ProjectChanges =>
+      //TODO: After the project has been updated we also have to recreate the elasticSearch/blazegraph indices as if it were a view update.
+
+      case Stop(_) =>
+        children.foreach { case (view, ref) => stopView(view, ref, deleteIndices = false) }
+    }
   }
 
 }
@@ -134,8 +141,7 @@ object ProjectViewCoordinatorActor {
     final case class Start(uuid: UUID, project: Project, views: Set[SingleView]) extends Msg
     final case class Stop(uuid: UUID)                                            extends Msg
     final case class ViewsChanges(uuid: UUID, views: Set[SingleView])            extends Msg
-    final case class ProjectChanges(uuid: UUID, base: AbsoluteIri, vocab: AbsoluteIri, projectLabel: ProjectLabel)
-        extends Msg
+    final case class ProjectChanges(uuid: UUID, project: Project)                extends Msg
 
   }
 
@@ -170,8 +176,8 @@ object ProjectViewCoordinatorActor {
       Props(
         new ProjectViewCoordinatorActor(viewCache) {
 
-          private val sparql              = config.sparql
-          private implicit val jsonClient = withUnmarshaller[Task, Json]
+          private val sparql                                      = config.sparql
+          private implicit val jsonClient: HttpClient[Task, Json] = withUnmarshaller[Task, Json]
 
           override def startActor(view: SingleView, project: Project): ActorRef =
             view match {
@@ -179,7 +185,7 @@ object ProjectViewCoordinatorActor {
               case v: SparqlView  => SparqlIndexer.start(v, resources, project)
             }
 
-          override def onActorStopped(view: SingleView, project: Project): Task[Unit] = view match {
+          override def deleteViewIndices(view: SingleView, project: Project): Task[Unit] = view match {
             case v: ElasticView =>
               log.info("ElasticView index '{}' is removed from project '{}'", v.index, project.projectLabel.show)
               //TODO: Retry when delete fails
