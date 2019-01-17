@@ -30,7 +30,7 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     * @param label the organization and project labels
     */
   def getBy(label: ProjectLabel): F[Option[Project]] =
-    store.findValue(p => ProjectLabel(p.organizationLabel, p.label) == label)
+    store.findValue(p => p.projectLabel == label)
 
   /**
     * Attempts to fetch the project with the provided ''ref''
@@ -45,7 +45,7 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     * @param ref the project unique reference
     */
   def getLabel(ref: ProjectRef): F[Option[ProjectLabel]] =
-    get(ref.id).map(_.map(proj => ProjectLabel(proj.organizationLabel, proj.label)))
+    get(ref.id).map(_.map(project => project.projectLabel))
 
   /**
     * Attempts to convert the set of ''ProjectRef'' to ''ProjectLabel'' looking up at each ref.
