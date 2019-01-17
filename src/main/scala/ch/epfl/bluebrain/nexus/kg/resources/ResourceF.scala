@@ -174,7 +174,7 @@ object ResourceF {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = Ref(resourceSchemaUri),
+                 schema: Ref = resourceSchemaUri.ref,
                  created: Identity = Anonymous,
                  updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[P, Ref, Json] =
     ResourceF(id,
@@ -208,7 +208,7 @@ object ResourceF {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = Ref(resourceSchemaUri),
+                 schema: Ref = resourceSchemaUri.ref,
                  created: Identity = Anonymous,
                  updated: Identity = Anonymous)(implicit clock: Clock = Clock.systemUTC): ResourceF[P, Ref, Value] =
     ResourceF(id,

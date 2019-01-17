@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -242,9 +243,9 @@ object Repo {
 
     def create(c: Create): Either[Rejection, Created] =
       state match {
-        case _ if c.schema == Ref(fileSchemaUri) => Left(NotFileResource(c.id.ref))
-        case Initial                             => Right(Created(c.id, c.schema, types, source, c.instant, c.subject))
-        case _                                   => Left(AlreadyExists(c.id.ref))
+        case _ if c.schema == fileSchemaUri.ref => Left(NotFileResource(c.id.ref))
+        case Initial                            => Right(Created(c.id, c.schema, types, source, c.instant, c.subject))
+        case _                                  => Left(AlreadyExists(c.id.ref))
       }
 
     def createFile(c: CreateFile): Either[Rejection, CreatedFile] =

@@ -6,6 +6,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -140,7 +141,7 @@ object Event {
     /**
       * the schema that has been used to constrain the resource
       */
-    val schema: Ref = Ref(fileSchemaUri)
+    val schema: Ref = fileSchemaUri.ref
 
     /**
       * the collection of known resource types

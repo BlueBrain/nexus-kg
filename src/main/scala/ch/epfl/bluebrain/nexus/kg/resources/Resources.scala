@@ -377,7 +377,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
 
     def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
       g.objects(IriNode(id), owl.imports).unorderedFoldMap {
-        case IriNode(iri) => Set(Ref(iri))
+        case IriNode(iri) => Set(iri.ref)
         case _            => Set.empty
       }
 

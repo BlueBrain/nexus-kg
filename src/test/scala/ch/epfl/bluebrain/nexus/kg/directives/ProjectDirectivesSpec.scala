@@ -141,7 +141,10 @@ class ProjectDirectivesSpec
       "elasticsearch" -> nxv.defaultElasticIndex,
       "base"          -> nxv.projects,
       "documents"     -> nxv.defaultElasticIndex,
-      "graph"         -> nxv.defaultSparqlIndex
+      "graph"         -> nxv.defaultSparqlIndex,
+      "view"          -> Schemas.viewSchemaUri,
+      "resolver"      -> Schemas.resolverSchemaUri,
+      "file"          -> Schemas.fileSchemaUri
     )
     val projectMetaResp = projectMeta.copy(apiMappings = apiMappingsFinal)
 

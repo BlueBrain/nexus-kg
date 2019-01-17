@@ -39,15 +39,14 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
       case (`resolverSchemaUri`) => new ResolverRoutes(resources, acls, caller).routes
       case (`fileSchemaUri`)     => new FileRoutes(resources, acls, caller).routes
       case schema =>
-        val schemaRef = Ref(schema)
-        create(schemaRef) ~ list(schemaRef) ~
+        create(schema.ref) ~ list(schema.ref) ~
           pathPrefix(IdSegment) { id =>
             concat(
-              update(id, Some(schemaRef)),
-              create(id, schemaRef),
-              tag(id, Some(schemaRef)),
-              deprecate(id, Some(schemaRef)),
-              fetch(id, Some(schemaRef))
+              update(id, Some(schema.ref)),
+              create(id, schema.ref),
+              tag(id, Some(schema.ref)),
+              deprecate(id, Some(schema.ref)),
+              fetch(id, Some(schema.ref))
             )
           }
     }
