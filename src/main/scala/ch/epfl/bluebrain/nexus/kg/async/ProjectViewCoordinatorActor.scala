@@ -32,6 +32,7 @@ import shapeless.TypeCase
 
 import scala.collection.immutable.Set
 import scala.collection.mutable
+import scala.concurrent.Future
 
 /**
   * Coordinator backed by akka actor which runs the views' streams inside the provided project
@@ -88,8 +89,8 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
   def initialized(project: Project): Receive = {
     def stopView(v: SingleView, ref: ActorRef, deleteIndices: Boolean = true) = {
       stopActor(ref)
-      if (deleteIndices) deleteViewIndices(v, project).runToFuture
       children -= v
+      if (deleteIndices) deleteViewIndices(v, project).runToFuture else Future.unit
     }
 
     def startView(view: SingleView) = {
@@ -117,9 +118,12 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
         val toRemove = children.filterNot { case (v, _) => views.exists(_.id == v.id) }
         toRemove.foreach { case (v, ref) => stopView(v, ref) }
 
-      case _: ProjectChanges =>
-      //TODO: After the project has been updated we also have to recreate the elasticSearch/blazegraph indices as if it were a view update.
-
+      case ProjectChanges(_, newProject) =>
+        val _ = Future.sequence(children.map { case (view, ref) => stopView(view, ref).map(_ => view) }).map {
+          case views =>
+            context.become(initialized(newProject))
+            self ! ViewsChanges(project.uuid, views.toSet)
+        }
       case Stop(_) =>
         children.foreach { case (view, ref) => stopView(view, ref, deleteIndices = false) }
     }

@@ -46,7 +46,8 @@ class ProjectViewCoordinatorSpec
     val orgUuid = genUUID
     // format: off
     val project = Project(genIri, "some-project", "some-org", None, genIri, genIri, Map.empty, genUUID, orgUuid, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
-    val project2 = Project(genIri, "some-project2", "some-org", None, genIri, genIri, Map.empty, genUUID, orgUuid, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
+    val project2 = Project(genIri, "some-project2", "some-org", None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
+    val project2Updated = project2.copy(vocab = genIri)
     // format: on
     val view = SparqlView(project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2 =
@@ -62,19 +63,24 @@ class ProjectViewCoordinatorSpec
     val childActor2        = system.actorOf(Props(new DummyActor))
     val childActor2Updated = system.actorOf(Props(new DummyActor))
     val childActor3        = system.actorOf(Props(new DummyActor))
+    val childActor3Updated = system.actorOf(Props(new DummyActor))
+
     probe watch childActor1
     probe watch childActor2
     probe watch childActor2Updated
     probe watch childActor3
+    probe watch childActor3Updated
 
     val coordinatorProps = Props(
       new ProjectViewCoordinatorActor(viewCache) {
-        override def startActor(v: View.SingleView, project: Project): ActorRef = {
+        override def startActor(v: View.SingleView, proj: Project): ActorRef = {
           counterStart.incrementAndGet()
-          if (v == view) childActor1
-          else if (v == view2) childActor2
-          else if (v == view2Updated) childActor2Updated
-          else childActor3
+          if (v == view && proj == project) childActor1
+          else if (v == view2 && proj == project) childActor2
+          else if (v == view2Updated && proj == project) childActor2Updated
+          else if (v == view3 && proj == project2) childActor3
+          else if (v == view3 && proj == project2Updated) childActor3Updated
+          else system.actorOf(Props(new DummyActor))
         }
 
         override def deleteViewIndices(view: View.SingleView, project: Project): Task[Unit] = {
@@ -136,9 +142,24 @@ class ProjectViewCoordinatorSpec
     "stop all related views when organization is deprecated" in {
       coordinator.stop(OrganizationRef(orgUuid)).runToFuture.futureValue
       probe.expectTerminated(childActor2Updated)
-      probe.expectTerminated(childActor3)
       eventually(counterStop.get shouldEqual 2)
       eventually(counterStart.get shouldEqual 4)
+    }
+
+    "restart all related views when project changes" in {
+      projectCache.replace(project2Updated).runToFuture.futureValue
+      coordinator.change(project2Updated, project2).runToFuture.futureValue
+      probe.expectTerminated(childActor3)
+      eventually(counterStop.get shouldEqual 3)
+      eventually(counterStart.get shouldEqual 5)
+    }
+
+    "stop related views when project is deprecated" in {
+      projectCache.replace(project2Updated.copy(deprecated = true)).runToFuture.futureValue
+      coordinator.stop(project2Updated.ref).runToFuture.futureValue
+      probe.expectTerminated(childActor3Updated)
+      eventually(counterStop.get shouldEqual 3)
+      eventually(counterStart.get shouldEqual 5)
     }
   }
 
