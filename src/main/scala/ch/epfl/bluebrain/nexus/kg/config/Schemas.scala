@@ -22,6 +22,7 @@ object Schemas {
 
   val viewRef     = viewSchemaUri.ref
   val resolverRef = resolverSchemaUri.ref
+  val resourceRef = resourceSchemaUri.ref
   val shaclRef    = shaclSchemaUri.ref
   val fileRef     = fileSchemaUri.ref
 

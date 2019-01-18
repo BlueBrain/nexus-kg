@@ -93,7 +93,7 @@ sealed trait View extends Product with Serializable {
         val labelIris = r.value.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
           acc + (c.project -> (acc.getOrElse(c.project, Set.empty) + c.id))
         }
-        val projectsPerms = caller.hasPermission(acls, labelIris.keySet, viewsRead)
+        val projectsPerms = caller.hasPermission(acls, labelIris.keySet, queryPermission)
         val inaccessible  = labelIris.keySet -- projectsPerms
         if (inaccessible.nonEmpty) EitherT.leftT[F, View](ProjectsNotFound(inaccessible))
         else {
@@ -118,7 +118,9 @@ sealed trait View extends Product with Serializable {
 }
 
 object View {
-  val viewsRead = Set(Permission.unsafe("views/read"))
+
+  val queryPermission: Set[Permission] = Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"))
+  val writePermission: Set[Permission] = Set(Permission.unsafe("views/write"))
 
   /**
     * Enumeration of single view types.
@@ -334,8 +336,9 @@ object View {
       value.foldLeft(F.pure(Set.empty[String])) {
         case (accF, ViewRef(ref: ProjectRef, id)) =>
           (accF, viewCache.getBy[ElasticView](ref, id), projectCache.getLabel(ref)).mapN {
-            case (acc, Some(view), Some(label)) if caller.hasPermission(acls, label, viewsRead) => acc + view.index
-            case (acc, _, _)                                                                    => acc
+            case (acc, Some(view), Some(label)) if caller.hasPermission(acls, label, queryPermission) =>
+              acc + view.index
+            case (acc, _, _) => acc
           }
         case (accF, _) => accF
       }
@@ -355,8 +358,8 @@ object View {
   object AggregateElasticViewLabels {
     final def unapply(arg: AggregateElasticView[_]): Option[AggregateElasticViewLabels] =
       arg.value.toSeq match {
-        case (ViewRef(_: ProjectLabel, _)) +: _ => Some(arg.asInstanceOf[AggregateElasticViewLabels])
-        case _                                  => None
+        case ViewRef(_: ProjectLabel, _) +: _ => Some(arg.asInstanceOf[AggregateElasticViewLabels])
+        case _                                => None
       }
   }
 
@@ -364,8 +367,8 @@ object View {
   object AggregateElasticViewRefs {
     final def unapply(arg: AggregateElasticView[_]): Option[AggregateElasticViewRefs] =
       arg.value.toSeq match {
-        case (ViewRef(_: ProjectRef, _)) +: _ => Some(arg.asInstanceOf[AggregateElasticViewRefs])
-        case _                                => None
+        case ViewRef(_: ProjectRef, _) +: _ => Some(arg.asInstanceOf[AggregateElasticViewRefs])
+        case _                              => None
       }
   }
 

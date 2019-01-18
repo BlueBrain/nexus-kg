@@ -23,7 +23,7 @@ object QueryResultEncoder {
     case ScoredQueryResults(total, max, results) =>
       mainNode -> Graph((mainNode, nxv.total, total), (mainNode, nxv.maxScore, max)).add(mainNode, nxv.results, results)
     case UnscoredQueryResults(total, results) =>
-      mainNode -> Graph(((mainNode, nxv.total, total): Triple)).add(mainNode, nxv.results, results)
+      mainNode -> Graph((mainNode, nxv.total, total): Triple).add(mainNode, nxv.results, results)
   }
 
   def qrsEncoder[A](extraCtx: Json)(implicit enc: GraphEncoder[QueryResults[A]]): Encoder[QueryResults[A]] =

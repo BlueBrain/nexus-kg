@@ -19,8 +19,8 @@ class SchemaRoutes private[routes] (resources: Resources[Task], acls: AccessCont
     extends CommonRoutes(resources, "schemas", acls, caller, viewCache) {
 
   def routes: Route = {
-    val shaclRefOpt = Option(shaclRef)
-    create(shaclRef) ~ list(shaclRef) ~
+    val shaclRefOpt = Some(shaclRef)
+    create(shaclRef) ~ list(shaclRefOpt) ~
       pathPrefix(IdSegment) { id =>
         concat(
           update(id, shaclRefOpt),

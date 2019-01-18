@@ -19,6 +19,7 @@ import monix.eval.Task
   * @param adminClient the implicitly available admin client
   * @param iamClient   the implicitly available iam client
   * @param httpClient  the implicitly available [[UntypedHttpClient]]
+  * @param uclJson     the implicitly available [[HttpClient]] with a JSON unmarshaller
   * @param mt          the implicitly available [[ActorMaterializer]]
   * @tparam F the monadic effect type
   */
@@ -27,5 +28,5 @@ final case class Clients[F[_]](sparql: BlazegraphClient[F])(implicit val elastic
                                                             val iamClient: IamClient[F],
                                                             val rsSearch: HttpClient[F, QueryResults[Json]],
                                                             val httpClient: UntypedHttpClient[Task],
-                                                            implicit val uclJson: HttpClient[Task, Json],
+                                                            val uclJson: HttpClient[Task, Json],
                                                             val mt: ActorMaterializer)

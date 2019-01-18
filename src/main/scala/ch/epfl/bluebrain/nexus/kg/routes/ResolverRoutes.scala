@@ -24,8 +24,8 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: AccessCo
   private implicit val projectCache = cache.project
 
   def routes: Route = {
-    val resolverRefOpt = Option(resolverRef)
-    create(resolverRef) ~ list(resolverRef) ~
+    val resolverRefOpt = Some(resolverRef)
+    create(resolverRef) ~ list(resolverRefOpt) ~
       pathPrefix(IdSegment) { id =>
         concat(
           update(id, resolverRefOpt),
@@ -38,5 +38,6 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: AccessCo
   }
 
   override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.resolver(caller)
-  override def transform(r: ResourceV)                         = transformation(r)
+
+  override def transform(r: ResourceV): Task[ResourceV] = transformation(r)
 }

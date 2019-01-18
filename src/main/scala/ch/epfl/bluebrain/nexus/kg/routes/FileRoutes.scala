@@ -43,8 +43,8 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   private type RejectionOrFile = Either[AkkaRejection, Option[(FileAttributes, AkkaOut)]]
 
   def routes: Route = {
-    val fileRefOpt = Option(fileRef)
-    create(fileRef) ~ list(fileRef) ~
+    val fileRefOpt = Some(fileRef)
+    create(fileRef) ~ list(fileRefOpt) ~
       pathPrefix(IdSegment) { id =>
         concat(
           update(id, fileRefOpt),
@@ -58,7 +58,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
     pathPrefix(IdSegment) { id =>
-      (put & projectNotDeprecated & hasPermission(resourceWrite) & pathEndOrSingleSlash) {
+      (put & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
         fileUpload("file") {
           case (metadata, byteSource) =>
             val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -71,7 +71,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def create(schema: Ref): Route =
-    (post & projectNotDeprecated & hasPermission(resourceWrite) & pathEndOrSingleSlash) {
+    (post & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -83,7 +83,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     pathPrefix(IdSegment) { id =>
-      (put & parameter('rev.as[Long]) & projectNotDeprecated & hasPermission(resourceWrite) & pathEndOrSingleSlash) {
+      (put & parameter('rev.as[Long]) & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
         rev =>
           fileUpload("file") {
             case (metadata, byteSource) =>
@@ -103,7 +103,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & hasPermission(resourceRead) & pathEndOrSingleSlash) {
+    (get & parameter('rev.as[Long].?) & parameter('tag.?) & hasPermission(readPermission) & pathEndOrSingleSlash) {
       (revOpt, tagOpt) =>
         val result = (revOpt, tagOpt) match {
           case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrFile)

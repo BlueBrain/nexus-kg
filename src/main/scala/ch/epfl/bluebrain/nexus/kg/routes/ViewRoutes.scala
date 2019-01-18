@@ -37,12 +37,12 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   private implicit val projectCache = cache.project
   private implicit val viewCache    = cache.view
-
-  import indexers._
+  private implicit val esClient     = indexers.elastic
+  private implicit val ujClient     = indexers.uclJson
 
   def routes: Route = {
-    val viewRefOpt = Option(viewRef)
-    create(viewRef) ~ list(viewRef) ~ sparql ~ elasticSearch ~
+    val viewRefOpt = Some(viewRef)
+    create(viewRef) ~ list(viewRefOpt) ~ sparql ~ elasticSearch ~
       pathPrefix(IdSegment) { id =>
         concat(
           update(id, viewRefOpt),
@@ -55,11 +55,12 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   }
 
   override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.view[Task](caller, acls)
-  override def transform(r: ResourceV)                         = transformation(r)
+
+  override def transform(r: ResourceV): Task[ResourceV] = transformation(r)
 
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>
-      (post & entity(as[String]) & hasPermission(resourceRead) & pathEndOrSingleSlash) { query =>
+      (post & entity(as[String]) & hasPermission(queryPermission) & pathEndOrSingleSlash) { query =>
         val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
           case Some(v) => indexers.sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
           case _       => Task.pure(Left(NotFound(id.ref)))
@@ -70,7 +71,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   private def elasticSearch: Route =
     pathPrefix(IdSegment / "_search") { id =>
-      (post & entity(as[Json]) & extract(_.request.uri.query()) & hasPermission(resourceRead) & pathEndOrSingleSlash) {
+      (post & entity(as[Json]) & extract(_.request.uri.query()) & hasPermission(queryPermission) & pathEndOrSingleSlash) {
         (query, params) =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
             case Some(v: ElasticView) => indexers.elastic.searchRaw(query, Set(v.index), params).map(Right.apply)
@@ -89,7 +90,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     v.value.toList.foldM(List.empty[String]) {
       case (acc, ViewRef(ref, id)) =>
         (cache.view.getBy[ElasticView](ref, id) -> cache.project.getLabel(ref)).mapN {
-          case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, resourceRead) =>
+          case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, queryPermission) =>
             view.index :: acc
           case _ =>
             acc
