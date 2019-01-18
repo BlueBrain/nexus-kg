@@ -639,7 +639,8 @@ class ResourceRoutesSpec
           responseAs[Json] shouldEqual json
         }
       }
-      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(metadataRanges: _*) ~> routes ~> check {
+      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(
+        metadataRanges: _*) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual json
       }
