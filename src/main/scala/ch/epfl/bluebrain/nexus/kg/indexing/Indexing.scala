@@ -119,7 +119,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
       }
     }
 
-    EventSource((config.admin.baseUri + "projects" + "events").toAkkaUri, send, None, 1 second)
+    EventSource((config.admin.baseUri + "events").toAkkaUri, send, None, 1 second)
       .mapAsync(1) { sse =>
         decode[Event](sse.data) match {
           case Right(event) => handle(event).runToFuture

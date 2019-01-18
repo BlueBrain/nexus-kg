@@ -60,7 +60,6 @@ lazy val rdfCirce             = "ch.epfl.bluebrain.nexus" %% "rdf-circe"        
 lazy val rdfNexus             = "ch.epfl.bluebrain.nexus" %% "rdf-nexus"                   % rdfVersion
 lazy val serviceIndexing      = "ch.epfl.bluebrain.nexus" %% "service-indexing"            % serviceVersion
 lazy val serviceTest          = "ch.epfl.bluebrain.nexus" %% "service-test"                % serviceVersion
-lazy val serviceKafka         = "ch.epfl.bluebrain.nexus" %% "service-kafka"               % serviceVersion
 lazy val serviceKamon         = "ch.epfl.bluebrain.nexus" %% "service-kamon"               % serviceVersion
 lazy val serviceHttp          = "ch.epfl.bluebrain.nexus" %% "service-http"                % serviceVersion
 lazy val serviceSerialization = "ch.epfl.bluebrain.nexus" %% "service-serialization"       % serviceVersion
@@ -128,7 +127,6 @@ lazy val kg = project
       monixTail,
       pureconfig,
       sparqlClient,
-      serviceKafka,
       serviceKamon,
       serviceHttp,
       serviceSerialization,
