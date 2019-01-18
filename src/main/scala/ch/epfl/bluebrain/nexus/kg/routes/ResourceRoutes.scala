@@ -54,14 +54,10 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
     }
 
   def list: Route =
-    (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
-      (deprecated, pagination) =>
-        trace(s"list$resourceName") {
-          complete(
-            cache.view
-              .getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
-              .flatMap(v => resources.list(v, deprecated, pagination))
-              .runToFuture)
-        }
+    (get & paginated & searchParams & hasPermission(resourceRead) & pathEndOrSingleSlash) { (pagination, params) =>
+      trace(s"list$resourceName") {
+        val defaultView = cache.view.getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
+        complete(defaultView.flatMap(v => resources.list(v, params, pagination)).runToFuture)
+      }
     }
 }

@@ -22,6 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -32,6 +33,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, GraphConfiguration, Iri}
 import io.circe.Json
@@ -103,7 +105,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def createFile[In](projectRef: ProjectRef, base: AbsoluteIri, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
       store: FileStore[F, In, _]): RejOrResource =
-    createFile(Id(projectRef, base + uuid()), fileDesc, source)
+    createFile(Id(projectRef, generateId(base)), fileDesc, source)
 
   /**
     * Creates a file resource.
@@ -278,49 +280,18 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     repo.getFile(id, tag)
 
   /**
-    * Lists resources for the given project
-    *
-    * @param view       optionally available default elasticSearch view
-    * @param deprecated deprecation status of the resources
-    * @param pagination pagination options
-    * @param tc         typed HTTP client
-    * @return search results in the F context
-    */
-  def list(view: Option[ElasticView], deprecated: Option[Boolean], pagination: Pagination)(
-      implicit tc: HttpClient[F, JsonResults],
-      elastic: ElasticClient[F]): F[JsonResults] =
-    list(view, deprecated, None, pagination)
-
-  /**
     * Lists resources for the given project and schema
     *
     * @param view       optionally available default elasticSearch view
-    * @param deprecated deprecation status of the resources
-    * @param schema     schema by which the resources are constrained
+    * @param params     filter parameters of the resources
     * @param pagination pagination options
     * @return search results in the F context
     */
-  def list(view: Option[ElasticView], deprecated: Option[Boolean], schema: AbsoluteIri, pagination: Pagination)(
+  def list(view: Option[ElasticView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
       elastic: ElasticClient[F]): F[JsonResults] =
-    list(view, deprecated, Some(schema), pagination)
-
-  /**
-    * Lists resources for the given project and schema
-    *
-    * @param view       optionally available default elasticSearch view
-    * @param deprecated deprecation status of the resources
-    * @param schema     optional schema by which the resources are constrained
-    * @param pagination pagination options
-    * @return search results in the F context
-    */
-  private def list(
-      view: Option[ElasticView],
-      deprecated: Option[Boolean],
-      schema: Option[AbsoluteIri],
-      pagination: Pagination)(implicit tc: HttpClient[F, JsonResults], elastic: ElasticClient[F]): F[JsonResults] =
     view
-      .map(v => elastic.search(queryFor(deprecated, schema), Set(v.index))(pagination))
+      .map(v => elastic.search(queryFor(params), Set(v.index))(pagination))
       .getOrElse(F.pure(UnscoredQueryResults(0L, List.empty)))
 
   /**
@@ -521,12 +492,14 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
         value.primaryNode match {
           case Some(IriNode(iri)) => EitherT.rightT(Id(projectRef, iri) -> value)
           case Some(bNode: BNode) =>
-            val iri = base + uuid()
+            val iri = generateId(base)
             EitherT.rightT(Id(projectRef, iri) -> replaceBNode(bNode, iri))
           case _ => EitherT.leftT(UnableToSelectResourceId)
         }
     }
   }
+
+  private def generateId(base: AbsoluteIri): AbsoluteIri = url"${base.asString}${uuid()}"
 
   private final implicit class RefSyntax(ref: Ref) {
 

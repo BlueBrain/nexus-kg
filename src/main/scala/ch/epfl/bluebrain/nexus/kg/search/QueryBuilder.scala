@@ -1,8 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.search
 
-import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import io.circe.Json
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import io.circe.syntax._
+import io.circe.{Encoder, Json}
 
 object QueryBuilder {
 
@@ -14,28 +16,19 @@ object QueryBuilder {
                )
              ))
 
-  private def deprecatedTerm(deprecatedOpt: Option[Boolean]): List[Json] = deprecatedOpt match {
-    case Some(deprecated) =>
-      List(
-        Json.obj(
-          "term" -> Json.obj(
-            "_deprecated" -> Json.fromBoolean(deprecated)
-          )
-        ))
-    case None => List.empty
-  }
+  private def term[A: Encoder](k: String, value: A): Json =
+    Json.obj("term" -> Json.obj(k -> value.asJson))
 
   /**
     * Build Elastic search query from deprecation status and schema
-    * @param deprecated optional deprecation status
-    * @param schema     optional schema to filter resources by
-    * @return           ElasticSearch query
+    *
+    * @param params the search parameters to perform the query
+    * @return ElasticSearch query
     */
-  def queryFor(deprecated: Option[Boolean], schema: Option[AbsoluteIri] = None): Json =
-    baseQuery(schema match {
-      case Some(s) =>
-        Json.obj("term" -> Json.obj("_constrainedBy" -> Json.fromString(s.show))) :: deprecatedTerm(deprecated)
-      case None =>
-        deprecatedTerm(deprecated)
-    })
+  def queryFor(params: SearchParams): Json =
+    baseQuery(
+      params.types.map(term("@type", _)) ++ params.id.map(term("@id", _)) ++ params.schema.map(
+        term(nxv.constrainedBy.prefix, _)) ++ params.deprecated
+        .map(term(nxv.deprecated.prefix, _)) ++ params.rev.map(term(nxv.rev.prefix, _)) ++ params.createdBy.map(
+        term(nxv.createdBy.prefix, _)) ++ params.updatedBy.map(term(nxv.updatedBy.prefix, _)))
 }

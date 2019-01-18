@@ -31,7 +31,6 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
         "pass")
       appConfig.elastic shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
-      appConfig.kafka.adminTopic shouldEqual "admin-events"
 
       implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       implicitly[ElasticConfig] shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")

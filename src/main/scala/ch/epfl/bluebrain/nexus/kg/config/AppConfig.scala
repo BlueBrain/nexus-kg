@@ -38,7 +38,6 @@ import scala.concurrent.duration.FiniteDuration
   * @param pagination    Pagination configuration
   * @param keyValueStore Distributed data configuration
   * @param indexing      Indexing configuration
-  * @param kafka         Kafka configuration
   * @param sourcing      Sourcing configuration
   */
 final case class AppConfig(description: Description,
@@ -53,7 +52,6 @@ final case class AppConfig(description: Description,
                            pagination: PaginationConfig,
                            keyValueStore: KeyValueStoreConfig,
                            indexing: IndexingConfig,
-                           kafka: KafkaConfig,
                            sourcing: SourcingConfig)
 
 object AppConfig {
@@ -137,13 +135,6 @@ object AppConfig {
                              cacheRefreshInterval: FiniteDuration) {
     val iamClient: IamClientConfig = IamClientConfig(url"${baseUri.toString}".value)
   }
-
-  /**
-    * Kafka config
-    *
-    * @param adminTopic the topic for organization and project events
-    */
-  final case class KafkaConfig(adminTopic: String)
 
   /**
     * Collection of configurable settings specific to the Sparql indexer.
