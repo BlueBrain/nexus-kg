@@ -67,6 +67,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import shapeless.Typeable
 
+//noinspection TypeAnnotation
 class ResourceRoutesSpec
     extends WordSpecLike
     with Matchers
@@ -112,13 +113,11 @@ class ResourceRoutesSpec
   private val oauthToken                        = OAuth2BearerToken("valid")
   private val read                              = Set(Permission.unsafe("resources/read"))
   private val manageRes                         = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
-  private val manageResolver                    = Set(Permission.unsafe("resolvers/read"), Permission.unsafe("resolvers/write"))
-  private val manageViews                       = Set(Permission.unsafe("views/read"), Permission.unsafe("views/write"))
-  private val manageSchemas                     = Set(Permission.unsafe("schemas/read"), Permission.unsafe("schemas/write"))
-  private val manageFiles                       = Set(Permission.unsafe("files/read"), Permission.unsafe("files/write"))
-  private val routes                            = Routes(resources)
+  private val manageViews =
+    Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"), Permission.unsafe("views/write"))
+  private val routes = Routes(resources)
 
-  abstract class Context(perms: Set[Permission] = manageRes) {
+  abstract class Context(perms: Set[Permission]) {
     val organization = genString(length = 4)
     val project      = genString(length = 4)
     val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
@@ -202,30 +201,32 @@ class ResourceRoutesSpec
     )
 
     private val label = ProjectLabel(organization, project)
-    when(projectCache.getBy(label)).thenReturn(Task.pure(Option(projectMeta)))
-    when(projectCache.getLabel(projectRef)).thenReturn(Task.pure(Option(label)))
-    when(projectCache.get(projectRef)).thenReturn(Task.pure(Option(projectMeta)))
+    when(projectCache.getBy(label)).thenReturn(Task.pure(Some(projectMeta)))
+    when(projectCache.getLabel(projectRef)).thenReturn(Task.pure(Some(label)))
+    when(projectCache.get(projectRef)).thenReturn(Task.pure(Some(projectMeta)))
     when(viewCache.get(projectRef))
       .thenReturn(Task.pure(Set[IndexingView](defaultEsView, defaultSQLView, aggView, otherEsView)))
     when(
       viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.defaultElasticIndex.value))(any[Typeable[IndexingView]]))
-      .thenReturn(Task.pure(Option(defaultEsView)))
-
+      .thenReturn(Task.pure(Some(defaultEsView)))
     when(viewCache.getBy[ElasticView](mEq(projectRef), mEq(nxv.defaultElasticIndex.value))(any[Typeable[ElasticView]]))
-      .thenReturn(Task.pure(Option(defaultEsView)))
+      .thenReturn(Task.pure(Some(defaultEsView)))
     when(
       viewCache.getBy[ElasticView](mEq(projectRef), mEq(nxv.withSuffix("otherEs").value))(any[Typeable[ElasticView]]))
-      .thenReturn(Task.pure(Option(otherEsView)))
+      .thenReturn(Task.pure(Some(otherEsView)))
     when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.withSuffix("agg").value))(any[Typeable[IndexingView]]))
-      .thenReturn(Task.pure(Option(aggView)))
+      .thenReturn(Task.pure(Some(aggView)))
     when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.withSuffix("some").value))(any[Typeable[IndexingView]]))
       .thenReturn(Task.pure(None: Option[IndexingView]))
     when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.defaultSparqlIndex.value))(any[Typeable[IndexingView]]))
-      .thenReturn(Task.pure(Option(defaultSQLView)))
+      .thenReturn(Task.pure(Some(defaultSQLView)))
+    when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(id.value))(any[Typeable[IndexingView]]))
+      .thenReturn(Task.pure(None))
+
     when(iamClient.identities).thenReturn(Task.pure(Caller(user, Set(Anonymous))))
     val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
     when(aclsOps.fetch()).thenReturn(Task.pure(acls))
-    when(projectCache.getProjectLabels(Set(projectRef))).thenReturn(Task.pure(Map(projectRef -> Option(label))))
+    when(projectCache.getProjectLabels(Set(projectRef))).thenReturn(Task.pure(Map(projectRef -> Some(label))))
 
     def schemaRef: Ref
 
@@ -253,7 +254,7 @@ class ResourceRoutesSpec
       "_results" -> Json.arr(
         (1 to 5).map(i => {
           val id = s"${appConfig.http.publicUri}/resources/$organization/$project/resource/resource:$i"
-          jsonContentOf("/resources/es-metadata.json", Map(quote("{id}") -> id.toString()))
+          jsonContentOf("/resources/es-metadata.json", Map(quote("{id}") -> id.toString))
         }): _*
       )
     )
@@ -268,14 +269,14 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/nxv:$genUuid"))
   }
 
-  abstract class File(perms: Set[Permission] = manageFiles) extends Context(perms) {
+  abstract class File extends Context(manageRes) {
     val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
     val schemaRef = Ref(fileSchemaUri)
 
     val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
   }
 
-  abstract class Schema(perms: Set[Permission] = manageSchemas) extends Context(perms) {
+  abstract class Schema(perms: Set[Permission] = manageRes) extends Context(perms) {
     val schema    = jsonContentOf("/schemas/resolver.json")
     val schemaRef = Ref(shaclSchemaUri)
 
@@ -284,7 +285,7 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid"))
   }
 
-  abstract class Resolver(perms: Set[Permission] = manageResolver) extends Context(perms) {
+  abstract class Resolver extends Context(manageRes) {
     val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj(
       "@id" -> Json.fromString(id.value.show))
     val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
@@ -367,7 +368,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "reject when not enough permissions" in new Views(Set[Permission](Permission.unsafe("views/read"))) {
+      "reject when not enough permissions" in new Views(Set[Permission](Permission.unsafe("views/query"))) {
         val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
         Put(s"/v1/views/$organization/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Unauthorized
@@ -460,7 +461,7 @@ class ResourceRoutesSpec
 
       "list resources constrained by a schema" in new Ctx {
         when(
-          resources.list(mEq(Option(defaultEsView)),
+          resources.list(mEq(Some(defaultEsView)),
                          mEq(SearchParams(schema = Some(resourceSchemaUri))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
@@ -476,9 +477,9 @@ class ResourceRoutesSpec
         }
       }
 
-      "list views" in new Ctx(Set(Permission.unsafe("views/read"))) {
+      "list views" in new Ctx(read) {
         when(
-          resources.list(mEq(Option(defaultEsView)),
+          resources.list(mEq(Some(defaultEsView)),
                          mEq(SearchParams(schema = Some(viewSchemaUri))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
@@ -495,9 +496,9 @@ class ResourceRoutesSpec
         }
       }
 
-      "list resolvers not deprecated" in new Ctx(Set(Permission.unsafe("resolvers/read"))) {
+      "list resolvers not deprecated" in new Ctx(read) {
         when(
-          resources.list(mEq(Option(defaultEsView)),
+          resources.list(mEq(Some(defaultEsView)),
                          mEq(SearchParams(deprecated = Some(false), schema = Some(resolverSchemaUri))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
@@ -519,7 +520,7 @@ class ResourceRoutesSpec
         val listTypes =
           List[AbsoluteIri](nxv.withSuffix("other"), Iri.absolute(projectMeta.vocab.asString + "Some").right.value)
         when(
-          resources.list(mEq(Option(defaultEsView)),
+          resources.list(mEq(Some(defaultEsView)),
                          mEq(SearchParams(types = listTypes, createdBy = Some(url"http://example.com/user"))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
@@ -536,19 +537,53 @@ class ResourceRoutesSpec
       }
     }
 
+    "list all resources" in new Ctx {
+      when(
+        resources.list(mEq(Some(defaultEsView)), mEq(SearchParams()), mEq(Pagination(0, 20)))(
+          isA[HttpClient[Task, QueryResults[Json]]],
+          isA[ElasticClient[Task]]
+        )
+      ).thenReturn(Task.pure(
+        UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))
+
+      val endpoints = List(s"/v1/resources/$organization/$project", s"/v1/resources/$organization/$project/_")
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual listingResponse()
+        }
+      }
+    }
+
     "get a file resource" in new File {
+      val resource = ResourceF.simpleF(id,
+                                       Json.obj(),
+                                       created = subject,
+                                       updated = subject,
+                                       schema = schemaRef,
+                                       types = Set(nxv.File.value))
       val path    = Paths.get(getClass.getResource("/resources/file.txt").toURI)
       val at1     = FileAttributes("uuid1", path, "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
       val content = new String(Files.readAllBytes(path))
       val source =
         Source.single(ByteString(content)).mapMaterializedValue(_ => FileIO.fromPath(path).to(Sink.ignore).run())
 
+      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
       when(resources.fetchFile(id, 1L)).thenReturn(OptionT.some[Task](at1 -> source))
+      when(resources.fetchFile(id, 2L)).thenReturn(OptionT.some[Task](at1 -> source))
+      when(resources.fetchFile(id, 3L)).thenReturn(OptionT.some[Task](at1 -> source))
 
-      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        contentType.value shouldEqual "text/plain"
-        responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+      val endpoints = List(
+        s"/v1/files/$organization/$project/nxv:$genUuid?rev=1",
+        s"/v1/resources/$organization/$project/file/nxv:$genUuid?rev=2",
+        s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=3"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType.value shouldEqual "text/plain"
+          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+        }
       }
     }
 
@@ -593,12 +628,11 @@ class ResourceRoutesSpec
     }
 
     "reject getting a resource that does not exist" in new Ctx {
+      when(resources.fetch(id, None)).thenReturn(OptionT.none[Task, Resource])
+      when(resources.fetch(id, 1L, None)).thenReturn(OptionT.none[Task, Resource])
 
-      when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.none[Task, Resource])
-
-      Get(s"/v1/resources/$organization/$project/resource/nxv:$genUuid?rev=1") ~> addHeader(
-        "Accept",
-        "application/json") ~> addCredentials(oauthToken) ~> routes ~> check {
+      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> addHeader("Accept", "application/json") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].code shouldEqual classNameOf[NotFound.type]
       }
