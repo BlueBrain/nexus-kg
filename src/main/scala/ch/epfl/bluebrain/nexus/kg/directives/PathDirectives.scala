@@ -23,13 +23,14 @@ object PathDirectives {
     */
   @SuppressWarnings(Array("MethodNames"))
   def IdSegment(implicit project: Project): PathMatcher1[AbsoluteIri] =
-    Segment flatMap toIri
+    Segment flatMap { s =>
+      toIri(s) orElse Iri.absolute(project.base.asString + s).toOption
+    }
 
-  private def toIri(s: String)(implicit project: Project): Option[AbsoluteIri] =
+  def toIri(s: String)(implicit project: Project): Option[AbsoluteIri] =
     project.apiMappings.get(s) orElse
       Curie(s).flatMap(_.toIriUnsafePrefix(project.apiMappings)).toOption orElse
-      Iri.url(s).toOption orElse
-      Iri.absolute(project.base.asString + s).toOption
+      Iri.url(s).toOption
 
   /**
     * Attempts to match a segment and build an [[AbsoluteIri]], as in the method ''IdSegment''.

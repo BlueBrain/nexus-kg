@@ -50,7 +50,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
-import ch.epfl.bluebrain.nexus.rdf.Graph
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
@@ -460,7 +460,9 @@ class ResourceRoutesSpec
 
       "list resources constrained by a schema" in new Ctx {
         when(
-          resources.list(mEq(Option(defaultEsView)), mEq(None), mEq(resourceSchemaUri), mEq(Pagination(0, 20)))(
+          resources.list(mEq(Option(defaultEsView)),
+                         mEq(SearchParams(schema = Some(resourceSchemaUri))),
+                         mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
           )
@@ -476,7 +478,9 @@ class ResourceRoutesSpec
 
       "list views" in new Ctx(Set(Permission.unsafe("views/read"))) {
         when(
-          resources.list(mEq(Option(defaultEsView)), mEq(None), mEq(viewSchemaUri), mEq(Pagination(0, 20)))(
+          resources.list(mEq(Option(defaultEsView)),
+                         mEq(SearchParams(schema = Some(viewSchemaUri))),
+                         mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
           )
@@ -494,8 +498,7 @@ class ResourceRoutesSpec
       "list resolvers not deprecated" in new Ctx(Set(Permission.unsafe("resolvers/read"))) {
         when(
           resources.list(mEq(Option(defaultEsView)),
-                         mEq(Option(false)),
-                         mEq(resolverSchemaUri),
+                         mEq(SearchParams(deprecated = Some(false), schema = Some(resolverSchemaUri))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
@@ -512,16 +515,21 @@ class ResourceRoutesSpec
         }
       }
 
-      "list resources" in new Ctx() {
+      "list resources with types" in new Ctx {
+        val listTypes =
+          List[AbsoluteIri](nxv.withSuffix("other"), Iri.absolute(projectMeta.vocab.asString + "Some").right.value)
         when(
-          resources.list(mEq(Option(defaultEsView)), mEq(None), mEq(Pagination(0, 20)))(
+          resources.list(mEq(Option(defaultEsView)),
+                         mEq(SearchParams(types = listTypes, createdBy = Some(url"http://example.com/user"))),
+                         mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
           )
         ).thenReturn(Task.pure(
           UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))
 
-        Get(s"/v1/resources/$organization/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
+        Get(s"/v1/resources/$organization/$project?type=Some&type=nxv:other&createdBy=http%3A%2F%2Fexample.com%2Fuser") ~> addCredentials(
+          oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual listingResponse()
         }

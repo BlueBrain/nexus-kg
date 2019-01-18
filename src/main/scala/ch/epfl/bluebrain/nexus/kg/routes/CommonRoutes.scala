@@ -107,15 +107,16 @@ private[routes] abstract class CommonRoutes(
     }
 
   def list(schema: Ref): Route =
-    (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
-      (deprecated, pagination) =>
+    (get & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) { pagination =>
+      (parameter('deprecated.as[Boolean].?) & parameter('rev.as[Long].?) &
+        parameter('createdBy.as[AbsoluteIri].?) & parameter('updatedBy.as[AbsoluteIri].?) &
+        parameter('type.as[VocabAbsoluteIri].*)) { (deprecated, rev, createdBy, updatedBy, types) =>
+        val params = SearchParams(deprecated, rev, Some(schema.iri), createdBy, updatedBy, types.map(_.value).toList)
         trace(s"list$resourceName") {
-          complete(
-            viewCache
-              .getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
-              .flatMap(v => resources.list(v, deprecated, schema.iri, pagination))
-              .runToFuture)
+          val defaultView = viewCache.getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
+          complete(defaultView.flatMap(v => resources.list(v, params, pagination)).runToFuture)
         }
+      }
     }
 
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {

@@ -127,6 +127,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
           }
         case ProjectDeprecated(uuid, rev, _, _) =>
           cache.project.deprecate(ProjectRef(uuid), rev) *> coordinator.stop(ProjectRef(uuid))
+        case _ => Task.unit
       }
     }
 
