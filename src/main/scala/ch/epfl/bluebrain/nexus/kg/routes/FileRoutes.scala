@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{Accept, _}
+import akka.http.scaladsl.model.headers.{Accept, RawHeader}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
 import cats.data.OptionT
