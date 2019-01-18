@@ -85,7 +85,11 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
       .getOrElse(request)
 
   private def send(request: HttpRequest): Future[HttpResponse] = {
-    http.singleRequest(addCredentials(request))
+    http.singleRequest(addCredentials(request)).map { resp =>
+      if (!resp.status.isSuccess())
+        logger.warn(s"HTTP response when performing SSE request: status = '${resp.status}'")
+      resp
+    }
   }
 
   def startAdminStream(): Unit = {
