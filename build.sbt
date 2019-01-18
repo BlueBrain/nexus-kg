@@ -36,6 +36,7 @@ val akkaCorsVersion             = "0.3.3"
 val akkaHttpVersion             = "10.1.5"
 val akkaPersistenceInMemVersion = "2.5.1.1"
 val akkaPersistenceCassVersion  = "0.92"
+val alpakkaVersion              = "1.0-M1"
 val catsVersion                 = "1.5.0"
 val catsEffectVersion           = "1.1.0"
 val circeVersion                = "0.11.1"
@@ -78,6 +79,7 @@ lazy val akkaPersistenceCass  = "com.typesafe.akka"       %% "akka-persistence-c
 lazy val akkaPersistenceInMem = "com.github.dnvriend"     %% "akka-persistence-inmemory"   % akkaPersistenceInMemVersion
 lazy val akkaSlf4j            = "com.typesafe.akka"       %% "akka-slf4j"                  % akkaVersion
 lazy val akkaStream           = "com.typesafe.akka"       %% "akka-stream"                 % akkaVersion
+lazy val alpakkaSSE           = "com.lightbend.akka"      %% "akka-stream-alpakka-sse"     % alpakkaVersion
 lazy val catsCore             = "org.typelevel"           %% "cats-core"                   % catsVersion
 lazy val catsEffect           = "org.typelevel"           %% "cats-effect"                 % catsEffectVersion
 lazy val circeCore            = "io.circe"                %% "circe-core"                  % circeVersion
@@ -115,6 +117,7 @@ lazy val kg = project
       akkaStream,
       akkaSlf4j,
       akkaCluster,
+      alpakkaSSE,
       catsCore,
       catsEffect,
       circeCore,

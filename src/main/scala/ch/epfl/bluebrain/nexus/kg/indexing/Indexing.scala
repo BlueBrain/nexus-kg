@@ -1,8 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.ActorSystem
-import akka.kafka.ConsumerSettings
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.ActorMaterializer
+import akka.stream.alpakka.sse.scaladsl.EventSource
+import akka.stream.scaladsl.Sink
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event
@@ -26,19 +29,19 @@ import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.AlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.syntax.akka._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
-import ch.epfl.bluebrain.nexus.service.kafka.KafkaConsumer
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
 import com.github.ghik.silencer.silent
 import io.circe.Json
+import io.circe.parser._
 import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
-import org.apache.kafka.common.serialization.StringDeserializer
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -46,11 +49,12 @@ import scala.concurrent.duration._
 // $COVERAGE-OFF$
 @silent
 private class Indexing(resources: Resources[Task], cache: Caches[Task], coordinator: ProjectViewCoordinator[Task])(
-    implicit as: ActorSystem,
+    implicit mt: ActorMaterializer,
+    as: ActorSystem,
     config: AppConfig) {
 
   private val logger                                          = Logger[this.type]
-  private val consumerSettings                                = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
+  private val http                                            = Http()
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
   private implicit val strategy: RetryStrategy                = Backoff(1 minute, 0.2)
 
@@ -73,11 +77,14 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
     case Right(value)                => Right(value)
   }
 
-  def startKafkaStream(): Unit = {
+  private def send(request: HttpRequest): Future[HttpResponse] =
+    http.singleRequest(request)
 
-    def index(event: Event): Future[Unit] = {
-      logger.debug(s"Handling admin event: '$event'")
-      val update = event match {
+  def startAdminStream(): Unit = {
+
+    def handle(event: Event): Task[Unit] = {
+      logger.info(s"Handling admin event: '$event'")
+      event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
           coordinator.stop(OrganizationRef(uuid))
 
@@ -94,7 +101,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
             coordinator.start(project) *>
             resources.create(Id(project.ref, elasticView.id), viewRef, asJson(elasticView)).value.retryWhenNot(createdOrExists, 15) *>
             resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.retryWhenNot(createdOrExists, 15) *>
-            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.retryWhenNot(createdOrExists, 15) *> 
+            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.retryWhenNot(createdOrExists, 15) *>
             Task.unit
           // format: on
 
@@ -110,10 +117,19 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
         case ProjectDeprecated(uuid, rev, _, _) =>
           cache.project.deprecate(ProjectRef(uuid), rev) *> coordinator.stop(ProjectRef(uuid))
       }
-      update.runToFuture
     }
 
-    KafkaConsumer.start(consumerSettings, index, config.kafka.adminTopic, "admin-events", committable = false, None)
+    EventSource((config.admin.baseUri + "projects" + "events").toAkkaUri, send, None, 1 second)
+      .mapAsync(1) { sse =>
+        decode[Event](sse.data) match {
+          case Right(event) => handle(event).runToFuture
+          case Left(err) =>
+            logger.error(s"Failed to decode admin event '$sse'", err)
+            Future.unit
+        }
+      }
+      .to(Sink.ignore)
+      .run()
     ()
   }
 
@@ -153,7 +169,7 @@ object Indexing {
     val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)
 
     val indexing = new Indexing(resources, cache, coordinator)
-//    indexing.startKafkaStream()
+    indexing.startAdminStream()
     indexing.startResolverStream()
     indexing.startViewStream()
   }
