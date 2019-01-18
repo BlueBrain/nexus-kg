@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
-import java.util.UUID
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.MediaTypes.`application/json`
@@ -43,7 +42,6 @@ import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -80,7 +78,8 @@ class ResourceRoutesSpec
     with test.Resources
     with ScalaFutures
     with Randomness
-    with TestHelper {
+    with TestHelper
+    with Inspectors {
 
   private implicit val appConfig = Settings(system).appConfig
   private val iamUri             = appConfig.iam.baseUri
@@ -296,18 +295,6 @@ class ResourceRoutesSpec
         "@type" -> Json.arr(Json.fromString("nxv:CrossProject"), Json.fromString("nxv:Resolver")),
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid")
       )
-
-    val resolverList = List(
-      InProjectResolver(projectRef, nxv.deprecated, 1L, deprecated = false, 20),
-      CrossProjectResolver(Set(nxv.Schema),
-                           Set(projectRef),
-                           List(Anonymous),
-                           projectRef,
-                           nxv.group,
-                           2L,
-                           deprecated = false,
-                           30)
-    )
   }
 
   abstract class Views(perms: Set[Permission] = manageViews) extends Context(perms) {
@@ -315,29 +302,8 @@ class ResourceRoutesSpec
       .removeKeys("_uuid")
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
 
-    val types           = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
-    val schemaRef       = Ref(viewSchemaUri)
-    private val mapping = jsonContentOf("/elastic/mapping.json")
-
-    val views: Set[IndexingView] = Set(
-      ElasticView(
-        mapping,
-        Set(nxv.Schema, nxv.Resource),
-        Some("one"),
-        false,
-        true,
-        ProjectRef(genUUID),
-        url"http://example.com/id".value,
-        UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
-        1L,
-        false
-      ),
-      SparqlView(ProjectRef(genUUID),
-                 url"http://example.com/id2".value,
-                 UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
-                 1L,
-                 false)
-    )
+    val types     = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
+    val schemaRef = Ref(viewSchemaUri)
 
     def viewResponse(): Json =
       response() deepMerge Json.obj(
@@ -348,6 +314,13 @@ class ResourceRoutesSpec
   }
 
   "The routes" when {
+
+    def metadata(account: String, project: String, i: Int): Json = {
+      val id = url"${appConfig.http.publicUri.copy(
+        path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")}".value
+      jsonContentOf("/resources/es-metadata.json", Map(quote("{id}") -> id.asString)) deepMerge Json.obj(
+        "_original_source" -> Json.fromString(Json.obj("k" -> Json.fromInt(1)).noSpaces))
+    }
 
     "performing operations on resolvers" should {
 
@@ -367,37 +340,6 @@ class ResourceRoutesSpec
         Post(s"/v1/resources/$organization/$project/resolver", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
-        }
-      }
-
-      "list resolvers" in new Resolver {
-        val json =
-          jsonContentOf("/resources/resolvers-list.json",
-                        Map(quote("{account}") -> organizationMeta.label, quote("{proj}") -> projectMeta.label))
-
-        when(resolverCache.get(projectRef)).thenReturn(Task.pure(resolverList))
-        Get(s"/v1/resolvers/$organization/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual json
-        }
-        Get(s"/v1/resources/$organization/$project/resolver") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual json
-        }
-      }
-
-      "list resolvers not deprecated" in new Resolver {
-        val json =
-          jsonContentOf("/resources/resolvers-list-no-deprecated.json",
-                        Map(quote("{account}") -> organizationMeta.label, quote("{proj}") -> projectMeta.label))
-        when(resolverCache.get(projectRef)).thenReturn(Task.pure(resolverList))
-        Get(s"/v1/resolvers/$organization/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual json
-        }
-        Get(s"/v1/resources/$organization/$project/resolver?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual json
         }
       }
     }
@@ -488,36 +430,6 @@ class ResourceRoutesSpec
           }
         }
       }
-
-      "list views" in new Views {
-        when(viewCache.get(projectRef)).thenReturn(Task.pure(views))
-        Get(s"/v1/views/$organization/$project") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
-        }
-        Get(s"/v1/resources/$organization/$project/view") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
-        }
-      }
-
-      "list views not deprecated" in new Views {
-        when(viewCache.get(projectRef)).thenReturn(
-          Task.pure(
-            views + SparqlView(projectRef,
-                               url"http://example.com/id3".value,
-                               UUID.fromString("317d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
-                               1L,
-                               true)))
-        Get(s"/v1/views/$organization/$project?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
-        }
-        Get(s"/v1/resources/$organization/$project/view?deprecated=false") ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/view/view-list-resp.json")
-        }
-      }
     }
 
     "performing operations on resources" should {
@@ -546,20 +458,9 @@ class ResourceRoutesSpec
         }
       }
 
-      def metadata(account: String, project: String, i: Int): Json = {
-        val id = url"${appConfig.http.publicUri.copy(
-          path = appConfig.http.publicUri.path / "resources" / account / project / "resource" / s"resource:$i")}".value
-        jsonContentOf("/resources/es-metadata.json", Map(quote("{id}") -> id.asString)) deepMerge Json.obj(
-          "_original_source" -> Json.fromString(Json.obj("k" -> Json.fromInt(1)).noSpaces))
-      }
-
       "list resources constrained by a schema" in new Ctx {
-
         when(
-          resources.list(mEq(Set(defaultEsView, defaultSQLView, aggView, otherEsView)),
-                         mEq(None),
-                         mEq(resourceSchemaUri),
-                         mEq(Pagination(0, 20)))(
+          resources.list(mEq(Option(defaultEsView)), mEq(None), mEq(resourceSchemaUri), mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
           )
@@ -573,11 +474,47 @@ class ResourceRoutesSpec
         }
       }
 
-      "list resources" in new Ctx {
+      "list views" in new Ctx(Set(Permission.unsafe("views/read"))) {
         when(
-          resources.list(mEq(Set(defaultEsView, defaultSQLView, aggView, otherEsView)),
-                         mEq(None),
+          resources.list(mEq(Option(defaultEsView)), mEq(None), mEq(viewSchemaUri), mEq(Pagination(0, 20)))(
+            isA[HttpClient[Task, QueryResults[Json]]],
+            isA[ElasticClient[Task]]
+          )
+        ).thenReturn(Task.pure(
+          UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))
+        val endpoints = List(s"/v1/views/$organization/$project", s"/v1/resources/$organization/$project/view")
+        forAll(endpoints) { endpoint =>
+          Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            responseAs[Json] shouldEqual listingResponse()
+          }
+        }
+      }
+
+      "list resolvers not deprecated" in new Ctx(Set(Permission.unsafe("resolvers/read"))) {
+        when(
+          resources.list(mEq(Option(defaultEsView)),
+                         mEq(Option(false)),
+                         mEq(resolverSchemaUri),
                          mEq(Pagination(0, 20)))(
+            isA[HttpClient[Task, QueryResults[Json]]],
+            isA[ElasticClient[Task]]
+          )
+        ).thenReturn(Task.pure(
+          UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))
+        val endpoints = List(s"/v1/resolvers/$organization/$project?deprecated=false",
+                             s"/v1/resources/$organization/$project/resolver?deprecated=false")
+        forAll(endpoints) { endpoint =>
+          Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            responseAs[Json] shouldEqual listingResponse()
+          }
+        }
+      }
+
+      "list resources" in new Ctx() {
+        when(
+          resources.list(mEq(Option(defaultEsView)), mEq(None), mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
           )

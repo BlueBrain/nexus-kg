@@ -14,7 +14,6 @@ import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
-import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -23,7 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder
+import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
@@ -281,49 +280,48 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   /**
     * Lists resources for the given project
     *
-    * @param views      the list of views available for the current project
+    * @param view       optionally available default elasticSearch view
     * @param deprecated deprecation status of the resources
     * @param pagination pagination options
     * @param tc         typed HTTP client
     * @return search results in the F context
     */
-  def list(views: Set[View], deprecated: Option[Boolean], pagination: Pagination)(
+  def list(view: Option[ElasticView], deprecated: Option[Boolean], pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
       elastic: ElasticClient[F]): F[JsonResults] =
-    list(views, deprecated, None, pagination)
+    list(view, deprecated, None, pagination)
 
   /**
     * Lists resources for the given project and schema
     *
-    * @param views      the list of views available for the current project
-    * @param deprecated     deprecation status of the resources
-    * @param schema         schema by which the resources are constrained
-    * @param pagination     pagination options
-    * @return               search results in the F context
+    * @param view       optionally available default elasticSearch view
+    * @param deprecated deprecation status of the resources
+    * @param schema     schema by which the resources are constrained
+    * @param pagination pagination options
+    * @return search results in the F context
     */
-  def list(views: Set[View], deprecated: Option[Boolean], schema: AbsoluteIri, pagination: Pagination)(
+  def list(view: Option[ElasticView], deprecated: Option[Boolean], schema: AbsoluteIri, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
       elastic: ElasticClient[F]): F[JsonResults] =
-    list(views, deprecated, Some(schema), pagination)
+    list(view, deprecated, Some(schema), pagination)
 
   /**
     * Lists resources for the given project and schema
     *
-    * @param views      the list of views available for the current project
+    * @param view       optionally available default elasticSearch view
     * @param deprecated deprecation status of the resources
     * @param schema     optional schema by which the resources are constrained
     * @param pagination pagination options
     * @return search results in the F context
     */
-  private def list(views: Set[View], deprecated: Option[Boolean], schema: Option[AbsoluteIri], pagination: Pagination)(
-      implicit tc: HttpClient[F, JsonResults],
-      elastic: ElasticClient[F]): F[JsonResults] =
-    views.collectFirst { case v: ElasticView if v.id == nxv.defaultElasticIndex.value => v } match {
-      case Some(view) =>
-        elastic.search(QueryBuilder.queryFor(deprecated, schema), Set(view.index))(pagination)
-      case None =>
-        F.pure(UnscoredQueryResults(0L, List.empty))
-    }
+  private def list(
+      view: Option[ElasticView],
+      deprecated: Option[Boolean],
+      schema: Option[AbsoluteIri],
+      pagination: Pagination)(implicit tc: HttpClient[F, JsonResults], elastic: ElasticClient[F]): F[JsonResults] =
+    view
+      .map(v => elastic.search(queryFor(deprecated, schema), Set(v.index))(pagination))
+      .getOrElse(F.pure(UnscoredQueryResults(0L, List.empty)))
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references
