@@ -45,7 +45,7 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
       }
   }
 
-  private case class ResourceType(routes: CommonRoutes, schema: Ref)
+  private final case class ResourceType(routes: CommonRoutes, schema: Ref)
 
   private def fetchType(id: AbsoluteIri): Future[Option[ResourceType]] =
     resources

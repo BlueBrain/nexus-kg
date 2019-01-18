@@ -5,6 +5,7 @@ import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.MediaTypes.`application/json`
+import akka.http.scaladsl.model.MediaTypes.`text/plain`
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
 import akka.http.scaladsl.model._
@@ -587,6 +588,28 @@ class ResourceRoutesSpec
         Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual "text/plain"
+          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+        }
+      }
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(`text/plain`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType.value shouldEqual "text/plain"
+          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+        }
+      }
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`text/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType.value shouldEqual "text/plain"
+          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+        }
+      }
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType.value shouldEqual "text/plain"
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
       }
@@ -610,8 +633,13 @@ class ResourceRoutesSpec
                                    quote("{proj}")    -> projectMeta.label,
                                    quote("{id}")      -> s"nxv:$genUuid"))
 
-      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        metadataRanges: _*) ~> routes ~> check {
+      forAll(metadataRanges) { range =>
+        Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(range) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual json
+        }
+      }
+      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(metadataRanges: _*) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual json
       }
