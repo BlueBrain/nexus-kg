@@ -26,101 +26,108 @@ object Vocabulary {
     def withSuffix(suffix: String): IriNode = IriNode(base + suffix)
 
     // Metadata vocabulary
-    val rev           = Metadata("rev")
-    val deprecated    = Metadata("deprecated")
-    val createdAt     = Metadata("createdAt")
-    val updatedAt     = Metadata("updatedAt")
-    val createdBy     = Metadata("createdBy")
-    val updatedBy     = Metadata("updatedBy")
-    val constrainedBy = Metadata("constrainedBy")
-    val self          = Metadata("self")
-    val project       = Metadata("project")
-    val total         = Metadata("total")
-    val results       = Metadata("results")
-    val maxScore      = Metadata("maxScore")
-    val score         = Metadata("score")
-    val uuid          = Metadata("uuid")
+    val rev           = PrefixMapping.metadata("rev")
+    val deprecated    = PrefixMapping.metadata("deprecated")
+    val createdAt     = PrefixMapping.metadata("createdAt")
+    val updatedAt     = PrefixMapping.metadata("updatedAt")
+    val createdBy     = PrefixMapping.metadata("createdBy")
+    val updatedBy     = PrefixMapping.metadata("updatedBy")
+    val constrainedBy = PrefixMapping.metadata("constrainedBy")
+    val self          = PrefixMapping.metadata("self")
+    val project       = PrefixMapping.metadata("project")
+    val total         = PrefixMapping.metadata("total")
+    val results       = PrefixMapping.metadata("results")
+    val maxScore      = PrefixMapping.metadata("maxScore")
+    val score         = PrefixMapping.metadata("score")
+    val uuid          = PrefixMapping.metadata("uuid")
 
     // File metadata vocabulary
-    val originalFileName = Metadata("originalFileName")
-    val digest           = Metadata("digest")
-    val algorithm        = Metadata("algorithm")
-    val value            = Metadata("value")
-    val bytes            = Metadata("bytes")
-    val mediaType        = Metadata("mediaType")
+    val originalFileName = PrefixMapping.metadata("originalFileName")
+    val digest           = PrefixMapping.metadata("digest")
+    val algorithm        = PrefixMapping.metadata("algorithm")
+    val value            = PrefixMapping.metadata("value")
+    val bytes            = PrefixMapping.metadata("bytes")
+    val mediaType        = PrefixMapping.metadata("mediaType")
 
     // Elasticsearch sourceAsText predicate
-    val originalSource = Metadata("original_source")
+    val originalSource = PrefixMapping.metadata("original_source")
 
     // Tagging resource payload vocabulary
-    val tag = withSuffix("tag")
+    val tag  = PrefixMapping.prefix("tag")
+    val tags = PrefixMapping.prefix("tags")
 
     // Resolvers payload vocabulary
-    val priority      = withSuffix("priority")
-    val resourceTypes = withSuffix("resourceTypes")
-    val projects      = withSuffix("projects")
-    val identities    = withSuffix("identities")
-    val realm         = withSuffix("realm")
-    val subject       = withSuffix("subject")
-    val group         = withSuffix("group")
+    val priority      = PrefixMapping.prefix("priority")
+    val resourceTypes = PrefixMapping.prefix("resourceTypes")
+    val projects      = PrefixMapping.prefix("projects")
+    val identities    = PrefixMapping.prefix("identities")
+    val realm         = PrefixMapping.prefix("realm")
+    val subject       = PrefixMapping.prefix("subject")
+    val group         = PrefixMapping.prefix("group")
 
     // View payload vocabulary
-    val resourceSchemas = withSuffix("resourceSchemas")
-    val resourceTag     = withSuffix("resourceTag")
-    val includeMetadata = withSuffix("includeMetadata")
-    val sourceAsText    = withSuffix("sourceAsText")
-    val mapping         = withSuffix("mapping")
-    val views           = withSuffix("views")
-    val viewId          = withSuffix("viewId")
+    val resourceSchemas = PrefixMapping.prefix("resourceSchemas")
+    val resourceTag     = PrefixMapping.prefix("resourceTag")
+    val includeMetadata = PrefixMapping.prefix("includeMetadata")
+    val sourceAsText    = PrefixMapping.prefix("sourceAsText")
+    val mapping         = PrefixMapping.prefix("mapping")
+    val views           = PrefixMapping.prefix("views")
+    val viewId          = PrefixMapping.prefix("viewId")
 
     // View default ids
-    val defaultElasticIndex = withSuffix("defaultElasticIndex")
-    val defaultSparqlIndex  = withSuffix("defaultSparqlIndex")
+    val defaultElasticIndex = PrefixMapping.prefix("defaultElasticIndex")
+    val defaultSparqlIndex  = PrefixMapping.prefix("defaultSparqlIndex")
 
     //Resolver default id
-    val defaultResolver = withSuffix("defaultInProject")
+    val defaultResolver = PrefixMapping.prefix("defaultInProject")
 
     // @type platform ids
-    val Schema               = withSuffix("Schema")
-    val File                 = withSuffix("File")
-    val Resource             = withSuffix("Resource")
-    val Ontology             = withSuffix("Ontology")
-    val Resolver             = withSuffix("Resolver")
-    val InProject            = withSuffix("InProject")
-    val CrossProject         = withSuffix("CrossProject")
-    val View                 = withSuffix("View")
-    val ElasticView          = withSuffix("ElasticView")
-    val SparqlView           = withSuffix("SparqlView")
-    val AggregateElasticView = withSuffix("AggregateElasticView")
-    val User                 = withSuffix("User")
-    val Group                = withSuffix("Group")
-    val Authenticated        = withSuffix("Authenticated")
-    val Anonymous            = withSuffix("Anonymous")
-    val Alpha                = withSuffix("Alpha")
+    val Schema               = PrefixMapping.prefix("Schema")
+    val File                 = PrefixMapping.prefix("File")
+    val Resource             = PrefixMapping.prefix("Resource")
+    val Ontology             = PrefixMapping.prefix("Ontology")
+    val Resolver             = PrefixMapping.prefix("Resolver")
+    val InProject            = PrefixMapping.prefix("InProject")
+    val CrossProject         = PrefixMapping.prefix("CrossProject")
+    val View                 = PrefixMapping.prefix("View")
+    val ElasticView          = PrefixMapping.prefix("ElasticView")
+    val SparqlView           = PrefixMapping.prefix("SparqlView")
+    val AggregateElasticView = PrefixMapping.prefix("AggregateElasticView")
+    val User                 = PrefixMapping.prefix("User")
+    val Group                = PrefixMapping.prefix("Group")
+    val Authenticated        = PrefixMapping.prefix("Authenticated")
+    val Anonymous            = PrefixMapping.prefix("Anonymous")
+    val Alpha                = PrefixMapping.prefix("Alpha")
   }
 
   /**
-    * Metadata vocabulary.
+    * Prefix mapping.
     *
     * @param prefix the prefix associated to this term, used in the Json-LD context
     * @param value  the fully expanded [[AbsoluteIri]] to what the ''prefix'' resolves
     */
-  final case class Metadata(prefix: String, value: AbsoluteIri)
+  final case class PrefixMapping(prefix: String, value: AbsoluteIri)
 
-  object Metadata {
+  object PrefixMapping {
 
     /**
-      * Constructs a [[Metadata]] vocabulary term from the given ''base'' and the provided ''lastSegment''.
+      * Constructs a [[PrefixMapping]] vocabulary term from the given ''base'' and the provided ''lastSegment'' with an '_'.
       *
-      * @param lastSegment the last segment to append to the ''base'' to build the metadata
-      *                    vocabulary term
+      * @param lastSegment the last segment to append to the ''base'' to build the metadata vocabulary term
       */
-    def apply(lastSegment: String)(implicit base: IriNode): Metadata =
-      Metadata("_" + lastSegment, url"${base.value.show + lastSegment}".value)
+    def metadata(lastSegment: String)(implicit base: IriNode): PrefixMapping =
+      PrefixMapping("_" + lastSegment, url"${base.value.show + lastSegment}".value)
 
-    implicit def metadatataIri(m: Metadata): IriNode             = IriNode(m.value)
-    implicit def metadatataAbsoluteIri(m: Metadata): AbsoluteIri = m.value
-    implicit def metadataToIriF(p: Metadata): IriNode => Boolean = _ == IriNode(p.value)
-    implicit val metadatataShow: Show[Metadata]                  = Show.show(_.value.show)
+    /**
+      * Constructs a [[PrefixMapping]] vocabulary term from the given ''base'' and the provided ''lastSegment''.
+      *
+      * @param lastSegment the last segment to append to the ''base'' to build the vocabulary term
+      */
+    def prefix(lastSegment: String): PrefixMapping = new PrefixMapping(lastSegment, nxv.withSuffix(lastSegment).value)
+
+    implicit def prefixMappingIri(m: PrefixMapping): IriNode               = IriNode(m.value)
+    implicit def prefixMappingAbsoluteIri(m: PrefixMapping): AbsoluteIri   = m.value
+    implicit def prefixMappingToIriF(p: PrefixMapping): IriNode => Boolean = _ == IriNode(p.value)
+    implicit val prefixMappingShow: Show[PrefixMapping]                    = Show.show(_.value.show)
   }
 }

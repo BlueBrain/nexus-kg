@@ -32,7 +32,8 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: AccessCo
           create(id, resolverRef),
           tag(id, resolverRefOpt),
           deprecate(id, resolverRefOpt),
-          fetch(id, resolverRefOpt)
+          fetch(id, resolverRefOpt),
+          tags(id, resolverRefOpt)
         )
       }
   }

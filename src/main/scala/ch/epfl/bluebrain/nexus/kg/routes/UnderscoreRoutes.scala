@@ -39,45 +39,50 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
           create(id),
           tag(id),
           deprecate(id),
-          fetch(id)
+          fetch(id),
+          tags(id)
         )
       }
   }
 
   private case class ResourceType(routes: CommonRoutes, schema: Ref)
 
-  private def fetchType(id: AbsoluteIri): Future[Option[ResourceType]] = {
+  private def fetchType(id: AbsoluteIri): Future[Option[ResourceType]] =
     resources
       .fetch(Id(project.ref, id), None)
-      .value
-      .runToFuture
-      .map(_.map { res =>
+      .map { res =>
         if (res.types(nxv.View.value)) ResourceType(new ViewRoutes(resources, acls, caller), viewRef)
         else if (res.types(nxv.File.value)) ResourceType(new FileRoutes(resources, acls, caller), fileRef)
         else if (res.types(nxv.Resolver.value)) ResourceType(new ResolverRoutes(resources, acls, caller), resolverRef)
         else if (res.types(nxv.Schema.value)) ResourceType(new SchemaRoutes(resources, acls, caller), shaclRef)
         else ResourceType(UnderscoreRoutes.this, resourceRef)
-      })
-  }
+      }
+      .value
+      .runToFuture
 
   private def create(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
     case Some(ResourceType(rt, schema)) => rt.create(id, schema)
-    case None                           => complete(NotFound(Ref(id)): Rejection)
+    case None                           => complete(NotFound(id.ref): Rejection)
   }
 
   private def update(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
     case Some(ResourceType(rt, schema)) => rt.update(id, Some(schema))
-    case None                           => complete(NotFound(Ref(id)): Rejection)
+    case None                           => complete(NotFound(id.ref): Rejection)
   }
 
   private def tag(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
     case Some(ResourceType(rt, schema)) => rt.tag(id, Some(schema))
-    case None                           => complete(NotFound(Ref(id)): Rejection)
+    case None                           => complete(NotFound(id.ref): Rejection)
+  }
+
+  private def tags(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
+    case Some(ResourceType(rt, schema)) => rt.tags(id, Some(schema))
+    case None                           => complete(NotFound(id.ref): Rejection)
   }
 
   private def deprecate(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
     case Some(ResourceType(rt, schema)) => rt.deprecate(id, Some(schema))
-    case None                           => complete(NotFound(Ref(id)): Rejection)
+    case None                           => complete(NotFound(id.ref): Rejection)
   }
 
   private def fetch(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {

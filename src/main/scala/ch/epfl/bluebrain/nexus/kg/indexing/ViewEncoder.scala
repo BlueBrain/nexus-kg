@@ -5,6 +5,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
@@ -12,7 +13,6 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import io.circe.parser.parse
 import io.circe.{Encoder, Json}
 
@@ -74,7 +74,7 @@ object ViewEncoder {
                   (s, nxv.rev, view.rev)) ++ tpe.map(t => (s, rdf.tpe, t): Triple).toSet
 
     def triplesFor(resourceSchemas: Set[AbsoluteIri]): Set[Triple] =
-      resourceSchemas.map(r => (s: IriOrBNode, nxv.resourceSchemas, IriNode(r): Node))
+      resourceSchemas.map(r => (s, nxv.resourceSchemas, IriNode(r)): Triple)
 
     def triplesForView(views: Set[ViewRef[String]]): Set[Triple] =
       views.flatMap { viewRef =>

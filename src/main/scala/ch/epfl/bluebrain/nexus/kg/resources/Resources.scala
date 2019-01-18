@@ -155,7 +155,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, schemaOpt: Option[Ref]): OptResource =
-    checkSchema(schemaOpt, repo.get(id))
+    repo.get(id, schemaOpt)
 
   /**
     * Fetches the provided revision of a resource
@@ -166,7 +166,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long, schemaOpt: Option[Ref]): OptResource =
-    checkSchema(schemaOpt, repo.get(id, rev))
+    repo.get(id, rev, schemaOpt)
 
   /**
     * Fetches the provided tag of a resource
@@ -177,7 +177,39 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String, schemaOpt: Option[Ref]): OptResource =
-    checkSchema(schemaOpt, repo.get(id, tag))
+    repo.get(id, tag, schemaOpt)
+
+  /**
+    * Fetches the latest revision of a resource tags.
+    *
+    * @param id        the id of the resource
+    * @param schemaOpt optional schema reference that constrains the resource
+    * @return Some(tags) in the F context when found and None in the F context when not found
+    */
+  def fetchTags(id: ResId, schemaOpt: Option[Ref]) =
+    repo.getTags(id, schemaOpt)
+
+  /**
+    * Fetches the provided revision of a resource tags.
+    *
+    * @param id        the id of the resource
+    * @param rev       the revision of the resource
+    * @param schemaOpt optional schema reference that constrains the resource
+    * @return Some(tags) in the F context when found and None in the F context when not found
+    */
+  def fetchTags(id: ResId, rev: Long, schemaOpt: Option[Ref]) =
+    repo.getTags(id, rev, schemaOpt)
+
+  /**
+    * Fetches the provided tag of a resource tags.
+    *
+    * @param id        the id of the resource
+    * @param tag       the tag of the resource
+    * @param schemaOpt optional schema reference that constrains the resource
+    * @return Some(tags) in the F context when found and None in the F context when not found
+    */
+  def fetchTags(id: ResId, tag: String, schemaOpt: Option[Ref]) =
+    repo.getTags(id, tag, schemaOpt)
 
   /**
     * Updates an existing resource.
@@ -254,7 +286,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return the optional streamed file in the F context
     */
   def fetchFile[Out](id: ResId)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    repo.getFile(id)
+    repo.getFile(id, None)
 
   /**
     * Attempts to stream the file resource with specific revision.
@@ -265,7 +297,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return the optional streamed file in the F context
     */
   def fetchFile[Out](id: ResId, rev: Long)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    repo.getFile(id, rev)
+    repo.getFile(id, rev, None)
 
   /**
     * Attempts to stream the file resource with specific tag. The
@@ -277,7 +309,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return the optional streamed file in the F context
     */
   def fetchFile[Out](id: ResId, tag: String)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    repo.getFile(id, tag)
+    repo.getFile(id, tag, None)
 
   /**
     * Lists resources for the given project and schema
@@ -423,14 +455,6 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     schemaOpt match {
       case Some(schema) => fetch(id, schemaOpt).toRight[Rejection](NotFound(schema)).flatMap(_ => op)
       case _            => op
-    }
-
-  private def checkSchema(schemaOpt: Option[Ref], resource: OptResource): OptResource =
-    resource.flatMap { res =>
-      schemaOpt match {
-        case Some(schema) if schema != res.schema => OptionT.none[F, Resource]
-        case _                                    => resource
-      }
     }
 
   private def validate(resId: ResId, schema: Ref, data: Graph): EitherT[F, Rejection, Unit] = {

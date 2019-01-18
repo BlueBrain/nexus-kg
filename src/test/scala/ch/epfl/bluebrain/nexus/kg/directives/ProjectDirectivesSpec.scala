@@ -23,7 +23,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.Decoder
 import io.circe.generic.auto._
@@ -134,20 +133,21 @@ class ProjectDirectivesSpec
     )
 
     val apiMappingsFinal = Map[String, AbsoluteIri](
-      "nxv"           -> nxv.base,
-      "nxs"           -> Schemas.base,
-      "nxc"           -> Contexts.base,
-      "resource"      -> Schemas.resourceSchemaUri,
-      "elasticsearch" -> nxv.defaultElasticIndex,
-      "base"          -> nxv.projects,
-      "documents"     -> nxv.defaultElasticIndex,
-      "graph"         -> nxv.defaultSparqlIndex,
-      "view"          -> Schemas.viewSchemaUri,
-      "resolver"      -> Schemas.resolverSchemaUri,
-      "file"          -> Schemas.fileSchemaUri,
-      "account"       -> nxv.defaultResolver
+      "nxc"       -> Contexts.base,
+      "nxs"       -> Schemas.base,
+      "resource"  -> Schemas.resourceSchemaUri,
+      "schema"    -> Schemas.shaclSchemaUri,
+      "view"      -> Schemas.viewSchemaUri,
+      "resolver"  -> Schemas.resolverSchemaUri,
+      "file"      -> Schemas.fileSchemaUri,
+      "nxv"       -> nxv.base,
+      "documents" -> nxv.defaultElasticIndex,
+      "graph"     -> nxv.defaultSparqlIndex,
+      "account"   -> nxv.defaultResolver
     )
-    val projectMetaResp = projectMeta.copy(apiMappings = apiMappingsFinal)
+
+    val projectMetaResp =
+      projectMeta.copy(apiMappings = projectMeta.apiMappings ++ apiMappingsFinal + ("base" -> projectMeta.base))
 
     "fetch the project from the cache" in {
 

@@ -27,7 +27,8 @@ class SchemaRoutes private[routes] (resources: Resources[Task], acls: AccessCont
           create(id, shaclRef),
           tag(id, shaclRefOpt),
           deprecate(id, shaclRefOpt),
-          fetch(id, shaclRefOpt)
+          fetch(id, shaclRefOpt),
+          tags(id, shaclRefOpt)
         )
       }
   }

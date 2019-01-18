@@ -125,15 +125,16 @@ class ResourceRoutesSpec
     val organization = genString(length = 4)
     val project      = genString(length = 4)
     val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
-      "nxv"       -> nxv.base,
-      "nxs"       -> Schemas.base,
       "nxc"       -> Contexts.base,
+      "nxs"       -> Schemas.base,
       "resource"  -> Schemas.resourceSchemaUri,
-      "documents" -> nxv.defaultElasticIndex,
-      "graph"     -> nxv.defaultSparqlIndex,
+      "schema"    -> Schemas.shaclSchemaUri,
       "view"      -> Schemas.viewSchemaUri,
       "resolver"  -> Schemas.resolverSchemaUri,
       "file"      -> Schemas.fileSchemaUri,
+      "nxv"       -> nxv.base,
+      "documents" -> nxv.defaultElasticIndex,
+      "graph"     -> nxv.defaultSparqlIndex,
       "account"   -> nxv.defaultResolver
     )
     val mappings =
@@ -793,6 +794,44 @@ class ResourceRoutesSpec
         Put(s"/v1/schemas/$organization/$project/nxv:$genUuid/tags?rev=1", tag) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] shouldEqual schemaResponse()
+        }
+      }
+
+      val map = Map("name1" -> 1L, "name2" -> 2L)
+
+      "listing tags for schemas" in new Schema {
+        when(resources.fetchTags(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](map))
+        val endpoints = List(s"/v1/schemas/$organization/$project/nxv:$genUuid/tags?rev=1",
+                             s"/v1/resources/$organization/$project/schema/nxv:$genUuid/tags?rev=1")
+        forAll(endpoints) { endpoint =>
+          Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            responseAs[Json] shouldEqual jsonContentOf("/resources/tags.json")
+          }
+        }
+      }
+
+      "listing tags for resolvers" in new Resolver {
+        when(resources.fetchTags(id, Some(schemaRef))).thenReturn(OptionT.some[Task](map))
+        val endpoints = List(s"/v1/resolvers/$organization/$project/nxv:$genUuid/tags",
+                             s"/v1/resources/$organization/$project/resolver/nxv:$genUuid/tags")
+        forAll(endpoints) { endpoint =>
+          Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            responseAs[Json] shouldEqual jsonContentOf("/resources/tags.json")
+          }
+        }
+      }
+
+      "listing tags for views" in new Views {
+        when(resources.fetchTags(id, Some(schemaRef))).thenReturn(OptionT.some[Task](map))
+        val endpoints = List(s"/v1/views/$organization/$project/nxv:$genUuid/tags",
+                             s"/v1/resources/$organization/$project/view/nxv:$genUuid/tags")
+        forAll(endpoints) { endpoint =>
+          Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            responseAs[Json] shouldEqual jsonContentOf("/resources/tags.json")
+          }
         }
       }
 

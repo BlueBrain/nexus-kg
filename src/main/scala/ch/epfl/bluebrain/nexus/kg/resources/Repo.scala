@@ -23,7 +23,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
@@ -131,54 +130,100 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
   /**
     * Attempts to stream the file resource identified by the argument id.
     *
-    * @param id the id of the resource.
+    * @param id     the id of the resource.
+    * @param schema the optionally available schema of the resource
     * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def getFile[Out](id: ResId)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+  def getFile[Out](id: ResId, schema: Option[Ref])(
+      implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id, schema) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
 
   /**
     * Attempts to stream the file resource identified by the argument id and the revision.
     *
-    * @param id       the id of the resource.
-    * @param rev      the revision of the resource
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @param schema the optionally available schema of the resource
     * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def getFile[Out](id: ResId, rev: Long)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, rev) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+  def getFile[Out](id: ResId, rev: Long, schema: Option[Ref])(
+      implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id, rev, schema) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
 
   /**
     * Attempts to stream the file resource identified by the argument id and the tag. The
     * tag is transformed into a revision value using the latest resource tag to revision mapping.
     *
-    * @param id       the id of the resource.
-    * @param tag      the tag of the resource
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @param schema the optionally available schema of the resource
     * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def getFile[Out](id: ResId, tag: String)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, tag) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+  def getFile[Out](id: ResId, tag: String, schema: Option[Ref])(
+      implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id, tag, schema) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+
+  /**
+    * Attempts to fetch the resource tags identified by the argument id.
+    *
+    * @param id     the id of the resource
+    * @param schema the optionally available schema of the resource
+    * @return the optional streamed file in the F context
+    */
+  def getTags(id: ResId, schema: Option[Ref]): OptionT[F, Tags] =
+    get(id, schema).map(_.tags)
+
+  /**
+    * Attempts to fetch the resource tags identified by the argument id and the revision.
+    *
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @param schema the optionally available schema of the resource
+    * @return the optional streamed file in the F context
+    */
+  def getTags(id: ResId, rev: Long, schema: Option[Ref]): OptionT[F, Tags] =
+    get(id, rev, schema).map(_.tags)
+
+  /**
+    * Attempts to fetch the resource tags identified by the argument id and the tag.
+    *
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @param schema the optionally available schema of the resource
+    * @return the optional streamed file in the F context
+    */
+  def getTags(id: ResId, tag: String, schema: Option[Ref]): OptionT[F, Tags] =
+    get(id, tag, schema).map(_.tags)
 
   /**
     * Attempts to read the resource identified by the argument id.
     *
-    * @param id the id of the resource
+    * @param id     the id of the resource
+    * @param schema the optionally available schema of the resource
     * @return the optional resource in the F context
     */
-  def get(id: ResId): OptionT[F, Resource] =
-    OptionT(agg.currentState(toIdentifier(id)).map(_.asResource))
+  def get(id: ResId, schema: Option[Ref]): OptionT[F, Resource] =
+    OptionT(agg.currentState(toIdentifier(id)).map {
+      case state: Current if schema.getOrElse(state.schema) == state.schema => state.asResource
+      case _                                                                => None
+    })
 
   /**
     * Attempts the read the resource identified by the argument id at the argument revision.
     *
-    * @param id  the id of the resource
-    * @param rev the revision of the resource
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @param schema the optionally available schema of the resource
     * @return the optional resource in the F context
     */
-  def get(id: ResId, rev: Long): OptionT[F, Resource] =
-    OptionT(getState(id, rev).map(_.asResource.filter(_.rev == rev)))
+  def get(id: ResId, rev: Long, schema: Option[Ref]): OptionT[F, Resource] =
+    OptionT(getState(id, rev).map {
+      case state: Current if schema.getOrElse(state.schema) == state.schema && rev == state.rev => state.asResource
+      case _                                                                                    => None
+    })
 
   private def getState(id: ResId, rev: Long): F[State] =
     agg
@@ -195,11 +240,11 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param tag the tag of the resource
     * @return the optional resource in the F context
     */
-  def get(id: ResId, tag: String): OptionT[F, Resource] =
+  def get(id: ResId, tag: String, schema: Option[Ref]): OptionT[F, Resource] =
     for {
-      resource <- get(id)
+      resource <- get(id, schema)
       rev      <- OptionT.fromOption[F](resource.tags.get(tag))
-      value    <- get(id, rev)
+      value    <- get(id, rev, schema)
     } yield value
 
   private def evaluate(id: ResId, cmd: Command): EitherT[F, Rejection, Resource] =

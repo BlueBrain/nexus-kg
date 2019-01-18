@@ -21,7 +21,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.Unexpected
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import org.mockito.Mockito
 import org.mockito.Mockito._

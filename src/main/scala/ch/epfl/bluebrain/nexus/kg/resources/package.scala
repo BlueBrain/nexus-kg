@@ -18,4 +18,10 @@ package object resources {
     * Resource representation with a "source", "flattened" context and "computed" graph.
     */
   type ResourceV = ResourceF[ProjectRef, Ref, ResourceF.Value]
+
+  /**
+    * Resource tags
+    */
+  type Tags = Map[String, Long]
+
 }
