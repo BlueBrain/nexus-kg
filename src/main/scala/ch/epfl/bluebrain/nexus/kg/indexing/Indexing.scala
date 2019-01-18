@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.ActorMaterializer
 import akka.stream.alpakka.sse.scaladsl.EventSource
@@ -15,6 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.untyped
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -77,8 +79,14 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
     case Right(value)                => Right(value)
   }
 
-  private def send(request: HttpRequest): Future[HttpResponse] =
-    http.singleRequest(request)
+  private def addCredentials(request: HttpRequest): HttpRequest =
+    config.iam.serviceAccountToken
+      .map(token => request.addCredentials(OAuth2BearerToken(token.value)))
+      .getOrElse(request)
+
+  private def send(request: HttpRequest): Future[HttpResponse] = {
+    http.singleRequest(addCredentials(request))
+  }
 
   def startAdminStream(): Unit = {
 
