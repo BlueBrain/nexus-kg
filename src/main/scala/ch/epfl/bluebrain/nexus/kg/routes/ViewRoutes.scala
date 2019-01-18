@@ -57,16 +57,6 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.view[Task](caller, acls)
   override def transform(r: ResourceV)                         = transformation(r)
 
-  override def list(schema: Ref): Route =
-    (get & parameter('deprecated.as[Boolean].?) & hasPermission(resourceRead) & pathEndOrSingleSlash) { deprecated =>
-      trace("listViews") {
-        val qr = filterDeprecated(cache.view.get(project.ref), deprecated)
-          .flatMap(_.flatTraverse(_.labeled.value.map(_.toList)))
-          .map(toQueryResults)
-        complete(qr.runToFuture)
-      }
-    }
-
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>
       (post & entity(as[String]) & hasPermission(resourceRead) & pathEndOrSingleSlash) { query =>

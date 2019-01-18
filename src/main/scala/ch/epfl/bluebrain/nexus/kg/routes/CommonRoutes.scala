@@ -11,9 +11,11 @@ import ch.epfl.bluebrain.nexus.kg.async.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -109,7 +111,10 @@ private[routes] abstract class CommonRoutes(
       (deprecated, pagination) =>
         trace(s"list$resourceName") {
           complete(
-            viewCache.get(project.ref).flatMap(resources.list(_, deprecated, schema.iri, pagination)).runToFuture)
+            viewCache
+              .getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
+              .flatMap(v => resources.list(v, deprecated, schema.iri, pagination))
+              .runToFuture)
         }
     }
 

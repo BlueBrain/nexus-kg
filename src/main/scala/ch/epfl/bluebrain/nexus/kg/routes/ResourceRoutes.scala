@@ -8,9 +8,11 @@ import ch.epfl.bluebrain.nexus.kg.async.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
@@ -55,7 +57,11 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
     (get & parameter('deprecated.as[Boolean].?) & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) {
       (deprecated, pagination) =>
         trace(s"list$resourceName") {
-          complete(cache.view.get(project.ref).flatMap(v => resources.list(v, deprecated, pagination)).runToFuture)
+          complete(
+            cache.view
+              .getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
+              .flatMap(v => resources.list(v, deprecated, pagination))
+              .runToFuture)
         }
     }
 }
