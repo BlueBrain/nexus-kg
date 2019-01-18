@@ -17,8 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
 import org.mockito.Mockito
@@ -223,22 +223,28 @@ class RepoSpec
     "performing get operations" should {
       "get a resource" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.get(id).value.some shouldEqual ResourceF.simpleF(id, value, schema = Latest(schema))
+        repo.get(id, None).value.some shouldEqual ResourceF.simpleF(id, value, schema = Latest(schema))
       }
 
       "return None when the resource does not exist" in new Context {
-        repo.get(id).value.ioValue shouldEqual None
+        repo.get(id, None).value.ioValue shouldEqual None
+      }
+
+      "return None when getting a resource from the wrong schema" in new Context {
+        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.get(id, Some(genIri.ref)).value.ioValue shouldEqual None
+        repo.get(id, 1L, Some(genIri.ref)).value.ioValue shouldEqual None
       }
 
       "return a specific revision of the resource" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set(nxv.Resource), json).value.accepted shouldBe a[Resource]
-        repo.get(id, 1L).value.some shouldEqual
+        repo.get(id, 1L, None).value.some shouldEqual
           ResourceF.simpleF(id, value, 1L, schema = Latest(schema))
-        repo.get(id, 2L).value.some shouldEqual
+        repo.get(id, 2L, None).value.some shouldEqual
           ResourceF.simpleF(id, json, 2L, schema = Latest(schema), types = Set(nxv.Resource))
-        repo.get(id, 2L).value.some shouldEqual repo.get(id).value.some
+        repo.get(id, 2L, None).value.some shouldEqual repo.get(id, None).value.some
       }
 
       "return a specific tag of the resource" in new Context {
@@ -248,9 +254,45 @@ class RepoSpec
         repo.tag(id, 2L, 1L, "name").value.accepted shouldBe a[Resource]
         repo.tag(id, 3L, 2L, "other").value.accepted shouldBe a[Resource]
 
-        repo.get(id, "name").value.some shouldEqual ResourceF.simpleF(id, value, 1L, schema = Latest(schema))
-        repo.get(id, "other").value.some shouldEqual
+        repo.get(id, "name", None).value.some shouldEqual ResourceF.simpleF(id, value, 1L, schema = Latest(schema))
+        repo.get(id, "other", None).value.some shouldEqual
           ResourceF.simpleF(id, json, 2L, schema = Latest(schema), types = Set(nxv.Resource))
+      }
+    }
+
+    "performing get tag operations" should {
+      "get a resource tag" in new Context {
+        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        private val json = randomJson()
+        repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
+        repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
+          ResourceF.simpleF(id, json, 3L, schema = Latest(schema)).copy(tags = Map("name" -> 1L))
+        repo.getTags(id, None).value.some shouldEqual Map("name" -> 1L)
+      }
+
+      "return None when the resource does not exist" in new Context {
+        repo.getTags(id, None).value.ioValue shouldEqual None
+      }
+
+      "return None when getting a resource from the wrong schema" in new Context {
+        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.getTags(id, Some(genIri.ref)).value.ioValue shouldEqual None
+        repo.getTags(id, 1L, Some(genIri.ref)).value.ioValue shouldEqual None
+      }
+
+      "return a specific revision of the resource tags" in new Context {
+        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        private val json = randomJson()
+        repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
+        repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
+          ResourceF.simpleF(id, json, 3L, schema = Latest(schema)).copy(tags = Map("name" -> 1L))
+        repo.tag(id, 3L, 1L, "name2").value.accepted shouldEqual
+          ResourceF.simpleF(id, json, 4L, schema = Latest(schema)).copy(tags = Map("name" -> 1L, "name2" -> 1L))
+
+        repo.getTags(id, None).value.some shouldEqual Map("name"     -> 1L, "name2" -> 1L)
+        repo.getTags(id, 4L, None).value.some shouldEqual Map("name" -> 1L, "name2" -> 1L)
+        repo.getTags(id, 3L, None).value.some shouldEqual Map("name" -> 1L)
+        repo.getTags(id, "name", None).value.some shouldEqual Map()
       }
     }
 
@@ -273,25 +315,25 @@ class RepoSpec
         when(store.fetch(attributes2)).thenReturn(Right(source2))
         when(store.fetch(attributes)).thenReturn(Right(source))
 
-        repo.getFile(id).value.some shouldEqual (attributes2 -> source2)
+        repo.getFile(id, None).value.some shouldEqual (attributes2 -> source2)
 
         //by rev
-        repo.getFile(id, 2L).value.some shouldEqual (attributes2 -> source2)
+        repo.getFile(id, 2L, None).value.some shouldEqual (attributes2 -> source2)
 
-        repo.getFile(id, 1L).value.some shouldEqual (attributes -> source)
+        repo.getFile(id, 1L, None).value.some shouldEqual (attributes -> source)
 
         //by tag
         repo.tag(id, 2L, 1L, "one").value.accepted shouldBe a[Resource]
         repo.tag(id, 3L, 2L, "two").value.accepted shouldBe a[Resource]
-        repo.getFile(id, "one").value.some shouldEqual (attributes  -> source)
-        repo.getFile(id, "two").value.some shouldEqual (attributes2 -> source2)
+        repo.getFile(id, "one", None).value.some shouldEqual (attributes  -> source)
+        repo.getFile(id, "two", None).value.some shouldEqual (attributes2 -> source2)
 
       }
 
       "return None when the file resource does not exist" in new File {
-        repo.getFile(id, "name4").value.ioValue shouldEqual None
-        repo.getFile(id, 2L).value.ioValue shouldEqual None
-        repo.getFile(id).value.ioValue shouldEqual None
+        repo.getFile(id, "name4", None).value.ioValue shouldEqual None
+        repo.getFile(id, 2L, None).value.ioValue shouldEqual None
+        repo.getFile(id, None).value.ioValue shouldEqual None
       }
     }
   }

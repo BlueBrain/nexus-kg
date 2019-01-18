@@ -51,7 +51,8 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
           create(id, fileRef),
           tag(id, fileRefOpt),
           deprecate(id, fileRefOpt),
-          fetch(id, fileRefOpt)
+          fetch(id, fileRefOpt),
+          tags(id, fileRefOpt)
         )
       }
   }

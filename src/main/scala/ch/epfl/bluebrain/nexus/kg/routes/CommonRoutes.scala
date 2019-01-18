@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import io.circe.Json
+import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -91,6 +91,17 @@ private[routes] abstract class CommonRoutes(
       }
     }
 
+  def tags(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
+    pathPrefix("tags") {
+      (get & parameter('rev.as[Long].?) & projectNotDeprecated & hasPermission(readPermission) & pathEndOrSingleSlash) {
+        revOpt =>
+          val tags = revOpt
+            .map(rev => resources.fetchTags(Id(project.ref, id), rev, schemaOpt))
+            .getOrElse(resources.fetchTags(Id(project.ref, id), schemaOpt))
+          complete(tags.value.runToFuture)
+      }
+    }
+
   def deprecate(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     (delete & parameter('rev.as[Long]) & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
       rev =>
@@ -132,6 +143,14 @@ private[routes] abstract class CommonRoutes(
         materialized <- resources.materializeWithMeta(res)
         transformed  <- EitherT.right[Rejection](transform(materialized))
       } yield transformed).value.runToFuture
+  }
+
+  private implicit val tagsEncoder: Encoder[Tags] = Encoder.instance { tags =>
+    val arr = tags.foldLeft(List.empty[Json]) {
+      case (acc, (tag, rev)) =>
+        Json.obj(nxv.tag.prefix -> Json.fromString(tag), "rev" -> Json.fromLong(rev)) :: acc
+    }
+    Json.obj(nxv.tags.prefix -> Json.arr(arr: _*)).addContext(tagCtxUri)
   }
 
 }

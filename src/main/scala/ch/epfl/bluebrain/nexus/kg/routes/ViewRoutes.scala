@@ -49,7 +49,8 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
           create(id, viewRef),
           tag(id, viewRefOpt),
           deprecate(id, viewRefOpt),
-          fetch(id, viewRefOpt)
+          fetch(id, viewRefOpt),
+          tags(id, viewRefOpt)
         )
       }
   }

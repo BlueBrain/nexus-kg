@@ -12,7 +12,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.persistence.TaggingAdapterSpec.Other
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref}
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 

@@ -13,7 +13,6 @@ import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives.{authorizationReject
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import monix.eval.Task
 import monix.execution.Scheduler
 
@@ -21,15 +20,16 @@ import scala.util.{Failure, Success}
 
 object ProjectDirectives {
   private val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
-    "nxv"       -> nxv.base,
-    "nxs"       -> Schemas.base,
     "nxc"       -> Contexts.base,
+    "nxs"       -> Schemas.base,
     "resource"  -> Schemas.resourceSchemaUri,
-    "documents" -> nxv.defaultElasticIndex,
-    "graph"     -> nxv.defaultSparqlIndex,
+    "schema"    -> Schemas.shaclSchemaUri,
     "view"      -> Schemas.viewSchemaUri,
     "resolver"  -> Schemas.resolverSchemaUri,
     "file"      -> Schemas.fileSchemaUri,
+    "nxv"       -> nxv.base,
+    "documents" -> nxv.defaultElasticIndex,
+    "graph"     -> nxv.defaultSparqlIndex,
     "account"   -> nxv.defaultResolver
   )
 

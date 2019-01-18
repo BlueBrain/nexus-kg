@@ -7,6 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
@@ -14,7 +15,6 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
 import io.circe.Encoder
 
 /**
@@ -29,7 +29,7 @@ object ResolverEncoder {
     case r: InProjectResolver => IriNode(r.id) -> Graph(r.mainTriples(nxv.InProject))
     case r @ CrossProjectResolver(resourceTypes, _, identities, _, _, _, _, _) =>
       val s: IriOrBNode            = IriNode(r.id)
-      val projTriples: Set[Triple] = r.projectsString.map(p => (s, nxv.projects, p: Node))
+      val projTriples: Set[Triple] = r.projectsString.map(p => (s, nxv.projects, p): Triple)
       s -> Graph(
         r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resourceTypes) ++ projTriples)
   }
@@ -59,7 +59,7 @@ object ResolverEncoder {
       }
 
     def triplesFor(resourceTypes: Set[AbsoluteIri]): Set[Triple] =
-      resourceTypes.map(r => (s: IriOrBNode, nxv.resourceTypes, IriNode(r): Node))
+      resourceTypes.map(r => (s, nxv.resourceTypes, IriNode(r)): Triple)
 
     private def triplesFor(identity: Identity): (BNode, Set[Triple]) = {
       val ss = blank
