@@ -51,9 +51,7 @@ private[routes] abstract class CommonRoutes(
 
   protected val readPermission: Set[Permission] = Set(Permission.unsafe("resources/read"))
 
-  protected val writePermission: Set[Permission] =
-    if (prefix == "views") Set(Permission.unsafe("views/write"))
-    else Set(Permission.unsafe("resources/write"))
+  protected val writePermission: Set[Permission] = Set(Permission.unsafe(s"$prefix/write"))
 
   def transform(r: ResourceV): Task[ResourceV] = Task.pure(r)
 
@@ -117,21 +115,13 @@ private[routes] abstract class CommonRoutes(
 
   def list(schemaOpt: Option[Ref]): Route =
     (get & paginated & searchParams & hasPermission(readPermission) & pathEndOrSingleSlash) { (pagination, params) =>
+      val schema = schemaOpt.map(_.iri).orElse(params.schema)
       trace(s"list$resourceName") {
-        schemaOpt match {
-          case Some(schema) =>
-            complete(
-              viewCache
-                .getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
-                .flatMap(v => resources.list(v, params.copy(schema = Some(schema.iri)), pagination))
-                .runToFuture)
-          case None =>
-            complete(
-              viewCache
-                .getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
-                .flatMap(v => resources.list(v, params, pagination))
-                .runToFuture)
-        }
+        complete(
+          viewCache
+            .getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
+            .flatMap(v => resources.list(v, params.copy(schema = schema), pagination))
+            .runToFuture)
       }
     }
 

@@ -110,9 +110,13 @@ class ResourceRoutesSpec
   private val user                              = User("dmontero", "realm")
   private implicit val subject: Subject         = user
   private implicit val token: Option[AuthToken] = Some(AuthToken("valid"))
-  private val oauthToken                        = OAuth2BearerToken("valid")
-  private val read                              = Set(Permission.unsafe("resources/read"))
-  private val manageRes                         = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
+
+  private val oauthToken     = OAuth2BearerToken("valid")
+  private val read           = Set(Permission.unsafe("resources/read"))
+  private val manageRes      = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
+  private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("resolvers/write"))
+  private val manageSchemas  = Set(Permission.unsafe("resources/read"), Permission.unsafe("schemas/write"))
+  private val manageFiles    = Set(Permission.unsafe("resources/read"), Permission.unsafe("files/write"))
   private val manageViews =
     Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"), Permission.unsafe("views/write"))
   private val routes = Routes(resources)
@@ -269,14 +273,14 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/nxv:$genUuid"))
   }
 
-  abstract class File extends Context(manageRes) {
+  abstract class File extends Context(manageFiles) {
     val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
     val schemaRef = Ref(fileSchemaUri)
 
     val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
   }
 
-  abstract class Schema(perms: Set[Permission] = manageRes) extends Context(perms) {
+  abstract class Schema(perms: Set[Permission] = manageSchemas) extends Context(perms) {
     val schema    = jsonContentOf("/schemas/resolver.json")
     val schemaRef = Ref(shaclSchemaUri)
 
@@ -285,7 +289,7 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid"))
   }
 
-  abstract class Resolver extends Context(manageRes) {
+  abstract class Resolver extends Context(manageResolver) {
     val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj(
       "@id" -> Json.fromString(id.value.show))
     val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)

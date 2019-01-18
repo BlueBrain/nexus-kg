@@ -31,9 +31,6 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
 
   private implicit val viewCache: ViewCache[Task] = cache.view
 
-  private val fileRoutes = new FileRoutes(resources, acls, caller)
-  private val viewRoutes = new ViewRoutes(resources, acls, caller)
-
   def routes: Route = {
     create(resourceRef) ~ list(None) ~
       pathPrefix(IdSegment) { id =>
@@ -47,53 +44,44 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
       }
   }
 
-  private sealed trait ResourceType extends Product with Serializable
-  private case object ViewType      extends ResourceType
-  private case object FileType      extends ResourceType
-  private case object OtherType     extends ResourceType
+  private case class ResourceType(routes: CommonRoutes, schema: Ref)
 
-  private def fetchType(id: AbsoluteIri): Future[Either[Rejection, ResourceType]] = {
-    resources.fetch(Id(project.ref, id), None).value.runToFuture.map {
-      case None => Left(NotFound(Ref(id)): Rejection)
-      case Some(res) =>
-        if (res.types(nxv.View.value)) Right(ViewType)
-        else if (res.types(nxv.File.value)) Right(FileType)
-        else Right(OtherType)
-    }
+  private def fetchType(id: AbsoluteIri): Future[Option[ResourceType]] = {
+    resources
+      .fetch(Id(project.ref, id), None)
+      .value
+      .runToFuture
+      .map(_.map { res =>
+        if (res.types(nxv.View.value)) ResourceType(new ViewRoutes(resources, acls, caller), viewRef)
+        else if (res.types(nxv.File.value)) ResourceType(new FileRoutes(resources, acls, caller), fileRef)
+        else if (res.types(nxv.Resolver.value)) ResourceType(new ResolverRoutes(resources, acls, caller), resolverRef)
+        else if (res.types(nxv.Schema.value)) ResourceType(new SchemaRoutes(resources, acls, caller), shaclRef)
+        else ResourceType(UnderscoreRoutes.this, resourceRef)
+      })
   }
 
   private def create(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case Right(FileType)  => fileRoutes.create(id, fileRef)
-    case Right(ViewType)  => viewRoutes.create(id, viewRef)
-    case Right(OtherType) => super.create(id, resourceRef)
-    case Left(rejection)  => complete(rejection)
+    case Some(ResourceType(rt, schema)) => rt.create(id, schema)
+    case None                           => complete(NotFound(Ref(id)): Rejection)
   }
 
   private def update(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case Right(FileType)  => fileRoutes.update(id, Some(fileRef))
-    case Right(ViewType)  => viewRoutes.update(id, Some(viewRef))
-    case Right(OtherType) => super.update(id, Some(resourceRef))
-    case Left(rejection)  => complete(rejection)
+    case Some(ResourceType(rt, schema)) => rt.update(id, Some(schema))
+    case None                           => complete(NotFound(Ref(id)): Rejection)
   }
 
   private def tag(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case Right(FileType)  => fileRoutes.tag(id, Some(fileRef))
-    case Right(ViewType)  => viewRoutes.tag(id, Some(viewRef))
-    case Right(OtherType) => super.tag(id, Some(resourceRef))
-    case Left(rejection)  => complete(rejection)
+    case Some(ResourceType(rt, schema)) => rt.tag(id, Some(schema))
+    case None                           => complete(NotFound(Ref(id)): Rejection)
   }
 
   private def deprecate(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case Right(FileType)  => fileRoutes.deprecate(id, Some(fileRef))
-    case Right(ViewType)  => viewRoutes.deprecate(id, Some(viewRef))
-    case Right(OtherType) => super.deprecate(id, Some(resourceRef))
-    case Left(rejection)  => complete(rejection)
+    case Some(ResourceType(rt, schema)) => rt.deprecate(id, Some(schema))
+    case None                           => complete(NotFound(Ref(id)): Rejection)
   }
 
   private def fetch(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case Right(FileType)  => fileRoutes.fetch(id, Some(fileRef))
-    case Right(ViewType)  => viewRoutes.fetch(id, Some(viewRef))
-    case Right(OtherType) => super.fetch(id, Some(resourceRef))
-    case Left(rejection)  => complete(rejection)
+    case Some(ResourceType(rt, schema)) => rt.fetch(id, Some(schema))
+    case None                           => complete(NotFound(Ref(id)): Rejection)
   }
 }
