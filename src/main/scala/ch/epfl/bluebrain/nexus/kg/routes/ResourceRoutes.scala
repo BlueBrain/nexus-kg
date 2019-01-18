@@ -19,7 +19,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -55,16 +54,10 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
     }
 
   def list: Route =
-    (get & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) { pagination =>
-      (parameter('deprecated.as[Boolean].?) & parameter('rev.as[Long].?) &
-        parameter('schema.as[AbsoluteIri].?) &
-        parameter('createdBy.as[AbsoluteIri].?) & parameter('updatedBy.as[AbsoluteIri].?) &
-        parameter('type.as[VocabAbsoluteIri].*)) { (deprecated, rev, schema, createdBy, updatedBy, types) =>
-        val params = SearchParams(deprecated, rev, schema, createdBy, updatedBy, types.map(_.value).toList)
-        trace(s"list$resourceName") {
-          val defaultView = cache.view.getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
-          complete(defaultView.flatMap(v => resources.list(v, params, pagination)).runToFuture)
-        }
+    (get & paginated & searchParams & hasPermission(resourceRead) & pathEndOrSingleSlash) { (pagination, params) =>
+      trace(s"list$resourceName") {
+        val defaultView = cache.view.getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
+        complete(defaultView.flatMap(v => resources.list(v, params, pagination)).runToFuture)
       }
     }
 }

@@ -19,11 +19,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -107,15 +107,11 @@ private[routes] abstract class CommonRoutes(
     }
 
   def list(schema: Ref): Route =
-    (get & paginated & hasPermission(resourceRead) & pathEndOrSingleSlash) { pagination =>
-      (parameter('deprecated.as[Boolean].?) & parameter('rev.as[Long].?) &
-        parameter('createdBy.as[AbsoluteIri].?) & parameter('updatedBy.as[AbsoluteIri].?) &
-        parameter('type.as[VocabAbsoluteIri].*)) { (deprecated, rev, createdBy, updatedBy, types) =>
-        val params = SearchParams(deprecated, rev, Some(schema.iri), createdBy, updatedBy, types.map(_.value).toList)
-        trace(s"list$resourceName") {
-          val defaultView = viewCache.getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
-          complete(defaultView.flatMap(v => resources.list(v, params, pagination)).runToFuture)
-        }
+    (get & paginated & searchParams & hasPermission(resourceRead) & pathEndOrSingleSlash) { (pagination, params) =>
+      trace(s"list$resourceName") {
+        val defaultView = viewCache.getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
+        complete(
+          defaultView.flatMap(v => resources.list(v, params.copy(schema = Some(schema.iri)), pagination)).runToFuture)
       }
     }
 

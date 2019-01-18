@@ -27,7 +27,8 @@ object QueryBuilder {
     */
   def queryFor(params: SearchParams): Json =
     baseQuery(
-      params.types.map(term("@type", _)) ++ params.schema.map(term(nxv.constrainedBy.prefix, _)) ++ params.deprecated
+      params.types.map(term("@type", _)) ++ params.id.map(term("@id", _)) ++ params.schema.map(
+        term(nxv.constrainedBy.prefix, _)) ++ params.deprecated
         .map(term(nxv.deprecated.prefix, _)) ++ params.rev.map(term(nxv.rev.prefix, _)) ++ params.createdBy.map(
         term(nxv.createdBy.prefix, _)) ++ params.updatedBy.map(term(nxv.updatedBy.prefix, _)))
 }

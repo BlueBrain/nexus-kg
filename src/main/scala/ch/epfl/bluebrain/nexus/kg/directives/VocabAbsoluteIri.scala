@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.routes
+package ch.epfl.bluebrain.nexus.kg.directives
 
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
@@ -8,4 +8,4 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   *
   * @param value the absolute iri
   */
-private[routes] final case class VocabAbsoluteIri(value: AbsoluteIri)
+private[directives] final case class VocabAbsoluteIri(value: AbsoluteIri)

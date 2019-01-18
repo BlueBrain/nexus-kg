@@ -11,10 +11,12 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   * @param createdBy  the optional identity id who created the resource
   * @param updatedBy  the optional identity id who updated the resource
   * @param types      the optional types of the resources
+  * @param id         the optional id of the resources
   */
 final case class SearchParams(deprecated: Option[Boolean] = None,
                               rev: Option[Long] = None,
                               schema: Option[AbsoluteIri] = None,
                               createdBy: Option[AbsoluteIri] = None,
                               updatedBy: Option[AbsoluteIri] = None,
-                              types: List[AbsoluteIri] = List.empty)
+                              types: List[AbsoluteIri] = List.empty,
+                              id: Option[AbsoluteIri] = None)
