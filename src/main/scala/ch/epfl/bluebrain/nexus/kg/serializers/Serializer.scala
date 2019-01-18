@@ -32,20 +32,13 @@ object Serializer {
 
   private implicit val config: Configuration = Configuration.default.withDiscriminator("type")
 
-  private implicit def refEncoder: Encoder[Ref] = Encoder { ref =>
-    Json.fromString(ref.iri.show)
-  }
+  private implicit def refEncoder: Encoder[Ref] = Encoder.encodeString.contramap(_.iri.show)
   private implicit def refDecoder: Decoder[Ref] = absoluteIriDecoder.map(Ref(_))
 
-  private implicit def pathEncoder: Encoder[Path] = Encoder { path =>
-    Json.fromString(path.toString)
-  }
-
-  private implicit def pathDecoder: Decoder[Path] =
-    Decoder.decodeString.emapTry(p => Try(Paths.get(p)))
+  private implicit def pathEncoder: Encoder[Path] = Encoder.encodeString.contramap(_.toString)
+  private implicit def pathDecoder: Decoder[Path] = Decoder.decodeString.emapTry(p => Try(Paths.get(p)))
 
   private implicit def fileAttributesEncoder: Encoder[FileAttributes] = deriveEncoder[FileAttributes]
-
   private implicit def fileAttributesDecoder: Decoder[FileAttributes] = deriveDecoder[FileAttributes]
 
   private implicit val encodeResId: Encoder[ResId] =

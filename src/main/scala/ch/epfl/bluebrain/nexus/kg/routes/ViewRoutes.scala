@@ -72,7 +72,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
       (post & entity(as[String]) & hasPermission(resourceRead) & pathEndOrSingleSlash) { query =>
         val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
           case Some(v) => indexers.sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
-          case _       => Task.pure(Left(NotFound(Ref(id))))
+          case _       => Task.pure(Left(NotFound(id.ref)))
         }
         trace("searchSparql")(complete(result.runToFuture))
       }
@@ -89,7 +89,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
                 case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
                 case indices                    => indexers.elastic.searchRaw(query, indices.toSet, params).map(Right.apply)
               }
-            case _ => Task.pure(Left(NotFound(Ref(id))))
+            case _ => Task.pure(Left(NotFound(id.ref)))
           }
           trace("searchElastic")(complete(result.runToFuture))
       }

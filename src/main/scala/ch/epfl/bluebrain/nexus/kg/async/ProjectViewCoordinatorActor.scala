@@ -23,16 +23,21 @@ import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChanges
 import ch.epfl.bluebrain.nexus.service.indexer.cache.OnKeyValueStoreChange
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.indexer.stream.StreamCoordinator.{Stop => StreamCoordinatorStop}
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 import shapeless.TypeCase
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
 
 import scala.collection.immutable.Set
 import scala.collection.mutable
 import scala.concurrent.Future
+
+import scala.concurrent.duration._
 
 /**
   * Coordinator backed by akka actor which runs the views' streams inside the provided project
@@ -178,6 +183,7 @@ object ProjectViewCoordinatorActor {
     val props = {
       Props(
         new ProjectViewCoordinatorActor(viewCache) {
+          private implicit val strategy: RetryStrategy = Backoff(1 minute, 0.2)
 
           private val sparql                                      = config.sparql
           private implicit val jsonClient: HttpClient[Task, Json] = withUnmarshaller[Task, Json]
@@ -191,12 +197,11 @@ object ProjectViewCoordinatorActor {
           override def deleteViewIndices(view: SingleView, project: Project): Task[Unit] = view match {
             case v: ElasticView =>
               log.info("ElasticView index '{}' is removed from project '{}'", v.index, project.projectLabel.show)
-              //TODO: Retry when delete fails
-              esClient.deleteIndex(v.index) *> Task.unit
+              esClient.deleteIndex(v.index).retryWhenNot({ case true => () }, 10)
             case _: SparqlView =>
               log.info("Blazegraph keyspace '{}' is removed from project '{}'", view.name, project.projectLabel.show)
-              //TODO: Retry when delete fails
-              BlazegraphClient[Task](sparql.base, view.name, sparql.akkaCredentials).deleteNamespace *> Task.unit
+              val client = BlazegraphClient[Task](sparql.base, view.name, sparql.akkaCredentials)
+              client.deleteNamespace.retryWhenNot({ case true => () }, 10)
           }
 
           override def onChange(projectRef: ProjectRef): OnKeyValueStoreChange[UUID, RevisionedViews] =

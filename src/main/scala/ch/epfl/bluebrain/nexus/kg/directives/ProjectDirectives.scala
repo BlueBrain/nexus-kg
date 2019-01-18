@@ -26,7 +26,10 @@ object ProjectDirectives {
     "nxc"       -> Contexts.base,
     "resource"  -> Schemas.resourceSchemaUri,
     "documents" -> nxv.defaultElasticIndex,
-    "graph"     -> nxv.defaultSparqlIndex
+    "graph"     -> nxv.defaultSparqlIndex,
+    "view"      -> Schemas.viewSchemaUri,
+    "resolver"  -> Schemas.resolverSchemaUri,
+    "file"      -> Schemas.fileSchemaUri
   )
 
   /**

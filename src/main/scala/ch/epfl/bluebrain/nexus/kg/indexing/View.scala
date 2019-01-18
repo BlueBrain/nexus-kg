@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.UUID
+import java.util.regex.Pattern
 
 import cats.data.EitherT
 import cats.implicits._
@@ -26,6 +27,7 @@ import io.circe.parser._
 
 import scala.util.Try
 import scala.util.control.NonFatal
+import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 
 /**
   * Enumeration of view types.
@@ -104,7 +106,7 @@ sealed trait View extends Product with Serializable {
                   EitherT(viewCache.get(ref).map { views =>
                     val toTarget = labelIris.getOrElse(label, Set.empty)
                     val found    = views.collect { case es: ElasticView if toTarget.contains(es.id) => es.id }
-                    (toTarget -- found).headOption.map(iri => NotFound(Ref(iri))).toLeft(view)
+                    (toTarget -- found).headOption.map(iri => NotFound(iri.ref)).toLeft(view)
                   })
                 }
             }
@@ -248,11 +250,27 @@ object View {
           case false => Left(Unexpected("View mapping validation could not be performed"))
         }
         .recoverWith {
-          case err: ElasticFailure => F.pure(Left(InvalidPayload(Ref(id), err.body)))
+          case err: ElasticFailure => F.pure(Left(InvalidPayload(id.ref, err.body)))
           case NonFatal(err) =>
             val msg = Try(err.getMessage).getOrElse("")
             F.pure(Left(Unexpected(s"View mapping validation could not be performed. Cause '$msg'")))
         }
+  }
+
+  object ElasticView {
+    private val defaultViewId = UUID.fromString("684bd815-9273-46f4-ac1c-0383d4a98254")
+
+    /**
+      * Default [[ElasticView]] that gets created for every project.
+      *
+      * @param ref the project unique identifier
+      */
+    def default(ref: ProjectRef)(implicit elasticConfig: ElasticConfig): ElasticView = {
+      val mapping = jsonContentOf("/elastic/mapping.json", Map(Pattern.quote("{{docType}}") -> elasticConfig.docType))
+      // format: off
+      ElasticView(mapping, Set.empty, None, includeMetadata = true, sourceAsText = true, ref, nxv.defaultElasticIndex.value, defaultViewId, 1L, deprecated = false)
+      // format: on
+    }
   }
 
   /**
@@ -271,6 +289,19 @@ object View {
       rev: Long,
       deprecated: Boolean
   ) extends SingleView
+
+  object SparqlView {
+    private val defaultViewId = UUID.fromString("d88b71d2-b8a4-4744-bf22-2d99ef5bd26b")
+
+    /**
+      * Default [[SparqlView]] that gets created for every project.
+      *
+      * @param ref the project unique identifier
+      */
+    def default(ref: ProjectRef): SparqlView =
+      SparqlView(ref, nxv.defaultSparqlIndex.value, defaultViewId, 1L, deprecated = false)
+
+  }
 
   /**
     * Aggregation of [[ElasticView]].

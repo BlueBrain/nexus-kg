@@ -97,9 +97,9 @@ private[routes] abstract class CommonRoutes(
         trace(s"get$resourceName") {
           (revOpt, tagOpt) match {
             case (Some(_), Some(_)) => reject(simultaneousParamsRejection)
-            case (Some(rev), _)     => complete(resources.fetch(idRes, rev, schemaOpt).materializeRun(Ref(id)))
-            case (_, Some(tag))     => complete(resources.fetch(idRes, tag, schemaOpt).materializeRun(Ref(id)))
-            case _                  => complete(resources.fetch(idRes, schemaOpt).materializeRun(Ref(id)))
+            case (Some(rev), _)     => complete(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref))
+            case (_, Some(tag))     => complete(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref))
+            case _                  => complete(resources.fetch(idRes, schemaOpt).materializeRun(id.ref))
           }
         }
     }

@@ -154,6 +154,17 @@ object Resolver {
       priority: Int
   ) extends Resolver
 
+  object InProjectResolver {
+
+    /**
+      * Default [[InProjectResolver]] that gets created for every project.
+      *
+      * @param ref the project unique identifier
+      */
+    def default(ref: ProjectRef): InProjectResolver =
+      InProjectResolver(ref, nxv.defaultResolver.value, 1L, deprecated = false, 1)
+  }
+
   /**
     * A resolver that can looks across several projects.
     */

@@ -6,6 +6,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -87,7 +88,6 @@ object Command {
     * @param id       the resource identifier
     * @param rev      the last known revision of the resource when this command was created
     * @param instant  the instant when this command was created
-    * @param identity the identity which created this command
     */
   final case class Deprecate(
       id: Id[ProjectRef],
@@ -104,7 +104,6 @@ object Command {
     * @param targetRev the revision to be tagged with the provided ''tag''
     * @param tag       the tag's name
     * @param instant   the instant when this command was created
-    * @param identity  the identity which created this command
     */
   final case class AddTag(
       id: Id[ProjectRef],
@@ -134,7 +133,7 @@ object Command {
     /**
       * the schema that is used to constrain the resource
       */
-    val schema: Ref = Ref(fileSchemaUri)
+    val schema: Ref = fileSchemaUri.ref
 
     /**
       * the collection of known resource types

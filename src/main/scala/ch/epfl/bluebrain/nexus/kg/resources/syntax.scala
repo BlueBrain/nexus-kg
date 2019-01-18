@@ -107,6 +107,10 @@ object syntax {
       projects.filter(hasPermission(acls, _, permissions))
   }
 
+  implicit class AbsoluteIriSyntax(private val iri: AbsoluteIri) extends AnyVal {
+    def ref: Ref = Ref(iri)
+  }
+
   implicit class ProjectSyntax(private val project: Project) extends AnyVal {
 
     /**

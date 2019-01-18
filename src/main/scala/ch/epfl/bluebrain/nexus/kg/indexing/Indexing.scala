@@ -11,56 +11,72 @@ import ch.epfl.bluebrain.nexus.admin.client.types.events.decoders._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.untyped
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectViewCoordinator, ProjectViewCoordinatorActor}
+import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef, Resources}
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
+import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.AlreadyExists
+import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kafka.KafkaConsumer
 import com.github.ghik.silencer.silent
+import io.circe.Json
+import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 import org.apache.kafka.common.serialization.StringDeserializer
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 // $COVERAGE-OFF$
 @silent
 private class Indexing(resources: Resources[Task], cache: Caches[Task], coordinator: ProjectViewCoordinator[Task])(
     implicit as: ActorSystem,
     config: AppConfig) {
-// TODO: uncomment when KafkaEvents are present in the AdminClient
-  private val consumerSettings = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
 
-//  private val elasticUUID = UUID.fromString("684bd815-9273-46f4-ac1c-0383d4a98254")
-//  private val sparqlUUID  = UUID.fromString("d88b71d2-b8a4-4744-bf22-2d99ef5bd26b")
+  private val logger                                          = Logger[this.type]
+  private val consumerSettings                                = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
+  private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
+  private implicit val strategy: RetryStrategy                = Backoff(1 minute, 0.2)
 
-//  private val defaultEsMapping =
-//    jsonContentOf("/elastic/mapping.json", Map(Pattern.quote("{{docType}}") -> config.elastic.docType))
+  private def asJson(view: View): Json =
+    view
+      .asJson(viewCtx.appendContextOf(resourceCtx))
+      .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
+      .addContext(viewCtxUri)
+      .addContext(resourceCtxUri)
+
+  private def asJson(resolver: Resolver): Json =
+    resolver
+      .asJson(resolverCtx.appendContextOf(resourceCtx))
+      .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
+      .addContext(resolverCtxUri)
+      .addContext(resourceCtxUri)
+
+  val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[AlreadyExists, Resource]] = {
+    case Left(exists: AlreadyExists) => Left(exists)
+    case Right(value)                => Right(value)
+  }
 
   def startKafkaStream(): Unit = {
 
-// TODO:
-//    def defaultEsView(projectRef: ProjectRef): ElasticView =
-//      ElasticView(defaultEsMapping,
-//                  Set.empty,
-//                  None,
-//                  includeMetadata = true,
-//                  sourceAsText = true,
-//                  projectRef,
-//                  nxv.defaultElasticIndex.value,
-//                  elasticUUID,
-//                  1L,
-//                  deprecated = false)
-//
-//    def defaultSparqlView(projectRef: ProjectRef): SparqlView =
-//      SparqlView(projectRef, nxv.defaultSparqlIndex.value, sparqlUUID, 1L, deprecated = false)
-//
-//    def defaultInProjectResolver(projectRef: ProjectRef): InProjectResolver =
-//      InProjectResolver(projectRef, nxv.InProject.value, 1L, deprecated = false, 1)
-
     def index(event: Event): Future[Unit] = {
-
+      logger.debug(s"Handling admin event: '$event'")
       val update = event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
           coordinator.stop(OrganizationRef(uuid))
@@ -69,7 +85,18 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
           // format: off
           val project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
-          cache.project.replace(project) *> coordinator.start(project)
+          implicit val s         = subject
+          val elasticView: View  = ElasticView.default(project.ref)
+          val sparqlView: View   = SparqlView.default(project.ref)
+          val resolver: Resolver = InProjectResolver.default(project.ref)
+          // format: off
+          cache.project.replace(project) *>
+            coordinator.start(project) *>
+            resources.create(Id(project.ref, elasticView.id), viewRef, asJson(elasticView)).value.retryWhenNot(createdOrExists, 15) *>
+            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.retryWhenNot(createdOrExists, 15) *>
+            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.retryWhenNot(createdOrExists, 15) *> 
+            Task.unit
+          // format: on
 
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
           cache.project.get(ProjectRef(uuid)).flatMap {

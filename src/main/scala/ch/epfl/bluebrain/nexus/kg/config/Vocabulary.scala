@@ -77,6 +77,9 @@ object Vocabulary {
     val defaultElasticIndex = withSuffix("defaultElasticIndex")
     val defaultSparqlIndex  = withSuffix("defaultSparqlIndex")
 
+    //Resolver default id
+    val defaultResolver = withSuffix("defaultInProject")
+
     // @type platform ids
     val Schema               = withSuffix("Schema")
     val File                 = withSuffix("File")
