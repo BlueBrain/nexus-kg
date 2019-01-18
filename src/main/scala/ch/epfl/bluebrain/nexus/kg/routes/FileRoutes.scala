@@ -22,12 +22,12 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 
 import scala.concurrent.Future
 
@@ -39,7 +39,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     config: AppConfig)
     extends CommonRoutes(resources, "files", acls, caller, viewCache) {
 
-  private val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
+  private val metadataTypes: Set[MediaType] = Set(`application/json`, `application/ld+json`)
   private type RejectionOrFile = Either[AkkaRejection, Option[(FileAttributes, AkkaOut)]]
 
   def routes: Route = {
@@ -99,8 +99,14 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   override def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     optionalHeaderValueByType[Accept](()) {
-      case Some(h) if h.mediaRanges == metadataRanges => super.fetch(id, schemaOpt)
-      case _                                          => getFile(id)
+      case Some(h) if h.acceptsAll()           => getFile(id)
+      case Some(h) if matchesMetadataRanges(h) => super.fetch(id, schemaOpt)
+      case _                                   => getFile(id)
+    }
+
+  private def matchesMetadataRanges(h: Accept): Boolean =
+    h.mediaRanges.exists { mr =>
+      metadataTypes.exists(mt => mr.matches(mt))
     }
 
   private def getFile(id: AbsoluteIri): Route =
@@ -132,7 +138,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   private def filenameHeader(info: FileAttributes) = {
     val filename = urlEncodeOrElse(info.filename)("file")
-    RawHeader("Content-Disposition", s"attachment; filename*= UTF-8''$filename")
+    RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")
   }
 
   private def contentType(info: FileAttributes) =
