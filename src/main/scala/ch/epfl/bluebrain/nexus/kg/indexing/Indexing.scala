@@ -16,7 +16,6 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.untyped
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -74,7 +73,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
       .addContext(resolverCtxUri)
       .addContext(resourceCtxUri)
 
-  val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[AlreadyExists, Resource]] = {
+  private val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[AlreadyExists, Resource]] = {
     case Left(exists: AlreadyExists) => Left(exists)
     case Right(value)                => Right(value)
   }
