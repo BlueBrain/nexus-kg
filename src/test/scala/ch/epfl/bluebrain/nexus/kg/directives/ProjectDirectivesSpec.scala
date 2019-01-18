@@ -144,7 +144,8 @@ class ProjectDirectivesSpec
       "graph"         -> nxv.defaultSparqlIndex,
       "view"          -> Schemas.viewSchemaUri,
       "resolver"      -> Schemas.resolverSchemaUri,
-      "file"          -> Schemas.fileSchemaUri
+      "file"          -> Schemas.fileSchemaUri,
+      "account"       -> nxv.defaultResolver
     )
     val projectMetaResp = projectMeta.copy(apiMappings = apiMappingsFinal)
 
