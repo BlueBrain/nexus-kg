@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.untyped
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectViewCoordinator, ProjectViewCoordinatorActor}
+import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -23,10 +23,13 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.AlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kafka.KafkaConsumer
 import com.github.ghik.silencer.silent
 import io.circe.Json
@@ -35,8 +38,10 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 import org.apache.kafka.common.serialization.StringDeserializer
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 // $COVERAGE-OFF$
 @silent
@@ -47,6 +52,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
   private val logger                                          = Logger[this.type]
   private val consumerSettings                                = ConsumerSettings(as, new StringDeserializer, new StringDeserializer)
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
+  private implicit val strategy: RetryStrategy                = Backoff(1 minute, 0.2)
 
   private def asJson(view: View): Json =
     view
@@ -61,6 +67,11 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
       .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
       .addContext(resolverCtxUri)
       .addContext(resourceCtxUri)
+
+  val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[AlreadyExists, Resource]] = {
+    case Left(exists: AlreadyExists) => Left(exists)
+    case Right(value)                => Right(value)
+  }
 
   def startKafkaStream(): Unit = {
 
@@ -78,11 +89,14 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
           val elasticView: View  = ElasticView.default(project.ref)
           val sparqlView: View   = SparqlView.default(project.ref)
           val resolver: Resolver = InProjectResolver.default(project.ref)
+          // format: off
           cache.project.replace(project) *>
-            resources.create(Id(project.ref, elasticView.id), viewRef, asJson(elasticView)).value *>
-            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value *>
-            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value *>
-            coordinator.start(project)
+            coordinator.start(project) *>
+            resources.create(Id(project.ref, elasticView.id), viewRef, asJson(elasticView)).value.retryWhenNot(createdOrExists, 15) *>
+            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.retryWhenNot(createdOrExists, 15) *>
+            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.retryWhenNot(createdOrExists, 15) *> 
+            Task.unit
+          // format: on
 
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
           cache.project.get(ProjectRef(uuid)).flatMap {
