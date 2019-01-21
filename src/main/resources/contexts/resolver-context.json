@@ -39,5 +39,9 @@
     "subject": "nxv:subject",
     "group": "nxv:group"
   },
+  "account": {
+    "@id": "nxv:defaultResolver",
+    "@type": "@id"
+  },
   "@id": "https://bluebrain.github.io/nexus/contexts/resolver.json"
 }

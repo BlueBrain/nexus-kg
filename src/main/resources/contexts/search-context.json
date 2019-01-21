@@ -23,5 +23,17 @@
     "_maxScore": "nxv:maxScore",
     "_score": "nxv:score"
   },
+  "documents": {
+    "@id": "nxv:defaultElasticIndex",
+    "@type": "@id"
+  },
+  "graph": {
+    "@id": "nxv:defaultSparqlIndex",
+    "@type": "@id"
+  },
+  "account": {
+    "@id": "nxv:defaultResolver",
+    "@type": "@id"
+  },
   "@id": "https://bluebrain.github.io/nexus/contexts/search.json"
 }
