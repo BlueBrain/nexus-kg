@@ -62,7 +62,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
-          trace("createFiles") {
+          trace("createFile") {
             val resId = Id(project.ref, id)
             complete(resources.createFile(resId, description, byteSource).value.runToFuture)
           }
@@ -74,25 +74,23 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
-          trace("createFiles") {
+          trace("createFile") {
             complete(resources.createFile(project.ref, project.base, description, byteSource).value.runToFuture)
           }
       }
     }
 
   override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    pathPrefix(IdSegment) { id =>
-      (put & parameter('rev.as[Long]) & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
-        rev =>
-          fileUpload("file") {
-            case (metadata, byteSource) =>
-              val description = FileDescription(metadata.fileName, metadata.contentType.value)
-              trace("updateFiles") {
-                val resId = Id(project.ref, id)
-                complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
-              }
-          }
-      }
+    (put & parameter('rev.as[Long]) & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
+      rev =>
+        fileUpload("file") {
+          case (metadata, byteSource) =>
+            val description = FileDescription(metadata.fileName, metadata.contentType.value)
+            trace("updateFile") {
+              val resId = Id(project.ref, id)
+              complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
+            }
+        }
     }
 
   override def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
