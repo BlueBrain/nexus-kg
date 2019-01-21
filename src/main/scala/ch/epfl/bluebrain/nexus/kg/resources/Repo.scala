@@ -269,7 +269,7 @@ object Repo {
     (state, ev) match {
       case (Initial, e @ Created(id, schema, types, value, tm, ident)) =>
         Current(id, e.rev, types, false, Map.empty, None, tm, tm, ident, ident, schema, value)
-      case (Initial, e @ CreatedFile(id, file, tm, ident)) =>
+      case (Initial, e @ FileCreated(id, file, tm, ident)) =>
         Current(id, e.rev, e.types, false, Map.empty, Some(file), tm, tm, ident, ident, e.schema, Json.obj())
       case (Initial, _) => Initial
       case (c: Current, TagAdded(_, rev, targetRev, name, tm, ident)) =>
@@ -279,7 +279,7 @@ object Repo {
         c.copy(rev = rev, updated = tm, updatedBy = ident, deprecated = true)
       case (c: Current, Updated(_, rev, types, value, tm, ident)) =>
         c.copy(rev = rev, types = types, source = value, updated = tm, updatedBy = ident)
-      case (c: Current, UpdatedFile(_, rev, file, tm, ident)) =>
+      case (c: Current, FileUpdated(_, rev, file, tm, ident)) =>
         c.copy(rev = rev, file = Some(file), updated = tm, updatedBy = ident)
     }
 
@@ -293,19 +293,19 @@ object Repo {
         case _                                  => Left(AlreadyExists(c.id.ref))
       }
 
-    def createFile(c: CreateFile): Either[Rejection, CreatedFile] =
+    def createFile(c: CreateFile): Either[Rejection, FileCreated] =
       state match {
-        case Initial => Right(CreatedFile(c.id, c.value, c.instant, c.subject))
+        case Initial => Right(FileCreated(c.id, c.value, c.instant, c.subject))
         case _       => Left(AlreadyExists(c.id.ref))
       }
 
-    def updateFile(c: UpdateFile): Either[Rejection, UpdatedFile] =
+    def updateFile(c: UpdateFile): Either[Rejection, FileUpdated] =
       state match {
         case Initial                      => Left(NotFound(c.id.ref))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
         case s: Current if s.file.isEmpty => Left(NotFileResource(c.id.ref))
-        case s: Current                   => Right(UpdatedFile(s.id, s.rev + 1, c.value, c.instant, c.subject))
+        case s: Current                   => Right(FileUpdated(s.id, s.rev + 1, c.value, c.instant, c.subject))
       }
 
     def update(c: Update): Either[Rejection, Updated] =

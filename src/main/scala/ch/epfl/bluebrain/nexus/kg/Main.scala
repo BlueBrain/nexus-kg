@@ -27,6 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
+import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
@@ -143,7 +144,8 @@ object Main {
       logger.info("==== Cluster is Live ====")
 
       val routes: Route =
-        handleRejections(corsRejectionHandler)(cors(corsSettings)(apiRoutes ~ appInfoRoutes))
+        handleRejections(corsRejectionHandler.withFallback(RejectionHandling.notFound))(
+          cors(corsSettings)(apiRoutes ~ appInfoRoutes))
 
       val httpBinding = {
         Http().bindAndHandle(routes, appConfig.http.interface, appConfig.http.port)

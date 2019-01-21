@@ -42,12 +42,12 @@ object Vocabulary {
     val uuid          = PrefixMapping.metadata("uuid")
 
     // File metadata vocabulary
-    val originalFileName = PrefixMapping.metadata("originalFileName")
-    val digest           = PrefixMapping.metadata("digest")
-    val algorithm        = PrefixMapping.metadata("algorithm")
-    val value            = PrefixMapping.metadata("value")
-    val bytes            = PrefixMapping.metadata("bytes")
-    val mediaType        = PrefixMapping.metadata("mediaType")
+    val filename  = PrefixMapping.metadata("filename")
+    val digest    = PrefixMapping.metadata("digest")
+    val algorithm = PrefixMapping.metadata("algorithm")
+    val value     = PrefixMapping.metadata("value")
+    val bytes     = PrefixMapping.metadata("bytes")
+    val mediaType = PrefixMapping.metadata("mediaType")
 
     // Elasticsearch sourceAsText predicate
     val originalSource = PrefixMapping.metadata("original_source")

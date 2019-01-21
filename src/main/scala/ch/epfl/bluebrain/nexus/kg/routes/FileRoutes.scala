@@ -119,7 +119,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
             case Left(rej) => reject(rej)
             case Right(Some((info, source))) =>
               (respondWithHeaders(filenameHeader(info)) & encodeResponse) {
-                complete(HttpEntity(contentType(info), info.byteSize, source))
+                complete(HttpEntity(contentType(info), info.bytes, source))
               }
             case _ => complete(StatusCodes.NotFound)
           }

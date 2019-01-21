@@ -44,7 +44,6 @@ object RejectionHandling {
         case _: AuthorizationFailedRejection =>
           complete(Unauthorized -> (UnauthorizedAccess: HttpRejection))
       }
-      .handleNotFound(complete(NotFound -> (InvalidResourceIri: Rejection)))
       .handleAll[MalformedRequestContentRejection] { rejection =>
         val aggregate = rejection.map(_.message).mkString(", ")
         complete(BadRequest -> (WrongOrInvalidJson(Some(aggregate)): HttpRejection))
@@ -53,6 +52,15 @@ object RejectionHandling {
         val names = methodRejections.map(_.supported.name)
         complete(MethodNotAllowed -> (MethodNotSupported(names): HttpRejection))
       }
+      .result()
+
+  /**
+    * @return a rejection handler for the NotFound rejection.
+    */
+  def notFound: RejectionHandler =
+    RejectionHandler
+      .newBuilder()
+      .handleNotFound(complete(NotFound -> (InvalidResourceIri: Rejection)))
       .result()
 
 }

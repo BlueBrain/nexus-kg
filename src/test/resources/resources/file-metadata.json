@@ -8,7 +8,7 @@
     "_value" : "digest1"
   },
   "_mediaType" : "text/plain",
-  "_originalFileName" : "filename1.txt",
+  "_filename" : "filename1.txt",
   "_self" : "http://127.0.0.1:8080/v1/files/{account}/{proj}/{id}",
   "_constrainedBy" : "nxs:file.json",
   "_project" : "http://localhost:8080/admin/projects/{account}/{proj}",

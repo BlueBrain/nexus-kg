@@ -1,13 +1,13 @@
 {
-  "project": "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
+  "@type": "FileUpdated",
   "id": "https://bbp.epfl.ch/nexus/data/resourceName",
-  "rev": 2,
-  "value": {
+  "project": "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
+  "attributes": {
     "uuid": "uuid",
     "filePath": "/test/path",
     "filename": "test-file.json",
     "mediaType": "application/json",
-    "byteSize": 128,
+    "bytes": 128,
     "digest": {
       "algorithm": "md5",
       "value": "1234"
@@ -15,10 +15,10 @@
   },
   "instant": "{timestamp}",
   "subject": {
-    "@id":"http://localhost:8080/iam/realms/realm/users/sub:1234",
+    "@id": "http://localhost:8080/iam/realms/realm/users/sub:1234",
     "@type": "User",
     "realm": "realm",
     "subject": "sub:1234"
   },
-  "type": "UpdatedFile"
+  "rev": 2
 }

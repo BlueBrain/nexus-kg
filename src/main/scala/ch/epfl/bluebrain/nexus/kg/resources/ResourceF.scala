@@ -85,10 +85,10 @@ final case class ResourceF[P, S, A](
         (blankDigest, nxv.algorithm, at.digest.algorithm),
         (blankDigest, nxv.value, at.digest.value),
         (node, rdf.tpe, nxv.File),
-        (node, nxv.bytes, at.byteSize),
+        (node, nxv.bytes, at.bytes),
         (node, nxv.digest, blankDigest),
         (node, nxv.mediaType, at.mediaType),
-        (node, nxv.originalFileName, at.filename)
+        (node, nxv.filename, at.filename)
       )
     }
     val schemaIri   = ev(schema).iri
