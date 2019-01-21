@@ -121,14 +121,14 @@ object Event {
   /**
     * A witness that a file resource has been created.
     *
-    * @param id      the resource identifier
-    * @param value   the metadata of the file
-    * @param instant the instant when this event was recorded
-    * @param subject the identity which generated this event
+    * @param id         the resource identifier
+    * @param attributes the metadata of the file
+    * @param instant    the instant when this event was recorded
+    * @param subject    the identity which generated this event
     */
-  final case class CreatedFile(
+  final case class FileCreated(
       id: Id[ProjectRef],
-      value: FileAttributes,
+      attributes: FileAttributes,
       instant: Instant,
       subject: Subject
   ) extends Event {
@@ -152,16 +152,16 @@ object Event {
   /**
     * A witness that a file resource has been updated.
     *
-    * @param id       the resource identifier
-    * @param rev      the revision that this event generated
-    * @param value    the metadata of the file
-    * @param instant  the instant when this event was recorded
-    * @param subject the identity which generated this event
+    * @param id         the resource identifier
+    * @param rev        the revision that this event generated
+    * @param attributes the metadata of the file
+    * @param instant    the instant when this event was recorded
+    * @param subject    the identity which generated this event
     */
-  final case class UpdatedFile(
+  final case class FileUpdated(
       id: Id[ProjectRef],
       rev: Long,
-      value: FileAttributes,
+      attributes: FileAttributes,
       instant: Instant,
       subject: Subject
   ) extends Event {

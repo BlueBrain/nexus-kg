@@ -16,13 +16,15 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
-import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
+import io.circe.parser._
+import org.scalatest._
 import shapeless.Typeable
 
 class EventSerializerSpec
     extends WordSpecLike
     with Matchers
     with Inspectors
+    with EitherValues
     with ScalatestRouteTest
     with OptionValues
     with Randomness
@@ -55,18 +57,19 @@ class EventSerializerSpec
       val digest   = Digest("md5", "1234")
       val fileAttr = FileAttributes("uuid", Paths.get("/test/path"), "test-file.json", "application/json", 128L, digest)
       val results = List(
-        Created(key, schema, types, value, instant, Anonymous) -> jsonContentOf("/serialization/created-resp.json", rep).noSpaces,
-        Deprecated(key, 1L, types, instant, subject)           -> jsonContentOf("/serialization/deprecated-resp.json", rep).noSpaces,
-        TagAdded(key, 1L, 2L, "tagName", instant, subject)     -> jsonContentOf("/serialization/tagged-resp.json", rep).noSpaces,
-        CreatedFile(key, fileAttr, instant, subject)           -> jsonContentOf("/serialization/created-file-resp.json", rep).noSpaces,
-        UpdatedFile(key, 2L, fileAttr, instant, subject)       -> jsonContentOf("/serialization/updated-file-resp.json", rep).noSpaces
+        Created(key, schema, types, value, instant, Anonymous) -> jsonContentOf("/serialization/created-resp.json",
+                                                                                rep),
+        Deprecated(key, 1L, types, instant, subject)       -> jsonContentOf("/serialization/deprecated-resp.json", rep),
+        TagAdded(key, 1L, 2L, "tagName", instant, subject) -> jsonContentOf("/serialization/tagged-resp.json", rep),
+        FileCreated(key, fileAttr, instant, subject)       -> jsonContentOf("/serialization/created-file-resp.json", rep),
+        FileUpdated(key, 2L, fileAttr, instant, subject)   -> jsonContentOf("/serialization/updated-file-resp.json", rep)
       )
 
       "encode known events to UTF-8" in {
         forAll(results) {
           case (event, json) =>
             val serializer = findConcreteSerializer[EventSerializer](event)
-            new String(serializer.toBinary(event), UTF8) shouldEqual json
+            parse(new String(serializer.toBinary(event), UTF8)).right.value shouldEqual json
             serializer.manifest(event)
         }
       }
@@ -75,7 +78,7 @@ class EventSerializerSpec
         forAll(results) {
           case (event, json) =>
             val serializer = findConcreteSerializer[EventSerializer](event)
-            serializer.fromBinary(json.getBytes(UTF8), "Event") shouldEqual event
+            serializer.fromBinary(json.noSpaces.getBytes(UTF8), "Event") shouldEqual event
         }
       }
     }

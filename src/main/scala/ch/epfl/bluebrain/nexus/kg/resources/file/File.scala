@@ -32,14 +32,14 @@ object File {
     * @param filePath  path where the file gets stored.
     * @param filename  the original filename of the file
     * @param mediaType the media type of the file
-    * @param byteSize  the size of the file file in bytes
+    * @param bytes     the size of the file file in bytes
     * @param digest    the digest information of the file
     */
   final case class FileAttributes(uuid: String,
                                   filePath: Path,
                                   filename: String,
                                   mediaType: String,
-                                  byteSize: Long,
+                                  bytes: Long,
                                   digest: Digest)
   object FileAttributes {
     def apply(filePath: Path, filename: String, mediaType: String, size: Long, digest: Digest): FileAttributes =

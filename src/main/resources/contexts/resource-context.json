@@ -50,20 +50,12 @@
       "@type": "@id"
     },
     "_rev": "nxv:rev",
-    "_distribution": {
-      "@container": "@set",
-      "@id": "dcat:distribution"
-    },
-    "_downloadURL": {
-      "@type": "@id",
-      "@id": "dcat:downloadURL"
-    },
     "_accessURL": "dcat:accessURL",
     "_digest": "nxv:digest",
     "_algorithm": "nxv:algorithm",
     "_value": "nxv:value",
     "_mediaType": "nxv:mediaType",
-    "_originalFileName": "nxv:originalFileName",
+    "_filename": "nxv:filename",
     "_bytes": "nxv:bytes"
   },
   "@id": "https://bluebrain.github.io/nexus/contexts/resource.json"

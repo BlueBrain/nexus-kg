@@ -1,6 +1,7 @@
 {
-  "project": "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
+  "@type": "Created",
   "id": "https://bbp.epfl.ch/nexus/data/resourceName",
+  "project": "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
   "schema": "https://bbp.epfl.ch/nexus/data/schemaName",
   "types": [
     "https://bbp.epfl.ch/nexus/types/type1",
@@ -16,5 +17,5 @@
     "@id":"http://localhost:8080/iam/anonymous",
     "@type": "Anonymous"
   },
-  "type": "Created"
+  "rev": 1
 }

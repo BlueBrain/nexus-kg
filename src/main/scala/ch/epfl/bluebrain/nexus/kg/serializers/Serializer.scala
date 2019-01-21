@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, FileCreated}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -30,7 +31,7 @@ import scala.util.Try
   */
 object Serializer {
 
-  private implicit val config: Configuration = Configuration.default.withDiscriminator("type")
+  private implicit val config: Configuration = Configuration.default.withDiscriminator("@type")
 
   private implicit def refEncoder: Encoder[Ref] = Encoder.encodeString.contramap(_.iri.show)
   private implicit def refDecoder: Decoder[Ref] = absoluteIriDecoder.map(Ref(_))
@@ -52,7 +53,11 @@ object Serializer {
   implicit def eventEncoder(implicit iamClientConfig: IamClientConfig): Encoder[Event] = {
     val enc = deriveEncoder[Event]
     Encoder.instance { ev =>
-      enc(ev).removeKeys("id") deepMerge ev.id.asJson
+      val json = enc(ev).removeKeys("id") deepMerge ev.id.asJson
+      ev match {
+        case _: FileCreated | _: Created => json deepMerge Json.obj("rev" -> Json.fromLong(1L))
+        case _                           => json
+      }
     }
   }
 

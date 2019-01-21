@@ -51,37 +51,23 @@
           "_original_source": {
             "type": "text"
           },
-          "_distribution": {
+          "_bytes": {
+            "type": "long"
+          },
+          "_mediaType": {
+            "type": "keyword"
+          },
+          "_filename": {
+            "type": "keyword"
+          },
+          "_digest": {
             "type": "nested",
             "properties": {
-              "@type": {
+              "_algorithm": {
                 "type": "keyword"
               },
-              "@id": {
+              "_value": {
                 "type": "keyword"
-              },
-              "_byteSize": {
-                "type": "long"
-              },
-              "_downloadURL": {
-                "type": "keyword"
-              },
-              "_mediaType": {
-                "type": "keyword"
-              },
-              "_originalFileName": {
-                "type": "keyword"
-              },
-              "_digest": {
-                "type": "nested",
-                "properties": {
-                  "_algorithm": {
-                    "type": "keyword"
-                  },
-                  "_value": {
-                    "type": "keyword"
-                  }
-                }
               }
             }
           }

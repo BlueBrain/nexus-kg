@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.MediaTypes.`text/plain`
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives.handleRejections
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.scaladsl.{FileIO, Sink, Source}
 import akka.stream.ActorMaterializer
@@ -42,6 +43,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
+import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -120,7 +122,9 @@ class ResourceRoutesSpec
   private val manageFiles    = Set(Permission.unsafe("resources/read"), Permission.unsafe("files/write"))
   private val manageViews =
     Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"), Permission.unsafe("views/write"))
-  private val routes = Routes(resources)
+  private val routes = (handleRejections(RejectionHandling().withFallback(RejectionHandling.notFound))) {
+    Routes(resources)
+  }
 
   abstract class Context(perms: Set[Permission]) {
     val organization = genString(length = 4)
@@ -820,7 +824,7 @@ class ResourceRoutesSpec
               .simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)
               .copy(tags = Map("some" -> 2L))))
 
-        Put(s"/v1/schemas/$organization/$project/nxv:$genUuid/tags?rev=1", tag) ~> addCredentials(oauthToken) ~> routes ~> check {
+        Post(s"/v1/schemas/$organization/$project/nxv:$genUuid/tags?rev=1", tag) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] shouldEqual schemaResponse()
         }
