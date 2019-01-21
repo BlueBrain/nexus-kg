@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.async.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
@@ -20,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.Iri
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -35,10 +37,11 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   private val emptyEsList: Json                          = jsonContentOf("/elastic/empty-list.json")
   private val transformation: Transformation[Task, View] = Transformation.view
 
-  private implicit val projectCache = cache.project
-  private implicit val viewCache    = cache.view
-  private implicit val esClient     = indexers.elastic
-  private implicit val ujClient     = indexers.uclJson
+  private implicit val projectCache                = cache.project
+  private implicit val viewCache                   = cache.view
+  private implicit val esClient                    = indexers.elastic
+  private implicit val ujClient                    = indexers.uclJson
+  private val defaultViewIds: Set[Iri.AbsoluteIri] = Set(nxv.defaultElasticIndex.value, nxv.defaultSparqlIndex.value)
 
   def routes: Route = {
     val viewRefOpt = Some(viewRef)
@@ -54,6 +57,18 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
         )
       }
   }
+
+  override def create(id: Iri.AbsoluteIri, schema: Ref): Route =
+    if (defaultViewIds.contains(id))
+      hasPermission(adminPermission).apply(super.create(id, schema))
+    else
+      super.create(id, schema)
+
+  override def update(id: Iri.AbsoluteIri, schemaOpt: Option[Ref]): Route =
+    if (defaultViewIds.contains(id))
+      hasPermission(adminPermission).apply(super.update(id, schemaOpt))
+    else
+      super.update(id, schemaOpt)
 
   override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.view[Task](caller, acls)
 

@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import cats.data.EitherT
 import cats.implicits._
 import cats.{Monad, Show}
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.{Identity, Permission}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -91,6 +91,8 @@ sealed trait Resolver extends Product with Serializable {
 }
 
 object Resolver {
+
+  val adminPermission: Set[Permission] = Set(Permission.unsafe("resolvers/admin"))
 
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.resolve.Resolver]].

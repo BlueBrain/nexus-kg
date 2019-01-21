@@ -349,6 +349,14 @@ class ResourceRoutesSpec
           responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
         }
       }
+
+      "prevent to update a default resolver" in new Views {
+        Put(s"/v1/resolvers/$organization/$project/nxv:defaultInProject?rev=1", Json.obj()) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Unauthorized
+          responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+        }
+      }
     }
 
     "performing operations on views" should {
@@ -435,6 +443,13 @@ class ResourceRoutesSpec
             responseAs[Json] should equalIgnoreArrayOrder(
               viewResponse() deepMerge Json.obj("_rev" -> Json.fromLong(2L)))
           }
+        }
+      }
+
+      "prevent to update a default view" in new Views {
+        Put(s"/v1/views/$organization/$project/nxv:defaultElasticIndex?rev=1", Json.obj()) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Unauthorized
+          responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
         }
       }
     }
