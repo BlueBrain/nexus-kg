@@ -58,16 +58,14 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   }
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
-    pathPrefix(IdSegment) { id =>
-      (put & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
-        fileUpload("file") {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("createFiles") {
-              val resId = Id(project.ref, id)
-              complete(resources.createFile(resId, description, byteSource).value.runToFuture)
-            }
-        }
+    (put & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
+      fileUpload("file") {
+        case (metadata, byteSource) =>
+          val description = FileDescription(metadata.fileName, metadata.contentType.value)
+          trace("createFiles") {
+            val resId = Id(project.ref, id)
+            complete(resources.createFile(resId, description, byteSource).value.runToFuture)
+          }
       }
     }
 
