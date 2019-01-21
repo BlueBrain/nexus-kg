@@ -44,7 +44,10 @@ private[routes] abstract class CommonRoutes(
   protected implicit val subject: Identity.Subject              = caller.subject
   protected implicit def additional: AdditionalValidation[Task] = AdditionalValidation.pass
 
-  private[routes] val resourceName = prefix.capitalize
+  private[routes] val resourceName = {
+    val c = prefix.capitalize
+    if (c.endsWith("s")) c.dropRight(1) else c
+  }
 
   private[routes] val simultaneousParamsRejection: AkkaRejection =
     validationRejection("'rev' and 'tag' query parameters cannot be present simultaneously.")
