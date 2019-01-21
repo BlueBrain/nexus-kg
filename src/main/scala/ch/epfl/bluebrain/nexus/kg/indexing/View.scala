@@ -120,6 +120,7 @@ object View {
 
   val queryPermission: Set[Permission] = Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"))
   val writePermission: Set[Permission] = Set(Permission.unsafe("views/write"))
+  val adminPermission: Set[Permission] = Set(Permission.unsafe("views/admin"))
 
   /**
     * Enumeration of single view types.
