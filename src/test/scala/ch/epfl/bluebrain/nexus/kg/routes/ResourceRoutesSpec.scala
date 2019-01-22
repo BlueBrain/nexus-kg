@@ -4,15 +4,14 @@ import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
-import akka.http.scaladsl.model.MediaTypes.`application/json`
-import akka.http.scaladsl.model.MediaTypes.`text/plain`
+import akka.http.scaladsl.model.MediaTypes.{`application/json`, `text/plain`}
 import akka.http.scaladsl.model.Uri.Query
-import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
 import akka.http.scaladsl.server.Directives.handleRejections
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.stream.scaladsl.{FileIO, Sink, Source}
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{FileIO, Sink, Source}
 import akka.util.ByteString
 import cats.data.{EitherT, OptionT}
 import cats.syntax.show._
@@ -53,13 +52,13 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
@@ -667,12 +666,40 @@ class ResourceRoutesSpec
 
     "reject getting a resource that does not exist" in new Ctx {
       when(resources.fetch(id, None)).thenReturn(OptionT.none[Task, Resource])
-      when(resources.fetch(id, 1L, None)).thenReturn(OptionT.none[Task, Resource])
+
+      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid") ~> addHeader("Accept", "application/json") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
+        responseAs[Error].message.value shouldEqual s"Resource 'https://bluebrain.github.io/nexus/vocabulary/$genUuid' not found."
+      }
+    }
+
+    "reject getting a revision that does not exist" in new Ctx {
+
+      val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
+      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
+      when(resources.fetch(id, 1L, Some(resourceRef))).thenReturn(OptionT.none[Task, Resource])
 
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].code shouldEqual classNameOf[NotFound.type]
+        responseAs[Error].message.value shouldEqual s"Resource 'https://bluebrain.github.io/nexus/vocabulary/$genUuid' not found at revision 1."
+      }
+    }
+
+    "reject getting a tag that does not exist" in new Ctx {
+
+      val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
+      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
+      when(resources.fetch(id, "one", Some(resourceRef))).thenReturn(OptionT.none[Task, Resource])
+
+      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one") ~> addHeader("Accept", "application/json") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
+        responseAs[Error].message.value shouldEqual s"Resource 'https://bluebrain.github.io/nexus/vocabulary/$genUuid' not found at tag 'one'."
       }
     }
 

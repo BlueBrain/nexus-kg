@@ -387,7 +387,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
         current
           .find(_._1 == ref)
           .map(tuple => EitherT.rightT[F, Rejection](tuple))
-          .getOrElse(ref.resolveOr(resId.parent)(NotFound).flatMap(materialize).map(ref -> _))
+          .getOrElse(ref.resolveOr(resId.parent)(NotFound(_)).flatMap(materialize).map(ref -> _))
 
       if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
       else {
@@ -415,7 +415,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
           val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
           for {
             next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
-            res   <- next.resolveOr(projectRef)(NotFound)
+            res   <- next.resolveOr(projectRef)(NotFound(_))
             value <- flattenValue(next :: refs, res.value.contextValue)
           } yield value
         case (_, Some(arr), _) =>
@@ -472,7 +472,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     def schemaContext(): EitherT[F, Rejection, SchemaContext] =
       // format: off
       for {
-        resolvedSchema                <- schema.resolveOr(resId.parent)(NotFound)
+        resolvedSchema                <- schema.resolveOr(resId.parent)(NotFound(_))
         materializedSchema            <- materialize(resolvedSchema)
         importedResources             <- imports(materializedSchema.id, materializedSchema.value.graph)
         (schemaImports, dataImports)  = partition(importedResources)

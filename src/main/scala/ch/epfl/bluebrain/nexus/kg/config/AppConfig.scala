@@ -220,12 +220,12 @@ object AppConfig {
       nxv.self.prefix,
       nxv.constrainedBy.prefix,
       nxv.project.prefix,
+      nxv.rev.prefix,
+      nxv.deprecated.prefix,
       nxv.createdAt.prefix,
       nxv.createdBy.prefix,
       nxv.updatedAt.prefix,
-      nxv.updatedBy.prefix,
-      nxv.rev.prefix,
-      nxv.deprecated.prefix
+      nxv.updatedBy.prefix
     ))
 
   val tracing = new TracingDirectives()

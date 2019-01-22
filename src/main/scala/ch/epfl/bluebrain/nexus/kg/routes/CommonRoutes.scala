@@ -120,9 +120,11 @@ private[routes] abstract class CommonRoutes(
         trace(s"get$resourceName") {
           (revOpt, tagOpt) match {
             case (Some(_), Some(_)) => reject(simultaneousParamsRejection)
-            case (Some(rev), _)     => complete(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref))
-            case (_, Some(tag))     => complete(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref))
-            case _                  => complete(resources.fetch(idRes, schemaOpt).materializeRun(id.ref))
+            case (Some(rev), _) =>
+              complete(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
+            case (_, Some(tag)) =>
+              complete(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
+            case _ => complete(resources.fetch(idRes, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
           }
         }
     }
@@ -140,9 +142,9 @@ private[routes] abstract class CommonRoutes(
     }
 
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
-    def materializeRun(ref: => Ref): Future[Either[Rejection, ResourceV]] =
+    def materializeRun(ref: => Ref, rev: Option[Long], tag: Option[String]): Future[Either[Rejection, ResourceV]] =
       (for {
-        res          <- resource.toRight(NotFound(ref): Rejection)
+        res          <- resource.toRight(NotFound(ref, rev, tag): Rejection)
         materialized <- resources.materializeWithMeta(res)
         transformed  <- EitherT.right[Rejection](transform(materialized))
       } yield transformed).value.runToFuture
