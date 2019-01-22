@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.syntax.akka._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
@@ -93,10 +92,10 @@ class SparqlIndexerSpec
       when(resources.materializeWithMeta(res)).thenReturn(EitherT.rightT[Future, Rejection](
         ResourceF.simpleV(id, ResourceF.Value(json, json.contextValue, Graph()), 2L, schema = schema)))
 
-      when(client.replace(id.value.toAkkaUri + "graph", Graph())).thenReturn(Future.successful(()))
+      when(client.replace(id.value.asString + "/graph", Graph())).thenReturn(Future.successful(()))
 
       indexer(ev).futureValue shouldEqual (())
-      verify(client, times(1)).replace(id.value.toAkkaUri + "graph", Graph())
+      verify(client, times(1)).replace(id.value.asString + "/graph", Graph())
 
     }
 
@@ -107,10 +106,10 @@ class SparqlIndexerSpec
       when(resources.materializeWithMeta(res)).thenReturn(EitherT.rightT[Future, Rejection](
         ResourceF.simpleV(id, ResourceF.Value(json, json.contextValue, Graph()), 2L, schema = schema)))
 
-      when(client.replace(id.value.toAkkaUri + "graph", Graph())).thenReturn(Future.successful(()))
+      when(client.replace(id.value.asString + "/graph", Graph())).thenReturn(Future.successful(()))
 
       indexer(ev).futureValue shouldEqual (())
-      verify(client, times(1)).replace(id.value.toAkkaUri + "graph", Graph())
+      verify(client, times(1)).replace(id.value.asString + "/graph", Graph())
 
     }
   }

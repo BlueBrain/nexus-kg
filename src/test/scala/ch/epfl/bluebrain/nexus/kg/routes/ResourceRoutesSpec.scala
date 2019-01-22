@@ -295,8 +295,9 @@ class ResourceRoutesSpec
   }
 
   abstract class Resolver extends Context(manageResolver) {
-    val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj(
-      "@id" -> Json.fromString(id.value.show))
+    val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json
+      .obj("@id" -> Json.fromString(id.value.show))
+      .addContext(resolverCtxUri)
     val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
     val schemaRef = Ref(resolverSchemaUri)
 
@@ -311,6 +312,7 @@ class ResourceRoutesSpec
     val view = jsonContentOf("/view/elasticview.json")
       .removeKeys("_uuid")
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
+      .addContext(viewCtxUri)
 
     val types     = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
     val schemaRef = Ref(viewSchemaUri)
@@ -386,12 +388,13 @@ class ResourceRoutesSpec
       }
 
       "create a view with @id" in new Views {
-        val mapping     = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
-        val viewMapping = view deepMerge mapping
+        val mappingValue           = Json.obj("key"                    -> Json.fromString("value"))
+        val viewMapping            = view deepMerge Json.obj("mapping" -> mappingValue)
+        val viewMappingTransformed = view deepMerge Json.obj("mapping" -> Json.fromString(mappingValue.noSpaces))
         private val expected =
           ResourceF.simpleF(id, viewMapping, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
-          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
+          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMappingTransformed))(
             mEq(subject),
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
@@ -408,12 +411,13 @@ class ResourceRoutesSpec
       }
 
       "update a view" in new Views {
-        val mapping     = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
-        val viewMapping = view deepMerge mapping
+        val mappingValue           = Json.obj("key"                    -> Json.fromString("value"))
+        val viewMapping            = view deepMerge Json.obj("mapping" -> mappingValue)
+        val viewMappingTransformed = view deepMerge Json.obj("mapping" -> Json.fromString(mappingValue.noSpaces))
         private val expected =
           ResourceF.simpleF(id, viewMapping, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
-          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
+          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMappingTransformed))(
             mEq(subject),
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
@@ -422,14 +426,21 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.Created
           val uuid = responseAs[Json].hcursor.get[String]("_uuid").getOrElse("")
 
-          val mappingUpdated = Json.obj("mapping" -> Json.obj("key2" -> Json.fromString("value2")))
+          val mappingValueUpdated = Json.obj("key2" -> Json.fromString("value2"))
 
           val uuidJson       = Json.obj("_uuid" -> Json.fromString(uuid))
           val expectedUpdate = expected.copy(value = view.deepMerge(uuidJson))
-          val jsonUpdate     = view deepMerge mappingUpdated
-          when(resources.update(mEq(id), mEq(1L), mEq(Some(Latest(viewSchemaUri))), mEq(jsonUpdate))(
-            mEq(subject),
-            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](expectedUpdate.copy(rev = 2L)))
+          val jsonUpdate     = view deepMerge Json.obj("mapping" -> mappingValueUpdated)
+          val jsonUpdateTransformed = view deepMerge Json.obj(
+            "mapping" -> Json.fromString(mappingValueUpdated.noSpaces))
+          when(
+            resources.update(mEq(id),
+                             mEq(1L),
+                             mEq(Some(Latest(viewSchemaUri))),
+                             matches[Json](_.removeKeys("_uuid") == jsonUpdateTransformed))(
+              mEq(subject),
+              isA[AdditionalValidation[Task]]))
+            .thenReturn(EitherT.rightT[Task, Rejection](expectedUpdate.copy(rev = 2L)))
           val resource = simpleV(expectedUpdate.map(_.appendContextOf(viewCtx)))
           when(resources.materializeWithMeta(expectedUpdate))
             .thenReturn(EitherT.rightT[Task, Rejection](resource))

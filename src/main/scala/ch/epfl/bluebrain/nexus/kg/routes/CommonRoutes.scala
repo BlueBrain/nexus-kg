@@ -56,21 +56,36 @@ private[routes] abstract class CommonRoutes(
 
   protected val writePermission: Set[Permission] = Set(Permission.unsafe(s"$prefix/write"))
 
+  /**
+    * Performs transformations on the retrieved resource from the primary store
+    * in order to present it back to the client
+    *
+    * @param r the resource
+    * @return the transformed resource wrapped on the effect type ''F''
+    */
   def transform(r: ResourceV): Task[ResourceV] = Task.pure(r)
+
+  /**
+    * Transforms the incoming client payload
+    *
+    * @param payload the client payload
+    * @return a new Json with the transformed payload
+    */
+  def transform(payload: Json): Json = payload
 
   def routes: Route
 
   def create(schema: Ref): Route =
     (post & entity(as[Json]) & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) { source =>
       trace(s"create$resourceName") {
-        complete(Created -> resources.create(project.ref, project.base, schema, source).value.runToFuture)
+        complete(Created -> resources.create(project.ref, project.base, schema, transform(source)).value.runToFuture)
       }
     }
 
   def create(id: AbsoluteIri, schema: Ref): Route =
     (put & entity(as[Json]) & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) { source =>
       trace(s"create$resourceName") {
-        complete(Created -> resources.create(Id(project.ref, id), schema, source).value.runToFuture)
+        complete(Created -> resources.create(Id(project.ref, id), schema, transform(source)).value.runToFuture)
       }
     }
 
@@ -78,7 +93,7 @@ private[routes] abstract class CommonRoutes(
     (put & entity(as[Json]) & parameter('rev.as[Long].?) & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
       case (source, Some(rev)) =>
         trace(s"update$resourceName") {
-          complete(resources.update(Id(project.ref, id), rev, schemaOpt, source).value.runToFuture)
+          complete(resources.update(Id(project.ref, id), rev, schemaOpt, transform(source)).value.runToFuture)
         }
       case (_, None) => reject()
     }
