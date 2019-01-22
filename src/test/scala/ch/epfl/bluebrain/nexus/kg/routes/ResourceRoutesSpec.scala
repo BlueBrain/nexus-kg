@@ -129,17 +129,17 @@ class ResourceRoutesSpec
     val organization = genString(length = 4)
     val project      = genString(length = 4)
     val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
-      "nxc"       -> Contexts.base,
-      "nxs"       -> Schemas.base,
-      "resource"  -> Schemas.resourceSchemaUri,
-      "schema"    -> Schemas.shaclSchemaUri,
-      "view"      -> Schemas.viewSchemaUri,
-      "resolver"  -> Schemas.resolverSchemaUri,
-      "file"      -> Schemas.fileSchemaUri,
-      "nxv"       -> nxv.base,
-      "documents" -> nxv.defaultElasticIndex,
-      "graph"     -> nxv.defaultSparqlIndex,
-      "account"   -> nxv.defaultResolver
+      "nxc"             -> Contexts.base,
+      "nxs"             -> Schemas.base,
+      "resource"        -> Schemas.resourceSchemaUri,
+      "schema"          -> Schemas.shaclSchemaUri,
+      "view"            -> Schemas.viewSchemaUri,
+      "resolver"        -> Schemas.resolverSchemaUri,
+      "file"            -> Schemas.fileSchemaUri,
+      "nxv"             -> nxv.base,
+      "documents"       -> nxv.defaultElasticIndex,
+      "graph"           -> nxv.defaultSparqlIndex,
+      "defaultResolver" -> nxv.defaultResolver
     )
     val mappings =
       Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri)

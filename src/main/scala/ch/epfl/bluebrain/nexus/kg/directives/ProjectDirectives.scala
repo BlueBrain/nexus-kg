@@ -20,17 +20,17 @@ import scala.util.{Failure, Success}
 
 object ProjectDirectives {
   private val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
-    "nxc"       -> Contexts.base,
-    "nxs"       -> Schemas.base,
-    "resource"  -> Schemas.resourceSchemaUri,
-    "schema"    -> Schemas.shaclSchemaUri,
-    "view"      -> Schemas.viewSchemaUri,
-    "resolver"  -> Schemas.resolverSchemaUri,
-    "file"      -> Schemas.fileSchemaUri,
-    "nxv"       -> nxv.base,
-    "documents" -> nxv.defaultElasticIndex,
-    "graph"     -> nxv.defaultSparqlIndex,
-    "account"   -> nxv.defaultResolver
+    "nxc"             -> Contexts.base,
+    "nxs"             -> Schemas.base,
+    "resource"        -> Schemas.resourceSchemaUri,
+    "schema"          -> Schemas.shaclSchemaUri,
+    "view"            -> Schemas.viewSchemaUri,
+    "resolver"        -> Schemas.resolverSchemaUri,
+    "file"            -> Schemas.fileSchemaUri,
+    "nxv"             -> nxv.base,
+    "documents"       -> nxv.defaultElasticIndex,
+    "graph"           -> nxv.defaultSparqlIndex,
+    "defaultResolver" -> nxv.defaultResolver
   )
 
   /**

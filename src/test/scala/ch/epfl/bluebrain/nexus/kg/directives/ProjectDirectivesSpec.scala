@@ -133,17 +133,17 @@ class ProjectDirectivesSpec
     )
 
     val apiMappingsFinal = Map[String, AbsoluteIri](
-      "nxc"       -> Contexts.base,
-      "nxs"       -> Schemas.base,
-      "resource"  -> Schemas.resourceSchemaUri,
-      "schema"    -> Schemas.shaclSchemaUri,
-      "view"      -> Schemas.viewSchemaUri,
-      "resolver"  -> Schemas.resolverSchemaUri,
-      "file"      -> Schemas.fileSchemaUri,
-      "nxv"       -> nxv.base,
-      "documents" -> nxv.defaultElasticIndex,
-      "graph"     -> nxv.defaultSparqlIndex,
-      "account"   -> nxv.defaultResolver
+      "nxc"             -> Contexts.base,
+      "nxs"             -> Schemas.base,
+      "resource"        -> Schemas.resourceSchemaUri,
+      "schema"          -> Schemas.shaclSchemaUri,
+      "view"            -> Schemas.viewSchemaUri,
+      "resolver"        -> Schemas.resolverSchemaUri,
+      "file"            -> Schemas.fileSchemaUri,
+      "nxv"             -> nxv.base,
+      "documents"       -> nxv.defaultElasticIndex,
+      "graph"           -> nxv.defaultSparqlIndex,
+      "defaultResolver" -> nxv.defaultResolver
     )
 
     val projectMetaResp =
