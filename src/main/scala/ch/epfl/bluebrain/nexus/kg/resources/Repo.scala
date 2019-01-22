@@ -10,7 +10,6 @@ import cats.effect.{Effect, Timer}
 import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Command._
@@ -20,10 +19,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
 import io.circe.Json
@@ -284,13 +281,18 @@ object Repo {
     }
 
   final def eval(state: State, cmd: Command): Either[Rejection, Event] = {
-    val (types, source) = transform(state, cmd)
+
+    def extractUuidFrom(source: Json): String =
+      source.hcursor.get[String](nxv.uuid.prefix).getOrElse(uuid())
+
+    def changeView(source: Json, uuid: String): Json =
+      source deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuid))
 
     def create(c: Create): Either[Rejection, Created] =
       state match {
-        case _ if c.schema == fileSchemaUri.ref => Left(NotFileResource(c.id.ref))
-        case Initial                            => Right(Created(c.id, c.schema, types, source, c.instant, c.subject))
-        case _                                  => Left(AlreadyExists(c.id.ref))
+        case _ if c.schema == fileRef => Left(NotFileResource(c.id.ref))
+        case Initial                  => Right(Created(c.id, c.schema, c.types, c.source, c.instant, c.subject))
+        case _                        => Left(AlreadyExists(c.id.ref))
       }
 
     def createFile(c: CreateFile): Either[Rejection, FileCreated] =
@@ -313,7 +315,10 @@ object Repo {
         case Initial                      => Left(NotFound(c.id.ref))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
         case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
-        case s: Current                   => Right(Updated(s.id, s.rev + 1, types, source, c.instant, c.subject))
+        case s: Current if s.schema == viewRef =>
+          Right(
+            Updated(s.id, s.rev + 1, c.types, changeView(c.source, extractUuidFrom(s.source)), c.instant, c.subject))
+        case s: Current => Right(Updated(s.id, s.rev + 1, c.types, c.source, c.instant, c.subject))
       }
 
     def tag(c: AddTag): Either[Rejection, TagAdded] =
@@ -340,48 +345,6 @@ object Repo {
       case cmd: Update     => update(cmd)
       case cmd: Deprecate  => deprecate(cmd)
       case cmd: AddTag     => tag(cmd)
-    }
-  }
-
-  /**
-    * Apply types and Json transformations on Create and Update commands
-    *
-    * @param state the current state
-    * @param c     the incoming command
-    * @return the tuple with the transformed types and payload
-    */
-  private def transform(state: State, c: Command): (Set[AbsoluteIri], Json) = {
-
-    def extractUuidFrom(source: Json): String =
-      source.hcursor.get[String](nxv.uuid.prefix).getOrElse(uuid())
-
-    def changeView(source: Json, uuid: String): Json = {
-      val transformed = source deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuid)).addContext(viewCtxUri)
-      transformed.hcursor.get[Json]("mapping") match {
-        case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
-        case _                      => transformed
-      }
-    }
-
-    (state, c) match {
-      //views
-      case (Initial, Create(_, `viewRef`, types, source, _, _)) =>
-        types + nxv.View -> changeView(source, uuid())
-      case (s: Current, u: Update) if s.schema == viewRef =>
-        u.types + nxv.View -> changeView(u.source, extractUuidFrom(u.source))
-      //resolvers
-      case (Initial, Create(_, `resolverRef`, types, source, _, _)) =>
-        types + nxv.Resolver -> source.addContext(resolverCtxUri)
-      case (s: Current, u: Update) if s.schema == resolverRef =>
-        u.types + nxv.Resolver -> u.source.addContext(resolverCtxUri)
-      //schemas
-      case (Initial, Create(_, `shaclRef`, types, source, _, _)) => types + nxv.Schema   -> source.addContext(shaclCtxUri)
-      case (s: Current, u: Update) if s.schema == shaclRef       => u.types + nxv.Schema -> u.source.addContext(shaclCtxUri)
-      //other
-      case (Initial, Create(_, _, types, source, _, _)) => types                  -> source
-      case (_, u: Update)                               => u.types                -> u.source
-      case (s: Current, _)                              => s.types                -> s.source
-      case _                                            => Set.empty[AbsoluteIri] -> Json.obj()
     }
   }
 

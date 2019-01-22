@@ -139,10 +139,12 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       implicit subject: Subject,
       additional: AdditionalValidation[F]): RejOrResource = {
 
+    val schemaType  = addSchemaTypes(schema)
+    val graph       = schemaType.map(tpe => value.graph + ((id.value, rdf.tpe, tpe): Triple)).getOrElse(value.graph)
+    val joinedTypes = graph.types(id.value).map(_.value)
     for {
-      _ <- validate(id, schema, value.graph)
-      joinedTypes = value.graph.types(id.value).map(_.value)
-      newValue <- additional(id, schema, joinedTypes, value, 1L)
+      _        <- validate(id, schema, graph)
+      newValue <- additional(id, schema, joinedTypes, value.copy(graph = graph), 1L)
       created  <- repo.create(id, schema, joinedTypes, newValue.source)
     } yield created
   }
@@ -227,15 +229,17 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       case Some(schema) if schema != res.schema => EitherT.leftT(NotFound(schema))
       case _                                    => EitherT.rightT(())
     }
+
     // format: off
     for {
       resource    <- fetch(id, rev, None).toRight(NotFound(id.ref))
+      schemaType   = addSchemaTypes(resource.schema)
       _           <- checkSchema(resource)
       value       <- materialize(id, source)
-      graph        = value.graph
-      _           <- validate(id, resource.schema, value.graph)
+      graph        = schemaType.map(tpe => value.graph + ((id.value, rdf.tpe, tpe): Triple)).getOrElse(value.graph)
+      _           <- validate(id, resource.schema, graph)
       joinedTypes  = graph.types(id.value).map(_.value)
-      newValue    <- additional(id, resource.schema, joinedTypes, value, rev + 1)
+      newValue    <- additional(id, resource.schema, joinedTypes, value.copy(graph = graph), rev + 1)
       updated     <- repo.update(id, rev, joinedTypes, newValue.source)
     } yield updated
     // format: on
@@ -273,6 +277,14 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       case _        => EitherT.leftT(InvalidPayload(id.ref, "Both 'tag' and 'rev' fields must be present."))
     }
   }
+
+  private def addSchemaTypes(schemaRef: Ref): Option[AbsoluteIri] =
+    schemaRef match {
+      case `viewRef`        => Some(nxv.View.value)
+      case `resolverRef`    => Some(nxv.Resolver.value)
+      case `shaclSchemaUri` => Some(nxv.Schema.value)
+      case _                => None
+    }
 
   private def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], targetRev: Long, tag: String)(
       implicit subject: Subject): RejOrResource =

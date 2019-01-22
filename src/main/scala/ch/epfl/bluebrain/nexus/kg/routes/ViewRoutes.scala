@@ -10,7 +10,9 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
@@ -20,9 +22,11 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
+import ch.epfl.bluebrain.nexus.kg._
 
 class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit project: Project,
@@ -58,6 +62,14 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.view[Task](caller, acls)
 
   override def transform(r: ResourceV): Task[ResourceV] = transformation(r)
+
+  override def transform(payload: Json) = {
+    val transformed = payload.addContext(viewCtxUri) deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuid()))
+    transformed.hcursor.get[Json]("mapping") match {
+      case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
+      case _                      => transformed
+    }
+  }
 
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>

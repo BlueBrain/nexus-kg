@@ -6,9 +6,12 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives.IdSegment
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import io.circe.Json
 import monix.eval.Task
 
 class SchemaRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
@@ -32,4 +35,8 @@ class SchemaRoutes private[routes] (resources: Resources[Task], acls: AccessCont
         )
       }
   }
+
+  override def transform(json: Json) =
+    json.addContext(shaclCtxUri)
+
 }
