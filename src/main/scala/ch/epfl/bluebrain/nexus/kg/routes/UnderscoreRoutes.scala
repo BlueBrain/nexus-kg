@@ -27,7 +27,7 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
     indexers: Clients[Task],
     store: FileStore[Task, AkkaIn, AkkaOut],
     config: AppConfig)
-    extends CommonRoutes(resources, "underscore", acls, caller, cache.view) {
+    extends CommonRoutes(resources, "resources", acls, caller, cache.view) {
 
   private implicit val viewCache: ViewCache[Task] = cache.view
 

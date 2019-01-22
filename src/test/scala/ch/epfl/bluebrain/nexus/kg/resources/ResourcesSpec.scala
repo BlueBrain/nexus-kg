@@ -85,6 +85,22 @@ class ResourcesSpec
     val base                      = Iri.absolute(s"http://example.com/base/").right.value
     val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
     val resId                     = Id(projectRef, id)
+    val voc                       = Iri.absolute(s"http://example.com/voc/").right.value
+    implicit val project = Project(resId.value,
+                                   "proj",
+                                   "org",
+                                   None,
+                                   base,
+                                   voc,
+                                   Map.empty,
+                                   projectRef.id,
+                                   genUUID,
+                                   1L,
+                                   deprecated = false,
+                                   Instant.EPOCH,
+                                   subject.id,
+                                   Instant.EPOCH,
+                                   subject.id)
   }
 
   trait ResolverResource extends Base {
@@ -123,25 +139,6 @@ class ResourcesSpec
     val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
     when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
     when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-  }
-
-  trait MaterializeResource extends ResolverResource {
-    val voc = Iri.absolute(s"http://example.com/voc/").right.value
-    implicit val project = Project(genIri,
-                                   "proj",
-                                   "org",
-                                   None,
-                                   base,
-                                   voc,
-                                   Map.empty,
-                                   projectRef.id,
-                                   genUUID,
-                                   1L,
-                                   deprecated = false,
-                                   Instant.EPOCH,
-                                   subject.id,
-                                   Instant.EPOCH,
-                                   subject.id)
   }
 
   "A Resources bundle" when {
@@ -435,7 +432,7 @@ class ResourcesSpec
         materialized.value.ctx shouldEqual resolverCtx.contextValue
       }
 
-      "materialize a resource with its metadata" in new MaterializeResource {
+      "materialize a resource with its metadata" in new ResolverResource {
         private val resource     = resources.create(projectRef, base, schema, resolver).value.accepted
         private val materialized = resources.materializeWithMeta(resource).value.accepted
         materialized.value.source shouldEqual resolver
@@ -443,7 +440,7 @@ class ResourcesSpec
         materialized.value.graph.triples should contain allElementsOf materialized.metadata
       }
 
-      "materialize a plain JSON resource with its metadata" in new MaterializeResource {
+      "materialize a plain JSON resource with its metadata" in new ResolverResource {
         private val json         = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
         private val resource     = resources.create(projectRef, base, Latest(resourceSchemaUri), json).value.accepted
         private val materialized = resources.materializeWithMeta(resource).value.accepted

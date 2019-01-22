@@ -67,6 +67,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     */
   def create(projectRef: ProjectRef, base: AbsoluteIri, schema: Ref, source: Json)(
       implicit subject: Subject,
+      project: Project,
       additional: AdditionalValidation[F]): RejOrResource =
     // format: off
     for {
@@ -86,6 +87,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @return either a rejection or the newly created resource in the F context
     */
   def create(id: ResId, schema: Ref, source: Json)(implicit subject: Subject,
+                                                   project: Project,
                                                    additional: AdditionalValidation[F]): RejOrResource =
     for {
       assigned <- materialize(id, source)
@@ -137,6 +139,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
       implicit subject: Subject,
+      project: Project,
       additional: AdditionalValidation[F]): RejOrResource = {
 
     val schemaType  = addSchemaTypes(schema)
@@ -224,6 +227,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     */
   def update(id: ResId, rev: Long, schemaOpt: Option[Ref], source: Json)(
       implicit subject: Subject,
+      project: Project,
       additional: AdditionalValidation[F]): RejOrResource = {
     def checkSchema(res: Resource): EitherT[F, Rejection, Unit] = schemaOpt match {
       case Some(schema) if schema != res.schema => EitherT.leftT(NotFound(schema))
@@ -340,11 +344,12 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references
-    * are transitively resolved.
+    * are transitively resolved. If the provided context and resulting graph are empty, the parent project's base and
+    * vocab settings are injected as the context in order to recompute the graph from the original JSON source.
     *
     * @param resource the resource to materialize
     */
-  def materialize(resource: Resource): RejOrResourceV =
+  def materialize(resource: Resource)(implicit project: Project): RejOrResourceV =
     for {
       value <- materialize(resource.id, resource.value)
     } yield resource.map(_ => value)
@@ -360,23 +365,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
   def materializeWithMeta(resource: Resource)(implicit project: Project): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
-      value <- if (resourceV.value.graph.triples.isEmpty && resourceV.value.ctx == Json.obj()) {
-        val ctx = Json.obj(
-          "@base"  -> Json.fromString(project.base.asString),
-          "@vocab" -> Json.fromString(project.vocab.asString)
-        )
-        EitherT.fromEither[F](
-          resourceV.value.source
-            .deepMerge(Json.obj("@context" -> ctx))
-            .asGraph
-            .bimap(
-              e => Rejection.fromJenaModelErr(e),
-              graph => resourceV.value.copy(graph = graph ++ Graph(resourceV.metadata), ctx = ctx)
-            ))
-      } else {
-        EitherT.rightT[F, Rejection](
-          resourceV.value.copy(graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata)))
-      }
+      value = resourceV.value.copy(graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata))
     } yield resourceV.map(_ => value)
 
   /**
@@ -386,7 +375,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param resId the resource id for which imports are looked up
     * @param graph the resource graph for which imports are looked up
     */
-  private def imports(resId: ResId, graph: Graph): EitherT[F, Rejection, Set[ResourceV]] = {
+  private def imports(resId: ResId, graph: Graph)(implicit project: Project): EitherT[F, Rejection, Set[ResourceV]] = {
 
     def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
       g.objects(IriNode(id), owl.imports).unorderedFoldMap {
@@ -399,7 +388,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
         current
           .find(_._1 == ref)
           .map(tuple => EitherT.rightT[F, Rejection](tuple))
-          .getOrElse(ref.resolveOr(resId.parent)(NotFound(_)).flatMap(materialize).map(ref -> _))
+          .getOrElse(ref.resolveOr(resId.parent)(NotFound).flatMap(materialize).map(ref -> _))
 
       if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
       else {
@@ -419,42 +408,54 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     lookup(Map.empty, importsValues(resId.value, graph).toList)
   }
 
-  private def materialize(projectRef: ProjectRef, source: Json): EitherT[F, Rejection, ResourceF.Value] = {
+  private def materialize(projectRef: ProjectRef, source: Json)(
+      implicit project: Project): EitherT[F, Rejection, ResourceF.Value] = {
 
-    def flattenValue(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
+    def flattenCtx(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
       (contextValue.asString, contextValue.asArray, contextValue.asObject) match {
         case (Some(str), _, _) =>
           val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
           for {
             next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
             res   <- next.resolveOr(projectRef)(NotFound(_))
-            value <- flattenValue(next :: refs, res.value.contextValue)
+            value <- flattenCtx(next :: refs, res.value.contextValue)
           } yield value
         case (_, Some(arr), _) =>
           val jsons = arr
-            .traverse(j => flattenValue(refs, j).value)
+            .traverse(j => flattenCtx(refs, j).value)
             .map(_.sequence)
           EitherT(jsons).map(_.foldLeft(Json.obj())(_ deepMerge _))
         case (_, _, Some(_)) => EitherT.rightT(contextValue)
         case (_, _, _)       => EitherT.leftT(IllegalContextValue(refs))
       }
 
-    def graphFor(flattenCtx: Json): EitherT[F, Rejection, Graph] = {
-      val eitherGraph = source
-        .deepMerge(Json.obj("@context" -> flattenCtx))
-        .asGraph
-        .left
-        .map(e => Rejection.fromJenaModelErr(e))
-      EitherT.fromEither[F](eitherGraph)
+    flattenCtx(Nil, source.contextValue).flatMap { flattened =>
+      val value = if (flattened == Json.obj()) {
+        source
+          .deepMerge(Json.obj("@context" -> flattened))
+          .asGraph
+          .flatMap { graph =>
+            if (graph.triples.isEmpty) {
+              val ctx = Json.obj(
+                "@base"  -> Json.fromString(project.base.asString),
+                "@vocab" -> Json.fromString(project.vocab.asString)
+              )
+              source.deepMerge(Json.obj("@context" -> ctx)).asGraph.map(Value(source, ctx, _))
+            } else {
+              Right(Value(source, flattened, graph))
+            }
+          }
+      } else {
+        source
+          .deepMerge(Json.obj("@context" -> flattened))
+          .asGraph
+          .map(graph => Value(source, flattened, graph))
+      }
+      EitherT.fromEither[F](value.left.map(e => Rejection.fromJenaModelErr(e)))
     }
-
-    for {
-      ctx   <- flattenValue(Nil, source.contextValue)
-      graph <- graphFor(ctx)
-    } yield Value(source, ctx, graph)
   }
 
-  private def materialize(id: ResId, source: Json): EitherT[F, Rejection, ResourceF.Value] =
+  private def materialize(id: ResId, source: Json)(implicit project: Project): EitherT[F, Rejection, ResourceF.Value] =
     // format: off
     for {
       rawValue      <- materialize(id.parent, source)
@@ -469,7 +470,8 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       case _            => op
     }
 
-  private def validate(resId: ResId, schema: Ref, data: Graph): EitherT[F, Rejection, Unit] = {
+  private def validate(resId: ResId, schema: Ref, data: Graph)(
+      implicit project: Project): EitherT[F, Rejection, Unit] = {
     def toEitherT(optReport: Option[ValidationReport]): EitherT[F, Rejection, Unit] =
       optReport match {
         case Some(r) if r.isValid() => EitherT.rightT(())

@@ -143,23 +143,6 @@ class ResourceRoutesSpec
     )
     val mappings =
       Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri)
-    implicit val projectMeta =
-      Project(genIri,
-              project,
-              organization,
-              None,
-              nxv.projects,
-              genIri,
-              mappings,
-              genUUID,
-              genUUID,
-              1L,
-              false,
-              Instant.EPOCH,
-              genIri,
-              Instant.EPOCH,
-              genIri)
-
     val organizationMeta = Organization(genIri,
                                         organization,
                                         "description",
@@ -170,10 +153,27 @@ class ResourceRoutesSpec
                                         genIri,
                                         Instant.EPOCH,
                                         genIri)
-    val projectRef      = ProjectRef(projectMeta.uuid)
     val organizationRef = OrganizationRef(organizationMeta.uuid)
     val genUuid         = genUUID
+    val projectRef      = ProjectRef(genUUID)
     val id              = Id(projectRef, nxv.withSuffix(genUuid.toString))
+    implicit val projectMeta =
+      Project(id.value,
+              project,
+              organization,
+              None,
+              nxv.projects,
+              nxv.base,
+              mappings,
+              projectRef.id,
+              organizationRef.id,
+              1L,
+              false,
+              Instant.EPOCH,
+              genIri,
+              Instant.EPOCH,
+              genIri)
+
     val defaultEsView =
       ElasticView(Json.obj(),
                   Set.empty,
@@ -267,6 +267,11 @@ class ResourceRoutesSpec
         }): _*
       )
     )
+
+    def projectMatcher = matches[Project] { argument =>
+      argument == projectMeta.copy(
+        apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping + ("base" -> projectMeta.base))
+    }
   }
 
   abstract class Ctx(perms: Set[Permission] = manageRes) extends Context(perms) {
@@ -341,8 +346,9 @@ class ResourceRoutesSpec
           .simpleF(id, resolver, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
           resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(resolver))(
-            subject = mEq(subject),
-            additional = isA[AdditionalValidation[Task]]))
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/resolvers/$organization/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -365,7 +371,9 @@ class ResourceRoutesSpec
           resources.create(mEq(projectRef),
                            mEq(projectMeta.base),
                            mEq(schemaRef),
-                           matches[Json](_.removeKeys("_uuid") == view))(mEq(subject), isA[AdditionalValidation[Task]]))
+                           matches[Json](_.removeKeys("_uuid") == view))(mEq(subject),
+                                                                         projectMatcher,
+                                                                         isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/views/$organization/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -396,6 +404,7 @@ class ResourceRoutesSpec
         when(
           resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMappingTransformed))(
             mEq(subject),
+            projectMatcher,
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
@@ -419,6 +428,7 @@ class ResourceRoutesSpec
         when(
           resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMappingTransformed))(
             mEq(subject),
+            projectMatcher,
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
@@ -439,6 +449,7 @@ class ResourceRoutesSpec
                              mEq(Some(Latest(viewSchemaUri))),
                              matches[Json](_.removeKeys("_uuid") == jsonUpdateTransformed))(
               mEq(subject),
+              projectMatcher,
               isA[AdditionalValidation[Task]]))
             .thenReturn(EitherT.rightT[Task, Rejection](expectedUpdate.copy(rev = 2L)))
           val resource = simpleV(expectedUpdate.map(_.appendContextOf(viewCtx)))
@@ -459,6 +470,7 @@ class ResourceRoutesSpec
         when(
           resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
             mEq(subject),
+            projectMatcher,
             isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, ctx, created = subject, updated = subject, schema = schemaRef)))
 
@@ -469,7 +481,10 @@ class ResourceRoutesSpec
       }
 
       "create a context with @id" in new Ctx {
-        when(resources.create(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(subject), isA[AdditionalValidation[Task]]))
+        when(
+          resources.create(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(subject),
+                                                              projectMatcher,
+                                                              isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, ctx, created = subject, updated = subject, schema = schemaRef)))
 
@@ -637,9 +652,7 @@ class ResourceRoutesSpec
         simpleV(id, Json.obj(), created = subject, updated = subject, schema = schemaRef).copy(file = Some(at1))
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
-      val newProject =
-        projectMeta.copy(apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping + ("base" -> nxv.projects.value))
-      when(resources.materializeWithMeta(resource)(newProject)).thenReturn(EitherT.rightT[Task, Rejection](
+      when(resources.materializeWithMeta(mEq(resource))(projectMatcher)).thenReturn(EitherT.rightT[Task, Rejection](
         resourceV.copy(value = resourceV.value.copy(graph = Graph(resourceV.metadata)))))
 
       val json = jsonContentOf("/resources/file-metadata.json",
@@ -821,6 +834,7 @@ class ResourceRoutesSpec
         when(
           resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(schema))(
             mEq(subject),
+            projectMatcher,
             isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
 
@@ -831,7 +845,10 @@ class ResourceRoutesSpec
       }
 
       "create a schema with @id" in new Schema {
-        when(resources.create(mEq(id), mEq(schemaRef), mEq(schema))(mEq(subject), isA[AdditionalValidation[Task]]))
+        when(
+          resources.create(mEq(id), mEq(schemaRef), mEq(schema))(mEq(subject),
+                                                                 projectMatcher,
+                                                                 isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
 
@@ -843,8 +860,10 @@ class ResourceRoutesSpec
 
       "update a schema" in new Schema {
         when(
-          resources.update(mEq(id), mEq(1L), mEq(Some(schemaRef)), mEq(schema))(mEq(subject),
-                                                                                isA[AdditionalValidation[Task]]))
+          resources
+            .update(mEq(id), mEq(1L), mEq(Some(schemaRef)), mEq(schema))(mEq(subject),
+                                                                         projectMatcher,
+                                                                         isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
 

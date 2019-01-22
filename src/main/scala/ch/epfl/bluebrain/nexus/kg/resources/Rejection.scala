@@ -79,6 +79,13 @@ object Rejection {
       extends Rejection(s"Project '${ref.show}' without an organization")
 
   /**
+    * Signals an attempt to interact with a project that doesn't exist.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class ProjectNotFound(ref: ProjectRef) extends Rejection(s"Project '${ref.show}' not found.")
+
+  /**
     * Signals the impossibility to resolve the project reference for project labels.
     *
     * @param labels the project labels were references were not found
