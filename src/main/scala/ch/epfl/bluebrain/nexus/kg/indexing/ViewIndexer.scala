@@ -81,12 +81,12 @@ object ViewIndexer {
   private[indexing] implicit class OrFail[F[_], A](fa: F[A])(implicit F: MonadError[F, Throwable]) {
     private val logger: Logger = Logger("ViewIndexer")
     def orFailWhen(pf: PartialFunction[A, Boolean], ex: => Exception, message: => String): F[A] =
-      fa.flatMap { a =>
-        if (pf.isDefinedAt(a) && pf(a)) {
+      fa.flatMap(pf.lift(_) match {
+        case Some(true) => fa
+        case _ =>
           logger.error(message)
           F.raiseError(ex)
-        } else fa
-      }
+      })
   }
 
   /**
