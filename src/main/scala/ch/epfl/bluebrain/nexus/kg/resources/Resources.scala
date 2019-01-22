@@ -388,7 +388,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
         current
           .find(_._1 == ref)
           .map(tuple => EitherT.rightT[F, Rejection](tuple))
-          .getOrElse(ref.resolveOr(resId.parent)(NotFound).flatMap(materialize).map(ref -> _))
+          .getOrElse(ref.resolveOr(resId.parent)(NotFound(_)).flatMap(materialize).map(ref -> _))
 
       if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
       else {
@@ -431,9 +431,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
 
     flattenCtx(Nil, source.contextValue).flatMap { flattened =>
       val value = if (flattened == Json.obj()) {
-        source
-          .deepMerge(Json.obj("@context" -> flattened))
-          .asGraph
+        source.asGraph
           .flatMap { graph =>
             if (graph.triples.isEmpty) {
               val ctx = Json.obj(

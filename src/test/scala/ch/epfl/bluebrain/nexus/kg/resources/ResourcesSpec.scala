@@ -432,6 +432,18 @@ class ResourcesSpec
         materialized.value.ctx shouldEqual resolverCtx.contextValue
       }
 
+      "materialize a plain JSON resource" in new ResolverResource {
+        private val json         = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
+        private val resource     = resources.create(projectRef, base, Latest(resourceSchemaUri), json).value.accepted
+        private val materialized = resources.materialize(resource).value.accepted
+        materialized.value.source shouldEqual json
+        materialized.value.ctx shouldEqual Json.obj("@base"  -> Json.fromString(base.asString),
+                                                    "@vocab" -> Json.fromString(voc.asString))
+
+        private val triples = Set((Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar")))
+        materialized.value.graph.triples should contain allElementsOf triples
+      }
+
       "materialize a resource with its metadata" in new ResolverResource {
         private val resource     = resources.create(projectRef, base, schema, resolver).value.accepted
         private val materialized = resources.materializeWithMeta(resource).value.accepted
