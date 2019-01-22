@@ -6,10 +6,11 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.{EitherT, OptionT}
 import cats.instances.future._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.ResolverCache
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.resolverCtx
 import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -47,19 +48,39 @@ class ResolverIndexerSpec
 
   private val resources     = mock[Resources[Future]]
   private val resolverCache = mock[ResolverCache[Future]]
-  private val indexer       = new ResolverIndexer(resources, resolverCache)
+  private val projectCache  = mock[ProjectCache[Future]]
+  private val indexer       = new ResolverIndexer(resources, resolverCache, projectCache)
 
   before {
     Mockito.reset(resources)
     Mockito.reset(resolverCache)
+    Mockito.reset(projectCache)
   }
 
   "A ResolverIndexer" should {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-    val iri                   = Iri.absolute("http://example.com/id").right.value
+    val base                  = Iri.absolute("http://example.com").right.value
+    val voc                   = base + "voc"
+    val iri                   = base + "id"
+    val subject               = base + "anonymous"
     val projectRef            = ProjectRef(genUUID)
     val id                    = Id(projectRef, iri)
-    val schema                = Ref(Schemas.resolverSchemaUri)
+    val project = Project(id.value,
+                          "proj",
+                          "org",
+                          None,
+                          base,
+                          voc,
+                          Map.empty,
+                          projectRef.id,
+                          genUUID,
+                          1L,
+                          deprecated = false,
+                          Instant.now(clock),
+                          subject,
+                          Instant.now(clock),
+                          subject)
+    val schema = Ref(Schemas.resolverSchemaUri)
 
     val types = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
 
@@ -71,8 +92,9 @@ class ResolverIndexerSpec
 
     "index a resolver" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
-      when(resources.materialize(resource)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
+      when(resources.materialize(resource)(project)).thenReturn(EitherT.rightT[Future, Rejection](resourceV))
       when(resolverCache.put(resolver)).thenReturn(Future.successful(()))
+      when(projectCache.get(projectRef)).thenReturn(Future.successful(Some(project)))
 
       indexer(ev).futureValue shouldEqual (())
       verify(resolverCache, times(1)).put(resolver)
@@ -86,7 +108,9 @@ class ResolverIndexerSpec
 
     "skip indexing a resolver when the resource cannot be materialized" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.some(resource))
-      when(resources.materialize(resource)).thenReturn(EitherT.leftT[Future, ResourceV](Unexpected("error"): Rejection))
+      when(resources.materialize(resource)(project))
+        .thenReturn(EitherT.leftT[Future, ResourceV](Unexpected("error"): Rejection))
+      when(projectCache.get(projectRef)).thenReturn(Future.successful(Some(project)))
       indexer(ev).futureValue shouldEqual (())
       verify(resolverCache, times(0)).put(resolver)
     }
