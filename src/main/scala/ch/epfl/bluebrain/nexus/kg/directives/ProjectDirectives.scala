@@ -30,7 +30,7 @@ object ProjectDirectives {
     "nxv"       -> nxv.base,
     "documents" -> nxv.defaultElasticIndex,
     "graph"     -> nxv.defaultSparqlIndex,
-    "account"   -> nxv.defaultResolver
+    "defaultResolver"   -> nxv.defaultResolver
   )
 
   /**

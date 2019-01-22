@@ -139,7 +139,7 @@ class ResourceRoutesSpec
       "nxv"       -> nxv.base,
       "documents" -> nxv.defaultElasticIndex,
       "graph"     -> nxv.defaultSparqlIndex,
-      "account"   -> nxv.defaultResolver
+      "defaultResolver"   -> nxv.defaultResolver
     )
     val mappings =
       Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri)
