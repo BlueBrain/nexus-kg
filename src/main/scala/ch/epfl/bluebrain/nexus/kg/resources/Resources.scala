@@ -71,7 +71,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       additional: AdditionalValidation[F]): RejOrResource =
     // format: off
     for {
-      rawValue       <- materialize(projectRef, source)
+      rawValue       <- materialize(projectRef, schema, source)
       value          <- checkOrAssignId(Right((projectRef, base)), rawValue)
       (id, assigned)  = value
       resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata(id.value)))
@@ -90,7 +90,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
                                                    project: Project,
                                                    additional: AdditionalValidation[F]): RejOrResource =
     for {
-      assigned <- materialize(id, source)
+      assigned <- materialize(id, schema, source)
       resource <- create(id, schema, assigned)
     } yield resource
 
@@ -239,7 +239,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       resource    <- fetch(id, rev, None).toRight(NotFound(id.ref))
       schemaType   = addSchemaTypes(resource.schema)
       _           <- checkSchema(resource)
-      value       <- materialize(id, source)
+      value       <- materialize(id, resource.schema, source)
       graph        = schemaType.map(tpe => value.graph + ((id.value, rdf.tpe, tpe): Triple)).getOrElse(value.graph)
       _           <- validate(id, resource.schema, graph)
       joinedTypes  = graph.types(id.value).map(_.value)
@@ -351,7 +351,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     */
   def materialize(resource: Resource)(implicit project: Project): RejOrResourceV =
     for {
-      value <- materialize(resource.id, resource.value)
+      value <- materialize(resource.id, resource.schema, resource.value)
     } yield resource.map(_ => value)
 
   /**
@@ -408,7 +408,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     lookup(Map.empty, importsValues(resId.value, graph).toList)
   }
 
-  private def materialize(projectRef: ProjectRef, source: Json)(
+  private def materialize(projectRef: ProjectRef, schema: Ref, source: Json)(
       implicit project: Project): EitherT[F, Rejection, ResourceF.Value] = {
 
     def flattenCtx(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
@@ -430,33 +430,28 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       }
 
     flattenCtx(Nil, source.contextValue).flatMap { flattened =>
-      val value = if (flattened == Json.obj()) {
-        source.asGraph
-          .flatMap { graph =>
-            if (graph.triples.isEmpty) {
-              val ctx = Json.obj(
-                "@base"  -> Json.fromString(project.base.asString),
-                "@vocab" -> Json.fromString(project.vocab.asString)
-              )
-              source.deepMerge(Json.obj("@context" -> ctx)).asGraph.map(Value(source, ctx, _))
-            } else {
-              Right(Value(source, flattened, graph))
-            }
-          }
-      } else {
-        source
-          .deepMerge(Json.obj("@context" -> flattened))
-          .asGraph
-          .map(graph => Value(source, flattened, graph))
+      val value = schema match {
+        case `resourceRef` if flattened == Json.obj() =>
+          val ctx = Json.obj(
+            "@base"  -> Json.fromString(project.base.asString),
+            "@vocab" -> Json.fromString(project.vocab.asString)
+          )
+          source.deepMerge(Json.obj("@context" -> ctx)).asGraph.map(Value(source, ctx, _))
+        case _ =>
+          source
+            .deepMerge(Json.obj("@context" -> flattened))
+            .asGraph
+            .map(graph => Value(source, flattened, graph))
       }
       EitherT.fromEither[F](value.left.map(e => Rejection.fromJenaModelErr(e)))
     }
   }
 
-  private def materialize(id: ResId, source: Json)(implicit project: Project): EitherT[F, Rejection, ResourceF.Value] =
+  private def materialize(id: ResId, schema: Ref, source: Json)(
+      implicit project: Project): EitherT[F, Rejection, ResourceF.Value] =
     // format: off
     for {
-      rawValue      <- materialize(id.parent, source)
+      rawValue      <- materialize(id.parent, schema, source)
       value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata(id.value)))
       (_, assigned)  = value
     } yield assigned
