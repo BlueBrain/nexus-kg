@@ -58,7 +58,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   }
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
+    (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(writePermission)) {
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -70,7 +70,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def create(schema: Ref): Route =
-    (post & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
+    (post & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(writePermission)) {
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -81,7 +81,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (put & parameter('rev.as[Long]) & projectNotDeprecated & hasPermission(writePermission) & pathEndOrSingleSlash) {
+    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(writePermission)) {
       rev =>
         fileUpload("file") {
           case (metadata, byteSource) =>
@@ -106,7 +106,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & hasPermission(readPermission) & pathEndOrSingleSlash) {
+    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermission(readPermission)) {
       (revOpt, tagOpt) =>
         val result = (revOpt, tagOpt) match {
           case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrFile)

@@ -31,19 +31,18 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
 
   private implicit val viewCache: ViewCache[Task] = cache.view
 
-  def routes: Route = {
+  def routes: Route =
     create(resourceRef) ~ list(None) ~
       pathPrefix(IdSegment) { id =>
         concat(
+          create(id, resourceRef),
           update(id),
-          create(id),
           tag(id),
           deprecate(id),
           fetch(id),
           tags(id)
         )
       }
-  }
 
   private case class ResourceType(routes: CommonRoutes, schema: Ref)
 
@@ -59,11 +58,6 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
       }
       .value
       .runToFuture
-
-  private def create(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case Some(ResourceType(rt, schema)) => rt.create(id, schema)
-    case None                           => complete(NotFound(id.ref): Rejection)
-  }
 
   private def update(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
     case Some(ResourceType(rt, schema)) => rt.update(id, Some(schema))

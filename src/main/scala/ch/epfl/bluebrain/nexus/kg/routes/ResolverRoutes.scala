@@ -31,8 +31,8 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: AccessCo
     create(resolverRef) ~ list(resolverRefOpt) ~
       pathPrefix(IdSegment) { id =>
         concat(
-          update(id, resolverRefOpt),
           create(id, resolverRef),
+          update(id, resolverRefOpt),
           tag(id, resolverRefOpt),
           deprecate(id, resolverRefOpt),
           fetch(id, resolverRefOpt),

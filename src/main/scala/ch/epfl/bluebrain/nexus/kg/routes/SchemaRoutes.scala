@@ -26,8 +26,8 @@ class SchemaRoutes private[routes] (resources: Resources[Task], acls: AccessCont
     create(shaclRef) ~ list(shaclRefOpt) ~
       pathPrefix(IdSegment) { id =>
         concat(
-          update(id, shaclRefOpt),
           create(id, shaclRef),
+          update(id, shaclRefOpt),
           tag(id, shaclRefOpt),
           deprecate(id, shaclRefOpt),
           fetch(id, shaclRefOpt),
