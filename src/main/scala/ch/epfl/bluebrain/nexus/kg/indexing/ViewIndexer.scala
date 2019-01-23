@@ -6,7 +6,7 @@ import cats.MonadError
 import cats.data.EitherT
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
-import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
+import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv

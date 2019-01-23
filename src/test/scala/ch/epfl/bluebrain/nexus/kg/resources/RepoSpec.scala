@@ -4,20 +4,19 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 
 import akka.stream.ActorMaterializer
-import cats.data.EitherT
 import cats.effect.{ContextShift, IO, Timer}
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
-import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
@@ -27,7 +26,9 @@ import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
+//noinspection RedundantDefaultArgument
 class RepoSpec
     extends ActorSystemFixture("RepoSpec", true)
     with WordSpecLike
@@ -41,14 +42,16 @@ class RepoSpec
     with BeforeAndAfter
     with TestHelper {
 
-  private implicit val appConfig              = Settings(system).appConfig
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+
+  private implicit val appConfig: AppConfig   = Settings(system).appConfig
   private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private implicit val mat: ActorMaterializer = ActorMaterializer()
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private val repo           = Repo[IO].ioValue
-  private implicit val store = mock[FileStore[IO, String, String]]
+  private val repo                                          = Repo[IO].ioValue
+  private implicit val store: FileStore[IO, String, String] = mock[FileStore[IO, String, String]]
 
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
   private def randomIri()  = Iri.absolute(s"http://example.com/$genUUID").right.value
@@ -57,6 +60,7 @@ class RepoSpec
     Mockito.reset(store)
   }
 
+  //noinspection TypeAnnotation
   trait Context {
     val projectRef                = ProjectRef(genUUID)
     val iri                       = randomIri()
@@ -66,6 +70,7 @@ class RepoSpec
     implicit val subject: Subject = Anonymous
   }
 
+  //noinspection TypeAnnotation
   trait File extends Context {
     override val value  = Json.obj()
     override val schema = Schemas.fileSchemaUri
@@ -82,8 +87,10 @@ class RepoSpec
 
       "prevent to create a new resource that already exists" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.create(id, Latest(schema), Set.empty, value).value.rejected[AlreadyExists] shouldEqual AlreadyExists(
-          id.ref)
+        repo
+          .create(id, Latest(schema), Set.empty, value)
+          .value
+          .rejected[ResourceAlreadyExists] shouldEqual ResourceAlreadyExists(id.ref)
       }
     }
 
@@ -104,7 +111,7 @@ class RepoSpec
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
-        repo.update(id, 3L, types, json).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L)
+        repo.update(id, 3L, types, json).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent to update a deprecated resource" in new Context {
@@ -112,7 +119,7 @@ class RepoSpec
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
-        repo.update(id, 2L, types, json).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
+        repo.update(id, 2L, types, json).value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
     }
 
@@ -130,13 +137,13 @@ class RepoSpec
 
       "prevent to deprecate a resource with an incorrect revision" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 3L).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L)
+        repo.deprecate(id, 3L).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent to deprecate a deprecated resource" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 2L).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
+        repo.deprecate(id, 2L).value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
     }
 
@@ -155,20 +162,20 @@ class RepoSpec
 
       "prevent to tag a resource with an incorrect revision" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.tag(id, 3L, 1L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L)
+        repo.tag(id, 3L, 1L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent to tag a deprecated resource" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.tag(id, 2L, 1L, "name").value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
+        repo.tag(id, 2L, 1L, "name").value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
 
       "prevent to tag a resource with a higher tag than current revision" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
-        repo.tag(id, 2L, 4L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 4L)
+        repo.tag(id, 2L, 4L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 4L, 2L)
       }
     }
 
@@ -182,15 +189,15 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
       "create file resource" in new File {
-        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
 
         repo.createFile(id, desc, source).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(attributes))
       }
 
       "update the file resource" in new File {
-        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-        when(store.save(id, desc, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
+        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(store.save(id, desc, source2)).thenReturn(IO.pure(attributes2))
 
         repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
         repo.updateFile(id, 1L, desc, source2).value.accepted shouldEqual
@@ -198,25 +205,25 @@ class RepoSpec
       }
 
       "prevent to update a file resource with an incorrect revision" in new File {
-        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
 
         repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
         repo.updateFile(id, 3L, desc, source).value.rejected[IncorrectRev] shouldEqual
-          IncorrectRev(id.ref, 3L)
+          IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent update a file resource to a deprecated resource" in new File {
-        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
         repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.updateFile(id, 2L, desc, source).value.rejected[IsDeprecated] shouldEqual IsDeprecated(id.ref)
+        repo.updateFile(id, 2L, desc, source).value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(
+          id.ref)
       }
 
       "prevent to create a file resource which fails on attempting to store" in new File {
-        when(store.save(id, desc, source))
-          .thenReturn(EitherT.leftT[IO, FileAttributes](Unexpected("error"): Rejection))
-        repo.createFile(id, desc, source).value.rejected[Unexpected] shouldEqual Unexpected("error")
+        when(store.save(id, desc, source)).thenReturn(IO.raiseError(KgError.InternalError("")))
+        repo.createFile(id, desc, source).value.failed[KgError.InternalError]
       }
     }
 
@@ -306,14 +313,14 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
       "get a file resource" in new File {
-        when(store.save(id, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
         repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
 
-        when(store.save(id, desc2, source2)).thenReturn(EitherT.rightT[IO, Rejection](attributes2))
+        when(store.save(id, desc2, source2)).thenReturn(IO.pure(attributes2))
         repo.updateFile(id, 1L, desc2, source2).value.accepted shouldBe a[Resource]
 
-        when(store.fetch(attributes2)).thenReturn(Right(source2))
-        when(store.fetch(attributes)).thenReturn(Right(source))
+        when(store.fetch(attributes2)).thenReturn(source2)
+        when(store.fetch(attributes)).thenReturn(source)
 
         repo.getFile(id, None).value.some shouldEqual (attributes2 -> source2)
 

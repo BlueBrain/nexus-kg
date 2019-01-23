@@ -60,7 +60,7 @@ object AdditionalValidation {
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) => {
       val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
       EitherT.fromEither(View(resource)).flatMap {
-        case es: ElasticView => EitherT(es.createIndex[F]).map(_ => value)
+        case es: ElasticView => EitherT.right(es.createIndex[F]).map(_ => value)
         case agg: AggregateElasticView[_] =>
           agg.referenced[F](caller, acls).map(r => value.map(r, _.removeKeys("@context").addContext(viewCtxUri)))
         case _ => EitherT.rightT(value)

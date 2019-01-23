@@ -6,7 +6,7 @@ import cats.MonadError
 import cats.data.EitherT
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
-import ch.epfl.bluebrain.nexus.kg.RuntimeErr.OperationTimedOut
+import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.ResolverCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -60,7 +60,7 @@ private class ResolverIndexer[F[_]](resources: Resources[F], resolverCache: Reso
         case Left(err @ OrganizationNotFound(`projectRef`)) => F.raiseError(new RetriableErr(err.msg))
         case Left(err) =>
           logger.error(
-            s"Error while attempting to fetch/resolve event '${event.id.show} (rev = ${event.rev})', cause: '${err.message}'")
+            s"Error while attempting to fetch/resolve event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")
           F.pure(())
       }
   }

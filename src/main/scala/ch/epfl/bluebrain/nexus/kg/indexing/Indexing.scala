@@ -27,7 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.AlreadyExists
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.syntax.akka._
@@ -73,9 +73,9 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
       .addContext(resolverCtxUri)
       .addContext(resourceCtxUri)
 
-  private val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[AlreadyExists, Resource]] = {
-    case Left(exists: AlreadyExists) => Left(exists)
-    case Right(value)                => Right(value)
+  private val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[ResourceAlreadyExists, Resource]] = {
+    case Left(exists: ResourceAlreadyExists) => Left(exists)
+    case Right(value)                        => Right(value)
   }
 
   private def addCredentials(request: HttpRequest): HttpRequest =

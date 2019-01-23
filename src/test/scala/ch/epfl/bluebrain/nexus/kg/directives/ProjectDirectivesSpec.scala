@@ -9,18 +9,19 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
+import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.Error._
+import ch.epfl.bluebrain.nexus.kg.KgError.{ProjectIsDeprecated, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
+import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
-import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
+import ch.epfl.bluebrain.nexus.kg.routes.Routes
+import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -32,6 +33,7 @@ import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfter, EitherValues, Matchers, WordSpecLike}
 
+//noinspection NameBooleanParameters
 class ProjectDirectivesSpec
     extends WordSpecLike
     with Matchers
@@ -41,9 +43,12 @@ class ProjectDirectivesSpec
     with ScalatestRouteTest
     with TestHelper {
 
-  private implicit val projectCache            = mock[ProjectCache[Task]]
-  private implicit val client                  = mock[AdminClient[Task]]
-  private implicit val cred: Option[AuthToken] = None
+  private val appConfig                 = Settings(system).appConfig
+  private implicit val http: HttpConfig = appConfig.http
+
+  private implicit val projectCache: ProjectCache[Task] = mock[ProjectCache[Task]]
+  private implicit val client: AdminClient[Task]        = mock[AdminClient[Task]]
+  private implicit val cred: Option[AuthToken]          = None
 
   before {
     Mockito.reset(projectCache)
@@ -93,19 +98,19 @@ class ProjectDirectivesSpec
 
     def projectRoute(): Route = {
       import monix.execution.Scheduler.Implicits.global
-      handleRejections(RejectionHandling()) {
+      Routes.wrap(
         (get & project) { project =>
           complete(StatusCodes.OK -> project)
         }
-      }
+      )
     }
 
     def projectNotDepRoute(implicit proj: Project): Route =
-      handleRejections(RejectionHandling()) {
+      Routes.wrap(
         (get & projectNotDeprecated) {
           complete(StatusCodes.OK)
         }
-      }
+      )
 
     val label = ProjectLabel("organization", "project")
     val apiMappings = Map[String, AbsoluteIri](
@@ -182,18 +187,18 @@ class ProjectDirectivesSpec
 
       Get("/organization/project") ~> projectRoute() ~> check {
         status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[ProjectsNotFound.type]
+        responseAs[Error].tpe shouldEqual classNameOf[ProjectNotFound]
       }
     }
 
-    "reject when IAM signals UnauthorizedAccess" in {
+    "reject when IAM signals forbidden" in {
       val label = ProjectLabel("organization", "project")
       when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
-      when(client.fetchProject("organization", "project")).thenReturn(Task.raiseError(UnauthorizedAccess))
+      when(client.fetchProject("organization", "project")).thenReturn(Task.raiseError(IamClientError.Forbidden("")))
 
       Get("/organization/project") ~> projectRoute() ~> check {
-        status shouldEqual StatusCodes.Unauthorized
-        responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+        status shouldEqual StatusCodes.Forbidden
+        responseAs[Error].tpe shouldEqual "AuthorizationFailed"
       }
     }
 
@@ -201,11 +206,11 @@ class ProjectDirectivesSpec
       val label = ProjectLabel("organization", "project")
       when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
       when(client.fetchProject("organization", "project"))
-        .thenReturn(Task.raiseError(new RuntimeException("Something went wrong")))
+        .thenReturn(Task.raiseError(IamClientError.UnknownError(StatusCodes.InternalServerError, "")))
 
       Get("/organization/project") ~> projectRoute() ~> check {
-        status shouldEqual StatusCodes.BadGateway
-        responseAs[Error].code shouldEqual classNameOf[DownstreamServiceError.type]
+        status shouldEqual StatusCodes.InternalServerError
+        responseAs[Error].tpe shouldEqual classNameOf[KgError.InternalError]
       }
     }
 
@@ -218,7 +223,7 @@ class ProjectDirectivesSpec
     "reject when available project is deprecated" in {
       Get("/") ~> projectNotDepRoute(projectMeta.copy(deprecated = true)) ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[ProjectIsDeprecated.type]
+        responseAs[Error].tpe shouldEqual classNameOf[ProjectIsDeprecated]
       }
     }
   }

@@ -7,16 +7,12 @@ import akka.actor.{ActorSystem, Address, AddressFromURIString}
 import akka.cluster.Cluster
 import akka.event.Logging
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.headers.Location
-import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -27,17 +23,11 @@ import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
-import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
-import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
-import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
-import ch.epfl.bluebrain.nexus.kg.routes.{AppInfoRoutes, Clients, Routes}
-import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives._
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
-import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import ch.epfl.bluebrain.nexus.kg.routes.{Clients, Routes}
 import com.github.jsonldjava.core.DocumentLoader
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -48,8 +38,8 @@ import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock
 import org.apache.jena.query.ResultSet
 
-import scala.concurrent.duration._
 import scala.concurrent.Await
+import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 //noinspection TypeAnnotation
@@ -93,7 +83,7 @@ object Main {
       val sparql           = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
       implicit val elastic = ElasticClient[Task](elasticConfig.base)
 
-      implicit val adminClient = AdminClient[Task](appConfig.admin, HttpClient.untyped[Task])
+      implicit val adminClient = AdminClient[Task](appConfig.admin)
       implicit val iamClient   = IamClient[Task]
       Clients(sparql)
     }
@@ -121,31 +111,14 @@ object Main {
     implicit val aclsOps           = new AclsOps(AclsActor.start)
     implicit val projectResolution = ProjectResolution.task(cache.resolver, cache.project, aclsOps)
     val resources: Resources[Task] = Resources[Task]
-    val resourceRoutes             = Routes(resources)
-    val apiRoutes                  = uriPrefix(appConfig.http.publicUri)(resourceRoutes)
-    val healthStatusGroup = HealthStatusGroup(
-      new CassandraHealthStatus(),
-      new ClusterHealthStatus(cluster),
-      new IamHealthStatus(iam),
-      new AdminHealthStatus(clients.adminClient),
-      new ElasticSearchHealthStatus(clients.elastic),
-      new SparqlHealthStatus(clients.sparql)
-    )
-    val appInfoRoutes = AppInfoRoutes(appConfig.description, healthStatusGroup).routes
 
     val logger = Logging(as, getClass)
     System.setProperty(DocumentLoader.DISALLOW_REMOTE_CONTEXT_LOADING, "true")
 
-    val corsSettings = CorsSettings.defaultSettings
-      .withAllowedMethods(List(GET, PUT, POST, DELETE, OPTIONS, HEAD))
-      .withExposedHeaders(List(Location.name))
-
     cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
 
-      val routes: Route =
-        handleRejections(corsRejectionHandler.withFallback(RejectionHandling.notFound))(
-          cors(corsSettings)(apiRoutes ~ appInfoRoutes))
+      val routes: Route = Routes(resources)
 
       val httpBinding = {
         Http().bindAndHandle(routes, appConfig.http.interface, appConfig.http.port)

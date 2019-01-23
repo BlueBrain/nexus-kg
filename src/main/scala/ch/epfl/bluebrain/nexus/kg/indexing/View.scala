@@ -6,7 +6,8 @@ import java.util.regex.Pattern
 import cats.data.EitherT
 import cats.implicits._
 import cats.{Monad, MonadError, Show}
-import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticFailure}
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
@@ -15,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, DeprecatedId, RevisionedId}
+import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, DeprecatedId, KgError, RevisionedId}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
@@ -23,10 +24,6 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import io.circe.Json
 import io.circe.parser._
-
-import scala.util.Try
-import scala.util.control.NonFatal
-import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 
 /**
   * Enumeration of view types.
@@ -242,19 +239,13 @@ object View {
       */
     def createIndex[F[_]](implicit elastic: ElasticClient[F],
                           config: ElasticConfig,
-                          F: MonadError[F, Throwable]): F[Either[Rejection, Unit]] =
+                          F: MonadError[F, Throwable]): F[Unit] =
       elastic
         .createIndex(index)
         .flatMap(_ => elastic.updateMapping(index, config.docType, mapping))
-        .map[Either[Rejection, Unit]] {
-          case true  => Right(())
-          case false => Left(Unexpected("View mapping validation could not be performed"))
-        }
-        .recoverWith {
-          case err: ElasticFailure => F.pure(Left(InvalidPayload(id.ref, err.body)))
-          case NonFatal(err) =>
-            val msg = Try(err.getMessage).getOrElse("")
-            F.pure(Left(Unexpected(s"View mapping validation could not be performed. Cause '$msg'")))
+        .flatMap {
+          case true  => F.unit
+          case false => F.raiseError(KgError.InternalError("View mapping validation could not be performed"))
         }
   }
 

@@ -4,7 +4,6 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 
 import akka.stream.ActorMaterializer
-import cats.data.EitherT
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -26,11 +25,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
@@ -40,6 +39,7 @@ import org.scalatest.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext
 
+//noinspection TypeAnnotation
 class ResourcesSpec
     extends ActorSystemFixture("ResourcesSpec", true)
     with IOEitherValues
@@ -121,8 +121,8 @@ class ResourcesSpec
     val source     = "some text"
     val relative   = Paths.get("./other")
     val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-    when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-    when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+    when(store.save(resId, desc, source)).thenReturn(IO.pure(attributes))
+    when(store.save(resId, desc, source)).thenReturn(IO.pure(attributes))
   }
 
   trait MaterializeResource extends ResolverResource {

@@ -7,16 +7,20 @@ import akka.http.scaladsl.model._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.syntax._
 import io.circe.{Encoder, Json, Printer}
+import monix.eval.Task
+import monix.execution.Scheduler
 
 import scala.collection.immutable.Seq
+import scala.concurrent.Future
 
-package object instances extends FailFastCirceSupport {
+object instances extends FailFastCirceSupport {
 
   override def unmarshallerContentTypes: Seq[ContentTypeRange] =
     List(`application/json`, `application/ld+json`, `application/sparql-results+json`)
@@ -74,29 +78,16 @@ package object instances extends FailFastCirceSupport {
     Marshaller.oneOf(marshallers: _*)
   }
 
-  private def statusCodeFrom(rejection: Rejection): StatusCode = rejection match {
-    case _: IsDeprecated             => StatusCodes.BadRequest
-    case _: ProjectIsDeprecated      => StatusCodes.BadRequest
-    case _: IncorrectTypes           => StatusCodes.BadRequest
-    case _: IllegalContextValue      => StatusCodes.BadRequest
-    case _: UnableToSelectResourceId => StatusCodes.BadRequest
-    case _: InvalidResource          => StatusCodes.BadRequest
-    case _: IncorrectId              => StatusCodes.BadRequest
-    case _: InvalidPayload           => StatusCodes.BadRequest
-    case _: InvalidJsonLD            => StatusCodes.BadRequest
-    case _: NotFileResource          => StatusCodes.BadRequest
-    case _: IllegalParameter         => StatusCodes.BadRequest
-    case _: MissingParameter         => StatusCodes.BadRequest
-    case _: Unexpected               => StatusCodes.InternalServerError
-    case _: UnexpectedState          => StatusCodes.InternalServerError
-    case _: ProjectsNotFound         => StatusCodes.NotFound
-    case _: LabelsNotFound           => StatusCodes.NotFound
-    case _: NotFound                 => StatusCodes.NotFound
-    case _: OrganizationNotFound     => StatusCodes.NotFound
-    case InvalidResourceIri          => StatusCodes.NotFound
-    case _: IncorrectRev             => StatusCodes.Conflict
-    case _: AlreadyExists            => StatusCodes.Conflict
-    case _: DownstreamServiceError   => StatusCodes.BadGateway
-    case _: InvalidIdentity          => StatusCodes.Unauthorized
+  implicit class EitherTask[R <: Rejection, A](task: Task[Either[R, A]])(implicit s: Scheduler) {
+    def runWithStatus(code: StatusCode): Future[Either[R, (StatusCode, A)]] =
+      task.map(_.map(code -> _)).runToFuture
+  }
+
+  implicit class OptionTask[A](task: Task[Option[A]])(implicit s: Scheduler) {
+    def runNotFound: Future[A] =
+      task.flatMap {
+        case Some(a) => Task.pure(a)
+        case None    => Task.raiseError(KgError.NotFound())
+      }.runToFuture
   }
 }

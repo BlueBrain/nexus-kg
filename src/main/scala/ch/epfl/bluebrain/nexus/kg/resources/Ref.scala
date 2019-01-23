@@ -3,6 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Query, Url, Urn}
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import io.circe.Encoder
+import io.circe.generic.extras.Configuration
+import io.circe.generic.extras.semiauto.deriveEncoder
 
 import scala.util.Try
 
@@ -54,6 +58,7 @@ object Ref {
 
   /**
     * An unannotated reference.
+    *
     * @param iri the reference identifier as an iri
     */
   final case class Latest(iri: AbsoluteIri) extends Ref
@@ -79,4 +84,10 @@ object Ref {
     case Tag(iri, tag)      => s"${iri.show} @ tag: '$tag'"
     case Revision(iri, rev) => s"${iri.show} @ rev: '$rev'"
   }
+
+  final implicit val refEncoder: Encoder[Ref] = {
+    implicit val config: Configuration = Configuration.default.withDiscriminator("@type")
+    deriveEncoder[Ref]
+  }
+
 }

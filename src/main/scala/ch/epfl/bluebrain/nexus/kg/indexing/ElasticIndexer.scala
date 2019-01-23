@@ -8,12 +8,12 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
 import ch.epfl.bluebrain.nexus.rdf.Graph
@@ -47,7 +47,7 @@ class ElasticIndexer[F[_]](view: ElasticView, resources: Resources[F])(implicit 
     */
   final def apply(ev: Event): F[Option[BulkOp]] =
     view.resourceTag.map(resources.fetch(ev.id, _, None)).getOrElse(resources.fetch(ev.id, None)).value.flatMap {
-      case None                                       => F.raiseError(NotFound(ev.id.ref))
+      case None                                       => F.raiseError(KgError.NotFound(ev.id.ref))
       case Some(resource) if validCandidate(resource) => F.pure(Some(transformAndIndex(resource)))
       case Some(_)                                    => F.pure(None)
     }
