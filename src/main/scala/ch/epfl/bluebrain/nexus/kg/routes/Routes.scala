@@ -162,17 +162,18 @@ object Routes {
       pathPrefix(config.http.prefix / Segment) { resourceSegment =>
         extractToken {
           implicit optToken =>
-            project.apply { implicit project =>
-              (extractCallerAcls & extractCaller) { (acl, c) =>
-                resourceSegment match {
-                  case "resolvers" => new ResolverRoutes(resources, acl, c).routes
-                  case "views"     => new ViewRoutes(resources, acl, c).routes
-                  case "schemas"   => new SchemaRoutes(resources, acl, c).routes
-                  case "files"     => new FileRoutes(resources, acl, c).routes
-                  case "resources" => new ResourceRoutes(resources, acl, c).routes
-                  case _           => reject()
+            project.apply {
+              implicit project =>
+                (extractCallerAcls & extractCaller) { (acl, c) =>
+                  resourceSegment match {
+                    case "resolvers" => new ResolverRoutes(resources, acl, c).routes
+                    case "views"     => new ViewRoutes(resources, acl, c).routes
+                    case "schemas"   => new SchemaRoutes(resources, acl, c).routes
+                    case "files"     => new FileRoutes(resources, acl, c).routes
+                    case "resources" => new ResourceRoutes(resources, acl, c).routes
+                    case _           => reject()
+                  }
                 }
-              }
             }
         }
       } ~ appInfoRoutes
