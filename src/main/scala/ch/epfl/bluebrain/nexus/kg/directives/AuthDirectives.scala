@@ -46,9 +46,9 @@ object AuthDirectives {
   /**
     * Retrieves the caller ACLs.
     */
-  def extractCallerAcls(implicit iamClient: IamClient[Task], token: Option[AuthToken]): Directive1[AccessControlLists] = {
+  def extractCallerAcls(implicit iam: IamClient[Task], token: Option[AuthToken]): Directive1[AccessControlLists] = {
     import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-    onComplete(iamClient.acls("*" / "*", ancestors = true, self = true).runToFuture).flatMap {
+    onComplete(iam.acls("*" / "*", ancestors = true, self = true).runToFuture).flatMap {
       case Success(result)                         => provide(result)
       case Failure(_: IamClientError.Unauthorized) => failWith(AuthenticationFailed)
       case Failure(_: IamClientError.Forbidden)    => failWith(AuthorizationFailed)
@@ -62,8 +62,8 @@ object AuthDirectives {
   /**
     * Authenticates the requested with the provided ''token'' and returns the ''caller''
     */
-  def extractCaller(implicit iamClient: IamClient[Task], token: Option[AuthToken]): Directive1[Caller] =
-    onComplete(iamClient.identities.runToFuture).flatMap {
+  def extractCaller(implicit iam: IamClient[Task], token: Option[AuthToken]): Directive1[Caller] =
+    onComplete(iam.identities.runToFuture).flatMap {
       case Success(caller)                         => provide(caller)
       case Failure(_: IamClientError.Unauthorized) => failWith(AuthenticationFailed)
       case Failure(_: IamClientError.Forbidden)    => failWith(AuthorizationFailed)
