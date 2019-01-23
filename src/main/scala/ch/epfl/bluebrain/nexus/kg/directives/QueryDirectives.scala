@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.directives
 import akka.http.scaladsl.common.{NameOptionReceptacle, NameReceptacle}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
-import akka.http.scaladsl.server.{Directive0, Directive1, ValidationRejection}
+import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
@@ -29,8 +29,10 @@ object QueryDirectives {
   def notParameter[A](param: NameReceptacle[A])(
       implicit paramAux: ParamDefAux[NameOptionReceptacle[A], Directive1[Option[A]]]): Directive0 = {
     parameter(param.?).flatMap {
-      case Some(_) => reject(ValidationRejection(s"the provided query parameter '${param.name}' should not be present"))
-      case _       => pass
+      case Some(_) =>
+        reject(MalformedQueryParamRejection(param.name, "the provided query parameter should not be present"))
+      case _ =>
+        pass
     }
   }
 
