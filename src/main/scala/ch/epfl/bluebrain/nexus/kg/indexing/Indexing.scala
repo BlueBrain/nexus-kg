@@ -94,14 +94,14 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
   def startAdminStream(): Unit = {
 
     def handle(event: Event): Task[Unit] = {
-      logger.info(s"Handling admin event: '$event'")
+      logger.debug(s"Handling admin event: '$event'")
       event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
           coordinator.stop(OrganizationRef(uuid))
 
         case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
           // format: off
-          val project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
+          implicit val project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
           implicit val s         = subject
           val elasticView: View  = ElasticView.default(project.ref)
@@ -146,12 +146,12 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
   }
 
   def startResolverStream(): Unit = {
-    ResolverIndexer.start(resources, cache.resolver)
+    ResolverIndexer.start(resources, cache.resolver, cache.project)
     ()
   }
 
   def startViewStream(): Unit = {
-    ViewIndexer.start(resources, cache.view)
+    ViewIndexer.start(resources, cache.view, cache.project)
     ()
   }
 }

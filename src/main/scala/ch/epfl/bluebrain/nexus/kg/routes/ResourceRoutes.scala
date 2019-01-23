@@ -36,14 +36,13 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
         create(schema.ref) ~ list(Some(schema.ref)) ~
           pathPrefix(IdSegment) { id =>
             concat(
-              update(id, Some(schema.ref)),
               create(id, schema.ref),
+              update(id, Some(schema.ref)),
               tag(id, Some(schema.ref)),
               deprecate(id, Some(schema.ref)),
               fetch(id, Some(schema.ref)),
               tags(id, Some(schema.ref))
             )
           }
-    }
-
+    } ~ create(resourceRef)
 }

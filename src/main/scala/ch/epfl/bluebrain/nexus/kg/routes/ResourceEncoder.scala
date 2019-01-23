@@ -29,7 +29,7 @@ object ResourceEncoder {
     Encoder.encodeJson.contramap { res =>
       val mergedCtx = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
       val json = res.asJson(mergedCtx) deepMerge Json
-        .obj("@context" -> res.value.source.contextValue)
+        .obj("@context" -> res.value.ctx)
         .addContext(resourceCtxUri)
       if (res.types.contains(nxv.ElasticView.value)) ViewEncoder.transformToJson(json) else json
     }

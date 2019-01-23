@@ -66,9 +66,18 @@ object Rejection {
   /**
     * Signals an attempt to interact with a resource that doesn't exist.
     *
-    * @param ref a reference to the resource
+    * @param ref    a reference to the resource
+    * @param revOpt an optional revision of the resource
+    * @param tagOpt an optional tag of the resource
     */
-  final case class NotFound(ref: Ref) extends Rejection(s"Resource '${ref.show}' not found.")
+  final case class NotFound(ref: Ref, revOpt: Option[Long] = None, tagOpt: Option[String] = None)
+      extends Rejection(
+        (revOpt, tagOpt) match {
+          case (Some(rev), None) => s"Resource '${ref.show}' not found at revision $rev."
+          case (None, Some(tag)) => s"Resource '${ref.show}' not found at tag '$tag'."
+          case _                 => s"Resource '${ref.show}' not found."
+        }
+      )
 
   /**
     * Signals an attempt to interact with a project that doesn't have an organization.
@@ -77,6 +86,13 @@ object Rejection {
     */
   final case class OrganizationNotFound(ref: ProjectRef)
       extends Rejection(s"Project '${ref.show}' without an organization")
+
+  /**
+    * Signals an attempt to interact with a project that doesn't exist.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class ProjectNotFound(ref: ProjectRef) extends Rejection(s"Project '${ref.show}' not found.")
 
   /**
     * Signals the impossibility to resolve the project reference for project labels.
@@ -198,6 +214,7 @@ object Rejection {
     case _: LabelsNotFound           => StatusCodes.NotFound
     case _: NotFound                 => StatusCodes.NotFound
     case _: OrganizationNotFound     => StatusCodes.NotFound
+    case _: ProjectNotFound          => StatusCodes.NotFound
     case _: ProjectsNotFound         => StatusCodes.NotFound
     case _: IncorrectRev             => StatusCodes.Conflict
     case _: ResourceAlreadyExists    => StatusCodes.Conflict

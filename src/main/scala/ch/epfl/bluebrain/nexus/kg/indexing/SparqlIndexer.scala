@@ -66,7 +66,7 @@ private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[
       case Right(r) => client.replace(res.id, r.value.graph)
     }
 
-  private implicit def toGraphUri(id: ResId): Uri = id.value.toAkkaUri + "graph"
+  private implicit def toGraphUri(id: ResId): Uri = (id.value + "graph").toAkkaUri
 }
 
 object SparqlIndexer {

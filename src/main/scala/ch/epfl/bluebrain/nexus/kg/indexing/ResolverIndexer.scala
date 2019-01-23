@@ -6,12 +6,12 @@ import cats.MonadError
 import cats.data.EitherT
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
-import ch.epfl.bluebrain.nexus.kg.async.ResolverCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, OrganizationNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, OrganizationNotFound, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.OffsetStorage.Volatile
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
@@ -25,8 +25,9 @@ import monix.execution.Scheduler
   * @param resources     the resources operations
   * @param resolverCache the distributed cache
   */
-private class ResolverIndexer[F[_]](resources: Resources[F], resolverCache: ResolverCache[F])(
-    implicit F: MonadError[F, Throwable]) {
+private class ResolverIndexer[F[_]](resources: Resources[F],
+                                    resolverCache: ResolverCache[F],
+                                    projectCache: ProjectCache[F])(implicit F: MonadError[F, Throwable]) {
 
   private val logger = Logger[this.type]
 
@@ -40,7 +41,8 @@ private class ResolverIndexer[F[_]](resources: Resources[F], resolverCache: Reso
     val projectRef = event.id.parent
     val result: EitherT[F, Rejection, Unit] = for {
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
-      materialized <- resources.materialize(resource)
+      project      <- EitherT.fromOptionF(projectCache.get(projectRef), ProjectNotFound(projectRef))
+      materialized <- resources.materialize(resource)(project)
       resolver     <- EitherT.fromOption(Resolver(materialized), NotFound(event.id.ref))
       applied      <- EitherT.liftF(resolverCache.put(resolver))
     } yield applied
@@ -75,14 +77,14 @@ object ResolverIndexer {
     * @param resolverCache the distributed cache
     */
   // $COVERAGE-OFF$
-  final def start(resources: Resources[Task], resolverCache: ResolverCache[Task])(
+  final def start(resources: Resources[Task], resolverCache: ResolverCache[Task], projectCache: ProjectCache[Task])(
       implicit
       as: ActorSystem,
       s: Scheduler,
       persistence: PersistenceConfig,
       indexing: IndexingConfig): ActorRef = {
 
-    val indexer = new ResolverIndexer[Task](resources, resolverCache)
+    val indexer = new ResolverIndexer[Task](resources, resolverCache, projectCache)
     SequentialTagIndexer.start(
       IndexerConfig.builder
         .name("resolver-indexer")

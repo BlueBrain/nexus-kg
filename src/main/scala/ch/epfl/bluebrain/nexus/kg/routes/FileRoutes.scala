@@ -58,7 +58,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   }
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & projectNotDeprecated & hasPermissions(writePermission) & pathEndOrSingleSlash) {
+    (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -70,7 +70,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def create(schema: Ref): Route =
-    (post & projectNotDeprecated & hasPermissions(writePermission) & pathEndOrSingleSlash) {
+    (post & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -81,7 +81,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (put & parameter('rev.as[Long]) & projectNotDeprecated & hasPermissions(writePermission) & pathEndOrSingleSlash) {
+    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
       rev =>
         fileUpload("file") {
           case (metadata, byteSource) =>
@@ -106,7 +106,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & hasPermissions(readPermission) & pathEndOrSingleSlash) {
+    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermissions(readPermission)) {
       (revOpt, tagOpt) =>
         val result = (revOpt, tagOpt) match {
           case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrFile)

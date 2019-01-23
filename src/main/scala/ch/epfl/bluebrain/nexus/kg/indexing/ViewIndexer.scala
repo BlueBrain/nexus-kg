@@ -4,18 +4,25 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.AskTimeoutException
 import cats.MonadError
 import cats.data.EitherT
+import cats.effect.Timer
 import cats.syntax.all._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
-import ch.epfl.bluebrain.nexus.kg.async.ViewCache
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
+import ch.epfl.bluebrain.nexus.kg.indexing.ViewIndexer._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.OffsetStorage.Volatile
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.akka.RetryStrategy
+import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
+
+import scala.concurrent.duration._
 
 /**
   * Indexes project view events.
@@ -23,8 +30,16 @@ import monix.execution.Scheduler
   * @param resources the resources operations
   * @param viewCache the distributed cache
   */
-private class ViewIndexer[F[_]](resources: Resources[F], viewCache: ViewCache[F])(
+private class ViewIndexer[F[_]: Timer](resources: Resources[F], viewCache: ViewCache[F], projectCache: ProjectCache[F])(
     implicit F: MonadError[F, Throwable]) {
+
+  private val retry: RetryStrategy[F] = RetryStrategy.exponentialBackoff(1 second, Int.MaxValue)
+
+  private def fetchProject(ref: ProjectRef): F[Option[Project]] =
+    retry(
+      projectCache
+        .get(ref)
+        .orFailWhen({ case None => true }, ProjectNotIndexed, s"Project '$ref' not found in the cache."))
 
   /**
     * Indexes the view which corresponds to the argument event. If the resource is not found, or it's not compatible to
@@ -33,9 +48,11 @@ private class ViewIndexer[F[_]](resources: Resources[F], viewCache: ViewCache[F]
     * @param event the event to index
     */
   def apply(event: Event): F[Unit] = {
+    val projectRef = event.id.parent
     val result: EitherT[F, Rejection, Unit] = for {
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
-      materialized <- resources.materialize(resource)
+      project      <- EitherT.fromOptionF(fetchProject(projectRef), ProjectNotFound(projectRef))
+      materialized <- resources.materialize(resource)(project)
       view         <- EitherT.fromEither(View(materialized))
       applied      <- EitherT.liftF(viewCache.put(view))
     } yield applied
@@ -56,6 +73,22 @@ private class ViewIndexer[F[_]](resources: Resources[F], viewCache: ViewCache[F]
 
 object ViewIndexer {
 
+  private case object ProjectNotIndexed extends Exception {
+    override def fillInStackTrace(): ProjectNotIndexed.type = this
+  }
+
+  //TODO: Move this logic to sourcing (retryWhen and retryWhenNot)
+  private[indexing] implicit class OrFail[F[_], A](fa: F[A])(implicit F: MonadError[F, Throwable]) {
+    private val logger: Logger = Logger("ViewIndexer")
+    def orFailWhen(pf: PartialFunction[A, Boolean], ex: => Exception, message: => String): F[A] =
+      fa.flatMap { a =>
+        if (pf.isDefinedAt(a) && pf(a)) {
+          logger.error(message)
+          F.raiseError(ex)
+        } else fa
+      }
+  }
+
   /**
     * Starts the index process for views across all projects in the system.
     *
@@ -63,11 +96,12 @@ object ViewIndexer {
     * @param viewCache the distributed cache
     */
   // $COVERAGE-OFF$
-  final def start(resources: Resources[Task], viewCache: ViewCache[Task])(implicit as: ActorSystem,
-                                                                          s: Scheduler,
-                                                                          persistence: PersistenceConfig,
-                                                                          indexing: IndexingConfig): ActorRef = {
-    val indexer = new ViewIndexer[Task](resources, viewCache)
+  final def start(resources: Resources[Task], viewCache: ViewCache[Task], projectCache: ProjectCache[Task])(
+      implicit as: ActorSystem,
+      s: Scheduler,
+      persistence: PersistenceConfig,
+      indexing: IndexingConfig): ActorRef = {
+    val indexer = new ViewIndexer[Task](resources, viewCache, projectCache)
     SequentialTagIndexer.start(
       IndexerConfig.builder
         .name("view-indexer")

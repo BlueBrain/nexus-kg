@@ -136,37 +136,20 @@ class ResourceRoutesSpec
     val organization = genString(length = 4)
     val project      = genString(length = 4)
     val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
-      "nxc"       -> Contexts.base,
-      "nxs"       -> Schemas.base,
-      "resource"  -> Schemas.resourceSchemaUri,
-      "schema"    -> Schemas.shaclSchemaUri,
-      "view"      -> Schemas.viewSchemaUri,
-      "resolver"  -> Schemas.resolverSchemaUri,
-      "file"      -> Schemas.fileSchemaUri,
-      "nxv"       -> nxv.base,
-      "documents" -> nxv.defaultElasticIndex,
-      "graph"     -> nxv.defaultSparqlIndex,
-      "account"   -> nxv.defaultResolver
+      "nxc"             -> Contexts.base,
+      "nxs"             -> Schemas.base,
+      "resource"        -> Schemas.resourceSchemaUri,
+      "schema"          -> Schemas.shaclSchemaUri,
+      "view"            -> Schemas.viewSchemaUri,
+      "resolver"        -> Schemas.resolverSchemaUri,
+      "file"            -> Schemas.fileSchemaUri,
+      "nxv"             -> nxv.base,
+      "documents"       -> nxv.defaultElasticIndex,
+      "graph"           -> nxv.defaultSparqlIndex,
+      "defaultResolver" -> nxv.defaultResolver
     )
     val mappings: Map[String, AbsoluteIri] =
       Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri)
-    implicit val projectMeta =
-      Project(genIri,
-              project,
-              organization,
-              None,
-              nxv.projects,
-              genIri,
-              mappings,
-              genUUID,
-              genUUID,
-              1L,
-              false,
-              Instant.EPOCH,
-              genIri,
-              Instant.EPOCH,
-              genIri)
-
     val organizationMeta = Organization(genIri,
                                         organization,
                                         Some("description"),
@@ -177,10 +160,29 @@ class ResourceRoutesSpec
                                         genIri,
                                         Instant.EPOCH,
                                         genIri)
-    val projectRef      = ProjectRef(projectMeta.uuid)
     val organizationRef = OrganizationRef(organizationMeta.uuid)
     val genUuid         = genUUID
+    val projectRef      = ProjectRef(genUUID)
     val id              = Id(projectRef, nxv.withSuffix(genUuid.toString))
+    implicit val projectMeta =
+      Project(
+        id.value,
+        project,
+        organization,
+        None,
+        url"http://example.com/",
+        nxv.base,
+        mappings,
+        projectRef.id,
+        organizationRef.id,
+        1L,
+        false,
+        Instant.EPOCH,
+        genIri,
+        Instant.EPOCH,
+        genIri
+      )
+
     val defaultEsView =
       ElasticView(Json.obj(),
                   Set.empty,
@@ -275,6 +277,11 @@ class ResourceRoutesSpec
         }): _*
       )
     )
+
+    def projectMatcher = matches[Project] { argument =>
+      argument == projectMeta.copy(
+        apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping + ("base" -> projectMeta.base))
+    }
   }
 
   abstract class Ctx(perms: Set[Permission] = manageRes) extends Context(perms) {
@@ -303,8 +310,9 @@ class ResourceRoutesSpec
   }
 
   abstract class Resolver extends Context(manageResolver) {
-    val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json.obj(
-      "@id" -> Json.fromString(id.value.show))
+    val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json
+      .obj("@id" -> Json.fromString(id.value.show))
+      .addContext(resolverCtxUri)
     val types     = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
     val schemaRef = Ref(resolverSchemaUri)
 
@@ -319,6 +327,7 @@ class ResourceRoutesSpec
     val view = jsonContentOf("/view/elasticview.json")
       .removeKeys("_uuid")
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
+      .addContext(viewCtxUri)
 
     val types     = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
     val schemaRef = Ref(viewSchemaUri)
@@ -347,8 +356,9 @@ class ResourceRoutesSpec
           .simpleF(id, resolver, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
           resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(resolver))(
-            subject = mEq(subject),
-            additional = isA[AdditionalValidation[Task]]))
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/resolvers/$organization/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -371,7 +381,9 @@ class ResourceRoutesSpec
           resources.create(mEq(projectRef),
                            mEq(projectMeta.base),
                            mEq(schemaRef),
-                           matches[Json](_.removeKeys("_uuid") == view))(mEq(subject), isA[AdditionalValidation[Task]]))
+                           matches[Json](_.removeKeys("_uuid") == view))(mEq(subject),
+                                                                         projectMatcher,
+                                                                         isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/views/$organization/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -394,13 +406,15 @@ class ResourceRoutesSpec
       }
 
       "create a view with @id" in new Views {
-        val mapping     = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
-        val viewMapping = view deepMerge mapping
+        val mappingValue           = Json.obj("key"                    -> Json.fromString("value"))
+        val viewMapping            = view deepMerge Json.obj("mapping" -> mappingValue)
+        val viewMappingTransformed = view deepMerge Json.obj("mapping" -> Json.fromString(mappingValue.noSpaces))
         private val expected =
           ResourceF.simpleF(id, viewMapping, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
-          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
+          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMappingTransformed))(
             mEq(subject),
+            projectMatcher,
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
@@ -416,13 +430,15 @@ class ResourceRoutesSpec
       }
 
       "update a view" in new Views {
-        val mapping     = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
-        val viewMapping = view deepMerge mapping
+        val mappingValue           = Json.obj("key"                    -> Json.fromString("value"))
+        val viewMapping            = view deepMerge Json.obj("mapping" -> mappingValue)
+        val viewMappingTransformed = view deepMerge Json.obj("mapping" -> Json.fromString(mappingValue.noSpaces))
         private val expected =
           ResourceF.simpleF(id, viewMapping, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
-          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMapping))(
+          resources.create(mEq(id), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == viewMappingTransformed))(
             mEq(subject),
+            projectMatcher,
             isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
@@ -430,14 +446,22 @@ class ResourceRoutesSpec
           status shouldEqual StatusCodes.Created
           val uuid = responseAs[Json].hcursor.get[String]("_uuid").getOrElse("")
 
-          val mappingUpdated = Json.obj("mapping" -> Json.obj("key2" -> Json.fromString("value2")))
+          val mappingValueUpdated = Json.obj("key2" -> Json.fromString("value2"))
 
           val uuidJson       = Json.obj("_uuid" -> Json.fromString(uuid))
           val expectedUpdate = expected.copy(value = view.deepMerge(uuidJson))
-          val jsonUpdate     = view deepMerge mappingUpdated
-          when(resources.update(mEq(id), mEq(1L), mEq(Some(Latest(viewSchemaUri))), mEq(jsonUpdate))(
-            mEq(subject),
-            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](expectedUpdate.copy(rev = 2L)))
+          val jsonUpdate     = view deepMerge Json.obj("mapping" -> mappingValueUpdated)
+          val jsonUpdateTransformed = view deepMerge Json.obj(
+            "mapping" -> Json.fromString(mappingValueUpdated.noSpaces))
+          when(
+            resources.update(mEq(id),
+                             mEq(1L),
+                             mEq(Some(Latest(viewSchemaUri))),
+                             matches[Json](_.removeKeys("_uuid") == jsonUpdateTransformed))(
+              mEq(subject),
+              projectMatcher,
+              isA[AdditionalValidation[Task]]))
+            .thenReturn(EitherT.rightT[Task, Rejection](expectedUpdate.copy(rev = 2L)))
           val resource = simpleV(expectedUpdate.map(_.appendContextOf(viewCtx)))
           when(resources.materializeWithMeta(expectedUpdate))
             .thenReturn(EitherT.rightT[Task, Rejection](resource))
@@ -452,27 +476,73 @@ class ResourceRoutesSpec
 
     "performing operations on resources" should {
 
-      "create a context without @id" in new Ctx {
+      "create a resource without @id" in new Ctx {
         when(
           resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
             mEq(subject),
+            projectMatcher,
             isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, ctx, created = subject, updated = subject, schema = schemaRef)))
-
-        Post(s"/v1/resources/$organization/$project/resource", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.Created
-          responseAs[Json] shouldEqual ctxResponse
+        val endpoints = List(s"/v1/resources/$organization/$project/resource",
+                             s"/v1/resources/$organization/$project/_",
+                             s"/v1/resources/$organization/$project")
+        forAll(endpoints) { endpoint =>
+          Post(endpoint, ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.Created
+            responseAs[Json] shouldEqual ctxResponse
+          }
         }
       }
 
-      "create a context with @id" in new Ctx {
-        when(resources.create(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(subject), isA[AdditionalValidation[Task]]))
+      "create a resource with @id" in new Ctx {
+        when(
+          resources.create(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(subject),
+                                                              projectMatcher,
+                                                              isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, ctx, created = subject, updated = subject, schema = schemaRef)))
 
         Put(s"/v1/resources/$organization/$project/resource/nxv:$genUuid", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] shouldEqual ctxResponse
+        }
+      }
+
+      "create a plain JSON resource without an @id" in new Ctx {
+        val json = Json.obj("foo" -> Json.fromString("bar"))
+        when(
+          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(json))(
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
+          ResourceF.simpleF(id, json, created = subject, updated = subject, schema = schemaRef)))
+
+        Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] shouldEqual ctxResponse
+        }
+      }
+
+      "create a plain JSON resource with an @id" in new Ctx {
+        val json = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
+        when(
+          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(json))(
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]])).thenReturn(
+          EitherT.rightT[Task, Rejection](
+            ResourceF.simpleF(Id(projectRef, url"http://example.com/foobar"),
+                              json,
+                              created = subject,
+                              updated = subject,
+                              schema = schemaRef)))
+        Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] shouldEqual response().deepMerge(Json.obj(
+            "@id" -> Json.fromString("http://example.com/foobar"),
+            "_self" -> Json.fromString(
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/base:foobar")
+          ))
         }
       }
 
@@ -634,9 +704,7 @@ class ResourceRoutesSpec
         simpleV(id, Json.obj(), created = subject, updated = subject, schema = schemaRef).copy(file = Some(at1))
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
-      val newProject =
-        projectMeta.copy(apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping + ("base" -> nxv.projects.value))
-      when(resources.materializeWithMeta(resource)(newProject)).thenReturn(EitherT.rightT[Task, Rejection](
+      when(resources.materializeWithMeta(mEq(resource))(projectMatcher)).thenReturn(EitherT.rightT[Task, Rejection](
         resourceV.copy(value = resourceV.value.copy(graph = Graph(resourceV.metadata)))))
 
       val json = jsonContentOf("/resources/file-metadata.json",
@@ -674,10 +742,37 @@ class ResourceRoutesSpec
 
     "reject getting a resource that does not exist" in new Ctx {
       when(resources.fetch(id, None)).thenReturn(OptionT.none[Task, Resource])
-      when(resources.fetch(id, 1L, None)).thenReturn(OptionT.none[Task, Resource])
+
+      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid") ~> addHeader("Accept", "application/json") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.NotFound
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
+      }
+    }
+
+    "reject getting a revision that does not exist" in new Ctx {
+
+      val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
+      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
+      when(resources.fetch(id, 1L, Some(resourceRef))).thenReturn(OptionT.none[Task, Resource])
 
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
+      }
+    }
+
+    "reject getting a tag that does not exist" in new Ctx {
+
+      val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
+      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
+      when(resources.fetch(id, "one", Some(resourceRef))).thenReturn(OptionT.none[Task, Resource])
+
+      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one") ~> addHeader("Accept", "application/json") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.NotFound
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
@@ -790,6 +885,7 @@ class ResourceRoutesSpec
         when(
           resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(schema))(
             mEq(subject),
+            projectMatcher,
             isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
 
@@ -800,7 +896,10 @@ class ResourceRoutesSpec
       }
 
       "create a schema with @id" in new Schema {
-        when(resources.create(mEq(id), mEq(schemaRef), mEq(schema))(mEq(subject), isA[AdditionalValidation[Task]]))
+        when(
+          resources.create(mEq(id), mEq(schemaRef), mEq(schema))(mEq(subject),
+                                                                 projectMatcher,
+                                                                 isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
 
@@ -812,8 +911,10 @@ class ResourceRoutesSpec
 
       "update a schema" in new Schema {
         when(
-          resources.update(mEq(id), mEq(1L), mEq(Some(schemaRef)), mEq(schema))(mEq(subject),
-                                                                                isA[AdditionalValidation[Task]]))
+          resources
+            .update(mEq(id), mEq(1L), mEq(Some(schemaRef)), mEq(schema))(mEq(subject),
+                                                                         projectMatcher,
+                                                                         isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
 

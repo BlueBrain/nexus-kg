@@ -101,10 +101,10 @@ trait TestHelper extends MockitoMatchers with EitherValues {
 }
 
 trait MockitoMatchers {
-  def isA[T: ClassTag] =
+  def isA[T: ClassTag]: T =
     mockIsA(implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]])
 
-  def matches[A](f: A => Boolean) = {
+  def matches[A](f: A => Boolean): A = {
     argThat((argument: A) => f(argument))
   }
 }
