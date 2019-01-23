@@ -76,7 +76,7 @@ private[routes] abstract class CommonRoutes(
   def routes: Route
 
   def create(schema: Ref): Route =
-    (post & notParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(writePermission)) {
+    (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(writePermission)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
           complete(Created -> resources.create(project.ref, project.base, schema, transform(source)).value.runToFuture)
@@ -85,7 +85,7 @@ private[routes] abstract class CommonRoutes(
     }
 
   def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & notParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(writePermission)) {
+    (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(writePermission)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
           complete(Created -> resources.create(Id(project.ref, id), schema, transform(source)).value.runToFuture)

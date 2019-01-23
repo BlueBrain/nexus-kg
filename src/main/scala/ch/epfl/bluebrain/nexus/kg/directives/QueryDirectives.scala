@@ -26,7 +26,7 @@ object QueryDirectives {
     * @param param the parameter
     * @tparam A the type of the parameter
     */
-  def notParameter[A](param: NameReceptacle[A])(
+  def noParameter[A](param: NameReceptacle[A])(
       implicit paramAux: ParamDefAux[NameOptionReceptacle[A], Directive1[Option[A]]]): Directive0 = {
     parameter(param.?).flatMap {
       case Some(_) =>
