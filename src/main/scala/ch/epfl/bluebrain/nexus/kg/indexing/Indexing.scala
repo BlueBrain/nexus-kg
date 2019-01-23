@@ -94,7 +94,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
   def startAdminStream(): Unit = {
 
     def handle(event: Event): Task[Unit] = {
-      logger.info(s"Handling admin event: '$event'")
+      logger.debug(s"Handling admin event: '$event'")
       event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
           coordinator.stop(OrganizationRef(uuid))

@@ -473,10 +473,14 @@ class ResourceRoutesSpec
             projectMatcher,
             isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, ctx, created = subject, updated = subject, schema = schemaRef)))
-
-        Post(s"/v1/resources/$organization/$project/resource", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.Created
-          responseAs[Json] shouldEqual ctxResponse
+        val endpoints = List(s"/v1/resources/$organization/$project/resource",
+                             s"/v1/resources/$organization/$project/_",
+                             s"/v1/resources/$organization/$project")
+        forAll(endpoints) { endpoint =>
+          Post(endpoint, ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.Created
+            responseAs[Json] shouldEqual ctxResponse
+          }
         }
       }
 

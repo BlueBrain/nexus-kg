@@ -49,8 +49,8 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     create(viewRef) ~ list(viewRefOpt) ~ sparql ~ elasticSearch ~
       pathPrefix(IdSegment) { id =>
         concat(
-          update(id, viewRefOpt),
           create(id, viewRef),
+          update(id, viewRefOpt),
           tag(id, viewRefOpt),
           deprecate(id, viewRefOpt),
           fetch(id, viewRefOpt),
@@ -73,19 +73,21 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>
-      (post & entity(as[String]) & hasPermission(queryPermission) & pathEndOrSingleSlash) { query =>
-        val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
-          case Some(v) => indexers.sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
-          case _       => Task.pure(Left(NotFound(id.ref)))
+      (post & pathEndOrSingleSlash & hasPermission(queryPermission)) {
+        entity(as[String]) { query =>
+          val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
+            case Some(v) => indexers.sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
+            case _       => Task.pure(Left(NotFound(id.ref)))
+          }
+          trace("searchSparql")(complete(result.runToFuture))
         }
-        trace("searchSparql")(complete(result.runToFuture))
       }
     }
 
   private def elasticSearch: Route =
     pathPrefix(IdSegment / "_search") { id =>
-      (post & entity(as[Json]) & extract(_.request.uri.query()) & hasPermission(queryPermission) & pathEndOrSingleSlash) {
-        (query, params) =>
+      (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermission(queryPermission)) { params =>
+        entity(as[Json]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
             case Some(v: ElasticView) => indexers.elastic.searchRaw(query, Set(v.index), params).map(Right.apply)
             case Some(AggregateElasticViewRefs(v)) =>
@@ -96,6 +98,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
             case _ => Task.pure(Left(NotFound(id.ref)))
           }
           trace("searchElastic")(complete(result.runToFuture))
+        }
       }
     }
 
