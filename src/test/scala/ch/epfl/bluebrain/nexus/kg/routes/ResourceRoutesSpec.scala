@@ -121,7 +121,7 @@ class ResourceRoutesSpec
   private val manageFiles    = Set(Permission.unsafe("resources/read"), Permission.unsafe("files/write"))
   private val manageViews =
     Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"), Permission.unsafe("views/write"))
-  private val routes = (handleRejections(RejectionHandling().withFallback(RejectionHandling.notFound))) {
+  private val routes = handleRejections(RejectionHandling().withFallback(RejectionHandling.notFound)) {
     Routes(resources)
   }
 
@@ -158,21 +158,23 @@ class ResourceRoutesSpec
     val projectRef      = ProjectRef(genUUID)
     val id              = Id(projectRef, nxv.withSuffix(genUuid.toString))
     implicit val projectMeta =
-      Project(id.value,
-              project,
-              organization,
-              None,
-              nxv.projects,
-              nxv.base,
-              mappings,
-              projectRef.id,
-              organizationRef.id,
-              1L,
-              false,
-              Instant.EPOCH,
-              genIri,
-              Instant.EPOCH,
-              genIri)
+      Project(
+        id.value,
+        project,
+        organization,
+        None,
+        url"http://example.com/",
+        nxv.base,
+        mappings,
+        projectRef.id,
+        organizationRef.id,
+        1L,
+        false,
+        Instant.EPOCH,
+        genIri,
+        Instant.EPOCH,
+        genIri
+      )
 
     val defaultEsView =
       ElasticView(Json.obj(),
@@ -466,7 +468,7 @@ class ResourceRoutesSpec
 
     "performing operations on resources" should {
 
-      "create a context without @id" in new Ctx {
+      "create a resource without @id" in new Ctx {
         when(
           resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
             mEq(subject),
@@ -480,7 +482,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "create a context with @id" in new Ctx {
+      "create a resource with @id" in new Ctx {
         when(
           resources.create(mEq(id), mEq(schemaRef), mEq(ctx))(mEq(subject),
                                                               projectMatcher,
@@ -491,6 +493,44 @@ class ResourceRoutesSpec
         Put(s"/v1/resources/$organization/$project/resource/nxv:$genUuid", ctx) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] shouldEqual ctxResponse
+        }
+      }
+
+      "create a plain JSON resource without an @id" in new Ctx {
+        val json = Json.obj("foo" -> Json.fromString("bar"))
+        when(
+          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(json))(
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
+          ResourceF.simpleF(id, json, created = subject, updated = subject, schema = schemaRef)))
+
+        Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] shouldEqual ctxResponse
+        }
+      }
+
+      "create a plain JSON resource with an @id" in new Ctx {
+        val json = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
+        when(
+          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(json))(
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]])).thenReturn(
+          EitherT.rightT[Task, Rejection](
+            ResourceF.simpleF(Id(projectRef, url"http://example.com/foobar"),
+                              json,
+                              created = subject,
+                              updated = subject,
+                              schema = schemaRef)))
+        Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] shouldEqual response().deepMerge(Json.obj(
+            "@id" -> Json.fromString("http://example.com/foobar"),
+            "_self" -> Json.fromString(
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/base:foobar")
+          ))
         }
       }
 
