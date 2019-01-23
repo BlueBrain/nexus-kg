@@ -11,9 +11,14 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamClientError}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
+import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.routes.Routes
 import ch.epfl.bluebrain.nexus.rdf.Iri
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import monix.eval.Task
 import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{IdiomaticMockito, Mockito}
@@ -29,6 +34,8 @@ class AuthDirectivesSpec
     with IdiomaticMockito
     with BeforeAndAfter
     with ScalatestRouteTest {
+
+  private implicit val hc: HttpConfig = Settings(system).appConfig.http
 
   private implicit val iamClient: IamClient[Task] = mock[IamClient[Task]]
   private implicit val project: Project = Project(genIri,
@@ -47,7 +54,6 @@ class AuthDirectivesSpec
                                                   Instant.EPOCH,
                                                   genIri)
   private val readWrite = Set(Permission.unsafe("read"), Permission.unsafe("write"))
-//  private val ownPublish = Set(Permission.unsafe("own"), Permission.unsafe("publish"))
 
   before {
     Mockito.reset(iamClient)
@@ -74,27 +80,86 @@ class AuthDirectivesSpec
         status shouldEqual StatusCodes.OK
       }
     }
+    "pass when required permissions exist" in {
+      implicit val acls: AccessControlLists = AccessControlLists(
+        Path./ -> ResourceAccessControlList(
+          url"http://localhost/".value,
+          1L,
+          Set.empty,
+          Instant.EPOCH,
+          Anonymous,
+          Instant.EPOCH,
+          Anonymous,
+          AccessControlList(Anonymous -> readWrite)
+        )
+      )
+      implicit val caller: Caller = Caller(Anonymous, Set(Anonymous))
+      val route                   = Routes.wrap(hasPermissions(readWrite).apply(complete("")))
+      Get("/") ~> route ~> check {
+        status shouldEqual StatusCodes.OK
+      }
+    }
 
     "fail the route" when {
       "there are no permissions" in {
         implicit val acls: AccessControlLists = AccessControlLists()
         implicit val caller: Caller           = Caller(Anonymous, Set(Anonymous))
-        val route = hasPermissions(readWrite).apply {
-          complete("")
-        }
+        val route                             = Routes.wrap(hasPermissions(readWrite).apply(complete("")))
         Get("/") ~> route ~> check {
-          status shouldEqual StatusCodes.InternalServerError
+          status shouldEqual StatusCodes.Forbidden
         }
       }
       "the client throws an error for caller acls" in {
         implicit val token: Option[AuthToken] = None
         iamClient.acls(any[Iri.Path], true, true)(any[Option[AuthToken]]) shouldReturn Task.raiseError(
           IamClientError.UnknownError(StatusCodes.InternalServerError, ""))
-        val route = callerAcls.apply { _ =>
-          complete("")
-        }
+        val route = Routes.wrap(extractCallerAcls.apply(_ => complete("")))
         Get("/") ~> route ~> check {
           status shouldEqual StatusCodes.InternalServerError
+        }
+      }
+      "the client returns Unauthorized for caller acls" in {
+        implicit val token: Option[AuthToken] = None
+        iamClient.acls(any[Iri.Path], true, true)(any[Option[AuthToken]]) shouldReturn Task.raiseError(
+          IamClientError.Unauthorized(""))
+        val route = Routes.wrap(extractCallerAcls.apply(_ => complete("")))
+        Get("/") ~> route ~> check {
+          status shouldEqual StatusCodes.Unauthorized
+        }
+      }
+      "the client returns Forbidden for caller acls" in {
+        implicit val token: Option[AuthToken] = None
+        iamClient.acls(any[Iri.Path], true, true)(any[Option[AuthToken]]) shouldReturn Task.raiseError(
+          IamClientError.Forbidden(""))
+        val route = Routes.wrap(extractCallerAcls.apply(_ => complete("")))
+        Get("/") ~> route ~> check {
+          status shouldEqual StatusCodes.Forbidden
+        }
+      }
+
+      "the client throws an error for caller" in {
+        implicit val token: Option[AuthToken] = None
+        iamClient.identities(any[Option[AuthToken]]) shouldReturn Task.raiseError(
+          IamClientError.UnknownError(StatusCodes.InternalServerError, ""))
+        val route = Routes.wrap(extractCaller.apply(_ => complete("")))
+        Get("/") ~> route ~> check {
+          status shouldEqual StatusCodes.InternalServerError
+        }
+      }
+      "the client returns Unauthorized for caller" in {
+        implicit val token: Option[AuthToken] = None
+        iamClient.identities(any[Option[AuthToken]]) shouldReturn Task.raiseError(IamClientError.Unauthorized(""))
+        val route = Routes.wrap(extractCaller.apply(_ => complete("")))
+        Get("/") ~> route ~> check {
+          status shouldEqual StatusCodes.Unauthorized
+        }
+      }
+      "the client returns Forbidden for caller" in {
+        implicit val token: Option[AuthToken] = None
+        iamClient.identities(any[Option[AuthToken]]) shouldReturn Task.raiseError(IamClientError.Forbidden(""))
+        val route = Routes.wrap(extractCaller.apply(_ => complete("")))
+        Get("/") ~> route ~> check {
+          status shouldEqual StatusCodes.Forbidden
         }
       }
     }

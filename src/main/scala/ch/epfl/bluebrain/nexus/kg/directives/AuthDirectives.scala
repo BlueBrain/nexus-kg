@@ -46,22 +46,14 @@ object AuthDirectives {
   /**
     * Retrieves the caller ACLs.
     */
-  def callerAcls(implicit iamClient: IamClient[Task], token: Option[AuthToken]): Directive1[AccessControlLists] = {
+  def extractCallerAcls(implicit iamClient: IamClient[Task], token: Option[AuthToken]): Directive1[AccessControlLists] = {
     import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
     onComplete(iamClient.acls("*" / "*", ancestors = true, self = true).runToFuture).flatMap {
       case Success(result)                         => provide(result)
       case Failure(_: IamClientError.Unauthorized) => failWith(AuthenticationFailed)
       case Failure(_: IamClientError.Forbidden)    => failWith(AuthorizationFailed)
-      case Failure(err: IamClientError.UnmarshallingError[_]) =>
-        val message = "Unmarshalling error when trying to check for permissions"
-        logger.error(message, err)
-        failWith(InternalError(message))
-      case Failure(err: IamClientError.UnknownError) =>
-        val message = "Unknown error when trying to check for permissions"
-        logger.error(message, err)
-        failWith(InternalError(message))
       case Failure(err) =>
-        val message = "Unknown error when trying to check for permissions"
+        val message = "Error when trying to check for permissions"
         logger.error(message, err)
         failWith(InternalError(message))
     }
@@ -70,21 +62,13 @@ object AuthDirectives {
   /**
     * Authenticates the requested with the provided ''token'' and returns the ''caller''
     */
-  def caller(implicit iamClient: IamClient[Task], token: Option[AuthToken]): Directive1[Caller] =
+  def extractCaller(implicit iamClient: IamClient[Task], token: Option[AuthToken]): Directive1[Caller] =
     onComplete(iamClient.identities.runToFuture).flatMap {
       case Success(caller)                         => provide(caller)
       case Failure(_: IamClientError.Unauthorized) => failWith(AuthenticationFailed)
       case Failure(_: IamClientError.Forbidden)    => failWith(AuthorizationFailed)
-      case Failure(err: IamClientError.UnmarshallingError[_]) =>
-        val message = "Unmarshalling error when trying to extract the subject"
-        logger.error(message, err)
-        failWith(InternalError(message))
-      case Failure(err: IamClientError.UnknownError) =>
-        val message = "Unknown error when trying to extract the subject"
-        logger.error(message, err)
-        failWith(InternalError(message))
       case Failure(err) =>
-        val message = "Unknown error when trying to extract the subject"
+        val message = "Error when trying to extract the subject"
         logger.error(message, err)
         failWith(InternalError(message))
     }

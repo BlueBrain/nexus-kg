@@ -163,7 +163,7 @@ object Routes {
         extractToken {
           implicit optToken =>
             project.apply { implicit project =>
-              (callerAcls & caller) { (acl, c) =>
+              (extractCallerAcls & extractCaller) { (acl, c) =>
                 resourceSegment match {
                   case "resolvers" => new ResolverRoutes(resources, acl, c).routes
                   case "views"     => new ViewRoutes(resources, acl, c).routes
