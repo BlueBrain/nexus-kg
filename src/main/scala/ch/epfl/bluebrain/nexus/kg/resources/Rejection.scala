@@ -53,8 +53,8 @@ object Rejection {
     * @param ref a reference to the resource
     * @param details the human readable reason for the rejection
     */
-  final case class InvalidPayload(ref: Ref, details: String)
-      extends Rejection(s"Resource '${ref.show}' with invalid payload due to '$details'.")
+  final case class InvalidResourceFormat(ref: Ref, details: String)
+      extends Rejection(s"Resource '${ref.show}' has an invalid format.")
 
   /**
     * Signals an attempt to perform a request with an invalid JSON-LD payload.
@@ -191,12 +191,12 @@ object Rejection {
     val enc                                     = deriveEncoder[Rejection].mapJson(_ addContext errorCtxUri)
     def reason(r: Rejection): Json =
       Json.obj("reason" -> Json.fromString(r.msg))
-    def details(r: InvalidPayload): Json =
+    def details(r: InvalidResourceFormat): Json =
       parse(r.details).getOrElse(Json.fromString(r.details))
 
     Encoder.instance {
-      case r: InvalidPayload => enc(r) deepMerge reason(r) deepMerge details(r)
-      case r                 => enc(r) deepMerge reason(r)
+      case r: InvalidResourceFormat => enc(r) deepMerge reason(r) deepMerge details(r)
+      case r                        => enc(r) deepMerge reason(r)
     }
   }
 
@@ -207,7 +207,7 @@ object Rejection {
     case _: UnableToSelectResourceId => StatusCodes.BadRequest
     case _: InvalidResource          => StatusCodes.BadRequest
     case _: IncorrectId              => StatusCodes.BadRequest
-    case _: InvalidPayload           => StatusCodes.BadRequest
+    case _: InvalidResourceFormat    => StatusCodes.BadRequest
     case _: InvalidJsonLD            => StatusCodes.BadRequest
     case _: NotAFileResource         => StatusCodes.BadRequest
     case _: UnexpectedState          => StatusCodes.InternalServerError

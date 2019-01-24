@@ -89,7 +89,7 @@ sealed trait View extends Product with Serializable {
         val labelIris = r.value.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
           acc + (c.project -> (acc.getOrElse(c.project, Set.empty) + c.id))
         }
-        val projectsPerms = caller.hasPermission(acls, labelIris.keySet, queryPermission)
+        val projectsPerms = caller.hasPermission(acls, labelIris.keySet, query)
         val inaccessible  = labelIris.keySet -- projectsPerms
         if (inaccessible.nonEmpty) EitherT.leftT[F, View](ProjectsNotFound(inaccessible))
         else {
@@ -115,8 +115,8 @@ sealed trait View extends Product with Serializable {
 
 object View {
 
-  val queryPermission: Set[Permission] = Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"))
-  val writePermission: Set[Permission] = Set(Permission.unsafe("views/write"))
+  val query: Set[Permission] = Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"))
+  val write: Set[Permission] = Set(Permission.unsafe("views/write"))
 
   /**
     * Enumeration of single view types.
@@ -131,7 +131,7 @@ object View {
   private implicit class NodeEncoderResultSyntax[A](private val enc: NodeEncoder.EncoderResult[A]) extends AnyVal {
     def toInvalidPayloadEither(ref: Ref): Either[Rejection, A] =
       enc.left.map(err =>
-        InvalidPayload(ref, s"The provided payload could not be mapped to a view due to '${err.message}'"))
+        InvalidResourceFormat(ref, s"The provided payload could not be mapped to a view due to '${err.message}'"))
   }
 
   /**
@@ -149,7 +149,7 @@ object View {
       for {
         uuid          <- uuidEither.toInvalidPayloadEither(res.id.ref)
         mappingStr    <- c.downField(nxv.mapping).focus.as[String].toInvalidPayloadEither(res.id.ref)
-        mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidPayload(res.id.ref, "mappings cannot be parsed into Json"))
+        mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidResourceFormat(res.id.ref, "mappings cannot be parsed into Json"))
         schemas       = c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].map(_.toSet).getOrElse(Set.empty)
         tag           = c.downField(nxv.resourceTag).focus.as[String].toOption
         includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
@@ -190,7 +190,7 @@ object View {
     if (Set(nxv.View.value, nxv.Alpha.value, nxv.ElasticView.value).subsetOf(res.types)) elastic()
     else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
     else if (Set(nxv.View.value, nxv.AggregateElasticView.value).subsetOf(res.types)) multiEsView()
-    else Left(InvalidPayload(res.id.ref, "The provided @type do not match any of the view types"))
+    else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the view types"))
   }
 
   /**
@@ -326,7 +326,7 @@ object View {
       value.foldLeft(F.pure(Set.empty[String])) {
         case (accF, ViewRef(ref: ProjectRef, id)) =>
           (accF, viewCache.getBy[ElasticView](ref, id), projectCache.getLabel(ref)).mapN {
-            case (acc, Some(view), Some(label)) if caller.hasPermission(acls, label, queryPermission) =>
+            case (acc, Some(view), Some(label)) if caller.hasPermission(acls, label, query) =>
               acc + view.index
             case (acc, _, _) => acc
           }

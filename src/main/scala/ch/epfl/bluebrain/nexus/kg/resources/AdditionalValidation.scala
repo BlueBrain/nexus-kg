@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder.resolverGraphEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidResourceFormat}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 
@@ -92,7 +92,7 @@ object AdditionalValidation {
               InvalidIdentity("Your organization does not contain all the identities provided"): Rejection)
           case None =>
             EitherT.leftT[F, Value](
-              InvalidPayload(id.ref, "The provided payload could not be mapped to a Resolver"): Rejection)
+              InvalidResourceFormat(id.ref, "The provided payload could not be mapped to a Resolver"): Rejection)
         }
       }
   }

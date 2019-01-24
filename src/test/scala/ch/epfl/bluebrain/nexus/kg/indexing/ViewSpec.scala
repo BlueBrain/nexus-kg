@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidPayload
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -94,19 +94,19 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
 
       "fail on AggregateElasticView when types are wrong" in {
         val resource = simpleV(id, aggElasticView, types = Set(nxv.View))
-        View(resource).left.value shouldBe a[InvalidPayload]
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on AggregateElasticView when ViewRef collection are wrong" in {
         val wrongAggElasticView = jsonContentOf("/view/aggelasticviewwrong.json").appendContextOf(viewCtx)
 
         val resource = simpleV(id, wrongAggElasticView, types = Set(nxv.View, nxv.AggregateElasticView, nxv.Alpha))
-        View(resource).left.value shouldBe a[InvalidPayload]
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on ElasticView when types are wrong" in {
         val resource = simpleV(id, elasticview, types = Set(nxv.View))
-        View(resource).left.value shouldBe a[InvalidPayload]
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on ElasticView when invalid payload" in {
@@ -114,13 +114,13 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
                          jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx))
         forAll(wrong) { json =>
           val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
-          View(resource).left.value shouldBe a[InvalidPayload]
+          View(resource).left.value shouldBe a[InvalidResourceFormat]
         }
       }
 
       "fail on SparqlView when types are wrong" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.Schema))
-        View(resource).left.value shouldBe a[InvalidPayload]
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on SparqlView when invalid payload" in {
@@ -128,7 +128,7 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
           simpleV(id,
                   jsonContentOf("/view/sparqlview-wrong.json").appendContextOf(viewCtx),
                   types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
-        View(resource).left.value shouldBe a[InvalidPayload]
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
     }
 

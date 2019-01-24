@@ -58,7 +58,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   }
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
+    (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -70,7 +70,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def create(schema: Ref): Route =
-    (post & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
+    (post & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
       fileUpload("file") {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
@@ -81,16 +81,15 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
-      rev =>
-        fileUpload("file") {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("updateFile") {
-              val resId = Id(project.ref, id)
-              complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
-            }
-        }
+    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
+      fileUpload("file") {
+        case (metadata, byteSource) =>
+          val description = FileDescription(metadata.fileName, metadata.contentType.value)
+          trace("updateFile") {
+            val resId = Id(project.ref, id)
+            complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
+          }
+      }
     }
 
   override def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
@@ -106,7 +105,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermissions(readPermission)) {
+    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermissions(read)) {
       (revOpt, tagOpt) =>
         val result = (revOpt, tagOpt) match {
           case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrFile)

@@ -75,8 +75,7 @@ class AdditionalValidationSpec
 
     val path = Path(s"/${label1.organization}").right.value
     val acls =
-      AccessControlLists(
-        path -> resourceAcls(AccessControlList(user -> (View.queryPermission ++ View.writePermission))))
+      AccessControlLists(path -> resourceAcls(AccessControlList(user -> (View.query ++ View.write))))
     "applied to generic resources" should {
 
       "pass always" in {
@@ -104,7 +103,7 @@ class AdditionalValidationSpec
         val caller: Caller = Caller.anonymous
         val validation     = AdditionalValidation.resolver[IO](caller)
         val resource       = simpleV(id, crossProject, types = Set(nxv.Resolver))
-        validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.rejected[InvalidPayload]
+        validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.rejected[InvalidResourceFormat]
       }
 
       "fail when project not found in cache" in {

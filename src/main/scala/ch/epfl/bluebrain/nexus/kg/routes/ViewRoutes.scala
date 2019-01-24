@@ -75,7 +75,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>
-      (post & pathEndOrSingleSlash & hasPermissions(queryPermission)) {
+      (post & pathEndOrSingleSlash & hasPermissions(query)) {
         entity(as[String]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
             case Some(v) => indexers.sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
@@ -88,7 +88,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   private def elasticSearch: Route =
     pathPrefix(IdSegment / "_search") { id =>
-      (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermissions(queryPermission)) { params =>
+      (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermissions(query)) { params =>
         entity(as[Json]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
             case Some(v: ElasticView) => indexers.elastic.searchRaw(query, Set(v.index), params).map(Right.apply)
@@ -108,7 +108,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     v.value.toList.foldM(List.empty[String]) {
       case (acc, ViewRef(ref, id)) =>
         (cache.view.getBy[ElasticView](ref, id) -> cache.project.getLabel(ref)).mapN {
-          case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, queryPermission) =>
+          case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, query) =>
             view.index :: acc
           case _ =>
             acc

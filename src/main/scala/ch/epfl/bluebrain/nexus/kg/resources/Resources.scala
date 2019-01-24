@@ -282,7 +282,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     } yield tag(id, rev, schemaOpt, revValue, tagValue)
     result match {
       case Right(v) => v
-      case _        => EitherT.leftT(InvalidPayload(id.ref, "Both 'tag' and 'rev' fields must be present."))
+      case _        => EitherT.leftT(InvalidResourceFormat(id.ref, "Both 'tag' and 'rev' fields must be present."))
     }
   }
 

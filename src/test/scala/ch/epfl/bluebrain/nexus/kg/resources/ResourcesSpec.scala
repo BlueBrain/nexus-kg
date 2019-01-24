@@ -355,7 +355,7 @@ class ResourcesSpec
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
         private val invalidPayload: Json = Json.obj("a" -> Json.fromString("b"))
-        resources.tag(resId, 2L, None, invalidPayload).value.rejected[InvalidPayload]
+        resources.tag(resId, 2L, None, invalidPayload).value.rejected[InvalidResourceFormat]
       }
 
       "prevent tagging a resource when the provided schema does not match the created schema" in new ResolverResource {

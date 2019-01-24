@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -64,6 +65,6 @@ object ProjectDirectives {
     * @return pass when the project is not deprecated, rejects when project is deprecated
     */
   def projectNotDeprecated(implicit proj: Project): Directive0 =
-    if (proj.deprecated) failWith(ProjectIsDeprecated(ProjectLabel(proj.organizationLabel, proj.label)))
+    if (proj.deprecated) failWith(ProjectIsDeprecated(proj.projectLabel))
     else pass
 }

@@ -70,8 +70,7 @@ object KgError {
     *
     * @param label the project label
     */
-  final case class ProjectNotFound(label: ProjectLabel)
-      extends KgError(s"Project reference for label '${label.show}' not found.")
+  final case class ProjectNotFound(label: ProjectLabel) extends KgError(s"Project '${label.show}' not found.")
 
   /**
     * Signals an attempt to interact with a resource that belongs to a deprecated project.

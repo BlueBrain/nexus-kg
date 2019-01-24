@@ -51,9 +51,9 @@ private[routes] abstract class CommonRoutes(
   private[routes] val simultaneousParamsRejection: AkkaRejection =
     MalformedQueryParamRejection("rev", "'rev' and 'tag' query parameters cannot be present simultaneously")
 
-  protected val readPermission: Set[Permission] = Set(Permission.unsafe("resources/read"))
+  protected val read: Set[Permission] = Set(Permission.unsafe("resources/read"))
 
-  protected val writePermission: Set[Permission] = Set(Permission.unsafe(s"$prefix/write"))
+  protected val write: Set[Permission] = Set(Permission.unsafe(s"$prefix/write"))
 
   /**
     * Performs transformations on the retrieved resource from the primary store
@@ -75,7 +75,7 @@ private[routes] abstract class CommonRoutes(
   def routes: Route
 
   def create(schema: Ref): Route =
-    (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
+    (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
           complete(Created -> resources.create(project.ref, project.base, schema, transform(source)).value.runToFuture)
@@ -84,7 +84,7 @@ private[routes] abstract class CommonRoutes(
     }
 
   def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
+    (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
           complete(Created -> resources.create(Id(project.ref, id), schema, transform(source)).value.runToFuture)
@@ -93,31 +93,29 @@ private[routes] abstract class CommonRoutes(
     }
 
   def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
-      rev =>
-        entity(as[Json]) { source =>
-          trace(s"update$resourceName") {
-            complete(resources.update(Id(project.ref, id), rev, schemaOpt, transform(source)).value.runToFuture)
-          }
+    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
+      entity(as[Json]) { source =>
+        trace(s"update$resourceName") {
+          complete(resources.update(Id(project.ref, id), rev, schemaOpt, transform(source)).value.runToFuture)
         }
+      }
     }
 
   def tag(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     pathPrefix("tags") {
-      (post & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
-        rev =>
-          entity(as[Json]) { source =>
-            trace(s"addTag$resourceName") {
-              val tagged = resources.tag(Id(project.ref, id), rev, schemaOpt, source.addContext(tagCtxUri))
-              complete(Created -> tagged.value.runToFuture)
-            }
+      (post & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
+        entity(as[Json]) { source =>
+          trace(s"addTag$resourceName") {
+            val tagged = resources.tag(Id(project.ref, id), rev, schemaOpt, source.addContext(tagCtxUri))
+            complete(Created -> tagged.value.runToFuture)
           }
+        }
       }
     }
 
   def tags(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     pathPrefix("tags") {
-      (get & parameter('rev.as[Long].?) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(readPermission)) {
+      (get & parameter('rev.as[Long].?) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(read)) {
         revOpt =>
           val tags = revOpt
             .map(rev => resources.fetchTags(Id(project.ref, id), rev, schemaOpt))
@@ -127,15 +125,14 @@ private[routes] abstract class CommonRoutes(
     }
 
   def deprecate(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(writePermission)) {
-      rev =>
-        trace(s"deprecate$resourceName") {
-          complete(resources.deprecate(Id(project.ref, id), rev, schemaOpt).value.runToFuture)
-        }
+    (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
+      trace(s"deprecate$resourceName") {
+        complete(resources.deprecate(Id(project.ref, id), rev, schemaOpt).value.runToFuture)
+      }
     }
 
   def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermissions(readPermission)) {
+    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermissions(read)) {
       (revOpt, tagOpt) =>
         val idRes = Id(project.ref, id)
         trace(s"get$resourceName") {
@@ -151,7 +148,7 @@ private[routes] abstract class CommonRoutes(
     }
 
   def list(schemaOpt: Option[Ref]): Route =
-    (get & paginated & searchParams & pathEndOrSingleSlash & hasPermissions(readPermission)) { (pagination, params) =>
+    (get & paginated & searchParams & pathEndOrSingleSlash & hasPermissions(read)) { (pagination, params) =>
       val schema = schemaOpt.map(_.iri).orElse(params.schema)
       trace(s"list$resourceName") {
         complete(
