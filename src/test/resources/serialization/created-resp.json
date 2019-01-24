@@ -14,7 +14,7 @@
   },
   "instant": "{timestamp}",
   "subject": {
-    "@id":"http://localhost:8080/iam/anonymous",
+    "@id":"http://localhost:8080/v1/anonymous",
     "@type": "Anonymous"
   },
   "rev": 1

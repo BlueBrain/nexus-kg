@@ -93,7 +93,7 @@ final case class ResourceF[P, S, A](
     }
     val schemaIri   = ev(schema).iri
     val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
-    val projectUri  = config.admin.baseUri + "projects" / project.organizationLabel / project.label
+    val projectUri  = config.admin.publicIri + "projects" / project.organizationLabel / project.label
     fileTriples + (
       (node, nxv.rev, rev),
       (node, nxv.deprecated, deprecated),

@@ -11,10 +11,11 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Group
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.kg.acls.AclsActor.Stop
 import ch.epfl.bluebrain.nexus.kg.acls.AclsOpsSpec._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.IamConfig
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.mockito.Mockito._
@@ -33,13 +34,14 @@ class AclsOpsSpec
     with BeforeAndAfter
     with MockitoSugar {
 
-  private implicit val client              = mock[IamClient[Task]]
-  private implicit val config              = IamConfig("http://base.com", None, 1 second)
-  private implicit val serviceAccountToken = config.serviceAccountToken
+  private implicit val client: IamClient[Task] = mock[IamClient[Task]]
+  private implicit val config: IamConfig =
+    IamConfig(url"http://base.com".value, url"http://base.com".value, None, 1 second)
+  private implicit val serviceAccountToken: Option[AuthToken] = config.serviceAccountToken
   val acls = AccessControlLists(
     / -> resourceAcls(AccessControlList(Group("myGroup", "myRealm") -> Set(Permission.unsafe("resources/manage")))))
 
-  private implicit val tm = Timeout(3 seconds)
+  private implicit val tm: Timeout = Timeout(3 seconds)
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 300 millis)
 

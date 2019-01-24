@@ -94,8 +94,8 @@ class ResourceRoutesSpec
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
 
   private implicit val appConfig = Settings(system).appConfig
-  private val iamUri             = appConfig.iam.baseUri
-  private val adminUri           = appConfig.admin.baseUri
+  private val iamUri             = appConfig.iam.publicIri.asUri
+  private val adminUri           = appConfig.admin.publicIri.asUri
   private implicit val clock     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   private implicit val adminClient   = mock[AdminClient[Task]]

@@ -15,7 +15,7 @@
   },
   "instant": "{timestamp}",
   "subject": {
-    "@id": "http://localhost:8080/iam/realms/realm/users/sub:1234",
+    "@id": "http://localhost:8080/v1/realms/realm/users/sub:1234",
     "@type": "User",
     "realm": "realm",
     "subject": "sub:1234"

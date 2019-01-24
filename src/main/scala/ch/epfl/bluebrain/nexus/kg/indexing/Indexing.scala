@@ -14,8 +14,9 @@ import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.decoders._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.untyped
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -101,12 +102,12 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
 
         case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
           // format: off
-          implicit val project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
+          implicit val project: Project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
-          implicit val s         = subject
-          val elasticView: View  = ElasticView.default(project.ref)
-          val sparqlView: View   = SparqlView.default(project.ref)
-          val resolver: Resolver = InProjectResolver.default(project.ref)
+          implicit val s: Identity.Subject = subject
+          val elasticView: View            = ElasticView.default(project.ref)
+          val sparqlView: View             = SparqlView.default(project.ref)
+          val resolver: Resolver           = InProjectResolver.default(project.ref)
           // format: off
           cache.project.replace(project) *>
             coordinator.start(project) *>
@@ -131,7 +132,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
       }
     }
 
-    EventSource((config.admin.baseUri + "events").toAkkaUri, send, None, 1 second)
+    EventSource((config.admin.internalIri + "events").toAkkaUri, send, None, 1 second)
       .mapAsync(1) { sse =>
         decode[Event](sse.data) match {
           case Right(event) => handle(event).runToFuture
@@ -173,9 +174,9 @@ object Indexing {
   def start(resources: Resources[Task], cache: Caches[Task])(implicit as: ActorSystem,
                                                              ucl: HttpClient[Task, ResultSet],
                                                              config: AppConfig): Unit = {
-    implicit val mt            = ActorMaterializer()
-    implicit val ul            = untyped[Task]
-    implicit val elasticClient = ElasticClient[Task](config.elastic.base)
+    implicit val mt: ActorMaterializer              = ActorMaterializer()
+    implicit val ul: UntypedHttpClient[Task]        = untyped[Task]
+    implicit val elasticClient: ElasticClient[Task] = ElasticClient[Task](config.elastic.base)
 
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)
