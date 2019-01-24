@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import akka.http.scaladsl.model.StatusCodes.Created
+import akka.http.scaladsl.model.StatusCode
+import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{MalformedQueryParamRejection, Route, Rejection => AkkaRejection}
 import cats.data.{EitherT, OptionT}
@@ -78,7 +79,7 @@ private[routes] abstract class CommonRoutes(
     (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
-          complete(Created -> resources.create(project.ref, project.base, schema, transform(source)).value.runToFuture)
+          complete(resources.create(project.ref, project.base, schema, transform(source)).value.runWithStatus(Created))
         }
       }
     }
@@ -87,7 +88,7 @@ private[routes] abstract class CommonRoutes(
     (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
-          complete(Created -> resources.create(Id(project.ref, id), schema, transform(source)).value.runToFuture)
+          complete(resources.create(Id(project.ref, id), schema, transform(source)).value.runWithStatus(Created))
         }
       }
     }
@@ -96,7 +97,7 @@ private[routes] abstract class CommonRoutes(
     (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
       entity(as[Json]) { source =>
         trace(s"update$resourceName") {
-          complete(resources.update(Id(project.ref, id), rev, schemaOpt, transform(source)).value.runToFuture)
+          complete(resources.update(Id(project.ref, id), rev, schemaOpt, transform(source)).value.runWithStatus(OK))
         }
       }
     }
@@ -107,7 +108,7 @@ private[routes] abstract class CommonRoutes(
         entity(as[Json]) { source =>
           trace(s"addTag$resourceName") {
             val tagged = resources.tag(Id(project.ref, id), rev, schemaOpt, source.addContext(tagCtxUri))
-            complete(Created -> tagged.value.runToFuture)
+            complete(tagged.value.runWithStatus(Created))
           }
         }
       }
@@ -120,14 +121,14 @@ private[routes] abstract class CommonRoutes(
           val tags = revOpt
             .map(rev => resources.fetchTags(Id(project.ref, id), rev, schemaOpt))
             .getOrElse(resources.fetchTags(Id(project.ref, id), schemaOpt))
-          complete(tags.value.runToFuture)
+          complete(tags.value.runNotFound)
       }
     }
 
   def deprecate(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
       trace(s"deprecate$resourceName") {
-        complete(resources.deprecate(Id(project.ref, id), rev, schemaOpt).value.runToFuture)
+        complete(resources.deprecate(Id(project.ref, id), rev, schemaOpt).value.runWithStatus(OK))
       }
     }
 
@@ -160,12 +161,14 @@ private[routes] abstract class CommonRoutes(
     }
 
   private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
-    def materializeRun(ref: => Ref, rev: Option[Long], tag: Option[String]): Future[Either[Rejection, ResourceV]] =
+    def materializeRun(ref: => Ref,
+                       rev: Option[Long],
+                       tag: Option[String]): Future[Either[Rejection, (StatusCode, ResourceV)]] =
       (for {
         res          <- resource.toRight(NotFound(ref, rev, tag): Rejection)
         materialized <- resources.materializeWithMeta(res)
         transformed  <- EitherT.right[Rejection](transform(materialized))
-      } yield transformed).value.runToFuture
+      } yield transformed).value.runWithStatus(OK)
   }
 
   private implicit val tagsEncoder: Encoder[Tags] = Encoder.instance { tags =>

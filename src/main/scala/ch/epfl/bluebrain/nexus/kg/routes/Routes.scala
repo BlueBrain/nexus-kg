@@ -79,7 +79,6 @@ object Routes {
         // suppress error
         complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
       case ElasticClientError(status, body) =>
-        // TODO: discriminate between listing failures and view querying
         parse(body) match {
           case Right(json) => complete(status -> json)
           case Left(_)     => complete(status -> body)

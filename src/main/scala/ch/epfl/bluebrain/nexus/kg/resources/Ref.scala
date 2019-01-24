@@ -3,10 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.Show
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Query, Url, Urn}
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.instances.absoluteIriEncoder
 import io.circe.Encoder
-import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.semiauto.deriveEncoder
 
 import scala.util.Try
 
@@ -85,9 +83,7 @@ object Ref {
     case Revision(iri, rev) => s"${iri.show} @ rev: '$rev'"
   }
 
-  final implicit val refEncoder: Encoder[Ref] = {
-    implicit val config: Configuration = Configuration.default.withDiscriminator("@type")
-    deriveEncoder[Ref]
-  }
+  final implicit val refEncoder: Encoder[Ref] =
+    absoluteIriEncoder.contramap(_.iri)
 
 }

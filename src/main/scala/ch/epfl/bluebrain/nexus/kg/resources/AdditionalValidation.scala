@@ -2,7 +2,9 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
 import cats.{Applicative, Monad, MonadError}
+import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
@@ -60,7 +62,14 @@ object AdditionalValidation {
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) => {
       val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
       EitherT.fromEither(View(resource)).flatMap {
-        case es: ElasticView => EitherT.right(es.createIndex[F]).map(_ => value)
+        case es: ElasticView =>
+          EitherT(
+            es.createIndex[F]
+              .map[Either[Rejection, Value]](_ => Right(value))
+              .recoverWith {
+                case ElasticClientError(_, body) => F.pure(Left(InvalidResourceFormat(id.ref, body)))
+              }
+          )
         case agg: AggregateElasticView[_] =>
           agg.referenced[F](caller, acls).map(r => value.map(r, _.removeKeys("@context").addContext(viewCtxUri)))
         case _ => EitherT.rightT(value)

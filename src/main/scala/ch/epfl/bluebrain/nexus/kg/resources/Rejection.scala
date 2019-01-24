@@ -172,7 +172,7 @@ object Rejection {
     * Signals that the logged organization does not have one of the provided identities
     *
     */
-  final case class InvalidIdentity(override val msg: String) extends Rejection(msg)
+  final case class InvalidIdentity(reason: String) extends Rejection(reason)
 
   /**
     * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.circe.JenaModel.JenaModelErr]].
@@ -192,7 +192,9 @@ object Rejection {
     def reason(r: Rejection): Json =
       Json.obj("reason" -> Json.fromString(r.msg))
     def details(r: InvalidResourceFormat): Json =
-      parse(r.details).getOrElse(Json.fromString(r.details))
+      parse(r.details)
+        .map(value => Json.obj("details" -> value))
+        .getOrElse(Json.obj("details" -> Json.fromString(r.details)))
 
     Encoder.instance {
       case r: InvalidResourceFormat => enc(r) deepMerge reason(r) deepMerge details(r)

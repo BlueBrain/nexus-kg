@@ -5,6 +5,7 @@ import cats.data.{EitherT, OptionT}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
@@ -343,8 +344,13 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
       implicit tc: HttpClient[F, JsonResults],
       elastic: ElasticClient[F]): F[JsonResults] =
     view
-      .map(v => elastic.search(queryFor(params), Set(v.index))(pagination))
-      .getOrElse(F.pure(UnscoredQueryResults(0L, List.empty)))
+      .map(v => elastic.search[Json](queryFor(params), Set(v.index))(pagination))
+      .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))
+      .recoverWith {
+        case ElasticClientError(status, body) =>
+          F.raiseError[QueryResults[Json]](
+            KgError.InternalError(s"ElasticSearch query failed with status '${status.value}' and body '$body'"))
+      }
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references
