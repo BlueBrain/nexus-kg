@@ -2,11 +2,11 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.MediaTypes.`application/json`
+import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{Accept, RawHeader}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Route, Rejection => AkkaRejection}
-import cats.data.OptionT
+import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
@@ -40,7 +41,6 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     extends CommonRoutes(resources, "files", acls, caller, viewCache) {
 
   private val metadataTypes: Set[MediaType] = Set(`application/json`, `application/ld+json`)
-  private type RejectionOrFile = Either[AkkaRejection, Option[(FileAttributes, AkkaOut)]]
 
   def routes: Route = {
     val fileRefOpt = Some(fileRef)
@@ -64,7 +64,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
           trace("createFile") {
             val resId = Id(project.ref, id)
-            complete(resources.createFile(resId, description, byteSource).value.runToFuture)
+            complete(resources.createFile(resId, description, byteSource).value.runWithStatus(Created))
           }
       }
     }
@@ -75,7 +75,8 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
           trace("createFile") {
-            complete(resources.createFile(project.ref, project.base, description, byteSource).value.runToFuture)
+            complete(
+              resources.createFile(project.ref, project.base, description, byteSource).value.runWithStatus(Created))
           }
       }
     }
@@ -87,7 +88,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
           trace("updateFile") {
             val resId = Id(project.ref, id)
-            complete(resources.updateFile(resId, rev, description, byteSource).value.runToFuture)
+            complete(resources.updateFile(resId, rev, description, byteSource).value.runWithStatus(OK))
           }
       }
     }
@@ -105,31 +106,29 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermissions(read)) {
-      (revOpt, tagOpt) =>
-        val result = (revOpt, tagOpt) match {
-          case (Some(_), Some(_)) => Future.successful(Left(simultaneousParamsRejection): RejectionOrFile)
-          case (None, None)       => resources.fetchFile(Id(project.ref, id)).toEitherRun
-          case (Some(rev), _)     => resources.fetchFile(Id(project.ref, id), rev).toEitherRun
-          case (_, Some(tag))     => resources.fetchFile(Id(project.ref, id), tag).toEitherRun
-        }
-        trace("getFiles") {
-          onSuccess(result) {
-            case Left(rej) => reject(rej)
-            case Right(Some((info, source))) =>
-              (respondWithHeaders(filenameHeader(info)) & encodeResponse) {
-                complete(HttpEntity(contentType(info), info.bytes, source))
-              }
-            case _ => complete(StatusCodes.NotFound)
+    (get & pathEndOrSingleSlash & hasPermissions(read)) {
+      trace("getFiles") {
+        concat(
+          (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+            completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
+          },
+          (parameter('tag) & noParameter('rev)) { tag =>
+            completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
+          },
+          (noParameter('tag) & noParameter('rev)) {
+            completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
           }
-        }
+        )
+      }
     }
 
-  private implicit class OptionTaskFileSyntax(resource: OptionT[Task, (FileAttributes, AkkaOut)]) {
-
-    def toEitherRun: Future[RejectionOrFile] =
-      resource.value.map[RejectionOrFile](Right.apply).runToFuture
-  }
+  private def completeFile(f: Future[(FileAttributes, FileStore.AkkaOut)]): Route =
+    onSuccess(f) {
+      case (info, source) =>
+        (respondWithHeaders(filenameHeader(info)) & encodeResponse) {
+          complete(HttpEntity(contentType(info), info.bytes, source))
+        }
+    }
 
   private def filenameHeader(info: FileAttributes) = {
     val filename = urlEncodeOrElse(info.filename)("file")

@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
@@ -81,7 +82,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
             case Some(v) => indexers.sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
             case _       => Task.pure(Left(NotFound(id.ref)))
           }
-          trace("searchSparql")(complete(result.runToFuture))
+          trace("searchSparql")(complete(result.runWithStatus(StatusCodes.OK)))
         }
       }
     }
@@ -99,7 +100,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
               }
             case _ => Task.pure(Left(NotFound(id.ref)))
           }
-          trace("searchElastic")(complete(result.runToFuture))
+          trace("searchElastic")(complete(result.runWithStatus(StatusCodes.OK)))
         }
       }
     }

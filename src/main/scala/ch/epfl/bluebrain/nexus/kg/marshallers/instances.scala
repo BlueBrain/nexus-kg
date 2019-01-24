@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection
+import ch.epfl.bluebrain.nexus.kg.resources.{Ref, Rejection}
 import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.syntax._
@@ -90,10 +90,10 @@ object instances extends FailFastCirceSupport {
   }
 
   implicit class OptionTask[A](task: Task[Option[A]])(implicit s: Scheduler) {
-    def runNotFound: Future[A] =
+    def runNotFound(ref: Ref): Future[A] =
       task.flatMap {
         case Some(a) => Task.pure(a)
-        case None    => Task.raiseError(KgError.NotFound())
+        case None    => Task.raiseError(KgError.NotFound(ref))
       }.runToFuture
   }
 }

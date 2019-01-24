@@ -655,10 +655,9 @@ class ResourceRoutesSpec
       val source =
         Source.single(ByteString(content)).mapMaterializedValue(_ => FileIO.fromPath(path).to(Sink.ignore).run())
 
-      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetchFile(id, 1L)).thenReturn(OptionT.some[Task](at1 -> source))
-      when(resources.fetchFile(id, 2L)).thenReturn(OptionT.some[Task](at1 -> source))
-      when(resources.fetchFile(id, 3L)).thenReturn(OptionT.some[Task](at1 -> source))
+      when(resources.fetch(mEq(id), mEq(None))).thenReturn(OptionT.some[Task](resource))
+      when(resources.fetchFile(mEq(id), any[Long])(any[FileStore[Task, AkkaIn, AkkaOut]]))
+        .thenReturn(OptionT.some[Task](at1 -> source))
 
       val endpoints = List(
         s"/v1/files/$organization/$project/nxv:$genUuid?rev=1",

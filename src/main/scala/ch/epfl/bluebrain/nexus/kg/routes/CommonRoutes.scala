@@ -121,7 +121,7 @@ private[routes] abstract class CommonRoutes(
           val tags = revOpt
             .map(rev => resources.fetchTags(Id(project.ref, id), rev, schemaOpt))
             .getOrElse(resources.fetchTags(Id(project.ref, id), schemaOpt))
-          complete(tags.value.runNotFound)
+          complete(tags.value.runNotFound(id.ref))
       }
     }
 
