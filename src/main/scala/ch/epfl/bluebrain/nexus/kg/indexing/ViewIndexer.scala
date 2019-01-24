@@ -8,17 +8,17 @@ import cats.effect.Timer
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.indexing.ViewIndexer._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.OffsetStorage.Volatile
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
 import ch.epfl.bluebrain.nexus.sourcing.akka.RetryStrategy
-import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
 
@@ -39,7 +39,9 @@ private class ViewIndexer[F[_]: Timer](resources: Resources[F], viewCache: ViewC
     retry(
       projectCache
         .get(ref)
-        .orFailWhen({ case None => true }, ProjectNotIndexed, s"Project '$ref' not found in the cache."))
+        .orFailWhen({ case None => true },
+                    KgError.NotFound(Some(ref.show)),
+                    s"Project '$ref' not found in the cache on view indexing."))
 
   /**
     * Indexes the view which corresponds to the argument event. If the resource is not found, or it's not compatible to
@@ -72,22 +74,6 @@ private class ViewIndexer[F[_]: Timer](resources: Resources[F], viewCache: ViewC
 }
 
 object ViewIndexer {
-
-  private case object ProjectNotIndexed extends Exception {
-    override def fillInStackTrace(): ProjectNotIndexed.type = this
-  }
-
-  //TODO: Move this logic to sourcing (retryWhen and retryWhenNot)
-  private[indexing] implicit class OrFail[F[_], A](fa: F[A])(implicit F: MonadError[F, Throwable]) {
-    private val logger: Logger = Logger("ViewIndexer")
-    def orFailWhen(pf: PartialFunction[A, Boolean], ex: => Exception, message: => String): F[A] =
-      fa.flatMap { a =>
-        if (pf.isDefinedAt(a) && pf(a)) {
-          logger.error(message)
-          F.raiseError(ex)
-        } else fa
-      }
-  }
 
   /**
     * Starts the index process for views across all projects in the system.

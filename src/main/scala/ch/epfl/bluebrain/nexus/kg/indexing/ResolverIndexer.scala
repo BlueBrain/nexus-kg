@@ -4,20 +4,27 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.AskTimeoutException
 import cats.MonadError
 import cats.data.EitherT
+import cats.effect.Timer
 import cats.syntax.all._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, OrganizationNotFound, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.OffsetStorage.Volatile
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.akka.RetryStrategy
 import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
+
+import scala.concurrent.duration._
 
 /**
   * Indexes project resolver events.
@@ -25,11 +32,20 @@ import monix.execution.Scheduler
   * @param resources     the resources operations
   * @param resolverCache the distributed cache
   */
-private class ResolverIndexer[F[_]](resources: Resources[F],
-                                    resolverCache: ResolverCache[F],
-                                    projectCache: ProjectCache[F])(implicit F: MonadError[F, Throwable]) {
+private class ResolverIndexer[F[_]: Timer](resources: Resources[F],
+                                           resolverCache: ResolverCache[F],
+                                           projectCache: ProjectCache[F])(implicit F: MonadError[F, Throwable]) {
 
-  private val logger = Logger[this.type]
+  private val logger                  = Logger[this.type]
+  private val retry: RetryStrategy[F] = RetryStrategy.exponentialBackoff(1 second, Int.MaxValue)
+
+  private def fetchProject(ref: ProjectRef): F[Option[Project]] =
+    retry(
+      projectCache
+        .get(ref)
+        .orFailWhen({ case None => true },
+                    KgError.NotFound(Some(ref.show)),
+                    s"Project '$ref' not found in the cache on resolver indexing."))
 
   /**
     * Indexes the resolver which corresponds to the argument event. If the resource is not found, or it's not
@@ -41,7 +57,7 @@ private class ResolverIndexer[F[_]](resources: Resources[F],
     val projectRef = event.id.parent
     val result: EitherT[F, Rejection, Unit] = for {
       resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
-      project      <- EitherT.fromOptionF(projectCache.get(projectRef), ProjectNotFound(projectRef))
+      project      <- EitherT.fromOptionF(fetchProject(projectRef), ProjectNotFound(projectRef))
       materialized <- resources.materialize(resource)(project)
       resolver     <- EitherT.fromOption(Resolver(materialized), NotFound(event.id.ref))
       applied      <- EitherT.liftF(resolverCache.put(resolver))
