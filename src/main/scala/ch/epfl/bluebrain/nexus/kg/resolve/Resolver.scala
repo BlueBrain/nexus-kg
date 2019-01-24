@@ -123,7 +123,8 @@ object Resolver {
       }
 
     def identity(c: GraphCursor): Option[Identity] = {
-      lazy val anonymous     = c.downField(rdf.tpe).focus.as[String].toOption.collect { case "Anonymous" => Anonymous }
+      lazy val anonymous =
+        c.downField(rdf.tpe).focus.as[AbsoluteIri].toOption.collectFirst { case nxv.Anonymous.value => Anonymous }
       lazy val realm         = c.downField(nxv.realm).focus.as[String]
       lazy val user          = (c.downField(nxv.subject).focus.as[String], realm).mapN(User.apply).toOption
       lazy val group         = (c.downField(nxv.group).focus.as[String], realm).mapN(Group.apply).toOption
