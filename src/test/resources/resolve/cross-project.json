@@ -8,7 +8,6 @@
   ],
   "identities": [
     {
-      "@type": "Group",
       "realm": "ldap2",
       "group": "bbp-ou-neuroinformatics"
     },

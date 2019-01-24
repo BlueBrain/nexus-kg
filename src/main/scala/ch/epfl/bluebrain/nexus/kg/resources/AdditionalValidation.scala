@@ -95,10 +95,10 @@ object AdditionalValidation {
         Resolver(resource) match {
           case Some(resolver: CrossProjectResolver[_]) if aclContains(resolver.identities) =>
             resolver.referenced.map(r => value.map(r, _.removeKeys("@context").addContext(resolverCtxUri)))
-          case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)
-          case Some(_) =>
+          case Some(_: CrossProjectResolver[_]) =>
             EitherT.leftT[F, Value](
-              InvalidIdentity("Your organization does not contain all the identities provided"): Rejection)
+              InvalidIdentity("Your user doesn't have some of the provided identities on the resolver"): Rejection)
+          case Some(_: InProjectResolver) => EitherT.rightT[F, Rejection](value)
           case None =>
             EitherT.leftT[F, Value](
               InvalidResourceFormat(id.ref, "The provided payload could not be mapped to a Resolver"): Rejection)
