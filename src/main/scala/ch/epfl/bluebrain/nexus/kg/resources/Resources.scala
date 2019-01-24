@@ -1,15 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import cats.Monad
+import cats.MonadError
 import cats.data.{EitherT, OptionT}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -33,19 +35,22 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
 import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
+import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, GraphConfiguration, Iri}
 import io.circe.Json
 
 /**
   * Resource operations.
   */
-class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: ProjectResolution[F], config: AppConfig) {
+class Resources[F[_]](implicit F: MonadError[F, Throwable],
+                      val repo: Repo[F],
+                      resolution: ProjectResolution[F],
+                      config: AppConfig) {
   self =>
   //TODO: If we need to cast well known types, we should find a better way to do it
   // on the rdf library side.
-  private implicit val graphConfig = GraphConfiguration(castDateTypes = false)
+  private implicit val graphConfig: GraphConfiguration = GraphConfiguration(castDateTypes = false)
   type RejOrResourceV = EitherT[F, Rejection, ResourceV]
   type RejOrResource  = EitherT[F, Rejection, Resource]
   type OptResource    = OptionT[F, Resource]
@@ -191,7 +196,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param schemaOpt optional schema reference that constrains the resource
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
-  def fetchTags(id: ResId, schemaOpt: Option[Ref]) =
+  def fetchTags(id: ResId, schemaOpt: Option[Ref]): OptionT[F, Tags] =
     repo.getTags(id, schemaOpt)
 
   /**
@@ -202,7 +207,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param schemaOpt optional schema reference that constrains the resource
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
-  def fetchTags(id: ResId, rev: Long, schemaOpt: Option[Ref]) =
+  def fetchTags(id: ResId, rev: Long, schemaOpt: Option[Ref]): OptionT[F, Tags] =
     repo.getTags(id, rev, schemaOpt)
 
   /**
@@ -213,7 +218,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     * @param schemaOpt optional schema reference that constrains the resource
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
-  def fetchTags(id: ResId, tag: String, schemaOpt: Option[Ref]) =
+  def fetchTags(id: ResId, tag: String, schemaOpt: Option[Ref]): OptionT[F, Tags] =
     repo.getTags(id, tag, schemaOpt)
 
   /**
@@ -278,7 +283,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
     } yield tag(id, rev, schemaOpt, revValue, tagValue)
     result match {
       case Right(v) => v
-      case _        => EitherT.leftT(InvalidPayload(id.ref, "Both 'tag' and 'rev' fields must be present."))
+      case _        => EitherT.leftT(InvalidResourceFormat(id.ref, "Both 'tag' and 'rev' fields must be present."))
     }
   }
 
@@ -339,8 +344,13 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
       implicit tc: HttpClient[F, JsonResults],
       elastic: ElasticClient[F]): F[JsonResults] =
     view
-      .map(v => elastic.search(queryFor(params), Set(v.index))(pagination))
-      .getOrElse(F.pure(UnscoredQueryResults(0L, List.empty)))
+      .map(v => elastic.search[Json](queryFor(params), Set(v.index))(pagination))
+      .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))
+      .recoverWith {
+        case ElasticClientError(status, body) =>
+          F.raiseError[QueryResults[Json]](
+            KgError.InternalError(s"ElasticSearch query failed with status '${status.value}' and body '$body'"))
+      }
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references
@@ -443,7 +453,7 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
             .asGraph
             .map(graph => Value(source, flattened, graph))
       }
-      EitherT.fromEither[F](value.left.map(e => Rejection.fromJenaModelErr(e)))
+      EitherT.fromEither[F](value).leftSemiflatMap(e => Rejection.fromJenaModelErr[F](e))
     }
   }
 
@@ -470,7 +480,8 @@ class Resources[F[_]](implicit F: Monad[F], val repo: Repo[F], resolution: Proje
         case Some(r) if r.isValid() => EitherT.rightT(())
         case Some(r)                => EitherT.leftT(InvalidResource(schema, r))
         case _ =>
-          EitherT.leftT(Unexpected(s"unexpected error while attempting to validate schema '${schema.iri.asString}'"))
+          val err = InternalError(s"Unexpected error while attempting to validate schema '${schema.iri.asString}'")
+          EitherT(F.raiseError(err))
       }
 
     def partition(set: Set[ResourceV]): (Set[ResourceV], Set[ResourceV]) =
@@ -547,7 +558,10 @@ object Resources {
     * @tparam F the monadic effect type
     * @return a new [[Resources]] for the provided F type
     */
-  final def apply[F[_]: Monad: Repo: ProjectResolution](implicit config: AppConfig): Resources[F] =
+  final def apply[F[_]: Repo: ProjectResolution](
+      implicit config: AppConfig,
+      F: MonadError[F, Throwable]
+  ): Resources[F] =
     new Resources[F]()
 
   private[resources] final case class SchemaContext(schema: ResourceV,

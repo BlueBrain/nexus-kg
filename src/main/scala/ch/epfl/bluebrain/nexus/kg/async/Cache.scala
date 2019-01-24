@@ -6,8 +6,7 @@ import akka.actor.ActorSystem
 import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.Unexpected
+import ch.epfl.bluebrain.nexus.kg.KgError._
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStore.Subscription
 import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueStoreConfig, OnKeyValueStoreChange}
 
@@ -41,13 +40,13 @@ object Cache {
       val underlying: KeyValueStore[F, UUID, V] = KeyValueStore.distributed(name, (_, resource) => f(resource))
 
       override def put(key: UUID, value: V): F[Unit] =
-        underlying.put(key, value).recoverWith { case err => F.raiseError(Unexpected(err.getMessage): Rejection) }
+        underlying.put(key, value).recoverWith { case err => F.raiseError(InternalError(err.getMessage)) }
 
       override def entries: F[Map[UUID, V]] =
-        underlying.entries.recoverWith { case err => F.raiseError(Unexpected(err.getMessage): Rejection) }
+        underlying.entries.recoverWith { case err => F.raiseError(InternalError(err.getMessage)) }
 
       override def remove(key: UUID): F[Unit] =
-        underlying.remove(key).recoverWith { case err => F.raiseError(Unexpected(err.getMessage): Rejection) }
+        underlying.remove(key).recoverWith { case err => F.raiseError(InternalError(err.getMessage)) }
 
       override def subscribe(value: OnKeyValueStoreChange[UUID, V]): F[KeyValueStore.Subscription] =
         underlying.subscribe(value)

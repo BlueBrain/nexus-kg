@@ -8,7 +8,6 @@ import akka.http.scaladsl.model.MediaTypes.{`application/json`, `text/plain`}
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
-import akka.http.scaladsl.server.Directives.handleRejections
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{FileIO, Sink, Source}
@@ -26,7 +25,6 @@ import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
-import ch.epfl.bluebrain.nexus.commons.types.HttpRejection.UnauthorizedAccess
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
@@ -42,7 +40,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
-import ch.epfl.bluebrain.nexus.kg.marshallers.RejectionHandling
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -51,23 +48,27 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.kg.{Error, TestHelper}
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
+import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
+import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.ArgumentMatchers.{any, eq => mEq}
+import org.mockito.ArgumentMatchers.{eq => mEq}
+import org.mockito.IdiomaticMockito
 import org.mockito.Mockito.when
+import org.mockito.matchers.MacroBasedMatchers
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.mockito.MockitoSugar
 import shapeless.Typeable
+
+import scala.concurrent.duration._
 
 //noinspection TypeAnnotation
 class ResourceRoutesSpec
@@ -75,14 +76,21 @@ class ResourceRoutesSpec
     with Matchers
     with EitherValues
     with OptionValues
-    with MockitoSugar
     with BeforeAndAfter
     with ScalatestRouteTest
     with test.Resources
     with ScalaFutures
     with Randomness
+    with IdiomaticMockito
+    with MacroBasedMatchers
     with TestHelper
     with Inspectors {
+
+  // required to be able to spin up the routes (CassandraClusterHealth depends on a cassandra session)
+  override def testConfig: Config =
+    ConfigFactory.load("test-no-inmemory.conf").withFallback(ConfigFactory.load()).resolve()
+
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
 
   private implicit val appConfig = Settings(system).appConfig
   private val iamUri             = appConfig.iam.baseUri
@@ -121,10 +129,9 @@ class ResourceRoutesSpec
   private val manageFiles    = Set(Permission.unsafe("resources/read"), Permission.unsafe("files/write"))
   private val manageViews =
     Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"), Permission.unsafe("views/write"))
-  private val routes = handleRejections(RejectionHandling().withFallback(RejectionHandling.notFound)) {
-    Routes(resources)
-  }
+  private val routes = Routes(resources)
 
+  //noinspection NameBooleanParameters
   abstract class Context(perms: Set[Permission]) {
     val organization = genString(length = 4)
     val project      = genString(length = 4)
@@ -141,11 +148,11 @@ class ResourceRoutesSpec
       "graph"           -> nxv.defaultSparqlIndex,
       "defaultResolver" -> nxv.defaultResolver
     )
-    val mappings =
+    val mappings: Map[String, AbsoluteIri] =
       Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri)
     val organizationMeta = Organization(genIri,
                                         organization,
-                                        "description",
+                                        Some("description"),
                                         genUUID,
                                         1L,
                                         false,
@@ -236,6 +243,7 @@ class ResourceRoutesSpec
 
     when(iamClient.identities).thenReturn(Task.pure(Caller(user, Set(Anonymous))))
     val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
+    iamClient.acls(any[Path], any[Boolean], any[Boolean])(any[Option[AuthToken]]) shouldReturn Task.pure(acls)
     when(aclsOps.fetch()).thenReturn(Task.pure(acls))
     when(projectCache.getProjectLabels(Set(projectRef))).thenReturn(Task.pure(Map(projectRef -> Some(label))))
 
@@ -392,8 +400,8 @@ class ResourceRoutesSpec
       "reject when not enough permissions" in new Views(Set[Permission](Permission.unsafe("views/query"))) {
         val mapping = Json.obj("mapping" -> Json.obj("key" -> Json.fromString("value")))
         Put(s"/v1/views/$organization/$project/nxv:$genUuid", view deepMerge mapping) ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.Unauthorized
-          responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+          status shouldEqual StatusCodes.Forbidden
+          responseAs[Error].tpe shouldEqual "AuthorizationFailed"
         }
       }
 
@@ -647,10 +655,9 @@ class ResourceRoutesSpec
       val source =
         Source.single(ByteString(content)).mapMaterializedValue(_ => FileIO.fromPath(path).to(Sink.ignore).run())
 
-      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetchFile(id, 1L)).thenReturn(OptionT.some[Task](at1 -> source))
-      when(resources.fetchFile(id, 2L)).thenReturn(OptionT.some[Task](at1 -> source))
-      when(resources.fetchFile(id, 3L)).thenReturn(OptionT.some[Task](at1 -> source))
+      when(resources.fetch(mEq(id), mEq(None))).thenReturn(OptionT.some[Task](resource))
+      when(resources.fetchFile(mEq(id), any[Long])(any[FileStore[Task, AkkaIn, AkkaOut]]))
+        .thenReturn(OptionT.some[Task](at1 -> source))
 
       val endpoints = List(
         s"/v1/files/$organization/$project/nxv:$genUuid?rev=1",
@@ -720,7 +727,7 @@ class ResourceRoutesSpec
     "reject getting a file with both tag and rev query params" in new File {
       Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]
+        responseAs[Error].tpe shouldEqual "MalformedQueryParam"
       }
     }
 
@@ -728,7 +735,7 @@ class ResourceRoutesSpec
       Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> Accept(
         metadataRanges: _*) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]
+        responseAs[Error].tpe shouldEqual "MalformedQueryParam"
       }
     }
 
@@ -738,8 +745,8 @@ class ResourceRoutesSpec
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
-        responseAs[Error].message.value shouldEqual s"Resource 'https://bluebrain.github.io/nexus/vocabulary/$genUuid' not found."
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
     }
 
@@ -752,8 +759,7 @@ class ResourceRoutesSpec
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
-        responseAs[Error].message.value shouldEqual s"Resource 'https://bluebrain.github.io/nexus/vocabulary/$genUuid' not found at revision 1."
+        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
     }
 
@@ -766,8 +772,8 @@ class ResourceRoutesSpec
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
-        responseAs[Error].message.value shouldEqual s"Resource 'https://bluebrain.github.io/nexus/vocabulary/$genUuid' not found at tag 'one'."
+        status shouldEqual StatusCodes.NotFound
+        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
     }
 
@@ -777,7 +783,7 @@ class ResourceRoutesSpec
 
       when(
         elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
-          any[HttpClient[Task, Json]]()))
+          any[HttpClient[Task, Json]]))
         .thenReturn(Task.pure(esResponse))
 
       Post(s"/v1/views/$organization/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
@@ -793,7 +799,7 @@ class ResourceRoutesSpec
 
       when(
         elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}", s"kg_${otherEsView.name}")), mEq(Query()))(
-          any[HttpClient[Task, Json]]()))
+          any[HttpClient[Task, Json]]))
         .thenReturn(Task.pure(esResponse))
 
       Post(s"/v1/views/$organization/$project/nxv:agg/_search", query) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -808,7 +814,7 @@ class ResourceRoutesSpec
 
       when(
         elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
-          any[HttpClient[Task, Json]]()))
+          any[HttpClient[Task, Json]]))
         .thenReturn(Task.raiseError(ElasticClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
 
       Post(s"/v1/views/$organization/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
@@ -824,7 +830,7 @@ class ResourceRoutesSpec
 
       when(
         elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
-          any[HttpClient[Task, Json]]()))
+          any[HttpClient[Task, Json]]))
         .thenReturn(Task.raiseError(ElasticClientError(StatusCodes.BadRequest, esResponse)))
 
       Post(s"/v1/views/$organization/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
@@ -840,13 +846,13 @@ class ResourceRoutesSpec
 
       when(
         elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
-          any[HttpClient[Task, Json]]()))
+          any[HttpClient[Task, Json]]))
         .thenReturn(Task.raiseError(ElasticUnexpectedError(StatusCodes.ImATeapot, esResponse)))
 
       Post(s"/v1/views/$organization/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.BadGateway
-        responseAs[DownstreamServiceError] shouldEqual DownstreamServiceError("Error communicating with ElasticSearch")
+        status shouldEqual StatusCodes.InternalServerError
+        responseAs[Error].tpe shouldEqual classNameOf[KgError.InternalError]
       }
     }
 
@@ -868,7 +874,7 @@ class ResourceRoutesSpec
       Post(s"/v1/views/$organization/$project/nxv:some/_search?size=23&other=value", Json.obj()) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
-        responseAs[Error].code shouldEqual classNameOf[NotFound.type]
+        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
     }
 
@@ -983,7 +989,7 @@ class ResourceRoutesSpec
       "reject getting a schema with both tag and rev query params" in new Schema {
         Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.BadRequest
-          responseAs[Error].code shouldEqual classNameOf[IllegalParameter.type]
+          responseAs[Error].tpe shouldEqual "MalformedQueryParam"
         }
       }
 
@@ -1005,22 +1011,22 @@ class ResourceRoutesSpec
 
       "reject when creating a schema and the resources/create permissions are not present" in new Schema(read) {
         Post(s"/v1/schemas/$organization/$project", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
-          status shouldEqual StatusCodes.Unauthorized
-          responseAs[Error].code shouldEqual classNameOf[UnauthorizedAccess.type]
+          status shouldEqual StatusCodes.Forbidden
+          responseAs[Error].tpe shouldEqual "AuthorizationFailed"
         }
       }
 
       "reject returning an appropriate error message when exception thrown" in new Schema {
         Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.InternalServerError
-          responseAs[Error].code shouldEqual classNameOf[Unexpected.type]
+          responseAs[Error].tpe shouldEqual classNameOf[KgError.InternalError]
         }
       }
 
       "reject when the resource is not available" in new Schema {
         Get(s"/v1/other/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.NotFound
-          responseAs[Json] shouldEqual jsonContentOf("/resources/rejection.json")
+          responseAs[Error].tpe shouldEqual "NotFound"
         }
       }
     }

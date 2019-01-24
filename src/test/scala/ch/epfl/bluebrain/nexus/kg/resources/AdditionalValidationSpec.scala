@@ -5,14 +5,13 @@ import java.util.UUID
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.StatusCodes
-import cats.MonadError
-import cats.instances.try_
+import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticServerError
 import ch.epfl.bluebrain.nexus.commons.test
+import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -21,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
@@ -29,29 +29,27 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
 import io.circe.parser.parse
-import org.mockito.Mockito
-import org.mockito.Mockito.when
+import org.mockito.matchers.MacroBasedMatchers
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
-import org.scalatest.mockito.MockitoSugar
-
-import scala.util.Try
 
 //noinspection NameBooleanParameters
 class AdditionalValidationSpec
     extends WordSpecLike
     with Matchers
+    with IOEitherValues
+    with IOOptionValues
     with test.Resources
-    with EitherValues
+    with IdiomaticMockito
+    with MacroBasedMatchers
     with TestHelper
-    with MockitoSugar
-    with TryValues
     with BeforeAndAfter
     with Inspectors {
 
-  private implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val elastic      = mock[ElasticClient[Try]]
-  private implicit val projectCache = mock[ProjectCache[Try]]
-  private implicit val viewCache    = mock[ViewCache[Try]]
+  private implicit val clock: Clock                   = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val elastic: ElasticClient[IO]     = mock[ElasticClient[IO]]
+  private implicit val projectCache: ProjectCache[IO] = mock[ProjectCache[IO]]
+  private implicit val viewCache: ViewCache[IO]       = mock[ViewCache[IO]]
 
   before {
     Mockito.reset(elastic)
@@ -60,12 +58,11 @@ class AdditionalValidationSpec
   }
 
   "An AdditionalValidation" when {
-    implicit val config: ElasticConfig         = ElasticConfig("http://localhost", "kg", "doc", "default")
-    val iri                                    = Iri.absolute("http://example.com/id").right.value
-    val projectRef                             = ProjectRef(genUUID)
-    val id                                     = Id(projectRef, iri)
-    implicit val F: MonadError[Try, Throwable] = try_.catsStdInstancesForTry
-    val user                                   = User("dmontero", "ldap")
+    implicit val config: ElasticConfig = ElasticConfig("http://localhost", "kg", "doc", "default")
+    val iri                            = Iri.absolute("http://example.com/id").right.value
+    val projectRef                     = ProjectRef(genUUID)
+    val id                             = Id(projectRef, iri)
+    val user                           = User("dmontero", "ldap")
     val matchingCaller: Caller =
       Caller(user, Set[Identity](user, User("dmontero2", "ldap"), Group("bbp-ou-neuroinformatics", "ldap2")))
 
@@ -78,14 +75,13 @@ class AdditionalValidationSpec
 
     val path = Path(s"/${label1.organization}").right.value
     val acls =
-      AccessControlLists(
-        path -> resourceAcls(AccessControlList(user -> (View.queryPermission ++ View.writePermission))))
+      AccessControlLists(path -> resourceAcls(AccessControlList(user -> (View.query ++ View.write))))
     "applied to generic resources" should {
 
       "pass always" in {
-        val validation = AdditionalValidation.pass[Try]
+        val validation = AdditionalValidation.pass[IO]
         val resource   = simpleV(id, Json.obj(), types = Set(nxv.Resource.value) + nxv.InProject)
-        validation(id, Ref(resourceSchemaUri), Set(nxv.Resource.value), resource.value, 1L).value.success.value.right.value shouldEqual resource.value
+        validation(id, Ref(resourceSchemaUri), Set(nxv.Resource.value), resource.value, 1L).value.accepted shouldEqual resource.value
       }
     }
 
@@ -98,44 +94,42 @@ class AdditionalValidationSpec
         val caller: Caller =
           Caller(User("dmontero2", "ldap"),
                  Set[Identity](Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero2", "ldap")))
-        val validation = AdditionalValidation.resolver[Try](caller)
+        val validation = AdditionalValidation.resolver[IO](caller)
         val resource   = simpleV(id, crossProject, types = types)
-        validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidIdentity]
+        validation(id, schema, types, resource.value, 1L).value.rejected[InvalidIdentity]
       }
 
       "fail when the payload cannot be serialized" in {
         val caller: Caller = Caller.anonymous
-        val validation     = AdditionalValidation.resolver[Try](caller)
+        val validation     = AdditionalValidation.resolver[IO](caller)
         val resource       = simpleV(id, crossProject, types = Set(nxv.Resolver))
-        validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.success.value.left.value shouldBe a[
-          InvalidPayload]
+        validation(id, schema, Set(nxv.Resolver), resource.value, 1L).value.rejected[InvalidResourceFormat]
       }
 
       "fail when project not found in cache" in {
         val labels = Set(label2, label1)
-        when(projectCache.getProjectRefs(labels))
-          .thenReturn(Try(Map[ProjectLabel, Option[ProjectRef]](label1 -> None, label2 -> None)))
+        projectCache.getProjectRefs(labels) shouldReturn IO.pure(
+          Map[ProjectLabel, Option[ProjectRef]](label1 -> None, label2 -> None))
 
-        val validation = AdditionalValidation.resolver[Try](matchingCaller)
+        val validation = AdditionalValidation.resolver[IO](matchingCaller)
         val resource   = simpleV(id, crossProject, types = types)
-        validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[ProjectsNotFound]
+        validation(id, schema, types, resource.value, 1L).value.rejected[ProjectsNotFound]
       }
 
       "pass when identities in acls are the same as the identities on resolver" in {
         val labels      = Set(label2, label1)
         val projectRef1 = ProjectRef(genUUID)
         val projectRef2 = ProjectRef(genUUID)
-        when(projectCache.getProjectRefs(labels))
-          .thenReturn(Try(Map(label1 -> Option(projectRef1), label2 -> Option(projectRef2))))
-        val validation = AdditionalValidation.resolver[Try](matchingCaller)
+        projectCache.getProjectRefs(labels) shouldReturn IO.pure(
+          Map(label1 -> Option(projectRef1), label2 -> Option(projectRef2)))
+        val validation = AdditionalValidation.resolver[IO](matchingCaller)
         val resource   = simpleV(id, crossProject, types = types)
         val expected = jsonContentOf(
           "/resolve/cross-project-modified.json",
           Map(quote("{account1-project2-uuid}") -> projectRef2.id.toString,
               quote("{account1-project1-uuid}") -> projectRef1.id.toString)
         )
-        validation(id, schema, types, resource.value, 1L).value.success.value.right.value.source should equalIgnoreArrayOrder(
-          expected)
+        validation(id, schema, types, resource.value, 1L).value.accepted.source should equalIgnoreArrayOrder(expected)
       }
     }
 
@@ -161,51 +155,49 @@ class AdditionalValidationSpec
 
       "fail when the index throws an error for an ElasticView on creation" in {
         val idx        = index(1L)
-        val validation = AdditionalValidation.view[Try](matchingCaller, acls)
+        val validation = AdditionalValidation.view[IO](matchingCaller, acls)
         val resource   = simpleV(id, elasticView, types = types)
-        when(elastic.createIndex(idx))
-          .thenReturn(F.raiseError(ElasticServerError(StatusCodes.BadRequest, "Error on creation...")))
-        validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidPayload]
+        elastic.createIndex(idx, any[Json]) shouldReturn IO.raiseError(
+          ElasticServerError(StatusCodes.BadRequest, "Error on creation..."))
+        validation(id, schema, types, resource.value, 1L).value.failed[ElasticServerError]
       }
 
       "fail when the mappings are wrong for an ElasticView" in {
-        val idx        = index(1L)
-        val validation = AdditionalValidation.view[Try](matchingCaller, acls)
+        val validation = AdditionalValidation.view[IO](matchingCaller, acls)
         val resource   = simpleV(id, elasticView, types = types)
-        when(elastic.createIndex(idx)).thenReturn(Try(true))
-        when(elastic.updateMapping(idx, config.docType, mappings))
-          .thenReturn(F.raiseError(ElasticServerError(StatusCodes.BadRequest, "Error on mappings...")))
+        elastic.createIndex(any[String], any[Json]) shouldReturn IO.pure(true)
+        elastic.updateMapping(any[String], any[String], any[Json]) shouldReturn IO.raiseError(
+          ElasticServerError(StatusCodes.BadRequest, "Error on mappings..."))
 
-        validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[InvalidPayload]
+        validation(id, schema, types, resource.value, 1L).value.failed[ElasticServerError]
       }
 
       "fail when the elasticSearch mappings cannot be applied because the index does not exists for an ElasticView" in {
-        val validation = AdditionalValidation.view[Try](matchingCaller, acls)
+        val validation = AdditionalValidation.view[IO](matchingCaller, acls)
         val resource   = simpleV(id, elasticView, types = types)
         val idx        = index(3L)
-        when(elastic.createIndex(idx)).thenReturn(Try(true))
-        when(elastic.updateMapping(idx, config.docType, mappings)).thenReturn(Try(false))
-        validation(id, schema, types, resource.value, 3L).value.success.value.left.value shouldBe a[Unexpected]
+        elastic.createIndex(idx, any[Json]) shouldReturn IO.pure(true)
+        elastic.updateMapping(idx, config.docType, mappings) shouldReturn IO.pure(false)
+        validation(id, schema, types, resource.value, 3L).value.failed[KgError.InternalError]
       }
 
       "pass when the mappings are correct for an ElasticView" in {
-        val validation = AdditionalValidation.view[Try](matchingCaller, acls)
+        val validation = AdditionalValidation.view[IO](matchingCaller, acls)
         val resource   = simpleV(id, elasticView, types = types, rev = 2L)
         val idx        = index(2L)
-        when(elastic.createIndex(idx)).thenReturn(Try(true))
-        when(elastic.updateMapping(idx, config.docType, mappings)).thenReturn(Try(true))
-        validation(id, schema, types, resource.value, 2L).value.success.value.right.value shouldEqual resource.value
+        elastic.createIndex(idx, any[Json]) shouldReturn IO.pure(true)
+        elastic.updateMapping(idx, config.docType, mappings) shouldReturn IO.pure(true)
+        validation(id, schema, types, resource.value, 2L).value.accepted shouldEqual resource.value
       }
 
       "fail when project not found in cache for a AggregateElasticView" in {
         val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
 
-        when(projectCache.getProjectRefs(labels))
-          .thenReturn(Try(Map[ProjectLabel, Option[ProjectRef]](label1 -> None)))
+        projectCache.getProjectRefs(labels) shouldReturn IO.pure(Map[ProjectLabel, Option[ProjectRef]](label1 -> None))
 
-        val validation = AdditionalValidation.view[Try](matchingCaller, acls)
+        val validation = AdditionalValidation.view[IO](matchingCaller, acls)
         val resource   = simpleV(id, aggElasticView, types = types)
-        validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[ProjectsNotFound]
+        validation(id, schema, types, resource.value, 1L).value.rejected[ProjectsNotFound]
       }
 
       "fail when view cannot be found on cache using AggregateElasticView" in {
@@ -213,14 +205,13 @@ class AdditionalValidationSpec
 
         val id2 = url"http://example.com/id3"
         val id3 = url"http://example.com/other"
-        when(projectCache.getProjectRefs(labels))
-          .thenReturn(Try(Map(label1 -> Option(ref1), label2 -> Option(ref2))))
-        when(viewCache.get(ref1)).thenReturn(Try(Set[View](es, es.copy(id = id3))))
-        when(viewCache.get(ref2)).thenReturn(Try(Set[View](es.copy(id = id2), es.copy(id = id3))))
+        projectCache.getProjectRefs(labels) shouldReturn IO.pure(Map(label1 -> Option(ref1), label2 -> Option(ref2)))
+        viewCache.get(ref1) shouldReturn IO.pure(Set[View](es, es.copy(id = id3)))
+        viewCache.get(ref2) shouldReturn IO.pure(Set[View](es.copy(id = id2), es.copy(id = id3)))
 
-        val validation = AdditionalValidation.view[Try](matchingCaller, acls)
+        val validation = AdditionalValidation.view[IO](matchingCaller, acls)
         val resource   = simpleV(id, aggElasticView, types = types)
-        validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldBe a[NotFound]
+        validation(id, schema, types, resource.value, 1L).value.rejected[NotFound]
       }
 
       "fail no permissions found on project referenced on AggregateElasticView" in {
@@ -238,9 +229,9 @@ class AdditionalValidationSpec
 
         val resource = simpleV(id, aggElasticView, types = types)
         forAll(aclsWrongPerms) { a =>
-          val validation = AdditionalValidation.view[Try](matchingCaller, a)
-          validation(id, schema, types, resource.value, 1L).value.success.value.left.value shouldEqual ProjectsNotFound(
-            Set(label1, label2))
+          val validation = AdditionalValidation.view[IO](matchingCaller, a)
+          validation(id, schema, types, resource.value, 1L).value
+            .rejected[ProjectsNotFound] shouldEqual ProjectsNotFound(Set(label1, label2))
         }
       }
 
@@ -250,25 +241,24 @@ class AdditionalValidationSpec
         val id1 = url"http://example.com/id2"
         val id2 = url"http://example.com/id3"
         val id3 = url"http://example.com/other"
-        when(projectCache.getProjectRefs(labels))
-          .thenReturn(Try(Map(label1 -> Option(ref1), label2 -> Option(ref2))))
-        when(viewCache.get(ref1)).thenReturn(Try(Set[View](es.copy(id = id1), es.copy(id = id3))))
-        when(viewCache.get(ref2)).thenReturn(Try(Set[View](es.copy(id = id2), es.copy(id = id3))))
+        projectCache.getProjectRefs(labels) shouldReturn IO.pure(Map(label1 -> Option(ref1), label2 -> Option(ref2)))
+        viewCache.get(ref1) shouldReturn IO.pure(Set[View](es.copy(id = id1), es.copy(id = id3)))
+        viewCache.get(ref2) shouldReturn IO.pure(Set[View](es.copy(id = id2), es.copy(id = id3)))
 
-        val validation = AdditionalValidation.view[Try](matchingCaller, acls)
+        val validation = AdditionalValidation.view[IO](matchingCaller, acls)
         val resource   = simpleV(id, aggElasticView, types = types)
         val expected   = jsonContentOf("/view/aggelasticviewrefs.json").addContext(viewCtxUri)
-        val result     = validation(id, schema, types, resource.value, 1L).value.success.value.right.value
+        val result     = validation(id, schema, types, resource.value, 1L).value.accepted
         result.ctx shouldEqual resource.value.ctx
         result.source should equalIgnoreArrayOrder(expected)
       }
 
       "pass when it is an SparqlView" in {
-        val validation = AdditionalValidation.view[Try](matchingCaller, acls)
+        val validation = AdditionalValidation.view[IO](matchingCaller, acls)
         val types      = Set[AbsoluteIri](nxv.SparqlView.value, nxv.View, nxv.Alpha)
         val resource   = simpleV(id, sparqlView, types = types)
 
-        validation(id, schema, types, resource.value, 1L).value.success.value.right.value shouldEqual resource.value
+        validation(id, schema, types, resource.value, 1L).value.accepted shouldEqual resource.value
       }
     }
   }

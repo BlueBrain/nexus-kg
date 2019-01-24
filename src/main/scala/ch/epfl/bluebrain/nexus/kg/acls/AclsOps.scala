@@ -4,8 +4,9 @@ import akka.actor.ActorRef
 import akka.pattern.{ask, AskTimeoutException}
 import akka.util.Timeout
 import ch.epfl.bluebrain.nexus.iam.client.types.AccessControlLists
+import ch.epfl.bluebrain.nexus.kg.KgError
+import ch.epfl.bluebrain.nexus.kg.KgError.DownstreamServiceError
 import ch.epfl.bluebrain.nexus.kg.acls.AclsActor._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{DownstreamServiceError, Unexpected}
 import journal.Logger
 import monix.eval.Task
 
@@ -31,7 +32,7 @@ class AclsOps(aclsRef: ActorRef)(implicit tm: Timeout) {
         Task.raiseError(DownstreamServiceError("Timed out while fetching acls from IAM service"))
       case NonFatal(th) =>
         log.error("Unexpected exception while fetching acls from IAM service", th)
-        Task.raiseError(Unexpected(th.getMessage))
+        Task.raiseError(KgError.InternalError(th.getMessage))
       // $COVERAGE-ON$
     } flatMap {
       case acl: AccessControlLists => Task.pure(acl)
@@ -39,7 +40,7 @@ class AclsOps(aclsRef: ActorRef)(implicit tm: Timeout) {
       // $COVERAGE-OFF$
       case msg =>
         log.error(s"Received an unexpected message '$msg' while waiting for a 'Fetch' response")
-        Task.raiseError(Unexpected("Received an unexpected message while waiting for a 'Fetch' response"))
+        Task.raiseError(KgError.InternalError("Received an unexpected message while waiting for a 'Fetch' response"))
       // $COVERAGE-ON$
     }
 }

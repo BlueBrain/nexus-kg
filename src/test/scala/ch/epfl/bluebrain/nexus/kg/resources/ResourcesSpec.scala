@@ -4,7 +4,6 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 
 import akka.stream.ActorMaterializer
-import cats.data.EitherT
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -26,11 +25,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
@@ -39,7 +38,9 @@ import org.scalatest._
 import org.scalatest.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
+//noinspection TypeAnnotation
 class ResourcesSpec
     extends ActorSystemFixture("ResourcesSpec", true)
     with IOEitherValues
@@ -54,6 +55,8 @@ class ResourcesSpec
     with test.Resources
     with TestHelper
     with Inspectors {
+
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
 
   private implicit val appConfig              = Settings(system).appConfig
   private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -137,8 +140,8 @@ class ResourcesSpec
     val source     = "some text"
     val relative   = Paths.get("./other")
     val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-    when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
-    when(store.save(resId, desc, source)).thenReturn(EitherT.rightT[IO, Rejection](attributes))
+    when(store.save(resId, desc, source)).thenReturn(IO.pure(attributes))
+    when(store.save(resId, desc, source)).thenReturn(IO.pure(attributes))
   }
 
   "A Resources bundle" when {
@@ -352,7 +355,7 @@ class ResourcesSpec
         resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
         private val invalidPayload: Json = Json.obj("a" -> Json.fromString("b"))
-        resources.tag(resId, 2L, None, invalidPayload).value.rejected[InvalidPayload]
+        resources.tag(resId, 2L, None, invalidPayload).value.rejected[InvalidResourceFormat]
       }
 
       "prevent tagging a resource when the provided schema does not match the created schema" in new ResolverResource {

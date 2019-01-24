@@ -2,7 +2,9 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
 import cats.{Applicative, Monad, MonadError}
+import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
@@ -15,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder.resolverGraphEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidPayload}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidResourceFormat}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 
@@ -60,7 +62,14 @@ object AdditionalValidation {
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) => {
       val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
       EitherT.fromEither(View(resource)).flatMap {
-        case es: ElasticView => EitherT(es.createIndex[F]).map(_ => value)
+        case es: ElasticView =>
+          EitherT(
+            es.createIndex[F]
+              .map[Either[Rejection, Value]](_ => Right(value))
+              .recoverWith {
+                case ElasticClientError(_, body) => F.pure(Left(InvalidResourceFormat(id.ref, body)))
+              }
+          )
         case agg: AggregateElasticView[_] =>
           agg.referenced[F](caller, acls).map(r => value.map(r, _.removeKeys("@context").addContext(viewCtxUri)))
         case _ => EitherT.rightT(value)
@@ -92,7 +101,7 @@ object AdditionalValidation {
               InvalidIdentity("Your organization does not contain all the identities provided"): Rejection)
           case None =>
             EitherT.leftT[F, Value](
-              InvalidPayload(id.ref, "The provided payload could not be mapped to a Resolver"): Rejection)
+              InvalidResourceFormat(id.ref, "The provided payload could not be mapped to a Resolver"): Rejection)
         }
       }
   }

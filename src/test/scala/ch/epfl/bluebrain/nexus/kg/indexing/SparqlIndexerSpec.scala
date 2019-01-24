@@ -11,11 +11,10 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -83,7 +82,7 @@ class SparqlIndexerSpec
 
     "throw when the event resource is not found on the resources" in {
       when(resources.fetch(id, None)).thenReturn(OptionT.none[Future, Resource])
-      whenReady(indexer(ev).failed)(_ shouldEqual NotFound(id.ref))
+      whenReady(indexer(ev).failed)(_ shouldEqual KgError.NotFound(id.ref))
     }
 
     "index a resource when it does not exist" in {

@@ -3,8 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources.file
 import java.nio.file.Paths
 import java.util.UUID
 
-import cats.data.EitherT
-import cats.{Id => CId}
+import cats.effect.IO
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.FileConfig
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.LocationResolver
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.LocationResolver.Location
@@ -19,11 +18,11 @@ class LocationResolverSpec extends WordSpecLike with Matchers with EitherValues 
 
     "resolve a location" in {
       implicit val config = FileConfig(Paths.get("/tmp"), "SHA-256")
-      val resolver        = LocationResolver[CId]()
+      val resolver        = LocationResolver[IO]()
       val expectedPath =
         Paths.get("4947db1e-33d8-462b-9754-3e8ae74fcd4e/0/1/7/f/9/8/3/7/017f9837-5bea-4e79-bdbd-e64246cd81ec")
-      resolver(key, "017f9837-5bea-4e79-bdbd-e64246cd81ec") shouldEqual EitherT.rightT(
-        Location(Paths.get(s"/tmp/$expectedPath"), expectedPath))
+      resolver(key, "017f9837-5bea-4e79-bdbd-e64246cd81ec")
+        .unsafeRunSync() shouldEqual Location(Paths.get(s"/tmp/$expectedPath"), expectedPath)
     }
   }
 

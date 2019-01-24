@@ -12,15 +12,16 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
 import ch.epfl.bluebrain.nexus.rdf.syntax.akka._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
 import io.circe.Json
+import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.apache.jena.query.ResultSet
@@ -37,6 +38,8 @@ private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[
     implicit F: MonadError[F, Throwable],
     project: Project) {
 
+  private val logger: Logger = Logger[this.type]
+
   /**
     * When an event is received, the current state is obtained.
     * Afterwards, the current revision is fetched from the SPARQL index.
@@ -49,15 +52,18 @@ private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[
     */
   final def apply(ev: Event): F[Unit] = {
     resources.fetch(ev.id, None).value.flatMap {
-      case None           => F.raiseError(NotFound(ev.id.ref))
+      case None           => F.raiseError(KgError.NotFound(ev.id.ref))
       case Some(resource) => indexResource(resource)
     }
   }
 
   private def indexResource(res: Resource): F[Unit] =
     resources.materializeWithMeta(res).value.flatMap {
-      case Left(err) => F.raiseError(err)
-      case Right(r)  => client.replace(res.id, r.value.graph)
+      case Left(e) =>
+        val err = KgError.InternalError(s"Unable to materialize with meta, due to '$e'")
+        logger.error("Unable to index resource", err)
+        F.raiseError(err)
+      case Right(r) => client.replace(res.id, r.value.graph)
     }
 
   private implicit def toGraphUri(id: ResId): Uri = (id.value + "graph").toAkkaUri

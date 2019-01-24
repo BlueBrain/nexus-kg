@@ -1,13 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.Caches
+import ch.epfl.bluebrain.nexus.kg._
+import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -26,7 +30,6 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import ch.epfl.bluebrain.nexus.kg._
 
 class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit project: Project,
@@ -39,10 +42,10 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   private val emptyEsList: Json                          = jsonContentOf("/elastic/empty-list.json")
   private val transformation: Transformation[Task, View] = Transformation.view
 
-  private implicit val projectCache = cache.project
-  private implicit val viewCache    = cache.view
-  private implicit val esClient     = indexers.elastic
-  private implicit val ujClient     = indexers.uclJson
+  private implicit val projectCache: ProjectCache[Task] = cache.project
+  private implicit val viewCache: ViewCache[Task]       = cache.view
+  private implicit val esClient: ElasticClient[Task]    = indexers.elastic
+  private implicit val ujClient: HttpClient[Task, Json] = indexers.uclJson
 
   def routes: Route = {
     val viewRefOpt = Some(viewRef)
@@ -73,20 +76,20 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>
-      (post & pathEndOrSingleSlash & hasPermission(queryPermission)) {
+      (post & pathEndOrSingleSlash & hasPermissions(query)) {
         entity(as[String]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
             case Some(v) => indexers.sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
             case _       => Task.pure(Left(NotFound(id.ref)))
           }
-          trace("searchSparql")(complete(result.runToFuture))
+          trace("searchSparql")(complete(result.runWithStatus(StatusCodes.OK)))
         }
       }
     }
 
   private def elasticSearch: Route =
     pathPrefix(IdSegment / "_search") { id =>
-      (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermission(queryPermission)) { params =>
+      (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermissions(query)) { params =>
         entity(as[Json]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
             case Some(v: ElasticView) => indexers.elastic.searchRaw(query, Set(v.index), params).map(Right.apply)
@@ -97,7 +100,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
               }
             case _ => Task.pure(Left(NotFound(id.ref)))
           }
-          trace("searchElastic")(complete(result.runToFuture))
+          trace("searchElastic")(complete(result.runWithStatus(StatusCodes.OK)))
         }
       }
     }
@@ -106,7 +109,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     v.value.toList.foldM(List.empty[String]) {
       case (acc, ViewRef(ref, id)) =>
         (cache.view.getBy[ElasticView](ref, id) -> cache.project.getLabel(ref)).mapN {
-          case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, queryPermission) =>
+          case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, query) =>
             view.index :: acc
           case _ =>
             acc

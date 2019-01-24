@@ -1,20 +1,29 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import akka.http.scaladsl.model.StatusCodes
+import cats.MonadError
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.ValidationReport
-import ch.epfl.bluebrain.nexus.commons.types.Err
+import ch.epfl.bluebrain.nexus.kg.KgError
+import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.circe.JenaModel.JenaModelErr
+import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import io.circe.generic.extras.Configuration
+import akka.http.scaladsl.server.{Rejection => AkkaRejection}
+import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
+import io.circe.generic.extras.semiauto.deriveEncoder
+import io.circe.parser.parse
+import io.circe.{Encoder, Json}
 
 /**
   * Enumeration of resource rejection types.
   *
   * @param msg a descriptive message of the rejection
   */
-@SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-sealed abstract class Rejection(val msg: String) extends Err(msg) with Product with Serializable
+sealed abstract class Rejection(val msg: String) extends AkkaRejection with Product with Serializable
 
-@SuppressWarnings(Array("IncorrectlyNamedExceptions"))
 object Rejection {
 
   /**
@@ -29,23 +38,23 @@ object Rejection {
     *
     * @param ref a reference to the resource
     */
-  final case class IsDeprecated(ref: Ref) extends Rejection(s"Resource '${ref.show}' is deprecated.")
+  final case class ResourceIsDeprecated(ref: Ref) extends Rejection(s"Resource '${ref.show}' is deprecated.")
 
   /**
     * Signals an attempt to interact with a resource that is expected to be a file resource but it isn't.
     *
     * @param ref a reference to the resource
     */
-  final case class NotFileResource(ref: Ref) extends Rejection(s"Resource '${ref.show}' is not a file resource.")
+  final case class NotAFileResource(ref: Ref) extends Rejection(s"Resource '${ref.show}' is not a file resource.")
 
   /**
     * Signals an attempt to perform a request with an invalid payload.
     *
     * @param ref a reference to the resource
-    * @param reason the human readable reason for the rejection
+    * @param details the human readable reason for the rejection
     */
-  final case class InvalidPayload(ref: Ref, reason: String)
-      extends Rejection(s"Resource '${ref.show}' with invalid payload due to '$reason'.")
+  final case class InvalidResourceFormat(ref: Ref, details: String)
+      extends Rejection(s"Resource '${ref.show}' has an invalid format.")
 
   /**
     * Signals an attempt to perform a request with an invalid JSON-LD payload.
@@ -102,20 +111,15 @@ object Rejection {
       extends Rejection(s"Labels for projects with ref '${projects.map(_.show).mkString(", ")}' not found.")
 
   /**
-    * Signals an attempt to interact with a resource that belongs to a deprecated project.
-    *
-    * @param ref a reference to the project
-    */
-  final case class ProjectIsDeprecated(ref: ProjectLabel) extends Rejection(s"Project '${ref.show}' is deprecated.")
-
-  /**
     * Signals an attempt to interact with a resource with an incorrect revision.
     *
     * @param ref a reference to the resource
-    * @param rev the revision provided
+    * @param provided the provided revision
+    * @param expected the expected revision
     */
-  final case class IncorrectRev(ref: Ref, rev: Long)
-      extends Rejection(s"Resource '${ref.show}' with incorrect revision '$rev' provided.")
+  final case class IncorrectRev(ref: Ref, provided: Long, expected: Long)
+      extends Rejection(
+        s"Incorrect revision '$provided' provided, expected '$expected', the resource '${ref.show}' may have been updated since last seen.")
 
   /**
     * Signals a mismatch between a resource representation and its id.
@@ -138,7 +142,7 @@ object Rejection {
     *
     * @param ref a reference to the resource
     */
-  final case class AlreadyExists(ref: Ref) extends Rejection(s"Resource '${ref.show}' already exists.")
+  final case class ResourceAlreadyExists(ref: Ref) extends Rejection(s"Resource '${ref.show}' already exists.")
 
   /**
     * Signals that a resource has an illegal (transitive) context value.
@@ -165,53 +169,57 @@ object Rejection {
       extends Rejection(s"Resource failed to validate against the constraints defined by '${schema.show}'")
 
   /**
-    * Signals the inability to connect to an underlying service to perform a request
-    *
-    * @param message a human readable description of the cause
-    */
-  final case class DownstreamServiceError(override val message: String) extends Rejection(message)
-
-  /**
-    * Signals an unexpected rejection
-    *
-    * @param message a human readable description of the cause
-    */
-  final case class Unexpected(override val message: String) extends Rejection(message)
-
-  /**
-    * Signals the inability to convert the requested query parameter.
-    */
-  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class IllegalParameter(override val message: String) extends Rejection(message)
-
-  /**
     * Signals that the logged organization does not have one of the provided identities
     *
     */
-  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class InvalidIdentity(override val message: String) extends Rejection(message)
-
-  /**
-    * Signals the requirement of a parameter to be present
-    *
-    * @param message a human readable description of the cause
-    */
-  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case class MissingParameter(override val message: String) extends Rejection(message)
-
-  /**
-    * Signals that the provided client URI does not match any service endpoint
-    */
-  @SuppressWarnings(Array("IncorrectlyNamedExceptions"))
-  final case object InvalidResourceIri extends Rejection("Provided IRI does not match any service endpoint")
+  final case class InvalidIdentity(reason: String) extends Rejection(reason)
 
   /**
     * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.circe.JenaModel.JenaModelErr]].
     *
     * @param error the error to be transformed
     */
-  final def fromJenaModelErr(error: JenaModelErr): Rejection = error match {
-    case JenaModelErr.InvalidJsonLD(message) => InvalidJsonLD(message)
-    case JenaModelErr.Unexpected(message)    => Unexpected(message)
+  final def fromJenaModelErr[F[_]](error: JenaModelErr)(implicit F: MonadError[F, Throwable]): F[Rejection] =
+    error match {
+      case JenaModelErr.InvalidJsonLD(message) => F.pure(InvalidJsonLD(message))
+      case JenaModelErr.Unexpected(message) =>
+        F.raiseError(KgError.InternalError(s"Unexpected JenaModelError with message '$message'"))
+    }
+
+  implicit val rejectionEncoder: Encoder[Rejection] = {
+    implicit val rejectionConfig: Configuration = Configuration.default.withDiscriminator("@type")
+    val enc                                     = deriveEncoder[Rejection].mapJson(_ addContext errorCtxUri)
+    def reason(r: Rejection): Json =
+      Json.obj("reason" -> Json.fromString(r.msg))
+    def details(r: InvalidResourceFormat): Json =
+      parse(r.details)
+        .map(value => Json.obj("details" -> value))
+        .getOrElse(Json.obj("details" -> Json.fromString(r.details)))
+
+    Encoder.instance {
+      case r: InvalidResourceFormat => enc(r) deepMerge reason(r) deepMerge details(r)
+      case r                        => enc(r) deepMerge reason(r)
+    }
+  }
+
+  implicit def statusCodeFrom: StatusFrom[Rejection] = StatusFrom {
+    case _: ResourceIsDeprecated     => StatusCodes.BadRequest
+    case _: IncorrectTypes           => StatusCodes.BadRequest
+    case _: IllegalContextValue      => StatusCodes.BadRequest
+    case _: UnableToSelectResourceId => StatusCodes.BadRequest
+    case _: InvalidResource          => StatusCodes.BadRequest
+    case _: IncorrectId              => StatusCodes.BadRequest
+    case _: InvalidResourceFormat    => StatusCodes.BadRequest
+    case _: InvalidJsonLD            => StatusCodes.BadRequest
+    case _: NotAFileResource         => StatusCodes.BadRequest
+    case _: UnexpectedState          => StatusCodes.InternalServerError
+    case _: LabelsNotFound           => StatusCodes.NotFound
+    case _: NotFound                 => StatusCodes.NotFound
+    case _: OrganizationNotFound     => StatusCodes.NotFound
+    case _: ProjectNotFound          => StatusCodes.NotFound
+    case _: ProjectsNotFound         => StatusCodes.NotFound
+    case _: IncorrectRev             => StatusCodes.Conflict
+    case _: ResourceAlreadyExists    => StatusCodes.Conflict
+    case _: InvalidIdentity          => StatusCodes.Unauthorized
   }
 }

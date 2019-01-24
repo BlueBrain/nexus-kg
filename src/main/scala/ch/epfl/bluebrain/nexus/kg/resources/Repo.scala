@@ -106,7 +106,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
   def createFile[In](id: ResId, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
       implicit subject: Subject,
       store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
-    store.save(id, fileDesc, source).flatMap(attr => evaluate(id, CreateFile(id, attr, instant, subject)))
+    EitherT
+      .right(store.save(id, fileDesc, source))
+      .flatMap(attr => evaluate(id, CreateFile(id, attr, instant, subject)))
 
   /**
     * Replaces a file resource.
@@ -122,7 +124,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
   def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
       implicit subject: Subject,
       store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
-    store.save(id, fileDesc, source).flatMap(attr => evaluate(id, UpdateFile(id, rev, attr, instant, subject)))
+    EitherT
+      .right(store.save(id, fileDesc, source))
+      .flatMap(attr => evaluate(id, UpdateFile(id, rev, attr, instant, subject)))
 
   /**
     * Attempts to stream the file resource identified by the argument id.
@@ -134,7 +138,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def getFile[Out](id: ResId, schema: Option[Ref])(
       implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, schema) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+    get(id, schema) subflatMap (_.file.flatMap(at => Some(store.fetch(at)).map(out => at -> out)))
 
   /**
     * Attempts to stream the file resource identified by the argument id and the revision.
@@ -147,7 +151,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def getFile[Out](id: ResId, rev: Long, schema: Option[Ref])(
       implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, rev, schema) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+    get(id, rev, schema) subflatMap (_.file.flatMap(at => Some(store.fetch(at)).map(out => at -> out)))
 
   /**
     * Attempts to stream the file resource identified by the argument id and the tag. The
@@ -161,7 +165,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def getFile[Out](id: ResId, tag: String, schema: Option[Ref])(
       implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, tag, schema) subflatMap (_.file.flatMap(at => store.fetch(at).toOption.map(out => at -> out)))
+    get(id, tag, schema) subflatMap (_.file.flatMap(at => Some(store.fetch(at)).map(out => at -> out)))
 
   /**
     * Attempts to fetch the resource tags identified by the argument id.
@@ -262,6 +266,7 @@ object Repo {
 
   final val initial: State = State.Initial
 
+  //noinspection NameBooleanParameters
   final def next(state: State, ev: Event): State =
     (state, ev) match {
       case (Initial, e @ Created(id, schema, types, value, tm, ident)) =>
@@ -290,31 +295,31 @@ object Repo {
 
     def create(c: Create): Either[Rejection, Created] =
       state match {
-        case _ if c.schema == fileRef => Left(NotFileResource(c.id.ref))
+        case _ if c.schema == fileRef => Left(NotAFileResource(c.id.ref))
         case Initial                  => Right(Created(c.id, c.schema, c.types, c.source, c.instant, c.subject))
-        case _                        => Left(AlreadyExists(c.id.ref))
+        case _                        => Left(ResourceAlreadyExists(c.id.ref))
       }
 
     def createFile(c: CreateFile): Either[Rejection, FileCreated] =
       state match {
         case Initial => Right(FileCreated(c.id, c.value, c.instant, c.subject))
-        case _       => Left(AlreadyExists(c.id.ref))
+        case _       => Left(ResourceAlreadyExists(c.id.ref))
       }
 
     def updateFile(c: UpdateFile): Either[Rejection, FileUpdated] =
       state match {
         case Initial                      => Left(NotFound(c.id.ref))
-        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
-        case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
-        case s: Current if s.file.isEmpty => Left(NotFileResource(c.id.ref))
+        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
+        case s: Current if s.file.isEmpty => Left(NotAFileResource(c.id.ref))
         case s: Current                   => Right(FileUpdated(s.id, s.rev + 1, c.value, c.instant, c.subject))
       }
 
     def update(c: Update): Either[Rejection, Updated] =
       state match {
         case Initial                      => Left(NotFound(c.id.ref))
-        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev))
-        case s: Current if s.deprecated   => Left(IsDeprecated(c.id.ref))
+        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
         case s: Current if s.schema == viewRef =>
           Right(
             Updated(s.id, s.rev + 1, c.types, changeView(c.source, extractUuidFrom(s.source)), c.instant, c.subject))
@@ -324,18 +329,18 @@ object Repo {
     def tag(c: AddTag): Either[Rejection, TagAdded] =
       state match {
         case Initial                           => Left(NotFound(c.id.ref))
-        case s: Current if s.rev < c.rev       => Left(IncorrectRev(c.id.ref, c.rev))
-        case s: Current if s.rev < c.targetRev => Left(IncorrectRev(c.id.ref, c.targetRev))
-        case s: Current if s.deprecated        => Left(IsDeprecated(c.id.ref))
+        case s: Current if s.rev != c.rev      => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.rev < c.targetRev => Left(IncorrectRev(c.id.ref, c.targetRev, s.rev))
+        case s: Current if s.deprecated        => Left(ResourceIsDeprecated(c.id.ref))
         case s: Current                        => Right(TagAdded(s.id, s.rev + 1, c.targetRev, c.tag, c.instant, c.subject))
       }
 
     def deprecate(c: Deprecate): Either[Rejection, Deprecated] =
       state match {
-        case Initial                     => Left(NotFound(c.id.ref))
-        case s: Current if s.rev < c.rev => Left(IncorrectRev(c.id.ref, c.rev))
-        case s: Current if s.deprecated  => Left(IsDeprecated(c.id.ref))
-        case s: Current                  => Right(Deprecated(s.id, s.rev + 1, s.types, c.instant, c.subject))
+        case Initial                      => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
+        case s: Current                   => Right(Deprecated(s.id, s.rev + 1, s.types, c.instant, c.subject))
       }
 
     cmd match {
@@ -363,10 +368,12 @@ object Repo {
       sourcing.shards
     )
 
-  final def apply[F[_]: Effect: Timer](implicit as: ActorSystem,
-                                       mt: ActorMaterializer,
-                                       sourcing: SourcingConfig,
-                                       clock: Clock = Clock.systemUTC): F[Repo[F]] =
+  final def apply[F[_]: Effect: Timer](
+      implicit as: ActorSystem,
+      mt: ActorMaterializer,
+      sourcing: SourcingConfig,
+      clock: Clock = Clock.systemUTC
+  ): F[Repo[F]] =
     aggregate[F].map(agg => new Repo[F](agg, clock, resId => s"${resId.parent.id}-${resId.value.show}"))
 
 }
