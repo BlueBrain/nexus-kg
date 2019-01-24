@@ -22,8 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Updated}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.service.http.Path
-import ch.epfl.bluebrain.nexus.service.http.UriOps._
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
@@ -118,13 +116,13 @@ class ElasticIndexerSpec
             "_original_source" -> Json.fromString(json.noSpaces),
             "_constrainedBy"   -> Json.fromString(schema.iri.show),
             "_createdAt"       -> Json.fromString(instantString),
-            "_createdBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString()),
+            "_createdBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString()),
             "_deprecated"      -> Json.fromBoolean(false),
             "_rev"             -> Json.fromLong(2L),
             "_self"            -> Json.fromString("http://127.0.0.1:8080/v1/resources/bbp/core/ex:schemaName/ex:resourceName"),
-            "_project"         -> Json.fromString("http://localhost:8080/admin/projects/bbp/core"),
+            "_project"         -> Json.fromString("http://localhost:8080/v1/projects/bbp/core"),
             "_updatedAt"       -> Json.fromString(instantString),
-            "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
+            "_updatedBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
           )
         indexer(ev).some shouldEqual BulkOp.Index(index, doc, id.value.asString, elasticJson)
       }
@@ -162,13 +160,13 @@ class ElasticIndexerSpec
             "_original_source" -> Json.fromString(json.noSpaces),
             "_constrainedBy"   -> Json.fromString(nxv.Resource.value.show),
             "_createdAt"       -> Json.fromString(instantString),
-            "_createdBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString()),
+            "_createdBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString()),
             "_deprecated"      -> Json.fromBoolean(false),
             "_self"            -> Json.fromString("http://127.0.0.1:8080/v1/resources/bbp/core/resource/ex:resourceName"),
-            "_project"         -> Json.fromString("http://localhost:8080/admin/projects/bbp/core"),
+            "_project"         -> Json.fromString("http://localhost:8080/v1/projects/bbp/core"),
             "_rev"             -> Json.fromLong(2L),
             "_updatedAt"       -> Json.fromString(instantString),
-            "_updatedBy"       -> Json.fromString(appConfig.iam.baseUri.append(Path("anonymous")).toString())
+            "_updatedBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
           )
         indexer(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual BulkOp.Index(index,
                                                                                          doc,

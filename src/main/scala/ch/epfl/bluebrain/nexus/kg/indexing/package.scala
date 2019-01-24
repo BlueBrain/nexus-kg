@@ -10,6 +10,6 @@ package object indexing {
       *
       * @return a new list of [[Event]] without duplicated ids. In case
       */
-    def removeDupIds: List[Event] = events.groupBy(_.id).values.map(_.lastOption).flatten.toList
+    def removeDupIds: List[Event] = events.groupBy(_.id).values.flatMap(_.lastOption).toList
   }
 }

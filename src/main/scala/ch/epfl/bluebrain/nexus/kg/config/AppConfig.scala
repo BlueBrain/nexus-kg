@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.sourcing.akka._
+import io.circe.Json
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -40,19 +41,21 @@ import scala.concurrent.duration.FiniteDuration
   * @param indexing      Indexing configuration
   * @param sourcing      Sourcing configuration
   */
-final case class AppConfig(description: Description,
-                           http: HttpConfig,
-                           cluster: ClusterConfig,
-                           persistence: PersistenceConfig,
-                           files: FileConfig,
-                           admin: AdminClientConfig,
-                           iam: IamConfig,
-                           sparql: SparqlConfig,
-                           elastic: ElasticConfig,
-                           pagination: PaginationConfig,
-                           keyValueStore: KeyValueStoreConfig,
-                           indexing: IndexingConfig,
-                           sourcing: SourcingConfig)
+final case class AppConfig(
+    description: Description,
+    http: HttpConfig,
+    cluster: ClusterConfig,
+    persistence: PersistenceConfig,
+    files: FileConfig,
+    admin: AdminClientConfig,
+    iam: IamConfig,
+    sparql: SparqlConfig,
+    elastic: ElasticConfig,
+    pagination: PaginationConfig,
+    keyValueStore: KeyValueStoreConfig,
+    indexing: IndexingConfig,
+    sourcing: SourcingConfig,
+)
 
 object AppConfig {
 
@@ -126,14 +129,18 @@ object AppConfig {
   /**
     * IAM config
     *
-    * @param baseUri              base URI of IAM service
+    * @param publicIri            base URL for all the identity IDs, including prefix.
+    * @param internalIri          base URL for all the HTTP calls, including prefix.
     * @param serviceAccountToken  the service account token to execute calls to IAM
     * @param cacheRefreshInterval the maximum tolerated inactivity period after which the cached ACLs will be refreshed
     */
-  final case class IamConfig(baseUri: Uri,
-                             serviceAccountToken: Option[AuthToken],
-                             cacheRefreshInterval: FiniteDuration) {
-    val iamClient: IamClientConfig = IamClientConfig(url"${baseUri.toString}".value)
+  final case class IamConfig(
+      publicIri: AbsoluteIri,
+      internalIri: AbsoluteIri,
+      serviceAccountToken: Option[AuthToken],
+      cacheRefreshInterval: FiniteDuration,
+  ) {
+    val iamClient: IamClientConfig = IamClientConfig(publicIri, internalIri)
   }
 
   /**
@@ -194,7 +201,7 @@ object AppConfig {
     */
   final case class IndexingConfig(batch: Int, batchTimeout: FiniteDuration, retry: Retry)
 
-  val iriResolution = Map(
+  val iriResolution: Map[AbsoluteIri, Json] = Map(
     tagCtxUri         -> tagCtx,
     resourceCtxUri    -> resourceCtx,
     shaclCtxUri       -> shaclCtx,

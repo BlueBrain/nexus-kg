@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -23,6 +23,7 @@ import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import io.circe.Json
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
+//noinspection NameBooleanParameters
 class ResourceFSpec
     extends TestKit(ActorSystem("ResourceFSpec"))
     with WordSpecLike
@@ -32,14 +33,14 @@ class ResourceFSpec
 
   private implicit def toNode(instant: Instant): Node =
     Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime.value)
-  private implicit val appConfig = Settings(system).appConfig
+  private implicit val appConfig: AppConfig = Settings(system).appConfig
 
   "A ResourceF" should {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
     val identity: Identity = User("dmontero", "someRealm")
-    val userIri            = Iri.absolute(s"${appConfig.iam.baseUri}/realms/someRealm/users/dmontero").right.value
-    val anonIri            = Iri.absolute(s"${appConfig.iam.baseUri}/anonymous").right.value
+    val userIri            = Iri.absolute(s"${appConfig.iam.publicIri.asUri}/realms/someRealm/users/dmontero").right.value
+    val anonIri            = Iri.absolute(s"${appConfig.iam.publicIri.asUri}/anonymous").right.value
 
     val projectRef = ProjectRef(genUUID)
     val id         = Iri.absolute(s"http://example.com/${projectRef.id}").right.value
@@ -53,21 +54,21 @@ class ResourceFSpec
       "elasticsearch" -> nxv.defaultElasticIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )
-    implicit val projectMeta = Project(id,
-                                       "core",
-                                       "bbp",
-                                       None,
-                                       nxv.projects,
-                                       genIri,
-                                       apiMappings,
-                                       projectRef.id,
-                                       genUUID,
-                                       1L,
-                                       false,
-                                       Instant.EPOCH,
-                                       userIri,
-                                       Instant.EPOCH,
-                                       anonIri)
+    implicit val projectMeta: Project = Project(id,
+                                                "core",
+                                                "bbp",
+                                                None,
+                                                nxv.projects,
+                                                genIri,
+                                                apiMappings,
+                                                projectRef.id,
+                                                genUUID,
+                                                1L,
+                                                false,
+                                                Instant.EPOCH,
+                                                userIri,
+                                                Instant.EPOCH,
+                                                anonIri)
 
     "compute the metadata graph for a resource" in {
       val resource = ResourceF
@@ -81,7 +82,7 @@ class ResourceFSpec
         (IriNode(id), nxv.createdBy, IriNode(userIri)),
         (IriNode(id), nxv.updatedBy, IriNode(anonIri)),
         (IriNode(id), nxv.self, url"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:${projectRef.id}"),
-        (IriNode(id), nxv.project, url"http://localhost:8080/admin/projects/bbp/core"),
+        (IriNode(id), nxv.project, url"http://localhost:8080/v1/projects/bbp/core"),
         (IriNode(id), nxv.constrainedBy, IriNode(schema.iri))
       )
     }
