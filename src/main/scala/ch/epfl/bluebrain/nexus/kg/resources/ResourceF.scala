@@ -118,7 +118,7 @@ final case class ResourceF[P, S, A](
   def contextValueForJsonLd(implicit asRef: S =:= Ref, asValue: A =:= ResourceF.Value): Json = {
     val s = asRef(schema).iri
     val v = asValue(value)
-    if (s == resourceSchemaUri && v.source.contextValue == Json.obj()) v.ctx
+    if (s == unconstrainedSchemaUri && v.source.contextValue == Json.obj()) v.ctx
     else v.source.contextValue
   }
 }
@@ -184,7 +184,7 @@ object ResourceF {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = resourceSchemaUri.ref,
+                 schema: Ref = unconstrainedSchemaUri.ref,
                  created: Identity = Anonymous,
                  updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[P, Ref, Json] =
     ResourceF(id,
@@ -218,7 +218,7 @@ object ResourceF {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = resourceSchemaUri.ref,
+                 schema: Ref = unconstrainedSchemaUri.ref,
                  created: Identity = Anonymous,
                  updated: Identity = Anonymous)(implicit clock: Clock = Clock.systemUTC): ResourceF[P, Ref, Value] =
     ResourceF(id,

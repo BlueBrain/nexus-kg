@@ -81,7 +81,7 @@ class AdditionalValidationSpec
       "pass always" in {
         val validation = AdditionalValidation.pass[IO]
         val resource   = simpleV(id, Json.obj(), types = Set(nxv.Resource.value) + nxv.InProject)
-        validation(id, Ref(resourceSchemaUri), Set(nxv.Resource.value), resource.value, 1L).value.accepted shouldEqual resource.value
+        validation(id, Ref(unconstrainedSchemaUri), Set(nxv.Resource.value), resource.value, 1L).value.accepted shouldEqual resource.value
       }
     }
 

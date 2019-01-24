@@ -37,11 +37,12 @@ object AccessId {
 
     val shortResourceId = aliasOrCurieFor(resourceId)
     schemaId match {
-      case `fileSchemaUri`     => prefix("files") + shortResourceId
-      case `viewSchemaUri`     => prefix("views") + shortResourceId
-      case `resolverSchemaUri` => prefix("resolvers") + shortResourceId
-      case `shaclSchemaUri`    => prefix("schemas") + shortResourceId
-      case _                   => prefix("resources") + aliasOrCurieFor(schemaId) + shortResourceId
+      case `fileSchemaUri`          => prefix("files") + shortResourceId
+      case `viewSchemaUri`          => prefix("views") + shortResourceId
+      case `resolverSchemaUri`      => prefix("resolvers") + shortResourceId
+      case `shaclSchemaUri`         => prefix("schemas") + shortResourceId
+      case `unconstrainedSchemaUri` => prefix("resources") + "_" + shortResourceId
+      case _                        => prefix("resources") + aliasOrCurieFor(schemaId) + shortResourceId
     }
   }
 

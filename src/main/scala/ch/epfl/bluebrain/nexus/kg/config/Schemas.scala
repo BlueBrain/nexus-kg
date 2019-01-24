@@ -10,20 +10,20 @@ object Schemas {
 
   val base = url"https://bluebrain.github.io/nexus/schemas/".value
 
-  val shaclSchemaUri: AbsoluteIri    = base + "shacl-20170720.ttl"
-  val resolverSchemaUri: AbsoluteIri = base + "resolver.json"
-  val resourceSchemaUri: AbsoluteIri = base + "resource.json"
-  val fileSchemaUri: AbsoluteIri     = base + "file.json"
-  val viewSchemaUri: AbsoluteIri     = base + "view.json"
-  val ontologySchemaUri: AbsoluteIri = base + "ontology.json"
+  val shaclSchemaUri: AbsoluteIri         = base + "shacl-20170720.ttl"
+  val resolverSchemaUri: AbsoluteIri      = base + "resolver.json"
+  val unconstrainedSchemaUri: AbsoluteIri = base + "unconstrained.json"
+  val fileSchemaUri: AbsoluteIri          = base + "file.json"
+  val viewSchemaUri: AbsoluteIri          = base + "view.json"
+  val ontologySchemaUri: AbsoluteIri      = base + "ontology.json"
 
   val resolverSchema: Json = jsonContentOf("/schemas/resolver.json")
   val viewSchema: Json     = jsonContentOf("/schemas/view.json")
 
-  val viewRef     = viewSchemaUri.ref
-  val resolverRef = resolverSchemaUri.ref
-  val resourceRef = resourceSchemaUri.ref
-  val shaclRef    = shaclSchemaUri.ref
-  val fileRef     = fileSchemaUri.ref
+  val viewRef          = viewSchemaUri.ref
+  val resolverRef      = resolverSchemaUri.ref
+  val unconstrainedRef = unconstrainedSchemaUri.ref
+  val shaclRef         = shaclSchemaUri.ref
+  val fileRef          = fileSchemaUri.ref
 
 }

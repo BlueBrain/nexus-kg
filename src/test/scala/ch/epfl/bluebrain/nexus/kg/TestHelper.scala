@@ -5,7 +5,7 @@ import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.config.Schemas.resourceSchemaUri
+import ch.epfl.bluebrain.nexus.kg.config.Schemas.unconstrainedSchemaUri
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, Ref, ResourceF}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -39,7 +39,7 @@ trait TestHelper extends MockitoMatchers with EitherValues {
                  rev: Long = 1L,
                  types: Set[AbsoluteIri] = Set.empty,
                  deprecated: Boolean = false,
-                 schema: Ref = Ref(resourceSchemaUri),
+                 schema: Ref = Ref(unconstrainedSchemaUri),
                  created: Identity = Anonymous,
                  updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[P, Ref, Value] =
     ResourceF(

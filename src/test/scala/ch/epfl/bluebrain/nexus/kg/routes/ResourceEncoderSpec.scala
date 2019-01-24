@@ -64,13 +64,13 @@ class ResourceEncoderSpec
         """
           |{
           |  "@id" : "http://example.com/foobar",
-          |  "_constrainedBy" : "nxs:resource.json",
+          |  "_constrainedBy" : "https://bluebrain.github.io/nexus/schemas/unconstrained.json",
           |  "_createdAt" : "1970-01-01T01:00:00Z",
           |  "_createdBy" : "http://localhost:8080/iam/anonymous",
           |  "_deprecated" : false,
           |  "_project" : "http://localhost:8080/admin/projects/org/proj",
           |  "_rev" : 1,
-          |  "_self" : "http://127.0.0.1:8080/v1/resources/org/proj/https%3A%2F%2Fbluebrain.github.io%2Fnexus%2Fschemas%2Fresource.json/http%3A%2F%2Fexample.com%2Ffoobar",
+          |  "_self" : "http://127.0.0.1:8080/v1/resources/org/proj/_/http%3A%2F%2Fexample.com%2Ffoobar",
           |  "_updatedAt" : "1970-01-01T01:00:00Z",
           |  "_updatedBy" : "http://localhost:8080/iam/anonymous",
           |  "@context" : "https://bluebrain.github.io/nexus/contexts/resource.json"

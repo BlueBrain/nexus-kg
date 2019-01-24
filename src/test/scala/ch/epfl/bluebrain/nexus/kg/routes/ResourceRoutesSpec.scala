@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
-
 import akka.http.scaladsl.model.MediaTypes.{`application/json`, `text/plain`}
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model._
@@ -37,7 +36,7 @@ import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -52,12 +51,14 @@ import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
+import io.circe.syntax._
 import io.circe.generic.auto._
 import monix.eval.Task
 import org.mockito.ArgumentMatchers.{eq => mEq}
@@ -136,9 +137,7 @@ class ResourceRoutesSpec
     val organization = genString(length = 4)
     val project      = genString(length = 4)
     val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
-      "nxc"             -> Contexts.base,
-      "nxs"             -> Schemas.base,
-      "resource"        -> Schemas.resourceSchemaUri,
+      "resource"        -> Schemas.unconstrainedSchemaUri,
       "schema"          -> Schemas.shaclSchemaUri,
       "view"            -> Schemas.viewSchemaUri,
       "resolver"        -> Schemas.resolverSchemaUri,
@@ -149,7 +148,10 @@ class ResourceRoutesSpec
       "defaultResolver" -> nxv.defaultResolver
     )
     val mappings: Map[String, AbsoluteIri] =
-      Map("nxv" -> nxv.base, "resource" -> resourceSchemaUri, "view" -> viewSchemaUri, "resolver" -> resolverSchemaUri)
+      Map("nxv"      -> nxv.base,
+          "resource" -> unconstrainedSchemaUri,
+          "view"     -> viewSchemaUri,
+          "resolver" -> resolverSchemaUri)
     val organizationMeta = Organization(genIri,
                                         organization,
                                         Some("description"),
@@ -253,7 +255,7 @@ class ResourceRoutesSpec
       Json
         .obj(
           "@id"            -> Json.fromString(s"nxv:$genUuid"),
-          "_constrainedBy" -> Json.fromString(s"nxs:${schemaRef.iri.show.reverse.takeWhile(_ != '/').reverse}"),
+          "_constrainedBy" -> schemaRef.iri.asJson,
           "_createdAt"     -> Json.fromString(clock.instant().toString),
           "_createdBy"     -> Json.fromString(s"$iamUri/realms/${user.realm}/users/${user.subject}"),
           "_deprecated"    -> Json.fromBoolean(deprecated),
@@ -286,11 +288,11 @@ class ResourceRoutesSpec
 
   abstract class Ctx(perms: Set[Permission] = manageRes) extends Context(perms) {
     val ctx       = Json.obj("nxv" -> Json.fromString(nxv.base.show), "_rev" -> Json.fromString(nxv.rev.show))
-    val schemaRef = Ref(resourceSchemaUri)
+    val schemaRef = Ref(unconstrainedSchemaUri)
 
     def ctxResponse: Json =
       response() deepMerge Json.obj(
-        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/nxv:$genUuid"))
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid"))
   }
 
   abstract class File extends Context(manageFiles) {
@@ -539,9 +541,8 @@ class ResourceRoutesSpec
         Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] shouldEqual response().deepMerge(Json.obj(
-            "@id" -> Json.fromString("http://example.com/foobar"),
-            "_self" -> Json.fromString(
-              s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/base:foobar")
+            "@id"   -> Json.fromString("http://example.com/foobar"),
+            "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/base:foobar")
           ))
         }
       }
@@ -549,7 +550,7 @@ class ResourceRoutesSpec
       "list resources constrained by a schema" in new Ctx {
         when(
           resources.list(mEq(Some(defaultEsView)),
-                         mEq(SearchParams(schema = Some(resourceSchemaUri))),
+                         mEq(SearchParams(schema = Some(unconstrainedSchemaUri))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
             isA[ElasticClient[Task]]
@@ -754,7 +755,7 @@ class ResourceRoutesSpec
 
       val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
       when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetch(id, 1L, Some(resourceRef))).thenReturn(OptionT.none[Task, Resource])
+      when(resources.fetch(id, 1L, Some(unconstrainedRef))).thenReturn(OptionT.none[Task, Resource])
 
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
@@ -767,7 +768,7 @@ class ResourceRoutesSpec
 
       val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
       when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetch(id, "one", Some(resourceRef))).thenReturn(OptionT.none[Task, Resource])
+      when(resources.fetch(id, "one", Some(unconstrainedRef))).thenReturn(OptionT.none[Task, Resource])
 
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
