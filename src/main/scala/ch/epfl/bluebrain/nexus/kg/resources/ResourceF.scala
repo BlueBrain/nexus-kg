@@ -111,6 +111,16 @@ final case class ResourceF[P, S, A](
     * The triples for the type of this resource.
     */
   private lazy val typeTriples: Set[Triple] = types.map(tpe => (node, rdf.tpe, tpe): Triple)
+
+  /**
+    * The context value (without @context) that gets injected to the HTTP response
+    */
+  def contextValueForJsonLd(implicit asRef: S =:= Ref, asValue: A =:= ResourceF.Value): Json = {
+    val s = asRef(schema).iri
+    val v = asValue(value)
+    if (s == resourceSchemaUri && v.source.contextValue == Json.obj()) v.ctx
+    else v.source.contextValue
+  }
 }
 
 object ResourceF {

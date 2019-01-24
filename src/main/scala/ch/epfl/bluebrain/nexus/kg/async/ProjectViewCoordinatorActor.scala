@@ -110,7 +110,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
           case view: ElasticView =>
             children
               .collectFirst {
-                case (v: ElasticView, ref) if v.id == view.id && view != v.copy(rev = view.rev) => v -> ref
+                case (v: ElasticView, ref) if v.id == view.id && v.ref == view.ref && v.rev != view.rev => v -> ref
               }
               .foreach {
                 case (oldView, ref) =>

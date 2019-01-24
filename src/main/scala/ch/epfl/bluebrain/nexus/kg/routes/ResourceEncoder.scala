@@ -27,10 +27,10 @@ object ResourceEncoder {
   implicit val resourceVEncoder: Encoder[ResourceV] = {
     implicit val graphEnc: GraphEncoder[ResourceV] = GraphEncoder(res => IriNode(res.id.value) -> res.value.graph)
     Encoder.encodeJson.contramap { res =>
-      val mergedCtx = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
-      val json = res.asJson(mergedCtx) deepMerge Json
-        .obj("@context" -> res.value.ctx)
-        .addContext(resourceCtxUri)
+      val flattenedContext = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
+      val fieldsJson       = res.asJson(flattenedContext)
+      val contextJson      = Json.obj("@context" -> res.contextValueForJsonLd).addContext(resourceCtxUri)
+      val json             = fieldsJson deepMerge contextJson
       if (res.types.contains(nxv.ElasticView.value)) ViewEncoder.transformToJson(json) else json
     }
   }
