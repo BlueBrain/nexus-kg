@@ -44,5 +44,5 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
               tags(id, Some(schema.ref))
             )
           }
-    } ~ create(resourceRef)
+    } ~ create(unconstrainedRef)
 }

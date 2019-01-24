@@ -46,6 +46,7 @@ class ResolverSpec
   "A Resolver" when {
     val inProject        = jsonContentOf("/resolve/in-project.json").appendContextOf(resolverCtx)
     val crossProject     = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
+    val crossProjectAnon = jsonContentOf("/resolve/cross-project3.json").appendContextOf(resolverCtx)
     val crossProjectRefs = jsonContentOf("/resolve/cross-project-refs.json").appendContextOf(resolverCtx)
     val iri              = Iri.absolute("http://example.com/id").right.value
     val projectRef       = ProjectRef(genUUID)
@@ -73,6 +74,21 @@ class ResolverSpec
         resolver.id shouldEqual iri
         resolver.rev shouldEqual resource.rev
         resolver.deprecated shouldEqual resource.deprecated
+      }
+      "return a CrossProjectResolver with anonymous identity" in {
+        val resource = simpleV(id, crossProjectAnon, types = Set(nxv.Resolver, nxv.CrossProject))
+        Resolver(resource).value.asInstanceOf[CrossProjectLabels] shouldEqual
+          CrossProjectResolver(
+            Set(nxv.Schema.value),
+            Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
+            List(Anonymous),
+            projectRef,
+            iri,
+            resource.rev,
+            resource.deprecated,
+            50
+          )
+
       }
 
       "return a CrossProjectResolver that does not have resourceTypes" in {

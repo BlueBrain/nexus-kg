@@ -49,7 +49,7 @@ class ResourceFSpec
     val apiMappings = Map[String, AbsoluteIri](
       "nxv"           -> nxv.base,
       "ex"            -> url"http://example.com/",
-      "resource"      -> Schemas.resourceSchemaUri,
+      "resource"      -> Schemas.unconstrainedSchemaUri,
       "elasticsearch" -> nxv.defaultElasticIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )

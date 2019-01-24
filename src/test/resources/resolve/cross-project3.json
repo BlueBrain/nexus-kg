@@ -8,13 +8,7 @@
   ],
   "identities": [
     {
-      "realm": "ldap2",
-      "group": "bbp-ou-neuroinformatics"
-    },
-    {
-      "@type": "User",
-      "realm": "ldap",
-      "subject": "dmontero"
+      "@type": "Anonymous"
     }
   ],
   "priority": 50

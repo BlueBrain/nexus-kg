@@ -16,7 +16,6 @@
     "dcat": "http://www.w3.org/ns/dcat#",
     "shext": "http://www.w3.org/ns/shacl/ext#",
     "nxsh": "https://bluebrain.github.io/nexus/vocabulary/shacl/",
-    "distribution": "schema:distribution",
     "class": {
       "@id": "sh:class",
       "@type": "@id"

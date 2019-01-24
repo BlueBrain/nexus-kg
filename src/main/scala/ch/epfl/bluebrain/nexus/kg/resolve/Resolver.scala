@@ -5,6 +5,7 @@ import cats.implicits._
 import cats.{Monad, Show}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
@@ -12,14 +13,10 @@ import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.syntax.node._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 
@@ -110,33 +107,30 @@ object Resolver {
     def crossProject: Option[CrossProjectResolver[_]] = {
       val result = for {
         ids  <- identities(c.downField(nxv.identities).downArray)
-        prio <- c.downField(nxv.priority).focus.as[Int]
+        prio <- c.downField(nxv.priority).focus.as[Int].toOption
         types = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty).toSet
       } yield CrossProjectResolver(types, Set.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
-      result match {
-        case Right(r) =>
-          val nodes = c.downField(nxv.projects).values
-          nodes.asListOf[ProjectLabel].toOption.map(labels => r.copy(projects = labels.toSet)) orElse
-            nodes.asListOf[ProjectRef].toOption.map(refs => r.copy(projects = refs.toSet))
-        case Left(_) => None
+      result.flatMap { r =>
+        val nodes = c.downField(nxv.projects).values
+        nodes.asListOf[ProjectLabel].toOption.map(labels => r.copy(projects = labels.toSet)) orElse
+          nodes.asListOf[ProjectRef].toOption.map(refs => r.copy(projects = refs.toSet))
       }
     }
 
-    def identities(iter: Iterable[GraphCursor]): Either[NodeEncoderError, List[Identity]] =
+    def identities(iter: Iterable[GraphCursor]): Option[List[Identity]] =
       iter.toList.foldM(List.empty[Identity]) { (acc, innerCursor) =>
         identity(innerCursor).map(_ :: acc)
       }
 
-    def identity(c: GraphCursor): EncoderResult[Identity] =
-      c.downField(rdf.tpe).focus.as[AbsoluteIri].flatMap {
-        case nxv.User.value =>
-          (c.downField(nxv.subject).focus.as[String], c.downField(nxv.realm).focus.as[String]).mapN(User.apply)
-        case nxv.Group.value =>
-          (c.downField(nxv.group).focus.as[String], c.downField(nxv.realm).focus.as[String]).mapN(Group.apply)
-        case nxv.Authenticated.value           => c.downField(nxv.realm).focus.as[String].map(Authenticated.apply)
-        case iri if iri == nxv.Anonymous.value => Right(Anonymous)
-        case t                                 => Left(IllegalConversion(s"The type '$t' cannot be converted into an Identity"))
-      }
+    def identity(c: GraphCursor): Option[Identity] = {
+      lazy val anonymous =
+        c.downField(rdf.tpe).focus.as[AbsoluteIri].toOption.collectFirst { case nxv.Anonymous.value => Anonymous }
+      lazy val realm         = c.downField(nxv.realm).focus.as[String]
+      lazy val user          = (c.downField(nxv.subject).focus.as[String], realm).mapN(User.apply).toOption
+      lazy val group         = (c.downField(nxv.group).focus.as[String], realm).mapN(Group.apply).toOption
+      lazy val authenticated = realm.map(Authenticated.apply).toOption
+      anonymous orElse user orElse group orElse authenticated
+    }
 
     if (Set(nxv.Resolver.value, nxv.CrossProject.value).subsetOf(res.types)) crossProject
     else if (Set(nxv.Resolver.value, nxv.InProject.value).subsetOf(res.types)) inProject

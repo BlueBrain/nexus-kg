@@ -22,7 +22,7 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
       "nxv"           -> nxv.base,
       "nxs"           -> Schemas.base,
       "nxc"           -> Contexts.base,
-      "resource"      -> resourceSchemaUri,
+      "resource"      -> unconstrainedSchemaUri,
       "elasticsearch" -> nxv.defaultElasticIndex,
       "sparql"        -> nxv.defaultSparqlIndex
     )
@@ -53,8 +53,8 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
          fileSchemaUri,
          s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"),
         (url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
-         resourceSchemaUri,
-         s"http://resources.nexus.com/v1/resources/bbp/core/resource/test-schema:a"),
+         unconstrainedSchemaUri,
+         s"http://resources.nexus.com/v1/resources/bbp/core/_/test-schema:a"),
         (url"${Schemas.base.asString}b".value,
          url"http://example.com/a".value,
          s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:b"),

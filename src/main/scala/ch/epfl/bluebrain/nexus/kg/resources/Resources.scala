@@ -441,7 +441,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
 
     flattenCtx(Nil, source.contextValue).flatMap { flattened =>
       val value = schema match {
-        case `resourceRef` if flattened == Json.obj() =>
+        case `unconstrainedRef` if flattened == Json.obj() =>
           val ctx = Json.obj(
             "@base"  -> Json.fromString(project.base.asString),
             "@vocab" -> Json.fromString(project.vocab.asString)
@@ -498,7 +498,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
       // format: on
 
     schema.iri match {
-      case `resourceSchemaUri` => EitherT.rightT(())
+      case `unconstrainedSchemaUri` => EitherT.rightT(())
       case `shaclSchemaUri` =>
         imports(resId, data).flatMap { resolved =>
           val resolvedSets = resolved.foldLeft(data.triples)(_ ++ _.value.graph.triples)

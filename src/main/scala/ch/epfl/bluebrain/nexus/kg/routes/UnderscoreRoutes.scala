@@ -31,10 +31,10 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
   private implicit val viewCache: ViewCache[Task] = cache.view
 
   def routes: Route =
-    create(resourceRef) ~ list(None) ~
+    create(unconstrainedRef) ~ list(None) ~
       pathPrefix(IdSegment) { id =>
         concat(
-          create(id, resourceRef),
+          create(id, unconstrainedRef),
           update(id),
           tag(id),
           deprecate(id),
@@ -53,7 +53,7 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
         else if (res.types(nxv.File.value)) ResourceType(new FileRoutes(resources, acls, caller), fileRef)
         else if (res.types(nxv.Resolver.value)) ResourceType(new ResolverRoutes(resources, acls, caller), resolverRef)
         else if (res.types(nxv.Schema.value)) ResourceType(new SchemaRoutes(resources, acls, caller), shaclRef)
-        else ResourceType(UnderscoreRoutes.this, resourceRef)
+        else ResourceType(UnderscoreRoutes.this, unconstrainedRef)
       }
       .value
       .runNotFound(id.ref)

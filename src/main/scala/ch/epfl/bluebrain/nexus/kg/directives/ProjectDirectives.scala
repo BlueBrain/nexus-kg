@@ -7,8 +7,8 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.KgError.{ProjectIsDeprecated, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -17,9 +17,7 @@ import monix.execution.Scheduler
 
 object ProjectDirectives {
   private val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
-    "nxc"             -> Contexts.base,
-    "nxs"             -> Schemas.base,
-    "resource"        -> Schemas.resourceSchemaUri,
+    "resource"        -> Schemas.unconstrainedSchemaUri,
     "schema"          -> Schemas.shaclSchemaUri,
     "view"            -> Schemas.viewSchemaUri,
     "resolver"        -> Schemas.resolverSchemaUri,

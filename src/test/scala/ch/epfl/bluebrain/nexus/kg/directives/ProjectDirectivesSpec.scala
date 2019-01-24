@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.KgError.{ProjectIsDeprecated, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
@@ -115,7 +115,7 @@ class ProjectDirectivesSpec
     val label = ProjectLabel("organization", "project")
     val apiMappings = Map[String, AbsoluteIri](
       "nxv"           -> nxv.base,
-      "resource"      -> Schemas.resourceSchemaUri,
+      "resource"      -> Schemas.unconstrainedSchemaUri,
       "elasticsearch" -> nxv.defaultElasticIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )
@@ -138,9 +138,7 @@ class ProjectDirectivesSpec
     )
 
     val apiMappingsFinal = Map[String, AbsoluteIri](
-      "nxc"             -> Contexts.base,
-      "nxs"             -> Schemas.base,
-      "resource"        -> Schemas.resourceSchemaUri,
+      "resource"        -> Schemas.unconstrainedSchemaUri,
       "schema"          -> Schemas.shaclSchemaUri,
       "view"            -> Schemas.viewSchemaUri,
       "resolver"        -> Schemas.resolverSchemaUri,

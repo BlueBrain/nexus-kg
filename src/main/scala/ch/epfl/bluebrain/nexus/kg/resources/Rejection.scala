@@ -169,7 +169,7 @@ object Rejection {
       extends Rejection(s"Resource failed to validate against the constraints defined by '${schema.show}'")
 
   /**
-    * Signals that the logged organization does not have one of the provided identities
+    * Signals that the logged caller does not have one of the provided identities
     *
     */
   final case class InvalidIdentity(reason: String) extends Rejection(reason)
