@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import java.time.{Clock, Instant, ZoneId}
 
 import cats.data.{EitherT, OptionT}
-import cats.effect.IO
+import cats.effect.{IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
@@ -38,6 +38,8 @@ class ResolverIndexerSpec
     with TestHelper {
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 15 milliseconds)
+
+  private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
 
   private val resources     = mock[Resources[IO]]
   private val resolverCache = mock[ResolverCache[IO]]

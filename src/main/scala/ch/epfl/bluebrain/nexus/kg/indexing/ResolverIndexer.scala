@@ -8,8 +8,9 @@ import cats.effect.Timer
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
@@ -43,7 +44,7 @@ private class ResolverIndexer[F[_]: Timer](resources: Resources[F],
       projectCache
         .get(ref)
         .orFailWhen({ case None => true },
-                    ProjectNotFound(ref),
+                    KgError.NotFound(Some(ref.show)),
                     s"Project '$ref' not found in the cache on resolver indexing."))
 
   /**

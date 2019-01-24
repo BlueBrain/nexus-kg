@@ -8,6 +8,7 @@ import cats.effect.Timer
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
@@ -39,7 +40,7 @@ private class ViewIndexer[F[_]: Timer](resources: Resources[F], viewCache: ViewC
       projectCache
         .get(ref)
         .orFailWhen({ case None => true },
-                    ProjectNotFound(ref),
+                    KgError.NotFound(Some(ref.show)),
                     s"Project '$ref' not found in the cache on view indexing."))
 
   /**
