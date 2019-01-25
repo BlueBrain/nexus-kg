@@ -43,38 +43,39 @@ class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: Access
         )
       }
 
-  private case class ResourceType(routes: CommonRoutes, schema: Ref)
+  private case class ResourceType(routes: CommonRoutes, schema: Option[Ref])
 
   private def fetchType(id: AbsoluteIri): Future[ResourceType] =
     resources
       .fetch(Id(project.ref, id), None)
       .map { res =>
-        if (res.types(nxv.View.value)) ResourceType(new ViewRoutes(resources, acls, caller), viewRef)
-        else if (res.types(nxv.File.value)) ResourceType(new FileRoutes(resources, acls, caller), fileRef)
-        else if (res.types(nxv.Resolver.value)) ResourceType(new ResolverRoutes(resources, acls, caller), resolverRef)
-        else if (res.types(nxv.Schema.value)) ResourceType(new SchemaRoutes(resources, acls, caller), shaclRef)
-        else ResourceType(UnderscoreRoutes.this, unconstrainedRef)
+        if (res.types(nxv.View.value)) ResourceType(new ViewRoutes(resources, acls, caller), Some(viewRef))
+        else if (res.types(nxv.File.value)) ResourceType(new FileRoutes(resources, acls, caller), Some(fileRef))
+        else if (res.types(nxv.Resolver.value))
+          ResourceType(new ResolverRoutes(resources, acls, caller), Some(resolverRef))
+        else if (res.types(nxv.Schema.value)) ResourceType(new SchemaRoutes(resources, acls, caller), Some(shaclRef))
+        else ResourceType(UnderscoreRoutes.this, None)
       }
       .value
       .runNotFound(id.ref)
 
   private def update(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case ResourceType(rt, schema) => rt.update(id, Some(schema))
+    case ResourceType(rt, schema) => rt.update(id, schema)
   }
 
   private def tag(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case ResourceType(rt, schema) => rt.tag(id, Some(schema))
+    case ResourceType(rt, schema) => rt.tag(id, schema)
   }
 
   private def tags(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case ResourceType(rt, schema) => rt.tags(id, Some(schema))
+    case ResourceType(rt, schema) => rt.tags(id, schema)
   }
 
   private def deprecate(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case ResourceType(rt, schema) => rt.deprecate(id, Some(schema))
+    case ResourceType(rt, schema) => rt.deprecate(id, schema)
   }
 
   private def fetch(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
-    case ResourceType(rt, schema) => rt.fetch(id, Some(schema))
+    case ResourceType(rt, schema) => rt.fetch(id, schema)
   }
 }

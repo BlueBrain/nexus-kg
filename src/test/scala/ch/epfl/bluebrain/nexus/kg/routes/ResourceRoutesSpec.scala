@@ -760,7 +760,7 @@ class ResourceRoutesSpec
 
       val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
       when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetch(id, 1L, Some(unconstrainedRef))).thenReturn(OptionT.none[Task, Resource])
+      when(resources.fetch(id, 1L, None)).thenReturn(OptionT.none[Task, Resource])
 
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
@@ -773,11 +773,10 @@ class ResourceRoutesSpec
 
       val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
       when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetch(id, "one", Some(unconstrainedRef))).thenReturn(OptionT.none[Task, Resource])
+      when(resources.fetch(id, "one", None)).thenReturn(OptionT.none[Task, Resource])
 
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one") ~> addHeader("Accept", "application/json") ~> addCredentials(
         oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
