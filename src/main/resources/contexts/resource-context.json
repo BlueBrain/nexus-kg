@@ -5,16 +5,44 @@
       "@id": "nxv:updatedBy",
       "@type": "@id"
     },
-    "Resource": {
-      "@id": "nxv:Resource",
-      "@type": "@id"
-    },
     "Schema": {
       "@id": "nxv:Schema",
       "@type": "@id"
     },
     "File": {
       "@id": "nxv:File",
+      "@type": "@id"
+    },
+    "Resolver": {
+      "@id": "nxv:Resolver",
+      "@type": "@id"
+    },
+    "InProject": {
+      "@id": "nxv:InProject",
+      "@type": "@id"
+    },
+    "CrossProject": {
+      "@id": "nxv:CrossProject",
+      "@type": "@id"
+    },
+    "View": {
+      "@id": "nxv:View",
+      "@type": "@id"
+    },
+    "ElasticSearchView": {
+      "@id": "nxv:ElasticSearchView",
+      "@type": "@id"
+    },
+    "AggregateElasticSearchView": {
+      "@id": "nxv:AggregateElasticSearchView",
+      "@type": "@id"
+    },
+    "SparqlView": {
+      "@id": "nxv:SparqlView",
+      "@type": "@id"
+    },
+    "Alpha": {
+      "@id": "nxv:Alpha",
       "@type": "@id"
     },
     "_deprecated": "nxv:deprecated",
@@ -37,7 +65,6 @@
       "@type": "@id"
     },
     "_rev": "nxv:rev",
-    "_accessURL": "dcat:accessURL",
     "_digest": "nxv:digest",
     "_algorithm": "nxv:algorithm",
     "_value": "nxv:value",

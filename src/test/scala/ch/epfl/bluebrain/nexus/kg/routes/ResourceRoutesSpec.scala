@@ -325,7 +325,7 @@ class ResourceRoutesSpec
 
     def resolverResponse(): Json =
       response() deepMerge Json.obj(
-        "@type" -> Json.arr(Json.fromString("nxv:CrossProject"), Json.fromString("nxv:Resolver")),
+        "@type" -> Json.arr(Json.fromString("CrossProject"), Json.fromString("Resolver")),
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid")
       )
   }
@@ -342,7 +342,7 @@ class ResourceRoutesSpec
     def viewResponse(): Json =
       response() deepMerge Json.obj(
         "@type" -> Json
-          .arr(Json.fromString("nxv:View"), Json.fromString("nxv:ElasticSearchView"), Json.fromString("nxv:Alpha")),
+          .arr(Json.fromString("View"), Json.fromString("ElasticSearchView"), Json.fromString("Alpha")),
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/views/$organization/$project/nxv:$genUuid")
       )
   }

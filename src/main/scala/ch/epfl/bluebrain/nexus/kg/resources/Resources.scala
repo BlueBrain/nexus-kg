@@ -289,10 +289,10 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
 
   private def addSchemaTypes(schemaRef: Ref): Option[AbsoluteIri] =
     schemaRef match {
-      case `viewRef`        => Some(nxv.View.value)
-      case `resolverRef`    => Some(nxv.Resolver.value)
-      case `shaclSchemaUri` => Some(nxv.Schema.value)
-      case _                => None
+      case `viewRef`     => Some(nxv.View.value)
+      case `resolverRef` => Some(nxv.Resolver.value)
+      case `shaclRef`    => Some(nxv.Schema.value)
+      case _             => None
     }
 
   private def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], targetRev: Long, tag: String)(
