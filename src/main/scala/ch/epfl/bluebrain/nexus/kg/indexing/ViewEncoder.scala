@@ -45,16 +45,16 @@ object ViewEncoder {
     }
 
   implicit val viewGraphEncoder: GraphEncoder[View] = GraphEncoder {
-    case view @ ElasticView(mapping, resourceSchemas, resourceTag, includeMeta, sourceAsText, _, id, _, _, _) =>
+    case view @ ElasticSearchView(mapping, resourceSchemas, resourceTag, includeMeta, sourceAsText, _, id, _, _, _) =>
       val s = IriNode(id)
       s -> Graph(
-        view.mainTriples(nxv.ElasticView, nxv.Alpha) ++ view
+        view.mainTriples(nxv.ElasticSearchView, nxv.Alpha) ++ view
           .triplesFor(resourceSchemas) ++ view.triplesFor(includeMeta, sourceAsText, resourceTag, mapping))
     case view: SparqlView =>
       IriNode(view.id) -> Graph(view.mainTriples(nxv.SparqlView))
-    case view @ AggregateElasticView(_, _, _, id, _, _) =>
+    case view @ AggregateElasticSearchView(_, _, _, id, _, _) =>
       IriNode(id) -> Graph(
-        view.mainTriples(nxv.AggregateElasticView, nxv.Alpha) ++ view.triplesForView(view.valueString))
+        view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(view.valueString))
 
   }
 

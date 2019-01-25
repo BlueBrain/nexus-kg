@@ -116,7 +116,7 @@ class ProjectDirectivesSpec
     val apiMappings = Map[String, AbsoluteIri](
       "nxv"           -> nxv.base,
       "resource"      -> Schemas.unconstrainedSchemaUri,
-      "elasticsearch" -> nxv.defaultElasticIndex,
+      "elasticsearch" -> nxv.defaultElasticSearchIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )
     val projectMeta = Project(
@@ -144,7 +144,7 @@ class ProjectDirectivesSpec
       "resolver"        -> Schemas.resolverSchemaUri,
       "file"            -> Schemas.fileSchemaUri,
       "nxv"             -> nxv.base,
-      "documents"       -> nxv.defaultElasticIndex,
+      "documents"       -> nxv.defaultElasticSearchIndex,
       "graph"           -> nxv.defaultSparqlIndex,
       "defaultResolver" -> nxv.defaultResolver
     )

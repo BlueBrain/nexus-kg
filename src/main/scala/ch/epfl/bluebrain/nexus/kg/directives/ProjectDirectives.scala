@@ -23,7 +23,7 @@ object ProjectDirectives {
     "resolver"        -> Schemas.resolverSchemaUri,
     "file"            -> Schemas.fileSchemaUri,
     "nxv"             -> nxv.base,
-    "documents"       -> nxv.defaultElasticIndex,
+    "documents"       -> nxv.defaultElasticSearchIndex,
     "graph"           -> nxv.defaultSparqlIndex,
     "defaultResolver" -> nxv.defaultResolver
   )

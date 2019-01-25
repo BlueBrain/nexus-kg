@@ -31,7 +31,7 @@ object ResourceEncoder {
       val fieldsJson       = res.asJson(flattenedContext)
       val contextJson      = Json.obj("@context" -> res.contextValueForJsonLd).addContext(resourceCtxUri)
       val json             = fieldsJson deepMerge contextJson
-      if (res.types.contains(nxv.ElasticView.value)) ViewEncoder.transformToJson(json) else json
+      if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json) else json
     }
   }
 }

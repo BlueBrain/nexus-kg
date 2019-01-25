@@ -3,9 +3,9 @@
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
     "View": "nxv:View",
     "Alpha": "nxv:Alpha",
-    "ElasticView": "nxv:ElasticView",
+    "ElasticSearchView": "nxv:ElasticSearchView",
     "SparqlView": "nxv:SparqlView",
-    "AggregateElasticView": "nxv:AggregateElasticView",
+    "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
     "_uuid": "nxv:uuid",
     "resourceSchemas": {
       "@id": "nxv:resourceSchemas",

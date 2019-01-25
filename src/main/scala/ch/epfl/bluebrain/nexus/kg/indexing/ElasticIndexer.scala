@@ -12,8 +12,8 @@ import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.ElasticIndexer._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
+import ch.epfl.bluebrain.nexus.kg.indexing.ElasticSearchIndexer._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
 import ch.epfl.bluebrain.nexus.rdf.Graph
@@ -31,9 +31,9 @@ import monix.execution.Scheduler
   * @param view      the view information describes how to index Documents
   * @param resources the resources operations
   */
-class ElasticIndexer[F[_]](view: ElasticView, resources: Resources[F])(implicit config: AppConfig,
-                                                                       project: Project,
-                                                                       F: MonadError[F, Throwable]) {
+class ElasticSearchIndexer[F[_]](view: ElasticSearchView, resources: Resources[F])(implicit config: AppConfig,
+                                                                                   project: Project,
+                                                                                   F: MonadError[F, Throwable]) {
 
   /**
     * When an event is received, the current state is obtained.
@@ -65,12 +65,12 @@ class ElasticIndexer[F[_]](view: ElasticView, resources: Resources[F])(implicit 
       if (view.sourceAsText) asJson(metaGraph.add(primaryNode, nxv.originalSource, res.value.noSpaces))
       else res.value deepMerge asJson(metaGraph)
     }
-    BulkOp.Index(view.index, config.elastic.docType, res.id.value.asString, transformed.removeKeys("@context"))
+    BulkOp.Index(view.index, config.elasticSearch.docType, res.id.value.asString, transformed.removeKeys("@context"))
   }
 
 }
 
-object ElasticIndexer {
+object ElasticSearchIndexer {
 
   /**
     * Starts the index process for an ElasticSearch client
@@ -80,14 +80,15 @@ object ElasticIndexer {
     * @param project   the project to which the resource belongs
     */
   // $COVERAGE-OFF$
-  final def start(view: ElasticView, resources: Resources[Task], project: Project)(implicit client: ElasticClient[Task],
-                                                                                   s: Scheduler,
-                                                                                   as: ActorSystem,
-                                                                                   config: AppConfig): ActorRef = {
+  final def start(view: ElasticSearchView, resources: Resources[Task], project: Project)(
+      implicit client: ElasticClient[Task],
+      s: Scheduler,
+      as: ActorSystem,
+      config: AppConfig): ActorRef = {
 
     implicit val p = project
 
-    val indexer = new ElasticIndexer(view, resources)
+    val indexer = new ElasticSearchIndexer(view, resources)
     val init = () =>
       (for {
         _ <- view.createIndex[Task]
@@ -99,7 +100,7 @@ object ElasticIndexer {
 
     SequentialTagIndexer.start(
       IndexerConfig.builder
-        .name(s"elastic-indexer-${view.name}")
+        .name(s"elasticSearch-indexer-${view.name}")
         .tag(s"project=${view.ref.id}")
         .plugin(config.persistence.queryJournalPlugin)
         .retry(config.indexing.retry.maxCount, config.indexing.retry.strategy)
@@ -110,5 +111,5 @@ object ElasticIndexer {
   }
   // $COVERAGE-ON$
 
-  private[indexing] val ctx: Json = jsonContentOf("/elastic/default-context.json")
+  private[indexing] val ctx: Json = jsonContentOf("/elasticsearch/default-context.json")
 }

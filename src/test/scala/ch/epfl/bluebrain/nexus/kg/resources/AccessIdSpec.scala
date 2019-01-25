@@ -23,7 +23,7 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
       "nxs"           -> Schemas.base,
       "nxc"           -> Contexts.base,
       "resource"      -> unconstrainedSchemaUri,
-      "elasticsearch" -> nxv.defaultElasticIndex,
+      "elasticsearch" -> nxv.defaultElasticSearchIndex,
       "sparql"        -> nxv.defaultSparqlIndex
     )
     val mappings = Map("test-schema" -> url"http://schemas.nexus.example.com/test/v0.1.0/".value) ++ defaultPrefixMapping

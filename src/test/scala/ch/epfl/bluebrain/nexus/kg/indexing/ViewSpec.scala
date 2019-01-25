@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
@@ -22,19 +22,19 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   "A View" when {
-    val mapping    = jsonContentOf("/elastic/mapping.json")
+    val mapping    = jsonContentOf("/elasticsearch/mapping.json")
     val iri        = url"http://example.com/id".value
     val projectRef = ProjectRef(genUUID)
     val id         = Id(projectRef, iri)
 
     "constructing" should {
-      val sparqlview     = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-      val elasticview    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
-      val aggElasticView = jsonContentOf("/view/aggelasticview.json").appendContextOf(viewCtx)
+      val sparqlview           = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
+      val elasticSearchview    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+      val aggElasticSearchView = jsonContentOf("/view/aggelasticview.json").appendContextOf(viewCtx)
 
-      "return an ElasticView" in {
-        val resource = simpleV(id, elasticview, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
-        View(resource).right.value shouldEqual ElasticView(
+      "return an ElasticSearchView" in {
+        val resource = simpleV(id, elasticSearchview, types = Set(nxv.View, nxv.ElasticSearchView, nxv.Alpha))
+        View(resource).right.value shouldEqual ElasticSearchView(
           mapping,
           Set(nxv.Schema, nxv.Resource),
           Some("one"),
@@ -58,13 +58,14 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
 
       }
 
-      "return an AggregateElasticView from ProjectLabel ViewRef" in {
-        val resource = simpleV(id, aggElasticView, types = Set(nxv.View, nxv.AggregateElasticView, nxv.Alpha))
+      "return an AggregateElasticSearchView from ProjectLabel ViewRef" in {
+        val resource =
+          simpleV(id, aggElasticSearchView, types = Set(nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha))
         val views = Set(
           ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
           ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
         )
-        View(resource).right.value shouldEqual AggregateElasticView(
+        View(resource).right.value shouldEqual AggregateElasticSearchView(
           views,
           projectRef,
           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
@@ -73,17 +74,18 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
           resource.deprecated)
       }
 
-      "return an AggregateElasticView from ProjectRef ViewRef" in {
-        val aggElasticViewRefs = jsonContentOf("/view/aggelasticviewrefs.json").appendContextOf(viewCtx)
+      "return an AggregateElasticSearchView from ProjectRef ViewRef" in {
+        val aggElasticSearchViewRefs = jsonContentOf("/view/aggelasticviewrefs.json").appendContextOf(viewCtx)
 
-        val resource = simpleV(id, aggElasticViewRefs, types = Set(nxv.View, nxv.AggregateElasticView, nxv.Alpha))
+        val resource =
+          simpleV(id, aggElasticSearchViewRefs, types = Set(nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha))
         val views = Set(
           ViewRef(ProjectRef(UUID.fromString("64b202b4-1060-42b5-9b4f-8d6a9d0d9113")),
                   url"http://example.com/id2".value),
           ViewRef(ProjectRef(UUID.fromString("d23d9578-255b-4e46-9e65-5c254bc9ad0a")),
                   url"http://example.com/id3".value)
         )
-        View(resource).right.value shouldEqual AggregateElasticView(
+        View(resource).right.value shouldEqual AggregateElasticSearchView(
           views,
           projectRef,
           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
@@ -92,28 +94,31 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
           resource.deprecated)
       }
 
-      "fail on AggregateElasticView when types are wrong" in {
-        val resource = simpleV(id, aggElasticView, types = Set(nxv.View))
+      "fail on AggregateElasticSearchView when types are wrong" in {
+        val resource = simpleV(id, aggElasticSearchView, types = Set(nxv.View))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
-      "fail on AggregateElasticView when ViewRef collection are wrong" in {
-        val wrongAggElasticView = jsonContentOf("/view/aggelasticviewwrong.json").appendContextOf(viewCtx)
+      "fail on AggregateElasticSearchView when ViewRef collection are wrong" in {
+        val wrongAggElasticSearchView = jsonContentOf("/view/aggelasticviewwrong.json").appendContextOf(viewCtx)
 
-        val resource = simpleV(id, wrongAggElasticView, types = Set(nxv.View, nxv.AggregateElasticView, nxv.Alpha))
+        val resource =
+          simpleV(id, wrongAggElasticSearchView, types = Set(nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
-      "fail on ElasticView when types are wrong" in {
-        val resource = simpleV(id, elasticview, types = Set(nxv.View))
+      "fail on ElasticSearchView when types are wrong" in {
+        val resource = simpleV(id, elasticSearchview, types = Set(nxv.View))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
-      "fail on ElasticView when invalid payload" in {
-        val wrong = List(jsonContentOf("/view/elasticview-wrong.json").appendContextOf(viewCtx),
-                         jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx))
+      "fail on ElasticSearchView when invalid payload" in {
+        val wrong = List(
+          jsonContentOf("/view/elasticview-wrong.json").appendContextOf(viewCtx),
+          jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx)
+        )
         forAll(wrong) { json =>
-          val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
+          val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticSearchView, nxv.Alpha))
           View(resource).left.value shouldBe a[InvalidResourceFormat]
         }
       }
@@ -127,24 +132,24 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
         val resource =
           simpleV(id,
                   jsonContentOf("/view/sparqlview-wrong.json").appendContextOf(viewCtx),
-                  types = Set(nxv.View, nxv.ElasticView, nxv.Alpha))
+                  types = Set(nxv.View, nxv.ElasticSearchView, nxv.Alpha))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
     }
 
     "converting into json (from Graph)" should {
-      "return the json representation for a queryresults list with ElasticView" in {
-        val elastic: View = ElasticView(mapping,
-                                        Set(nxv.Schema, nxv.Resource),
-                                        Some("one"),
-                                        false,
-                                        true,
-                                        projectRef,
-                                        iri,
-                                        UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
-                                        1L,
-                                        false)
-        val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(elastic)))
+      "return the json representation for a queryresults list with ElasticSearchView" in {
+        val elasticSearch: View = ElasticSearchView(mapping,
+                                                    Set(nxv.Schema, nxv.Resource),
+                                                    Some("one"),
+                                                    false,
+                                                    true,
+                                                    projectRef,
+                                                    iri,
+                                                    UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
+                                                    1L,
+                                                    false)
+        val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(elasticSearch)))
         views.asJson should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp-elastic.json"))
       }
 

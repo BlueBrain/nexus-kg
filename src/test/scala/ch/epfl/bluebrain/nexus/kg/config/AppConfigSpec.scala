@@ -33,11 +33,14 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
       SparqlConfig("http://localhost:9999/bigdata", Some("user"), Some("pass"), "kg").akkaCredentials.value shouldEqual BasicHttpCredentials(
         "user",
         "pass")
-      appConfig.elastic shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
+      appConfig.elasticSearch shouldEqual ElasticSearchConfig("http://localhost:9200", "kg", "doc", "kg_default")
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
 
       implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
-      implicitly[ElasticConfig] shouldEqual ElasticConfig("http://localhost:9200", "kg", "doc", "kg_default")
+      implicitly[ElasticSearchConfig] shouldEqual ElasticSearchConfig("http://localhost:9200",
+                                                                      "kg",
+                                                                      "doc",
+                                                                      "kg_default")
       implicitly[PaginationConfig] shouldEqual PaginationConfig(0L, 20, 100)
       implicitly[PersistenceConfig] shouldEqual PersistenceConfig("cassandra-journal",
                                                                   "cassandra-snapshot-store",

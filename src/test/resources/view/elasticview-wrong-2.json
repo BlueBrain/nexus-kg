@@ -2,7 +2,7 @@
   "@id": "http://example.com/id",
   "@type": [
     "View",
-    "ElasticView",
+    "ElasticSearchView",
     "Alpha"
   ],
   "resourceSchemas": [

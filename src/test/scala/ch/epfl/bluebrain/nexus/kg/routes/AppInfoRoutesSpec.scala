@@ -31,21 +31,21 @@ class AppInfoRoutesSpec
   private implicit val appConfig = Settings(system).appConfig
   private val iam                = mock[IamClient[Task]]
   private val admin              = mock[AdminClient[Task]]
-  private val elastic            = mock[ElasticClient[Task]]
+  private val elasticSearch      = mock[ElasticClient[Task]]
   private val sparql             = mock[BlazegraphClient[Task]]
   private val statusGroup = HealthStatusGroup(
     mock[CassandraHealthStatus],
     mock[ClusterHealthStatus],
     new IamHealthStatus(iam),
     new AdminHealthStatus(admin),
-    new ElasticSearchHealthStatus(elastic),
+    new ElasticSearchHealthStatus(elasticSearch),
     new SparqlHealthStatus(sparql)
   )
   private val routes                            = AppInfoRoutes(appConfig.description, statusGroup).routes
   private implicit val token: Option[AuthToken] = None
 
   before {
-    Mockito.reset(statusGroup.cluster, iam, admin, elastic, sparql, statusGroup.cassandra)
+    Mockito.reset(statusGroup.cluster, iam, admin, elasticSearch, sparql, statusGroup.cassandra)
   }
 
   "An AppInfoRoutes" should {
@@ -62,17 +62,17 @@ class AppInfoRoutesSpec
       when(statusGroup.cluster.check).thenReturn(Task.pure(true))
       when(iam.acls(/)).thenReturn(Task.pure(AccessControlLists()))
       when(admin.fetchOrganization("test")).thenReturn(Task.pure[Option[Organization]](None))
-      when(elastic.existsIndex("test")).thenReturn(Task.pure(false))
+      when(elasticSearch.existsIndex("test")).thenReturn(Task.pure(false))
       when(sparql.namespaceExists).thenReturn(Task.pure(false))
       Get("/health") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json.obj(
-          "cassandra" -> Json.fromString("up"),
-          "cluster"   -> Json.fromString("up"),
-          "iam"       -> Json.fromString("up"),
-          "admin"     -> Json.fromString("up"),
-          "elastic"   -> Json.fromString("up"),
-          "sparql"    -> Json.fromString("up")
+          "cassandra"     -> Json.fromString("up"),
+          "cluster"       -> Json.fromString("up"),
+          "iam"           -> Json.fromString("up"),
+          "admin"         -> Json.fromString("up"),
+          "elasticSearch" -> Json.fromString("up"),
+          "sparql"        -> Json.fromString("up")
         )
       }
     }
@@ -82,17 +82,17 @@ class AppInfoRoutesSpec
       when(statusGroup.cluster.check).thenReturn(Task.pure(false))
       when(iam.acls(/)).thenReturn(Task.raiseError(new RuntimeException()))
       when(admin.fetchOrganization("test")).thenReturn(Task.raiseError(new RuntimeException()))
-      when(elastic.existsIndex("test")).thenReturn(Task.raiseError(new RuntimeException()))
+      when(elasticSearch.existsIndex("test")).thenReturn(Task.raiseError(new RuntimeException()))
       when(sparql.namespaceExists).thenReturn(Task.raiseError(new RuntimeException()))
       Get("/health") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json.obj(
-          "cassandra" -> Json.fromString("inaccessible"),
-          "cluster"   -> Json.fromString("inaccessible"),
-          "iam"       -> Json.fromString("inaccessible"),
-          "admin"     -> Json.fromString("inaccessible"),
-          "elastic"   -> Json.fromString("inaccessible"),
-          "sparql"    -> Json.fromString("inaccessible")
+          "cassandra"     -> Json.fromString("inaccessible"),
+          "cluster"       -> Json.fromString("inaccessible"),
+          "iam"           -> Json.fromString("inaccessible"),
+          "admin"         -> Json.fromString("inaccessible"),
+          "elasticSearch" -> Json.fromString("inaccessible"),
+          "sparql"        -> Json.fromString("inaccessible")
         )
       }
     }

@@ -51,7 +51,7 @@ class ResourceFSpec
       "nxv"           -> nxv.base,
       "ex"            -> url"http://example.com/",
       "resource"      -> Schemas.unconstrainedSchemaUri,
-      "elasticsearch" -> nxv.defaultElasticIndex,
+      "elasticsearch" -> nxv.defaultElasticSearchIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )
     implicit val projectMeta: Project = Project(id,
