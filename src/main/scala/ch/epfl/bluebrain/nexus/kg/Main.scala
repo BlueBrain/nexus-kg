@@ -79,9 +79,9 @@ object Main {
     implicit val esDecoders = ElasticDecoder[Json]
     implicit val qrClient   = withUnmarshaller[Task, QueryResults[Json]]
 
-    def clients(implicit elasticConfig: ElasticConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
-      val sparql           = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
-      implicit val elastic = ElasticClient[Task](elasticConfig.base)
+    def clients(implicit elasticSearchConfig: ElasticSearchConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
+      val sparql                 = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
+      implicit val elasticSearch = ElasticClient[Task](elasticSearchConfig.base)
 
       implicit val adminClient = AdminClient[Task](appConfig.admin)
       implicit val iamClient   = IamClient[Task]

@@ -39,12 +39,12 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     um: FromEntityUnmarshaller[String])
     extends CommonRoutes(resources, "views", acls, caller, cache.view) {
 
-  private val emptyEsList: Json                          = jsonContentOf("/elastic/empty-list.json")
+  private val emptyEsList: Json                          = jsonContentOf("/elasticsearch/empty-list.json")
   private val transformation: Transformation[Task, View] = Transformation.view
 
   private implicit val projectCache: ProjectCache[Task] = cache.project
   private implicit val viewCache: ViewCache[Task]       = cache.view
-  private implicit val esClient: ElasticClient[Task]    = indexers.elastic
+  private implicit val esClient: ElasticClient[Task]    = indexers.elasticSearch
   private implicit val ujClient: HttpClient[Task, Json] = indexers.uclJson
 
   def routes: Route = {
@@ -92,23 +92,24 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
       (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermissions(query)) { params =>
         entity(as[Json]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
-            case Some(v: ElasticView) => indexers.elastic.searchRaw(query, Set(v.index), params).map(Right.apply)
-            case Some(AggregateElasticViewRefs(v)) =>
+            case Some(v: ElasticSearchView) =>
+              indexers.elasticSearch.searchRaw(query, Set(v.index), params).map(Right.apply)
+            case Some(AggregateElasticSearchViewRefs(v)) =>
               allowedIndices(v).flatMap {
                 case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
-                case indices                    => indexers.elastic.searchRaw(query, indices.toSet, params).map(Right.apply)
+                case indices                    => indexers.elasticSearch.searchRaw(query, indices.toSet, params).map(Right.apply)
               }
             case _ => Task.pure(Left(NotFound(id.ref)))
           }
-          trace("searchElastic")(complete(result.runWithStatus(StatusCodes.OK)))
+          trace("searchElasticSearch")(complete(result.runWithStatus(StatusCodes.OK)))
         }
       }
     }
 
-  private def allowedIndices(v: AggregateElasticViewRefs): Task[List[String]] =
+  private def allowedIndices(v: AggregateElasticSearchViewRefs): Task[List[String]] =
     v.value.toList.foldM(List.empty[String]) {
       case (acc, ViewRef(ref, id)) =>
-        (cache.view.getBy[ElasticView](ref, id) -> cache.project.getLabel(ref)).mapN {
+        (cache.view.getBy[ElasticSearchView](ref, id) -> cache.project.getLabel(ref)).mapN {
           case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, query) =>
             view.index :: acc
           case _ =>

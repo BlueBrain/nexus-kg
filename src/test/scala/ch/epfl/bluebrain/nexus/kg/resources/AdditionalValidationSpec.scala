@@ -13,12 +13,12 @@ import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticSearchConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
@@ -46,23 +46,23 @@ class AdditionalValidationSpec
     with BeforeAndAfter
     with Inspectors {
 
-  private implicit val clock: Clock                   = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val elastic: ElasticClient[IO]     = mock[ElasticClient[IO]]
-  private implicit val projectCache: ProjectCache[IO] = mock[ProjectCache[IO]]
-  private implicit val viewCache: ViewCache[IO]       = mock[ViewCache[IO]]
+  private implicit val clock: Clock                     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val elasticSearch: ElasticClient[IO] = mock[ElasticClient[IO]]
+  private implicit val projectCache: ProjectCache[IO]   = mock[ProjectCache[IO]]
+  private implicit val viewCache: ViewCache[IO]         = mock[ViewCache[IO]]
 
   before {
-    Mockito.reset(elastic)
+    Mockito.reset(elasticSearch)
     Mockito.reset(projectCache)
     Mockito.reset(viewCache)
   }
 
   "An AdditionalValidation" when {
-    implicit val config: ElasticConfig = ElasticConfig("http://localhost", "kg", "doc", "default")
-    val iri                            = Iri.absolute("http://example.com/id").right.value
-    val projectRef                     = ProjectRef(genUUID)
-    val id                             = Id(projectRef, iri)
-    val user                           = User("dmontero", "ldap")
+    implicit val config: ElasticSearchConfig = ElasticSearchConfig("http://localhost", "kg", "doc", "default")
+    val iri                                  = Iri.absolute("http://example.com/id").right.value
+    val projectRef                           = ProjectRef(genUUID)
+    val id                                   = Id(projectRef, iri)
+    val user                                 = User("dmontero", "ldap")
     val matchingCaller: Caller =
       Caller(user, Set[Identity](user, User("dmontero2", "ldap"), Group("bbp-ou-neuroinformatics", "ldap2")))
 
@@ -134,74 +134,74 @@ class AdditionalValidationSpec
     }
 
     "applied to views" should {
-      val schema           = Ref(viewSchemaUri)
-      val elasticView      = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
-      val aggElasticView   = jsonContentOf("/view/aggelasticview.json").appendContextOf(viewCtx)
-      val sparqlView       = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-      val types            = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
-      val mappings         = elasticView.hcursor.get[String]("mapping").flatMap(parse).right.value
-      def index(rev: Long) = s"kg_${projectRef.id}_3aa14a1a-81e7-4147-8306-136d8270bb01_$rev"
+      val schema               = Ref(viewSchemaUri)
+      val elasticSearchView    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
+      val aggElasticSearchView = jsonContentOf("/view/aggelasticview.json").appendContextOf(viewCtx)
+      val sparqlView           = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
+      val types                = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView, nxv.Alpha)
+      val mappings             = elasticSearchView.hcursor.get[String]("mapping").flatMap(parse).right.value
+      def index(rev: Long)     = s"kg_${projectRef.id}_3aa14a1a-81e7-4147-8306-136d8270bb01_$rev"
 
-      val es = ElasticView(Json.obj(),
-                           Set.empty,
-                           Some("one"),
-                           false,
-                           true,
-                           projectRef,
-                           iri,
-                           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
-                           1L,
-                           false)
+      val es = ElasticSearchView(Json.obj(),
+                                 Set.empty,
+                                 Some("one"),
+                                 false,
+                                 true,
+                                 projectRef,
+                                 iri,
+                                 UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
+                                 1L,
+                                 false)
 
-      "fail when the index throws an error for an ElasticView on creation" in {
+      "fail when the index throws an error for an ElasticSearchView on creation" in {
         val idx        = index(1L)
         val validation = AdditionalValidation.view[IO](matchingCaller, acls)
-        val resource   = simpleV(id, elasticView, types = types)
-        elastic.createIndex(idx, any[Json]) shouldReturn IO.raiseError(
+        val resource   = simpleV(id, elasticSearchView, types = types)
+        elasticSearch.createIndex(idx, any[Json]) shouldReturn IO.raiseError(
           ElasticServerError(StatusCodes.BadRequest, "Error on creation..."))
         validation(id, schema, types, resource.value, 1L).value.failed[ElasticServerError]
       }
 
-      "fail when the mappings are wrong for an ElasticView" in {
+      "fail when the mappings are wrong for an ElasticSearchView" in {
         val validation = AdditionalValidation.view[IO](matchingCaller, acls)
-        val resource   = simpleV(id, elasticView, types = types)
-        elastic.createIndex(any[String], any[Json]) shouldReturn IO.pure(true)
-        elastic.updateMapping(any[String], any[String], any[Json]) shouldReturn IO.raiseError(
+        val resource   = simpleV(id, elasticSearchView, types = types)
+        elasticSearch.createIndex(any[String], any[Json]) shouldReturn IO.pure(true)
+        elasticSearch.updateMapping(any[String], any[String], any[Json]) shouldReturn IO.raiseError(
           ElasticServerError(StatusCodes.BadRequest, "Error on mappings..."))
 
         validation(id, schema, types, resource.value, 1L).value.failed[ElasticServerError]
       }
 
-      "fail when the elasticSearch mappings cannot be applied because the index does not exists for an ElasticView" in {
+      "fail when the elasticSearch mappings cannot be applied because the index does not exists for an ElasticSearchView" in {
         val validation = AdditionalValidation.view[IO](matchingCaller, acls)
-        val resource   = simpleV(id, elasticView, types = types)
+        val resource   = simpleV(id, elasticSearchView, types = types)
         val idx        = index(3L)
-        elastic.createIndex(idx, any[Json]) shouldReturn IO.pure(true)
-        elastic.updateMapping(idx, config.docType, mappings) shouldReturn IO.pure(false)
+        elasticSearch.createIndex(idx, any[Json]) shouldReturn IO.pure(true)
+        elasticSearch.updateMapping(idx, config.docType, mappings) shouldReturn IO.pure(false)
         validation(id, schema, types, resource.value, 3L).value.failed[KgError.InternalError]
       }
 
-      "pass when the mappings are correct for an ElasticView" in {
+      "pass when the mappings are correct for an ElasticSearchView" in {
         val validation = AdditionalValidation.view[IO](matchingCaller, acls)
-        val resource   = simpleV(id, elasticView, types = types, rev = 2L)
+        val resource   = simpleV(id, elasticSearchView, types = types, rev = 2L)
         val idx        = index(2L)
-        elastic.createIndex(idx, any[Json]) shouldReturn IO.pure(true)
-        elastic.updateMapping(idx, config.docType, mappings) shouldReturn IO.pure(true)
+        elasticSearch.createIndex(idx, any[Json]) shouldReturn IO.pure(true)
+        elasticSearch.updateMapping(idx, config.docType, mappings) shouldReturn IO.pure(true)
         validation(id, schema, types, resource.value, 2L).value.accepted shouldEqual resource.value
       }
 
-      "fail when project not found in cache for a AggregateElasticView" in {
-        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
+      "fail when project not found in cache for a AggregateElasticSearchView" in {
+        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
 
         projectCache.getProjectRefs(labels) shouldReturn IO.pure(Map[ProjectLabel, Option[ProjectRef]](label1 -> None))
 
         val validation = AdditionalValidation.view[IO](matchingCaller, acls)
-        val resource   = simpleV(id, aggElasticView, types = types)
+        val resource   = simpleV(id, aggElasticSearchView, types = types)
         validation(id, schema, types, resource.value, 1L).value.rejected[ProjectsNotFound]
       }
 
-      "fail when view cannot be found on cache using AggregateElasticView" in {
-        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
+      "fail when view cannot be found on cache using AggregateElasticSearchView" in {
+        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
 
         val id2 = url"http://example.com/id3"
         val id3 = url"http://example.com/other"
@@ -210,12 +210,12 @@ class AdditionalValidationSpec
         viewCache.get(ref2) shouldReturn IO.pure(Set[View](es.copy(id = id2), es.copy(id = id3)))
 
         val validation = AdditionalValidation.view[IO](matchingCaller, acls)
-        val resource   = simpleV(id, aggElasticView, types = types)
+        val resource   = simpleV(id, aggElasticSearchView, types = types)
         validation(id, schema, types, resource.value, 1L).value.rejected[NotFound]
       }
 
-      "fail no permissions found on project referenced on AggregateElasticView" in {
-        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
+      "fail no permissions found on project referenced on AggregateElasticSearchView" in {
+        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
 
         val aclsWrongPerms =
           List(
@@ -227,7 +227,7 @@ class AdditionalValidationSpec
               "other" / "project" -> resourceAcls(AccessControlList(user -> Set(Permission.unsafe("views/manage")))))
           )
 
-        val resource = simpleV(id, aggElasticView, types = types)
+        val resource = simpleV(id, aggElasticSearchView, types = types)
         forAll(aclsWrongPerms) { a =>
           val validation = AdditionalValidation.view[IO](matchingCaller, a)
           validation(id, schema, types, resource.value, 1L).value
@@ -235,8 +235,8 @@ class AdditionalValidationSpec
         }
       }
 
-      "pass when correct AggregateElasticView" in {
-        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticView, nxv.Alpha)
+      "pass when correct AggregateElasticSearchView" in {
+        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
 
         val id1 = url"http://example.com/id2"
         val id2 = url"http://example.com/id3"
@@ -246,7 +246,7 @@ class AdditionalValidationSpec
         viewCache.get(ref2) shouldReturn IO.pure(Set[View](es.copy(id = id2), es.copy(id = id3)))
 
         val validation = AdditionalValidation.view[IO](matchingCaller, acls)
-        val resource   = simpleV(id, aggElasticView, types = types)
+        val resource   = simpleV(id, aggElasticSearchView, types = types)
         val expected   = jsonContentOf("/view/aggelasticviewrefs.json").addContext(viewCtxUri)
         val result     = validation(id, schema, types, resource.value, 1L).value.accepted
         result.ctx shouldEqual resource.value.ctx

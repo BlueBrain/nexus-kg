@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticSearchConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -62,13 +62,13 @@ sealed trait View extends Product with Serializable {
     s"${ref.id}_${uuid}_$rev"
 
   /**
-    * Attempts to convert the current view to a labeled view when required. This conversion is only targetting ''AggregateElasticView of ViewRef[ProjectRef]'',
+    * Attempts to convert the current view to a labeled view when required. This conversion is only targetting ''AggregateElasticSearchView of ViewRef[ProjectRef]'',
     * returning all the other views unchanged.
-    * For the case of ''AggregateElasticView of ViewRef[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
+    * For the case of ''AggregateElasticSearchView of ViewRef[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
     */
   def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, View] =
     this match {
-      case AggregateElasticViewRefs(v) =>
+      case AggregateElasticSearchViewRefs(v) =>
         val refToLabel = projectCache.getProjectLabels(v.projects)
         EitherT(refToLabel.map(
           resultOrFailures(_).bimap(LabelsNotFound, res => v.copy(value = v.value.map(vr => vr.map(res(vr.project)))))))
@@ -76,16 +76,16 @@ sealed trait View extends Product with Serializable {
     }
 
   /**
-    * Attempts to convert the current view to a referenced view when required. This conversion is only targetting ''AggregateElasticView of ViewRef[ProjectLabel]'',
+    * Attempts to convert the current view to a referenced view when required. This conversion is only targetting ''AggregateElasticSearchView of ViewRef[ProjectLabel]'',
     * returning all the other views unchanged.
-    * For the case of ''AggregateElasticView of ViewRef[ProjectLabel]'',
+    * For the case of ''AggregateElasticSearchView of ViewRef[ProjectLabel]'',
     * the conversion is successful when the the mapping ''projectLabel -> projectRef'' and the viewId exists on the ''cache''
     */
   def referenced[F[_]](caller: Caller, acls: AccessControlLists)(implicit projectCache: ProjectCache[F],
                                                                  viewCache: ViewCache[F],
                                                                  F: Monad[F]): EitherT[F, Rejection, View] = {
     this match {
-      case AggregateElasticViewLabels(r) =>
+      case AggregateElasticSearchViewLabels(r) =>
         val labelIris = r.value.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
           acc + (c.project -> (acc.getOrElse(c.project, Set.empty) + c.id))
         }
@@ -101,7 +101,7 @@ sealed trait View extends Product with Serializable {
                 acc.flatMap { _ =>
                   EitherT(viewCache.get(ref).map { views =>
                     val toTarget = labelIris.getOrElse(label, Set.empty)
-                    val found    = views.collect { case es: ElasticView if toTarget.contains(es.id) => es.id }
+                    val found    = views.collect { case es: ElasticSearchView if toTarget.contains(es.id) => es.id }
                     (toTarget -- found).headOption.map(iri => NotFound(iri.ref)).toLeft(view)
                   })
                 }
@@ -144,7 +144,7 @@ object View {
     val c          = res.value.graph.cursor(res.id.value)
     val uuidEither = c.downField(nxv.uuid).focus.as[UUID]
 
-    def elastic(): Either[Rejection, View] =
+    def elasticSearch(): Either[Rejection, View] =
       // format: off
       for {
         uuid          <- uuidEither.toInvalidPayloadEither(res.id.ref)
@@ -155,7 +155,7 @@ object View {
         includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
         sourceAsText  = c.downField(nxv.sourceAsText).focus.as[Boolean].getOrElse(false)
       } yield
-        ElasticView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
+        ElasticSearchView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
 
     def sparql(): Either[Rejection, View] =
@@ -176,7 +176,7 @@ object View {
       val result = for {
         uuid <- uuidEither.toInvalidPayloadEither(res.id.ref)
         emptyViewRefs = Set.empty[ViewRef[String]]
-      } yield AggregateElasticView(emptyViewRefs, id.parent, uuid, id.value, res.rev, res.deprecated)
+      } yield AggregateElasticSearchView(emptyViewRefs, id.parent, uuid, id.value, res.rev, res.deprecated)
 
       val cursorList = c.downField(nxv.views).downArray.toList
       result.flatMap { v =>
@@ -187,9 +187,9 @@ object View {
       }
     }
 
-    if (Set(nxv.View.value, nxv.Alpha.value, nxv.ElasticView.value).subsetOf(res.types)) elastic()
+    if (Set(nxv.View.value, nxv.Alpha.value, nxv.ElasticSearchView.value).subsetOf(res.types)) elasticSearch()
     else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
-    else if (Set(nxv.View.value, nxv.AggregateElasticView.value).subsetOf(res.types)) multiEsView()
+    else if (Set(nxv.View.value, nxv.AggregateElasticSearchView.value).subsetOf(res.types)) multiEsView()
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the view types"))
   }
 
@@ -209,7 +209,7 @@ object View {
     * @param rev             the view revision
     * @param deprecated      the deprecation state of the view
     */
-  final case class ElasticView(
+  final case class ElasticSearchView(
       mapping: Json,
       resourceSchemas: Set[AbsoluteIri],
       resourceTag: Option[String],
@@ -225,42 +225,43 @@ object View {
     /**
       * Generates the elasticSearch index
       *
-      * @param config the [[ElasticConfig]]
+      * @param config the [[ElasticSearchConfig]]
       */
-    def index(implicit config: ElasticConfig): String = s"${config.indexPrefix}_$name"
+    def index(implicit config: ElasticSearchConfig): String = s"${config.indexPrefix}_$name"
 
     /**
-      * Attempts to create the index for the [[ElasticView]].
+      * Attempts to create the index for the [[ElasticSearchView]].
       *
       * @tparam F the effect type
       * @return ''Unit'' when the index was successfully created, a ''Rejection'' signaling the type of error
       *         when the index couldn't be created wrapped in an [[Either]]. The either is then wrapped in the
       *         effect type ''F''
       */
-    def createIndex[F[_]](implicit elastic: ElasticClient[F],
-                          config: ElasticConfig,
+    def createIndex[F[_]](implicit elasticSearch: ElasticClient[F],
+                          config: ElasticSearchConfig,
                           F: MonadError[F, Throwable]): F[Unit] =
-      elastic
+      elasticSearch
         .createIndex(index)
-        .flatMap(_ => elastic.updateMapping(index, config.docType, mapping))
+        .flatMap(_ => elasticSearch.updateMapping(index, config.docType, mapping))
         .flatMap {
           case true  => F.unit
           case false => F.raiseError(KgError.InternalError("View mapping validation could not be performed"))
         }
   }
 
-  object ElasticView {
+  object ElasticSearchView {
     private val defaultViewId = UUID.fromString("684bd815-9273-46f4-ac1c-0383d4a98254")
 
     /**
-      * Default [[ElasticView]] that gets created for every project.
+      * Default [[ElasticSearchView]] that gets created for every project.
       *
       * @param ref the project unique identifier
       */
-    def default(ref: ProjectRef)(implicit elasticConfig: ElasticConfig): ElasticView = {
-      val mapping = jsonContentOf("/elastic/mapping.json", Map(Pattern.quote("{{docType}}") -> elasticConfig.docType))
+    def default(ref: ProjectRef)(implicit elasticSearchConfig: ElasticSearchConfig): ElasticSearchView = {
+      val mapping =
+        jsonContentOf("/elasticsearch/mapping.json", Map(Pattern.quote("{{docType}}") -> elasticSearchConfig.docType))
       // format: off
-      ElasticView(mapping, Set.empty, None, includeMetadata = true, sourceAsText = true, ref, nxv.defaultElasticIndex.value, defaultViewId, 1L, deprecated = false)
+      ElasticSearchView(mapping, Set.empty, None, includeMetadata = true, sourceAsText = true, ref, nxv.defaultElasticSearchIndex.value, defaultViewId, 1L, deprecated = false)
       // format: on
     }
   }
@@ -296,7 +297,7 @@ object View {
   }
 
   /**
-    * Aggregation of [[ElasticView]].
+    * Aggregation of [[ElasticSearchView]].
     *
     * @param value      the set of views that this view connects to when performing searches
     * @param ref        a reference to the project that the view belongs to
@@ -305,7 +306,7 @@ object View {
     * @param rev        the view revision
     * @param deprecated the deprecation state of the view
     */
-  final case class AggregateElasticView[P: Show](
+  final case class AggregateElasticSearchView[P: Show](
       value: Set[ViewRef[P]],
       ref: ProjectRef,
       uuid: UUID,
@@ -321,11 +322,11 @@ object View {
                       viewCache: ViewCache[F],
                       acls: AccessControlLists,
                       caller: Caller,
-                      config: ElasticConfig,
+                      config: ElasticSearchConfig,
                       F: Monad[F]): F[Set[String]] =
       value.foldLeft(F.pure(Set.empty[String])) {
         case (accF, ViewRef(ref: ProjectRef, id)) =>
-          (accF, viewCache.getBy[ElasticView](ref, id), projectCache.getLabel(ref)).mapN {
+          (accF, viewCache.getBy[ElasticSearchView](ref, id), projectCache.getLabel(ref)).mapN {
             case (acc, Some(view), Some(label)) if caller.hasPermission(acls, label, query) =>
               acc + view.index
             case (acc, _, _) => acc
@@ -344,20 +345,20 @@ object View {
     def map[A](a: A): ViewRef[A] = copy(project = a)
   }
 
-  type AggregateElasticViewLabels = AggregateElasticView[ProjectLabel]
-  object AggregateElasticViewLabels {
-    final def unapply(arg: AggregateElasticView[_]): Option[AggregateElasticViewLabels] =
+  type AggregateElasticSearchViewLabels = AggregateElasticSearchView[ProjectLabel]
+  object AggregateElasticSearchViewLabels {
+    final def unapply(arg: AggregateElasticSearchView[_]): Option[AggregateElasticSearchViewLabels] =
       arg.value.toSeq match {
-        case ViewRef(_: ProjectLabel, _) +: _ => Some(arg.asInstanceOf[AggregateElasticViewLabels])
+        case ViewRef(_: ProjectLabel, _) +: _ => Some(arg.asInstanceOf[AggregateElasticSearchViewLabels])
         case _                                => None
       }
   }
 
-  type AggregateElasticViewRefs = AggregateElasticView[ProjectRef]
-  object AggregateElasticViewRefs {
-    final def unapply(arg: AggregateElasticView[_]): Option[AggregateElasticViewRefs] =
+  type AggregateElasticSearchViewRefs = AggregateElasticSearchView[ProjectRef]
+  object AggregateElasticSearchViewRefs {
+    final def unapply(arg: AggregateElasticSearchView[_]): Option[AggregateElasticSearchViewRefs] =
       arg.value.toSeq match {
-        case ViewRef(_: ProjectRef, _) +: _ => Some(arg.asInstanceOf[AggregateElasticViewRefs])
+        case ViewRef(_: ProjectRef, _) +: _ => Some(arg.asInstanceOf[AggregateElasticSearchViewRefs])
         case _                              => None
       }
   }

@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
@@ -39,14 +39,14 @@ class ViewCacheSpec
   val ref1 = ProjectRef(genUUID)
   val ref2 = ProjectRef(genUUID)
 
-  val esView = ElasticView(Json.obj(), Set.empty, None, false, true, ref1, genIri, genUUID, 1L, false)
+  val esView = ElasticSearchView(Json.obj(), Set.empty, None, false, true, ref1, genIri, genUUID, 1L, false)
 
   val sparqlView = SparqlView(ref1, nxv.defaultSparqlIndex.value, genUUID, 1L, false)
 
-  val esViewsProj1     = List.fill(5)(esView.copy(mapping = genJson, id = genIri + "elastic1", uuid = genUUID)).toSet
+  val esViewsProj1     = List.fill(5)(esView.copy(mapping = genJson, id = genIri + "elasticSearch1", uuid = genUUID)).toSet
   val sparqlViewsProj1 = List.fill(5)(sparqlView.copy(id = genIri + "sparql1", uuid = genUUID)).toSet
   val esViewsProj2 =
-    List.fill(5)(esView.copy(mapping = genJson, id = genIri + "elastic2", uuid = genUUID, ref = ref2)).toSet
+    List.fill(5)(esView.copy(mapping = genJson, id = genIri + "elasticSearch2", uuid = genUUID, ref = ref2)).toSet
   val sparqlViewsProj2 = List.fill(5)(sparqlView.copy(id = genIri + "sparql2", uuid = genUUID, ref = ref2)).toSet
 
   private val cache = ViewCache[Task]
@@ -63,7 +63,7 @@ class ViewCacheSpec
     "get views" in {
       forAll(esViewsProj1) { view =>
         cache.put(view).runToFuture.futureValue
-        cache.getBy[ElasticView](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
+        cache.getBy[ElasticSearchView](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
         cache.getBy[SparqlView](view.ref, view.id).runToFuture.futureValue shouldEqual None
       }
     }
@@ -74,7 +74,7 @@ class ViewCacheSpec
     }
 
     "list filtering by type" in {
-      cache.getBy[ElasticView](ref1).runToFuture.futureValue shouldEqual esViewsProj1
+      cache.getBy[ElasticSearchView](ref1).runToFuture.futureValue shouldEqual esViewsProj1
       cache.getBy[SparqlView](ref2).runToFuture.futureValue shouldEqual sparqlViewsProj2
     }
 

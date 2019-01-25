@@ -16,8 +16,8 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache.RevisionedViews
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SingleView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticIndexer, SparqlIndexer, View}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SingleView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticSearchIndexer, SparqlIndexer, View}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
@@ -107,10 +107,11 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
       case ViewsChanges(_, views) =>
         views.map {
           case view if !children.keySet.exists(_.id == view.id) => startView(view)
-          case view: ElasticView =>
+          case view: ElasticSearchView =>
             children
               .collectFirst {
-                case (v: ElasticView, ref) if v.id == view.id && v.ref == view.ref && v.rev != view.rev => v -> ref
+                case (v: ElasticSearchView, ref) if v.id == view.id && v.ref == view.ref && v.rev != view.rev =>
+                  v -> ref
               }
               .foreach {
                 case (oldView, ref) =>
@@ -190,13 +191,13 @@ object ProjectViewCoordinatorActor {
 
           override def startActor(view: SingleView, project: Project): ActorRef =
             view match {
-              case v: ElasticView => ElasticIndexer.start(v, resources, project)
-              case v: SparqlView  => SparqlIndexer.start(v, resources, project)
+              case v: ElasticSearchView => ElasticSearchIndexer.start(v, resources, project)
+              case v: SparqlView        => SparqlIndexer.start(v, resources, project)
             }
 
           override def deleteViewIndices(view: SingleView, project: Project): Task[Unit] = view match {
-            case v: ElasticView =>
-              log.info("ElasticView index '{}' is removed from project '{}'", v.index, project.projectLabel.show)
+            case v: ElasticSearchView =>
+              log.info("ElasticSearchView index '{}' is removed from project '{}'", v.index, project.projectLabel.show)
               esClient.deleteIndex(v.index).retryWhenNot({ case true => () }, 10)
             case _: SparqlView =>
               log.info("Blazegraph keyspace '{}' is removed from project '{}'", view.name, project.projectLabel.show)

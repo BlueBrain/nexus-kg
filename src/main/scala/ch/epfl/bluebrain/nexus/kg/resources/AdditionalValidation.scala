@@ -8,10 +8,10 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientErr
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticSearchConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder.viewGraphEncoder
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
@@ -52,17 +52,17 @@ object AdditionalValidation {
     *
     * @tparam F the monadic effect type
     * @return a new validation that passes whenever the provided mappings are compliant with the ElasticSearch mappings or
-    *         when the view is not an ElasticView
+    *         when the view is not an ElasticSearchView
     */
   final def view[F[_]](caller: Caller, acls: AccessControlLists)(implicit F: MonadError[F, Throwable],
-                                                                 elastic: ElasticClient[F],
-                                                                 config: ElasticConfig,
+                                                                 elasticSearch: ElasticClient[F],
+                                                                 config: ElasticSearchConfig,
                                                                  projectCache: ProjectCache[F],
                                                                  viewCache: ViewCache[F]): AdditionalValidation[F] =
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) => {
       val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
       EitherT.fromEither(View(resource)).flatMap {
-        case es: ElasticView =>
+        case es: ElasticSearchView =>
           EitherT(
             es.createIndex[F]
               .map[Either[Rejection, Value]](_ => Right(value))
@@ -70,7 +70,7 @@ object AdditionalValidation {
                 case ElasticClientError(_, body) => F.pure(Left(InvalidResourceFormat(id.ref, body)))
               }
           )
-        case agg: AggregateElasticView[_] =>
+        case agg: AggregateElasticSearchView[_] =>
           agg.referenced[F](caller, acls).map(r => value.map(r, _.removeKeys("@context").addContext(viewCtxUri)))
         case _ => EitherT.rightT(value)
       }

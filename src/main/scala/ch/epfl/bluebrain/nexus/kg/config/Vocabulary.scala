@@ -49,7 +49,7 @@ object Vocabulary {
     val bytes     = PrefixMapping.metadata("bytes")
     val mediaType = PrefixMapping.metadata("mediaType")
 
-    // Elasticsearch sourceAsText predicate
+    // ElasticSearch sourceAsText predicate
     val originalSource = PrefixMapping.metadata("original_source")
 
     // Tagging resource payload vocabulary
@@ -75,29 +75,29 @@ object Vocabulary {
     val viewId          = PrefixMapping.prefix("viewId")
 
     // View default ids
-    val defaultElasticIndex = PrefixMapping.prefix("defaultElasticIndex")
-    val defaultSparqlIndex  = PrefixMapping.prefix("defaultSparqlIndex")
+    val defaultElasticSearchIndex = PrefixMapping.prefix("defaultElasticSearchIndex")
+    val defaultSparqlIndex        = PrefixMapping.prefix("defaultSparqlIndex")
 
     //Resolver default id
     val defaultResolver = PrefixMapping.prefix("defaultInProject")
 
     // @type platform ids
-    val Schema               = PrefixMapping.prefix("Schema")
-    val File                 = PrefixMapping.prefix("File")
-    val Resource             = PrefixMapping.prefix("Resource")
-    val Ontology             = PrefixMapping.prefix("Ontology")
-    val Resolver             = PrefixMapping.prefix("Resolver")
-    val InProject            = PrefixMapping.prefix("InProject")
-    val CrossProject         = PrefixMapping.prefix("CrossProject")
-    val View                 = PrefixMapping.prefix("View")
-    val ElasticView          = PrefixMapping.prefix("ElasticView")
-    val SparqlView           = PrefixMapping.prefix("SparqlView")
-    val AggregateElasticView = PrefixMapping.prefix("AggregateElasticView")
-    val User                 = PrefixMapping.prefix("User")
-    val Group                = PrefixMapping.prefix("Group")
-    val Authenticated        = PrefixMapping.prefix("Authenticated")
-    val Anonymous            = PrefixMapping.prefix("Anonymous")
-    val Alpha                = PrefixMapping.prefix("Alpha")
+    val Schema                     = PrefixMapping.prefix("Schema")
+    val File                       = PrefixMapping.prefix("File")
+    val Resource                   = PrefixMapping.prefix("Resource")
+    val Ontology                   = PrefixMapping.prefix("Ontology")
+    val Resolver                   = PrefixMapping.prefix("Resolver")
+    val InProject                  = PrefixMapping.prefix("InProject")
+    val CrossProject               = PrefixMapping.prefix("CrossProject")
+    val View                       = PrefixMapping.prefix("View")
+    val ElasticSearchView          = PrefixMapping.prefix("ElasticSearchView")
+    val SparqlView                 = PrefixMapping.prefix("SparqlView")
+    val AggregateElasticSearchView = PrefixMapping.prefix("AggregateElasticSearchView")
+    val User                       = PrefixMapping.prefix("User")
+    val Group                      = PrefixMapping.prefix("Group")
+    val Authenticated              = PrefixMapping.prefix("Authenticated")
+    val Anonymous                  = PrefixMapping.prefix("Anonymous")
+    val Alpha                      = PrefixMapping.prefix("Alpha")
   }
 
   /**

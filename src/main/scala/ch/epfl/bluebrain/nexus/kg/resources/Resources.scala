@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -340,11 +340,11 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * @param pagination pagination options
     * @return search results in the F context
     */
-  def list(view: Option[ElasticView], params: SearchParams, pagination: Pagination)(
+  def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elastic: ElasticClient[F]): F[JsonResults] =
+      elasticSearch: ElasticClient[F]): F[JsonResults] =
     view
-      .map(v => elastic.search[Json](queryFor(params), Set(v.index))(pagination))
+      .map(v => elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination))
       .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))
       .recoverWith {
         case ElasticClientError(status, body) =>

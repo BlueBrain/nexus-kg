@@ -37,7 +37,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticView, ElasticView, SparqlView, ViewRef}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
@@ -108,15 +108,15 @@ class ResourceRoutesSpec
 
   private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache)
 
-  private implicit val ec         = system.dispatcher
-  private implicit val mt         = ActorMaterializer()
-  private implicit val utClient   = untyped[Task]
-  private implicit val qrClient   = withUnmarshaller[Task, QueryResults[Json]]
-  private implicit val jsonClient = withUnmarshaller[Task, Json]
-  private val sparql              = mock[BlazegraphClient[Task]]
-  private implicit val elastic    = mock[ElasticClient[Task]]
-  private implicit val aclsOps    = mock[AclsOps]
-  private implicit val clients    = Clients(sparql)
+  private implicit val ec            = system.dispatcher
+  private implicit val mt            = ActorMaterializer()
+  private implicit val utClient      = untyped[Task]
+  private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
+  private implicit val jsonClient    = withUnmarshaller[Task, Json]
+  private val sparql                 = mock[BlazegraphClient[Task]]
+  private implicit val elasticSearch = mock[ElasticClient[Task]]
+  private implicit val aclsOps       = mock[AclsOps]
+  private implicit val clients       = Clients(sparql)
 
   private val user                              = User("dmontero", "realm")
   private implicit val subject: Subject         = user
@@ -143,7 +143,7 @@ class ResourceRoutesSpec
       "resolver"        -> Schemas.resolverSchemaUri,
       "file"            -> Schemas.fileSchemaUri,
       "nxv"             -> nxv.base,
-      "documents"       -> nxv.defaultElasticIndex,
+      "documents"       -> nxv.defaultElasticSearchIndex,
       "graph"           -> nxv.defaultSparqlIndex,
       "defaultResolver" -> nxv.defaultResolver
     )
@@ -186,33 +186,34 @@ class ResourceRoutesSpec
       )
 
     val defaultEsView =
-      ElasticView(Json.obj(),
-                  Set.empty,
-                  None,
-                  false,
-                  true,
-                  projectRef,
-                  nxv.defaultElasticIndex.value,
-                  genUUID,
-                  1L,
-                  false)
+      ElasticSearchView(Json.obj(),
+                        Set.empty,
+                        None,
+                        false,
+                        true,
+                        projectRef,
+                        nxv.defaultElasticSearchIndex.value,
+                        genUUID,
+                        1L,
+                        false)
 
     val otherEsView =
-      ElasticView(Json.obj(),
-                  Set.empty,
-                  None,
-                  false,
-                  true,
-                  projectRef,
-                  nxv.withSuffix("otherEs").value,
-                  genUUID,
-                  1L,
-                  false)
+      ElasticSearchView(Json.obj(),
+                        Set.empty,
+                        None,
+                        false,
+                        true,
+                        projectRef,
+                        nxv.withSuffix("otherEs").value,
+                        genUUID,
+                        1L,
+                        false)
 
     val defaultSQLView = SparqlView(projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
 
-    val aggView = AggregateElasticView(
-      Set(ViewRef(projectRef, nxv.defaultElasticIndex.value), ViewRef(projectRef, nxv.withSuffix("otherEs").value)),
+    val aggView = AggregateElasticSearchView(
+      Set(ViewRef(projectRef, nxv.defaultElasticSearchIndex.value),
+          ViewRef(projectRef, nxv.withSuffix("otherEs").value)),
       projectRef,
       genUUID,
       nxv.withSuffix("agg").value,
@@ -227,12 +228,16 @@ class ResourceRoutesSpec
     when(viewCache.get(projectRef))
       .thenReturn(Task.pure(Set[IndexingView](defaultEsView, defaultSQLView, aggView, otherEsView)))
     when(
-      viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.defaultElasticIndex.value))(any[Typeable[IndexingView]]))
-      .thenReturn(Task.pure(Some(defaultEsView)))
-    when(viewCache.getBy[ElasticView](mEq(projectRef), mEq(nxv.defaultElasticIndex.value))(any[Typeable[ElasticView]]))
+      viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.defaultElasticSearchIndex.value))(
+        any[Typeable[IndexingView]]))
       .thenReturn(Task.pure(Some(defaultEsView)))
     when(
-      viewCache.getBy[ElasticView](mEq(projectRef), mEq(nxv.withSuffix("otherEs").value))(any[Typeable[ElasticView]]))
+      viewCache.getBy[ElasticSearchView](mEq(projectRef), mEq(nxv.defaultElasticSearchIndex.value))(
+        any[Typeable[ElasticSearchView]]))
+      .thenReturn(Task.pure(Some(defaultEsView)))
+    when(
+      viewCache.getBy[ElasticSearchView](mEq(projectRef), mEq(nxv.withSuffix("otherEs").value))(
+        any[Typeable[ElasticSearchView]]))
       .thenReturn(Task.pure(Some(otherEsView)))
     when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.withSuffix("agg").value))(any[Typeable[IndexingView]]))
       .thenReturn(Task.pure(Some(aggView)))
@@ -331,13 +336,13 @@ class ResourceRoutesSpec
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
       .addContext(viewCtxUri)
 
-    val types     = Set[AbsoluteIri](nxv.View, nxv.ElasticView, nxv.Alpha)
+    val types     = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView, nxv.Alpha)
     val schemaRef = Ref(viewSchemaUri)
 
     def viewResponse(): Json =
       response() deepMerge Json.obj(
         "@type" -> Json
-          .arr(Json.fromString("nxv:View"), Json.fromString("nxv:ElasticView"), Json.fromString("nxv:Alpha")),
+          .arr(Json.fromString("nxv:View"), Json.fromString("nxv:ElasticSearchView"), Json.fromString("nxv:Alpha")),
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/views/$organization/$project/nxv:$genUuid")
       )
   }
@@ -778,29 +783,31 @@ class ResourceRoutesSpec
       }
     }
 
-    "search for resources on a ElasticView" in new Views {
+    "search for resources on a ElasticSearchView" in new Views {
       val query      = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
       val esResponse = jsonContentOf("/view/search-response.json")
 
       when(
-        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
-          any[HttpClient[Task, Json]]))
+        elasticSearch.searchRaw(mEq(query),
+                                mEq(Set(s"kg_${defaultEsView.name}")),
+                                mEq(Uri.Query(Map("other" -> "value"))))(any[HttpClient[Task, Json]]))
         .thenReturn(Task.pure(esResponse))
 
-      Post(s"/v1/views/$organization/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
+      Post(s"/v1/views/$organization/$project/nxv:defaultElasticSearchIndex/_search?other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual esResponse
       }
     }
 
-    "search for resources on a AggElasticView" in new Views {
+    "search for resources on a AggElasticSearchView" in new Views {
       val query      = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
       val esResponse = jsonContentOf("/view/search-response.json")
 
       when(
-        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}", s"kg_${otherEsView.name}")), mEq(Query()))(
-          any[HttpClient[Task, Json]]))
+        elasticSearch.searchRaw(mEq(query),
+                                mEq(Set(s"kg_${defaultEsView.name}", s"kg_${otherEsView.name}")),
+                                mEq(Query()))(any[HttpClient[Task, Json]]))
         .thenReturn(Task.pure(esResponse))
 
       Post(s"/v1/views/$organization/$project/nxv:agg/_search", query) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -809,32 +816,34 @@ class ResourceRoutesSpec
       }
     }
 
-    "return 400 Bad Request from Elastic Search " in new Views {
+    "return 400 Bad Request from ElasticSearch Search " in new Views {
       val query      = Json.obj("query" -> Json.obj("error" -> Json.obj()))
       val esResponse = jsonContentOf("/view/search-error-response.json")
 
       when(
-        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
-          any[HttpClient[Task, Json]]))
+        elasticSearch.searchRaw(mEq(query),
+                                mEq(Set(s"kg_${defaultEsView.name}")),
+                                mEq(Uri.Query(Map("other" -> "value"))))(any[HttpClient[Task, Json]]))
         .thenReturn(Task.raiseError(ElasticClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
 
-      Post(s"/v1/views/$organization/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
+      Post(s"/v1/views/$organization/$project/nxv:defaultElasticSearchIndex/_search?other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Json] shouldEqual esResponse
       }
     }
 
-    "return 400 Bad Request from Elastic Search when response is not JSON" in new Views {
+    "return 400 Bad Request from ElasticSearch Search when response is not JSON" in new Views {
       val query      = Json.obj("query" -> Json.obj("error" -> Json.obj()))
       val esResponse = "some error response"
 
       when(
-        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
-          any[HttpClient[Task, Json]]))
+        elasticSearch.searchRaw(mEq(query),
+                                mEq(Set(s"kg_${defaultEsView.name}")),
+                                mEq(Uri.Query(Map("other" -> "value"))))(any[HttpClient[Task, Json]]))
         .thenReturn(Task.raiseError(ElasticClientError(StatusCodes.BadRequest, esResponse)))
 
-      Post(s"/v1/views/$organization/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
+      Post(s"/v1/views/$organization/$project/nxv:defaultElasticSearchIndex/_search?other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[String] shouldEqual esResponse
@@ -846,11 +855,12 @@ class ResourceRoutesSpec
       val esResponse = "some error response"
 
       when(
-        elastic.searchRaw(mEq(query), mEq(Set(s"kg_${defaultEsView.name}")), mEq(Uri.Query(Map("other" -> "value"))))(
-          any[HttpClient[Task, Json]]))
+        elasticSearch.searchRaw(mEq(query),
+                                mEq(Set(s"kg_${defaultEsView.name}")),
+                                mEq(Uri.Query(Map("other" -> "value"))))(any[HttpClient[Task, Json]]))
         .thenReturn(Task.raiseError(ElasticUnexpectedError(StatusCodes.ImATeapot, esResponse)))
 
-      Post(s"/v1/views/$organization/$project/nxv:defaultElasticIndex/_search?other=value", query) ~> addCredentials(
+      Post(s"/v1/views/$organization/$project/nxv:defaultElasticSearchIndex/_search?other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.InternalServerError
         responseAs[Error].tpe shouldEqual classNameOf[KgError.InternalError]

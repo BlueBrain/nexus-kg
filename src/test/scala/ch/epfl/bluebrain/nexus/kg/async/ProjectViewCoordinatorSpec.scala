@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.async.ViewCache.RevisionedViews
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef}
 import ch.epfl.bluebrain.nexus.service.indexer.cache.OnKeyValueStoreChange
@@ -51,7 +51,7 @@ class ProjectViewCoordinatorSpec
     // format: on
     val view = SparqlView(project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2 =
-      ElasticView(Json.obj(), Set(genIri), None, true, true, project.ref, genIri, genUUID, 1L, deprecated = false)
+      ElasticSearchView(Json.obj(), Set(genIri), None, true, true, project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2Updated = view2.copy(resourceSchemas = Set(genIri), rev = 2L)
     val view3        = SparqlView(project2.ref, genIri, genUUID, 1L, deprecated = false)
 

@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -154,7 +154,7 @@ private[routes] abstract class CommonRoutes(
       trace(s"list$resourceName") {
         complete(
           viewCache
-            .getBy[ElasticView](project.ref, nxv.defaultElasticIndex.value)
+            .getBy[ElasticSearchView](project.ref, nxv.defaultElasticSearchIndex.value)
             .flatMap(v => resources.list(v, params.copy(schema = schema), pagination))
             .runToFuture)
       }

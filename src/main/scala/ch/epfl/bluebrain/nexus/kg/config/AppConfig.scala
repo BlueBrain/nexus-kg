@@ -35,7 +35,7 @@ import scala.concurrent.duration.FiniteDuration
   * @param admin         admin client configuration
   * @param iam           IAM client configuration
   * @param sparql        Sparql endpoint configuration
-  * @param elastic       ElasticSearch endpoint configuration
+  * @param elasticSearch       ElasticSearch endpoint configuration
   * @param pagination    Pagination configuration
   * @param keyValueStore Distributed data configuration
   * @param indexing      Indexing configuration
@@ -50,7 +50,7 @@ final case class AppConfig(
     admin: AdminClientConfig,
     iam: IamConfig,
     sparql: SparqlConfig,
-    elastic: ElasticConfig,
+    elasticSearch: ElasticSearchConfig,
     pagination: PaginationConfig,
     keyValueStore: KeyValueStoreConfig,
     indexing: IndexingConfig,
@@ -168,7 +168,7 @@ object AppConfig {
     * @param docType      the name of the `type`
     * @param defaultIndex the default index
     */
-  final case class ElasticConfig(base: Uri, indexPrefix: String, docType: String, defaultIndex: String)
+  final case class ElasticSearchConfig(base: Uri, indexPrefix: String, docType: String, defaultIndex: String)
 
   /**
     * Pagination configuration
@@ -237,16 +237,16 @@ object AppConfig {
 
   val tracing = new TracingDirectives()
 
-  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig              = appConfig.sparql
-  implicit def toElastic(implicit appConfig: AppConfig): ElasticConfig            = appConfig.elastic
-  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig    = appConfig.persistence
-  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig      = appConfig.pagination
-  implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                  = appConfig.http
-  implicit def toIam(implicit appConfig: AppConfig): IamConfig                    = appConfig.iam
-  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig        = appConfig.iam.iamClient
-  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig          = appConfig.admin
-  implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfig          = appConfig.indexing
-  implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig   = appConfig.sourcing
-  implicit def toStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig = appConfig.keyValueStore
+  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig               = appConfig.sparql
+  implicit def toElasticSearch(implicit appConfig: AppConfig): ElasticSearchConfig = appConfig.elasticSearch
+  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig     = appConfig.persistence
+  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig       = appConfig.pagination
+  implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                   = appConfig.http
+  implicit def toIam(implicit appConfig: AppConfig): IamConfig                     = appConfig.iam
+  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig         = appConfig.iam.iamClient
+  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig           = appConfig.admin
+  implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfig           = appConfig.indexing
+  implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig    = appConfig.sourcing
+  implicit def toStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig  = appConfig.keyValueStore
 
 }

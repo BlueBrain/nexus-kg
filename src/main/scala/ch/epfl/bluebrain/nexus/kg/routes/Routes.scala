@@ -152,7 +152,7 @@ object Routes {
       new ClusterHealthStatus(Cluster(as)),
       new IamHealthStatus(clients.iamClient),
       new AdminHealthStatus(clients.adminClient),
-      new ElasticSearchHealthStatus(clients.elastic),
+      new ElasticSearchHealthStatus(clients.elasticSearch),
       new SparqlHealthStatus(clients.sparql)
     )
     val appInfoRoutes = AppInfoRoutes(config.description, healthStatusGroup).routes

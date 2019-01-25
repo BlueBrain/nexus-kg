@@ -20,7 +20,7 @@ object QueryBuilder {
     Json.obj("term" -> Json.obj(k -> value.asJson))
 
   /**
-    * Build Elastic search query from deprecation status and schema
+    * Build ElasticSearch search query from deprecation status and schema
     *
     * @param params the search parameters to perform the query
     * @return ElasticSearch query

@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
@@ -105,13 +105,13 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
           implicit val project: Project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
           implicit val s: Identity.Subject = subject
-          val elasticView: View            = ElasticView.default(project.ref)
+          val elasticSearchView: View      = ElasticSearchView.default(project.ref)
           val sparqlView: View             = SparqlView.default(project.ref)
           val resolver: Resolver           = InProjectResolver.default(project.ref)
           // format: off
           cache.project.replace(project) *>
             coordinator.start(project) *>
-            resources.create(Id(project.ref, elasticView.id), viewRef, asJson(elasticView)).value.retryWhenNot(createdOrExists, 15) *>
+            resources.create(Id(project.ref, elasticSearchView.id), viewRef, asJson(elasticSearchView)).value.retryWhenNot(createdOrExists, 15) *>
             resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.retryWhenNot(createdOrExists, 15) *>
             resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.retryWhenNot(createdOrExists, 15) *>
             Task.unit
@@ -174,9 +174,9 @@ object Indexing {
   def start(resources: Resources[Task], cache: Caches[Task])(implicit as: ActorSystem,
                                                              ucl: HttpClient[Task, ResultSet],
                                                              config: AppConfig): Unit = {
-    implicit val mt: ActorMaterializer              = ActorMaterializer()
-    implicit val ul: UntypedHttpClient[Task]        = untyped[Task]
-    implicit val elasticClient: ElasticClient[Task] = ElasticClient[Task](config.elastic.base)
+    implicit val mt: ActorMaterializer                    = ActorMaterializer()
+    implicit val ul: UntypedHttpClient[Task]              = untyped[Task]
+    implicit val elasticSearchClient: ElasticClient[Task] = ElasticClient[Task](config.elasticSearch.base)
 
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)

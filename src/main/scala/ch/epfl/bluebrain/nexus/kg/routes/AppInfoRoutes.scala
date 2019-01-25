@@ -60,18 +60,23 @@ object AppInfoRoutes {
                                      cluster: ClusterHealthStatus,
                                      iam: IamHealthStatus,
                                      admin: AdminHealthStatus,
-                                     elastic: ElasticSearchHealthStatus,
+                                     elasticSearch: ElasticSearchHealthStatus,
                                      sparql: SparqlHealthStatus) {
     def check: Task[Health] =
       for {
-        cassUp    <- cassandra.check
-        clusterUp <- cluster.check
-        iamUp     <- iam.check
-        adminUp   <- admin.check
-        elasticUp <- elastic.check
-        sparqlUp  <- sparql.check
+        cassUp          <- cassandra.check
+        clusterUp       <- cluster.check
+        iamUp           <- iam.check
+        adminUp         <- admin.check
+        elasticSearchUp <- elasticSearch.check
+        sparqlUp        <- sparql.check
       } yield
-        Health(Status(cassUp), Status(clusterUp), Status(iamUp), Status(adminUp), Status(elasticUp), Status(sparqlUp))
+        Health(Status(cassUp),
+               Status(clusterUp),
+               Status(iamUp),
+               Status(adminUp),
+               Status(elasticSearchUp),
+               Status(sparqlUp))
   }
 
   /**
@@ -81,14 +86,14 @@ object AppInfoRoutes {
     * @param cluster   the cluster status
     * @param iam       the IAM service status
     * @param admin     the ADMIN service status
-    * @param elastic   the ElasticSearch indexer status
+    * @param elasticSearch   the ElasticSearch indexer status
     * @param sparql    the SparQL indexer status
     */
   final case class Health(cassandra: Status,
                           cluster: Status,
                           iam: Status,
                           admin: Status,
-                          elastic: Status,
+                          elasticSearch: Status,
                           sparql: Status)
 
   /**
