@@ -82,12 +82,12 @@ object AppInfoRoutes {
   /**
     * A collection of health status
     *
-    * @param cassandra the cassandra status
-    * @param cluster   the cluster status
-    * @param iam       the IAM service status
-    * @param admin     the ADMIN service status
-    * @param elasticSearch   the ElasticSearch indexer status
-    * @param sparql    the SparQL indexer status
+    * @param cassandra     the cassandra status
+    * @param cluster       the cluster status
+    * @param iam           the IAM service status
+    * @param admin         the ADMIN service status
+    * @param elasticSearch the ElasticSearch indexer status
+    * @param sparql        the SparQL indexer status
     */
   final case class Health(cassandra: Status,
                           cluster: Status,

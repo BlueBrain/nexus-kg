@@ -35,7 +35,7 @@ import scala.concurrent.duration.FiniteDuration
   * @param admin         admin client configuration
   * @param iam           IAM client configuration
   * @param sparql        Sparql endpoint configuration
-  * @param elasticSearch       ElasticSearch endpoint configuration
+  * @param elasticSearch ElasticSearch endpoint configuration
   * @param pagination    Pagination configuration
   * @param keyValueStore Distributed data configuration
   * @param indexing      Indexing configuration
