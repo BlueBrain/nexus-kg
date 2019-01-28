@@ -73,14 +73,14 @@ class ProjectViewCoordinatorSpec
 
     val coordinatorProps = Props(
       new ProjectViewCoordinatorActor(viewCache) {
-        override def startActor(v: View.SingleView, proj: Project): ActorRef = {
+        override def startActor(v: View.SingleView, proj: Project, restartOffset: Boolean): ActorRef = {
           counterStart.incrementAndGet()
           if (v == view && proj == project) childActor1
           else if (v == view2 && proj == project) childActor2
           else if (v == view2Updated && proj == project) childActor2Updated
           else if (v == view3 && proj == project2) childActor3
-          else if (v == view3 && proj == project2Updated) childActor3Updated
-          else system.actorOf(Props(new DummyActor))
+          else if (v == view3 && proj == project2Updated && restartOffset) childActor3Updated
+          else throw new RuntimeException()
         }
 
         override def deleteViewIndices(view: View.SingleView, project: Project): Task[Unit] = {

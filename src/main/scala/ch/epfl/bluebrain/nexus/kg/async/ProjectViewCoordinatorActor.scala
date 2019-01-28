@@ -25,18 +25,17 @@ import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.Key
 import ch.epfl.bluebrain.nexus.service.indexer.cache.OnKeyValueStoreChange
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
 import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
+import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
 import ch.epfl.bluebrain.nexus.service.indexer.stream.StreamCoordinator.{Stop => StreamCoordinatorStop}
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 import shapeless.TypeCase
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
 
 import scala.collection.immutable.Set
 import scala.collection.mutable
 import scala.concurrent.Future
-
 import scala.concurrent.duration._
 
 /**
@@ -54,7 +53,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
       log.debug("Started coordinator for project '{}' with initial views '{}'", project.projectLabel.show, views)
       context.become(initialized(project))
       viewCache.subscribe(onChange(project.ref))
-      children ++= views.map(view => view -> startActor(view, project))
+      children ++= views.map(view => view -> startActor(view, project, restartOffset = false))
       unstashAll()
     case other =>
       log.debug("Received non Start message '{}', stashing until the actor is initialized", other)
@@ -64,11 +63,12 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
   /**
     * Triggered in order to build an indexer actor for a provided view
     *
-    * @param view    the view from where to create the indexer actor
-    * @param project the project of the current coordinator
+    * @param view          the view from where to create the indexer actor
+    * @param project       the project of the current coordinator
+    * @param restartOffset a flag to decide whether to restart from the beginning or to resume from the previous offset
     * @return the actor reference
     */
-  def startActor(view: SingleView, project: Project): ActorRef
+  def startActor(view: SingleView, project: Project, restartOffset: Boolean): ActorRef
 
   /**
     * Triggered once an indexer actor has been stopped to clean up the indices
@@ -98,15 +98,15 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
       if (deleteIndices) deleteViewIndices(v, project).runToFuture else Future.unit
     }
 
-    def startView(view: SingleView) = {
-      val ref = startActor(view, project)
+    def startView(view: SingleView, restartOffset: Boolean) = {
+      val ref = startActor(view, project, restartOffset)
       children += view -> ref
     }
 
     {
-      case ViewsChanges(_, views) =>
+      case ViewsChanges(_, restartOffset, views) =>
         views.map {
-          case view if !children.keySet.exists(_.id == view.id) => startView(view)
+          case view if !children.keySet.exists(_.id == view.id) => startView(view, restartOffset)
           case view: ElasticSearchView =>
             children
               .collectFirst {
@@ -115,7 +115,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
               }
               .foreach {
                 case (oldView, ref) =>
-                  startView(view)
+                  startView(view, restartOffset)
                   stopView(oldView, ref)
               }
           case _ =>
@@ -125,10 +125,12 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])
         toRemove.foreach { case (v, ref) => stopView(v, ref) }
 
       case ProjectChanges(_, newProject) =>
-        val _ = Future.sequence(children.map { case (view, ref) => stopView(view, ref).map(_ => view) }).map { views =>
-          context.become(initialized(newProject))
-          self ! ViewsChanges(project.uuid, views.toSet)
+        context.become(initialized(newProject))
+        children.foreach {
+          case (view, ref) =>
+            stopView(view, ref).map(_ => self ! ViewsChanges(project.uuid, restartOffset = true, Set(view)))
         }
+
       case Stop(_) =>
         children.foreach { case (view, ref) => stopView(view, ref, deleteIndices = false) }
     }
@@ -147,10 +149,10 @@ object ProjectViewCoordinatorActor {
   }
   private[async] object Msg {
 
-    final case class Start(uuid: UUID, project: Project, views: Set[SingleView]) extends Msg
-    final case class Stop(uuid: UUID)                                            extends Msg
-    final case class ViewsChanges(uuid: UUID, views: Set[SingleView])            extends Msg
-    final case class ProjectChanges(uuid: UUID, project: Project)                extends Msg
+    final case class Start(uuid: UUID, project: Project, views: Set[SingleView])              extends Msg
+    final case class Stop(uuid: UUID)                                                         extends Msg
+    final case class ViewsChanges(uuid: UUID, restartOffset: Boolean, views: Set[SingleView]) extends Msg
+    final case class ProjectChanges(uuid: UUID, project: Project)                             extends Msg
 
   }
 
@@ -189,10 +191,10 @@ object ProjectViewCoordinatorActor {
           private val sparql                                      = config.sparql
           private implicit val jsonClient: HttpClient[Task, Json] = withUnmarshaller[Task, Json]
 
-          override def startActor(view: SingleView, project: Project): ActorRef =
+          override def startActor(view: SingleView, project: Project, restartOffset: Boolean): ActorRef =
             view match {
-              case v: ElasticSearchView => ElasticSearchIndexer.start(v, resources, project)
-              case v: SparqlView        => SparqlIndexer.start(v, resources, project)
+              case v: ElasticSearchView => ElasticSearchIndexer.start(v, resources, project, restartOffset)
+              case v: SparqlView        => SparqlIndexer.start(v, resources, project, restartOffset)
             }
 
           override def deleteViewIndices(view: SingleView, project: Project): Task[Unit] = view match {
@@ -235,7 +237,7 @@ object ProjectViewCoordinatorActor {
           case (acc, ValueModified(`projectUuid`, SetView(revValue))) => acc ++ singleViews(revValue.value)
           case (acc, _)                                               => acc
         }
-        if (views.nonEmpty) actorRef ! ViewsChanges(projectUuid, views)
+        if (views.nonEmpty) actorRef ! ViewsChanges(projectUuid, restartOffset = false, views)
 
       }
     }

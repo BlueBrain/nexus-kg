@@ -2,13 +2,12 @@ package ch.epfl.bluebrain.nexus.kg.async
 
 import java.util.UUID
 
-import akka.actor.ActorSystem
 import cats.Monad
-import cats.effect.{Async, Timer}
-import cats.implicits._
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStore.Subscription
-import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueStoreConfig, OnKeyValueStoreChange}
+import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreError._
+import ch.epfl.bluebrain.nexus.service.indexer.cache._
 
 abstract class Cache[F[_]: Monad, V](private[async] val store: KeyValueStore[F, UUID, V]) {
 
@@ -33,25 +32,10 @@ abstract class Cache[F[_]: Monad, V](private[async] val store: KeyValueStore[F, 
 
 object Cache {
 
-  private[async] def storeWrappedError[F[_]: Timer, V](
-      name: String,
-      f: V => Long)(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): KeyValueStore[F, UUID, V] =
-    new KeyValueStore[F, UUID, V] {
-      val underlying: KeyValueStore[F, UUID, V] = KeyValueStore.distributed(name, (_, resource) => f(resource))
-
-      override def put(key: UUID, value: V): F[Unit] =
-        underlying.put(key, value).recoverWith { case err => F.raiseError(InternalError(err.getMessage)) }
-
-      override def entries: F[Map[UUID, V]] =
-        underlying.entries.recoverWith { case err => F.raiseError(InternalError(err.getMessage)) }
-
-      override def remove(key: UUID): F[Unit] =
-        underlying.remove(key).recoverWith { case err => F.raiseError(InternalError(err.getMessage)) }
-
-      override def subscribe(value: OnKeyValueStoreChange[UUID, V]): F[KeyValueStore.Subscription] =
-        underlying.subscribe(value)
-
-      override def unsubscribe(subscription: KeyValueStore.Subscription): F[Unit] =
-        underlying.unsubscribe(subscription)
+  private[async] def mapError(cacheError: KeyValueStoreError): KgError =
+    cacheError match {
+      case e: ReadWriteConsistencyTimeout =>
+        OperationTimedOut(s"Timeout while interacting with the cache due to '${e.timeout}'")
+      case e: DistributedDataError => InternalError(e.reason)
     }
 }

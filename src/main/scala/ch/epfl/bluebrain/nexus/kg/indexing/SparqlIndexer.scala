@@ -74,17 +74,19 @@ object SparqlIndexer {
   /**
     * Starts the index process for an sparql client
     *
-    * @param view      the view for which to start the index
-    * @param resources the resources operations
-    * @param project   the project to which the resource belongs
+    * @param view          the view for which to start the index
+    * @param resources     the resources operations
+    * @param project       the project to which the resource belongs
+    * @param restartOffset a flag to decide whether to restart from the beginning or to resume from the previous offset
     */
   // $COVERAGE-OFF$
-  final def start(view: SparqlView, resources: Resources[Task], project: Project)(implicit as: ActorSystem,
-                                                                                  mt: ActorMaterializer,
-                                                                                  ul: UntypedHttpClient[Task],
-                                                                                  s: Scheduler,
-                                                                                  uclRs: HttpClient[Task, ResultSet],
-                                                                                  config: AppConfig): ActorRef = {
+  final def start(view: SparqlView, resources: Resources[Task], project: Project, restartOffset: Boolean)(
+      implicit as: ActorSystem,
+      mt: ActorMaterializer,
+      ul: UntypedHttpClient[Task],
+      s: Scheduler,
+      uclRs: HttpClient[Task, ResultSet],
+      config: AppConfig): ActorRef = {
 
     implicit val lb      = project
     implicit val uclJson = HttpClient.withUnmarshaller[Task, Json]
@@ -111,6 +113,7 @@ object SparqlIndexer {
         .plugin(config.persistence.queryJournalPlugin)
         .retry(config.indexing.retry.maxCount, config.indexing.retry.strategy)
         .batch(config.indexing.batch, config.indexing.batchTimeout)
+        .restart(restartOffset)
         .init(init)
         .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))).map(_ => ()).runToFuture)
         .build)
