@@ -75,12 +75,13 @@ object ElasticSearchIndexer {
   /**
     * Starts the index process for an ElasticSearch client
     *
-    * @param view      the view for which to start the index
-    * @param resources the resources operations
-    * @param project   the project to which the resource belongs
+    * @param view          the view for which to start the index
+    * @param resources     the resources operations
+    * @param project       the project to which the resource belongs
+    * @param restartOffset a flag to decide whether to restart from the beginning or to resume from the previous offset
     */
   // $COVERAGE-OFF$
-  final def start(view: ElasticSearchView, resources: Resources[Task], project: Project)(
+  final def start(view: ElasticSearchView, resources: Resources[Task], project: Project, restartOffset: Boolean)(
       implicit client: ElasticClient[Task],
       s: Scheduler,
       as: ActorSystem,
@@ -105,6 +106,7 @@ object ElasticSearchIndexer {
         .plugin(config.persistence.queryJournalPlugin)
         .retry(config.indexing.retry.maxCount, config.indexing.retry.strategy)
         .batch(config.indexing.batch, config.indexing.batchTimeout)
+        .restart(restartOffset)
         .init(init)
         .index(index)
         .build)

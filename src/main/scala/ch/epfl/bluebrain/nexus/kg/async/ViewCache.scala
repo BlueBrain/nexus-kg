@@ -7,13 +7,13 @@ import akka.actor.ActorSystem
 import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.kg.async.Cache.storeWrappedError
+import ch.epfl.bluebrain.nexus.kg.async.Cache.mapError
+import ch.epfl.bluebrain.nexus.kg.async.ViewCache._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueStoreConfig}
 import shapeless.{TypeCase, Typeable}
-import ch.epfl.bluebrain.nexus.kg.async.ViewCache._
 
 /**
   * The view cache backed by a KeyValueStore using akka Distributed Data
@@ -89,6 +89,8 @@ object ViewCache {
   def apply[F[_]: Timer](implicit as: ActorSystem,
                          config: KeyValueStoreConfig,
                          F: Async[F],
-                         clock: Clock): ViewCache[F] =
-    new ViewCache[F](storeWrappedError[F, RevisionedViews]("views", _.rev))
+                         clock: Clock): ViewCache[F] = {
+    val function: (Long, RevisionedViews) => Long = { case (_, res) => res.rev }
+    new ViewCache(KeyValueStore.distributed("views", function, mapError))
+  }
 }

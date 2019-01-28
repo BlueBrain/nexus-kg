@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.kg.async.Cache.storeWrappedError
+import ch.epfl.bluebrain.nexus.kg.async.Cache._
 import ch.epfl.bluebrain.nexus.kg.async.ResolverCache.RevisionedResolvers
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
@@ -76,6 +76,9 @@ object ResolverCache {
   def apply[F[_]: Timer](implicit as: ActorSystem,
                          config: KeyValueStoreConfig,
                          F: Async[F],
-                         clock: Clock): ResolverCache[F] =
-    new ResolverCache[F](storeWrappedError[F, RevisionedResolvers]("resolvers", _.rev))
+                         clock: Clock): ResolverCache[F] = {
+    val function: (Long, RevisionedResolvers) => Long = { case (_, res) => res.rev }
+    new ResolverCache(KeyValueStore.distributed("resolvers", function, mapError))
+  }
+
 }

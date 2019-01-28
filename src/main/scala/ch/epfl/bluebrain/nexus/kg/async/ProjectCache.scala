@@ -7,7 +7,7 @@ import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.kg.async.Cache.storeWrappedError
+import ch.epfl.bluebrain.nexus.kg.async.Cache._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueStoreConfig}
@@ -94,6 +94,8 @@ object ProjectCache {
   /**
     * Creates a new project index.
     */
-  def apply[F[_]: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ProjectCache[F] =
-    new ProjectCache[F](storeWrappedError[F, Project]("projects", _.rev))
+  def apply[F[_]: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ProjectCache[F] = {
+    val function: (Long, Project) => Long = { case (_, res) => res.rev }
+    new ProjectCache(KeyValueStore.distributed("projects", function, mapError))
+  }
 }
