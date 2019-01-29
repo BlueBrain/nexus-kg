@@ -286,8 +286,7 @@ class ResourceRoutesSpec
     )
 
     def projectMatcher = matches[Project] { argument =>
-      argument == projectMeta.copy(
-        apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping + ("base" -> projectMeta.base))
+      argument == projectMeta.copy(apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping)
     }
   }
 
@@ -545,10 +544,11 @@ class ResourceRoutesSpec
                               schema = schemaRef)))
         Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
-          responseAs[Json] shouldEqual response().deepMerge(Json.obj(
-            "@id"   -> Json.fromString("http://example.com/foobar"),
-            "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/base:foobar")
-          ))
+          responseAs[Json] shouldEqual response().deepMerge(
+            Json.obj(
+              "@id"   -> Json.fromString("http://example.com/foobar"),
+              "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/foobar")
+            ))
         }
       }
 

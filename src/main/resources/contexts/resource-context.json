@@ -52,10 +52,7 @@
       "@id": "nxv:project",
       "@type": "@id"
     },
-    "_self": {
-      "@id": "nxv:self",
-      "@type": "@id"
-    },
+    "_self": "nxv:self",
     "_createdBy": {
       "@id": "nxv:createdBy",
       "@type": "@id"
