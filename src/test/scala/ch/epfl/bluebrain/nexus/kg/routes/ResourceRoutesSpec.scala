@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
+
 import akka.http.scaladsl.model.MediaTypes.{`application/json`, `text/plain`}
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model._
@@ -22,6 +23,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
@@ -877,6 +879,19 @@ class ResourceRoutesSpec
         HttpEntity(RdfMediaTypes.`application/sparql-query`, query)) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual result
+      }
+    }
+
+    "reject searching when search has a client error" in new Views {
+      val query = "SELECT ?s where {?s ?p ?o} LIMIT 10"
+      when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
+      when(sparql.queryRaw(query)).thenReturn(Task.raiseError(SparqlClientError(StatusCodes.BadRequest, "some error")))
+
+      Post(
+        s"/v1/views/$organization/$project/nxv:defaultSparqlIndex/sparql",
+        HttpEntity(RdfMediaTypes.`application/sparql-query`, query)) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.BadRequest
+        responseAs[Error].tpe shouldEqual classNameOf[InvalidResourceFormat]
       }
     }
 
