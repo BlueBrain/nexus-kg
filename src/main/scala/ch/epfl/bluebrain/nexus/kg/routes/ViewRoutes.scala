@@ -8,6 +8,7 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg._
@@ -23,9 +24,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, NotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import io.circe.Json
 import monix.eval.Task
@@ -74,13 +76,18 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
   }
 
+  private def sparqlQuery(id: AbsoluteIri, view: View, query: String): Task[Either[Rejection, Json]] =
+    indexers.sparql.copy(namespace = view.name).queryRaw(query).map[Either[Rejection, Json]](Right.apply).recoverWith {
+      case SparqlClientError(_, body) => Task.pure(Left(InvalidResourceFormat(id.ref, body)))
+    }
+
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>
       (post & pathEndOrSingleSlash & hasPermissions(query)) {
         entity(as[String]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
-            case Some(v) => indexers.sparql.copy(namespace = v.name).queryRaw(query).map(Right.apply)
-            case _       => Task.pure(Left(NotFound(id.ref)))
+            case Some(view) => sparqlQuery(id, view, query)
+            case _          => Task.pure(Left(NotFound(id.ref)))
           }
           trace("searchSparql")(complete(result.runWithStatus(StatusCodes.OK)))
         }
