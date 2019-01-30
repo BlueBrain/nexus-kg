@@ -81,7 +81,7 @@ class ResourceFSpec
         (IriNode(id), nxv.createdAt, clock.instant()),
         (IriNode(id), nxv.createdBy, IriNode(userIri)),
         (IriNode(id), nxv.updatedBy, IriNode(anonIri)),
-        (IriNode(id), nxv.self, url"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:${projectRef.id}"),
+        (IriNode(id), nxv.self, s"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:${projectRef.id}"),
         (IriNode(id), nxv.project, url"http://localhost:8080/v1/projects/bbp/core"),
         (IriNode(id), nxv.constrainedBy, IriNode(schema.iri))
       )

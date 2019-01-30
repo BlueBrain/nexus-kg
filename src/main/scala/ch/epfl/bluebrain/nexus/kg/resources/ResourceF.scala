@@ -103,7 +103,7 @@ final case class ResourceF[P, S, A](
       (node, nxv.updatedBy, updatedBy.id),
       (node, nxv.constrainedBy, schemaIri),
       (node, nxv.project, projectUri),
-      (node, nxv.self, AccessId(id.value, schemaIri))
+      (node, nxv.self, AccessId(id.value, schemaIri).asString)
     ) ++ typeTriples
   }
 

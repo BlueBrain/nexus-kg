@@ -150,7 +150,7 @@ class ProjectDirectivesSpec
     )
 
     val projectMetaResp =
-      projectMeta.copy(apiMappings = projectMeta.apiMappings ++ apiMappingsFinal + ("base" -> projectMeta.base))
+      projectMeta.copy(apiMappings = projectMeta.apiMappings ++ apiMappingsFinal)
 
     "fetch the project from the cache" in {
 

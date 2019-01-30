@@ -26,14 +26,22 @@ object AccessId {
     def prefix(resource: String): AbsoluteIri =
       url"${http.publicUri.append(http.prefix / resource / project.organizationLabel / project.label)}".value
 
-    def aliasOrCurieFor(iri: AbsoluteIri): String =
-      (project.apiMappings.collectFirst {
+    def removeBase(iri: AbsoluteIri): Option[String] =
+      if (iri.asString.startsWith(project.base.asString)) Some(iri.asString.stripPrefix(project.base.asString))
+      else None
+
+    def aliasOrCurieFor(iri: AbsoluteIri): String = {
+      lazy val aliases = project.apiMappings.collectFirst {
         case (p, `iri`) => p
-      } orElse
-        project.apiMappings.collectFirst {
-          case (p, ns) if iri.asString.startsWith(ns.asString) =>
-            s"$p:${urlEncode(iri.asString.stripPrefix(ns.asString))}"
-        }).getOrElse(urlEncode(iri.asString))
+      }
+      lazy val curies = project.apiMappings.collectFirst {
+        case (p, ns) if iri.asString.startsWith(ns.asString) =>
+          s"$p:${urlEncode(iri.asString.stripPrefix(ns.asString))}"
+      }
+      lazy val base = removeBase(iri)
+
+      aliases orElse curies orElse base getOrElse urlEncode(iri.asString)
+    }
 
     val shortResourceId = aliasOrCurieFor(resourceId)
     schemaId match {
