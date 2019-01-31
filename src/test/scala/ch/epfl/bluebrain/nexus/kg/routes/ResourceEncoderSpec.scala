@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, ResourceF}
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.rdf._
 import io.circe.Json
@@ -79,9 +80,10 @@ class ResourceEncoderSpec
       resource.asJson shouldEqual parse(expected).right.value
     }
 
-    "encode resource value" in {
-      val triples   = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
-      val resourceV = resource.map(_ => Value(json, context, Graph(triples)))
+    "encode resource value in compacted form" in {
+      implicit val output: OutputFormat = Compacted
+      val triples                       = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
+      val resourceV                     = resource.map(_ => Value(json, context, Graph(triples)))
       val expected =
         """
           |{
@@ -94,6 +96,20 @@ class ResourceEncoderSpec
           |  ],
           |  "@id" : "foobar",
           |  "foo" : "bar"
+          |}
+        """.stripMargin
+      resourceV.asJson shouldEqual parse(expected).right.value
+    }
+
+    "encode resource value in expanded form" in {
+      implicit val output: OutputFormat = Expanded
+      val triples                       = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
+      val resourceV                     = resource.map(_ => Value(json, context, Graph(triples)))
+      val expected =
+        """
+          |{
+          |  "@id" : "http://example.com/foobar",
+          |  "http://example.com/voc/foo" : "bar"
           |}
         """.stripMargin
       resourceV.asJson shouldEqual parse(expected).right.value

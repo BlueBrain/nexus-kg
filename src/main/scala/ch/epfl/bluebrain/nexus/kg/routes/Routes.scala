@@ -78,6 +78,9 @@ object Routes {
       case err: ProjectIsDeprecated =>
         // suppress error
         complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
+      case err: InvalidOutputFormat =>
+        // suppress error
+        complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
       case ElasticClientError(status, body) =>
         parse(body) match {
           case Right(json) => complete(status -> json)

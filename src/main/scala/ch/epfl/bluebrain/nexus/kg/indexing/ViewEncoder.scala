@@ -22,16 +22,16 @@ import io.circe.{Encoder, Json}
 object ViewEncoder {
 
   /**
-    * Attempts to find the key ''mapping'' on the top Json level and transform the string value to Json. This will work
-    * E.g.: {"mapping": "{\"a\": \"b\"}"} will be converted to {"mapping": {"a": "b"}}
+    * Attempts to find the key ''field'' on the top Json level and transform the string value to Json. This will work
+    * E.g.: {"field": "{\"a\": \"b\"}"} will be converted to {"field": {"a": "b"}}
     *
     * @param json the json to be transformed
     */
-  def transformToJson(json: Json): Json =
+  def transformToJson(json: Json, field: String): Json =
     json.hcursor
-      .get[String]("mapping")
+      .get[String](field)
       .flatMap(parse)
-      .map(mapping => json deepMerge Json.obj("mapping" -> mapping))
+      .map(value => json deepMerge Json.obj(field -> value))
       .getOrElse(json)
 
   implicit def qrViewEncoder: Encoder[QueryResults[View]] =
@@ -40,7 +40,7 @@ object ViewEncoder {
       val results = jsonWithCtx.hcursor
         .downField(nxv.results.prefix)
         .focus
-        .flatMap(_.asArray.map(_.map(transformToJson)))
+        .flatMap(_.asArray.map(_.map(json => transformToJson(json, nxv.mapping.prefix))))
       results.map(res => jsonWithCtx deepMerge Json.obj(nxv.results.prefix -> Json.arr(res: _*))).getOrElse(jsonWithCtx)
     }
 

@@ -7,6 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
 import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
@@ -16,6 +17,8 @@ import io.circe.{Encoder, Json}
 
 object ResourceEncoder {
 
+  private implicit val resourceVGraphEnc: GraphEncoder[ResourceV] = GraphEncoder(res => IriNode(res.id.value) -> res.value.graph)
+
   implicit def resourceEncoder(implicit config: AppConfig, project: Project): Encoder[Resource] = {
     implicit val graphEnc: GraphEncoder[Resource] =
       GraphEncoder(res => IriNode(res.id.value) -> Graph(res.metadata))
@@ -24,14 +27,26 @@ object ResourceEncoder {
     }
   }
 
-  implicit val resourceVEncoder: Encoder[ResourceV] = {
-    implicit val graphEnc: GraphEncoder[ResourceV] = GraphEncoder(res => IriNode(res.id.value) -> res.value.graph)
+  implicit def resourceVEncoder(implicit output: OutputFormat): Encoder[ResourceV] =
+    output match {
+      case Compacted => resourceVEncoderCompacted
+      case Expanded  => resourceVEncoderExpanded
+    }
+
+  private def resourceVEncoderCompacted: Encoder[ResourceV] =
     Encoder.encodeJson.contramap { res =>
       val flattenedContext = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
       val fieldsJson       = res.asJson(flattenedContext)
       val contextJson      = Json.obj("@context" -> res.contextValueForJsonLd).addContext(resourceCtxUri)
       val json             = fieldsJson deepMerge contextJson
-      if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json) else json
+      if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.prefix)
+      else json
     }
-  }
+
+  private val resourceVEncoderExpanded: Encoder[ResourceV] =
+    Encoder.encodeJson.contramap { res =>
+      val json = res.asExpandedJson
+      if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.value.asString)
+      else json
+    }
 }

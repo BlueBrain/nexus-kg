@@ -27,8 +27,8 @@ scalafmt: {
 // Dependency versions
 val adminVersion                = "1.0.2"
 val iamVersion                  = "1.0.1"
-val commonsVersion              = "0.10.41"
-val rdfVersion                  = "0.2.31"
+val commonsVersion              = "0.10.42"
+val rdfVersion                  = "0.2.32"
 val serviceVersion              = "0.10.28"
 val sourcingVersion             = "0.12.2"
 val akkaVersion                 = "2.5.19"
