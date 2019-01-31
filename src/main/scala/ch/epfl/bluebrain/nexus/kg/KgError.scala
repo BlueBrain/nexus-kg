@@ -46,6 +46,13 @@ object KgError {
   final case object AuthenticationFailed extends KgError("The supplied authentication is invalid.")
 
   /**
+    * Signals that the provided output format name is not valid.
+    *
+    * @param name the provided output format name
+    */
+  final case class InvalidOutputFormat(name: String) extends KgError(s"The supplied output format '$name' is invalid.")
+
+  /**
     * Signals that the caller doesn't have access to the selected resource.
     */
   final case object AuthorizationFailed
@@ -90,6 +97,7 @@ object KgError {
     case AuthenticationFailed   => StatusCodes.Unauthorized
     case AuthorizationFailed    => StatusCodes.Forbidden
     case _: ProjectIsDeprecated => StatusCodes.BadRequest
+    case _: InvalidOutputFormat => StatusCodes.BadRequest
     case _: ProjectNotFound     => StatusCodes.NotFound
     case _                      => StatusCodes.InternalServerError
   }

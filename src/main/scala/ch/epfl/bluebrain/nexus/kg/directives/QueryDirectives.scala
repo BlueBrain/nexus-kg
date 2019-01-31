@@ -6,8 +6,10 @@ import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
-import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.Compacted
+import ch.epfl.bluebrain.nexus.kg.routes.{OutputFormat, SearchParams}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 object QueryDirectives {
@@ -18,6 +20,18 @@ object QueryDirectives {
   def paginated(implicit config: PaginationConfig): Directive1[Pagination] =
     (parameter('from.as[Int] ? config.pagination.from) & parameter('size.as[Int] ? config.pagination.size)).tmap {
       case (from, size) => Pagination(from.max(0), size.max(1).min(config.sizeLimit))
+    }
+
+  /**
+    * @return the extracted OutputFormat from the request query parameters or 'compacted' when not present.
+    *         If the output format does not exist, it fails with [[InvalidOutputFormat]] exception.
+    */
+  def outputFormat: Directive1[OutputFormat] =
+    (parameter('output.as[String] ? Compacted.name)).flatMap { outputName =>
+      OutputFormat(outputName) match {
+        case Some(output) => provide(output)
+        case _            => failWith(InvalidOutputFormat(outputName))
+      }
     }
 
   /**

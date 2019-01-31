@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
 import io.circe.generic.auto._
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
 
@@ -21,13 +22,18 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
         complete(StatusCodes.OK -> page)
       }
 
+    def routeOutput(): Route =
+      (get & outputFormat) { output =>
+        complete(StatusCodes.OK -> output.name)
+      }
+
     "return default values when no query parameters found" in {
       Get("/") ~> route() ~> check {
         responseAs[Pagination] shouldEqual Pagination(config.from, config.size)
       }
     }
 
-    "return pagination form query parameters" in {
+    "return pagination from query parameters" in {
       Get("/some?from=1&size=20") ~> route() ~> check {
         responseAs[Pagination] shouldEqual Pagination(1L, 20)
       }
@@ -45,5 +51,28 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
       }
     }
 
+    "return compacted output from query parameters" in {
+      Get("/some?output=compacted") ~> routeOutput() ~> check {
+        responseAs[String] shouldEqual Compacted.name
+      }
+    }
+
+    "return expanded output from query parameters" in {
+      Get("/some?output=expanded") ~> routeOutput() ~> check {
+        responseAs[String] shouldEqual Expanded.name
+      }
+    }
+
+    "return default output" in {
+      Get("/some") ~> routeOutput() ~> check {
+        responseAs[String] shouldEqual Compacted.name
+      }
+    }
+
+    "fail on wrong output" in {
+      Get("/some?output=not_exists") ~> routeOutput() ~> check {
+        status shouldEqual StatusCodes.InternalServerError
+      }
+    }
   }
 }

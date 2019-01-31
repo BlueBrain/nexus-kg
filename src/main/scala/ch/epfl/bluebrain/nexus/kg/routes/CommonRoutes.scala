@@ -135,15 +135,18 @@ private[routes] abstract class CommonRoutes(
   def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermissions(read)) {
       (revOpt, tagOpt) =>
-        val idRes = Id(project.ref, id)
-        trace(s"get$resourceName") {
-          (revOpt, tagOpt) match {
-            case (Some(_), Some(_)) => reject(simultaneousParamsRejection)
-            case (Some(rev), _) =>
-              complete(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
-            case (_, Some(tag)) =>
-              complete(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
-            case _ => complete(resources.fetch(idRes, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
+        outputFormat { implicit output =>
+          val idRes = Id(project.ref, id)
+          trace(s"get$resourceName") {
+            (revOpt, tagOpt) match {
+              case (Some(_), Some(_)) => reject(simultaneousParamsRejection)
+              case (Some(rev), _) =>
+                complete(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
+              case (_, Some(tag)) =>
+                complete(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
+              case _ =>
+                complete(resources.fetch(idRes, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
+            }
           }
         }
     }

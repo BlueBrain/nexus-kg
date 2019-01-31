@@ -1034,6 +1034,14 @@ class ResourceRoutesSpec
         }
       }
 
+      "reject getting a schema with wrong output" ignore new Schema {
+
+        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1&output=wrong") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.BadRequest
+          responseAs[Error].tpe shouldEqual "InvalidOutputFormat"
+        }
+      }
+
       "reject when creating a schema and the resources/create permissions are not present" in new Schema(read) {
         Post(s"/v1/schemas/$organization/$project", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Forbidden
