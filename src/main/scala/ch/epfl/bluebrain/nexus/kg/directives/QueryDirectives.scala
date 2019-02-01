@@ -8,7 +8,6 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
-import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.Compacted
 import ch.epfl.bluebrain.nexus.kg.routes.{OutputFormat, SearchParams}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
@@ -23,11 +22,12 @@ object QueryDirectives {
     }
 
   /**
-    * @return the extracted OutputFormat from the request query parameters or 'compacted' when not present.
+    * @return the extracted OutputFormat from the request query parameters.
     *         If the output format does not exist, it fails with [[InvalidOutputFormat]] exception.
+    * @param default the default output format when the query parameter is not present
     */
-  def outputFormat: Directive1[OutputFormat] =
-    (parameter('output.as[String] ? Compacted.name)).flatMap { outputName =>
+  def outputFormat(default: OutputFormat): Directive1[OutputFormat] =
+    (parameter('output.as[String] ? default.name)).flatMap { outputName =>
       OutputFormat(outputName) match {
         case Some(output) => provide(output)
         case _            => failWith(InvalidOutputFormat(outputName))

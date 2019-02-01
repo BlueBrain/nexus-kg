@@ -4,7 +4,7 @@ import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
-import akka.http.scaladsl.model.MediaTypes.{`application/json`, `text/plain`}
+import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
@@ -669,6 +669,7 @@ class ResourceRoutesSpec
 
       val endpoints = List(
         s"/v1/files/$organization/$project/nxv:$genUuid?rev=1",
+        s"/v1/files/$organization/$project/nxv:$genUuid?rev=1&output=binary",
         s"/v1/resources/$organization/$project/file/nxv:$genUuid?rev=2",
         s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=3"
       )
@@ -681,21 +682,7 @@ class ResourceRoutesSpec
         }
       }
       forAll(endpoints) { endpoint =>
-        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(`text/plain`) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
-        }
-      }
-      forAll(endpoints) { endpoint =>
-        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`text/*`) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
-        }
-      }
-      forAll(endpoints) { endpoint =>
-        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual "text/plain"
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
@@ -719,14 +706,7 @@ class ResourceRoutesSpec
                                    quote("{proj}")    -> projectMeta.label,
                                    quote("{id}")      -> s"nxv:$genUuid"))
 
-      forAll(metadataRanges) { range =>
-        Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(range) ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual json
-        }
-      }
-      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        metadataRanges: _*) ~> routes ~> check {
+      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1&output=compacted") ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual json
       }
@@ -997,6 +977,44 @@ class ResourceRoutesSpec
             status shouldEqual StatusCodes.OK
             responseAs[Json] shouldEqual jsonContentOf("/resources/tags.json")
           }
+        }
+      }
+
+      "get a resource with different outputs output" in new Ctx {
+        val json     = jsonContentOf("/resources/resource-embed.json")
+        val id2      = Id(projectRef, url"https://bluebrain.github.io/nexus/vocabulary/me".value)
+        val resource = ResourceF.simpleF(id2, json, created = subject, updated = subject, schema = schemaRef)
+        val resourceV =
+          resource.copy(value = Value(json, json.contextValue, json.asGraph.right.value ++ Graph(resource.metadata)))
+
+        when(resources.fetch(id2, None)).thenReturn(OptionT.some[Task](resource))
+        when(resources.materializeWithMeta(mEq(resource))(projectMatcher))
+          .thenReturn(EitherT.rightT[Task, Rejection](resourceV))
+
+        Get(s"/v1/resources/$organization/$project/_/nxv:me?output=triples") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual OutputFormat.Triples.contentType
+          val expected = contentOf("/resources/resource-triples.txt",
+                                   Map(quote("{org}") -> organization, quote("{proj}") -> project))
+          val string = responseEntity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String).futureValue
+          string.split("\n").sorted shouldEqual expected.split("\n").sorted
+        }
+
+        Get(s"/v1/resources/$organization/$project/_/nxv:me?output=dot") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual OutputFormat.DOT.contentType
+          val expected =
+            contentOf("/resources/resource-dot.txt", Map(quote("{org}") -> organization, quote("{proj}") -> project))
+          val string = responseEntity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String).futureValue
+          string.split("\n").sorted shouldEqual expected.split("\n").sorted
+        }
+
+        Get(s"/v1/resources/$organization/$project/_/nxv:me?output=expanded") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual OutputFormat.Expanded.contentType
+          val expected = jsonContentOf("/resources/resource-expanded.json",
+                                       Map(quote("{org}") -> organization, quote("{proj}") -> project))
+          responseAs[Json] shouldEqual expected
         }
       }
 

@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
 import io.circe.generic.auto._
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
@@ -22,8 +23,8 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
         complete(StatusCodes.OK -> page)
       }
 
-    def routeOutput(): Route =
-      (get & outputFormat) { output =>
+    def routeOutput(default: OutputFormat = Compacted): Route =
+      (get & outputFormat(default)) { output =>
         complete(StatusCodes.OK -> output.name)
       }
 
@@ -64,8 +65,8 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
     }
 
     "return default output" in {
-      Get("/some") ~> routeOutput() ~> check {
-        responseAs[String] shouldEqual Compacted.name
+      Get("/some") ~> routeOutput(OutputFormat.Expanded) ~> check {
+        responseAs[String] shouldEqual Expanded.name
       }
     }
 
