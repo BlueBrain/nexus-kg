@@ -190,7 +190,7 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    trace("getFiles") {
+    trace("getFile") {
       concat(
         (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
           completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
