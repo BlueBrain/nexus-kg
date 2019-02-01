@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.{Ref, Rejection}
-import ch.epfl.bluebrain.nexus.kg.routes.{OutputFormat, TextOutputFormat}
+import ch.epfl.bluebrain.nexus.kg.routes.TextOutputFormat
 import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.syntax._
@@ -24,11 +24,7 @@ import scala.concurrent.Future
 object instances extends FailFastCirceSupport {
 
   override def unmarshallerContentTypes: Seq[ContentTypeRange] =
-    List(`application/json`,
-         `application/sparql-results+json`,
-         OutputFormat.Compacted.contentType,
-         OutputFormat.Triples.contentType,
-         OutputFormat.DOT.contentType)
+    List(`application/json`, `application/ld+json`, `application/sparql-results+json`)
 
   /**
     * `Json` => HTTP entity

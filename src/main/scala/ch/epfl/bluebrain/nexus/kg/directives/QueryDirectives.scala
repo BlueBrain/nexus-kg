@@ -1,6 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.directives
 
 import akka.http.scaladsl.common.{NameOptionReceptacle, NameReceptacle}
+import akka.http.scaladsl.model.MediaRange
+import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
@@ -8,7 +10,8 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
-import ch.epfl.bluebrain.nexus.kg.routes.{OutputFormat, SearchParams}
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
+import ch.epfl.bluebrain.nexus.kg.routes.{JsonLDOutputFormat, OutputFormat, SearchParams}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 object QueryDirectives {
@@ -22,17 +25,50 @@ object QueryDirectives {
     }
 
   /**
-    * @return the extracted OutputFormat from the request query parameters.
-    *         If the output format does not exist, it fails with [[InvalidOutputFormat]] exception.
     * @param default the default output format when the query parameter is not present
+    * @return the extracted JsonLDOutputFormat from the request query parameters or the Accept HTTP header.
+    *         If the output format does not exist, it fails with [[InvalidOutputFormat]] exception.
     */
-  def outputFormat(default: OutputFormat): Directive1[OutputFormat] =
-    (parameter('output.as[String] ? default.name)).flatMap { outputName =>
+  private def jsonLDFormat(default: JsonLDOutputFormat = Compacted): Directive1[OutputFormat] =
+    parameter('output.as[String] ? default.name).flatMap { outputName =>
       OutputFormat(outputName) match {
         case Some(output) => provide(output)
         case _            => failWith(InvalidOutputFormat(outputName))
       }
     }
+
+  /**
+    * @param strict  flag to decide whether or not to match the exact content type on the Accept header
+    * @param default the default output format when neither of the defined types has been found
+    * @return the extracted OutputFormat from the Accept HTTP header and the output query parameter.
+    */
+  def outputFormat(strict: Boolean, default: OutputFormat): Directive1[OutputFormat] =
+    headerValueByType[Accept](()).flatMap { accept =>
+      val outputs =
+        if (strict) exactMatch(accept)
+        else regexMatch(accept)
+      outputs.filter(_._1 >= 0).sortBy(_._1).headOption match {
+        case Some((_, Compacted)) => jsonLDFormat()
+        case Some((_, format))    => provide(format)
+        case None                 => provide(default)
+      }
+    }
+
+  private def exactMatch(accept: Accept) = {
+    val metaPos =
+      accept.mediaRanges.indexWhere(mr => Compacted.contentType.exists(ct => (ct.mediaType: MediaRange) == mr))
+    val triplesPos = accept.mediaRanges.indexWhere(_ == (Triples.contentType.mediaType: MediaRange))
+    val dotPos     = accept.mediaRanges.indexWhere(_ == (DOT.contentType.mediaType: MediaRange))
+    List(metaPos -> Compacted, triplesPos -> Triples, dotPos -> DOT)
+  }
+
+  private def regexMatch(accept: Accept) = {
+    val metaPos =
+      accept.mediaRanges.indexWhere(mr => Compacted.contentType.exists(jsonType => mr.matches(jsonType.mediaType)))
+    val triplesPos = accept.mediaRanges.indexWhere(_.matches(Triples.contentType.mediaType))
+    val dotPos     = accept.mediaRanges.indexWhere(_.matches(DOT.contentType.mediaType))
+    List(metaPos -> Compacted, triplesPos -> Triples, dotPos -> DOT)
+  }
 
   /**
     * This directive passes when the query parameter specified is not present

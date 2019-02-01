@@ -145,7 +145,7 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
 
   def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route = {
     val defaultOutput: OutputFormat = schemaOpt.collect { case `fileRef` => Binary }.getOrElse(Compacted)
-    (get & outputFormat(defaultOutput) & pathEndOrSingleSlash & hasPermissions(read)) {
+    (get & outputFormat(defaultOutput == Binary, defaultOutput) & pathEndOrSingleSlash & hasPermissions(read)) {
       case Binary                        => getFile(id)
       case output: NonBinaryOutputFormat => getResource(id, schemaOpt)(output)
     }
