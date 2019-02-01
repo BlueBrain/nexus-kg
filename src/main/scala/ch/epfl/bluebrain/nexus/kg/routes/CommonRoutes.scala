@@ -1,18 +1,20 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCode}
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.headers.{Accept, RawHeader}
+import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCode}
 import akka.http.scaladsl.server.Directives._
-import cats.syntax.show._
 import akka.http.scaladsl.server.{MalformedQueryParamRejection, Route, Rejection => AkkaRejection}
 import cats.data.{EitherT, OptionT}
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.kg.KgError.UnacceptedResponseContentType
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
@@ -23,19 +25,18 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.dot._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
-import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
-import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 
 import scala.concurrent.Future
 
@@ -209,8 +210,14 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
       case (info, source) =>
         val filename = urlEncodeOrElse(info.filename)("file")
         (respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")) & encodeResponse) {
-          val contentType = ContentType.parse(info.mediaType).getOrElse(Binary.contentType)
-          complete(HttpEntity(contentType, info.bytes, source))
+          headerValueByType[Accept](()) { accept =>
+            val contentType = ContentType.parse(info.mediaType).getOrElse(Binary.contentType)
+            if (accept.mediaRanges.exists(_.matches(contentType.mediaType)))
+              complete(HttpEntity(contentType, info.bytes, source))
+            else
+              failWith(UnacceptedResponseContentType(
+                s"Binary Content-Type is '$contentType' and Accept HTTP Headers are '${accept.mediaRanges.mkString(", ")}'"))
+          }
         }
     }
 

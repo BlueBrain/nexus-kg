@@ -72,6 +72,9 @@ object Routes {
       case AuthorizationFailed =>
         // suppress errors for authorization failures
         complete(KgError.kgErrorStatusFrom(AuthorizationFailed) -> (AuthorizationFailed: KgError))
+      case err: UnacceptedResponseContentType =>
+        // suppress errors for authorization failures
+        complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
       case err: ProjectNotFound =>
         // suppress error
         complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))

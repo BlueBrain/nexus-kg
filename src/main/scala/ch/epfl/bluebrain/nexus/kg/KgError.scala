@@ -80,6 +80,13 @@ object KgError {
   final case class ProjectNotFound(label: ProjectLabel) extends KgError(s"Project '${label.show}' not found.")
 
   /**
+    * Signals the HTTP Accept Headers are not compatible with the response Content-Type.
+    *
+    * @param reason a descriptive message
+    */
+  final case class UnacceptedResponseContentType(reason: String) extends KgError(reason)
+
+  /**
     * Signals an attempt to interact with a resource that belongs to a deprecated project.
     *
     * @param ref a reference to the project
@@ -93,12 +100,13 @@ object KgError {
   }
 
   implicit val kgErrorStatusFrom: StatusFrom[KgError] = {
-    case _: NotFound            => StatusCodes.NotFound
-    case AuthenticationFailed   => StatusCodes.Unauthorized
-    case AuthorizationFailed    => StatusCodes.Forbidden
-    case _: ProjectIsDeprecated => StatusCodes.BadRequest
-    case _: InvalidOutputFormat => StatusCodes.BadRequest
-    case _: ProjectNotFound     => StatusCodes.NotFound
-    case _                      => StatusCodes.InternalServerError
+    case _: NotFound                      => StatusCodes.NotFound
+    case AuthenticationFailed             => StatusCodes.Unauthorized
+    case AuthorizationFailed              => StatusCodes.Forbidden
+    case _: ProjectIsDeprecated           => StatusCodes.BadRequest
+    case _: InvalidOutputFormat           => StatusCodes.BadRequest
+    case _: UnacceptedResponseContentType => StatusCodes.BadRequest
+    case _: ProjectNotFound               => StatusCodes.NotFound
+    case _                                => StatusCodes.InternalServerError
   }
 }
