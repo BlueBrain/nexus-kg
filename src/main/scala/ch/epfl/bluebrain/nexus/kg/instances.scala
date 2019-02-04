@@ -5,6 +5,7 @@ import cats.effect.Async
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 
 object instances {
+
   /**
     * Generates a MonadError for [[KgError]]
     *
