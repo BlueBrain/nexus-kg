@@ -6,23 +6,20 @@ import cats.MonadError
 import cats.data.EitherT
 import cats.effect.Timer
 import cats.syntax.all._
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NotFound, ProjectNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.OffsetStorage.Volatile
 import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
-import ch.epfl.bluebrain.nexus.sourcing.akka.RetryStrategy
+import ch.epfl.bluebrain.nexus.sourcing.akka.Retry
+import ch.epfl.bluebrain.nexus.sourcing.akka.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler
-
-import scala.concurrent.duration._
 
 /**
   * Indexes project view events.
@@ -31,17 +28,10 @@ import scala.concurrent.duration._
   * @param viewCache the distributed cache
   */
 private class ViewIndexer[F[_]: Timer](resources: Resources[F], viewCache: ViewCache[F], projectCache: ProjectCache[F])(
-    implicit F: MonadError[F, Throwable]) {
+    implicit F: MonadError[F, Throwable],
+    indexing: IndexingConfig) {
 
-  private val retry: RetryStrategy[F] = RetryStrategy.exponentialBackoff(1 second, Int.MaxValue)
-
-  private def fetchProject(ref: ProjectRef): F[Option[Project]] =
-    retry(
-      projectCache
-        .get(ref)
-        .orFailWhen({ case None => true },
-                    KgError.NotFound(Some(ref.show)),
-                    s"Project '$ref' not found in the cache on view indexing."))
+  private implicit val retry: Retry[F, Throwable] = Retry(indexing.retry.retryStrategy)
 
   /**
     * Indexes the view which corresponds to the argument event. If the resource is not found, or it's not compatible to
@@ -52,8 +42,11 @@ private class ViewIndexer[F[_]: Timer](resources: Resources[F], viewCache: ViewC
   def apply(event: Event): F[Unit] = {
     val projectRef = event.id.parent
     val result: EitherT[F, Rejection, Unit] = for {
-      resource     <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
-      project      <- EitherT.fromOptionF(fetchProject(projectRef), ProjectNotFound(projectRef))
+      resource <- resources.fetch(event.id, None).toRight[Rejection](NotFound(event.id.ref))
+      project <- EitherT.right(
+        projectCache
+          .get(projectRef)
+          .mapRetry({ case Some(p) => p }, KgError.NotFound(Some(projectRef.show)): Throwable))
       materialized <- resources.materialize(resource)(project)
       view         <- EitherT.fromEither(View(materialized))
       applied      <- EitherT.liftF(viewCache.put(view))
@@ -87,16 +80,19 @@ object ViewIndexer {
       s: Scheduler,
       persistence: PersistenceConfig,
       indexing: IndexingConfig): ActorRef = {
+
+    import ch.epfl.bluebrain.nexus.kg.instances.retriableMonadError
+
     val indexer = new ViewIndexer[Task](resources, viewCache, projectCache)
     SequentialTagIndexer.start(
       IndexerConfig.builder
         .name("view-indexer")
         .tag(s"type=${nxv.View.value.show}")
         .plugin(persistence.queryJournalPlugin)
-        .retry(indexing.retry.maxCount, indexing.retry.strategy)
+        .retry[RetriableErr](indexing.retry.retryStrategy)
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)
-        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))).map(_ => ()).runToFuture)
+        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))) *> Task.unit)
         .build)
   }
   // $COVERAGE-ON$

@@ -95,7 +95,8 @@ object ProjectCache {
     * Creates a new project index.
     */
   def apply[F[_]: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ProjectCache[F] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     val function: (Long, Project) => Long = { case (_, res) => res.rev }
-    new ProjectCache(KeyValueStore.distributed("projects", function, mapError))
+    new ProjectCache(KeyValueStore.distributed("projects", function, mapError))(F)
   }
 }
