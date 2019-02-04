@@ -27,7 +27,7 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
         complete(StatusCodes.OK -> page)
       }
 
-    def routeOutput(strict: Boolean, default: OutputFormat): Route =
+    def routeFormat(strict: Boolean, default: OutputFormat): Route =
       (get & outputFormat(strict, default)) { output =>
         complete(StatusCodes.OK -> output.toString)
       }
@@ -56,40 +56,40 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
       }
     }
 
-    "return jsonLD output from Accept header and query params. on strict mode" in {
-      Get("/some?output=compacted") ~> Accept(`application/json`) ~> routeOutput(strict = true, Compacted) ~> check {
+    "return jsonLD format from Accept header and query params. on strict mode" in {
+      Get("/some?format=compacted") ~> Accept(`application/json`) ~> routeFormat(strict = true, Compacted) ~> check {
         responseAs[String] shouldEqual "Compacted"
       }
-      Get("/some?output=expanded") ~> Accept(`application/json`) ~> routeOutput(strict = true, Compacted) ~> check {
+      Get("/some?format=expanded") ~> Accept(`application/json`) ~> routeFormat(strict = true, Compacted) ~> check {
         responseAs[String] shouldEqual "Expanded"
       }
     }
 
-    "ignore query param. and return default output when Accept header does not match on strict mode" in {
-      Get("/some?output=expanded") ~> Accept(`application/*`) ~> routeOutput(strict = true, Binary) ~> check {
+    "ignore query param. and return default format when Accept header does not match on strict mode" in {
+      Get("/some?format=expanded") ~> Accept(`application/*`) ~> routeFormat(strict = true, Binary) ~> check {
         responseAs[String] shouldEqual "Binary"
       }
-      Get("/some?output=compacted") ~> Accept(`application/*`, `*/*`) ~> routeOutput(strict = true, DOT) ~> check {
+      Get("/some?format=compacted") ~> Accept(`application/*`, `*/*`) ~> routeFormat(strict = true, DOT) ~> check {
         responseAs[String] shouldEqual "DOT"
       }
     }
 
-    "return the output format from the closest Accept header match and the query param" in {
-      Get("/some?output=expanded") ~> Accept(`application/*`) ~> routeOutput(strict = false, Binary) ~> check {
+    "return the format from the closest Accept header match and the query param" in {
+      Get("/some?format=expanded") ~> Accept(`application/*`) ~> routeFormat(strict = false, Binary) ~> check {
         responseAs[String] shouldEqual "Expanded"
       }
-      Get("/some") ~> Accept(`application/ntriples`, `*/*`) ~> routeOutput(strict = false, Binary) ~> check {
+      Get("/some") ~> Accept(`application/ntriples`, `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
         responseAs[String] shouldEqual "Triples"
       }
 
-      Get("/some") ~> Accept(`text/*`, `*/*`) ~> routeOutput(strict = false, Binary) ~> check {
+      Get("/some") ~> Accept(`text/*`, `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
         responseAs[String] shouldEqual "DOT"
       }
 
-      Get("/some?output=compacted") ~> Accept(`application/javascript`,
+      Get("/some?format=compacted") ~> Accept(`application/javascript`,
                                               DOT.contentType.mediaType,
                                               `application/ntriples`,
-                                              `*/*`) ~> routeOutput(strict = false, Binary) ~> check {
+                                              `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
         responseAs[String] shouldEqual "DOT"
       }
     }

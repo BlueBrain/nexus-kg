@@ -105,7 +105,7 @@ object KgError {
     case AuthorizationFailed              => StatusCodes.Forbidden
     case _: ProjectIsDeprecated           => StatusCodes.BadRequest
     case _: InvalidOutputFormat           => StatusCodes.BadRequest
-    case _: UnacceptedResponseContentType => StatusCodes.BadRequest
+    case _: UnacceptedResponseContentType => StatusCodes.NotAcceptable
     case _: ProjectNotFound               => StatusCodes.NotFound
     case _                                => StatusCodes.InternalServerError
   }

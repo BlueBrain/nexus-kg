@@ -32,6 +32,7 @@ sealed trait JsonLDOutputFormat extends NonBinaryOutputFormat {
     * @return the format name
     */
   def name: String
+
   val contentType: Set[ContentType] = Set(`application/json`, `application/ld+json`)
 }
 

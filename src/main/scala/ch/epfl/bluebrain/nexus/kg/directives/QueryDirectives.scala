@@ -30,7 +30,7 @@ object QueryDirectives {
     *         If the output format does not exist, it fails with [[InvalidOutputFormat]] exception.
     */
   private def jsonLDFormat(default: JsonLDOutputFormat = Compacted): Directive1[OutputFormat] =
-    parameter('output.as[String] ? default.name).flatMap { outputName =>
+    parameter('format.as[String] ? default.name).flatMap { outputName =>
       OutputFormat(outputName) match {
         case Some(output) => provide(output)
         case _            => failWith(InvalidOutputFormat(outputName))

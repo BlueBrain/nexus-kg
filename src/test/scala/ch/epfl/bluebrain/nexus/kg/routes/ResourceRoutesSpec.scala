@@ -670,7 +670,6 @@ class ResourceRoutesSpec
 
       val endpoints = List(
         s"/v1/files/$organization/$project/nxv:$genUuid?rev=1",
-        s"/v1/files/$organization/$project/nxv:$genUuid?rev=1&output=binary",
         s"/v1/resources/$organization/$project/file/nxv:$genUuid?rev=2",
         s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=3"
       )
@@ -754,7 +753,6 @@ class ResourceRoutesSpec
 
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid") ~> Accept(`application/json`) ~> addCredentials(
         oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
@@ -1002,7 +1000,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "get a resource with different outputs" in new Ctx {
+      "get a resource with different output formats" in new Ctx {
         val json     = jsonContentOf("/resources/resource-embed.json")
         val id2      = Id(projectRef, url"https://bluebrain.github.io/nexus/vocabulary/me".value)
         val resource = ResourceF.simpleF(id2, json, created = subject, updated = subject, schema = schemaRef)
@@ -1032,11 +1030,20 @@ class ResourceRoutesSpec
           string.split("\n").sorted shouldEqual expected.split("\n").sorted
         }
 
-        Get(s"/v1/resources/$organization/$project/_/nxv:me?output=expanded") ~> Accept(`*/*`) ~> addCredentials(
+        Get(s"/v1/resources/$organization/$project/_/nxv:me?format=expanded") ~> Accept(`*/*`) ~> addCredentials(
           oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType shouldEqual `application/ld+json`.toContentType
           val expected = jsonContentOf("/resources/resource-expanded.json",
+                                       Map(quote("{org}") -> organization, quote("{proj}") -> project))
+          responseAs[Json] shouldEqual expected
+        }
+
+        Get(s"/v1/resources/$organization/$project/_/nxv:me?format=compacted") ~> Accept(`*/*`) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual `application/ld+json`.toContentType
+          val expected = jsonContentOf("/resources/resource-with-meta.json",
                                        Map(quote("{org}") -> organization, quote("{proj}") -> project))
           responseAs[Json] shouldEqual expected
         }
@@ -1077,9 +1084,9 @@ class ResourceRoutesSpec
         }
       }
 
-      "reject getting a schema with wrong output" ignore new Schema {
+      "reject getting a schema with wrong format" ignore new Schema {
 
-        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1&output=wrong") ~> addCredentials(oauthToken) ~> routes ~> check {
+        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1&format=wrong") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.BadRequest
           responseAs[Error].tpe shouldEqual "InvalidOutputFormat"
         }

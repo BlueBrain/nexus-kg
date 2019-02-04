@@ -148,11 +148,11 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
     val defaultOutput: OutputFormat = schemaOpt.collect { case `fileRef` => Binary }.getOrElse(Compacted)
     (get & outputFormat(defaultOutput == Binary, defaultOutput) & pathEndOrSingleSlash & hasPermissions(read)) {
       case Binary                        => getFile(id)
-      case output: NonBinaryOutputFormat => getResource(id, schemaOpt)(output)
+      case format: NonBinaryOutputFormat => getResource(id, schemaOpt)(format)
     }
   }
 
-  private def getResource(id: AbsoluteIri, schemaOpt: Option[Ref])(implicit output: NonBinaryOutputFormat): Route =
+  private def getResource(id: AbsoluteIri, schemaOpt: Option[Ref])(implicit format: NonBinaryOutputFormat): Route =
     trace(s"get$resourceName") {
       val idRes = Id(project.ref, id)
       concat(
@@ -169,8 +169,8 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
     }
 
   private def completeWithFormat(fetched: Future[Either[Rejection, (StatusCode, ResourceV)]])(
-      implicit output: NonBinaryOutputFormat): Route =
-    output match {
+      implicit format: NonBinaryOutputFormat): Route =
+    format match {
       case f: JsonLDOutputFormat =>
         implicit val format = f
         complete(fetched)
@@ -216,7 +216,7 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
               complete(HttpEntity(contentType, info.bytes, source))
             else
               failWith(UnacceptedResponseContentType(
-                s"Binary Content-Type is '$contentType' and Accept HTTP Headers are '${accept.mediaRanges.mkString(", ")}'"))
+                s"File Media Type '$contentType' does not match the Accept header value '${accept.mediaRanges.mkString(", ")}'"))
           }
         }
     }
