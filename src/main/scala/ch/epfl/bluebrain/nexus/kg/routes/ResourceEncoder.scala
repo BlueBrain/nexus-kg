@@ -17,7 +17,8 @@ import io.circe.{Encoder, Json}
 
 object ResourceEncoder {
 
-  private implicit val resourceVGraphEnc: GraphEncoder[ResourceV] = GraphEncoder(res => IriNode(res.id.value) -> res.value.graph)
+  private implicit val resourceVGraphEnc: GraphEncoder[ResourceV] = GraphEncoder(
+    res => IriNode(res.id.value) -> res.value.graph)
 
   implicit def resourceEncoder(implicit config: AppConfig, project: Project): Encoder[Resource] = {
     implicit val graphEnc: GraphEncoder[Resource] =
@@ -27,7 +28,7 @@ object ResourceEncoder {
     }
   }
 
-  implicit def resourceVEncoder(implicit output: OutputFormat): Encoder[ResourceV] =
+  implicit def resourceVEncoder(implicit output: JsonLDOutputFormat): Encoder[ResourceV] =
     output match {
       case Compacted => resourceVEncoderCompacted
       case Expanded  => resourceVEncoderExpanded

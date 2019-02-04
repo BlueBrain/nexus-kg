@@ -28,7 +28,7 @@ scalafmt: {
 val adminVersion                = "1.0.2"
 val iamVersion                  = "1.0.1"
 val commonsVersion              = "0.10.42"
-val rdfVersion                  = "0.2.32"
+val rdfVersion                  = "0.2.33"
 val serviceVersion              = "0.10.28"
 val sourcingVersion             = "0.12.2"
 val akkaVersion                 = "2.5.19"
@@ -54,6 +54,7 @@ lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"     
 lazy val iamClient            = "ch.epfl.bluebrain.nexus" %% "iam-client"                  % iamVersion
 lazy val elasticClient        = "ch.epfl.bluebrain.nexus" %% "elastic-client"              % commonsVersion
 lazy val rdfCore              = "ch.epfl.bluebrain.nexus" %% "rdf-core"                    % rdfVersion
+lazy val rdfDot               = "ch.epfl.bluebrain.nexus" %% "rdf-dot"                     % rdfVersion
 lazy val rdfJena              = "ch.epfl.bluebrain.nexus" %% "rdf-jena"                    % rdfVersion
 lazy val rdfAkka              = "ch.epfl.bluebrain.nexus" %% "rdf-akka"                    % rdfVersion
 lazy val rdfCirce             = "ch.epfl.bluebrain.nexus" %% "rdf-circe"                   % rdfVersion
@@ -105,6 +106,7 @@ lazy val kg = project
       rdfAkka,
       rdfCore,
       rdfCirce,
+      rdfDot,
       rdfJena,
       rdfNexus,
       serviceIndexing,

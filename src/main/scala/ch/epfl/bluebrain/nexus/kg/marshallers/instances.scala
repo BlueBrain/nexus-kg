@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.marshallers
 
 import akka.http.scaladsl.marshalling.GenericMarshallers.eitherMarshaller
 import akka.http.scaladsl.marshalling._
-import akka.http.scaladsl.model.MediaTypes.`application/json`
+import akka.http.scaladsl.model.MediaTypes._
 import akka.http.scaladsl.model._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.{Ref, Rejection}
+import ch.epfl.bluebrain.nexus.kg.routes.TextOutputFormat
 import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.syntax._
@@ -39,6 +40,22 @@ object instances extends FailFastCirceSupport {
         HttpEntity(`application/ld+json`, printer.pretty(json.sortKeys))
     })
     Marshaller.oneOf(marshallers: _*)
+  }
+
+  /**
+    * `String` => HTTP entity
+    *
+    * @return marshaller for string value
+    */
+  final def stringMarshaller(output: TextOutputFormat): ToEntityMarshaller[String] = {
+    val contentTypes: Seq[ContentType.NonBinary] =
+      List(output.contentType, `text/plain`.toContentType(HttpCharsets.`UTF-8`))
+    val marshallers = contentTypes.map(contentType =>
+      Marshaller.withFixedContentType[String, MessageEntity](contentType) { value =>
+        HttpEntity(contentType, value)
+    })
+    Marshaller.oneOf(marshallers: _*)
+
   }
 
   /**

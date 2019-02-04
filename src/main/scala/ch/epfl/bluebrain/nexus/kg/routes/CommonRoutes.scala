@@ -1,16 +1,20 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import akka.http.scaladsl.model.StatusCode
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
+import akka.http.scaladsl.model.headers.{Accept, RawHeader}
+import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCode}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{MalformedQueryParamRejection, Route, Rejection => AkkaRejection}
 import cats.data.{EitherT, OptionT}
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.kg.KgError.UnacceptedResponseContentType
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
@@ -19,23 +23,31 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax.dot._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
 
-private[routes] abstract class CommonRoutes(
-    resources: Resources[Task],
-    prefix: String,
-    acls: AccessControlLists,
-    caller: Caller,
-    viewCache: ViewCache[Task])(implicit project: Project, indexers: Clients[Task], config: AppConfig) {
+private[routes] abstract class CommonRoutes(resources: Resources[Task],
+                                            prefix: String,
+                                            acls: AccessControlLists,
+                                            caller: Caller,
+                                            viewCache: ViewCache[Task])(implicit project: Project,
+                                                                        indexers: Clients[Task],
+                                                                        config: AppConfig,
+                                                                        store: FileStore[Task, AkkaIn, AkkaOut]) {
 
   import indexers._
 
@@ -132,21 +144,79 @@ private[routes] abstract class CommonRoutes(
       }
     }
 
-  def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (get & parameter('rev.as[Long].?) & parameter('tag.?) & pathEndOrSingleSlash & hasPermissions(read)) {
-      (revOpt, tagOpt) =>
-        outputFormat { implicit output =>
-          val idRes = Id(project.ref, id)
-          trace(s"get$resourceName") {
-            (revOpt, tagOpt) match {
-              case (Some(_), Some(_)) => reject(simultaneousParamsRejection)
-              case (Some(rev), _) =>
-                complete(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
-              case (_, Some(tag)) =>
-                complete(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
-              case _ =>
-                complete(resources.fetch(idRes, schemaOpt).materializeRun(id.ref, revOpt, tagOpt))
-            }
+  def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route = {
+    val defaultOutput: OutputFormat = schemaOpt.collect { case `fileRef` => Binary }.getOrElse(Compacted)
+    (get & outputFormat(defaultOutput == Binary, defaultOutput) & pathEndOrSingleSlash & hasPermissions(read)) {
+      case Binary                        => getFile(id)
+      case format: NonBinaryOutputFormat => getResource(id, schemaOpt)(format)
+    }
+  }
+
+  private def getResource(id: AbsoluteIri, schemaOpt: Option[Ref])(implicit format: NonBinaryOutputFormat): Route =
+    trace(s"get$resourceName") {
+      val idRes = Id(project.ref, id)
+      concat(
+        (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+          completeWithFormat(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref, Some(rev), None))
+        },
+        (parameter('tag) & noParameter('rev)) { tag =>
+          completeWithFormat(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref, None, Some(tag)))
+        },
+        (noParameter('tag) & noParameter('rev)) {
+          completeWithFormat(resources.fetch(idRes, schemaOpt).materializeRun(id.ref, None, None))
+        }
+      )
+    }
+
+  private def completeWithFormat(fetched: Future[Either[Rejection, (StatusCode, ResourceV)]])(
+      implicit format: NonBinaryOutputFormat): Route =
+    format match {
+      case f: JsonLDOutputFormat =>
+        implicit val format = f
+        complete(fetched)
+      case Triples =>
+        implicit val marshaller = stringMarshaller(Triples)
+        complete(fetched.map(_.map {
+          case (status, resource) =>
+            status -> resource.value.graph.triples
+              .map { case (s, p, o) => s"${s.show} ${p.show} ${o.show} ." }
+              .mkString("\n")
+        }))
+      case DOT =>
+        implicit val marshaller = stringMarshaller(DOT)
+        complete(fetched.map(_.map {
+          case (status, resource) =>
+            status -> resource.value.graph.asDot
+        }))
+    }
+
+  private def getFile(id: AbsoluteIri): Route =
+    trace("getFile") {
+      concat(
+        (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+          completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
+        },
+        (parameter('tag) & noParameter('rev)) { tag =>
+          completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
+        },
+        (noParameter('tag) & noParameter('rev)) {
+          completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
+        }
+      )
+    }
+
+  private def completeFile(f: Future[(FileAttributes, FileStore.AkkaOut)]): Route =
+    onSuccess(f) {
+      case (info, source) =>
+        val filename = urlEncodeOrElse(info.filename)("file")
+        (respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")) & encodeResponse) {
+          headerValueByType[Accept](()) { accept =>
+            val contentType = ContentType.parse(info.mediaType).getOrElse(Binary.contentType)
+            if (accept.mediaRanges.exists(_.matches(contentType.mediaType)))
+              complete(HttpEntity(contentType, info.bytes, source))
+            else
+              failWith(UnacceptedResponseContentType(
+                s"File Media Type '$contentType' does not match the Accept header value '${accept.mediaRanges.mkString(", ")}'"))
           }
         }
     }

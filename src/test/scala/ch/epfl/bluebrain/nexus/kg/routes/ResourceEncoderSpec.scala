@@ -81,9 +81,9 @@ class ResourceEncoderSpec
     }
 
     "encode resource value in compacted form" in {
-      implicit val output: OutputFormat = Compacted
-      val triples                       = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
-      val resourceV                     = resource.map(_ => Value(json, context, Graph(triples)))
+      implicit val output: JsonLDOutputFormat = Compacted
+      val triples                             = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
+      val resourceV                           = resource.map(_ => Value(json, context, Graph(triples)))
       val expected =
         """
           |{
@@ -102,9 +102,9 @@ class ResourceEncoderSpec
     }
 
     "encode resource value in expanded form" in {
-      implicit val output: OutputFormat = Expanded
-      val triples                       = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
-      val resourceV                     = resource.map(_ => Value(json, context, Graph(triples)))
+      implicit val output: JsonLDOutputFormat = Expanded
+      val triples                             = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
+      val resourceV                           = resource.map(_ => Value(json, context, Graph(triples)))
       val expected =
         """
           |{
