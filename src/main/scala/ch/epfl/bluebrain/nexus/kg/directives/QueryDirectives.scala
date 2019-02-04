@@ -47,7 +47,7 @@ object QueryDirectives {
       val outputs =
         if (strict) exactMatch(accept)
         else regexMatch(accept)
-      outputs.filter(_._1 >= 0).sortBy(_._1).headOption match {
+      outputs.filter { case (pos, _) => pos >= 0 }.sortBy { case (pos, _) => pos }.headOption match {
         case Some((_, Compacted)) => jsonLDFormat()
         case Some((_, format))    => provide(format)
         case None                 => provide(default)

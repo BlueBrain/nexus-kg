@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 /**
   * Enumeration of output format types.
   */
-sealed trait OutputFormat extends Product with Serializable {}
+sealed trait OutputFormat extends Product with Serializable
 
 /**
   * Enumeration of non-binary output format types.
