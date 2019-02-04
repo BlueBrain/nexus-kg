@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -25,6 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
+import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
@@ -34,9 +36,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.syntax.akka._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.akka.Retry
+import ch.epfl.bluebrain.nexus.sourcing.akka.syntax._
 import com.github.ghik.silencer.silent
 import io.circe.Json
 import io.circe.parser._
@@ -58,7 +59,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
   private val logger                                          = Logger[this.type]
   private val http                                            = Http()
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
-  private implicit val strategy: RetryStrategy                = Backoff(1 minute, 0.2)
+  private implicit val retry: Retry[Task, KgError]            = Retry[Task, KgError](config.indexing.retry.retryStrategy)
 
   private def asJson(view: View): Json =
     view
@@ -111,9 +112,9 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
           // format: off
           cache.project.replace(project) *>
             coordinator.start(project) *>
-            resources.create(Id(project.ref, elasticSearchView.id), viewRef, asJson(elasticSearchView)).value.retryWhenNot(createdOrExists, 15) *>
-            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.retryWhenNot(createdOrExists, 15) *>
-            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.retryWhenNot(createdOrExists, 15) *>
+            resources.create(Id(project.ref, elasticSearchView.id), viewRef, asJson(elasticSearchView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError) *>
+            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError) *>
+            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError) *>
             Task.unit
           // format: on
 

@@ -90,7 +90,8 @@ object ViewCache {
                          config: KeyValueStoreConfig,
                          F: Async[F],
                          clock: Clock): ViewCache[F] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     val function: (Long, RevisionedViews) => Long = { case (_, res) => res.rev }
-    new ViewCache(KeyValueStore.distributed("views", function, mapError))
+    new ViewCache(KeyValueStore.distributed("views", function, mapError))(F, clock)
   }
 }

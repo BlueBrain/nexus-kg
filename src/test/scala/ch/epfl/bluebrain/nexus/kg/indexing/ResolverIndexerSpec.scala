@@ -9,8 +9,9 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.resolverCtx
-import ch.epfl.bluebrain.nexus.kg.config.Schemas
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
@@ -39,6 +40,7 @@ class ResolverIndexerSpec
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 15 milliseconds)
 
+  private implicit val appConfig          = Settings(system).appConfig
   private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
 
   private val resources     = mock[Resources[IO]]

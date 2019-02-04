@@ -77,8 +77,9 @@ object ResolverCache {
                          config: KeyValueStoreConfig,
                          F: Async[F],
                          clock: Clock): ResolverCache[F] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     val function: (Long, RevisionedResolvers) => Long = { case (_, res) => res.rev }
-    new ResolverCache(KeyValueStore.distributed("resolvers", function, mapError))
+    new ResolverCache(KeyValueStore.distributed("resolvers", function, mapError))(F, clock)
   }
 
 }
