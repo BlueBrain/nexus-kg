@@ -128,18 +128,18 @@ object AppConfig {
   /**
     * IAM config
     *
-    * @param publicIri            base URL for all the identity IDs, including prefix.
-    * @param internalIri          base URL for all the HTTP calls, including prefix.
-    * @param serviceAccountToken  the service account token to execute calls to IAM
-    * @param cacheRefreshInterval the maximum tolerated inactivity period after which the cached ACLs will be refreshed
+    * @param publicIri           base URL for all the identity IDs, including prefix.
+    * @param internalIri         base URL for all the HTTP calls, including prefix.
+    * @param serviceAccountToken the service account token to execute calls to IAM
+    * @param sseRetryDelay       delay for retrying after completion on SSE
     */
   final case class IamConfig(
       publicIri: AbsoluteIri,
       internalIri: AbsoluteIri,
       serviceAccountToken: Option[AuthToken],
-      cacheRefreshInterval: FiniteDuration,
+      sseRetryDelay: FiniteDuration,
   ) {
-    val iamClient: IamClientConfig = IamClientConfig(publicIri, internalIri)
+    val iamClient: IamClientConfig = IamClientConfig(publicIri, internalIri, sseRetryDelay)
   }
 
   /**
