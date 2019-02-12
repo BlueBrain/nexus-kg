@@ -12,8 +12,9 @@ import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Schemas
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -41,6 +42,7 @@ class ViewIndexerSpec
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 15 milliseconds)
 
+  private implicit val appConfig          = Settings(system).appConfig
   private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
 
   private val resources    = mock[Resources[IO]]

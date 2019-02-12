@@ -2,21 +2,18 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.ActorMaterializer
-import akka.stream.alpakka.sse.scaladsl.EventSource
-import akka.stream.scaladsl.Sink
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
-import ch.epfl.bluebrain.nexus.admin.client.types.events.decoders._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -25,40 +22,36 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
+import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.syntax.akka._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.akka.Retry
+import ch.epfl.bluebrain.nexus.sourcing.akka.syntax._
 import com.github.ghik.silencer.silent
 import io.circe.Json
-import io.circe.parser._
 import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 
-import scala.concurrent.Future
-import scala.concurrent.duration._
-
 // $COVERAGE-OFF$
 @silent
-private class Indexing(resources: Resources[Task], cache: Caches[Task], coordinator: ProjectViewCoordinator[Task])(
-    implicit mt: ActorMaterializer,
-    as: ActorSystem,
-    config: AppConfig) {
+private class Indexing(
+    resources: Resources[Task],
+    cache: Caches[Task],
+    adminClient: AdminClient[Task],
+    coordinator: ProjectViewCoordinator[Task])(implicit mt: ActorMaterializer, as: ActorSystem, config: AppConfig) {
 
   private val logger                                          = Logger[this.type]
   private val http                                            = Http()
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
-  private implicit val strategy: RetryStrategy                = Backoff(1 minute, 0.2)
+  private implicit val retry: Retry[Task, KgError]            = Retry[Task, KgError](config.indexing.retry.retryStrategy)
 
   private def asJson(view: View): Json =
     view
@@ -77,19 +70,6 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
   private val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[ResourceAlreadyExists, Resource]] = {
     case Left(exists: ResourceAlreadyExists) => Left(exists)
     case Right(value)                        => Right(value)
-  }
-
-  private def addCredentials(request: HttpRequest): HttpRequest =
-    config.iam.serviceAccountToken
-      .map(token => request.addCredentials(OAuth2BearerToken(token.value)))
-      .getOrElse(request)
-
-  private def send(request: HttpRequest): Future[HttpResponse] = {
-    http.singleRequest(addCredentials(request)).map { resp =>
-      if (!resp.status.isSuccess())
-        logger.warn(s"HTTP response when performing SSE request: status = '${resp.status}'")
-      resp
-    }
   }
 
   def startAdminStream(): Unit = {
@@ -111,9 +91,9 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
           // format: off
           cache.project.replace(project) *>
             coordinator.start(project) *>
-            resources.create(Id(project.ref, elasticSearchView.id), viewRef, asJson(elasticSearchView)).value.retryWhenNot(createdOrExists, 15) *>
-            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.retryWhenNot(createdOrExists, 15) *>
-            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.retryWhenNot(createdOrExists, 15) *>
+            resources.create(Id(project.ref, elasticSearchView.id), viewRef, asJson(elasticSearchView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError) *>
+            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError) *>
+            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError) *>
             Task.unit
           // format: on
 
@@ -131,19 +111,7 @@ private class Indexing(resources: Resources[Task], cache: Caches[Task], coordina
         case _ => Task.unit
       }
     }
-
-    EventSource((config.admin.internalIri + "events").toAkkaUri, send, None, 1 second)
-      .mapAsync(1) { sse =>
-        decode[Event](sse.data) match {
-          case Right(event) => handle(event).runToFuture
-          case Left(err) =>
-            logger.error(s"Failed to decode admin event '$sse'", err)
-            Future.unit
-        }
-      }
-      .to(Sink.ignore)
-      .run()
-    ()
+    adminClient.events(handle)(config.iam.serviceAccountToken)
   }
 
   def startResolverStream(): Unit = {
@@ -171,9 +139,10 @@ object Indexing {
     * @param resources the resources operations
     * @param cache     the distributed cache
     */
-  def start(resources: Resources[Task], cache: Caches[Task])(implicit as: ActorSystem,
-                                                             ucl: HttpClient[Task, ResultSet],
-                                                             config: AppConfig): Unit = {
+  def start(resources: Resources[Task], cache: Caches[Task], adminClient: AdminClient[Task])(
+      implicit as: ActorSystem,
+      ucl: HttpClient[Task, ResultSet],
+      config: AppConfig): Unit = {
     implicit val mt: ActorMaterializer                    = ActorMaterializer()
     implicit val ul: UntypedHttpClient[Task]              = untyped[Task]
     implicit val elasticSearchClient: ElasticClient[Task] = ElasticClient[Task](config.elasticSearch.base)
@@ -181,7 +150,7 @@ object Indexing {
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)
 
-    val indexing = new Indexing(resources, cache, coordinator)
+    val indexing = new Indexing(resources, cache, adminClient, coordinator)
     indexing.startAdminStream()
     indexing.startResolverStream()
     indexing.startViewStream()

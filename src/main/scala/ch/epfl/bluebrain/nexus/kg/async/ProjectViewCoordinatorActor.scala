@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{withUnmarshaller, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache.RevisionedViews
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -23,10 +24,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChanges
 import ch.epfl.bluebrain.nexus.service.indexer.cache.OnKeyValueStoreChange
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.syntax._
 import ch.epfl.bluebrain.nexus.service.indexer.stream.StreamCoordinator.{Stop => StreamCoordinatorStop}
+import ch.epfl.bluebrain.nexus.sourcing.akka.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.akka.Retry
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -36,7 +36,6 @@ import shapeless.TypeCase
 import scala.collection.immutable.Set
 import scala.collection.mutable
 import scala.concurrent.Future
-import scala.concurrent.duration._
 
 /**
   * Coordinator backed by akka actor which runs the views' streams inside the provided project
@@ -186,7 +185,7 @@ object ProjectViewCoordinatorActor {
     val props = {
       Props(
         new ProjectViewCoordinatorActor(viewCache) {
-          private implicit val strategy: RetryStrategy = Backoff(1 minute, 0.2)
+          private implicit val retry: Retry[Task, Throwable] = Retry(config.indexing.retry.retryStrategy)
 
           private val sparql                                      = config.sparql
           private implicit val jsonClient: HttpClient[Task, Json] = withUnmarshaller[Task, Json]
@@ -200,11 +199,16 @@ object ProjectViewCoordinatorActor {
           override def deleteViewIndices(view: SingleView, project: Project): Task[Unit] = view match {
             case v: ElasticSearchView =>
               log.info("ElasticSearchView index '{}' is removed from project '{}'", v.index, project.projectLabel.show)
-              esClient.deleteIndex(v.index).retryWhenNot({ case true => () }, 10)
+              esClient
+                .deleteIndex(v.index)
+                .mapRetry({ case true => () },
+                          KgError.InternalError(s"Could not delete ElasticSearch index '${v.index}'"): Throwable)
             case _: SparqlView =>
               log.info("Blazegraph keyspace '{}' is removed from project '{}'", view.name, project.projectLabel.show)
               val client = BlazegraphClient[Task](sparql.base, view.name, sparql.akkaCredentials)
-              client.deleteNamespace.retryWhenNot({ case true => () }, 10)
+              client.deleteNamespace.mapRetry(
+                { case true => () },
+                KgError.InternalError(s"Could not delete Sparql keyspace '${view.name}'"): Throwable)
           }
 
           override def onChange(projectRef: ProjectRef): OnKeyValueStoreChange[UUID, RevisionedViews] =

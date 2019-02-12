@@ -21,7 +21,7 @@ import shapeless.{TypeCase, Typeable}
   * @param store the underlying Distributed Data LWWMap store.
   */
 class ViewCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedViews])(implicit F: Monad[F], clock: Clock)
-    extends Cache[F, RevisionedViews](store) {
+    extends Cache[F, UUID, RevisionedViews](store) {
 
   private implicit def toRevisioned(views: Set[View]): RevisionedViews =
     RevisionedValue(clock.instant().toEpochMilli, views)
@@ -90,7 +90,8 @@ object ViewCache {
                          config: KeyValueStoreConfig,
                          F: Async[F],
                          clock: Clock): ViewCache[F] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     val function: (Long, RevisionedViews) => Long = { case (_, res) => res.rev }
-    new ViewCache(KeyValueStore.distributed("views", function, mapError))
+    new ViewCache(KeyValueStore.distributed("views", function, mapError))(F, clock)
   }
 }

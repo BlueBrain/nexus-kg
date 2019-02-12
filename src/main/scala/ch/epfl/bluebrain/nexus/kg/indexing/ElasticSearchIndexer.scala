@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
+import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -87,24 +88,25 @@ object ElasticSearchIndexer {
       as: ActorSystem,
       config: AppConfig): ActorRef = {
 
+    import ch.epfl.bluebrain.nexus.kg.instances.retriableMonadError
     implicit val p = project
 
     val indexer = new ElasticSearchIndexer(view, resources)
-    val init = () =>
-      (for {
+    val init =
+      for {
         _ <- view.createIndex[Task]
         _ <- if (view.rev > 1) client.deleteIndex(view.copy(rev = view.rev - 1).index) else Task.pure(true)
-      } yield ()).runToFuture
+      } yield ()
 
     val index = (l: List[Event]) =>
-      Task.sequence(l.removeDupIds.map(indexer(_))).flatMap(list => client.bulk(list.flatten)).runToFuture
+      Task.sequence(l.removeDupIds.map(indexer(_))).flatMap(list => client.bulk(list.flatten))
 
     SequentialTagIndexer.start(
       IndexerConfig.builder
         .name(s"elasticSearch-indexer-${view.name}")
         .tag(s"project=${view.ref.id}")
         .plugin(config.persistence.queryJournalPlugin)
-        .retry(config.indexing.retry.maxCount, config.indexing.retry.strategy)
+        .retry[RetriableErr](config.indexing.retry.retryStrategy)
         .batch(config.indexing.batch, config.indexing.batchTimeout)
         .restart(restartOffset)
         .init(init)

@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
+import ch.epfl.bluebrain.nexus.kg.async.{AclsCache, ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -68,14 +68,16 @@ class ResourcesSpec
   private implicit val store      = mock[FileStore[IO, String, String]]
   private val projectCache        = mock[ProjectCache[IO]]
   private val resolverCache       = mock[ResolverCache[IO]]
+  private val aclsCache           = mock[AclsCache[IO]]
   private implicit val additional = AdditionalValidation.pass[IO]
   when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List.empty[Resolver]))
   val acls = AccessControlLists(
     "some" / "path" -> resourceAcls(
       AccessControlList(User("sub", "realm") -> Set(Permission.unsafe("resources/manage")))))
+  when(aclsCache.list).thenReturn(IO.pure(acls))
 
   private implicit val resolution =
-    new ProjectResolution[IO](resolverCache, projectCache, StaticResolution(AppConfig.iriResolution), IO.pure(acls))
+    new ProjectResolution[IO](resolverCache, projectCache, StaticResolution(AppConfig.iriResolution), aclsCache)
   private val resources: Resources[IO] = Resources[IO]
 
   before {

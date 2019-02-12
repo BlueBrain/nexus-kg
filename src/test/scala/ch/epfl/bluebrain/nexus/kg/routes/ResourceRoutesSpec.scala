@@ -4,9 +4,10 @@ import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
-import akka.http.scaladsl.model.MediaTypes.{`application/json`, `text/plain`}
+import akka.http.scaladsl.model.MediaTypes._
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.MediaRanges._
 import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
@@ -19,7 +20,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.{ElasticClientError, ElasticUnexpectedError}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
-import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
+import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
@@ -33,7 +34,6 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
-import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -117,7 +117,7 @@ class ResourceRoutesSpec
   private implicit val jsonClient    = withUnmarshaller[Task, Json]
   private val sparql                 = mock[BlazegraphClient[Task]]
   private implicit val elasticSearch = mock[ElasticClient[Task]]
-  private implicit val aclsOps       = mock[AclsOps]
+  private implicit val aclsCache     = mock[AclsCache[Task]]
   private implicit val clients       = Clients(sparql)
 
   private val user                              = User("dmontero", "realm")
@@ -253,7 +253,7 @@ class ResourceRoutesSpec
     when(iamClient.identities).thenReturn(Task.pure(Caller(user, Set(Anonymous))))
     val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
     iamClient.acls(any[Path], any[Boolean], any[Boolean])(any[Option[AuthToken]]) shouldReturn Task.pure(acls)
-    when(aclsOps.fetch()).thenReturn(Task.pure(acls))
+    when(aclsCache.list).thenReturn(Task.pure(acls))
     when(projectCache.getProjectLabels(Set(projectRef))).thenReturn(Task.pure(Map(projectRef -> Some(label))))
 
     def schemaRef: Ref
@@ -673,7 +673,7 @@ class ResourceRoutesSpec
         s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=3"
       )
       forAll(endpoints) { endpoint =>
-        Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+        Get(endpoint) ~> Accept(`*/*`) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual "text/plain"
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
@@ -733,7 +733,7 @@ class ResourceRoutesSpec
     }
 
     "reject getting a file with both tag and rev query params" in new File {
-      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
+      Get(s"/v1/files/$organization/$project/nxv:$genUuid?rev=1&tag=2") ~> Accept(`*/*`) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Error].tpe shouldEqual "MalformedQueryParam"
       }
@@ -750,9 +750,8 @@ class ResourceRoutesSpec
     "reject getting a resource that does not exist" in new Ctx {
       when(resources.fetch(id, None)).thenReturn(OptionT.none[Task, Resource])
 
-      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid") ~> addHeader("Accept", "application/json") ~> addCredentials(
+      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid") ~> Accept(`application/json`) ~> addCredentials(
         oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
@@ -764,7 +763,7 @@ class ResourceRoutesSpec
       when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.none[Task, Resource])
 
-      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> addHeader("Accept", "application/json") ~> addCredentials(
+      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> Accept(`application/json`) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
@@ -777,7 +776,7 @@ class ResourceRoutesSpec
       when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, "one", None)).thenReturn(OptionT.none[Task, Resource])
 
-      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one") ~> addHeader("Accept", "application/json") ~> addCredentials(
+      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one") ~> Accept(`application/json`) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
@@ -1000,6 +999,55 @@ class ResourceRoutesSpec
         }
       }
 
+      "get a resource with different output formats" in new Ctx {
+        val json     = jsonContentOf("/resources/resource-embed.json")
+        val id2      = Id(projectRef, url"https://bluebrain.github.io/nexus/vocabulary/me".value)
+        val resource = ResourceF.simpleF(id2, json, created = subject, updated = subject, schema = schemaRef)
+        val resourceV =
+          resource.copy(value = Value(json, json.contextValue, json.asGraph.right.value ++ Graph(resource.metadata)))
+
+        when(resources.fetch(id2, None)).thenReturn(OptionT.some[Task](resource))
+        when(resources.materializeWithMeta(mEq(resource))(projectMatcher))
+          .thenReturn(EitherT.rightT[Task, Rejection](resourceV))
+
+        Get(s"/v1/resources/$organization/$project/_/nxv:me") ~> Accept(`application/ntriples`) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual OutputFormat.Triples.contentType
+          val expected = contentOf("/resources/resource-triples.txt",
+                                   Map(quote("{org}") -> organization, quote("{proj}") -> project))
+          val string = responseEntity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String).futureValue
+          string.split("\n").sorted shouldEqual expected.split("\n").sorted
+        }
+
+        Get(s"/v1/resources/$organization/$project/_/nxv:me") ~> addCredentials(oauthToken) ~> Accept(`text/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual OutputFormat.DOT.contentType
+          val expected =
+            contentOf("/resources/resource-dot.txt", Map(quote("{org}") -> organization, quote("{proj}") -> project))
+          val string = responseEntity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String).futureValue
+          string.split("\n").sorted shouldEqual expected.split("\n").sorted
+        }
+
+        Get(s"/v1/resources/$organization/$project/_/nxv:me?format=expanded") ~> Accept(`*/*`) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual `application/ld+json`.toContentType
+          val expected = jsonContentOf("/resources/resource-expanded.json",
+                                       Map(quote("{org}") -> organization, quote("{proj}") -> project))
+          responseAs[Json] shouldEqual expected
+        }
+
+        Get(s"/v1/resources/$organization/$project/_/nxv:me?format=compacted") ~> Accept(`*/*`) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual `application/ld+json`.toContentType
+          val expected = jsonContentOf("/resources/resource-with-meta.json",
+                                       Map(quote("{org}") -> organization, quote("{proj}") -> project))
+          responseAs[Json] shouldEqual expected
+        }
+      }
+
       "deprecate a schema" in new Schema {
         val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(1L)).addContext(tagCtxUri)
         when(resources.deprecate(id, 1L, Some(schemaRef))).thenReturn(EitherT.rightT[Task, Rejection](
@@ -1012,7 +1060,8 @@ class ResourceRoutesSpec
       }
 
       "reject getting a schema with both tag and rev query params" in new Schema {
-        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1&tag=2") ~> addCredentials(oauthToken) ~> routes ~> check {
+        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1&tag=2") ~> Accept(`*/*`) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.BadRequest
           responseAs[Error].tpe shouldEqual "MalformedQueryParam"
         }
@@ -1034,9 +1083,9 @@ class ResourceRoutesSpec
         }
       }
 
-      "reject getting a schema with wrong output" ignore new Schema {
+      "reject getting a schema with wrong format" ignore new Schema {
 
-        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1&output=wrong") ~> addCredentials(oauthToken) ~> routes ~> check {
+        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1&format=wrong") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.BadRequest
           responseAs[Error].tpe shouldEqual "InvalidOutputFormat"
         }
@@ -1050,7 +1099,7 @@ class ResourceRoutesSpec
       }
 
       "reject returning an appropriate error message when exception thrown" in new Schema {
-        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
+        Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> Accept(`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.InternalServerError
           responseAs[Error].tpe shouldEqual classNameOf[KgError.InternalError]
         }

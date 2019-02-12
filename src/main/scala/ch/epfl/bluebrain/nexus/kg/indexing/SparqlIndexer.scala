@@ -6,12 +6,13 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.MonadError
-import cats.syntax.flatMap._
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
+import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -88,6 +89,7 @@ object SparqlIndexer {
       uclRs: HttpClient[Task, ResultSet],
       config: AppConfig): ActorRef = {
 
+    import ch.epfl.bluebrain.nexus.kg.instances.retriableMonadError
     implicit val lb      = project
     implicit val uclJson = HttpClient.withUnmarshaller[Task, Json]
 
@@ -99,23 +101,23 @@ object SparqlIndexer {
 
     val client  = BlazegraphClient[Task](config.sparql.base, view.name, config.sparql.akkaCredentials)
     val indexer = new SparqlIndexer(client, resources)
-    val init = () =>
-      (for {
+    val init =
+      for {
         _ <- client.createNamespace(properties)
         _ <- if (view.rev > 1) client.copy(namespace = view.copy(rev = view.rev - 1).name).deleteNamespace
         else Task.pure(true)
-      } yield ()).runToFuture
+      } yield ()
 
     SequentialTagIndexer.start(
       IndexerConfig.builder
         .name(s"sparql-indexer-${view.name}")
         .tag(s"project=${view.ref.id}")
         .plugin(config.persistence.queryJournalPlugin)
-        .retry(config.indexing.retry.maxCount, config.indexing.retry.strategy)
+        .retry[RetriableErr](config.indexing.retry.retryStrategy)
         .batch(config.indexing.batch, config.indexing.batchTimeout)
         .restart(restartOffset)
         .init(init)
-        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))).map(_ => ()).runToFuture)
+        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))) *> Task.unit)
         .build)
   }
   // $COVERAGE-ON$

@@ -4,8 +4,6 @@ import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
 import java.util.UUID
 
-import cats.MonadError
-import cats.syntax.flatMap._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
@@ -17,7 +15,6 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
-import journal.Logger
 
 import scala.util.{Success, Try}
 
@@ -125,17 +122,5 @@ object syntax {
       * @return the project reference
       */
     def ref: ProjectRef = ProjectRef(project.uuid)
-  }
-
-  //TODO: Move this logic to sourcing (retryWhen and retryWhenNot)
-  implicit class OrFail[F[_], A](fa: F[A])(implicit F: MonadError[F, Throwable]) {
-    private val logger = Logger[this.type]
-    def orFailWhen(pf: PartialFunction[A, Boolean], ex: => Exception, message: => String): F[A] =
-      fa.flatMap { a =>
-        if (pf.isDefinedAt(a) && pf(a)) {
-          logger.error(message)
-          F.raiseError(ex)
-        } else fa
-      }
   }
 }

@@ -1,14 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
-import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{Accept, RawHeader}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -17,7 +12,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
-import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
@@ -25,12 +19,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
-import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-
-import scala.concurrent.Future
 
 class FileRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit project: Project,
@@ -39,8 +30,6 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     store: FileStore[Task, AkkaIn, AkkaOut],
     config: AppConfig)
     extends CommonRoutes(resources, "files", acls, caller, viewCache) {
-
-  private val metadataTypes: Set[MediaType] = Set(`application/json`, `application/ld+json`)
 
   def routes: Route = {
     val fileRefOpt = Some(fileRef)
@@ -92,49 +81,4 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
           }
       }
     }
-
-  override def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    optionalHeaderValueByType[Accept](()) {
-      case Some(h) if h.acceptsAll()           => getFile(id)
-      case Some(h) if matchesMetadataRanges(h) => super.fetch(id, schemaOpt)
-      case _                                   => getFile(id)
-    }
-
-  private def matchesMetadataRanges(h: Accept): Boolean =
-    h.mediaRanges.exists { mr =>
-      metadataTypes.exists(mt => mr.matches(mt))
-    }
-
-  private def getFile(id: AbsoluteIri): Route =
-    (get & pathEndOrSingleSlash & hasPermissions(read)) {
-      trace("getFiles") {
-        concat(
-          (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-            completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
-          },
-          (parameter('tag) & noParameter('rev)) { tag =>
-            completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
-          },
-          (noParameter('tag) & noParameter('rev)) {
-            completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
-          }
-        )
-      }
-    }
-
-  private def completeFile(f: Future[(FileAttributes, FileStore.AkkaOut)]): Route =
-    onSuccess(f) {
-      case (info, source) =>
-        (respondWithHeaders(filenameHeader(info)) & encodeResponse) {
-          complete(HttpEntity(contentType(info), info.bytes, source))
-        }
-    }
-
-  private def filenameHeader(info: FileAttributes) = {
-    val filename = urlEncodeOrElse(info.filename)("file")
-    RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")
-  }
-
-  private def contentType(info: FileAttributes) =
-    ContentType.parse(info.mediaType).getOrElse(`application/octet-stream`)
 }

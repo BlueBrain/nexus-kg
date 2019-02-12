@@ -26,6 +26,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, NotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
@@ -37,6 +39,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     implicit project: Project,
     cache: Caches[Task],
     indexers: Clients[Task],
+    store: FileStore[Task, AkkaIn, AkkaOut],
     config: AppConfig,
     um: FromEntityUnmarshaller[String])
     extends CommonRoutes(resources, "views", acls, caller, cache.view) {

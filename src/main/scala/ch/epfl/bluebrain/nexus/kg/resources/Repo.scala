@@ -22,7 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
-import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
+import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, Retry, SourcingConfig}
 import io.circe.Json
 
 /**
@@ -363,7 +363,7 @@ object Repo {
       next,
       (st, cmd) => F.pure(eval(st, cmd)),
       sourcing.passivationStrategy(),
-      sourcing.retryStrategy,
+      Retry(sourcing.retry.retryStrategy),
       sourcing.akkaSourcingConfig,
       sourcing.shards
     )

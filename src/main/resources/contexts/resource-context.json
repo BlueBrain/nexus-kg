@@ -1,10 +1,6 @@
 {
   "@context": {
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
-    "_updatedBy": {
-      "@id": "nxv:updatedBy",
-      "@type": "@id"
-    },
     "Schema": {
       "@id": "nxv:Schema",
       "@type": "@id"
@@ -57,6 +53,10 @@
       "@id": "nxv:createdBy",
       "@type": "@id"
     },
+    "_updatedBy": {
+      "@id": "nxv:updatedBy",
+      "@type": "@id"
+    },
     "_constrainedBy": {
       "@id": "nxv:constrainedBy",
       "@type": "@id"
@@ -67,7 +67,12 @@
     "_value": "nxv:value",
     "_mediaType": "nxv:mediaType",
     "_filename": "nxv:filename",
-    "_bytes": "nxv:bytes"
+    "_bytes": "nxv:bytes",
+    "_instant": "nxv:instant",
+    "_subject": {
+      "@id": "nxv:subject",
+      "@type": "@id"
+    }
   },
   "@id": "https://bluebrain.github.io/nexus/contexts/resource.json"
 }

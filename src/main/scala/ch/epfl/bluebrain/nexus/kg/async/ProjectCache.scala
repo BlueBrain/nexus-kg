@@ -18,7 +18,7 @@ import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueSto
   * @param store the underlying Distributed Data LWWMap store.
   */
 class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implicit F: Monad[F])
-    extends Cache[F, Project](store) {
+    extends Cache[F, UUID, Project](store) {
 
   private implicit val ordering: Ordering[Project] = Ordering.by { proj =>
     s"${proj.organizationLabel}/${proj.label}"
@@ -95,7 +95,8 @@ object ProjectCache {
     * Creates a new project index.
     */
   def apply[F[_]: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ProjectCache[F] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     val function: (Long, Project) => Long = { case (_, res) => res.rev }
-    new ProjectCache(KeyValueStore.distributed("projects", function, mapError))
+    new ProjectCache(KeyValueStore.distributed("projects", function, mapError))(F)
   }
 }

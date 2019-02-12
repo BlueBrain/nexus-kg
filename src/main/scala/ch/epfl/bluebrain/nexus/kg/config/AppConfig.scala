@@ -16,9 +16,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreConfig
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy
-import ch.epfl.bluebrain.nexus.service.indexer.retryer.RetryStrategy.Backoff
 import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka._
 import io.circe.Json
 
@@ -129,18 +128,18 @@ object AppConfig {
   /**
     * IAM config
     *
-    * @param publicIri            base URL for all the identity IDs, including prefix.
-    * @param internalIri          base URL for all the HTTP calls, including prefix.
-    * @param serviceAccountToken  the service account token to execute calls to IAM
-    * @param cacheRefreshInterval the maximum tolerated inactivity period after which the cached ACLs will be refreshed
+    * @param publicIri           base URL for all the identity IDs, including prefix.
+    * @param internalIri         base URL for all the HTTP calls, including prefix.
+    * @param serviceAccountToken the service account token to execute calls to IAM
+    * @param sseRetryDelay       delay for retrying after completion on SSE
     */
   final case class IamConfig(
       publicIri: AbsoluteIri,
       internalIri: AbsoluteIri,
       serviceAccountToken: Option[AuthToken],
-      cacheRefreshInterval: FiniteDuration,
+      sseRetryDelay: FiniteDuration,
   ) {
-    val iamClient: IamClientConfig = IamClientConfig(publicIri, internalIri)
+    val iamClient: IamClientConfig = IamClientConfig(publicIri, internalIri, sseRetryDelay)
   }
 
   /**
@@ -182,24 +181,13 @@ object AppConfig {
   }
 
   /**
-    * Retry configuration with Exponential backoff
-    *
-    * @param maxCount     the maximum number of times an index function is retried
-    * @param maxDuration  the maximum amount of time to wait between two retries
-    * @param randomFactor the jitter added between retries
-    */
-  final case class Retry(maxCount: Int, maxDuration: FiniteDuration, randomFactor: Double) {
-    val strategy: RetryStrategy = Backoff(maxDuration, randomFactor)
-  }
-
-  /**
     * Indexing configuration
     *
     * @param batch        the maximum number of events taken on each batch
     * @param batchTimeout the maximum amount of time to wait for the number of events to be taken on each batch
     * @param retry        the retry configuration when indexing failures
     */
-  final case class IndexingConfig(batch: Int, batchTimeout: FiniteDuration, retry: Retry)
+  final case class IndexingConfig(batch: Int, batchTimeout: FiniteDuration, retry: RetryStrategyConfig)
 
   val iriResolution: Map[AbsoluteIri, Json] = Map(
     tagCtxUri         -> tagCtx,

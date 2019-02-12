@@ -21,7 +21,7 @@ import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueSto
   */
 class ResolverCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedResolvers])(implicit F: Monad[F],
                                                                                        clock: Clock)
-    extends Cache[F, RevisionedResolvers](store) {
+    extends Cache[F, UUID, RevisionedResolvers](store) {
 
   private implicit val ordering: Ordering[Resolver] = Ordering.by(_.priority)
 
@@ -77,8 +77,9 @@ object ResolverCache {
                          config: KeyValueStoreConfig,
                          F: Async[F],
                          clock: Clock): ResolverCache[F] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     val function: (Long, RevisionedResolvers) => Long = { case (_, res) => res.rev }
-    new ResolverCache(KeyValueStore.distributed("resolvers", function, mapError))
+    new ResolverCache(KeyValueStore.distributed("resolvers", function, mapError))(F, clock)
   }
 
 }

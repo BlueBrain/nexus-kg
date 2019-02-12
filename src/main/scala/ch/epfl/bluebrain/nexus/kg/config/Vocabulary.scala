@@ -98,6 +98,7 @@ object Vocabulary {
     val Authenticated              = PrefixMapping.prefix("Authenticated")
     val Anonymous                  = PrefixMapping.prefix("Anonymous")
     val Alpha                      = PrefixMapping.prefix("Alpha")
+    val AccessControlList          = PrefixMapping.prefix("AccessControlList")
   }
 
   /**
