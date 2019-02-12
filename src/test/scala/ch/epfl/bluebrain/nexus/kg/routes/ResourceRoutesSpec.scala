@@ -34,7 +34,6 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
-import ch.epfl.bluebrain.nexus.kg.acls.AclsOps
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -118,7 +117,7 @@ class ResourceRoutesSpec
   private implicit val jsonClient    = withUnmarshaller[Task, Json]
   private val sparql                 = mock[BlazegraphClient[Task]]
   private implicit val elasticSearch = mock[ElasticClient[Task]]
-  private implicit val aclsOps       = mock[AclsOps]
+  private implicit val aclsCache     = mock[AclsCache[Task]]
   private implicit val clients       = Clients(sparql)
 
   private val user                              = User("dmontero", "realm")
@@ -254,7 +253,7 @@ class ResourceRoutesSpec
     when(iamClient.identities).thenReturn(Task.pure(Caller(user, Set(Anonymous))))
     val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
     iamClient.acls(any[Path], any[Boolean], any[Boolean])(any[Option[AuthToken]]) shouldReturn Task.pure(acls)
-    when(aclsOps.fetch()).thenReturn(Task.pure(acls))
+    when(aclsCache.list).thenReturn(Task.pure(acls))
     when(projectCache.getProjectLabels(Set(projectRef))).thenReturn(Task.pure(Map(projectRef -> Some(label))))
 
     def schemaRef: Ref

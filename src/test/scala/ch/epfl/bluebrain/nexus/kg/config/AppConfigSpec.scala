@@ -28,7 +28,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
       appConfig.iam shouldEqual IamConfig(url"http://localhost:8080/v1".value,
                                           url"http://localhost:8080/v1".value,
                                           None,
-                                          10 seconds)
+                                          1 second)
       appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
       SparqlConfig("http://localhost:9999/bigdata", Some("user"), Some("pass"), "kg").akkaCredentials.value shouldEqual BasicHttpCredentials(
         "user",

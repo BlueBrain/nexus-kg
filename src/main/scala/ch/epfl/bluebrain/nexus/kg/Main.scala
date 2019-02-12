@@ -9,7 +9,6 @@ import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
-import akka.util.Timeout
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
@@ -18,7 +17,6 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
-import ch.epfl.bluebrain.nexus.kg.acls.{AclsActor, AclsOps}
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -70,7 +68,6 @@ object Main {
     implicit val as                = ActorSystem(appConfig.description.fullName, config)
     implicit val ec                = as.dispatcher
     implicit val mt                = ActorMaterializer()
-    implicit val tm                = Timeout(appConfig.cluster.replicationTimeout)
     implicit val eff: Effect[Task] = Task.catsEffect(Scheduler.global)
 
     implicit val utClient   = untyped[Task]
@@ -107,9 +104,8 @@ object Main {
     implicit val indexers  = clients
     implicit val cache =
       Caches(ProjectCache[Task], ViewCache[Task], ResolverCache[Task])
-    implicit val iam               = clients.iamClient
-    implicit val aclsOps           = new AclsOps(AclsActor.start)
-    implicit val projectResolution = ProjectResolution.task(cache.resolver, cache.project, aclsOps)
+    implicit val aclCache          = AclsCache[Task](clients.iamClient)
+    implicit val projectResolution = ProjectResolution.task(cache.resolver, cache.project, aclCache)
     val resources: Resources[Task] = Resources[Task]
 
     val logger = Logging(as, getClass)
@@ -131,7 +127,7 @@ object Main {
           Await.result(as.terminate(), 10 seconds)
       }
 
-      Indexing.start(resources, cache)
+      Indexing.start(resources, cache, indexers.adminClient)
     }
 
     cluster.joinSeedNodes(seeds)

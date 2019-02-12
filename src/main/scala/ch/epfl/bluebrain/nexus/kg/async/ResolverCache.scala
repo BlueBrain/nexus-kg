@@ -21,7 +21,7 @@ import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueSto
   */
 class ResolverCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedResolvers])(implicit F: Monad[F],
                                                                                        clock: Clock)
-    extends Cache[F, RevisionedResolvers](store) {
+    extends Cache[F, UUID, RevisionedResolvers](store) {
 
   private implicit val ordering: Ordering[Resolver] = Ordering.by(_.priority)
 

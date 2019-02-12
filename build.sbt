@@ -25,8 +25,8 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "1.0.2"
-val iamVersion                  = "1.0.1"
+val adminVersion                = "d3246916"
+val iamVersion                  = "46d12569"
 val commonsVersion              = "0.10.42"
 val rdfVersion                  = "0.2.33"
 val serviceVersion              = "0.10.30"
@@ -36,15 +36,14 @@ val akkaCorsVersion             = "0.3.4"
 val akkaHttpVersion             = "10.1.5"
 val akkaPersistenceInMemVersion = "2.5.1.1"
 val akkaPersistenceCassVersion  = "0.92"
-val alpakkaVersion              = "1.0-M2"
 val catsVersion                 = "1.6.0"
 val catsEffectVersion           = "1.2.0"
 val circeVersion                = "0.11.1"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
-val mockitoVersion              = "1.0.10"
+val mockitoVersion              = "1.1.2"
 val monixVersion                = "3.0.0-RC2"
-val pureconfigVersion           = "0.10.1"
+val pureconfigVersion           = "0.10.2"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.5"
 val kryoVersion                 = "0.5.2"
@@ -79,7 +78,6 @@ lazy val akkaPersistenceCass  = "com.typesafe.akka"       %% "akka-persistence-c
 lazy val akkaPersistenceInMem = "com.github.dnvriend"     %% "akka-persistence-inmemory"   % akkaPersistenceInMemVersion
 lazy val akkaSlf4j            = "com.typesafe.akka"       %% "akka-slf4j"                  % akkaVersion
 lazy val akkaStream           = "com.typesafe.akka"       %% "akka-stream"                 % akkaVersion
-lazy val alpakkaSSE           = "com.lightbend.akka"      %% "akka-stream-alpakka-sse"     % alpakkaVersion
 lazy val catsCore             = "org.typelevel"           %% "cats-core"                   % catsVersion
 lazy val catsEffect           = "org.typelevel"           %% "cats-effect"                 % catsEffectVersion
 lazy val circeCore            = "io.circe"                %% "circe-core"                  % circeVersion
@@ -118,7 +116,6 @@ lazy val kg = project
       akkaStream,
       akkaSlf4j,
       akkaCluster,
-      alpakkaSSE,
       catsCore,
       catsEffect,
       circeCore,
