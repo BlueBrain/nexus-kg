@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, IndexingConfigCollection, PersistenceConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, IndexingConfigs, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -67,7 +67,7 @@ object ResolverIndexer {
       as: ActorSystem,
       s: Scheduler,
       persistence: PersistenceConfig,
-      indexingCollection: IndexingConfigCollection): ActorRef = {
+      indexingCollection: IndexingConfigs): ActorRef = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.retriableMonadError
 

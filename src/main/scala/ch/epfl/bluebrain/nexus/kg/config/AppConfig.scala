@@ -52,7 +52,7 @@ final case class AppConfig(
     elasticSearch: ElasticSearchConfig,
     pagination: PaginationConfig,
     keyValueStore: KeyValueStoreConfig,
-    indexing: IndexingConfigCollection,
+    indexing: IndexingConfigs,
     sourcing: SourcingConfig,
 )
 
@@ -196,9 +196,7 @@ object AppConfig {
     * @param elasticSearch the indexing configuration applied to Elastic Search indexer
     * @param keyValueStore the indexing configuration applied to the Distributed Data store
     */
-  final case class IndexingConfigCollection(sparql: IndexingConfig,
-                                            elasticSearch: IndexingConfig,
-                                            keyValueStore: IndexingConfig)
+  final case class IndexingConfigs(sparql: IndexingConfig, elasticSearch: IndexingConfig, keyValueStore: IndexingConfig)
 
   val iriResolution: Map[AbsoluteIri, Json] = Map(
     tagCtxUri         -> tagCtx,
@@ -244,7 +242,7 @@ object AppConfig {
   implicit def toIam(implicit appConfig: AppConfig): IamConfig                     = appConfig.iam
   implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig         = appConfig.iam.iamClient
   implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig           = appConfig.admin
-  implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfigCollection = appConfig.indexing
+  implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfigs          = appConfig.indexing
   implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig    = appConfig.sourcing
   implicit def toStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig  = appConfig.keyValueStore
 
