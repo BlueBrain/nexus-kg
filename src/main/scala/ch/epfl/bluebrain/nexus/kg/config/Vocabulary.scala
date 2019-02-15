@@ -40,6 +40,10 @@ object Vocabulary {
     val maxScore      = PrefixMapping.metadata("maxScore")
     val score         = PrefixMapping.metadata("score")
     val uuid          = PrefixMapping.metadata("uuid")
+    val instant       = PrefixMapping.metadata("instant")
+    val eventSubject  = PrefixMapping.metadata("subject")
+    val resourceId    = PrefixMapping.metadata("resourceId")
+    val projectUuid   = PrefixMapping.metadata("projectUuid")
 
     // File metadata vocabulary
     val filename  = PrefixMapping.metadata("filename")

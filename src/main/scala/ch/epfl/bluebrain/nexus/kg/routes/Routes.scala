@@ -176,6 +176,7 @@ object Routes {
                     case "schemas"   => new SchemaRoutes(resources, acl, c).routes
                     case "files"     => new FileRoutes(resources, acl, c).routes
                     case "resources" => new ResourceRoutes(resources, acl, c).routes
+                    case "events"    => new EventRoutes(acl, c).routes
                     case _           => reject()
                   }
                 }
