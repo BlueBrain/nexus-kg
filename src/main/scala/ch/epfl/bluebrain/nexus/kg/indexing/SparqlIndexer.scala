@@ -5,15 +5,14 @@ import java.util.Properties
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
-import cats.MonadError
+import cats.Monad
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlClient}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlWriteQuery}
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
-import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
@@ -29,45 +28,31 @@ import org.apache.jena.query.ResultSet
 
 import scala.collection.JavaConverters._
 
-/**
-  * Indexer which takes a resource event and calls SPARQL client with relevant update if required
-  *
-  * @param client    the SPARQL client
-  * @param resources the resources operations
-  */
-private class SparqlIndexer[F[_]](client: SparqlClient[F], resources: Resources[F])(
-    implicit F: MonadError[F, Throwable],
-    project: Project) {
+private class SparqlIndexerMapping[F[_]](resources: Resources[F])(implicit F: Monad[F], project: Project) {
 
   private val logger: Logger = Logger[this.type]
 
   /**
-    * When an event is received, the current state is obtained.
-    * Afterwards, the current revision is fetched from the SPARQL index.
-    * If the current revision is not found or it is smaller than the state's revision, the state gets indexed.
-    * Otherwise the event it is skipped.
+    * When an event is received, the current state is obtained and a [[SparqlWriteQuery]] is built.
     *
-    * @param ev event to index
-    * @return Unit wrapped in the context F.
-    *         This method will raise errors if something goes wrong
+    * @param event event to be mapped to a Sparql insert query
     */
-  final def apply(ev: Event): F[Unit] = {
-    resources.fetch(ev.id, None).value.flatMap {
-      case None           => F.raiseError(KgError.NotFound(ev.id.ref))
-      case Some(resource) => indexResource(resource)
+  final def apply(event: Event): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
+    resources.fetch(event.id, None).value.flatMap {
+      case None           => F.pure(None)
+      case Some(resource) => buildInsertQuery(resource)
     }
-  }
 
-  private def indexResource(res: Resource): F[Unit] =
-    resources.materializeWithMeta(res).value.flatMap {
+  private def buildInsertQuery(res: Resource): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
+    resources.materializeWithMeta(res).value.map {
       case Left(e) =>
-        val err = KgError.InternalError(s"Unable to materialize with meta, due to '$e'")
-        logger.error("Unable to index resource", err)
-        F.raiseError(err)
-      case Right(r) => client.replace(res.id, r.value.graph)
+        logger.error(s"Unable to materialize with meta, due to '$e'")
+        None
+      case Right(r) =>
+        Some(res.id -> SparqlWriteQuery.replace(toGraphUri(res.id), r.value.graph))
     }
 
-  private implicit def toGraphUri(id: ResId): Uri = (id.value + "graph").toAkkaUri
+  private def toGraphUri(id: ResId): Uri = (id.value + "graph").toAkkaUri
 }
 
 object SparqlIndexer {
@@ -90,8 +75,9 @@ object SparqlIndexer {
       config: AppConfig): ActorRef = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.retriableMonadError
-    implicit val lb      = project
-    implicit val uclJson = HttpClient.withUnmarshaller[Task, Json]
+    implicit val lb       = project
+    implicit val uclJson  = HttpClient.withUnmarshaller[Task, Json]
+    implicit val indexing = config.indexing.sparql
 
     val properties: Map[String, String] = {
       val props = new Properties()
@@ -99,8 +85,8 @@ object SparqlIndexer {
       props.asScala.toMap
     }
 
-    val client  = BlazegraphClient[Task](config.sparql.base, view.name, config.sparql.akkaCredentials)
-    val indexer = new SparqlIndexer(client, resources)
+    val client = BlazegraphClient[Task](config.sparql.base, view.name, config.sparql.akkaCredentials)
+    val mapper = new SparqlIndexerMapping(resources)
     val init =
       for {
         _ <- client.createNamespace(properties)
@@ -109,15 +95,17 @@ object SparqlIndexer {
       } yield ()
 
     SequentialTagIndexer.start(
-      IndexerConfig.builder
+      IndexerConfig
+        .builder[Task]
         .name(s"sparql-indexer-${view.name}")
         .tag(s"project=${view.ref.id}")
         .plugin(config.persistence.queryJournalPlugin)
-        .retry[RetriableErr](config.indexing.retry.retryStrategy)
-        .batch(config.indexing.batch, config.indexing.batchTimeout)
+        .retry[RetriableErr](indexing.retry.retryStrategy)
+        .batch(indexing.batch, indexing.batchTimeout)
         .restart(restartOffset)
         .init(init)
-        .index((l: List[Event]) => Task.sequence(l.removeDupIds.map(indexer(_))) *> Task.unit)
+        .mapping(mapper.apply)
+        .index(inserts => client.bulk(inserts.removeDupIds: _*))
         .build)
   }
   // $COVERAGE-ON$

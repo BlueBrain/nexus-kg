@@ -6,7 +6,7 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
@@ -47,10 +47,10 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   private val emptyEsList: Json                          = jsonContentOf("/elasticsearch/empty-list.json")
   private val transformation: Transformation[Task, View] = Transformation.view
 
-  private implicit val projectCache: ProjectCache[Task] = cache.project
-  private implicit val viewCache: ViewCache[Task]       = cache.view
-  private implicit val esClient: ElasticClient[Task]    = indexers.elasticSearch
-  private implicit val ujClient: HttpClient[Task, Json] = indexers.uclJson
+  private implicit val projectCache: ProjectCache[Task]    = cache.project
+  private implicit val viewCache: ViewCache[Task]          = cache.view
+  private implicit val esClient: ElasticSearchClient[Task] = indexers.elasticSearch
+  private implicit val ujClient: HttpClient[Task, Json]    = indexers.uclJson
 
   def routes: Route = {
     val viewRefOpt = Some(viewRef)

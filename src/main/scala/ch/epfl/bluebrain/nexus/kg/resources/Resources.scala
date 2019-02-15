@@ -4,8 +4,8 @@ import cats.MonadError
 import cats.data.{EitherT, OptionT}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
@@ -342,7 +342,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
     view
       .map(v => elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination))
       .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))

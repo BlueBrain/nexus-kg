@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
@@ -23,7 +23,7 @@ import monix.eval.Task
   * @param mt            the implicitly available [[ActorMaterializer]]
   * @tparam F the monadic effect type
   */
-final case class Clients[F[_]](sparql: BlazegraphClient[F])(implicit val elasticSearch: ElasticClient[F],
+final case class Clients[F[_]](sparql: BlazegraphClient[F])(implicit val elasticSearch: ElasticSearchClient[F],
                                                             val adminClient: AdminClient[F],
                                                             val iamClient: IamClient[F],
                                                             val rsSearch: HttpClient[F, QueryResults[Json]],

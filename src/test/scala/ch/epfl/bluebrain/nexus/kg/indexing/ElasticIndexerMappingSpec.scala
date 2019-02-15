@@ -9,11 +9,10 @@ import cats.data.OptionT
 import cats.effect.IO
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient.BulkOp
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.KgError.NotFound
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
@@ -30,8 +29,8 @@ import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}
 import scala.concurrent.duration._
 
 //noinspection NameBooleanParameters
-class ElasticSearchIndexerSpec
-    extends ActorSystemFixture("ViewIndexerSpec")
+class ElasticIndexerMappingSpec
+    extends ActorSystemFixture("ElasticIndexerMappingSpec")
     with WordSpecLike
     with Matchers
     with IOEitherValues
@@ -69,7 +68,8 @@ class ElasticSearchIndexerSpec
     Mockito.reset(resources)
   }
 
-  "An ElasticSearchIndexer" when {
+  "An ElasticSearch event mapping function" when {
+
     val doc = appConfig.elasticSearch.docType
     val id: ResId = Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
                        url"https://bbp.epfl.ch/nexus/data/resourceName".value)
@@ -98,15 +98,15 @@ class ElasticSearchIndexerSpec
         1L,
         deprecated = false
       )
-      val index   = s"${appConfig.elasticSearch.indexPrefix}_${view.name}"
-      val indexer = new ElasticSearchIndexer(view, resources)
+      val index  = s"${appConfig.elasticSearch.indexPrefix}_${view.name}"
+      val mapper = new ElasticSearchIndexerMapping(view, resources)
 
-      "throw when the event resource is not found on the resources" in {
+      "return none when the event resource is not found on the resources" in {
         resources.fetch(id, None) shouldReturn OptionT.none[IO, Resource]
-        indexer(ev).failed[NotFound]
+        mapper(ev).ioValue shouldEqual None
       }
 
-      "index a resource when it does not exist" in {
+      "return a ElasticSearch BulkOp" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         resources.fetch(id, None) shouldReturn OptionT.some(res)
 
@@ -124,7 +124,7 @@ class ElasticSearchIndexerSpec
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
           )
-        indexer(ev).some shouldEqual BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
+        mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
       }
     }
 
@@ -141,16 +141,16 @@ class ElasticSearchIndexerSpec
         1L,
         deprecated = false
       )
-      val index   = s"${appConfig.elasticSearch.indexPrefix}_${view.name}"
-      val indexer = new ElasticSearchIndexer(view, resources)
+      val index  = s"${appConfig.elasticSearch.indexPrefix}_${view.name}"
+      val mapper = new ElasticSearchIndexerMapping(view, resources)
 
-      "skip indexing a resource when the schema is not on the view" in {
+      "return none when the schema is not on the view" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
         resources.fetch(id, None) shouldReturn OptionT.some(res)
-        indexer(ev).ioValue shouldEqual None
+        mapper(ev).ioValue shouldEqual None
       }
 
-      "index a resource when it does not exist" in {
+      "return a ElasticSearch BulkOp" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value))
         resources.fetch(id, None) shouldReturn OptionT.some(res)
 
@@ -168,10 +168,10 @@ class ElasticSearchIndexerSpec
             "_updatedAt"       -> Json.fromString(instantString),
             "_updatedBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
           )
-        indexer(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual BulkOp.Index(index,
-                                                                                         doc,
-                                                                                         id.value.asString,
-                                                                                         elasticSearchJson)
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> BulkOp.Index(index,
+                                                                                                  doc,
+                                                                                                  id.value.asString,
+                                                                                                  elasticSearchJson)
 
       }
     }
@@ -189,20 +189,20 @@ class ElasticSearchIndexerSpec
         1L,
         deprecated = false
       )
-      val index   = s"${appConfig.elasticSearch.indexPrefix}_${view.name}"
-      val indexer = new ElasticSearchIndexer(view, resources)
+      val index  = s"${appConfig.elasticSearch.indexPrefix}_${view.name}"
+      val mapper = new ElasticSearchIndexerMapping(view, resources)
 
-      "index a resource when it does not exist" in {
+      "return a ElasticSearch BulkOp" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
         resources.fetch(id, "one", None) shouldReturn OptionT.some(res)
 
         val elasticSearchJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
-        indexer(ev).some shouldEqual BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
+        mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
       }
 
-      "skip indexing a resource when it is not matching the tag defined on the view" in {
+      "return None when it is not matching the tag defined on the view" in {
         resources.fetch(id, "one", None) shouldReturn OptionT.none[IO, Resource]
-        indexer(ev).failed[NotFound]
+        mapper(ev).ioValue shouldEqual None
       }
 
       "skip previous events from the same id" in {
@@ -211,7 +211,9 @@ class ElasticSearchIndexerSpec
         val ev2 =
           Created(id.copy(parent = ProjectRef(genUUID)), schema, Set.empty, json, clock.instant(), Anonymous)
 
-        List(ev, updated, ev2).removeDupIds should contain theSameElementsAs List(ev2, updated)
+        val expected = List(ev2, updated)
+
+        List(ev.id -> ev, updated.id -> updated, ev2.id -> ev2).removeDupIds should contain theSameElementsAs expected
       }
     }
   }

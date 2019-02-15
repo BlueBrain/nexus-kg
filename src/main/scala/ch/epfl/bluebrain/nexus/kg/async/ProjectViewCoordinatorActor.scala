@@ -8,7 +8,7 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardReg
 import akka.stream.ActorMaterializer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{withUnmarshaller, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
@@ -175,7 +175,7 @@ object ProjectViewCoordinatorActor {
   final def start(resources: Resources[Task],
                   viewCache: ViewCache[Task],
                   shardingSettings: Option[ClusterShardingSettings],
-                  shards: Int)(implicit esClient: ElasticClient[Task],
+                  shards: Int)(implicit esClient: ElasticSearchClient[Task],
                                config: AppConfig,
                                mt: ActorMaterializer,
                                ul: UntypedHttpClient[Task],
@@ -185,7 +185,7 @@ object ProjectViewCoordinatorActor {
     val props = {
       Props(
         new ProjectViewCoordinatorActor(viewCache) {
-          private implicit val retry: Retry[Task, Throwable] = Retry(config.indexing.retry.retryStrategy)
+          private implicit val retry: Retry[Task, Throwable] = Retry(config.indexing.keyValueStore.retry.retryStrategy)
 
           private val sparql                                      = config.sparql
           private implicit val jsonClient: HttpClient[Task, Json] = withUnmarshaller[Task, Json]

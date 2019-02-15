@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
@@ -51,7 +51,8 @@ private class Indexing(
   private val logger                                          = Logger[this.type]
   private val http                                            = Http()
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
-  private implicit val retry: Retry[Task, KgError]            = Retry[Task, KgError](config.indexing.retry.retryStrategy)
+  private implicit val retry: Retry[Task, KgError] =
+    Retry[Task, KgError](config.indexing.keyValueStore.retry.retryStrategy)
 
   private def asJson(view: View): Json =
     view
@@ -143,9 +144,9 @@ object Indexing {
       implicit as: ActorSystem,
       ucl: HttpClient[Task, ResultSet],
       config: AppConfig): Unit = {
-    implicit val mt: ActorMaterializer                    = ActorMaterializer()
-    implicit val ul: UntypedHttpClient[Task]              = untyped[Task]
-    implicit val elasticSearchClient: ElasticClient[Task] = ElasticClient[Task](config.elasticSearch.base)
+    implicit val mt: ActorMaterializer                          = ActorMaterializer()
+    implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]
+    implicit val elasticSearchClient: ElasticSearchClient[Task] = ElasticSearchClient[Task](config.elasticSearch.base)
 
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)

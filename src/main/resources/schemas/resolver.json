@@ -206,7 +206,7 @@
           "maxCount": 1
         },
         {
-          "path": "nxv:sub",
+          "path": "nxv:subject",
           "name": "Subject",
           "description": "The OIDC Provider subject.",
           "datatype": "xsd:string",

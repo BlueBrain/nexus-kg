@@ -3,8 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.data.EitherT
 import cats.{Applicative, Monad, MonadError}
 import cats.syntax.all._
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
@@ -55,7 +55,7 @@ object AdditionalValidation {
     *         when the view is not an ElasticSearchView
     */
   final def view[F[_]](caller: Caller, acls: AccessControlLists)(implicit F: MonadError[F, Throwable],
-                                                                 elasticSearch: ElasticClient[F],
+                                                                 elasticSearch: ElasticSearchClient[F],
                                                                  config: ElasticSearchConfig,
                                                                  projectCache: ProjectCache[F],
                                                                  viewCache: ViewCache[F]): AdditionalValidation[F] =

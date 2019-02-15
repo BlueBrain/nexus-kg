@@ -1,46 +1,16 @@
 {
   "@context": {
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
-    "Schema": {
-      "@id": "nxv:Schema",
-      "@type": "@id"
-    },
-    "File": {
-      "@id": "nxv:File",
-      "@type": "@id"
-    },
-    "Resolver": {
-      "@id": "nxv:Resolver",
-      "@type": "@id"
-    },
-    "InProject": {
-      "@id": "nxv:InProject",
-      "@type": "@id"
-    },
-    "CrossProject": {
-      "@id": "nxv:CrossProject",
-      "@type": "@id"
-    },
-    "View": {
-      "@id": "nxv:View",
-      "@type": "@id"
-    },
-    "ElasticSearchView": {
-      "@id": "nxv:ElasticSearchView",
-      "@type": "@id"
-    },
-    "AggregateElasticSearchView": {
-      "@id": "nxv:AggregateElasticSearchView",
-      "@type": "@id"
-    },
-    "SparqlView": {
-      "@id": "nxv:SparqlView",
-      "@type": "@id"
-    },
-    "Alpha": {
-      "@id": "nxv:Alpha",
-      "@type": "@id"
-    },
+    "Schema": "nxv:Schema",
+    "File": "nxv:File",
+    "Resolver": "nxv:Resolver",
+    "InProject": "nxv:InProject",
+    "CrossProject": "nxv:CrossProject",
+    "View": "nxv:View",
+    "ElasticSearchView": "nxv:ElasticSearchView",
+    "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
+    "SparqlView":  "nxv:SparqlView",
+    "Alpha": "nxv:Alpha",
     "_deprecated": "nxv:deprecated",
     "_createdAt": "nxv:createdAt",
     "_updatedAt": "nxv:updatedAt",

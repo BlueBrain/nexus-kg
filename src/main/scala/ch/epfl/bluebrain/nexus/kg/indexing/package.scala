@@ -1,15 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg
 
-import ch.epfl.bluebrain.nexus.kg.resources.Event
+import ch.epfl.bluebrain.nexus.kg.resources.Id
 
 package object indexing {
-  implicit class EventsSyntax(private val events: List[Event]) extends AnyVal {
+  type Identified[I, A] = (Id[I], A)
+  implicit class ListResourcesSyntax[I, A](private val events: List[Identified[I, A]]) extends AnyVal {
 
     /**
-      * Remove events with duplicated ''id''. In case of duplication found, the last event is kept and the previous removed.
+      * Remove events with duplicated ''id''. In case of duplication found, the last element is kept and the previous removed.
       *
-      * @return a new list of [[Event]] without duplicated ids. In case
+      * @return a new list without duplicated ids
       */
-    def removeDupIds: List[Event] = events.groupBy(_.id).values.flatMap(_.lastOption).toList
+    def removeDupIds: List[A] =
+      events.groupBy { case (id, _) => id }.values.flatMap(_.lastOption.map { case (_, elem) => elem }).toList
   }
 }

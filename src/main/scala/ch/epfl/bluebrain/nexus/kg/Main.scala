@@ -11,7 +11,7 @@ import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticClient, ElasticDecoder}
+import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticSearchClient, ElasticSearchDecoder}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
@@ -73,12 +73,12 @@ object Main {
     implicit val utClient   = untyped[Task]
     implicit val jsonClient = withUnmarshaller[Task, Json]
     implicit val rsClient   = withUnmarshaller[Task, ResultSet]
-    implicit val esDecoders = ElasticDecoder[Json]
+    implicit val esDecoders = ElasticSearchDecoder[Json]
     implicit val qrClient   = withUnmarshaller[Task, QueryResults[Json]]
 
     def clients(implicit elasticSearchConfig: ElasticSearchConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
       val sparql                 = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
-      implicit val elasticSearch = ElasticClient[Task](elasticSearchConfig.base)
+      implicit val elasticSearch = ElasticSearchClient[Task](elasticSearchConfig.base)
 
       implicit val adminClient = AdminClient[Task](appConfig.admin)
       implicit val iamClient   = IamClient[Task]

@@ -20,7 +20,7 @@ import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
 
-class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
+final class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit project: Project,
     cache: Caches[Task],
     indexers: Clients[Task],

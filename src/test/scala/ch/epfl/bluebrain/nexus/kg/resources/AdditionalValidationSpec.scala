@@ -6,8 +6,8 @@ import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.effect.IO
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticServerError
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticServerError
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
@@ -46,10 +46,10 @@ class AdditionalValidationSpec
     with BeforeAndAfter
     with Inspectors {
 
-  private implicit val clock: Clock                     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val elasticSearch: ElasticClient[IO] = mock[ElasticClient[IO]]
-  private implicit val projectCache: ProjectCache[IO]   = mock[ProjectCache[IO]]
-  private implicit val viewCache: ViewCache[IO]         = mock[ViewCache[IO]]
+  private implicit val clock: Clock                           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val elasticSearch: ElasticSearchClient[IO] = mock[ElasticSearchClient[IO]]
+  private implicit val projectCache: ProjectCache[IO]         = mock[ProjectCache[IO]]
+  private implicit val viewCache: ViewCache[IO]               = mock[ViewCache[IO]]
 
   before {
     Mockito.reset(elasticSearch)

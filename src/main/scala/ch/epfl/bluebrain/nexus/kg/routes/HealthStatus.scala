@@ -7,7 +7,7 @@ import akka.event.Logging
 import akka.persistence.cassandra.CassandraPluginConfig
 import akka.persistence.cassandra.session.scaladsl.CassandraSession
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
@@ -68,7 +68,7 @@ object HealthStatus {
     override def check: Task[Boolean]             = client.fetchOrganization("test").transformAndCatchError("fetch organization")
   }
 
-  class ElasticSearchHealthStatus(client: ElasticClient[Task]) extends HealthStatus {
+  class ElasticSearchHealthStatus(client: ElasticSearchClient[Task]) extends HealthStatus {
     private implicit val log          = Logger(s"${getClass.getSimpleName}")
     override def check: Task[Boolean] = client.existsIndex("test").transformAndCatchError("index exists")
   }

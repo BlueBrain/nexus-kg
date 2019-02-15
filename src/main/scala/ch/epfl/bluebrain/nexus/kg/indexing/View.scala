@@ -6,7 +6,7 @@ import java.util.regex.Pattern
 import cats.data.EitherT
 import cats.implicits._
 import cats.{Monad, MonadError, Show}
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
@@ -237,7 +237,7 @@ object View {
       *         when the index couldn't be created wrapped in an [[Either]]. The either is then wrapped in the
       *         effect type ''F''
       */
-    def createIndex[F[_]](implicit elasticSearch: ElasticClient[F],
+    def createIndex[F[_]](implicit elasticSearch: ElasticSearchClient[F],
                           config: ElasticSearchConfig,
                           F: MonadError[F, Throwable]): F[Unit] =
       elasticSearch

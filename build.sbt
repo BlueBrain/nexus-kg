@@ -27,11 +27,11 @@ scalafmt: {
 // Dependency versions
 val adminVersion                = "d3246916"
 val iamVersion                  = "46d12569"
-val commonsVersion              = "0.10.42"
+val commonsVersion              = "0.10.43"
 val rdfVersion                  = "0.2.33"
-val serviceVersion              = "0.10.30"
+val serviceVersion              = "0.10.33"
 val sourcingVersion             = "0.12.3"
-val akkaVersion                 = "2.5.20"
+val akkaVersion                 = "2.5.21"
 val akkaCorsVersion             = "0.3.4"
 val akkaHttpVersion             = "10.1.5"
 val akkaPersistenceInMemVersion = "2.5.1.1"
@@ -41,7 +41,7 @@ val catsEffectVersion           = "1.2.0"
 val circeVersion                = "0.11.1"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
-val mockitoVersion              = "1.1.2"
+val mockitoVersion              = "1.1.3"
 val monixVersion                = "3.0.0-RC2"
 val pureconfigVersion           = "0.10.2"
 val shapelessVersion            = "2.3.3"
@@ -51,7 +51,7 @@ val kryoVersion                 = "0.5.2"
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"                % adminVersion
 lazy val iamClient            = "ch.epfl.bluebrain.nexus" %% "iam-client"                  % iamVersion
-lazy val elasticClient        = "ch.epfl.bluebrain.nexus" %% "elastic-client"              % commonsVersion
+lazy val elasticSearchClient  = "ch.epfl.bluebrain.nexus" %% "elastic-search-client"       % commonsVersion
 lazy val rdfCore              = "ch.epfl.bluebrain.nexus" %% "rdf-core"                    % rdfVersion
 lazy val rdfDot               = "ch.epfl.bluebrain.nexus" %% "rdf-dot"                     % rdfVersion
 lazy val rdfJena              = "ch.epfl.bluebrain.nexus" %% "rdf-jena"                    % rdfVersion
@@ -119,7 +119,7 @@ lazy val kg = project
       catsCore,
       catsEffect,
       circeCore,
-      elasticClient,
+      elasticSearchClient,
       journalCore,
       kryo,
       logbackClassic,
