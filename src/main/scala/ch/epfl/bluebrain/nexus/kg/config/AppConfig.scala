@@ -207,6 +207,7 @@ object AppConfig {
       "code",
       "message",
       "details",
+      nxv.resourceId.prefix,
       nxv.total.prefix,
       nxv.maxScore.prefix,
       nxv.results.prefix,

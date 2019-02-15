@@ -2,14 +2,14 @@
   {
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "Created",
-    "resourceId": "http://example.com/base/Created",
-    "schema": "http://example.com/base/schema",
-    "source": {
+    "_resourceId": "http://example.com/base/Created",
+    "_source": {
       "@type": "created"
     },
-    "types": [
+    "_types": [
       "http://example.com/base/type"
     ],
+    "_constrainedBy": "http://example.com/base/schema",
     "_project": "http://example.com/base/org/project",
     "_instant": "1970-01-01T00:00:00Z",
     "_subject": "http://localhost:8080/v1/realms/myrealm/users/uuid"
@@ -17,11 +17,11 @@
   {
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "Updated",
-    "resourceId": "http://example.com/base/created",
-    "source": {
+    "_resourceId": "http://example.com/base/created",
+    "_source": {
       "@type": "Updated"
     },
-    "types": [
+    "_types": [
       "http://example.com/base/type"
     ],
     "_project": "http://example.com/base/org/project",
@@ -32,8 +32,8 @@
   {
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "Deprecated",
-    "resourceId": "http://example.com/base/created",
-    "types": [
+    "_resourceId": "http://example.com/base/created",
+    "_types": [
       "http://example.com/base/type"
     ],
     "_project": "http://example.com/base/org/project",
@@ -44,7 +44,7 @@
   {
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "TagAdded",
-    "resourceId": "http://example.com/base/created",
+    "_resourceId": "http://example.com/base/created",
     "tag": "v1.0.0",
     "targetRev": 2,
     "_project": "http://example.com/base/org/project",
@@ -55,16 +55,16 @@
   {
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "FileCreated",
-    "attributes": {
-      "bytes": 47,
-      "digest": {
-        "algorithm": "SHA-256",
-        "value": "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda"
+    "_resourceId": "http://example.com/base/file",
+    "_attributes": {
+      "_bytes": 47,
+      "_digest": {
+        "_algorithm": "SHA-256",
+        "_value": "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda"
       },
-      "filename": "attachment.json",
-      "mediaType": "application/json"
+      "_filename": "attachment.json",
+      "_mediaType": "application/json"
     },
-    "resourceId": "http://example.com/base/file",
     "_project": "http://example.com/base/org/project",
     "_instant": "1970-01-01T00:00:00Z",
     "_subject": "http://localhost:8080/v1/realms/myrealm/users/uuid"
@@ -72,16 +72,16 @@
   {
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "FileUpdated",
-    "attributes": {
-      "bytes": 47,
-      "digest": {
-        "algorithm": "SHA-256",
-        "value": "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda"
+    "_resourceId": "http://example.com/base/file",
+    "_attributes": {
+      "_bytes": 47,
+      "_digest": {
+        "_algorithm": "SHA-256",
+        "_value": "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda"
       },
-      "filename": "attachment.json",
-      "mediaType": "text/json"
+      "_filename": "attachment.json",
+      "_mediaType": "text/json"
     },
-    "resourceId": "http://example.com/base/file",
     "_project": "http://example.com/base/org/project",
     "_rev": 2,
     "_instant": "1970-01-01T00:00:00Z",

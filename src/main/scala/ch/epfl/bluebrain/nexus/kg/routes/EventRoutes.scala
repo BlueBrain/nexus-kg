@@ -35,16 +35,14 @@ class EventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: ActorSy
   private val pq: EventsByTagQuery =
     PersistenceQuery(as).readJournalFor[EventsByTagQuery](config.persistence.queryJournalPlugin)
 
-  private val resourcesRead: Set[Permission]    = Set(Permission.unsafe("resources/read"))
+  private val read: Set[Permission]             = Set(Permission.unsafe("resources/read"))
   private implicit val acl: AccessControlLists  = acls
   private implicit val c: Caller                = caller
   private implicit val iamConf: IamClientConfig = config.iam.iamClient
 
   def routes: Route =
-    lastEventId { offset =>
-      hasPermissions(resourcesRead).apply {
-        complete(source(s"project=${project.uuid}", offset, eventToSse))
-      }
+    (lastEventId & hasPermissions(read)) { offset =>
+      complete(source(s"project=${project.uuid}", offset, eventToSse))
     }
 
   protected def source(

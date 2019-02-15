@@ -187,11 +187,21 @@ object Event {
     private implicit val config: Configuration = Configuration.default
       .withDiscriminator("@type")
       .copy(transformMemberNames = {
-        case "id"      => "resourceId"
-        case "rev"     => "_rev"
-        case "instant" => "_instant"
-        case "subject" => "_subject"
-        case other     => other
+        case "id"         => "_resourceId"
+        case "rev"        => "_rev"
+        case "instant"    => "_instant"
+        case "subject"    => "_subject"
+        case "schema"     => "_constrainedBy"
+        case "attributes" => "_attributes"
+        case "source"     => "_source"
+        case "types"      => "_types"
+        case "bytes"      => "_bytes"
+        case "digest"     => "_digest"
+        case "algorithm"  => "_algorithm"
+        case "value"      => "_value"
+        case "filename"   => "_filename"
+        case "mediaType"  => "_mediaType"
+        case other        => other
       })
 
     private implicit def refEncoder: Encoder[Ref] = Encoder.encodeJson.contramap(_.iri.asJson)

@@ -161,9 +161,7 @@ class EventRoutesSpec
         val expected = jsonContentOf("/events/events.json").asArray.value
         status shouldEqual StatusCodes.OK
         responseAs[String] shouldEqual eventStreamFor(expected)
-
       }
-
     }
 
     "return all events for a project from the last seen" in {
