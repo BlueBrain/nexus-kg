@@ -218,13 +218,12 @@ object Event {
     private implicit def subjectIdEncoder(implicit ic: IamClientConfig): Encoder[Subject] =
       Encoder.encodeJson.contramap(_.id.asJson)
 
-    implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] = {
+    implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] =
       Encoder.encodeJson.contramap[Event] { ev =>
         deriveEncoder[Event]
           .apply(ev)
           .addContext(Contexts.resourceCtxUri)
           .mapObject(_.add("_projectUuid", Json.fromString(ev.id.parent.id.toString)))
       }
-    }
   }
 }
