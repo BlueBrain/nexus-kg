@@ -207,6 +207,7 @@ object AppConfig {
       "code",
       "message",
       "details",
+      nxv.resourceId.prefix,
       nxv.total.prefix,
       nxv.maxScore.prefix,
       nxv.results.prefix,
@@ -215,12 +216,15 @@ object AppConfig {
       nxv.self.prefix,
       nxv.constrainedBy.prefix,
       nxv.project.prefix,
+      nxv.projectUuid.prefix,
       nxv.rev.prefix,
       nxv.deprecated.prefix,
       nxv.createdAt.prefix,
       nxv.createdBy.prefix,
       nxv.updatedAt.prefix,
-      nxv.updatedBy.prefix
+      nxv.updatedBy.prefix,
+      nxv.instant.prefix,
+      nxv.eventSubject.prefix
     ))
 
   val tracing = new TracingDirectives()
