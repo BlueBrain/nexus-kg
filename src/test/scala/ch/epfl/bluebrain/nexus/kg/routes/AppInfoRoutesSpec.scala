@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Organization
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, AuthToken}
@@ -31,7 +31,7 @@ class AppInfoRoutesSpec
   private implicit val appConfig = Settings(system).appConfig
   private val iam                = mock[IamClient[Task]]
   private val admin              = mock[AdminClient[Task]]
-  private val elasticSearch      = mock[ElasticClient[Task]]
+  private val elasticSearch      = mock[ElasticSearchClient[Task]]
   private val sparql             = mock[BlazegraphClient[Task]]
   private val statusGroup = HealthStatusGroup(
     mock[CassandraHealthStatus],

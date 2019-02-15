@@ -1,15 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem}
-import cats.MonadError
-import cats.syntax.flatMap._
+import cats.Functor
+import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient.BulkOp
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
-import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -26,31 +25,19 @@ import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler
 
-/**
-  * Indexer which takes a resource event and calls ElasticSearch client with relevant update if required
-  *
-  * @param view      the view information describes how to index Documents
-  * @param resources the resources operations
-  */
-class ElasticSearchIndexer[F[_]](view: ElasticSearchView, resources: Resources[F])(implicit config: AppConfig,
-                                                                                   project: Project,
-                                                                                   F: MonadError[F, Throwable]) {
+private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView, resources: Resources[F])(
+    implicit config: AppConfig,
+    project: Project) {
 
   /**
-    * When an event is received, the current state is obtained.
-    * Afterwards, the current revision is fetched from the ElasticSearch index.
-    * If the current revision is not found or it is smaller than the state's revision, the state gets indexed.
-    * Otherwise the event it is skipped.
+    * When an event is received, the current state is obtained and if the resource matches the view criteria a [[BulkOp]] is built.
     *
-    * @param ev event to index
-    * @return Unit wrapped in the context F.
-    *         This method will raise errors if something goes wrong
+    * @param event event to be mapped to a Elastic Search insert query
     */
-  final def apply(ev: Event): F[Option[BulkOp]] =
-    view.resourceTag.map(resources.fetch(ev.id, _, None)).getOrElse(resources.fetch(ev.id, None)).value.flatMap {
-      case None                                       => F.raiseError(KgError.NotFound(ev.id.ref))
-      case Some(resource) if validCandidate(resource) => F.pure(Some(transformAndIndex(resource)))
-      case Some(_)                                    => F.pure(None)
+  final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
+    view.resourceTag.map(resources.fetch(event.id, _, None)).getOrElse(resources.fetch(event.id, None)).value.map {
+      case Some(resource) if validCandidate(resource) => Some(event.id -> transformAndIndex(resource))
+      case _                                          => None
     }
 
   private def validCandidate(resource: Resource): Boolean =
@@ -83,34 +70,34 @@ object ElasticSearchIndexer {
     */
   // $COVERAGE-OFF$
   final def start(view: ElasticSearchView, resources: Resources[Task], project: Project, restartOffset: Boolean)(
-      implicit client: ElasticClient[Task],
+      implicit client: ElasticSearchClient[Task],
       s: Scheduler,
       as: ActorSystem,
       config: AppConfig): ActorRef = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.retriableMonadError
-    implicit val p = project
+    implicit val p        = project
+    implicit val indexing = config.indexing.elasticSearch
 
-    val indexer = new ElasticSearchIndexer(view, resources)
+    val mapper = new ElasticSearchIndexerMapping(view, resources)
     val init =
       for {
         _ <- view.createIndex[Task]
         _ <- if (view.rev > 1) client.deleteIndex(view.copy(rev = view.rev - 1).index) else Task.pure(true)
       } yield ()
 
-    val index = (l: List[Event]) =>
-      Task.sequence(l.removeDupIds.map(indexer(_))).flatMap(list => client.bulk(list.flatten))
-
     SequentialTagIndexer.start(
-      IndexerConfig.builder
+      IndexerConfig
+        .builder[Task]
         .name(s"elasticSearch-indexer-${view.name}")
         .tag(s"project=${view.ref.id}")
         .plugin(config.persistence.queryJournalPlugin)
-        .retry[RetriableErr](config.indexing.retry.retryStrategy)
-        .batch(config.indexing.batch, config.indexing.batchTimeout)
+        .retry[RetriableErr](indexing.retry.retryStrategy)
+        .batch(indexing.batch, indexing.batchTimeout)
         .restart(restartOffset)
         .init(init)
-        .index(index)
+        .mapping(mapper.apply)
+        .index(inserts => client.bulk(inserts.removeDupIds))
         .build)
   }
   // $COVERAGE-ON$

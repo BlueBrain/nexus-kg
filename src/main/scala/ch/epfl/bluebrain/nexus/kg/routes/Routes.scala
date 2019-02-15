@@ -8,8 +8,8 @@ import akka.http.scaladsl.model.headers.{`WWW-Authenticate`, HttpChallenges, Loc
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, RejectionHandler, Route}
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, PredefinedFromEntityUnmarshallers}
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.ElasticClientError
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.kg.KgError
@@ -89,7 +89,7 @@ object Routes {
           case Right(json) => complete(status -> json)
           case Left(_)     => complete(status -> body)
         }
-      case f: ElasticFailure =>
+      case f: ElasticSearchFailure =>
         logger.error(s"Received unexpected response from ES: '${f.message}' with body: '${f.body}'")
         completeGeneric()
       case err: KgError =>

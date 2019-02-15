@@ -2,20 +2,16 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.time.{Clock, Instant, ZoneId}
 
-import akka.pattern.AskTimeoutException
 import cats.data.{EitherT, OptionT}
 import cats.effect.{IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg.KgError.OperationTimedOut
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
@@ -23,14 +19,13 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
 import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
-import org.mockito.Mockito._
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
 
 import scala.concurrent.duration._
 
-class ViewIndexerSpec
-    extends ActorSystemFixture("ViewIndexerSpec")
+class ViewIndexerMappingSpec
+    extends ActorSystemFixture("ViewIndexerMappingSpec")
     with WordSpecLike
     with Matchers
     with IOEitherValues
@@ -43,20 +38,19 @@ class ViewIndexerSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 15 milliseconds)
 
   private implicit val appConfig          = Settings(system).appConfig
+  private implicit val indexingConfig     = appConfig.indexing.keyValueStore
   private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
 
   private val resources    = mock[Resources[IO]]
-  private val viewCache    = mock[ViewCache[IO]]
   private val projectCache = mock[ProjectCache[IO]]
-  private val indexer      = new ViewIndexer(resources, viewCache, projectCache)
+  private val mapper       = new ViewIndexerMapping(resources, projectCache)
 
   before {
     Mockito.reset(resources)
-    Mockito.reset(viewCache)
     Mockito.reset(projectCache)
   }
 
-  "A ViewIndexer" should {
+  "An View event mapping function" when {
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
     val base                  = Iri.absolute("http://example.com").right.value
     val voc                   = base + "voc"
@@ -79,60 +73,37 @@ class ViewIndexerSpec
                           subject,
                           Instant.now(clock),
                           subject)
-    //TODO: Change to view SHACL schema when we have one
     val schema = Ref(Schemas.resolverSchemaUri)
 
     val types = Set[AbsoluteIri](nxv.View, nxv.SparqlView)
 
-    val json       = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-    val resource   = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
-    val resourceV  = simpleV(id, json, rev = 2, schema = schema, types = types)
-    val view       = View(resourceV).right.value
-    val ev         = Created(id, schema, types, json, clock.instant(), Anonymous)
-    val unit: Unit = ()
+    val json      = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
+    val resource  = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
+    val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
+    val view      = View(resourceV).right.value
+    val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
 
-    "index a view" in {
+    "return a view" in {
       resources.fetch(id, None) shouldReturn OptionT.some(resource)
       resources.materialize(resource)(project) shouldReturn EitherT.rightT[IO, Rejection](resourceV)
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      viewCache.put(view) shouldReturn IO.unit
 
-      indexer(ev).ioValue shouldEqual unit
-      verify(viewCache, times(1)).put(view)
+      mapper(ev).some shouldEqual view
     }
 
-    "skip indexing a resolver when the resource cannot be found" in {
+    "return none when the resource cannot be found" in {
+      projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
       resources.fetch(id, None) shouldReturn OptionT.none[IO, Resource]
-      indexer(ev).ioValue shouldEqual unit
-      verify(viewCache, times(0)).put(view)
+      mapper(ev).ioValue shouldEqual None
     }
 
-    "skip indexing a resolver when the resource cannot be materialized" in {
+    "raise error when the resource cannot be materialized" in {
       resources.fetch(id, None) shouldReturn OptionT.some(resource)
       val err = IO.raiseError[Either[Rejection, ResourceV]](KgError.InternalError(""))
       resources.materialize(resource)(project) shouldReturn EitherT(err)
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      indexer(ev).failed[KgError.InternalError]
-      verify(viewCache, times(0)).put(view)
-    }
 
-    "raise RetriableError when cache fails due to an AskTimeoutException" in {
-      resources.fetch(id, None) shouldReturn OptionT.some(resource)
-      resources.materialize(resource)(project) shouldReturn EitherT.rightT[IO, Rejection](resourceV)
-      projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      viewCache.put(view) shouldReturn IO.raiseError(new AskTimeoutException("error"))
-      indexer(ev).failed[RetriableErr]
-      verify(viewCache, times(1)).put(view)
-    }
-
-    "raise RetriableError when cache fails due to an OperationTimedOut" in {
-      resources.fetch(id, None) shouldReturn OptionT.some(resource)
-      resources.materialize(resource)(project) shouldReturn EitherT.rightT[IO, Rejection](resourceV)
-      projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      viewCache.put(view) shouldReturn IO.raiseError(OperationTimedOut("error"))
-      indexer(ev).failed[RetriableErr]
-      verify(viewCache, times(1)).put(view)
+      mapper(ev).failed[KgError.InternalError]
     }
   }
-
 }

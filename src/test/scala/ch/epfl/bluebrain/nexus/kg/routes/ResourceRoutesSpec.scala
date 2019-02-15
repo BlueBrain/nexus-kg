@@ -17,8 +17,8 @@ import cats.data.{EitherT, OptionT}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticFailure.{ElasticClientError, ElasticUnexpectedError}
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.{ElasticClientError, ElasticUnexpectedError}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
@@ -116,7 +116,7 @@ class ResourceRoutesSpec
   private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
   private implicit val jsonClient    = withUnmarshaller[Task, Json]
   private val sparql                 = mock[BlazegraphClient[Task]]
-  private implicit val elasticSearch = mock[ElasticClient[Task]]
+  private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val aclsCache     = mock[AclsCache[Task]]
   private implicit val clients       = Clients(sparql)
 
@@ -560,7 +560,7 @@ class ResourceRoutesSpec
                          mEq(SearchParams(schema = Some(unconstrainedSchemaUri))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
-            isA[ElasticClient[Task]]
+            isA[ElasticSearchClient[Task]]
           )
         ).thenReturn(Task.pure(
           UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))
@@ -578,7 +578,7 @@ class ResourceRoutesSpec
                          mEq(SearchParams(schema = Some(viewSchemaUri))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
-            isA[ElasticClient[Task]]
+            isA[ElasticSearchClient[Task]]
           )
         ).thenReturn(Task.pure(
           UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))
@@ -597,7 +597,7 @@ class ResourceRoutesSpec
                          mEq(SearchParams(deprecated = Some(false), schema = Some(resolverSchemaUri))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
-            isA[ElasticClient[Task]]
+            isA[ElasticSearchClient[Task]]
           )
         ).thenReturn(Task.pure(
           UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))
@@ -619,7 +619,7 @@ class ResourceRoutesSpec
                          mEq(SearchParams(types = listTypes, createdBy = Some(url"http://example.com/user"))),
                          mEq(Pagination(0, 20)))(
             isA[HttpClient[Task, QueryResults[Json]]],
-            isA[ElasticClient[Task]]
+            isA[ElasticSearchClient[Task]]
           )
         ).thenReturn(Task.pure(
           UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))
@@ -636,7 +636,7 @@ class ResourceRoutesSpec
       when(
         resources.list(mEq(Some(defaultEsView)), mEq(SearchParams()), mEq(Pagination(0, 20)))(
           isA[HttpClient[Task, QueryResults[Json]]],
-          isA[ElasticClient[Task]]
+          isA[ElasticSearchClient[Task]]
         )
       ).thenReturn(Task.pure(
         UnscoredQueryResults(5, List.range(1, 6).map(i => UnscoredQueryResult(metadata(organization, project, i))))))

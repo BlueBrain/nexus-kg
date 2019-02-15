@@ -80,14 +80,6 @@ object Rejection {
       )
 
   /**
-    * Signals an attempt to interact with a project that doesn't have an organization.
-    *
-    * @param ref a reference to the resource
-    */
-  final case class OrganizationNotFound(ref: ProjectRef)
-      extends Rejection(s"Project '${ref.show}' without an organization")
-
-  /**
     * Signals an attempt to interact with a project that doesn't exist.
     *
     * @param ref a reference to the resource
@@ -215,7 +207,6 @@ object Rejection {
     case _: UnexpectedState          => StatusCodes.InternalServerError
     case _: LabelsNotFound           => StatusCodes.NotFound
     case _: NotFound                 => StatusCodes.NotFound
-    case _: OrganizationNotFound     => StatusCodes.NotFound
     case _: ProjectNotFound          => StatusCodes.NotFound
     case _: ProjectsNotFound         => StatusCodes.NotFound
     case _: IncorrectRev             => StatusCodes.Conflict
