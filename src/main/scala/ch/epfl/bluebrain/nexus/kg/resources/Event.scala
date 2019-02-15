@@ -1,14 +1,19 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import java.nio.file.Path
 import java.time.Instant
 
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.config.Contexts
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import io.circe.syntax._
 
 /**
   * Enumeration of resource event types.
@@ -170,5 +175,47 @@ object Event {
       * the collection of known resource types
       */
     val types: Set[AbsoluteIri] = Set(nxv.File.value)
+  }
+
+  object JsonLd {
+    import ch.epfl.bluebrain.nexus.rdf.instances._
+    import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+    import io.circe.Encoder
+    import io.circe.generic.extras.Configuration
+    import io.circe.generic.extras.semiauto._
+
+    private implicit val config: Configuration = Configuration.default
+      .withDiscriminator("@type")
+      .copy(transformMemberNames = {
+        case "id"      => "resourceId"
+        case "rev"     => "_rev"
+        case "instant" => "_instant"
+        case "subject" => "_subject"
+        case other     => other
+      })
+
+    private implicit def refEncoder: Encoder[Ref] = Encoder.encodeJson.contramap(_.iri.asJson)
+
+    private implicit def digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
+    private implicit def pathEncoder: Encoder[Path]     = Encoder.encodeString.contramap(_.toString)
+
+    private implicit def fileAttributesEncoder: Encoder[FileAttributes] =
+      deriveEncoder[FileAttributes]
+        .mapJsonObject(_.remove("filePath").remove("uuid"))
+
+    private implicit def idEncoder: Encoder[Id[ProjectRef]] =
+      Encoder.encodeJson.contramap(_.value.asJson)
+
+    private implicit def subjectIdEncoder(implicit ic: IamClientConfig): Encoder[Subject] =
+      Encoder.encodeJson.contramap(_.id.asJson)
+
+    implicit def eventsEventEncoder(implicit ic: IamClientConfig, project: Project): Encoder[Event] = {
+      deriveEncoder[Event]
+        .mapJson { json =>
+          json
+            .addContext(Contexts.resourceCtxUri)
+            .mapObject(_.add("_project", project.id.asJson))
+        }
+    }
   }
 }
