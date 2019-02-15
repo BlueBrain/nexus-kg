@@ -216,6 +216,7 @@ object AppConfig {
       nxv.self.prefix,
       nxv.constrainedBy.prefix,
       nxv.project.prefix,
+      nxv.projectUuid.prefix,
       nxv.rev.prefix,
       nxv.deprecated.prefix,
       nxv.createdAt.prefix,

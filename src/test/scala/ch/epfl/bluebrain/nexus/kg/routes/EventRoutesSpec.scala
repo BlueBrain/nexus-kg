@@ -67,7 +67,7 @@ class EventRoutesSpec
     ))
   val caller = Caller(subject, Set(subject))
 
-  val projectUuid = UUID.randomUUID()
+  val projectUuid = UUID.fromString("7f8039a0-3141-11e9-b210-d663bd873d93")
   val schemaRef   = Latest(base + "schema")
   val types       = Set(base + "type")
 

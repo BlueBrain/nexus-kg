@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.nio.file.Path
 import java.time.Instant
 
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Contexts
@@ -219,13 +218,13 @@ object Event {
     private implicit def subjectIdEncoder(implicit ic: IamClientConfig): Encoder[Subject] =
       Encoder.encodeJson.contramap(_.id.asJson)
 
-    implicit def eventsEventEncoder(implicit ic: IamClientConfig, project: Project): Encoder[Event] = {
-      deriveEncoder[Event]
-        .mapJson { json =>
-          json
-            .addContext(Contexts.resourceCtxUri)
-            .mapObject(_.add("_project", project.id.asJson))
-        }
+    implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] = {
+      Encoder.encodeJson.contramap[Event] { ev =>
+        deriveEncoder[Event]
+          .apply(ev)
+          .addContext(Contexts.resourceCtxUri)
+          .mapObject(_.add("_projectUuid", Json.fromString(ev.id.parent.id.toString)))
+      }
     }
   }
 }

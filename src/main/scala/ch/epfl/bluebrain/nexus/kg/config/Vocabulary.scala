@@ -43,6 +43,7 @@ object Vocabulary {
     val instant       = PrefixMapping.metadata("instant")
     val eventSubject  = PrefixMapping.metadata("subject")
     val resourceId    = PrefixMapping.metadata("resourceId")
+    val projectUuid   = PrefixMapping.metadata("projectUuid")
 
     // File metadata vocabulary
     val filename  = PrefixMapping.metadata("filename")
