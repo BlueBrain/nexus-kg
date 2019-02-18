@@ -55,7 +55,7 @@ class EventsSpecBase
       subject,
       instant,
       subject,
-      AccessControlList(subject -> Set(Permission.unsafe("resources/read")))
+      AccessControlList(subject -> Set(Permission.unsafe("resources/read"), Permission.unsafe("events/read")))
     ))
   val caller = Caller(subject, Set(subject))
 

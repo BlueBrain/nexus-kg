@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import java.util.UUID
 
 import akka.NotUsed
+import akka.actor.ActorSystem
 import akka.http.javadsl.server.Rejections.validationRejection
 import akka.http.scaladsl.model.headers.`Last-Event-ID`
 import akka.http.scaladsl.model.sse.ServerSentEvent
@@ -21,11 +22,12 @@ import scala.concurrent.duration._
 /**
   * Defines commons methods for event routes.
   */
-trait EventCommonRoutes {
+private[routes] abstract class EventCommonRoutes(implicit as: ActorSystem, config: AppConfig) {
 
   private val printer: Printer = Printer.noSpaces.copy(dropNullValues = true)
 
-  protected val pq: EventsByTagQuery
+  protected val pq: EventsByTagQuery =
+    PersistenceQuery(as).readJournalFor[EventsByTagQuery](config.persistence.queryJournalPlugin)
 
   /**
     * Create a [[Source]] of [[ServerSentEvent]]s.
@@ -71,7 +73,7 @@ trait EventCommonRoutes {
     )
   }
 
-  private def eventToSse(envelope: EventEnvelope)(implicit enc: Encoder[Event]): Option[ServerSentEvent] =
+  protected def eventToSse(envelope: EventEnvelope)(implicit enc: Encoder[Event]): Option[ServerSentEvent] =
     envelope.event match {
       case value: Event => Some(aToSse(value, envelope.offset))
       case _            => None

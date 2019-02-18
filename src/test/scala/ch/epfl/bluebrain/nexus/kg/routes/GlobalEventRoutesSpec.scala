@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.resources.Event
 import ch.epfl.bluebrain.nexus.kg.routes.GlobalEventRoutesSpec.TestableEventRoutes
+import io.circe.Encoder
 
 class GlobalEventRoutesSpec extends EventsSpecBase {
 
@@ -50,13 +51,12 @@ object GlobalEventRoutesSpec {
     override protected def source(
         tag: String,
         offset: Offset,
-        toSse: EventEnvelope => Option[ServerSentEvent]
-    ): Source[ServerSentEvent, NotUsed] = {
+    )(implicit enc: Encoder[Event]): Source[ServerSentEvent, NotUsed] = {
       val toDrop = offset match {
         case NoOffset    => 0
         case Sequence(v) => v + 1
       }
-      Source(envelopes).drop(toDrop).flatMapConcat(ee => Source(toSse(ee).toList))
+      Source(envelopes).drop(toDrop).flatMapConcat(ee => Source(eventToSse(ee).toList))
     }
   }
 }
