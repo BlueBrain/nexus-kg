@@ -44,6 +44,19 @@ object AuthDirectives {
     else failWith(AuthorizationFailed)
 
   /**
+    * Checks if the current caller has the required permissions on `/`
+    *
+    * @param  perms the permissions to check on `/`
+    * @return pass if the ''perms'' are present on `/`, fail with [[AuthorizationFailed]] otherwise
+    */
+  def hasPermissionsOnRoot(perms: Set[Permission])(
+      implicit acls: AccessControlLists,
+      caller: Caller
+  ): Directive0 =
+    if (acls.existsOnRoot(caller.identities, perms)) pass
+    else failWith(AuthorizationFailed)
+
+  /**
     * Retrieves the caller ACLs.
     */
   def extractCallerAcls(implicit iam: IamClient[Task], token: Option[AuthToken]): Directive1[AccessControlLists] = {

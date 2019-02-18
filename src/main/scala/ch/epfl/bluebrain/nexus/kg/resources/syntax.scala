@@ -79,6 +79,20 @@ object syntax {
           (path == / || path == Segment(label.organization, /) || path == label.organization / label.value) &&
             v.value.permissions.exists(perms.contains)
       }
+
+    /**
+      * Checks if on the list of ACLs there are some which contain any of the provided ''identities'', ''perms'' in
+      * the root path.
+      *
+      * @param identities the list of identities to filter from the ''acls''
+      * @param perms      the permissions to filter
+      * @return true if the conditions are met, false otherwise
+      */
+    def existsOnRoot(identities: Set[Identity], perms: Set[Permission]): Boolean =
+      acls.filter(identities).value.exists {
+        case (path, v) =>
+          path == / && v.value.permissions.exists(perms.contains)
+      }
   }
 
   final implicit class CallerSyntax(private val caller: Caller) extends AnyVal {
