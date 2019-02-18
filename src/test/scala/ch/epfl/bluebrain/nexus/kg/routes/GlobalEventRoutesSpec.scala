@@ -7,17 +7,16 @@ import akka.http.scaladsl.model.headers.`Last-Event-ID`
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.persistence.query.{EventEnvelope, NoOffset, Offset, Sequence}
 import akka.stream.scaladsl.Source
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.resources.Event
-import ch.epfl.bluebrain.nexus.kg.routes.EventRoutesSpec.TestableEventRoutes
+import ch.epfl.bluebrain.nexus.kg.routes.GlobalEventRoutesSpec.TestableEventRoutes
 
-class EventRoutesSpec extends EventsSpecBase {
+class GlobalEventRoutesSpec extends EventsSpecBase {
 
   val routes = new TestableEventRoutes(events, acls, caller).routes
 
-  "EventRoutes" should {
+  "GlobalEventRoutes" should {
 
     "return all events for a project" in {
       Get("/") ~> routes ~> check {
@@ -35,15 +34,13 @@ class EventRoutesSpec extends EventsSpecBase {
       }
     }
   }
-
 }
 
-object EventRoutesSpec {
+object GlobalEventRoutesSpec {
 
   class TestableEventRoutes(events: List[Event], acls: AccessControlLists, caller: Caller)(implicit as: ActorSystem,
-                                                                                           project: Project,
                                                                                            config: AppConfig)
-      extends EventRoutes(acls, caller) {
+      extends GlobalEventRoutes(acls, caller) {
 
     private val envelopes = events.zipWithIndex.map {
       case (ev, idx) =>
