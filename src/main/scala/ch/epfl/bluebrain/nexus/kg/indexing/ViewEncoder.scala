@@ -53,8 +53,12 @@ object ViewEncoder {
     case view: SparqlView =>
       IriNode(view.id) -> Graph(view.mainTriples(nxv.SparqlView))
     case view @ AggregateElasticSearchView(_, _, _, id, _, _) =>
+      val valueString = view match {
+        case AggregateElasticSearchViewLabels(value) => value.valueString
+        case AggregateElasticSearchViewRefs(value)   => value.valueString
+      }
       IriNode(id) -> Graph(
-        view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(view.valueString))
+        view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(valueString))
 
   }
 

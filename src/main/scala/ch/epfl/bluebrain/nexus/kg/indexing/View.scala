@@ -306,7 +306,7 @@ object View {
     * @param rev        the view revision
     * @param deprecated the deprecation state of the view
     */
-  final case class AggregateElasticSearchView[P: Show](
+  final case class AggregateElasticSearchView[P](
       value: Set[ViewRef[P]],
       ref: ProjectRef,
       uuid: UUID,
@@ -314,7 +314,7 @@ object View {
       rev: Long,
       deprecated: Boolean
   ) extends AggregateView {
-    val valueString: Set[ViewRef[String]] = value.map(v => v.copy(project = v.project.show))
+    def valueString(implicit P: Show[P]): Set[ViewRef[String]] = value.map(v => v.copy(project = v.project.show))
 
     def projects: Set[P] = value.map(_.project)
 
@@ -325,8 +325,8 @@ object View {
                       config: ElasticSearchConfig,
                       F: Monad[F]): F[Set[String]] =
       value.foldLeft(F.pure(Set.empty[String])) {
-        case (accF, ViewRef(ref: ProjectRef, id)) =>
-          (accF, viewCache.getBy[ElasticSearchView](ref, id), projectCache.getLabel(ref)).mapN {
+        case (accF, ViewRef(ref: ProjectRef, viewId)) =>
+          (accF, viewCache.getBy[ElasticSearchView](ref, viewId), projectCache.getLabel(ref)).mapN {
             case (acc, Some(view), Some(label)) if caller.hasPermission(acls, label, query) =>
               acc + view.index
             case (acc, _, _) => acc
