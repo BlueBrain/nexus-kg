@@ -9,7 +9,6 @@ import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -162,7 +161,7 @@ object Resolver {
   /**
     * A resolver that can looks across several projects.
     */
-  final case class CrossProjectResolver[P: Show](
+  final case class CrossProjectResolver[P](
       resourceTypes: Set[AbsoluteIri],
       projects: Set[P],
       identities: List[Identity],
@@ -172,7 +171,7 @@ object Resolver {
       deprecated: Boolean,
       priority: Int
   ) extends Resolver {
-    val projectsString: Set[String] = projects.map(_.show)
+    def projectsString(implicit P: Show[P]): Set[String] = projects.map(_.show)
   }
 
   private[resolve] type CrossProjectLabels = CrossProjectResolver[ProjectLabel]
