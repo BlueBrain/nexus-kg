@@ -11,6 +11,7 @@ import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, PredefinedFromE
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
+import ch.epfl.bluebrain.nexus.commons.http.RejectionHandling
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
@@ -25,9 +26,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
-import ch.epfl.bluebrain.nexus.service.http.RejectionHandling
-import ch.epfl.bluebrain.nexus.service.http.directives.PrefixDirectives.uriPrefix
-import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
+import ch.epfl.bluebrain.nexus.commons.http.directives.PrefixDirectives.uriPrefix
+import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import io.circe.parser.parse

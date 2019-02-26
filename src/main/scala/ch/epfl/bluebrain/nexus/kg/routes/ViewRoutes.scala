@@ -22,7 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
-import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, NotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -30,7 +29,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global

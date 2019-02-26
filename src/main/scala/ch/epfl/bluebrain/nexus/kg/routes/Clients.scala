@@ -6,7 +6,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import io.circe.Json
 import monix.eval.Task

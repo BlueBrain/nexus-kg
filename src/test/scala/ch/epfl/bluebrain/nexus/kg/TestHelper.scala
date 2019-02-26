@@ -3,14 +3,13 @@ package ch.epfl.bluebrain.nexus.kg
 import java.time.Clock
 import java.util.UUID
 
-import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.unconstrainedSchemaUri
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, Ref, ResourceF}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.syntax._
 import io.circe.{Json, JsonObject}
 import org.mockito.ArgumentMatchers.{argThat, isA => mockIsA}
@@ -18,7 +17,6 @@ import org.scalatest.EitherValues
 import org.scalatest.matchers.{MatchResult, Matcher}
 
 import scala.reflect.ClassTag
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 
 trait TestHelper extends MockitoMatchers with EitherValues {
 
@@ -54,7 +52,7 @@ trait TestHelper extends MockitoMatchers with EitherValues {
       created,
       updated,
       schema,
-      Value(value, value.contextValue, value.asGraph.right.value)
+      Value(value, value.contextValue, value.asGraph(id.value).right.value)
     )
   def simpleV[P, S](res: ResourceF[P, S, Json])(implicit clock: Clock) = ResourceF(
     res.id,
@@ -68,7 +66,7 @@ trait TestHelper extends MockitoMatchers with EitherValues {
     res.createdBy,
     res.updatedBy,
     res.schema,
-    Value(res.value, res.value.contextValue, res.value.asGraph.right.value)
+    Value(res.value, res.value.contextValue, res.value.asGraph(res.id.value).right.value)
   )
 
   def genUUID: UUID = UUID.randomUUID()

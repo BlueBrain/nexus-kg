@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
 import akka.testkit._
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
@@ -10,7 +11,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures

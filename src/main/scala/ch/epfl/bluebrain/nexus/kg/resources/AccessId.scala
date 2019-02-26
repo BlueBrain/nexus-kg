@@ -5,9 +5,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.service.http.Path._
-import ch.epfl.bluebrain.nexus.service.http.UriOps._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 
 object AccessId {
 
@@ -24,7 +22,7 @@ object AccessId {
                                                             http: HttpConfig): AbsoluteIri = {
 
     def prefix(resource: String): AbsoluteIri =
-      url"${http.publicUri.append(http.prefix / resource / project.organizationLabel / project.label)}".value
+      url"${http.publicUri}".value + http.prefix + resource + project.organizationLabel + project.label
 
     def removeBase(iri: AbsoluteIri): Option[String] =
       if (iri.asString.startsWith(project.base.asString)) Some(iri.asString.stripPrefix(project.base.asString))

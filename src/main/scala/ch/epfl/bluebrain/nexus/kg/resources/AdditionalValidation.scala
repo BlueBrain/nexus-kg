@@ -1,25 +1,25 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
-import cats.{Applicative, Monad, MonadError}
 import cats.syntax.all._
+import cats.{Applicative, Monad, MonadError}
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticClientError
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticSearchConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView}
-import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder.viewGraphEncoder
+import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder.resolverGraphEncoder
+import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidResourceFormat}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidJsonLD, InvalidResourceFormat}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 
 trait AdditionalValidation[F[_]] {
 
@@ -71,7 +71,10 @@ object AdditionalValidation {
               }
           )
         case agg: AggregateElasticSearchView[_] =>
-          agg.referenced[F](caller, acls).map(r => value.map(r, _.removeKeys("@context").addContext(viewCtxUri)))
+          agg.referenced[F](caller, acls).flatMap { r =>
+            EitherT.fromOption[F](value.map(r, _.removeKeys("@context").addContext(viewCtxUri)),
+                                  InvalidJsonLD("Could not convert the graph to Json"))
+          }
         case _ => EitherT.rightT(value)
       }
     }
@@ -94,7 +97,10 @@ object AdditionalValidation {
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
         Resolver(resource) match {
           case Some(resolver: CrossProjectResolver[_]) if aclContains(resolver.identities) =>
-            resolver.referenced.map(r => value.map(r, _.removeKeys("@context").addContext(resolverCtxUri)))
+            resolver.referenced.flatMap { r =>
+              EitherT.fromOption[F](value.map(r, _.removeKeys("@context").addContext(resolverCtxUri)),
+                                    InvalidJsonLD("Could not convert the graph to Json"))
+            }
           case Some(_: CrossProjectResolver[_]) =>
             EitherT.leftT[F, Value](
               InvalidIdentity("Your user doesn't have some of the provided identities on the resolver"): Rejection)

@@ -17,8 +17,8 @@ import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, Literal}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import io.circe.Json
 import org.scalatest.{EitherValues, Matchers, WordSpecLike}
@@ -90,9 +90,8 @@ class ResourceFSpec
     "remove the metadata from a resource" in {
       val jsonMeta = json deepMerge Json.obj("@id" -> Json.fromString(id.value.asString)) deepMerge Json.obj(
         nxv.rev.value.asString -> Json.fromLong(10L))
-      simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).value.graph
-        .removeMetadata(resId.value)
-        .triples shouldEqual Set.empty[Triple]
+      simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).value.graph.removeMetadata.triples shouldEqual Set
+        .empty[Triple]
     }
   }
 

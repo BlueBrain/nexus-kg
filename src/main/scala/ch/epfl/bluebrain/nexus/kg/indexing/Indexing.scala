@@ -1,19 +1,20 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError
+import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -29,10 +30,9 @@ import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
-import ch.epfl.bluebrain.nexus.sourcing.akka.Retry
-import ch.epfl.bluebrain.nexus.sourcing.akka.syntax._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
+import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import com.github.ghik.silencer.silent
 import io.circe.Json
 import journal.Logger
@@ -42,41 +42,83 @@ import org.apache.jena.query.ResultSet
 
 // $COVERAGE-OFF$
 @silent
-private class Indexing(
-    resources: Resources[Task],
-    cache: Caches[Task],
-    adminClient: AdminClient[Task],
-    coordinator: ProjectViewCoordinator[Task])(implicit mt: ActorMaterializer, as: ActorSystem, config: AppConfig) {
+private class Indexing(resources: Resources[Task],
+                       cache: Caches[Task],
+                       adminClient: AdminClient[Task],
+                       coordinator: ProjectViewCoordinator[Task])(implicit as: ActorSystem, config: AppConfig) {
 
   private val logger                                          = Logger[this.type]
-  private val http                                            = Http()
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
   private implicit val retry: Retry[Task, KgError] =
     Retry[Task, KgError](config.indexing.keyValueStore.retry.retryStrategy)
 
-  private def asJson(view: View): Json =
-    view
-      .asJson(viewCtx.appendContextOf(resourceCtx))
-      .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
-      .addContext(viewCtxUri)
-      .addContext(resourceCtxUri)
+  private def asJson(view: View): Task[Json] =
+    view.as[Json](viewCtx.appendContextOf(resourceCtx)) match {
+      case Left(err) =>
+        logger.error(s"Could not convert view with id '${view.id}' from Graph back to json. Reason: '${err.message}'")
+        Task.raiseError(InternalError("Could not decode default view from graph to Json"))
+      case Right(json) =>
+        Task.pure(
+          json
+            .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
+            .addContext(viewCtxUri)
+            .addContext(resourceCtxUri))
+    }
 
-  private def asJson(resolver: Resolver): Json =
-    resolver
-      .asJson(resolverCtx.appendContextOf(resourceCtx))
-      .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
-      .addContext(resolverCtxUri)
-      .addContext(resourceCtxUri)
+  private def asJson(resolver: Resolver): Task[Json] =
+    resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)) match {
+      case Left(err) =>
+        logger.error(
+          s"Could not convert resolver with id '${resolver.id}' from Graph back to json. Reason: '${err.message}'")
+        Task.raiseError(InternalError("Could not decode defaulf in project resolver from graph to Json"))
+      case Right(json) =>
+        Task.pure(
+          json
+            .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
+            .addContext(resolverCtxUri)
+            .addContext(resourceCtxUri))
 
+    }
   private val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[ResourceAlreadyExists, Resource]] = {
     case Left(exists: ResourceAlreadyExists) => Left(exists)
     case Right(value)                        => Right(value)
   }
 
+  private def createElasticSearchView(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+    val view: View = ElasticSearchView.default(project.ref)
+    asJson(view).flatMap { json =>
+      val created = resources.create(Id(project.ref, view.id), viewRef, json).value
+      created.mapRetry(
+        createdOrExists,
+        InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError)
+    }
+  }
+
+  private def createSparqlView(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+    val view: View = SparqlView.default(project.ref)
+    asJson(view).flatMap { json =>
+      val created = resources.create(Id(project.ref, view.id), viewRef, json).value
+      created.mapRetry(createdOrExists,
+                       InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError)
+    }
+  }
+
+  private def createResolver(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+    val resolver: Resolver = InProjectResolver.default(project.ref)
+    asJson(resolver).flatMap { json =>
+      val created = resources.create(Id(project.ref, resolver.id), resolverRef, json).value
+      created.mapRetry(
+        createdOrExists,
+        InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError)
+    }
+  }
+
   def startAdminStream(): Unit = {
 
     def handle(event: Event): Task[Unit] = {
+
       logger.debug(s"Handling admin event: '$event'")
+
       event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
           coordinator.stop(OrganizationRef(uuid))
@@ -89,14 +131,11 @@ private class Indexing(
           val elasticSearchView: View      = ElasticSearchView.default(project.ref)
           val sparqlView: View             = SparqlView.default(project.ref)
           val resolver: Resolver           = InProjectResolver.default(project.ref)
-          // format: off
-          cache.project.replace(project) *>
-            coordinator.start(project) *>
-            resources.create(Id(project.ref, elasticSearchView.id), viewRef, asJson(elasticSearchView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError) *>
-            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError) *>
-            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError) *>
-            Task.unit
-          // format: on
+          for {
+            _ <- cache.project.replace(project)
+            _ <- coordinator.start(project)
+            _ <- List(createElasticSearchView, createSparqlView, createResolver).sequence
+          } yield (())
 
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
           cache.project.get(ProjectRef(uuid)).flatMap {
@@ -104,11 +143,11 @@ private class Indexing(
               // format: off
               val newProject = Project(config.http.projectsIri + label, label, project.organizationLabel, desc, base, vocab, am, uuid, project.organizationUuid, rev, deprecated = false, instant, subject.id, instant, subject.id)
               // format: on
-              cache.project.replace(newProject) *> coordinator.change(newProject, project)
+              cache.project.replace(newProject).flatMap(_ => coordinator.change(newProject, project))
             case None => Task.unit
           }
         case ProjectDeprecated(uuid, rev, _, _) =>
-          cache.project.deprecate(ProjectRef(uuid), rev) *> coordinator.stop(ProjectRef(uuid))
+          cache.project.deprecate(ProjectRef(uuid), rev).flatMap(_ => coordinator.stop(ProjectRef(uuid)))
         case _ => Task.unit
       }
     }

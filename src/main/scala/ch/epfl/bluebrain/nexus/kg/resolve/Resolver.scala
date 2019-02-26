@@ -12,12 +12,11 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 
 /**
   * Enumeration of Resolver types.

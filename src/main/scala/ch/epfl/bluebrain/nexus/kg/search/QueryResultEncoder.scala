@@ -1,40 +1,53 @@
 package ch.epfl.bluebrain.nexus.kg.search
 
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import cats.Id
+import cats.instances.either._
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
+import ch.epfl.bluebrain.nexus.commons.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtxUri, searchCtx, searchCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
-import ch.epfl.bluebrain.nexus.rdf.Node._
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
+import ch.epfl.bluebrain.nexus.rdf.Node.blank
+import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
+import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
+import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.{Encoder, Json}
 
 object QueryResultEncoder {
 
-  private val mainNode: IriOrBNode = blank
+  implicit def rootNode[A]: RootNode[QueryResults[A]] = _ => blank
 
-  implicit def encoderQrs[A](implicit enc: GraphEncoder[QueryResult[A]]): GraphEncoder[QueryResults[A]] = GraphEncoder {
-    case ScoredQueryResults(total, max, results) =>
-      mainNode -> Graph((mainNode, nxv.total, total), (mainNode, nxv.maxScore, max)).add(mainNode, nxv.results, results)
-    case UnscoredQueryResults(total, results) =>
-      mainNode -> Graph((mainNode, nxv.total, total): Triple).add(mainNode, nxv.results, results)
+  implicit def rootNodeQueryResult[A](implicit rootNode: RootNode[A]): RootNode[QueryResult[A]] =
+    qr => rootNode(qr.source)
+
+  implicit def graphEncoderQrs[A: RootNode](
+      implicit enc: GraphEncoder[Id, QueryResult[A]]): GraphEncoder[Id, QueryResults[A]] = {
+    implicit val rootNodeQr = rootNodeQueryResult[A]
+    GraphEncoder {
+      case (rootNode, ScoredQueryResults(total, max, results)) =>
+        RootedGraph(
+          rootNode,
+          Graph((rootNode, nxv.total, total), (rootNode, nxv.maxScore, max)).add(rootNode, nxv.results, results))
+      case (rootNode, UnscoredQueryResults(total, results)) =>
+        RootedGraph(rootNode, Graph((rootNode, nxv.total, total): Triple).add(rootNode, nxv.results, results))
+    }
   }
 
-  def qrsEncoder[A](extraCtx: Json)(implicit enc: GraphEncoder[QueryResults[A]]): Encoder[QueryResults[A]] =
-    Encoder.instance(
-      _.asJson(searchCtx deepMerge extraCtx)
-        .removeKeys("@context", "@id")
-        .addContext(searchCtxUri)
-        .addContext(resourceCtxUri))
+  implicit def graphEncoderQrsEither[A: RootNode](
+      implicit enc: GraphEncoder[Id, QueryResult[A]]): GraphEncoder[EncoderResult, QueryResults[A]] =
+    graphEncoderQrs[A].toEither
 
-  implicit def qrsEncoder[A](implicit enc: GraphEncoder[QueryResults[A]]): Encoder[QueryResults[A]] =
-    qrsEncoder(Json.obj())
+  def json[A](value: QueryResults[A], extraCtx: Json = Json.obj())(
+      implicit enc: GraphEncoder[EncoderResult, QueryResults[A]],
+      node: RootNode[QueryResults[A]]): DecoderResult[Json] =
+    value
+      .as[Json](searchCtx deepMerge extraCtx)
+      .map(_.removeKeys("@context", "@id").addContext(searchCtxUri).addContext(resourceCtxUri))
 
   implicit def qrsEncoderJson: Encoder[QueryResults[Json]] = {
     implicit def qrEncoderJson: Encoder[QueryResult[Json]] = Encoder.instance {

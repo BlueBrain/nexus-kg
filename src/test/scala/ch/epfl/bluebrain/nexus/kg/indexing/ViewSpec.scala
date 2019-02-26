@@ -3,9 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 
+import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.test.Resources
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -13,9 +13,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, Ela
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import io.circe.syntax._
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
 
 class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resources with TestHelper with Inspectors {
@@ -150,14 +149,16 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
                                                     1L,
                                                     false)
         val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(elasticSearch)))
-        views.asJson should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp-elastic.json"))
+        ViewEncoder.json(views).right.value should equalIgnoreArrayOrder(
+          jsonContentOf("/view/view-list-resp-elastic.json"))
       }
 
       "return the json representation for a queryresults list with SparqlView" in {
         val sparql: View =
           SparqlView(projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
         val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(sparql)))
-        views.asJson should equalIgnoreArrayOrder(jsonContentOf("/view/view-list-resp-sparql.json"))
+        ViewEncoder.json(views).right.value should equalIgnoreArrayOrder(
+          jsonContentOf("/view/view-list-resp-sparql.json"))
       }
     }
   }

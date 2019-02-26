@@ -2,7 +2,8 @@ package ch.epfl.bluebrain.nexus.kg
 
 import cats.MonadError
 import cats.effect.Async
-import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
 
 object instances {
 
@@ -23,18 +24,36 @@ object instances {
     }
 
   /**
-    * Generates a MonadError for [[RetriableErr]]
+    * Generates a MonadError for [[SparqlServerOrUnexpectedFailure]]
     *
     * @tparam F the effect type
     */
-  implicit def retriableMonadError[F[_]](implicit F: Async[F]): MonadError[F, RetriableErr] =
-    new MonadError[F, RetriableErr] {
-      override def handleErrorWith[A](fa: F[A])(f: RetriableErr => F[A]): F[A] = F.recoverWith(fa) {
-        case t: RetriableErr => f(t)
+  implicit def sparqlErrorMonadError[F[_]](implicit F: Async[F]): MonadError[F, SparqlServerOrUnexpectedFailure] =
+    new MonadError[F, SparqlServerOrUnexpectedFailure] {
+      override def handleErrorWith[A](fa: F[A])(f: SparqlServerOrUnexpectedFailure => F[A]): F[A] = F.recoverWith(fa) {
+        case t: SparqlServerOrUnexpectedFailure => f(t)
       }
-      override def raiseError[A](e: RetriableErr): F[A]                = F.raiseError(e)
-      override def pure[A](x: A): F[A]                                 = F.pure(x)
-      override def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]         = F.flatMap(fa)(f)
-      override def tailRecM[A, B](a: A)(f: A => F[Either[A, B]]): F[B] = F.tailRecM(a)(f)
+      override def raiseError[A](e: SparqlServerOrUnexpectedFailure): F[A] = F.raiseError(e)
+      override def pure[A](x: A): F[A]                                     = F.pure(x)
+      override def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]             = F.flatMap(fa)(f)
+      override def tailRecM[A, B](a: A)(f: A => F[Either[A, B]]): F[B]     = F.tailRecM(a)(f)
+    }
+
+  /**
+    * Generates a MonadError for [[ElasticSearchServerOrUnexpectedFailure]]
+    *
+    * @tparam F the effect type
+    */
+  implicit def elasticErrorMonadError[F[_]](
+      implicit F: Async[F]): MonadError[F, ElasticSearchServerOrUnexpectedFailure] =
+    new MonadError[F, ElasticSearchServerOrUnexpectedFailure] {
+      override def handleErrorWith[A](fa: F[A])(f: ElasticSearchServerOrUnexpectedFailure => F[A]): F[A] =
+        F.recoverWith(fa) {
+          case t: ElasticSearchServerOrUnexpectedFailure => f(t)
+        }
+      override def raiseError[A](e: ElasticSearchServerOrUnexpectedFailure): F[A] = F.raiseError(e)
+      override def pure[A](x: A): F[A]                                            = F.pure(x)
+      override def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]                    = F.flatMap(fa)(f)
+      override def tailRecM[A, B](a: A)(f: A => F[Either[A, B]]): F[B]            = F.tailRecM(a)(f)
     }
 }

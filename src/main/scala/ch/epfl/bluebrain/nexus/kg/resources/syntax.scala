@@ -10,11 +10,11 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.Node.{IriOrBNode, Literal}
+import ch.epfl.bluebrain.nexus.rdf.Node.Literal
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
+import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
 
 import scala.util.{Success, Try}
 
@@ -51,15 +51,14 @@ object syntax {
     def accessId: AbsoluteIri = AccessId(res.id.value, res.schema.iri)
   }
 
-  final implicit class GraphSyntaxMeta(private val graph: Graph) extends AnyVal {
+  final implicit class RootedGraphSyntaxMeta(private val graph: RootedGraph) extends AnyVal {
 
     /**
-      * Removes the metadata triples from the graph centered on the provided subject ''id''
+      * Removes the metadata triples from the rooted graph.
       *
-      * @param id the subject
-      * @return a new [[Graph]] without the metadata triples
+      * @return a new [[RootedGraph]] without the metadata triples
       */
-    def removeMetadata(id: IriOrBNode): Graph = ResourceF.removeMetadata(graph, id)
+    def removeMetadata: RootedGraph = ResourceF.removeMetadata(graph)
   }
 
   final implicit class AclsSyntax(private val acls: AccessControlLists) extends AnyVal {

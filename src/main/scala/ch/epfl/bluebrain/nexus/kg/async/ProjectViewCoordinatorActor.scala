@@ -8,6 +8,9 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardReg
 import akka.stream.ActorMaterializer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
+import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChanges
+import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{withUnmarshaller, UntypedHttpClient}
@@ -21,12 +24,9 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SingleView, 
 import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticSearchIndexer, SparqlIndexer, View}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Resources}
-import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
-import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreSubscriber.KeyValueStoreChanges
-import ch.epfl.bluebrain.nexus.service.indexer.cache.OnKeyValueStoreChange
-import ch.epfl.bluebrain.nexus.service.indexer.stream.StreamCoordinator.{Stop => StreamCoordinatorStop}
-import ch.epfl.bluebrain.nexus.sourcing.akka.syntax._
-import ch.epfl.bluebrain.nexus.sourcing.akka.Retry
+import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
+import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator.{Stop => StreamCoordinatorStop}
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global

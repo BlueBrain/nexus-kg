@@ -25,12 +25,11 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "1.0.3"
-val iamVersion                  = "1.0.2"
-val commonsVersion              = "0.10.44"
-val rdfVersion                  = "0.2.34"
-val serviceVersion              = "0.10.34"
-val sourcingVersion             = "0.12.4"
+val adminVersion                = "af362aa7"
+val iamVersion                  = "af44d83f"
+val commonsVersion              = "0.11.1"
+val rdfVersion                  = "0.3.1"
+val sourcingVersion             = "0.13.0"
 val akkaVersion                 = "2.5.21"
 val akkaCorsVersion             = "0.3.4"
 val akkaHttpVersion             = "10.1.7"
@@ -49,47 +48,37 @@ val scalaTestVersion            = "3.0.5"
 val kryoVersion                 = "0.5.2"
 
 // Dependencies modules
-lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"                % adminVersion
-lazy val iamClient            = "ch.epfl.bluebrain.nexus" %% "iam-client"                  % iamVersion
-lazy val elasticSearchClient  = "ch.epfl.bluebrain.nexus" %% "elastic-search-client"       % commonsVersion
-lazy val rdfCore              = "ch.epfl.bluebrain.nexus" %% "rdf-core"                    % rdfVersion
-lazy val rdfDot               = "ch.epfl.bluebrain.nexus" %% "rdf-dot"                     % rdfVersion
-lazy val rdfJena              = "ch.epfl.bluebrain.nexus" %% "rdf-jena"                    % rdfVersion
-lazy val rdfAkka              = "ch.epfl.bluebrain.nexus" %% "rdf-akka"                    % rdfVersion
-lazy val rdfCirce             = "ch.epfl.bluebrain.nexus" %% "rdf-circe"                   % rdfVersion
-lazy val rdfNexus             = "ch.epfl.bluebrain.nexus" %% "rdf-nexus"                   % rdfVersion
-lazy val serviceIndexing      = "ch.epfl.bluebrain.nexus" %% "service-indexing"            % serviceVersion
-lazy val serviceTest          = "ch.epfl.bluebrain.nexus" %% "service-test"                % serviceVersion
-lazy val serviceKamon         = "ch.epfl.bluebrain.nexus" %% "service-kamon"               % serviceVersion
-lazy val serviceHttp          = "ch.epfl.bluebrain.nexus" %% "service-http"                % serviceVersion
-lazy val serviceSerialization = "ch.epfl.bluebrain.nexus" %% "service-serialization"       % serviceVersion
-lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"               % sourcingVersion
-lazy val sourcingAkka         = "ch.epfl.bluebrain.nexus" %% "sourcing-akka"               % sourcingVersion
-lazy val shaclValidator       = "ch.epfl.bluebrain.nexus" %% "shacl-validator"             % commonsVersion
-lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"               % commonsVersion
-lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"                % akkaVersion
-lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"       % akkaVersion
-lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"       % akkaVersion
-lazy val akkaHttp             = "com.typesafe.akka"       %% "akka-http"                   % akkaHttpVersion
-lazy val akkaHttpCors         = "ch.megard"               %% "akka-http-cors"              % akkaCorsVersion
-lazy val akkaHttpTestKit      = "com.typesafe.akka"       %% "akka-http-testkit"           % akkaHttpVersion
-lazy val akkaPersistence      = "com.typesafe.akka"       %% "akka-persistence"            % akkaVersion
-lazy val akkaPersistenceCass  = "com.typesafe.akka"       %% "akka-persistence-cassandra"  % akkaPersistenceCassVersion
-lazy val akkaPersistenceInMem = "com.github.dnvriend"     %% "akka-persistence-inmemory"   % akkaPersistenceInMemVersion
-lazy val akkaSlf4j            = "com.typesafe.akka"       %% "akka-slf4j"                  % akkaVersion
-lazy val akkaStream           = "com.typesafe.akka"       %% "akka-stream"                 % akkaVersion
-lazy val catsCore             = "org.typelevel"           %% "cats-core"                   % catsVersion
-lazy val catsEffect           = "org.typelevel"           %% "cats-effect"                 % catsEffectVersion
-lazy val circeCore            = "io.circe"                %% "circe-core"                  % circeVersion
-lazy val journalCore          = "io.verizon.journal"      %% "core"                        % journalVersion
-lazy val mockito              = "org.mockito"             %% "mockito-scala"               % mockitoVersion
-lazy val logbackClassic       = "ch.qos.logback"          % "logback-classic"              % logbackVersion
-lazy val monixTail            = "io.monix"                %% "monix-tail"                  % monixVersion
-lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"                  % pureconfigVersion
-lazy val scalaTest            = "org.scalatest"           %% "scalatest"                   % scalaTestVersion
-lazy val shapeless            = "com.chuusai"             %% "shapeless"                   % shapelessVersion
-lazy val topQuadrantShacl     = "ch.epfl.bluebrain.nexus" %% "shacl-topquadrant-validator" % commonsVersion
-lazy val kryo                 = "com.github.romix.akka"   %% "akka-kryo-serialization"     % kryoVersion
+lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"               % adminVersion
+lazy val iamClient            = "ch.epfl.bluebrain.nexus" %% "iam-client"                 % iamVersion
+lazy val elasticSearchClient  = "ch.epfl.bluebrain.nexus" %% "elasticsearch-client"       % commonsVersion
+lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
+lazy val commonsCore          = "ch.epfl.bluebrain.nexus" %% "commons-core"               % commonsVersion
+lazy val commonsTest          = "ch.epfl.bluebrain.nexus" %% "commons-test"               % commonsVersion
+lazy val rdf                  = "ch.epfl.bluebrain.nexus" %% "rdf"                        % rdfVersion
+lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"              % sourcingVersion
+lazy val sourcingStream       = "ch.epfl.bluebrain.nexus" %% "sourcing-stream"            % sourcingVersion
+lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"               % akkaVersion
+lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"      % akkaVersion
+lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"      % akkaVersion
+lazy val akkaHttp             = "com.typesafe.akka"       %% "akka-http"                  % akkaHttpVersion
+lazy val akkaHttpCors         = "ch.megard"               %% "akka-http-cors"             % akkaCorsVersion
+lazy val akkaHttpTestKit      = "com.typesafe.akka"       %% "akka-http-testkit"          % akkaHttpVersion
+lazy val akkaPersistence      = "com.typesafe.akka"       %% "akka-persistence"           % akkaVersion
+lazy val akkaPersistenceCass  = "com.typesafe.akka"       %% "akka-persistence-cassandra" % akkaPersistenceCassVersion
+lazy val akkaPersistenceInMem = "com.github.dnvriend"     %% "akka-persistence-inmemory"  % akkaPersistenceInMemVersion
+lazy val akkaSlf4j            = "com.typesafe.akka"       %% "akka-slf4j"                 % akkaVersion
+lazy val akkaStream           = "com.typesafe.akka"       %% "akka-stream"                % akkaVersion
+lazy val catsCore             = "org.typelevel"           %% "cats-core"                  % catsVersion
+lazy val catsEffect           = "org.typelevel"           %% "cats-effect"                % catsEffectVersion
+lazy val circeCore            = "io.circe"                %% "circe-core"                 % circeVersion
+lazy val journalCore          = "io.verizon.journal"      %% "core"                       % journalVersion
+lazy val mockito              = "org.mockito"             %% "mockito-scala"              % mockitoVersion
+lazy val logbackClassic       = "ch.qos.logback"          % "logback-classic"             % logbackVersion
+lazy val monixTail            = "io.monix"                %% "monix-tail"                 % monixVersion
+lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"                 % pureconfigVersion
+lazy val scalaTest            = "org.scalatest"           %% "scalatest"                  % scalaTestVersion
+lazy val shapeless            = "com.chuusai"             %% "shapeless"                  % shapelessVersion
+lazy val kryo                 = "com.github.romix.akka"   %% "akka-kryo-serialization"    % kryoVersion
 
 lazy val kg = project
   .in(file("."))
@@ -100,15 +89,6 @@ lazy val kg = project
     moduleName := "kg",
     libraryDependencies ++= Seq(
       adminClient,
-      iamClient,
-      rdfAkka,
-      rdfCore,
-      rdfCirce,
-      rdfDot,
-      rdfJena,
-      rdfNexus,
-      serviceIndexing,
-      sourcingAkka,
       akkaDistributedData,
       akkaHttp,
       akkaHttpCors,
@@ -120,21 +100,21 @@ lazy val kg = project
       catsEffect,
       circeCore,
       elasticSearchClient,
+      iamClient,
       journalCore,
       kryo,
       logbackClassic,
       monixTail,
       pureconfig,
+      rdf,
       sparqlClient,
-      serviceKamon,
-      serviceHttp,
-      serviceSerialization,
-      topQuadrantShacl,
+      sourcingCore,
+      sourcingStream,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
+      commonsTest          % Test,
       mockito              % Test,
       scalaTest            % Test,
-      serviceTest          % Test
     ),
     cleanFiles ++= (baseDirectory.value * "ddata*").get
   )

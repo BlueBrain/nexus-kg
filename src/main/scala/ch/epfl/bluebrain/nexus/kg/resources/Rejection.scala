@@ -1,18 +1,19 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.server.{Rejection => AkkaRejection}
 import cats.MonadError
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.ValidationReport
+import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
+import ch.epfl.bluebrain.nexus.commons.shacl.ValidationReport
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.circe.JenaModel.JenaModelErr
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.MarshallingError
+import ch.epfl.bluebrain.nexus.rdf.MarshallingError.{ConversionError, RootNodeNotFound}
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.generic.extras.Configuration
-import akka.http.scaladsl.server.{Rejection => AkkaRejection}
-import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
 import io.circe.generic.extras.semiauto.deriveEncoder
 import io.circe.parser.parse
 import io.circe.{Encoder, Json}
@@ -167,15 +168,16 @@ object Rejection {
   final case class InvalidIdentity(reason: String) extends Rejection(reason)
 
   /**
-    * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.circe.JenaModel.JenaModelErr]].
+    * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.jena.JenaModel.JenaModelErr]].
     *
     * @param error the error to be transformed
     */
-  final def fromJenaModelErr[F[_]](error: JenaModelErr)(implicit F: MonadError[F, Throwable]): F[Rejection] =
+  final def fromMarshallingErr[F[_]](error: MarshallingError)(implicit F: MonadError[F, Throwable]): F[Rejection] =
     error match {
-      case JenaModelErr.InvalidJsonLD(message) => F.pure(InvalidJsonLD(message))
-      case JenaModelErr.Unexpected(message) =>
-        F.raiseError(KgError.InternalError(s"Unexpected JenaModelError with message '$message'"))
+      case ConversionError(message, _) => F.pure(InvalidJsonLD(message))
+      case RootNodeNotFound(_)         => F.pure(UnableToSelectResourceId)
+      case MarshallingError.Unexpected(message) =>
+        F.raiseError(KgError.InternalError(s"Unexpected MarshallingError with message '$message'"))
     }
 
   implicit val rejectionEncoder: Encoder[Rejection] = {

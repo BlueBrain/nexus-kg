@@ -1,20 +1,23 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import ch.epfl.bluebrain.nexus.commons.types.search.{QueryResult, QueryResults}
+import cats.Id
+import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
-import ch.epfl.bluebrain.nexus.rdf.Graph
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
+import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
+import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
+import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
+import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import io.circe.Json
 import io.circe.parser.parse
-import io.circe.{Encoder, Json}
 
 /**
   * Encoders for [[View]]
@@ -34,38 +37,46 @@ object ViewEncoder {
       .map(value => json deepMerge Json.obj(field -> value))
       .getOrElse(json)
 
-  implicit def qrViewEncoder: Encoder[QueryResults[View]] =
-    qrsEncoder[View](viewCtx mergeContext resourceCtx) mapJson { json =>
+  implicit val viewRootNode: RootNode[View] = v => IriNode(v.id)
+
+  def json(qrsViews: QueryResults[View])(implicit enc: GraphEncoder[EncoderResult, QueryResults[View]],
+                                         node: RootNode[QueryResults[View]]): DecoderResult[Json] =
+    QueryResultEncoder.json(qrsViews, viewCtx mergeContext resourceCtx).map { json =>
       val jsonWithCtx = json addContext viewCtxUri
       val results = jsonWithCtx.hcursor
         .downField(nxv.results.prefix)
         .focus
         .flatMap(_.asArray.map(_.map(json => transformToJson(json, nxv.mapping.prefix))))
-      results.map(res => jsonWithCtx deepMerge Json.obj(nxv.results.prefix -> Json.arr(res: _*))).getOrElse(jsonWithCtx)
+      results
+        .map(res => jsonWithCtx deepMerge Json.obj(nxv.results.prefix -> Json.arr(res: _*)))
+        .getOrElse(jsonWithCtx)
     }
 
-  implicit val viewGraphEncoder: GraphEncoder[View] = GraphEncoder {
-    case view @ ElasticSearchView(mapping, resourceSchemas, resourceTag, includeMeta, sourceAsText, _, id, _, _, _) =>
-      val s = IriNode(id)
-      s -> Graph(
+  implicit val viewGraphEncoder: GraphEncoder[Id, View] = GraphEncoder {
+    case (rootNode,
+          view @ ElasticSearchView(mapping, resourceSchemas, resourceTag, includeMeta, sourceAsText, _, _, _, _, _)) =>
+      RootedGraph(
+        rootNode,
         view.mainTriples(nxv.ElasticSearchView, nxv.Alpha) ++ view
-          .triplesFor(resourceSchemas) ++ view.triplesFor(includeMeta, sourceAsText, resourceTag, mapping))
-    case view: SparqlView =>
-      IriNode(view.id) -> Graph(view.mainTriples(nxv.SparqlView))
-    case view @ AggregateElasticSearchView(_, _, _, id, _, _) =>
+          .triplesFor(resourceSchemas) ++ view.triplesFor(includeMeta, sourceAsText, resourceTag, mapping)
+      )
+    case (rootNode, view: SparqlView) =>
+      RootedGraph(rootNode, view.mainTriples(nxv.SparqlView))
+    case (rootNode, view @ AggregateElasticSearchView(_, _, _, _, _, _)) =>
       val valueString = view match {
         case AggregateElasticSearchViewLabels(value) => value.valueString
         case AggregateElasticSearchViewRefs(value)   => value.valueString
       }
-      IriNode(id) -> Graph(
-        view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(valueString))
+      RootedGraph(rootNode,
+                  view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(valueString))
 
   }
 
-  private implicit def qqViewEncoder(implicit enc: GraphEncoder[View]): GraphEncoder[QueryResult[View]] =
-    GraphEncoder { res =>
-      val encoded = enc(res.source)
-      encoded.subject -> encoded.graph
+  implicit val viewGraphEncoderEither: GraphEncoder[EncoderResult, View] = viewGraphEncoder.toEither
+
+  implicit def qqViewEncoder: GraphEncoder[Id, QueryResult[View]] =
+    GraphEncoder { (rootNode, res) =>
+      viewGraphEncoder(rootNode, res.source)
     }
 
   private implicit class ViewSyntax(view: View) {

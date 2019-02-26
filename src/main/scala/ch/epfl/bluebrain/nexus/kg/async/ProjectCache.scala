@@ -7,10 +7,10 @@ import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
 import ch.epfl.bluebrain.nexus.kg.async.Cache._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueStoreConfig}
 
 /**
   * The project cache backed by a KeyValueStore using akka Distributed Data

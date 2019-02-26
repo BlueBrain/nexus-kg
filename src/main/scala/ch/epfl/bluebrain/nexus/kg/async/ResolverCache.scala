@@ -7,12 +7,12 @@ import akka.actor.ActorSystem
 import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
 import ch.epfl.bluebrain.nexus.kg.async.Cache._
 import ch.epfl.bluebrain.nexus.kg.async.ResolverCache.RevisionedResolvers
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueStoreConfig}
 
 /**
   * The resolver cache backed by a KeyValueStore using akka Distributed Data

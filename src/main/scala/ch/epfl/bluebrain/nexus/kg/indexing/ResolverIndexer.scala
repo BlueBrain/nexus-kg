@@ -5,17 +5,16 @@ import cats.MonadError
 import cats.effect.Timer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, IndexingConfigs, PersistenceConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.service.indexer.persistence.OffsetStorage.Volatile
-import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
-import ch.epfl.bluebrain.nexus.sourcing.akka.Retry
-import ch.epfl.bluebrain.nexus.sourcing.akka.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.persistence.OffsetStorage.Volatile
+import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
+import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -69,7 +68,7 @@ object ResolverIndexer {
       persistence: PersistenceConfig,
       indexingCollection: IndexingConfigs): ActorRef = {
 
-    import ch.epfl.bluebrain.nexus.kg.instances.retriableMonadError
+    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 
     implicit val indexing = indexingCollection.keyValueStore
 
@@ -80,7 +79,7 @@ object ResolverIndexer {
         .name("resolver-indexer")
         .tag(s"type=${nxv.Resolver.value.show}")
         .plugin(persistence.queryJournalPlugin)
-        .retry[RetriableErr](indexing.retry.retryStrategy)
+        .retry[KgError](indexing.retry.retryStrategy)
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)
         .mapping(mapper.apply)

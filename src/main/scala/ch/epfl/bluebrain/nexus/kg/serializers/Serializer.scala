@@ -6,7 +6,8 @@ import java.util.UUID
 import akka.actor.ExtendedActorSystem
 import akka.serialization.SerializerWithStringManifest
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
+import ch.epfl.bluebrain.nexus.commons.serialization.AkkaCoproductSerializer
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -15,7 +16,6 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.service.serialization.AkkaCoproductSerializer
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.auto._
 import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}

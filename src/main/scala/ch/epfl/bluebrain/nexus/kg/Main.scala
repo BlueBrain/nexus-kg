@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticSearchClient, ElasticSe
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._

@@ -11,13 +11,14 @@ import akka.http.scaladsl.server.Directives.{optionalHeaderValueByName, provide,
 import akka.persistence.query._
 import akka.persistence.query.scaladsl.EventsByTagQuery
 import akka.stream.scaladsl.Source
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.resources.Event
 import io.circe.syntax._
 import io.circe.{Encoder, Printer}
 
-import scala.util.{Failure, Success, Try}
 import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 /**
   * Defines commons methods for event routes.
@@ -60,7 +61,6 @@ private[routes] abstract class EventCommonRoutes(implicit as: ActorSystem, confi
       }
 
   private def aToSse[A: Encoder](a: A, offset: Offset): ServerSentEvent = {
-    import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
     val json = a.asJson.sortKeys(AppConfig.orderedKeys)
     ServerSentEvent(
       data = json.pretty(printer),

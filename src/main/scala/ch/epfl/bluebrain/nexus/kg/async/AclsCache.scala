@@ -4,15 +4,15 @@ import akka.actor.ActorSystem
 import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStore
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
-import ch.epfl.bluebrain.nexus.iam.client.types.events.Event.{AclEvent, _}
+import ch.epfl.bluebrain.nexus.iam.client.types.events.Event._
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.kg.async.Cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
-import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStore
 
 /**
   * The acl cache backed by a KeyValueStore using akka Distributed Data

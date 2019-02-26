@@ -7,12 +7,12 @@ import akka.actor.ActorSystem
 import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
 import ch.epfl.bluebrain.nexus.kg.async.Cache.mapError
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.service.indexer.cache.{KeyValueStore, KeyValueStoreConfig}
 import shapeless.{TypeCase, Typeable}
 
 /**

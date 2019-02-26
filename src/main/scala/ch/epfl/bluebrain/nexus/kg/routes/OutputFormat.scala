@@ -1,9 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import akka.http.scaladsl.model.ContentType
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
-import akka.http.scaladsl.model.HttpCharsets._
 import akka.http.scaladsl.model.MediaTypes.`application/json`
-import akka.http.scaladsl.model.{ContentType, MediaType}
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 
 /**
@@ -56,14 +55,14 @@ object OutputFormat {
     * triples output
     */
   final case object Triples extends TextOutputFormat {
-    val contentType = `application/ntriples`
+    val contentType = `application/n-triples`
   }
 
   /**
     * DOT language output
     */
   final case object DOT extends TextOutputFormat {
-    val contentType = MediaType.textWithFixedCharset("vnd.graphviz", `UTF-8`, "dot")
+    val contentType = `application/vnd.graphviz`
   }
 
   /**

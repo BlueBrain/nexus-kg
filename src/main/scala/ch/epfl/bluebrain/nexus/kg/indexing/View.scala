@@ -20,8 +20,8 @@ import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, DeprecatedId, KgError, Revi
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.Json
 import io.circe.parser._
 

@@ -11,6 +11,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.test
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -21,7 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Updated}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}

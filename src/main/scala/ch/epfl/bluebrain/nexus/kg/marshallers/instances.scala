@@ -4,14 +4,14 @@ import akka.http.scaladsl.marshalling.GenericMarshallers.eitherMarshaller
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.MediaTypes._
 import akka.http.scaladsl.model._
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.{Ref, Rejection}
-import ch.epfl.bluebrain.nexus.kg.routes.TextOutputFormat
-import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
+import ch.epfl.bluebrain.nexus.kg.routes.{RejectionEncoder, TextOutputFormat}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.syntax._
 import io.circe.{Encoder, Json, Printer}
@@ -81,6 +81,30 @@ object instances extends FailFastCirceSupport {
       implicit printer: Printer = Printer.noSpaces.copy(dropNullValues = true)
   ): ToResponseMarshaller[Either[B, A]] =
     eitherMarshaller(rejection[B], httpEntity[A])
+
+  /**
+    * `Either[Rejection,A]` => HTTP entity
+    *
+    * @tparam A type to encode. This can at the same time return a rejection
+    * @return marshaller for any `A` value
+    */
+  implicit final def eitherWithRejection[A, B <: Rejection: StatusFrom: Encoder](
+      implicit encoder: RejectionEncoder[A],
+      printer: Printer = Printer.noSpaces.copy(dropNullValues = true)
+  ): ToResponseMarshaller[Either[B, (StatusCode, A)]] =
+    Marshaller { implicit ec =>
+      {
+        case Left(rej) => rejection[B].apply(rej)
+        case Right((statusCode, value)) =>
+          encoder(value) match {
+            case Left(rej) => rejection[Rejection].apply(rej)
+            case Right(encoder) =>
+              httpEntity[A](encoder)
+                .apply(value)
+                .map(_.map(_.map(entity => HttpResponse(status = statusCode, entity = entity))))
+          }
+      }
+    }
 
   /**
     * `Rejection` => HTTP response

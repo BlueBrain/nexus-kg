@@ -4,13 +4,13 @@ import java.time.Instant
 
 import akka.testkit._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.OrganizationRef
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures

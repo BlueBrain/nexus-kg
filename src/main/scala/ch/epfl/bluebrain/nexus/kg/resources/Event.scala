@@ -11,7 +11,9 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import io.circe.Json
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import io.circe.{Encoder, Json}
+import io.circe.generic.extras.Configuration
 import io.circe.syntax._
 
 /**
@@ -178,9 +180,6 @@ object Event {
 
   object JsonLd {
     import ch.epfl.bluebrain.nexus.rdf.instances._
-    import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-    import io.circe.Encoder
-    import io.circe.generic.extras.Configuration
     import io.circe.generic.extras.semiauto._
 
     private implicit val config: Configuration = Configuration.default

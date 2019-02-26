@@ -21,15 +21,15 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.{ElasticClientError, ElasticUnexpectedError}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -52,12 +52,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.syntax._
@@ -712,7 +711,7 @@ class ResourceRoutesSpec
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
       when(resources.materializeWithMeta(mEq(resource))(projectMatcher)).thenReturn(EitherT.rightT[Task, Rejection](
-        resourceV.copy(value = resourceV.value.copy(graph = Graph(resourceV.metadata)))))
+        resourceV.copy(value = resourceV.value.copy(graph = RootedGraph(IriNode(id.value), resourceV.metadata)))))
 
       val json = jsonContentOf("/resources/file-metadata.json",
                                Map(quote("{account}") -> organizationMeta.label,
@@ -1004,13 +1003,17 @@ class ResourceRoutesSpec
         val id2      = Id(projectRef, url"https://bluebrain.github.io/nexus/vocabulary/me".value)
         val resource = ResourceF.simpleF(id2, json, created = subject, updated = subject, schema = schemaRef)
         val resourceV =
-          resource.copy(value = Value(json, json.contextValue, json.asGraph.right.value ++ Graph(resource.metadata)))
+          resource.copy(
+            value =
+              Value(json,
+                    json.contextValue,
+                    RootedGraph(IriNode(id.value), json.asGraph(id.value).right.value ++ Graph(resource.metadata))))
 
         when(resources.fetch(id2, None)).thenReturn(OptionT.some[Task](resource))
         when(resources.materializeWithMeta(mEq(resource))(projectMatcher))
           .thenReturn(EitherT.rightT[Task, Rejection](resourceV))
 
-        Get(s"/v1/resources/$organization/$project/_/nxv:me") ~> Accept(`application/ntriples`) ~> addCredentials(
+        Get(s"/v1/resources/$organization/$project/_/nxv:me") ~> Accept(`application/n-triples`) ~> addCredentials(
           oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType shouldEqual OutputFormat.Triples.contentType
@@ -1072,7 +1075,10 @@ class ResourceRoutesSpec
         val temp     = simpleV(id, schema, created = subject, updated = subject, schema = schemaRef)
         val ctx      = schema.appendContextOf(shaclCtx)
         val resourceV =
-          temp.copy(value = Value(schema, ctx.contextValue, ctx.asGraph.right.value ++ Graph(temp.metadata)))
+          temp.copy(
+            value = Value(schema,
+                          ctx.contextValue,
+                          RootedGraph(IriNode(id.value), ctx.asGraph(id.value).right.value ++ Graph(temp.metadata))))
 
         when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
