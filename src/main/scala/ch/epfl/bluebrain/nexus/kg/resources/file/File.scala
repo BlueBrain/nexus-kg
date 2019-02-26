@@ -22,7 +22,7 @@ object File {
 
   object FileDescription {
     def apply(filename: String, mediaType: String): FileDescription =
-      FileDescription(randomUUID(), filename, mediaType)
+      FileDescription(randomUUID, filename, mediaType)
   }
 
   /**
@@ -43,10 +43,10 @@ object File {
                                   digest: Digest)
   object FileAttributes {
     def apply(filePath: Path, filename: String, mediaType: String, size: Long, digest: Digest): FileAttributes =
-      FileAttributes(randomUUID(), filePath, filename, mediaType, size, digest)
+      FileAttributes(randomUUID, filePath, filename, mediaType, size, digest)
   }
 
-  private def randomUUID(): String = UUID.randomUUID().toString.toLowerCase()
+  private def randomUUID: String = UUID.randomUUID.toString.toLowerCase
 
   /**
     * Digest related information of the file
