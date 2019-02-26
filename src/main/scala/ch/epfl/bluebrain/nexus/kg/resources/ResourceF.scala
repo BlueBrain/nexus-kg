@@ -157,14 +157,6 @@ object ResourceF {
     }
   }
 
-  //TODO: calculate
-//  def primaryNode(source: Json, ctx: Json): Option[IriOrBNode] = {
-//    val resolvedSource = source appendContextOf Json.obj("@context" -> ctx)
-//    resolvedSource.id.map(IriNode(_)) orElse graph.primaryNode orElse Option(graph.triples.isEmpty).collect {
-//      case true => Node.blank
-//    }
-//  }
-
   /**
     * Construct a [[ResourceF]] with default parameters
     *

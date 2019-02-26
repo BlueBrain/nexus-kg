@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
@@ -13,6 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.async._
@@ -48,7 +48,6 @@ private class Indexing(resources: Resources[Task],
                        coordinator: ProjectViewCoordinator[Task])(implicit as: ActorSystem, config: AppConfig) {
 
   private val logger                                          = Logger[this.type]
-  private val http                                            = Http()
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
   private implicit val retry: Retry[Task, KgError] =
     Retry[Task, KgError](config.indexing.keyValueStore.retry.retryStrategy)
@@ -85,10 +84,41 @@ private class Indexing(resources: Resources[Task],
     case Right(value)                        => Right(value)
   }
 
+  private def createElasticSearchView(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+    val view: View = ElasticSearchView.default(project.ref)
+    asJson(view).flatMap { json =>
+      val created = resources.create(Id(project.ref, view.id), viewRef, json).value
+      created.mapRetry(
+        createdOrExists,
+        InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError)
+    }
+  }
+
+  private def createSparqlView(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+    val view: View = SparqlView.default(project.ref)
+    asJson(view).flatMap { json =>
+      val created = resources.create(Id(project.ref, view.id), viewRef, json).value
+      created.mapRetry(createdOrExists,
+                       InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError)
+    }
+  }
+
+  private def createResolver(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+    val resolver: Resolver = InProjectResolver.default(project.ref)
+    asJson(resolver).flatMap { json =>
+      val created = resources.create(Id(project.ref, resolver.id), resolverRef, json).value
+      created.mapRetry(
+        createdOrExists,
+        InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError)
+    }
+  }
+
   def startAdminStream(): Unit = {
 
     def handle(event: Event): Task[Unit] = {
+
       logger.debug(s"Handling admin event: '$event'")
+
       event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
           coordinator.stop(OrganizationRef(uuid))
@@ -101,18 +131,11 @@ private class Indexing(resources: Resources[Task],
           val elasticSearchView: View      = ElasticSearchView.default(project.ref)
           val sparqlView: View             = SparqlView.default(project.ref)
           val resolver: Resolver           = InProjectResolver.default(project.ref)
-          // format: off
           for {
-            _             <- cache.project.replace(project)
-            _             <- coordinator.start(project)
-            esJson        <- asJson(elasticSearchView)
-            _             <- resources.create(Id(project.ref, elasticSearchView.id), viewRef, esJson).value.mapRetry(createdOrExists, InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError)
-            sparqlJson    <- asJson(sparqlView)
-            _             <- resources.create(Id(project.ref, sparqlView.id), viewRef, sparqlJson).value.mapRetry(createdOrExists, InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError)
-            resolverJson  <- asJson(resolver)
-            _             <- resources.create(Id(project.ref, resolver.id), resolverRef, resolverJson).value.mapRetry(createdOrExists, InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError)
+            _ <- cache.project.replace(project)
+            _ <- coordinator.start(project)
+            _ <- List(createElasticSearchView, createSparqlView, createResolver).sequence
           } yield (())
-        // format: on
 
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
           cache.project.get(ProjectRef(uuid)).flatMap {
