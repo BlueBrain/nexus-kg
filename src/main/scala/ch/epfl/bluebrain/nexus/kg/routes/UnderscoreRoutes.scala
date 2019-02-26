@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.UnderscoreRoutes.ResourceType
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -42,8 +43,6 @@ final class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: 
           tags(id)
         )
       }
-
-  private case class ResourceType(routes: CommonRoutes, schema: Option[Ref])
 
   private def fetchType(id: AbsoluteIri): Future[ResourceType] =
     resources
@@ -78,4 +77,8 @@ final class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: 
   private def fetch(id: AbsoluteIri): Route = onSuccess(fetchType(id)) {
     case ResourceType(rt, schema) => rt.fetch(id, schema)
   }
+}
+
+object UnderscoreRoutes {
+  private final case class ResourceType(routes: CommonRoutes, schema: Option[Ref])
 }

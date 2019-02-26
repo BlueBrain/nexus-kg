@@ -25,9 +25,9 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "006d4ec9"
-val iamVersion                  = "e8ab8edb"
-val commonsVersion              = "0.11.0"
+val adminVersion                = "af362aa7"
+val iamVersion                  = "af44d83f"
+val commonsVersion              = "0.11.1"
 val rdfVersion                  = "0.3.1"
 val sourcingVersion             = "0.13.0"
 val akkaVersion                 = "2.5.21"

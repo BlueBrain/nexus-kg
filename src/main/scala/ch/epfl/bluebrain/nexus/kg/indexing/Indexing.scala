@@ -42,11 +42,10 @@ import org.apache.jena.query.ResultSet
 
 // $COVERAGE-OFF$
 @silent
-private class Indexing(
-    resources: Resources[Task],
-    cache: Caches[Task],
-    adminClient: AdminClient[Task],
-    coordinator: ProjectViewCoordinator[Task])(implicit mt: ActorMaterializer, as: ActorSystem, config: AppConfig) {
+private class Indexing(resources: Resources[Task],
+                       cache: Caches[Task],
+                       adminClient: AdminClient[Task],
+                       coordinator: ProjectViewCoordinator[Task])(implicit as: ActorSystem, config: AppConfig) {
 
   private val logger                                          = Logger[this.type]
   private val http                                            = Http()
