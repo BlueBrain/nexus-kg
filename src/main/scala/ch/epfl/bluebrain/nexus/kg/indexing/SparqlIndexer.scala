@@ -12,14 +12,14 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlWriteQuery}
-import ch.epfl.bluebrain.nexus.commons.types.RetriableErr
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
-import ch.epfl.bluebrain.nexus.rdf.syntax.akka._
-import ch.epfl.bluebrain.nexus.service.indexer.persistence.{IndexerConfig, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
+import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, SequentialTagIndexer}
 import io.circe.Json
 import journal.Logger
 import monix.eval.Task
@@ -74,7 +74,7 @@ object SparqlIndexer {
       uclRs: HttpClient[Task, ResultSet],
       config: AppConfig): ActorRef = {
 
-    import ch.epfl.bluebrain.nexus.kg.instances.retriableMonadError
+    import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
     implicit val lb       = project
     implicit val uclJson  = HttpClient.withUnmarshaller[Task, Json]
     implicit val indexing = config.indexing.sparql
@@ -100,7 +100,7 @@ object SparqlIndexer {
         .name(s"sparql-indexer-${view.name}")
         .tag(s"project=${view.ref.id}")
         .plugin(config.persistence.queryJournalPlugin)
-        .retry[RetriableErr](indexing.retry.retryStrategy)
+        .retry[SparqlServerOrUnexpectedFailure](indexing.retry.retryStrategy)
         .batch(indexing.batch, indexing.batchTimeout)
         .restart(restartOffset)
         .init(init)

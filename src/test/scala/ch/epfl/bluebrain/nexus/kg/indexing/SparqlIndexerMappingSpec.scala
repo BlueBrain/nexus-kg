@@ -16,9 +16,9 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
+import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.mockito.Mockito
 import org.mockito.Mockito._
@@ -85,8 +85,12 @@ class SparqlIndexerMappingSpec
     "return a SparqlWriteQuery" in {
       val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
       when(resources.fetch(id, None)).thenReturn(OptionT.some[IO](res))
-      when(resources.materializeWithMeta(res)).thenReturn(EitherT.rightT[IO, Rejection](
-        ResourceF.simpleV(id, ResourceF.Value(json, json.contextValue, Graph()), 2L, schema = schema)))
+      when(resources.materializeWithMeta(res)).thenReturn(
+        EitherT.rightT[IO, Rejection](
+          ResourceF.simpleV(id,
+                            ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+                            2L,
+                            schema = schema)))
 
       mapper(ev).some shouldEqual res.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
     }

@@ -2,10 +2,10 @@ package ch.epfl.bluebrain.nexus.kg
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, Ref}
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveEncoder
 import io.circe.{Encoder, Json}

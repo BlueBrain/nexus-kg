@@ -1,11 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
 import cats.Monad
+import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStore.Subscription
+import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreError._
+import ch.epfl.bluebrain.nexus.commons.cache._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
-import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStore.Subscription
-import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreError._
-import ch.epfl.bluebrain.nexus.service.indexer.cache._
 
 abstract class Cache[F[_]: Monad, K, V](private[async] val store: KeyValueStore[F, K, V]) {
 

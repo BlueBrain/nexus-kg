@@ -10,11 +10,10 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives.IdSegment
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
-import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import monix.eval.Task
 
@@ -25,7 +24,7 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: AccessCo
     store: FileStore[Task, AkkaIn, AkkaOut],
     config: AppConfig)
     extends CommonRoutes(resources, "resolvers", acls, caller, cache.view) {
-  private val transformation: Transformation[Task, Resolver] = Transformation.resolver
+  private val transformation: Transformation[Task, Resolver] = Transformation.resolver[Task]
 
   private implicit val projectCache = cache.project
 

@@ -25,8 +25,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.parser.parse
 import org.mockito.matchers.MacroBasedMatchers

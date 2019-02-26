@@ -1,53 +1,58 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import cats.Id
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
-import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.encoding._
-import io.circe.{Encoder, Json}
+import ch.epfl.bluebrain.nexus.rdf.RootedGraph
+import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
+import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import io.circe.Json
 
 object ResourceEncoder {
 
-  private implicit val resourceVGraphEnc: GraphEncoder[ResourceV] = GraphEncoder(
-    res => IriNode(res.id.value) -> res.value.graph)
+  private implicit val rootNodeResourceV: RootNode[ResourceV] = _.id.value
+  private implicit val rootNodeResource: RootNode[Resource]   = _.id.value
 
-  implicit def resourceEncoder(implicit config: AppConfig, project: Project): Encoder[Resource] = {
-    implicit val graphEnc: GraphEncoder[Resource] =
-      GraphEncoder(res => IriNode(res.id.value) -> Graph(res.metadata))
-    Encoder.encodeJson.contramap { res =>
-      res.asJson(resourceCtx).removeKeys("@context").addContext(resourceCtxUri)
-    }
+  private implicit val resourceVGraphEnc: GraphEncoder[Id, ResourceV]                  = GraphEncoder((_, res) => res.value.graph)
+  private implicit val resourceVGraphEncEither: GraphEncoder[DecoderResult, ResourceV] = resourceVGraphEnc.toEither
+
+  private implicit def resourceGraphEnc(implicit config: AppConfig, project: Project): GraphEncoder[Id, Resource] =
+    GraphEncoder((rootNode, res) => RootedGraph(rootNode, res.metadata))
+  private implicit def resourceGraphEncEither(implicit config: AppConfig,
+                                              project: Project): GraphEncoder[DecoderResult, Resource] =
+    resourceGraphEnc.toEither
+
+  def json(r: Resource)(implicit config: AppConfig, project: Project): DecoderResult[Json] = {
+    r.as[Json](resourceCtx).map(_.removeKeys("@context").addContext(resourceCtxUri))
   }
 
-  implicit def resourceVEncoder(implicit output: JsonLDOutputFormat): Encoder[ResourceV] =
+  def json(res: ResourceV)(implicit output: JsonLDOutputFormat): DecoderResult[Json] =
     output match {
-      case Compacted => resourceVEncoderCompacted
-      case Expanded  => resourceVEncoderExpanded
+      case Compacted => jsonCompacted(res)
+      case Expanded  => jsonExpanded(res)
     }
 
-  private def resourceVEncoderCompacted: Encoder[ResourceV] =
-    Encoder.encodeJson.contramap { res =>
-      val flattenedContext = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
-      val fieldsJson       = res.asJson(flattenedContext)
-      val contextJson      = Json.obj("@context" -> res.contextValueForJsonLd).addContext(resourceCtxUri)
-      val json             = fieldsJson deepMerge contextJson
+  private def jsonCompacted(res: ResourceV): DecoderResult[Json] = {
+    val flattenedContext = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
+    res.as[Json](flattenedContext).map { fieldsJson =>
+      val contextJson = Json.obj("@context" -> res.contextValueForJsonLd).addContext(resourceCtxUri)
+      val json        = fieldsJson deepMerge contextJson
       if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.prefix)
       else json
     }
-
-  private val resourceVEncoderExpanded: Encoder[ResourceV] =
-    Encoder.encodeJson.contramap { res =>
-      val json = res.asExpandedJson
-      if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.value.asString)
+  }
+  private def jsonExpanded(r: ResourceV): DecoderResult[Json] =
+    r.as[Json]().map { json =>
+      if (r.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.value.asString)
       else json
     }
 }

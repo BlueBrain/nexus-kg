@@ -17,8 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
 

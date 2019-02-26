@@ -2,14 +2,15 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.MonadError
 import cats.data.{EitherT, OptionT}
+import cats.effect.Effect
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.shacl.topquadrant.{ShaclEngine, ValidationReport}
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.types.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.shacl.{ShaclEngine, ValidationReport}
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg._
@@ -28,17 +29,15 @@ import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.{BNode, IriNode}
+import ch.epfl.bluebrain.nexus.rdf.Node.{blank, BNode, IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.jena._
-import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, GraphConfiguration, Iri}
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.MarshallingError.rootNotFound
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
 import io.circe.Json
+import org.apache.jena.rdf.model.Model
 
 /**
   * Resource operations.
@@ -46,11 +45,8 @@ import io.circe.Json
 class Resources[F[_]](implicit F: MonadError[F, Throwable],
                       val repo: Repo[F],
                       resolution: ProjectResolution[F],
-                      config: AppConfig) {
-  self =>
-  //TODO: If we need to cast well known types, we should find a better way to do it
-  // on the rdf library side.
-  private implicit val graphConfig: GraphConfiguration = GraphConfiguration(castDateTypes = false)
+                      config: AppConfig) { self =>
+
   type RejOrResourceV = EitherT[F, Rejection, ResourceV]
   type RejOrResource  = EitherT[F, Rejection, Resource]
   type OptResource    = OptionT[F, Resource]
@@ -79,7 +75,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
       rawValue       <- materialize(projectRef, schema, source)
       value          <- checkOrAssignId(Right((projectRef, base)), rawValue)
       (id, assigned)  = value
-      resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata(id.value)))
+      resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata))
     } yield resource
   // format: on
 
@@ -152,7 +148,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     val joinedTypes = graph.types(id.value).map(_.value)
     for {
       _        <- validate(id, schema, graph)
-      newValue <- additional(id, schema, joinedTypes, value.copy(graph = graph), 1L)
+      newValue <- additional(id, schema, joinedTypes, value.copy(graph = RootedGraph(id.value, graph)), 1L)
       created  <- repo.create(id, schema, joinedTypes, newValue.source)
     } yield created
   }
@@ -248,7 +244,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
       graph        = schemaType.map(tpe => value.graph + ((id.value, rdf.tpe, tpe): Triple)).getOrElse(value.graph)
       _           <- validate(id, resource.schema, graph)
       joinedTypes  = graph.types(id.value).map(_.value)
-      newValue    <- additional(id, resource.schema, joinedTypes, value.copy(graph = graph), rev + 1)
+      newValue    <- additional(id, resource.schema, joinedTypes, value.copy(graph = RootedGraph(id.value, graph)), rev + 1)
       updated     <- repo.update(id, rev, joinedTypes, newValue.source)
     } yield updated
     // format: on
@@ -276,7 +272,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     */
   def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], json: Json)(implicit subject: Subject): RejOrResource = {
     val result = for {
-      graph <- (json deepMerge Contexts.tagCtx).asGraph
+      graph <- (json deepMerge Contexts.tagCtx).asGraph(_.rootNode.toRight(rootNotFound()))
       cursor = graph.cursor()
       revValue <- cursor.downField(nxv.rev).focus.as[Long]
       tagValue <- cursor.downField(nxv.tag).focus.as[String]
@@ -375,7 +371,8 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
   def materializeWithMeta(resource: Resource)(implicit project: Project): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
-      value = resourceV.value.copy(graph = Graph(resourceV.value.graph.triples ++ resourceV.metadata))
+      value = resourceV.value.copy(
+        graph = RootedGraph(resourceV.value.graph.rootNode, resourceV.value.graph.triples ++ resourceV.metadata))
     } yield resourceV.map(_ => value)
 
   /**
@@ -446,14 +443,14 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
             "@base"  -> Json.fromString(project.base.asString),
             "@vocab" -> Json.fromString(project.vocab.asString)
           )
-          source.deepMerge(Json.obj("@context" -> ctx)).asGraph.map(Value(source, ctx, _))
+          source.deepMerge(Json.obj("@context" -> ctx)).asGraph(blank).map(Value(source, ctx, _))
         case _ =>
           source
             .deepMerge(Json.obj("@context" -> flattened))
-            .asGraph
+            .asGraph(blank)
             .map(graph => Value(source, flattened, graph))
       }
-      EitherT.fromEither[F](value).leftSemiflatMap(e => Rejection.fromJenaModelErr[F](e))
+      EitherT.fromEither[F](value).leftSemiflatMap(e => Rejection.fromMarshallingErr[F](e))
     }
   }
 
@@ -462,7 +459,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     // format: off
     for {
       rawValue      <- materialize(id.parent, schema, source)
-      value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata(id.value)))
+      value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata))
       (_, assigned)  = value
     } yield assigned
   // format: on
@@ -502,16 +499,16 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
       case `shaclSchemaUri` =>
         imports(resId, data).flatMap { resolved =>
           val resolvedSets = resolved.foldLeft(data.triples)(_ ++ _.value.graph.triples)
-          val resolvedData = Graph(resolvedSets).asJenaModel
+          val resolvedData = RootedGraph(blank, resolvedSets).as[Model]()
           toEitherT(ShaclEngine(resolvedData, reportDetails = true))
         }
       case _ =>
         schemaContext().flatMap { resolved =>
           val resolvedSchemaSets =
             resolved.schemaImports.foldLeft(resolved.schema.value.graph.triples)(_ ++ _.value.graph.triples)
-          val resolvedSchema   = Graph(resolvedSchemaSets).asJenaModel
+          val resolvedSchema   = RootedGraph(blank, resolvedSchemaSets).as[Model]()
           val resolvedDataSets = resolved.dataImports.foldLeft(data.triples)(_ ++ _.value.graph.triples)
-          val resolvedData     = Graph(resolvedDataSets).asJenaModel
+          val resolvedData     = RootedGraph(blank, resolvedDataSets).as[Model]()
           toEitherT(ShaclEngine(resolvedData, resolvedSchema, validateShapes = false, reportDetails = true))
         }
     }
@@ -521,21 +518,31 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
                               value: ResourceF.Value): EitherT[F, Rejection, (ResId, ResourceF.Value)] = {
 
     def replaceBNode(bnode: BNode, id: AbsoluteIri): ResourceF.Value =
-      value.copy(graph = value.graph.replaceNode(bnode, id))
+      value.copy(graph = RootedGraph(id, value.graph.replaceNode(bnode, id)))
+
+    def rootNode: Option[IriOrBNode] = {
+      val resolvedSource = value.source appendContextOf Json.obj("@context" -> value.ctx)
+      resolvedSource.id.map(IriNode(_)) orElse (value.graph: Graph).rootNode orElse Option(value.graph.triples.isEmpty)
+        .collectFirst {
+          case true => blank
+        }
+    }
 
     idOrGenInput match {
       case Left(id) =>
-        value.primaryNode match {
-          case Some(IriNode(iri)) if iri.value == id.value => EitherT.rightT(id -> value)
-          case Some(bNode: BNode)                          => EitherT.rightT(id -> replaceBNode(bNode, id.value))
-          case _                                           => EitherT.leftT(IncorrectId(id.ref))
+        rootNode match {
+          case Some(IriNode(iri)) if iri.value == id.value =>
+            EitherT.rightT(id -> value.copy(graph = RootedGraph(id.value, value.graph)))
+          case Some(bNode: BNode) => EitherT.rightT(id -> replaceBNode(bNode, id.value))
+          case _                  => EitherT.leftT(IncorrectId(id.ref))
         }
-      case Right((projectRef, base)) =>
-        value.primaryNode match {
-          case Some(IriNode(iri)) => EitherT.rightT(Id(projectRef, iri) -> value)
+      case Right((projRef, base)) =>
+        rootNode match {
+          case Some(IriNode(iri)) =>
+            EitherT.rightT(Id(projRef, iri.value) -> value.copy(graph = RootedGraph(iri, value.graph)))
           case Some(bNode: BNode) =>
             val iri = generateId(base)
-            EitherT.rightT(Id(projectRef, iri) -> replaceBNode(bNode, iri))
+            EitherT.rightT(Id(projRef, iri.value) -> replaceBNode(bNode, iri))
           case _ => EitherT.leftT(UnableToSelectResourceId)
         }
     }
@@ -558,10 +565,7 @@ object Resources {
     * @tparam F the monadic effect type
     * @return a new [[Resources]] for the provided F type
     */
-  final def apply[F[_]: Repo: ProjectResolution](
-      implicit config: AppConfig,
-      F: MonadError[F, Throwable]
-  ): Resources[F] =
+  final def apply[F[_]: Repo: ProjectResolution: Effect](implicit config: AppConfig): Resources[F] =
     new Resources[F]()
 
   private[resources] final case class SchemaContext(schema: ResourceV,

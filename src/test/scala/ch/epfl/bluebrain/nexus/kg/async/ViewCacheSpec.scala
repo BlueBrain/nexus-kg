@@ -5,6 +5,7 @@ import java.time.Clock
 import akka.actor.ExtendedActorSystem
 import akka.serialization.Serialization
 import akka.testkit._
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -13,7 +14,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView, SparqlView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global

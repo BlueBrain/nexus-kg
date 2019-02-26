@@ -5,8 +5,10 @@ import java.nio.file.Path
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
+import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreConfig
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
-import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
+import ch.epfl.bluebrain.nexus.commons.search.Pagination
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -15,8 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.service.indexer.cache.KeyValueStoreConfig
-import ch.epfl.bluebrain.nexus.service.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka._
 import io.circe.Json

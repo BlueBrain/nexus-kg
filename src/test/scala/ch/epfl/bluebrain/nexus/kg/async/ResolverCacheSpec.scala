@@ -5,6 +5,7 @@ import java.time.Clock
 import akka.actor.ExtendedActorSystem
 import akka.serialization.Serialization
 import akka.testkit._
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -12,7 +13,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures

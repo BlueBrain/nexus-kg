@@ -7,7 +7,7 @@ import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
@@ -27,10 +27,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, 
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{reset, when}

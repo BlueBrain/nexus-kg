@@ -22,7 +22,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
-import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, Retry, SourcingConfig}
+import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
+import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import io.circe.Json
 
 /**

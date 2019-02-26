@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant}
 
+import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
@@ -14,15 +15,12 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode}
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.GraphResult
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe._
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.nexus._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Node}
+import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
 import io.circe.Json
 
 /**
@@ -135,13 +133,12 @@ object ResourceF {
                                             nxv.self)
 
   /**
-    * Removes the metadata triples from the graph centered on the provided subject ''id''
+    * Removes the metadata triples from the rooted graph
     *
-    * @param id the subject
-    * @return a new [[Graph]] without the metadata triples
+    * @return a new [[RootedGraph]] without the metadata triples
     */
-  def removeMetadata(graph: Graph, id: IriOrBNode): Graph =
-    graph.remove(id, metaPredicates.contains)
+  def removeMetadata(rootedGraph: RootedGraph): RootedGraph =
+    RootedGraph(rootedGraph.rootNode, rootedGraph.remove(rootedGraph.rootNode, metaPredicates.contains))
 
   /**
     * A default resource value type.
@@ -150,21 +147,23 @@ object ResourceF {
     * @param ctx    an expanded (flattened) context value
     * @param graph  a graph representation of a resource
     */
-  final case class Value(source: Json, ctx: Json, graph: Graph) {
-    def primaryNode: Option[IriOrBNode] = {
-      val resolvedSource = source appendContextOf Json.obj("@context" -> ctx)
-      resolvedSource.id.map(IriNode(_)) orElse graph.primaryNode orElse Option(graph.triples.isEmpty).collect {
-        case true => Node.blank
-      }
-    }
+  final case class Value(source: Json, ctx: Json, graph: RootedGraph) {
 
-    def map[A](value: A, f: Json => Json)(implicit enc: GraphEncoder[A]): Value = {
-      val GraphResult(s, graph) = enc(value)
-      val graphNoMeta           = graph.removeMetadata(s)
-      val json                  = graphNoMeta.asJson(Json.obj("@context" -> ctx), s).getOrElse(graphNoMeta.asJson)
-      this.copy(source = f(json), graph = graphNoMeta)
+    def map[A: RootNode](value: A, f: Json => Json)(implicit enc: GraphEncoder[CId, A]): Option[Value] = {
+      val rootedGraph = value.asGraph
+      val graphNoMeta = rootedGraph.removeMetadata
+      val maybeJson   = graphNoMeta.as[Json](Json.obj("@context" -> ctx))
+      maybeJson.toOption.map(json => copy(source = f(json), graph = graphNoMeta))
     }
   }
+
+  //TODO: calculate
+//  def primaryNode(source: Json, ctx: Json): Option[IriOrBNode] = {
+//    val resolvedSource = source appendContextOf Json.obj("@context" -> ctx)
+//    resolvedSource.id.map(IriNode(_)) orElse graph.primaryNode orElse Option(graph.triples.isEmpty).collect {
+//      case true => Node.blank
+//    }
+//  }
 
   /**
     * Construct a [[ResourceF]] with default parameters

@@ -1,8 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg
 
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.DeprecatedId._
 import monix.eval.Task
 
@@ -14,5 +14,4 @@ package object routes {
 
   private[routes] def toQueryResults[A](resolvers: List[A]): QueryResults[A] =
     UnscoredQueryResults(resolvers.size.toLong, resolvers.map(UnscoredQueryResult(_)))
-
 }

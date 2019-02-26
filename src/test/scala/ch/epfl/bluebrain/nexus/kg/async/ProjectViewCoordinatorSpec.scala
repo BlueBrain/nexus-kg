@@ -7,6 +7,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import akka.actor.{Actor, ActorRef, Props}
 import akka.testkit.{DefaultTimeout, TestProbe}
 import ch.epfl.bluebrain.nexus.admin.client.types._
+import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.onViewChange
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache.RevisionedViews
@@ -16,8 +18,6 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef}
-import ch.epfl.bluebrain.nexus.service.indexer.cache.OnKeyValueStoreChange
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global

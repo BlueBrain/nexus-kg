@@ -8,7 +8,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
-import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -78,7 +78,7 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
       Get("/some?format=expanded") ~> Accept(`application/*`) ~> routeFormat(strict = false, Binary) ~> check {
         responseAs[String] shouldEqual "Expanded"
       }
-      Get("/some") ~> Accept(`application/ntriples`, `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
+      Get("/some") ~> Accept(`application/n-triples`, `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
         responseAs[String] shouldEqual "Triples"
       }
 
@@ -88,7 +88,7 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
 
       Get("/some?format=compacted") ~> Accept(`application/javascript`,
                                               DOT.contentType.mediaType,
-                                              `application/ntriples`,
+                                              `application/n-triples`,
                                               `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
         responseAs[String] shouldEqual "DOT"
       }

@@ -5,6 +5,7 @@ import java.time.{Clock, Instant, ZoneId}
 
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
@@ -18,7 +19,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
 import io.circe.Json
 import org.mockito.Mockito
 import org.mockito.Mockito._

@@ -6,6 +6,7 @@ import cats.data.{EitherT, OptionT}
 import cats.effect.{IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
@@ -18,8 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.service.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
 

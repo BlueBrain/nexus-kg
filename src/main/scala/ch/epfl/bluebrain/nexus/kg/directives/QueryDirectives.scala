@@ -7,7 +7,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.types.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._

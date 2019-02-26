@@ -12,10 +12,9 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, ResourceF}
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
-import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf._
 import io.circe.Json
-import io.circe.syntax._
 import io.circe.parser.parse
 import org.scalatest.{Matchers, WordSpecLike}
 
@@ -77,13 +76,13 @@ class ResourceEncoderSpec
           |  "@context" : "https://bluebrain.github.io/nexus/contexts/resource.json"
           |}
         """.stripMargin
-      resource.asJson shouldEqual parse(expected).right.value
+      ResourceEncoder.json(resource).right.value shouldEqual parse(expected).right.value
     }
 
     "encode resource value in compacted form" in {
       implicit val output: JsonLDOutputFormat = Compacted
       val triples                             = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
-      val resourceV                           = resource.map(_ => Value(json, context, Graph(triples)))
+      val resourceV                           = resource.map(_ => Value(json, context, RootedGraph(IriNode(base + "foobar"), triples)))
       val expected =
         """
           |{
@@ -98,13 +97,13 @@ class ResourceEncoderSpec
           |  "foo" : "bar"
           |}
         """.stripMargin
-      resourceV.asJson shouldEqual parse(expected).right.value
+      ResourceEncoder.json(resourceV).right.value shouldEqual parse(expected).right.value
     }
 
     "encode resource value in expanded form" in {
       implicit val output: JsonLDOutputFormat = Expanded
       val triples                             = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
-      val resourceV                           = resource.map(_ => Value(json, context, Graph(triples)))
+      val resourceV                           = resource.map(_ => Value(json, context, RootedGraph(IriNode(base + "foobar"), triples)))
       val expected =
         """
           |{
@@ -112,7 +111,7 @@ class ResourceEncoderSpec
           |  "http://example.com/voc/foo" : "bar"
           |}
         """.stripMargin
-      resourceV.asJson shouldEqual parse(expected).right.value
+      ResourceEncoder.json(resourceV).right.value shouldEqual parse(expected).right.value
     }
   }
 }

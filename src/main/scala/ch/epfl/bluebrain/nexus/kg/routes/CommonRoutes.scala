@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCode}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{MalformedQueryParamRejection, Route, Rejection => AkkaRejection}
 import cats.data.{EitherT, OptionT}
-import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.UnacceptedResponseContentType
@@ -28,12 +27,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
-import ch.epfl.bluebrain.nexus.kg.routes.ResourceEncoder._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
+import ch.epfl.bluebrain.nexus.rdf.{Dot, NTriples}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import ch.epfl.bluebrain.nexus.rdf.syntax.dot._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -178,15 +176,13 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
         implicit val marshaller = stringMarshaller(Triples)
         complete(fetched.map(_.map {
           case (status, resource) =>
-            status -> resource.value.graph.triples
-              .map { case (s, p, o) => s"${s.show} ${p.show} ${o.show} ." }
-              .mkString("\n")
+            status -> resource.value.graph.as[NTriples]().value
         }))
       case DOT =>
         implicit val marshaller = stringMarshaller(DOT)
         complete(fetched.map(_.map {
           case (status, resource) =>
-            status -> resource.value.graph.asDot
+            status -> resource.value.graph.as[Dot]().value
         }))
     }
 

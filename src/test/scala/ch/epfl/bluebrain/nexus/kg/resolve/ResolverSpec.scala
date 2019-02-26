@@ -5,8 +5,8 @@ import java.util.UUID
 
 import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.commons.test.Resources
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -15,10 +15,10 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.syntax.circe.context._
-import io.circe.syntax._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import org.mockito.Mockito
 import org.mockito.Mockito.when
 import org.scalatest._
@@ -136,7 +136,7 @@ class ResolverSpec
           )
         val resolvers: QueryResults[Resolver] =
           QueryResults(2L, List(UnscoredQueryResult(inProject), UnscoredQueryResult(crossProject)))
-        resolvers.asJson shouldEqual jsonContentOf("/resolve/resolver-list-resp.json")
+        ResolverEncoder.json(resolvers).right.value shouldEqual jsonContentOf("/resolve/resolver-list-resp.json")
       }
     }
 

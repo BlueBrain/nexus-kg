@@ -2,11 +2,11 @@ package ch.epfl.bluebrain.nexus.kg.search
 
 import java.util.regex.Pattern.quote
 
-import ch.epfl.bluebrain.nexus.commons.http.syntax.circe._
+import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.test.Resources
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults
-import ch.epfl.bluebrain.nexus.commons.types.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
