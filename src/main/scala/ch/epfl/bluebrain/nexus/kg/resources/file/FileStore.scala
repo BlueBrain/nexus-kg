@@ -4,8 +4,8 @@ import java.nio.file.{Files, Path, Paths}
 import java.security.MessageDigest
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{FileIO, Keep, Sink, Source}
-import akka.stream.{ActorMaterializer, IOResult, Materializer}
+import akka.stream.scaladsl.{FileIO, Keep, Sink}
+import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.ByteString
 import cats.implicits._
 import cats.{Monad, MonadError}
@@ -47,9 +47,6 @@ class FileStore[F[_]: Monad, In, Out](implicit loc: LocationResolver[F], stream:
 }
 
 object FileStore {
-
-  type AkkaIn  = Source[ByteString, Any]
-  type AkkaOut = Source[ByteString, Future[IOResult]]
 
   trait Stream[F[_], In, Out] {
 

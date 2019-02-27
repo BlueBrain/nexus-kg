@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
@@ -201,7 +201,7 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
       )
     }
 
-  private def completeFile(f: Future[(FileAttributes, FileStore.AkkaOut)]): Route =
+  private def completeFile(f: Future[(FileAttributes, AkkaOut)]): Route =
     onSuccess(f) {
       case (info, source) =>
         val filename = urlEncodeOrElse(info.filename)("file")

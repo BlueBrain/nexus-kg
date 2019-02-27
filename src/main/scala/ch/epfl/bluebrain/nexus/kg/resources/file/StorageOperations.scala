@@ -6,11 +6,12 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescr
 /**
   * Contract for storage operations.
   *
+  * @tparam F         the effect type
   * @tparam StoreType the store type
   * @tparam In        the input type
   * @tparam Out       the output type
   */
-trait StorageOperations[StoreType, In, Out] {
+trait StorageOperations[F[_], StoreType, In, Out] {
 
   /**
     * Stores the provided stream source.
@@ -21,7 +22,7 @@ trait StorageOperations[StoreType, In, Out] {
     * @return [[FileAttributes]] wrapped in the abstract ''F[_]'' type if successful,
     *         or a [[ch.epfl.bluebrain.nexus.kg.resources.Rejection]] wrapped within ''F[_]'' otherwise
     */
-  def save[F[_]](id: ResId, fileDesc: FileDescription, source: In): F[FileAttributes]
+  def save(id: ResId, fileDesc: FileDescription, source: In): F[FileAttributes]
 
   /**
     * Fetches the file associated to the provided ''fileMeta''.
