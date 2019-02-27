@@ -38,7 +38,7 @@ object FileStorage {
     * @param path     absolute Path where to find the file
     * @param relative relative route to the file location
     */
-  final case class Location(path: Path, relative: Path)
+  private case class Location(path: Path, relative: Path)
 
   implicit def storageOps[F[_]](storage: FileStorage)(
       implicit F: Effect[F],
