@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
 import ch.epfl.bluebrain.nexus.commons.http.directives.PrefixDirectives.uriPrefix

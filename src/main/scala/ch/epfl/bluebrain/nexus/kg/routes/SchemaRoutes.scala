@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives.IdSegment
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import monix.eval.Task
