@@ -71,7 +71,7 @@ object ResolverCache {
   type RevisionedResolvers = RevisionedValue[List[Resolver]]
 
   /**
-    * Creates a new view index.
+    * Creates a new resolver index.
     */
   def apply[F[_]: Timer](implicit as: ActorSystem,
                          config: KeyValueStoreConfig,

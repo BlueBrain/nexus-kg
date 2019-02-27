@@ -128,9 +128,6 @@ private class Indexing(resources: Resources[Task],
           implicit val project: Project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
           implicit val s: Identity.Subject = subject
-          val elasticSearchView: View      = ElasticSearchView.default(project.ref)
-          val sparqlView: View             = SparqlView.default(project.ref)
-          val resolver: Resolver           = InProjectResolver.default(project.ref)
           for {
             _ <- cache.project.replace(project)
             _ <- coordinator.start(project)
