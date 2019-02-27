@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources.file
 
+import java.time.Instant
 import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, ResId}
@@ -9,7 +10,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 /**
   * Contract for different types of storage back-end.
   */
-trait Store[F[_], In, Out] {
+trait Storage {
 
   /**
     * @return a reference to the project that the store belongs to
@@ -32,6 +33,11 @@ trait Store[F[_], In, Out] {
   def rev: Long
 
   /**
+    * @return the instant when this store was updated
+    */
+  def instant: Instant
+
+  /**
     * @return the deprecation state of the store
     */
   def deprecated: Boolean
@@ -47,7 +53,7 @@ trait Store[F[_], In, Out] {
   def name: String = s"${ref.id}_${uuid}_$rev"
 
   /**
-    * Stores the provided stream source.
+    * Stores the provided stream source using an implicitly available [[StorageOperations]] instance.
     *
     * @param id       the id of the resource
     * @param fileDesc the file descriptor to be stored
@@ -55,13 +61,16 @@ trait Store[F[_], In, Out] {
     * @return [[FileAttributes]] wrapped in the abstract ''F[_]'' type if successful,
     *         or a [[ch.epfl.bluebrain.nexus.kg.resources.Rejection]] wrapped within ''F[_]'' otherwise
     */
-  def save(id: ResId, fileDesc: FileDescription, source: In): F[FileAttributes]
+  def save[F[_], ST, In](id: ResId, fileDesc: FileDescription, source: In)(
+      implicit storage: StorageOperations[ST, In, _]): F[FileAttributes] =
+    storage.save[F](id, fileDesc, source)
 
   /**
-    * Fetches the file associated to the provided ''fileMeta''.
+    * Fetches the file associated to the provided ''fileMeta''  sing an implicitly available [[StorageOperations]] instance.
     *
     * @param fileMeta the file metadata
     */
-  def fetch(fileMeta: FileAttributes): Out
+  def fetch[ST, Out](fileMeta: FileAttributes)(implicit storage: StorageOperations[ST, _, Out]): Out =
+    storage.fetch(fileMeta)
 
 }
