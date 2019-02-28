@@ -249,5 +249,6 @@ object AppConfig {
   implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfigs          = appConfig.indexing
   implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig    = appConfig.sourcing
   implicit def toStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig  = appConfig.keyValueStore
+  implicit def toFileConfig(implicit appConfig: AppConfig): FileConfig             = appConfig.files
 
 }

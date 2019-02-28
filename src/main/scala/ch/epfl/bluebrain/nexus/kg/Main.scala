@@ -22,7 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
-import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut, FileStore}
 import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.{Clients, Routes}
 import com.github.jsonldjava.core.DocumentLoader
@@ -95,14 +94,10 @@ object Main {
     implicit val clock = Clock.systemUTC
     implicit val pm    = CanBlock.permit
 
-    implicit val repo      = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
-    implicit val attConfig = appConfig.files
-    implicit val lc        = FileStore.LocationResolver[Task]()
-    implicit val stream    = FileStore.Stream.task(appConfig.files)
-    implicit val store     = new FileStore[Task, AkkaIn, AkkaOut]
-    implicit val indexers  = clients
+    implicit val repo     = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
+    implicit val indexers = clients
     implicit val cache =
-      Caches(ProjectCache[Task], ViewCache[Task], ResolverCache[Task])
+      Caches(ProjectCache[Task], ViewCache[Task], ResolverCache[Task], StorageCache[Task])
     implicit val aclCache          = AclsCache[Task](clients.iamClient)
     implicit val projectResolution = ProjectResolution.task(cache.resolver, cache.project, aclCache)
     val resources: Resources[Task] = Resources[Task]

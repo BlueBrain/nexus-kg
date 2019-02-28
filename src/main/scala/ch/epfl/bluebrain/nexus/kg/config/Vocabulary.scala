@@ -78,12 +78,19 @@ object Vocabulary {
     val views           = PrefixMapping.prefix("views")
     val viewId          = PrefixMapping.prefix("viewId")
 
+    //Storage payload vocabulary
+    val default = PrefixMapping.prefix("default")
+    val volume  = PrefixMapping.prefix("volume")
+
     // View default ids
     val defaultElasticSearchIndex = PrefixMapping.prefix("defaultElasticSearchIndex")
     val defaultSparqlIndex        = PrefixMapping.prefix("defaultSparqlIndex")
 
     //Resolver default id
     val defaultResolver = PrefixMapping.prefix("defaultInProject")
+
+    //File storage default id
+    val defaultFileStorage = PrefixMapping.prefix("defaultFileStorage")
 
     // @type platform ids
     val Schema                     = PrefixMapping.prefix("Schema")
@@ -93,6 +100,9 @@ object Vocabulary {
     val Resolver                   = PrefixMapping.prefix("Resolver")
     val InProject                  = PrefixMapping.prefix("InProject")
     val CrossProject               = PrefixMapping.prefix("CrossProject")
+    val Storage                    = PrefixMapping.prefix("Storage")
+    val FileStorage                = PrefixMapping.prefix("FileStorage")
+    val S3Storage                  = PrefixMapping.prefix("S3Storage")
     val View                       = PrefixMapping.prefix("View")
     val ElasticSearchView          = PrefixMapping.prefix("ElasticSearchView")
     val SparqlView                 = PrefixMapping.prefix("SparqlView")

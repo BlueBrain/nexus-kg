@@ -24,12 +24,12 @@ import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticRe
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.kg.resources.file.StorageOperations
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{reset, when}
@@ -64,7 +64,7 @@ class ResourcesSpec
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
   implicit private val repo       = Repo[IO].ioValue
-  private implicit val store      = mock[FileStore[IO, String, String]]
+  private implicit val storageOps = mock[StorageOperations[IO, String, String]]
   private val projectCache        = mock[ProjectCache[IO]]
   private val resolverCache       = mock[ResolverCache[IO]]
   private val aclsCache           = mock[AclsCache[IO]]
@@ -80,7 +80,7 @@ class ResourcesSpec
   private val resources: Resources[IO] = Resources[IO]
 
   before {
-    reset(store)
+    reset(storageOps)
   }
 
   trait Base {
@@ -141,8 +141,8 @@ class ResourcesSpec
     val source     = "some text"
     val relative   = Paths.get("./other")
     val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-    when(store.save(resId, desc, source)).thenReturn(IO.pure(attributes))
-    when(store.save(resId, desc, source)).thenReturn(IO.pure(attributes))
+    when(storageOps.save(resId, desc, source)).thenReturn(IO.pure(attributes))
+    when(storageOps.save(resId, desc, source)).thenReturn(IO.pure(attributes))
   }
 
   "A Resources bundle" when {

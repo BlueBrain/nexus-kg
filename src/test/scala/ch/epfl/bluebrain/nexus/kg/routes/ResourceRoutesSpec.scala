@@ -35,6 +35,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
 import ch.epfl.bluebrain.nexus.kg.async._
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -47,8 +48,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut, StorageOperations}
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
@@ -104,10 +105,10 @@ class ResourceRoutesSpec
   private implicit val projectCache  = mock[ProjectCache[Task]]
   private implicit val viewCache     = mock[ViewCache[Task]]
   private implicit val resolverCache = mock[ResolverCache[Task]]
-  private implicit val store         = mock[FileStore[Task, AkkaIn, AkkaOut]]
+  private implicit val storageCache  = mock[StorageCache[Task]]
   private implicit val resources     = mock[Resources[Task]]
 
-  private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache)
+  private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
 
   private implicit val ec            = system.dispatcher
   private implicit val mt            = ActorMaterializer()
@@ -305,6 +306,7 @@ class ResourceRoutesSpec
     val schemaRef = Ref(fileSchemaUri)
 
     val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
+    when(storageCache.getDefault(projectRef)).thenReturn(Task(Some(FileStorage.default(projectRef))))
   }
 
   abstract class Schema(perms: Set[Permission] = manageSchemas) extends Context(perms) {
@@ -663,7 +665,7 @@ class ResourceRoutesSpec
         Source.single(ByteString(content)).mapMaterializedValue(_ => FileIO.fromPath(path).to(Sink.ignore).run())
 
       when(resources.fetch(mEq(id), mEq(None))).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetchFile(mEq(id), any[Long])(any[FileStore[Task, AkkaIn, AkkaOut]]))
+      when(resources.fetchFile(mEq(id), any[Long])(any[StorageOperations[Task, AkkaIn, AkkaOut]]))
         .thenReturn(OptionT.some[Task](at1 -> source))
 
       val endpoints = List(

@@ -5,14 +5,13 @@ import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{Caches, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.async.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives.IdSegment
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.UnderscoreRoutes.ResourceType
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -25,9 +24,8 @@ final class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: 
     implicit project: Project,
     cache: Caches[Task],
     indexers: Clients[Task],
-    store: FileStore[Task, AkkaIn, AkkaOut],
     config: AppConfig)
-    extends CommonRoutes(resources, "resources", acls, caller, cache.view) {
+    extends CommonRoutes(resources, "resources", acls, caller) {
 
   private implicit val viewCache: ViewCache[Task] = cache.view
 

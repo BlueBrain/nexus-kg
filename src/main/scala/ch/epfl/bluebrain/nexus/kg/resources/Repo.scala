@@ -18,7 +18,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.StorageOperations
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
@@ -106,9 +106,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def createFile[In](id: ResId, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
       implicit subject: Subject,
-      store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
+      storageOps: StorageOperations[F, In, _]): EitherT[F, Rejection, Resource] =
     EitherT
-      .right(store.save(id, fileDesc, source))
+      .right(storageOps.save(id, fileDesc, source))
       .flatMap(attr => evaluate(id, CreateFile(id, attr, instant, subject)))
 
   /**
@@ -124,9 +124,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
       implicit subject: Subject,
-      store: FileStore[F, In, _]): EitherT[F, Rejection, Resource] =
+      storageOps: StorageOperations[F, In, _]): EitherT[F, Rejection, Resource] =
     EitherT
-      .right(store.save(id, fileDesc, source))
+      .right(storageOps.save(id, fileDesc, source))
       .flatMap(attr => evaluate(id, UpdateFile(id, rev, attr, instant, subject)))
 
   /**
@@ -138,8 +138,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return the optional streamed file in the F context
     */
   def getFile[Out](id: ResId, schema: Option[Ref])(
-      implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, schema) subflatMap (_.file.flatMap(at => Some(store.fetch(at)).map(out => at -> out)))
+      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id, schema) subflatMap (_.file.flatMap(at => Some(storageOps.fetch(at)).map(out => at -> out)))
 
   /**
     * Attempts to stream the file resource identified by the argument id and the revision.
@@ -151,8 +151,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return the optional streamed file in the F context
     */
   def getFile[Out](id: ResId, rev: Long, schema: Option[Ref])(
-      implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, rev, schema) subflatMap (_.file.flatMap(at => Some(store.fetch(at)).map(out => at -> out)))
+      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id, rev, schema) subflatMap (_.file.flatMap(at => Some(storageOps.fetch(at)).map(out => at -> out)))
 
   /**
     * Attempts to stream the file resource identified by the argument id and the tag. The
@@ -165,8 +165,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return the optional streamed file in the F context
     */
   def getFile[Out](id: ResId, tag: String, schema: Option[Ref])(
-      implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, tag, schema) subflatMap (_.file.flatMap(at => Some(store.fetch(at)).map(out => at -> out)))
+      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+    get(id, tag, schema) subflatMap (_.file.flatMap(at => Some(storageOps.fetch(at)).map(out => at -> out)))
 
   /**
     * Attempts to fetch the resource tags identified by the argument id.

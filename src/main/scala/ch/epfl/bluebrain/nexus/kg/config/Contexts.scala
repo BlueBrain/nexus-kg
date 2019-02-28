@@ -14,6 +14,7 @@ object Contexts {
   val resourceCtxUri: AbsoluteIri = base + "resource.json"
   val resolverCtxUri: AbsoluteIri = base + "resolver.json"
   val viewCtxUri: AbsoluteIri     = base + "view.json"
+  val storageCtxUri: AbsoluteIri  = base + "storage.json"
   val shaclCtxUri: AbsoluteIri    = base + "shacl-20170720.json"
   val searchCtxUri: AbsoluteIri   = base + "search.json"
 
@@ -21,6 +22,7 @@ object Contexts {
   val resourceCtx: Json = jsonContentOf("/contexts/resource-context.json")
   val resolverCtx: Json = jsonContentOf("/contexts/resolver-context.json")
   val viewCtx: Json     = jsonContentOf("/contexts/view-context.json")
+  val storageCtx: Json  = jsonContentOf("/contexts/storage-context.json")
   val shaclCtx: Json    = jsonContentOf("/contexts/shacl-context.json")
   val searchCtx: Json   = jsonContentOf("/contexts/search-context.json")
 

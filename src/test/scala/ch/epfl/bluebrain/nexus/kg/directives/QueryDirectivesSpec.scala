@@ -1,5 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.directives
 
+import java.nio.file.Paths
+import java.time.Instant
+
 import akka.http.scaladsl.model.MediaRanges._
 import akka.http.scaladsl.model.MediaTypes._
 import akka.http.scaladsl.model.StatusCodes
@@ -7,20 +10,68 @@ import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import cats.instances.either._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.search.Pagination
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
+import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.async.StorageCache
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.resources.file.Storage
+import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.resources.file.StorageEncoder._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
+import ch.epfl.bluebrain.nexus.kg.routes.Routes.{exceptionHandler, rejectionHandler}
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import io.circe.Json
 import io.circe.generic.auto._
-import org.scalatest.{EitherValues, Matchers, WordSpecLike}
+import monix.eval.Task
+import org.mockito.Mockito
+import org.mockito.Mockito._
+import org.scalatest.mockito.MockitoSugar
+import org.scalatest.{BeforeAndAfter, EitherValues, Matchers, WordSpecLike}
 
-class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteTest with EitherValues {
+class QueryDirectivesSpec
+    extends WordSpecLike
+    with Matchers
+    with ScalatestRouteTest
+    with EitherValues
+    with TestHelper
+    with MockitoSugar
+    with BeforeAndAfter {
+
+  private implicit val storageCache: StorageCache[Task] = mock[StorageCache[Task]]
+
+  before {
+    Mockito.reset(storageCache)
+  }
 
   "A QueryDirectives" should {
-    implicit val config = PaginationConfig(0L, 10, 50)
+    implicit val config     = PaginationConfig(0L, 10, 50)
+    implicit val fileConfig = FileConfig(Paths.get("/tmp/"), "SHA-256")
+
+    def genProject = Project(
+      genIri,
+      "project",
+      "organization",
+      None,
+      nxv.projects,
+      genIri,
+      Map("nxv" -> nxv.base),
+      genUUID,
+      genUUID,
+      1L,
+      false,
+      Instant.EPOCH,
+      genIri,
+      Instant.EPOCH,
+      genIri
+    )
 
     def route(): Route =
       (get & paginated) { page =>
@@ -30,6 +81,15 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
     def routeFormat(strict: Boolean, default: OutputFormat): Route =
       (get & outputFormat(strict, default)) { output =>
         complete(StatusCodes.OK -> output.toString)
+      }
+
+    def routeStorage(implicit project: Project): Route =
+      handleExceptions(exceptionHandler) {
+        handleRejections(rejectionHandler) {
+          (get & storage) { st =>
+            complete(StatusCodes.OK -> st.as[Json]().right.value)
+          }
+        }
       }
 
     "return default values when no query parameters found" in {
@@ -91,6 +151,32 @@ class QueryDirectivesSpec extends WordSpecLike with Matchers with ScalatestRoute
                                               `application/n-triples`,
                                               `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
         responseAs[String] shouldEqual "DOT"
+      }
+    }
+
+    "return the storage when specified as a query parameter" in {
+      implicit val project = genProject
+      val storage: Storage = FileStorage.default(project.ref)
+      when(storageCache.get(project.ref, nxv.withSuffix("mystorage").value)).thenReturn(Task(Some(storage)))
+      Get("/some?storage=nxv:mystorage") ~> routeStorage ~> check {
+        responseAs[Json] shouldEqual storage.as[Json]().right.value
+      }
+    }
+
+    "return the default storage" in {
+      implicit val project = genProject
+      val storage: Storage = FileStorage.default(project.ref)
+      when(storageCache.getDefault(project.ref)).thenReturn(Task(Some(storage)))
+      Get("/some") ~> routeStorage ~> check {
+        responseAs[Json] shouldEqual storage.as[Json]().right.value
+      }
+    }
+
+    "return no storage when does not exists on the cache" in {
+      implicit val project = genProject
+      when(storageCache.getDefault(project.ref)).thenReturn(Task(None))
+      Get("/some") ~> routeStorage ~> check {
+        status shouldEqual StatusCodes.NotFound
       }
     }
   }

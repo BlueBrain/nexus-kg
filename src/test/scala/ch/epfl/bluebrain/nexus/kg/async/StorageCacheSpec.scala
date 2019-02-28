@@ -1,17 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import java.time.{Clock, Instant}
-import java.util.UUID
+import java.nio.file.Paths
+import java.time.Clock
 
 import akka.testkit._
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.StorageCacheSpec.StorageA
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
-import ch.epfl.bluebrain.nexus.kg.resources.file.Storage
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.FileStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -41,18 +39,26 @@ class StorageCacheSpec
   val initialInstant = clock.instant()
   val lastIdA        = url"http://example.com/lastA".value
 
-  val storage = StorageA(ref1, genIri, genUUID, 1L, false, true, initialInstant.minusSeconds(1L + genInt().toLong))
+  val storage = FileStorage(ref1,
+                            genIri,
+                            1L,
+                            initialInstant.minusSeconds(1L + genInt().toLong),
+                            false,
+                            true,
+                            "alg",
+                            Paths.get("/tmp"))
 
-  val lastStorageProj1 = storage.copy(id = lastIdA, uuid = genUUID, instant = initialInstant)
-  val lastStorageProj2 = storage.copy(ref = ref2, id = lastIdA, uuid = genUUID, instant = initialInstant)
+  val lastStorageProj1 = storage.copy(id = lastIdA, instant = initialInstant)
+  val lastStorageProj2 = storage.copy(ref = ref2, id = lastIdA, instant = initialInstant)
 
-  val storagesProj1: List[StorageA] =
+  val storagesProj1: List[FileStorage] =
     lastStorageProj1 :: List.fill(5)(
-      storage.copy(id = genIri, uuid = genUUID, instant = initialInstant.minusSeconds(1L + genInt().toLong)))
-  val storagesProj2: List[StorageA] =
+      storage
+        .copy(id = genIri, instant = initialInstant.minusSeconds(1L + genInt().toLong)))
+  val storagesProj2: List[FileStorage] =
     lastStorageProj2 :: List.fill(5)(
       storage
-        .copy(ref = ref2, id = genIri, uuid = genUUID, instant = initialInstant.minusSeconds(1L + genInt().toLong)))
+        .copy(ref = ref2, id = genIri, instant = initialInstant.minusSeconds(1L + genInt().toLong)))
 
   private val cache = StorageCache[Task]
 
@@ -83,15 +89,4 @@ class StorageCacheSpec
       cache.get(ref1).runToFuture.futureValue should contain theSameElementsAs storagesProj1.filterNot(_ == storage)
     }
   }
-}
-
-object StorageCacheSpec {
-  final case class StorageA(ref: ProjectRef,
-                            id: AbsoluteIri,
-                            uuid: UUID,
-                            rev: Long,
-                            deprecated: Boolean,
-                            default: Boolean,
-                            instant: Instant)
-      extends Storage
 }

@@ -16,14 +16,13 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
 import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.async.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut}
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
 import ch.epfl.bluebrain.nexus.commons.http.directives.PrefixDirectives.uriPrefix
@@ -142,7 +141,6 @@ object Routes {
       implicit as: ActorSystem,
       clients: Clients[Task],
       cache: Caches[Task],
-      store: FileStore[Task, AkkaIn, AkkaOut],
       config: AppConfig,
   ): Route = {
     import clients._
