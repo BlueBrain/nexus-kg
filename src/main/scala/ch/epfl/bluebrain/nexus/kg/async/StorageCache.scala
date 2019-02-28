@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig
 import ch.epfl.bluebrain.nexus.kg.async.Cache.mapError
 import ch.epfl.bluebrain.nexus.kg.async.StorageCache._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
-import ch.epfl.bluebrain.nexus.kg.resources.file.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 /**

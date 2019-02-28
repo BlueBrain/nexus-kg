@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
-import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global

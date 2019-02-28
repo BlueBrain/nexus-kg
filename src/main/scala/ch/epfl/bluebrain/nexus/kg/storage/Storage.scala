@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.resources.file
+package ch.epfl.bluebrain.nexus.kg.storage
 
 import java.nio.file.{Path, Paths}
 import java.time.Instant

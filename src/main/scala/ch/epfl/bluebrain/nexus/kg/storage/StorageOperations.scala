@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.resources.file
+package ch.epfl.bluebrain.nexus.kg.storage
 
 import java.nio.file.{Files, Path, Paths}
 
@@ -9,8 +9,8 @@ import cats.effect.{Effect, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription, StoredSummary}
-import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.{FileStorage, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FileStorage, S3Storage}
 import journal.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
