@@ -41,9 +41,9 @@ class ViewIndexerMappingSpec
   private implicit val indexingConfig     = appConfig.indexing.keyValueStore
   private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
 
-  private val resources    = mock[Resources[IO]]
-  private val projectCache = mock[ProjectCache[IO]]
-  private val mapper       = new ViewIndexerMapping(resources, projectCache)
+  private val resources             = mock[Resources[IO]]
+  private implicit val projectCache = mock[ProjectCache[IO]]
+  private val mapper                = new ViewIndexerMapping(resources)
 
   before {
     Mockito.reset(resources)

@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Node.Literal
@@ -135,5 +136,17 @@ object syntax {
       * @return the project reference
       */
     def ref: ProjectRef = ProjectRef(project.uuid)
+  }
+
+  implicit class NodeEncoderResultSyntax[A](private val enc: NodeEncoder.EncoderResult[A]) extends AnyVal {
+
+    /**
+      * Maps a NodeEncoderError into a InvalidResourceFormat in case the either returns a left
+      *
+      * @param ref the reference to the resource
+      */
+    def toRejectionOnLeft(ref: Ref): Either[Rejection, A] =
+      enc.left.map(err =>
+        InvalidResourceFormat(ref, s"The provided payload could not be mapped to a view due to '${err.message}'"))
   }
 }

@@ -146,7 +146,8 @@ class ProjectDirectivesSpec
       "nxv"             -> nxv.base,
       "documents"       -> nxv.defaultElasticSearchIndex,
       "graph"           -> nxv.defaultSparqlIndex,
-      "defaultResolver" -> nxv.defaultResolver
+      "defaultResolver" -> nxv.defaultResolver,
+      "defaultStorage"  -> nxv.defaultStorage
     )
 
     val projectMetaResp =

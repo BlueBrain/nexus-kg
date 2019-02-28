@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{Inspectors, Matchers, TryValues}
 
 import scala.concurrent.duration._
@@ -30,7 +30,8 @@ class ViewCacheSpec
     with Inspectors
     with ScalaFutures
     with TryValues
-    with TestHelper {
+    with TestHelper
+    with Eventually {
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.seconds.dilated, 5.milliseconds)
 
@@ -77,7 +78,9 @@ class ViewCacheSpec
     "index views" in {
       forAll(esViewsProj1 ++ sparqlViewsProj1 ++ esViewsProj2 ++ sparqlViewsProj2) { view =>
         cache.put(view).runToFuture.futureValue
-        cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
+        eventually {
+          cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
+        }
       }
     }
 

@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.FileStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{Inspectors, Matchers, TryValues}
 
 import scala.concurrent.duration._
@@ -26,7 +26,8 @@ class StorageCacheSpec
     with Inspectors
     with ScalaFutures
     with TryValues
-    with TestHelper {
+    with TestHelper
+    with Eventually {
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.seconds.dilated, 5.milliseconds)
 
@@ -67,7 +68,9 @@ class StorageCacheSpec
     "index storages" in {
       forAll(storagesProj1 ++ storagesProj2) { storage =>
         cache.put(storage).runToFuture.futureValue
-        cache.get(storage.ref, storage.id).runToFuture.futureValue shouldEqual Some(storage)
+        eventually {
+          cache.get(storage.ref, storage.id).runToFuture.futureValue shouldEqual Some(storage)
+        }
       }
     }
 

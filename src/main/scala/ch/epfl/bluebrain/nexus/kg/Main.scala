@@ -121,7 +121,7 @@ object Main {
           Await.result(as.terminate(), 10 seconds)
       }
 
-      Indexing.start(resources, cache, indexers.adminClient)
+      Indexing.start(resources, indexers.adminClient)
     }
 
     cluster.joinSeedNodes(seeds)

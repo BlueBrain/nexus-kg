@@ -49,6 +49,7 @@ object StorageEncoder {
     val s = IriNode(storage.id)
     Set(
       (s, rdf.tpe, nxv.Storage),
+      (s, rdf.tpe, nxv.Alpha),
       (s, nxv.deprecated, storage.deprecated),
       (s, nxv.rev, storage.rev),
       (s, nxv.default, storage.default),
