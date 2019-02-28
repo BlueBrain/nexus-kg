@@ -36,7 +36,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
-import com.github.ghik.silencer.silent
 import io.circe.Json
 import journal.Logger
 import monix.eval.Task
@@ -44,7 +43,6 @@ import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 
 // $COVERAGE-OFF$
-@silent
 private class Indexing(resources: Resources[Task],
                        cache: Caches[Task],
                        adminClient: AdminClient[Task],
