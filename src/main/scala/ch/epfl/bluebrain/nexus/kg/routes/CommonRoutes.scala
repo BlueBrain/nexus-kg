@@ -9,7 +9,7 @@ import cats.data.{EitherT, OptionT}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.UnacceptedResponseContentType
-import ch.epfl.bluebrain.nexus.kg.async.ViewCache
+import ch.epfl.bluebrain.nexus.kg.async.{StorageCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -23,8 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
-import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.resources.file.AkkaOut
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
@@ -38,14 +37,16 @@ import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
 
-private[routes] abstract class CommonRoutes(resources: Resources[Task],
-                                            prefix: String,
-                                            acls: AccessControlLists,
-                                            caller: Caller,
-                                            viewCache: ViewCache[Task])(implicit project: Project,
-                                                                        indexers: Clients[Task],
-                                                                        config: AppConfig,
-                                                                        store: FileStore[Task, AkkaIn, AkkaOut]) {
+private[routes] abstract class CommonRoutes(
+    resources: Resources[Task],
+    prefix: String,
+    acls: AccessControlLists,
+    caller: Caller,
+)(implicit project: Project,
+  indexers: Clients[Task],
+  config: AppConfig,
+  viewCache: ViewCache[Task],
+  storageCache: StorageCache[Task]) {
 
   import indexers._
 
@@ -188,17 +189,25 @@ private[routes] abstract class CommonRoutes(resources: Resources[Task],
 
   private def getFile(id: AbsoluteIri): Route =
     trace("getFile") {
-      concat(
-        (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-          completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
-        },
-        (parameter('tag) & noParameter('rev)) { tag =>
-          completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
-        },
-        (noParameter('tag) & noParameter('rev)) {
-          completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
-        }
-      )
+      extractActorSystem { implicit as =>
+        concat(
+          (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+            storage.apply { implicit st =>
+              completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
+            }
+          },
+          (parameter('tag) & noParameter('rev)) { tag =>
+            storage.apply { implicit st =>
+              completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
+            }
+          },
+          (noParameter('tag) & noParameter('rev)) {
+            storage.apply { implicit st =>
+              completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
+            }
+          }
+        )
+      }
     }
 
   private def completeFile(f: Future[(FileAttributes, AkkaOut)]): Route =

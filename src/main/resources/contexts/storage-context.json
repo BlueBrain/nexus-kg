@@ -1,0 +1,12 @@
+{
+  "@context": {
+    "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
+    "Storage": "nxv:Storage",
+    "FileStorage": "nxv:FileStorage",
+    "S3Storage": "nxv:S3Storage",
+    "default": "nxv:default",
+    "volume": "nxv:volume",
+    "algorithm": "nxv:algorithm"
+  },
+  "@id": "https://bluebrain.github.io/nexus/contexts/storage.json"
+}

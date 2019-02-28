@@ -8,13 +8,43 @@ import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.search.Pagination
-import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
+import ch.epfl.bluebrain.nexus.kg.KgError.{InternalError, InvalidOutputFormat, NotFound}
+import ch.epfl.bluebrain.nexus.kg.async.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
+import ch.epfl.bluebrain.nexus.kg.resources.file.Storage
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.routes.{JsonLDOutputFormat, OutputFormat, SearchParams}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import journal.Logger
+import monix.eval.Task
+import monix.execution.Scheduler.Implicits.global
+
+import scala.util.{Failure, Success}
 
 object QueryDirectives {
+
+  private val logger = Logger[this.type]
+
+  /**
+    * @return the extracted storage from the request query parameters or default from the storage cache.
+    */
+  def storage(implicit cache: StorageCache[Task], project: Project): Directive1[Storage] =
+    parameter('storage.as[AbsoluteIri].?)
+      .map {
+        case Some(storageId) => cache.get(project.ref, storageId)
+        case None            => cache.getDefault(project.ref)
+      }
+      .flatMap { result =>
+        onComplete(result.runToFuture).flatMap {
+          case Success(Some(storage)) => provide(storage)
+          case Success(None)          => failWith(NotFound())
+          case Failure(err) =>
+            val message = "Error when trying to fetch storage"
+            logger.error(message, err)
+            failWith(InternalError(message))
+        }
+      }
 
   /**
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.

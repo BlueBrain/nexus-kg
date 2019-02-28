@@ -5,8 +5,7 @@ import java.time.{Clock, Instant, ZoneId}
 
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
-import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -15,7 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.StorageOperations
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
@@ -50,14 +49,14 @@ class RepoSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private val repo                                          = Repo[IO].ioValue
-  private implicit val store: FileStore[IO, String, String] = mock[FileStore[IO, String, String]]
+  private val repo                                                       = Repo[IO].ioValue
+  private implicit val storageOps: StorageOperations[IO, String, String] = mock[StorageOperations[IO, String, String]]
 
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
   private def randomIri()  = Iri.absolute(s"http://example.com/$genUUID").right.value
 
   before {
-    Mockito.reset(store)
+    Mockito.reset(storageOps)
   }
 
   //noinspection TypeAnnotation
@@ -189,15 +188,15 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
       "create file resource" in new File {
-        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
 
         repo.createFile(id, desc, source).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(attributes))
       }
 
       "update the file resource" in new File {
-        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
-        when(store.save(id, desc, source2)).thenReturn(IO.pure(attributes2))
+        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(storageOps.save(id, desc, source2)).thenReturn(IO.pure(attributes2))
 
         repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
         repo.updateFile(id, 1L, desc, source2).value.accepted shouldEqual
@@ -205,7 +204,7 @@ class RepoSpec
       }
 
       "prevent to update a file resource with an incorrect revision" in new File {
-        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
 
         repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
         repo.updateFile(id, 3L, desc, source).value.rejected[IncorrectRev] shouldEqual
@@ -213,7 +212,7 @@ class RepoSpec
       }
 
       "prevent update a file resource to a deprecated resource" in new File {
-        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
         repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
@@ -222,7 +221,7 @@ class RepoSpec
       }
 
       "prevent to create a file resource which fails on attempting to store" in new File {
-        when(store.save(id, desc, source)).thenReturn(IO.raiseError(KgError.InternalError("")))
+        when(storageOps.save(id, desc, source)).thenReturn(IO.raiseError(KgError.InternalError("")))
         repo.createFile(id, desc, source).value.failed[KgError.InternalError]
       }
     }
@@ -313,14 +312,14 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
       "get a file resource" in new File {
-        when(store.save(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
         repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
 
-        when(store.save(id, desc2, source2)).thenReturn(IO.pure(attributes2))
+        when(storageOps.save(id, desc2, source2)).thenReturn(IO.pure(attributes2))
         repo.updateFile(id, 1L, desc2, source2).value.accepted shouldBe a[Resource]
 
-        when(store.fetch(attributes2)).thenReturn(source2)
-        when(store.fetch(attributes)).thenReturn(source)
+        when(storageOps.fetch(attributes2)).thenReturn(source2)
+        when(storageOps.fetch(attributes)).thenReturn(source)
 
         repo.getFile(id, None).value.some shouldEqual (attributes2 -> source2)
 

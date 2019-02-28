@@ -29,6 +29,9 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.file.Storage
+import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.resources.file.StorageEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
@@ -58,27 +61,30 @@ private class Indexing(resources: Resources[Task],
         logger.error(s"Could not convert view with id '${view.id}' from Graph back to json. Reason: '${err.message}'")
         Task.raiseError(InternalError("Could not decode default view from graph to Json"))
       case Right(json) =>
-        Task.pure(
-          json
-            .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
-            .addContext(viewCtxUri)
-            .addContext(resourceCtxUri))
+        val jsonNoMeta = json.removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
+        Task.pure(jsonNoMeta.addContext(viewCtxUri).addContext(resourceCtxUri))
+    }
+
+  private def asJson(storage: Storage): Task[Json] =
+    storage.as[Json](storageCtx.appendContextOf(resourceCtx)) match {
+      case Left(err) =>
+        logger.error(s"Could not convert storage '${storage.id}' from Graph to json. Reason: '${err.message}'")
+        Task.raiseError(InternalError("Could not decode default storage from graph to Json"))
+      case Right(json) =>
+        val jsonNoMeta = json.removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
+        Task.pure(jsonNoMeta.addContext(storageCtxUri).addContext(resourceCtxUri))
     }
 
   private def asJson(resolver: Resolver): Task[Json] =
     resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)) match {
       case Left(err) =>
-        logger.error(
-          s"Could not convert resolver with id '${resolver.id}' from Graph back to json. Reason: '${err.message}'")
-        Task.raiseError(InternalError("Could not decode defaulf in project resolver from graph to Json"))
+        logger.error(s"Could not convert resolver '${resolver.id}' from Graph to json. Reason: '${err.message}'")
+        Task.raiseError(InternalError("Could not decode default in project resolver from graph to Json"))
       case Right(json) =>
-        Task.pure(
-          json
-            .removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
-            .addContext(resolverCtxUri)
-            .addContext(resourceCtxUri))
-
+        val jsonNoMeta = json.removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
+        Task.pure(jsonNoMeta.addContext(resolverCtxUri).addContext(resourceCtxUri))
     }
+
   private val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[ResourceAlreadyExists, Resource]] = {
     case Left(exists: ResourceAlreadyExists) => Left(exists)
     case Right(value)                        => Right(value)
@@ -113,6 +119,15 @@ private class Indexing(resources: Resources[Task],
     }
   }
 
+  private def createFileStorage(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+    val storage: Storage = FileStorage.default(project.ref)
+    asJson(storage).flatMap { json =>
+      val created = resources.create(Id(project.ref, storage.id), resolverRef, json).value
+      created.mapRetry(createdOrExists,
+                       InternalError(s"Couldn't create default FileStorage for project '${project.ref}'"): KgError)
+    }
+  }
+
   def startAdminStream(): Unit = {
 
     def handle(event: Event): Task[Unit] = {
@@ -131,7 +146,7 @@ private class Indexing(resources: Resources[Task],
           for {
             _ <- cache.project.replace(project)
             _ <- coordinator.start(project)
-            _ <- List(createElasticSearchView, createSparqlView, createResolver).sequence
+            _ <- List(createElasticSearchView, createSparqlView, createResolver, createFileStorage).sequence
           } yield (())
 
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>

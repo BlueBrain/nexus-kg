@@ -95,7 +95,9 @@ class ProjectViewCoordinatorSpec
 
     val coordinatorRef = ProjectViewCoordinatorActor.start(coordinatorProps, None, 1)
     val coordinator =
-      new ProjectViewCoordinator[Task](Caches(projectCache, viewCache, mock[ResolverCache[Task]]), coordinatorRef)
+      new ProjectViewCoordinator[Task](
+        Caches(projectCache, viewCache, mock[ResolverCache[Task]], mock[StorageCache[Task]]),
+        coordinatorRef)
 
     "initialize projects" in {
       projectCache.replace(project).runToFuture.futureValue

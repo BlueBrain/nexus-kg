@@ -1,15 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.resources.file
 
+import java.nio.file.Path
 import java.time.Instant
-import java.util.UUID
 
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.FileConfig
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 /**
   * Contract for different types of storage back-end.
   */
-trait Storage {
+sealed trait Storage {
 
   /**
     * @return a reference to the project that the store belongs to
@@ -20,11 +22,6 @@ trait Storage {
     * @return the user facing store id
     */
   def id: AbsoluteIri
-
-  /**
-    * @return the underlying uuid generated for this store
-    */
-  def uuid: UUID
 
   /**
     * @return the store revision
@@ -55,6 +52,39 @@ trait Storage {
   /**
     * @return a generated name that uniquely identifies the store and its current revision
     */
-  def name: String = s"${ref.id}_${uuid}_$rev"
+  def name: String = s"${ref.id}_${id.asString}_$rev"
+
+}
+
+object Storage {
+  final case class FileStorage(ref: ProjectRef,
+                               id: AbsoluteIri,
+                               rev: Long,
+                               instant: Instant,
+                               deprecated: Boolean,
+                               default: Boolean,
+                               digestAlgorithm: String,
+                               volume: Path)
+      extends Storage
+  object FileStorage {
+    def default(ref: ProjectRef)(implicit config: FileConfig): Storage =
+      FileStorage(ref,
+                  nxv.defaultFileStorage,
+                  1L,
+                  Instant.EPOCH,
+                  deprecated = false,
+                  default = true,
+                  config.digestAlgorithm,
+                  config.volume.resolve(ref.id.toString))
+  }
+
+  final case class S3Storage(ref: ProjectRef,
+                             id: AbsoluteIri,
+                             rev: Long,
+                             instant: Instant,
+                             deprecated: Boolean,
+                             default: Boolean,
+                             digestAlgorithm: String)
+      extends Storage
 
 }

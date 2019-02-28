@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.file.FileStore
+import ch.epfl.bluebrain.nexus.kg.resources.file.StorageOperations
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder._
@@ -107,7 +107,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     */
   def createFile[In](projectRef: ProjectRef, base: AbsoluteIri, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
-      store: FileStore[F, In, _]): RejOrResource =
+      storageOps: StorageOperations[F, In, _]): RejOrResource =
     createFile(Id(projectRef, generateId(base)), fileDesc, source)
 
   /**
@@ -119,8 +119,9 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createFile[In](id: ResId, fileDesc: FileDescription, source: In)(implicit subject: Subject,
-                                                                       store: FileStore[F, In, _]): RejOrResource =
+  def createFile[In](id: ResId, fileDesc: FileDescription, source: In)(
+      implicit subject: Subject,
+      storageOps: StorageOperations[F, In, _]): RejOrResource =
     repo.createFile(id, fileDesc, source)
 
   /**
@@ -135,7 +136,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     */
   def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
-      store: FileStore[F, In, _]): RejOrResource =
+      storageOps: StorageOperations[F, In, _]): RejOrResource =
     repo.updateFile(id, rev, fileDesc, source)
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
@@ -302,7 +303,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+  def fetchFile[Out](id: ResId)(implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
     repo.getFile(id, None)
 
   /**
@@ -313,7 +314,8 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId, rev: Long)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+  def fetchFile[Out](id: ResId, rev: Long)(
+      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
     repo.getFile(id, rev, None)
 
   /**
@@ -325,7 +327,8 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId, tag: String)(implicit store: FileStore[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
+  def fetchFile[Out](id: ResId, tag: String)(
+      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
     repo.getFile(id, tag, None)
 
   /**
