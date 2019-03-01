@@ -17,13 +17,14 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileDescription
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Save
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
-import ch.epfl.bluebrain.nexus.kg.storage.StorageOperations
 import io.circe.Json
 
 /**
@@ -98,23 +99,28 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * Creates a file resource.
     *
     * @param id       the id of the resource
+    * @param storage  the storage where the file is going to be saved
     * @param fileDesc the file description metadata
     * @param source   the source of the file
     * @param instant  an optionally provided operation instant
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createFile[In](id: ResId, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
-      implicit subject: Subject,
-      storageOps: StorageOperations[F, In, _]): EitherT[F, Rejection, Resource] =
+  def createFile[In](id: ResId,
+                     storage: Storage,
+                     fileDesc: FileDescription,
+                     source: In,
+                     instant: Instant = clock.instant)(implicit subject: Subject,
+                                                       saveStorage: Save[F, In]): EitherT[F, Rejection, Resource] =
     EitherT
-      .right(storageOps.save(id, fileDesc, source))
-      .flatMap(attr => evaluate(id, CreateFile(id, attr, instant, subject)))
+      .right(storage.save.apply(id, fileDesc, source))
+      .flatMap(attr => evaluate(id, CreateFile(id, storage, attr, instant, subject)))
 
   /**
     * Replaces a file resource.
     *
     * @param id       the id of the resource
+    * @param storage  the storage where the file is going to be saved
     * @param rev      the optional last known revision of the resource
     * @param fileDesc the file description metadata
     * @param source   the source of the file
@@ -122,83 +128,16 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In, instant: Instant = clock.instant)(
-      implicit subject: Subject,
-      storageOps: StorageOperations[F, In, _]): EitherT[F, Rejection, Resource] =
+  def updateFile[In](id: ResId,
+                     storage: Storage,
+                     rev: Long,
+                     fileDesc: FileDescription,
+                     source: In,
+                     instant: Instant = clock.instant)(implicit subject: Subject,
+                                                       saveStorage: Save[F, In]): EitherT[F, Rejection, Resource] =
     EitherT
-      .right(storageOps.save(id, fileDesc, source))
-      .flatMap(attr => evaluate(id, UpdateFile(id, rev, attr, instant, subject)))
-
-  /**
-    * Attempts to stream the file resource identified by the argument id.
-    *
-    * @param id     the id of the resource.
-    * @param schema the optionally available schema of the resource
-    * @tparam Out the type for the output streaming of the file
-    * @return the optional streamed file in the F context
-    */
-  def getFile[Out](id: ResId, schema: Option[Ref])(
-      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, schema) subflatMap (_.file.flatMap(at => Some(storageOps.fetch(at)).map(out => at -> out)))
-
-  /**
-    * Attempts to stream the file resource identified by the argument id and the revision.
-    *
-    * @param id     the id of the resource
-    * @param rev    the revision of the resource
-    * @param schema the optionally available schema of the resource
-    * @tparam Out the type for the output streaming of the file
-    * @return the optional streamed file in the F context
-    */
-  def getFile[Out](id: ResId, rev: Long, schema: Option[Ref])(
-      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, rev, schema) subflatMap (_.file.flatMap(at => Some(storageOps.fetch(at)).map(out => at -> out)))
-
-  /**
-    * Attempts to stream the file resource identified by the argument id and the tag. The
-    * tag is transformed into a revision value using the latest resource tag to revision mapping.
-    *
-    * @param id     the id of the resource
-    * @param tag    the tag of the resource
-    * @param schema the optionally available schema of the resource
-    * @tparam Out the type for the output streaming of the file
-    * @return the optional streamed file in the F context
-    */
-  def getFile[Out](id: ResId, tag: String, schema: Option[Ref])(
-      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    get(id, tag, schema) subflatMap (_.file.flatMap(at => Some(storageOps.fetch(at)).map(out => at -> out)))
-
-  /**
-    * Attempts to fetch the resource tags identified by the argument id.
-    *
-    * @param id     the id of the resource
-    * @param schema the optionally available schema of the resource
-    * @return the optional streamed file in the F context
-    */
-  def getTags(id: ResId, schema: Option[Ref]): OptionT[F, Tags] =
-    get(id, schema).map(_.tags)
-
-  /**
-    * Attempts to fetch the resource tags identified by the argument id and the revision.
-    *
-    * @param id     the id of the resource
-    * @param rev    the revision of the resource
-    * @param schema the optionally available schema of the resource
-    * @return the optional streamed file in the F context
-    */
-  def getTags(id: ResId, rev: Long, schema: Option[Ref]): OptionT[F, Tags] =
-    get(id, rev, schema).map(_.tags)
-
-  /**
-    * Attempts to fetch the resource tags identified by the argument id and the tag.
-    *
-    * @param id     the id of the resource
-    * @param tag    the tag of the resource
-    * @param schema the optionally available schema of the resource
-    * @return the optional streamed file in the F context
-    */
-  def getTags(id: ResId, tag: String, schema: Option[Ref]): OptionT[F, Tags] =
-    get(id, tag, schema).map(_.tags)
+      .right(storage.save.apply(id, fileDesc, source))
+      .flatMap(attr => evaluate(id, UpdateFile(id, storage, rev, attr, instant, subject)))
 
   /**
     * Attempts to read the resource identified by the argument id.
@@ -272,8 +211,10 @@ object Repo {
     (state, ev) match {
       case (Initial, e @ Created(id, schema, types, value, tm, ident)) =>
         Current(id, e.rev, types, false, Map.empty, None, tm, tm, ident, ident, schema, value)
-      case (Initial, e @ FileCreated(id, file, tm, ident)) =>
-        Current(id, e.rev, e.types, false, Map.empty, Some(file), tm, tm, ident, ident, e.schema, Json.obj())
+      case (Initial, e @ FileCreated(id, storage, file, tm, ident)) =>
+        // format: off
+        Current(id, e.rev, e.types, deprecated = false, Map.empty, Some(storage -> file), tm, tm, ident, ident, e.schema, Json.obj())
+      // format: on
       case (Initial, _) => Initial
       case (c: Current, TagAdded(_, rev, targetRev, name, tm, ident)) =>
         c.copy(rev = rev, tags = c.tags + (name -> targetRev), updated = tm, updatedBy = ident)
@@ -282,8 +223,8 @@ object Repo {
         c.copy(rev = rev, updated = tm, updatedBy = ident, deprecated = true)
       case (c: Current, Updated(_, rev, types, value, tm, ident)) =>
         c.copy(rev = rev, types = types, source = value, updated = tm, updatedBy = ident)
-      case (c: Current, FileUpdated(_, rev, file, tm, ident)) =>
-        c.copy(rev = rev, file = Some(file), updated = tm, updatedBy = ident)
+      case (c: Current, FileUpdated(_, storage, rev, file, tm, ident)) =>
+        c.copy(rev = rev, file = Some(storage -> file), updated = tm, updatedBy = ident)
     }
 
   final def eval(state: State, cmd: Command): Either[Rejection, Event] = {
@@ -303,7 +244,7 @@ object Repo {
 
     def createFile(c: CreateFile): Either[Rejection, FileCreated] =
       state match {
-        case Initial => Right(FileCreated(c.id, c.value, c.instant, c.subject))
+        case Initial => Right(FileCreated(c.id, c.storage, c.value, c.instant, c.subject))
         case _       => Left(ResourceAlreadyExists(c.id.ref))
       }
 
@@ -313,7 +254,7 @@ object Repo {
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
         case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
         case s: Current if s.file.isEmpty => Left(NotAFileResource(c.id.ref))
-        case s: Current                   => Right(FileUpdated(s.id, s.rev + 1, c.value, c.instant, c.subject))
+        case s: Current                   => Right(FileUpdated(s.id, c.storage, s.rev + 1, c.value, c.instant, c.subject))
       }
 
     def update(c: Update): Either[Rejection, Updated] =

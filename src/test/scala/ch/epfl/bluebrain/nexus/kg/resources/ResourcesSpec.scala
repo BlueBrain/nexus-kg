@@ -24,12 +24,14 @@ import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticRe
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
-import ch.epfl.bluebrain.nexus.kg.storage.StorageOperations
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, FileStorage, SaveFile}
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{reset, when}
@@ -63,12 +65,13 @@ class ResourcesSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  implicit private val repo       = Repo[IO].ioValue
-  private implicit val storageOps = mock[StorageOperations[IO, String, String]]
-  private val projectCache        = mock[ProjectCache[IO]]
-  private val resolverCache       = mock[ResolverCache[IO]]
-  private val aclsCache           = mock[AclsCache[IO]]
-  private implicit val additional = AdditionalValidation.pass[IO]
+  implicit private val repo                  = Repo[IO].ioValue
+  private val saveFile: SaveFile[IO, String] = mock[SaveFile[IO, String]]
+  private val fetchFile: FetchFile[String]   = mock[FetchFile[String]]
+  private val projectCache                   = mock[ProjectCache[IO]]
+  private val resolverCache                  = mock[ResolverCache[IO]]
+  private val aclsCache                      = mock[AclsCache[IO]]
+  private implicit val additional            = AdditionalValidation.pass[IO]
   when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List.empty[Resolver]))
   val acls = AccessControlLists(
     "some" / "path" -> resourceAcls(
@@ -80,7 +83,8 @@ class ResourcesSpec
   private val resources: Resources[IO] = Resources[IO]
 
   before {
-    reset(storageOps)
+    reset(saveFile)
+    reset(fetchFile)
   }
 
   trait Base {
@@ -141,8 +145,13 @@ class ResourcesSpec
     val source     = "some text"
     val relative   = Paths.get("./other")
     val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-    when(storageOps.save(resId, desc, source)).thenReturn(IO.pure(attributes))
-    when(storageOps.save(resId, desc, source)).thenReturn(IO.pure(attributes))
+    val storage    = FileStorage.default(projectRef)
+
+    implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
+    implicit val fetch: Fetch[String]   = (st: Storage) => if (st == storage) fetchFile else throw new RuntimeException
+
+    when(saveFile(resId, desc, source)).thenReturn(IO.pure(attributes))
+    when(fetchFile(attributes)).thenReturn(source)
   }
 
   "A Resources bundle" when {
@@ -383,8 +392,8 @@ class ResourcesSpec
 
     "performing write file operations" should {
       "create a file resource" in new File {
-        resources.createFile(resId, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(resId, value, schema = schema, types = types).copy(file = Some(attributes))
+        resources.createFile(resId, storage, desc, source).value.accepted shouldEqual
+          ResourceF.simpleF(resId, value, schema = schema, types = types).copy(file = Some(storage -> attributes))
       }
     }
 

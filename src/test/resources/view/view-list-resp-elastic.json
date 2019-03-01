@@ -57,6 +57,9 @@
           "_mediaType": {
             "type": "keyword"
           },
+          "_storageId": {
+            "type": "keyword"
+          },
           "_filename": {
             "type": "keyword"
           },

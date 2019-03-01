@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.serializers
 
 import java.nio.file.{Path, Paths}
-import java.util.UUID
 
 import akka.actor.ExtendedActorSystem
 import akka.serialization.SerializerWithStringManifest
@@ -46,8 +45,8 @@ object Serializer {
     Encoder.forProduct2("project", "id")(r => (r.parent.id, r.value.show))
 
   private implicit val decodeResId: Decoder[ResId] =
-    Decoder.forProduct2("project", "id") { (proj: UUID, id: AbsoluteIri) =>
-      Id(ProjectRef(proj), id)
+    Decoder.forProduct2("project", "id") { (projRef: ProjectRef, id: AbsoluteIri) =>
+      Id(projRef, id)
     }
 
   implicit def eventEncoder(implicit iamClientConfig: IamClientConfig): Encoder[Event] = {

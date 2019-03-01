@@ -7,6 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -117,12 +118,17 @@ object Command {
   /**
     * An intent to create a file resource.
     *
-    * @param id       the resource identifier
-    * @param value    the file metadata
-    * @param instant  the instant when this event was recorded
+    * @param id      the resource identifier
+    * @param storage the storage where the file is going to be saved
+    * @param value   the file metadata
+    * @param instant the instant when this event was recorded
     * @param subject the subject which generated this event
     */
-  final case class CreateFile(id: Id[ProjectRef], value: FileAttributes, instant: Instant, subject: Subject)
+  final case class CreateFile(id: Id[ProjectRef],
+                              storage: Storage,
+                              value: FileAttributes,
+                              instant: Instant,
+                              subject: Subject)
       extends Command {
 
     /**
@@ -144,13 +150,19 @@ object Command {
   /**
     * An intent to update a file resource.
     *
-    * @param id       the resource identifier
-    * @param rev      the last known revision of the resource when this command was created
-    * @param value    the file metadata
-    * @param instant  the instant when this event was recorded
+    * @param id      the resource identifier
+    * @param storage the storage where the file is going to be saved
+    * @param rev     the last known revision of the resource when this command was created
+    * @param value   the file metadata
+    * @param instant the instant when this event was recorded
     * @param subject the subject which generated this event
     */
-  final case class UpdateFile(id: Id[ProjectRef], rev: Long, value: FileAttributes, instant: Instant, subject: Subject)
+  final case class UpdateFile(id: Id[ProjectRef],
+                              storage: Storage,
+                              rev: Long,
+                              value: FileAttributes,
+                              instant: Instant,
+                              subject: Subject)
       extends Command {
 
     /**

@@ -5,8 +5,8 @@ import java.time.{Clock, Instant, ZoneId}
 
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -15,7 +15,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.storage.StorageOperations
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Save
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FileStorage, SaveFile}
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import io.circe.Json
@@ -49,14 +51,14 @@ class RepoSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private val repo                                                       = Repo[IO].ioValue
-  private implicit val storageOps: StorageOperations[IO, String, String] = mock[StorageOperations[IO, String, String]]
+  private val repo                           = Repo[IO].ioValue
+  private val saveFile: SaveFile[IO, String] = mock[SaveFile[IO, String]]
 
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
   private def randomIri()  = Iri.absolute(s"http://example.com/$genUUID").right.value
 
   before {
-    Mockito.reset(storageOps)
+    Mockito.reset(saveFile)
   }
 
   //noinspection TypeAnnotation
@@ -74,6 +76,9 @@ class RepoSpec
     override val value  = Json.obj()
     override val schema = Schemas.fileSchemaUri
     val types           = Set(nxv.File.value)
+    val storage         = FileStorage.default(projectRef)
+
+    implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
   }
 
   "A Repo" when {
@@ -188,41 +193,43 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
       "create file resource" in new File {
-        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
 
-        repo.createFile(id, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(attributes))
+        repo.createFile(id, storage, desc, source).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
       }
 
       "update the file resource" in new File {
-        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
-        when(storageOps.save(id, desc, source2)).thenReturn(IO.pure(attributes2))
+        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(saveFile(id, desc, source2)).thenReturn(IO.pure(attributes2))
 
-        repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
-        repo.updateFile(id, 1L, desc, source2).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(attributes2))
+        repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
+        repo.updateFile(id, storage, 1L, desc, source2).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes2))
       }
 
       "prevent to update a file resource with an incorrect revision" in new File {
-        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
+        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
 
-        repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
-        repo.updateFile(id, 3L, desc, source).value.rejected[IncorrectRev] shouldEqual
+        repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
+        repo.updateFile(id, storage, 3L, desc, source).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent update a file resource to a deprecated resource" in new File {
-        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
-        repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
+        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
+        repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.updateFile(id, 2L, desc, source).value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(
-          id.ref)
+        repo
+          .updateFile(id, storage, 2L, desc, source)
+          .value
+          .rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
 
       "prevent to create a file resource which fails on attempting to store" in new File {
-        when(storageOps.save(id, desc, source)).thenReturn(IO.raiseError(KgError.InternalError("")))
-        repo.createFile(id, desc, source).value.failed[KgError.InternalError]
+        when(saveFile(id, desc, source)).thenReturn(IO.raiseError(KgError.InternalError("")))
+        repo.createFile(id, storage, desc, source).value.failed[KgError.InternalError]
       }
     }
 
@@ -273,17 +280,17 @@ class RepoSpec
         repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
         repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
           ResourceF.simpleF(id, json, 3L, schema = Latest(schema)).copy(tags = Map("name" -> 1L))
-        repo.getTags(id, None).value.some shouldEqual Map("name" -> 1L)
+        repo.get(id, None).value.some.tags shouldEqual Map("name" -> 1L)
       }
 
       "return None when the resource does not exist" in new Context {
-        repo.getTags(id, None).value.ioValue shouldEqual None
+        repo.get(id, None).value.ioValue shouldEqual None
       }
 
       "return None when getting a resource from the wrong schema" in new Context {
         repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.getTags(id, Some(genIri.ref)).value.ioValue shouldEqual None
-        repo.getTags(id, 1L, Some(genIri.ref)).value.ioValue shouldEqual None
+        repo.get(id, Some(genIri.ref)).value.ioValue shouldEqual None
+        repo.get(id, 1L, Some(genIri.ref)).value.ioValue shouldEqual None
       }
 
       "return a specific revision of the resource tags" in new Context {
@@ -295,10 +302,10 @@ class RepoSpec
         repo.tag(id, 3L, 1L, "name2").value.accepted shouldEqual
           ResourceF.simpleF(id, json, 4L, schema = Latest(schema)).copy(tags = Map("name" -> 1L, "name2" -> 1L))
 
-        repo.getTags(id, None).value.some shouldEqual Map("name"     -> 1L, "name2" -> 1L)
-        repo.getTags(id, 4L, None).value.some shouldEqual Map("name" -> 1L, "name2" -> 1L)
-        repo.getTags(id, 3L, None).value.some shouldEqual Map("name" -> 1L)
-        repo.getTags(id, "name", None).value.some shouldEqual Map()
+        repo.get(id, None).value.some.tags shouldEqual Map("name"     -> 1L, "name2" -> 1L)
+        repo.get(id, 4L, None).value.some.tags shouldEqual Map("name" -> 1L, "name2" -> 1L)
+        repo.get(id, 3L, None).value.some.tags shouldEqual Map("name" -> 1L)
+        repo.get(id, "name", None).value.some.tags shouldEqual Map()
       }
     }
 
@@ -312,34 +319,31 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
 
       "get a file resource" in new File {
-        when(storageOps.save(id, desc, source)).thenReturn(IO.pure(attributes))
-        repo.createFile(id, desc, source).value.accepted shouldBe a[Resource]
+        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
+        repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
 
-        when(storageOps.save(id, desc2, source2)).thenReturn(IO.pure(attributes2))
-        repo.updateFile(id, 1L, desc2, source2).value.accepted shouldBe a[Resource]
+        when(saveFile(id, desc2, source2)).thenReturn(IO.pure(attributes2))
+        repo.updateFile(id, storage, 1L, desc2, source2).value.accepted shouldBe a[Resource]
 
-        when(storageOps.fetch(attributes2)).thenReturn(source2)
-        when(storageOps.fetch(attributes)).thenReturn(source)
-
-        repo.getFile(id, None).value.some shouldEqual (attributes2 -> source2)
+        repo.get(id, None).value.some.file.value shouldEqual (storage -> attributes2)
 
         //by rev
-        repo.getFile(id, 2L, None).value.some shouldEqual (attributes2 -> source2)
+        repo.get(id, 2L, None).value.some.file.value shouldEqual (storage -> attributes2)
 
-        repo.getFile(id, 1L, None).value.some shouldEqual (attributes -> source)
+        repo.get(id, 1L, None).value.some.file.value shouldEqual (storage -> attributes)
 
         //by tag
         repo.tag(id, 2L, 1L, "one").value.accepted shouldBe a[Resource]
         repo.tag(id, 3L, 2L, "two").value.accepted shouldBe a[Resource]
-        repo.getFile(id, "one", None).value.some shouldEqual (attributes  -> source)
-        repo.getFile(id, "two", None).value.some shouldEqual (attributes2 -> source2)
+        repo.get(id, "one", None).value.some.file.value shouldEqual (storage -> attributes)
+        repo.get(id, "two", None).value.some.file.value shouldEqual (storage -> attributes2)
 
       }
 
       "return None when the file resource does not exist" in new File {
-        repo.getFile(id, "name4", None).value.ioValue shouldEqual None
-        repo.getFile(id, 2L, None).value.ioValue shouldEqual None
-        repo.getFile(id, None).value.ioValue shouldEqual None
+        repo.get(id, "name4", None).value.ioValue shouldEqual None
+        repo.get(id, 2L, None).value.ioValue shouldEqual None
+        repo.get(id, None).value.ioValue shouldEqual None
       }
     }
   }

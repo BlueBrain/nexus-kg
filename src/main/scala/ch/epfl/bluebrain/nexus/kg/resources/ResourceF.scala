@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
@@ -31,7 +32,7 @@ import io.circe.Json
   * @param types      the collection of known types of this resource
   * @param deprecated whether the resource is deprecated of not
   * @param tags       the collection of tag names to revisions of the resource
-  * @param file     the optional file
+  * @param file       the optional file metadata with the storage where the file was saved
   * @param created    the instant when this resource was created
   * @param updated    the last instant when this resource was updated
   * @param createdBy  the identity that created this resource
@@ -48,7 +49,7 @@ final case class ResourceF[P, S, A](
     types: Set[AbsoluteIri],
     deprecated: Boolean,
     tags: Map[String, Long],
-    file: Option[FileAttributes],
+    file: Option[(Storage, FileAttributes)],
     created: Instant,
     updated: Instant,
     createdBy: Identity,
@@ -77,8 +78,9 @@ final case class ResourceF[P, S, A](
     */
   def metadata(implicit config: AppConfig, project: Project, ev: S =:= Ref): Set[Triple] = {
 
-    def triplesFor(at: FileAttributes): Set[Triple] = {
-      val blankDigest = Node.blank
+    def triplesFor(storageAndAttributes: (Storage, FileAttributes)): Set[Triple] = {
+      val blankDigest   = Node.blank
+      val (storage, at) = storageAndAttributes
       Set(
         (blankDigest, nxv.algorithm, at.digest.algorithm),
         (blankDigest, nxv.value, at.digest.value),
@@ -86,6 +88,7 @@ final case class ResourceF[P, S, A](
         (node, nxv.bytes, at.bytes),
         (node, nxv.digest, blankDigest),
         (node, nxv.mediaType, at.mediaType),
+        (node, nxv.storageId, storage.id),
         (node, nxv.filename, at.filename)
       )
     }

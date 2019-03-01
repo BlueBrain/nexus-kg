@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import cats.MonadError
 import cats.data.{EitherT, OptionT}
 import cats.effect.Effect
 import cats.implicits._
@@ -8,9 +7,10 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.shacl.{ShaclEngine, ValidationReport}
+import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.shacl.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg._
@@ -26,15 +26,15 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescr
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder._
-import ch.epfl.bluebrain.nexus.kg.storage.StorageOperations
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Save}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.MarshallingError.rootNotFound
 import ch.epfl.bluebrain.nexus.rdf.Node.{blank, BNode, IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.MarshallingError.rootNotFound
 import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
@@ -42,10 +42,8 @@ import org.apache.jena.rdf.model.Model
 /**
   * Resource operations.
   */
-class Resources[F[_]](implicit F: MonadError[F, Throwable],
-                      val repo: Repo[F],
-                      resolution: ProjectResolution[F],
-                      config: AppConfig) { self =>
+class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: ProjectResolution[F], config: AppConfig) {
+  self =>
 
   type RejOrResourceV = EitherT[F, Rejection, ResourceV]
   type RejOrResource  = EitherT[F, Rejection, Resource]
@@ -98,46 +96,51 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
   /**
     * Creates a file resource.
     *
-    * @param projectRef reference for the project in which the resource is going to be created.
-    * @param base       base used to generate new ids.
+    * @param projectRef reference for the project in which the resource is going to be created.\
+    * @param base       base used to generate new ids
+    * @param storage    the storage where the file is going to be saved
     * @param fileDesc   the file description metadata
     * @param source     the source of the file
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createFile[In](projectRef: ProjectRef, base: AbsoluteIri, fileDesc: FileDescription, source: In)(
-      implicit subject: Subject,
-      storageOps: StorageOperations[F, In, _]): RejOrResource =
-    createFile(Id(projectRef, generateId(base)), fileDesc, source)
+  def createFile[In](projectRef: ProjectRef,
+                     base: AbsoluteIri,
+                     storage: Storage,
+                     fileDesc: FileDescription,
+                     source: In)(implicit subject: Subject, saveStorage: Save[F, In]): RejOrResource =
+    createFile(Id(projectRef, generateId(base)), storage, fileDesc, source)
 
   /**
     * Creates a file resource.
     *
     * @param id       the id of the resource
-    * @param fileDesc   the file description metadata
-    * @param source     the source of the file
+    * @param storage  the storage where the file is going to be saved
+    * @param fileDesc the file description metadata
+    * @param source   the source of the file
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createFile[In](id: ResId, fileDesc: FileDescription, source: In)(
+  def createFile[In](id: ResId, storage: Storage, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
-      storageOps: StorageOperations[F, In, _]): RejOrResource =
-    repo.createFile(id, fileDesc, source)
+      saveStorage: Save[F, In]): RejOrResource =
+    repo.createFile(id, storage, fileDesc, source)
 
   /**
     * Replaces a file resource.
     *
     * @param id       the id of the resource
+    * @param storage  the storage where the file is going to be saved
     * @param rev      the last known revision of the resource
     * @param fileDesc the file description metadata
     * @param source   the source of the file
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateFile[In](id: ResId, rev: Long, fileDesc: FileDescription, source: In)(
+  def updateFile[In](id: ResId, storage: Storage, rev: Long, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
-      storageOps: StorageOperations[F, In, _]): RejOrResource =
-    repo.updateFile(id, rev, fileDesc, source)
+      saveStorage: Save[F, In]): RejOrResource =
+    repo.updateFile(id, storage, rev, fileDesc, source)
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
       implicit subject: Subject,
@@ -194,7 +197,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetchTags(id: ResId, schemaOpt: Option[Ref]): OptionT[F, Tags] =
-    repo.getTags(id, schemaOpt)
+    fetch(id, schemaOpt).map(_.tags)
 
   /**
     * Fetches the provided revision of a resource tags.
@@ -205,7 +208,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetchTags(id: ResId, rev: Long, schemaOpt: Option[Ref]): OptionT[F, Tags] =
-    repo.getTags(id, rev, schemaOpt)
+    fetch(id, rev, schemaOpt).map(_.tags)
 
   /**
     * Fetches the provided tag of a resource tags.
@@ -216,7 +219,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetchTags(id: ResId, tag: String, schemaOpt: Option[Ref]): OptionT[F, Tags] =
-    repo.getTags(id, tag, schemaOpt)
+    fetch(id, tag, schemaOpt).map(_.tags)
 
   /**
     * Updates an existing resource.
@@ -300,23 +303,21 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     * Attempts to stream the file resource for the latest revision.
     *
     * @param id the id of the resource.
-    * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId)(implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    repo.getFile(id, None)
+  def fetchFile[Out: Fetch](id: ResId): OptionT[F, (FileAttributes, Out)] =
+    fetch(id, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
 
   /**
     * Attempts to stream the file resource with specific revision.
+
     *
     * @param id  the id of the resource.
     * @param rev the revision of the resource
-    * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId, rev: Long)(
-      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    repo.getFile(id, rev, None)
+  def fetchFile[Out: Fetch](id: ResId, rev: Long): OptionT[F, (FileAttributes, Out)] =
+    fetch(id, rev, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
 
   /**
     * Attempts to stream the file resource with specific tag. The
@@ -324,12 +325,10 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     *
     * @param id  the id of the resource.
     * @param tag the tag of the resource
-    * @tparam Out the type for the output streaming of the file
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId, tag: String)(
-      implicit storageOps: StorageOperations[F, _, Out]): OptionT[F, (FileAttributes, Out)] =
-    repo.getFile(id, tag, None)
+  def fetchFile[Out: Fetch](id: ResId, tag: String): OptionT[F, (FileAttributes, Out)] =
+    fetch(id, tag, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
 
   /**
     * Lists resources for the given project and schema

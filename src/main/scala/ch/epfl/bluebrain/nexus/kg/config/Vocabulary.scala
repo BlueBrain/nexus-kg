@@ -52,6 +52,7 @@ object Vocabulary {
     val value     = PrefixMapping.metadata("value")
     val bytes     = PrefixMapping.metadata("bytes")
     val mediaType = PrefixMapping.metadata("mediaType")
+    val storageId = PrefixMapping.metadata("storageId")
 
     // ElasticSearch sourceAsText predicate
     val originalSource = PrefixMapping.metadata("original_source")

@@ -8,6 +8,7 @@
     "_value" : "digest1"
   },
   "_mediaType" : "text/plain",
+  "_storageId": "nxv:fileDefaultStorage",
   "_filename" : "filename1.txt",
   "_self" : "http://127.0.0.1:8080/v1/files/{account}/{proj}/{id}",
   "_constrainedBy" : "https://bluebrain.github.io/nexus/schemas/file.json",

@@ -11,8 +11,8 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
-import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
@@ -45,50 +45,45 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   }
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
-      storage.apply { implicit st =>
-        fileUpload("file") {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("createFile") {
-              extractActorSystem { implicit as =>
-                val resId = Id(project.ref, id)
-                complete(resources.createFile(resId, description, byteSource).value.runWithStatus(Created))
-              }
+    (put & projectNotDeprecated & pathEndOrSingleSlash & storage & hasPermissions(write)) { storage =>
+      fileUpload("file") {
+        case (metadata, byteSource) =>
+          val description = FileDescription(metadata.fileName, metadata.contentType.value)
+          trace("createFile") {
+            extractActorSystem { implicit as =>
+              val resId = Id(project.ref, id)
+              complete(resources.createFile(resId, storage, description, byteSource).value.runWithStatus(Created))
             }
-        }
+          }
       }
     }
 
   override def create(schema: Ref): Route =
-    (post & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
-      storage.apply { implicit st =>
-        fileUpload("file") {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("createFile") {
-              extractActorSystem { implicit as =>
-                complete(
-                  resources.createFile(project.ref, project.base, description, byteSource).value.runWithStatus(Created))
-              }
+    (post & projectNotDeprecated & pathEndOrSingleSlash & storage & hasPermissions(write)) { storage =>
+      fileUpload("file") {
+        case (metadata, byteSource) =>
+          val description = FileDescription(metadata.fileName, metadata.contentType.value)
+          trace("createFile") {
+            extractActorSystem { implicit as =>
+              val created = resources.createFile(project.ref, project.base, storage, description, byteSource)
+              complete(created.value.runWithStatus(Created))
             }
-        }
+          }
       }
     }
 
   override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
-      storage.apply { implicit st =>
+    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & storage & hasPermissions(write)) {
+      (rev, storage) =>
         fileUpload("file") {
           case (metadata, byteSource) =>
             val description = FileDescription(metadata.fileName, metadata.contentType.value)
             trace("updateFile") {
               extractActorSystem { implicit as =>
                 val resId = Id(project.ref, id)
-                complete(resources.updateFile(resId, rev, description, byteSource).value.runWithStatus(OK))
+                complete(resources.updateFile(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
               }
             }
         }
-      }
     }
 }
