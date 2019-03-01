@@ -94,7 +94,7 @@ object Resolver {
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
   final def apply(res: ResourceV): Option[Resolver] = {
-    val c  = res.value.graph.cursor(res.id.value)
+    val c  = res.value.graph.cursor()
     val id = res.id
 
     def inProject: Option[Resolver] =

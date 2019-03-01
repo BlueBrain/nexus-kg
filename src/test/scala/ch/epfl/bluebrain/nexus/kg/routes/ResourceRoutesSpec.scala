@@ -48,8 +48,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
-import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.FileStorage
-import ch.epfl.bluebrain.nexus.kg.resources.file.{AkkaIn, AkkaOut, StorageOperations}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.{AkkaIn, AkkaOut}
+import ch.epfl.bluebrain.nexus.kg.storage.StorageOperations
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
@@ -147,7 +148,8 @@ class ResourceRoutesSpec
       "nxv"             -> nxv.base,
       "documents"       -> nxv.defaultElasticSearchIndex,
       "graph"           -> nxv.defaultSparqlIndex,
-      "defaultResolver" -> nxv.defaultResolver
+      "defaultResolver" -> nxv.defaultResolver,
+      "defaultStorage"  -> nxv.defaultStorage
     )
     val mappings: Map[String, AbsoluteIri] =
       Map("nxv"      -> nxv.base,

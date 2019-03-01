@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{Inspectors, Matchers, TryValues}
 
 import scala.concurrent.duration._
@@ -28,7 +28,8 @@ class ResolverCacheSpec
     with Inspectors
     with ScalaFutures
     with TryValues
-    with TestHelper {
+    with TestHelper
+    with Eventually {
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.seconds.dilated, 5.milliseconds)
 
@@ -57,7 +58,9 @@ class ResolverCacheSpec
     "index resolvers" in {
       forAll(resolverProj1 ++ resolverProj2) { resolver =>
         cache.put(resolver).runToFuture.futureValue
-        cache.get(resolver.ref, resolver.id).runToFuture.futureValue shouldEqual Some(resolver)
+        eventually {
+          cache.get(resolver.ref, resolver.id).runToFuture.futureValue shouldEqual Some(resolver)
+        }
       }
     }
 

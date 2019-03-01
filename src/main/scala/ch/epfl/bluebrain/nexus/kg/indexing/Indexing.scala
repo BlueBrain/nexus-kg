@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.async._
+import ch.epfl.bluebrain.nexus.kg.async.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -29,10 +30,10 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.file.Storage
-import ch.epfl.bluebrain.nexus.kg.resources.file.Storage.FileStorage
-import ch.epfl.bluebrain.nexus.kg.resources.file.StorageEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
@@ -43,10 +44,10 @@ import monix.execution.Scheduler.Implicits.global
 import org.apache.jena.query.ResultSet
 
 // $COVERAGE-OFF$
-private class Indexing(resources: Resources[Task],
-                       cache: Caches[Task],
-                       adminClient: AdminClient[Task],
-                       coordinator: ProjectViewCoordinator[Task])(implicit as: ActorSystem, config: AppConfig) {
+private class Indexing(
+    resources: Resources[Task],
+    adminClient: AdminClient[Task],
+    coordinator: ProjectViewCoordinator[Task])(implicit cache: Caches[Task], config: AppConfig, as: ActorSystem) {
 
   private val logger                                          = Logger[this.type]
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
@@ -120,7 +121,7 @@ private class Indexing(resources: Resources[Task],
   private def createFileStorage(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
     val storage: Storage = FileStorage.default(project.ref)
     asJson(storage).flatMap { json =>
-      val created = resources.create(Id(project.ref, storage.id), resolverRef, json).value
+      val created = resources.create(Id(project.ref, storage.id), storageRef, json).value
       created.mapRetry(createdOrExists,
                        InternalError(s"Couldn't create default FileStorage for project '${project.ref}'"): KgError)
     }
@@ -165,12 +166,17 @@ private class Indexing(resources: Resources[Task],
   }
 
   def startResolverStream(): Unit = {
-    ResolverIndexer.start(resources, cache.resolver, cache.project)
+    ResolverIndexer.start(resources, cache.resolver)
     ()
   }
 
   def startViewStream(): Unit = {
-    ViewIndexer.start(resources, cache.view, cache.project)
+    ViewIndexer.start(resources, cache.view)
+    ()
+  }
+
+  def startStorageStream(): Unit = {
+    StorageIndexer.start(resources, cache.storage)
     ()
   }
 }
@@ -189,10 +195,10 @@ object Indexing {
     * @param resources the resources operations
     * @param cache     the distributed cache
     */
-  def start(resources: Resources[Task], cache: Caches[Task], adminClient: AdminClient[Task])(
-      implicit as: ActorSystem,
-      ucl: HttpClient[Task, ResultSet],
-      config: AppConfig): Unit = {
+  def start(resources: Resources[Task], adminClient: AdminClient[Task])(implicit cache: Caches[Task],
+                                                                        config: AppConfig,
+                                                                        as: ActorSystem,
+                                                                        ucl: HttpClient[Task, ResultSet]): Unit = {
     implicit val mt: ActorMaterializer                          = ActorMaterializer()
     implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]
     implicit val elasticSearchClient: ElasticSearchClient[Task] = ElasticSearchClient[Task](config.elasticSearch.base)
@@ -200,10 +206,11 @@ object Indexing {
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)
 
-    val indexing = new Indexing(resources, cache, adminClient, coordinator)
+    val indexing = new Indexing(resources, adminClient, coordinator)
     indexing.startAdminStream()
     indexing.startResolverStream()
     indexing.startViewStream()
+    indexing.startStorageStream()
   }
 
 }

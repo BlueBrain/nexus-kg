@@ -1,0 +1,107 @@
+{
+  "@context": [
+    "https://bluebrain.github.io/nexus/contexts/shacl-20170720.json",
+    {
+      "this": "https://bluebrain.github.io/nexus/schemas/storage/shapes/"
+    }
+  ],
+  "@id": "https://bluebrain.github.io/nexus/schemas/storage.json",
+  "@type": "nxv:Schema",
+  "shapes": [
+    {
+      "@id": "this:StorageShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNodeOrIRI",
+      "targetClass": "nxv:Storage",
+      "or": [
+        {
+          "node": "this:FileStorage"
+        },
+        {
+          "node": "this:S3Storage"
+        }
+      ]
+    },
+    {
+      "@id": "this:FileStorage",
+      "nodeKind": "sh:BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type FileStorage",
+          "description": "The FileStorage RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:FileStorage"
+          }
+        },
+        {
+          "path": "nxv:default",
+          "name": "default",
+          "description": "Flag to determine whether or not the storage is a default storage",
+          "datatype": "xsd:boolean",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:algorithm",
+          "name": "algorithm",
+          "description": "The algorithm that is going to be used to calculate the file digest",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:volume",
+          "name": "volume",
+          "description": "The volume on the local file system where the files are going to be stored",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:S3Storage",
+      "nodeKind": "sh:BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type S3Storage",
+          "description": "The FileStorage RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:S3Storage"
+          }
+        },
+        {
+          "path": "rdf:type",
+          "name": "RDF type Alpha",
+          "description": "The Alpha RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:Alpha"
+          }
+        },
+        {
+          "path": "nxv:default",
+          "name": "default",
+          "description": "Flag to determine whether or not the storage is a default storage",
+          "datatype": "xsd:boolean",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:algorithm",
+          "name": "algorithm",
+          "description": "The algorithm that is going to be used to calculate the file digest",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
+    }
+  ]
+}

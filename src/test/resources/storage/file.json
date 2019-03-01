@@ -1,0 +1,10 @@
+{
+  "@id": "http://example.com/id",
+  "@type": [
+    "FileStorage",
+    "Storage"
+  ],
+  "algorithm": "SHA-256",
+  "volume": "/tmp",
+  "default": false
+}

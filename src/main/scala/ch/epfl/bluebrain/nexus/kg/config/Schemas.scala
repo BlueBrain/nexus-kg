@@ -15,12 +15,15 @@ object Schemas {
   val unconstrainedSchemaUri: AbsoluteIri = base + "unconstrained.json"
   val fileSchemaUri: AbsoluteIri          = base + "file.json"
   val viewSchemaUri: AbsoluteIri          = base + "view.json"
+  val storageSchemaUri: AbsoluteIri       = base + "storage.json"
   val ontologySchemaUri: AbsoluteIri      = base + "ontology.json"
 
   val resolverSchema: Json = jsonContentOf("/schemas/resolver.json")
   val viewSchema: Json     = jsonContentOf("/schemas/view.json")
+  val storageSchema: Json  = jsonContentOf("/schemas/storage.json")
 
   val viewRef          = viewSchemaUri.ref
+  val storageRef       = storageSchemaUri.ref
   val resolverRef      = resolverSchemaUri.ref
   val unconstrainedRef = unconstrainedSchemaUri.ref
   val shaclRef         = shaclSchemaUri.ref

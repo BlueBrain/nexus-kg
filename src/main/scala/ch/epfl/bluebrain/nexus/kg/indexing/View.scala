@@ -21,7 +21,6 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.Json
 import io.circe.parser._
 
@@ -128,12 +127,6 @@ object View {
     */
   sealed trait AggregateView extends View
 
-  private implicit class NodeEncoderResultSyntax[A](private val enc: NodeEncoder.EncoderResult[A]) extends AnyVal {
-    def toInvalidPayloadEither(ref: Ref): Either[Rejection, A] =
-      enc.left.map(err =>
-        InvalidResourceFormat(ref, s"The provided payload could not be mapped to a view due to '${err.message}'"))
-  }
-
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.indexing.View]].
     *
@@ -141,14 +134,14 @@ object View {
     * @return Right(view) if the resource is compatible with a View, Left(rejection) otherwise
     */
   final def apply(res: ResourceV): Either[Rejection, View] = {
-    val c          = res.value.graph.cursor(res.id.value)
+    val c          = res.value.graph.cursor()
     val uuidEither = c.downField(nxv.uuid).focus.as[UUID]
 
     def elasticSearch(): Either[Rejection, View] =
       // format: off
       for {
-        uuid          <- uuidEither.toInvalidPayloadEither(res.id.ref)
-        mappingStr    <- c.downField(nxv.mapping).focus.as[String].toInvalidPayloadEither(res.id.ref)
+        uuid          <- uuidEither.toRejectionOnLeft(res.id.ref)
+        mappingStr    <- c.downField(nxv.mapping).focus.as[String].toRejectionOnLeft(res.id.ref)
         mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidResourceFormat(res.id.ref, "mappings cannot be parsed into Json"))
         schemas       = c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].map(_.toSet).getOrElse(Set.empty)
         tag           = c.downField(nxv.resourceTag).focus.as[String].toOption
@@ -160,7 +153,7 @@ object View {
 
     def sparql(): Either[Rejection, View] =
       uuidEither
-        .toInvalidPayloadEither(res.id.ref)
+        .toRejectionOnLeft(res.id.ref)
         .map(uuid => SparqlView(res.id.parent, res.id.value, uuid, res.rev, res.deprecated))
 
     def multiEsView(): Either[Rejection, View] = {
@@ -168,13 +161,13 @@ object View {
       def viewRefs[A: NodeEncoder: Show](cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef[A]]] =
         cursor.foldM(Set.empty[ViewRef[A]]) { (acc, blankC) =>
           for {
-            project <- blankC.downField(nxv.project).focus.as[A].toInvalidPayloadEither(res.id.ref)
-            id      <- blankC.downField(nxv.viewId).focus.as[AbsoluteIri].toInvalidPayloadEither(res.id.ref)
+            project <- blankC.downField(nxv.project).focus.as[A].toRejectionOnLeft(res.id.ref)
+            id      <- blankC.downField(nxv.viewId).focus.as[AbsoluteIri].toRejectionOnLeft(res.id.ref)
           } yield acc + ViewRef(project, id)
         }
 
       val result = for {
-        uuid <- uuidEither.toInvalidPayloadEither(res.id.ref)
+        uuid <- uuidEither.toRejectionOnLeft(res.id.ref)
         emptyViewRefs = Set.empty[ViewRef[String]]
       } yield AggregateElasticSearchView(emptyViewRefs, id.parent, uuid, id.value, res.rev, res.deprecated)
 
