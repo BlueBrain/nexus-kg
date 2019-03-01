@@ -119,7 +119,7 @@ object Storage {
         algorithm <- c.downField(nxv.algorithm).focus.as[String].toRejectionOnLeft(res.id.ref)
       } yield (S3Storage(res.id.parent, res.id.value, res.rev, res.updated, res.deprecated, default, algorithm))
 
-    if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.FileStorage.value).subsetOf(res.types)) fileStorage()
+    if (Set(nxv.Storage.value, nxv.FileStorage.value).subsetOf(res.types)) fileStorage()
     else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage()
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the view types"))
   }

@@ -32,11 +32,13 @@ object StorageEncoder {
   //TODO: Check if we want to allow everyone to see the volume or we protect it using permissions
   implicit val storageGraphEncoder: GraphEncoder[Id, Storage] = GraphEncoder {
     case (rootNode, storage: FileStorage) =>
-      RootedGraph(rootNode,
-                  mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.FileStorage),
-                                                      (storage.id, nxv.volume, storage.volume.toString)))
+      val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.FileStorage),
+                                                        (storage.id, nxv.volume, storage.volume.toString))
+      RootedGraph(rootNode, triples)
     case (rootNode, storage: S3Storage) =>
-      RootedGraph(rootNode, mainTriples(storage) + ((storage.id, rdf.tpe, nxv.S3Storage): Triple))
+      val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.S3Storage),
+                                                        (storage.id, rdf.tpe, nxv.Alpha))
+      RootedGraph(rootNode, triples)
   }
 
   implicit val storageGraphEncoderEither: GraphEncoder[EncoderResult, Storage] = storageGraphEncoder.toEither
@@ -50,7 +52,6 @@ object StorageEncoder {
     val s = IriNode(storage.id)
     Set(
       (s, rdf.tpe, nxv.Storage),
-      (s, rdf.tpe, nxv.Alpha),
       (s, nxv.deprecated, storage.deprecated),
       (s, nxv.rev, storage.rev),
       (s, nxv.default, storage.default),

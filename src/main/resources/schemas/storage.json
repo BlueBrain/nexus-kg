@@ -37,15 +37,6 @@
           }
         },
         {
-          "path": "rdf:type",
-          "name": "RDF type Alpha",
-          "description": "The Alpha RDF type.",
-          "nodeKind": "sh:IRI",
-          "sh:hasValue": {
-            "@id": "nxv:Alpha"
-          }
-        },
-        {
           "path": "nxv:default",
           "name": "default",
           "description": "Flag to determine whether or not the storage is a default storage",
