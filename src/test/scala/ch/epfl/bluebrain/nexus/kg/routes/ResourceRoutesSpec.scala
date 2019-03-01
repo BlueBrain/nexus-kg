@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.MediaRanges._
 import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{FileIO, Sink, Source}
+import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.data.{EitherT, OptionT}
 import cats.syntax.show._
@@ -48,9 +48,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Fetch
-import ch.epfl.bluebrain.nexus.kg.storage.AkkaOut
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
@@ -145,6 +145,7 @@ class ResourceRoutesSpec
       "view"            -> Schemas.viewSchemaUri,
       "resolver"        -> Schemas.resolverSchemaUri,
       "file"            -> Schemas.fileSchemaUri,
+      "storage"         -> Schemas.storageSchemaUri,
       "nxv"             -> nxv.base,
       "documents"       -> nxv.defaultElasticSearchIndex,
       "graph"           -> nxv.defaultSparqlIndex,
@@ -308,7 +309,7 @@ class ResourceRoutesSpec
     val schemaRef = Ref(fileSchemaUri)
 
     val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
-    val storage                         = FileStorage.default(projectRef)
+    val storage                         = DiskStorage.default(projectRef)
     when(storageCache.getDefault(projectRef)).thenReturn(Task(Some(storage)))
 
   }
@@ -663,13 +664,13 @@ class ResourceRoutesSpec
                                        schema = schemaRef,
                                        types = Set(nxv.File.value))
       val path    = Paths.get(getClass.getResource("/resources/file.txt").toURI)
-      val at1     = FileAttributes("uuid1", path, "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
+      val at1     = FileAttributes("uuid1", path.toString, "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
       val content = new String(Files.readAllBytes(path))
-      val source =
-        Source.single(ByteString(content)).mapMaterializedValue(_ => FileIO.fromPath(path).to(Sink.ignore).run())
+      val source: Source[ByteString, Any] =
+        Source.single(ByteString(content)).mapMaterializedValue[Any](v => v)
 
       when(resources.fetch(mEq(id), mEq(None))).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetchFile(mEq(id), any[Long])(any[Fetch[AkkaOut]]))
+      when(resources.fetchFile(mEq(id), any[Long])(any[Fetch[AkkaSource]]))
         .thenReturn(OptionT.some[Task](at1 -> source))
 
       val endpoints = List(
@@ -711,7 +712,12 @@ class ResourceRoutesSpec
     "get the file metadata" in new File {
       val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
       val at1 =
-        FileAttributes("uuid1", Paths.get("some1"), "filename1.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
+        FileAttributes("uuid1",
+                       Paths.get("some1").toString,
+                       "filename1.txt",
+                       "text/plain",
+                       1024,
+                       Digest("SHA-256", "digest1"))
       val resourceV =
         simpleV(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
           .copy(file = Some(storage -> at1))

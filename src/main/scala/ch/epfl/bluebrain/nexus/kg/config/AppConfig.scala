@@ -224,8 +224,6 @@ object AppConfig {
       nxv.maxScore.prefix,
       nxv.results.prefix,
       nxv.score.prefix,
-      nxv.volume.prefix,
-      nxv.default.prefix,
       "",
       nxv.self.prefix,
       nxv.constrainedBy.prefix,

@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FileStorage, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Storage}
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
@@ -23,18 +23,17 @@ class StorageSpec extends WordSpecLike with Matchers with OptionValues with Reso
 
   "A Storage" when {
     val iri        = url"http://example.com/id".value
-    val iri2       = url"http://example.com/id2".value
     val projectRef = ProjectRef(genUUID)
     val id         = Id(projectRef, iri)
 
     "constructing" should {
-      val fileStorage = jsonContentOf("/storage/file.json").appendContextOf(storageCtx)
+      val diskStorage = jsonContentOf("/storage/disk.json").appendContextOf(storageCtx)
       val s3Storage   = jsonContentOf("/storage/s3.json").appendContextOf(storageCtx)
 
-      "return a FileStorage" in {
-        val resource = simpleV(id, fileStorage, types = Set(nxv.Storage, nxv.FileStorage))
+      "return a DiskStorage" in {
+        val resource = simpleV(id, diskStorage, types = Set(nxv.Storage, nxv.DiskStorage))
         Storage(resource).right.value shouldEqual
-          FileStorage(projectRef, iri, 1L, clock.instant(), false, false, "SHA-256", Paths.get("/tmp"))
+          DiskStorage(projectRef, iri, 1L, clock.instant(), false, false, "SHA-256", Paths.get("/tmp"))
       }
 
       "return an S3Storage" in {
@@ -43,8 +42,8 @@ class StorageSpec extends WordSpecLike with Matchers with OptionValues with Reso
           S3Storage(projectRef, iri, 1L, clock.instant(), false, true, "MD-5")
       }
 
-      "fail on FileStorage when types are wrong" in {
-        val resource = simpleV(id, fileStorage, types = Set(nxv.Storage))
+      "fail on DiskStorage when types are wrong" in {
+        val resource = simpleV(id, diskStorage, types = Set(nxv.Storage))
         Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
@@ -53,8 +52,8 @@ class StorageSpec extends WordSpecLike with Matchers with OptionValues with Reso
         Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
-      "fail on FileStorage when required parameters are not present" in {
-        val resource = simpleV(id, fileStorage.removeKeys("volume"), types = Set(nxv.Storage, nxv.FileStorage))
+      "fail on DiskStorage when required parameters are not present" in {
+        val resource = simpleV(id, diskStorage.removeKeys("volume"), types = Set(nxv.Storage, nxv.DiskStorage))
         Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
@@ -65,13 +64,21 @@ class StorageSpec extends WordSpecLike with Matchers with OptionValues with Reso
     }
 
     "converting into json (from Graph)" should {
-      "return the json representation for a query results list" in {
-        val fileStorage: FileStorage =
-          FileStorage(projectRef, iri, 1L, clock.instant(), false, false, "SHA-256", Paths.get("/tmp"))
-        val s3Storage = S3Storage(projectRef, iri2, 1L, clock.instant(), false, true, "MD-5")
+      "return the json representation for a query results list of DiskStorage" in {
+        val diskStorage: DiskStorage =
+          DiskStorage(projectRef, iri, 1L, clock.instant(), false, false, "SHA-256", Paths.get("/tmp"))
         val storages: QueryResults[Storage] =
-          QueryResults(2L, List(UnscoredQueryResult(fileStorage), UnscoredQueryResult(s3Storage)))
-        StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(jsonContentOf("/storage/storages.json"))
+          QueryResults(1L, List(UnscoredQueryResult(diskStorage)))
+        StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
+          jsonContentOf("/storage/disk-storages.json"))
+      }
+
+      "return the json representation for a query results list of S3Storage" in {
+        val s3Storage = S3Storage(projectRef, iri, 1L, clock.instant(), false, true, "MD-5")
+        val storages: QueryResults[Storage] =
+          QueryResults(1L, List(UnscoredQueryResult(s3Storage)))
+        StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
+          jsonContentOf("/storage/s3-storages.json"))
       }
     }
   }

@@ -91,7 +91,7 @@ object Vocabulary {
     val defaultResolver = PrefixMapping.prefix("defaultInProject")
 
     //Storage default id
-    val defaultStorage = PrefixMapping.prefix("fileDefaultStorage")
+    val defaultStorage = PrefixMapping.prefix("diskStorageDefault")
 
     // @type platform ids
     val Schema                     = PrefixMapping.prefix("Schema")
@@ -102,7 +102,7 @@ object Vocabulary {
     val InProject                  = PrefixMapping.prefix("InProject")
     val CrossProject               = PrefixMapping.prefix("CrossProject")
     val Storage                    = PrefixMapping.prefix("Storage")
-    val FileStorage                = PrefixMapping.prefix("FileStorage")
+    val DiskStorage                = PrefixMapping.prefix("DiskStorage")
     val S3Storage                  = PrefixMapping.prefix("S3Storage")
     val View                       = PrefixMapping.prefix("View")
     val ElasticSearchView          = PrefixMapping.prefix("ElasticSearchView")

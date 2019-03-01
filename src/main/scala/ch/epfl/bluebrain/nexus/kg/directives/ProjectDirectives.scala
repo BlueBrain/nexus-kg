@@ -22,6 +22,7 @@ object ProjectDirectives {
     "view"            -> Schemas.viewSchemaUri,
     "resolver"        -> Schemas.resolverSchemaUri,
     "file"            -> Schemas.fileSchemaUri,
+    "storage"         -> Schemas.storageSchemaUri,
     "nxv"             -> nxv.base,
     "documents"       -> nxv.defaultElasticSearchIndex,
     "graph"           -> nxv.defaultSparqlIndex,

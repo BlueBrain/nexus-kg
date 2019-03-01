@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.typesafe.config.{Config, ConfigFactory}
@@ -122,9 +122,9 @@ class EventsSpecBase
     ),
     FileCreated(
       Id(projectRef, base + "file"),
-      FileStorage.default(projectRef),
+      DiskStorage.default(projectRef),
       FileAttributes(
-        Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString),
+        Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString).toString,
         "attachment.json",
         "application/json",
         47,
@@ -135,10 +135,10 @@ class EventsSpecBase
     ),
     FileUpdated(
       Id(projectRef, base + "file"),
-      FileStorage.default(projectRef),
+      DiskStorage.default(projectRef),
       2L,
       FileAttributes(
-        Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString),
+        Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString).toString,
         "attachment.json",
         "text/json",
         47,

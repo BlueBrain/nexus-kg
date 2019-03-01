@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FileStorage, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.generic.extras.Configuration
@@ -225,17 +225,17 @@ object Event {
       Encoder.encodeJson.contramap(_.id.asJson)
 
     private implicit def storageEncoder: Encoder[Storage] = Encoder.instance {
-      case storage: FileStorage =>
+      case storage: DiskStorage =>
         Json.obj(
           nxv.storageId.prefix -> storage.id.asJson,
-          "@type"              -> nxv.FileStorage.prefix.asJson,
+          "@type"              -> nxv.DiskStorage.prefix.asJson,
           nxv.volume.prefix    -> storage.volume.asJson,
           nxv.default.prefix   -> storage.default.asJson
         )
       case storage: S3Storage =>
         Json.obj(
           nxv.storageId.prefix -> storage.id.asJson,
-          "@type"              -> nxv.FileStorage.prefix.asJson,
+          "@type"              -> nxv.DiskStorage.prefix.asJson,
           nxv.default.prefix   -> storage.default.asJson
         )
     }

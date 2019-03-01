@@ -15,7 +15,7 @@
       "targetClass": "nxv:Storage",
       "or": [
         {
-          "node": "this:FileStorage"
+          "node": "this:DiskStorage"
         },
         {
           "node": "this:S3Storage"
@@ -23,17 +23,17 @@
       ]
     },
     {
-      "@id": "this:FileStorage",
+      "@id": "this:DiskStorage",
       "nodeKind": "sh:BlankNodeOrIRI",
       "sh:closed": true,
       "property": [
         {
           "path": "rdf:type",
-          "name": "RDF type FileStorage",
-          "description": "The FileStorage RDF type.",
+          "name": "RDF type DiskStorage",
+          "description": "The DiskStorage RDF type.",
           "nodeKind": "sh:IRI",
           "sh:hasValue": {
-            "@id": "nxv:FileStorage"
+            "@id": "nxv:DiskStorage"
           }
         },
         {
@@ -70,7 +70,7 @@
         {
           "path": "rdf:type",
           "name": "RDF type S3Storage",
-          "description": "The FileStorage RDF type.",
+          "description": "The DiskStorage RDF type.",
           "nodeKind": "sh:IRI",
           "sh:hasValue": {
             "@id": "nxv:S3Storage"

@@ -29,7 +29,7 @@
     "_digest": "https://bluebrain.github.io/nexus/vocabulary/digest",
     "_algorithm": "https://bluebrain.github.io/nexus/vocabulary/algorithm",
     "_value": "https://bluebrain.github.io/nexus/vocabulary/value",
-    "_mediaType": "http://www.w3.org/ns/dcat#mediaType",
+    "_mediaType": "https://bluebrain.github.io/nexus/vocabulary/mediaType",
     "_filename": "https://bluebrain.github.io/nexus/vocabulary/filename",
     "_bytes": "https://bluebrain.github.io/nexus/vocabulary/bytes"
   }

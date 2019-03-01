@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Save
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FileStorage, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, SaveFile}
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import io.circe.Json
@@ -76,7 +76,7 @@ class RepoSpec
     override val value  = Json.obj()
     override val schema = Schemas.fileSchemaUri
     val types           = Set(nxv.File.value)
-    val storage         = FileStorage.default(projectRef)
+    val storage         = DiskStorage.default(projectRef)
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
   }
@@ -189,8 +189,8 @@ class RepoSpec
       val desc2       = FileDescription("name2", "text/plain")
       val source2     = "some text2"
       val relative    = Paths.get("./other")
-      val attributes  = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-      val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
+      val attributes  = desc.process(StoredSummary(relative.toString, 20L, Digest("MD5", "1234")))
+      val attributes2 = desc2.process(StoredSummary(relative.toString, 30L, Digest("MD5", "4567")))
 
       "create file resource" in new File {
         when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
@@ -313,10 +313,10 @@ class RepoSpec
       val relative    = Paths.get("./other")
       val desc        = FileDescription("name", "text/plain")
       val source      = "some text"
-      val attributes  = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
+      val attributes  = desc.process(StoredSummary(relative.toString, 20L, Digest("MD5", "1234")))
       val desc2       = FileDescription("name2", "text/plain")
       val source2     = "some text2"
-      val attributes2 = desc2.process(StoredSummary(relative, 30L, Digest("MD5", "4567")))
+      val attributes2 = desc2.process(StoredSummary(relative.toString, 30L, Digest("MD5", "4567")))
 
       "get a file resource" in new File {
         when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))

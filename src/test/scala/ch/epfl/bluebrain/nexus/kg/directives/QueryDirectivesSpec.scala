@@ -25,7 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.routes.Routes.{exceptionHandler, rejectionHandler}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
@@ -156,7 +156,7 @@ class QueryDirectivesSpec
 
     "return the storage when specified as a query parameter" in {
       implicit val project = genProject
-      val storage: Storage = FileStorage.default(project.ref)
+      val storage: Storage = DiskStorage.default(project.ref)
       when(storageCache.get(project.ref, nxv.withSuffix("mystorage").value)).thenReturn(Task(Some(storage)))
       Get("/some?storage=nxv:mystorage") ~> routeStorage ~> check {
         responseAs[Json] shouldEqual storage.as[Json]().right.value
@@ -165,7 +165,7 @@ class QueryDirectivesSpec
 
     "return the default storage" in {
       implicit val project = genProject
-      val storage: Storage = FileStorage.default(project.ref)
+      val storage: Storage = DiskStorage.default(project.ref)
       when(storageCache.getDefault(project.ref)).thenReturn(Task(Some(storage)))
       Get("/some") ~> routeStorage ~> check {
         responseAs[Json] shouldEqual storage.as[Json]().right.value
