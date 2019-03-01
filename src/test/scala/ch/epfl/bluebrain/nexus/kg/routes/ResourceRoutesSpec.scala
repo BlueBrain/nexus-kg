@@ -49,8 +49,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
-import ch.epfl.bluebrain.nexus.kg.storage.{AkkaIn, AkkaOut}
-import ch.epfl.bluebrain.nexus.kg.storage.StorageOperations
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Fetch
+import ch.epfl.bluebrain.nexus.kg.storage.AkkaOut
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
@@ -308,7 +308,9 @@ class ResourceRoutesSpec
     val schemaRef = Ref(fileSchemaUri)
 
     val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
-    when(storageCache.getDefault(projectRef)).thenReturn(Task(Some(FileStorage.default(projectRef))))
+    val storage                         = FileStorage.default(projectRef)
+    when(storageCache.getDefault(projectRef)).thenReturn(Task(Some(storage)))
+
   }
 
   abstract class Schema(perms: Set[Permission] = manageSchemas) extends Context(perms) {
@@ -667,7 +669,7 @@ class ResourceRoutesSpec
         Source.single(ByteString(content)).mapMaterializedValue(_ => FileIO.fromPath(path).to(Sink.ignore).run())
 
       when(resources.fetch(mEq(id), mEq(None))).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetchFile(mEq(id), any[Long])(any[StorageOperations[Task, AkkaIn, AkkaOut]]))
+      when(resources.fetchFile(mEq(id), any[Long])(any[Fetch[AkkaOut]]))
         .thenReturn(OptionT.some[Task](at1 -> source))
 
       val endpoints = List(
@@ -711,7 +713,8 @@ class ResourceRoutesSpec
       val at1 =
         FileAttributes("uuid1", Paths.get("some1"), "filename1.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
       val resourceV =
-        simpleV(id, Json.obj(), created = subject, updated = subject, schema = schemaRef).copy(file = Some(at1))
+        simpleV(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
+          .copy(file = Some(storage -> at1))
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
       when(resources.materializeWithMeta(mEq(resource))(projectMatcher)).thenReturn(EitherT.rightT[Task, Rejection](

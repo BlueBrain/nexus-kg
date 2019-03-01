@@ -12,12 +12,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FileStorage, S3Storage}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import io.circe.{Encoder, Json}
 import io.circe.generic.extras.Configuration
 import io.circe.syntax._
+import io.circe.{Encoder, Json}
 
 /**
   * Enumeration of resource event types.

@@ -10,10 +10,12 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.FileConfig
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
 import io.circe.parser._
@@ -30,8 +32,9 @@ class EventSerializerSpec
     with Randomness
     with Resources {
 
-  private final val UTF8: Charset = Charset.forName("UTF-8")
-  private final val serialization = SerializationExtension(system)
+  private final val UTF8: Charset             = Charset.forName("UTF-8")
+  private final val serialization             = SerializationExtension(system)
+  private implicit val fileConfig: FileConfig = FileConfig(Paths.get("/tmp"), "SHA-256")
 
   private case class Other(str: String)
 
@@ -54,6 +57,7 @@ class EventSerializerSpec
 
     "using EventSerializer" should {
       val value    = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
+      val storage  = FileStorage.default(key.parent)
       val digest   = Digest("md5", "1234")
       val fileAttr = FileAttributes("uuid", Paths.get("/test/path"), "test-file.json", "application/json", 128L, digest)
       val results = List(
@@ -61,8 +65,11 @@ class EventSerializerSpec
                                                                                 rep),
         Deprecated(key, 1L, types, instant, subject)       -> jsonContentOf("/serialization/deprecated-resp.json", rep),
         TagAdded(key, 1L, 2L, "tagName", instant, subject) -> jsonContentOf("/serialization/tagged-resp.json", rep),
-        FileCreated(key, fileAttr, instant, subject)       -> jsonContentOf("/serialization/created-file-resp.json", rep),
-        FileUpdated(key, 2L, fileAttr, instant, subject)   -> jsonContentOf("/serialization/updated-file-resp.json", rep)
+        FileCreated(key, storage, fileAttr, instant, subject) -> jsonContentOf("/serialization/created-file-resp.json",
+                                                                               rep),
+        FileUpdated(key, storage.copy(rev = 2L), 2L, fileAttr, instant, subject) -> jsonContentOf(
+          "/serialization/updated-file-resp.json",
+          rep)
       )
 
       "encode known events to UTF-8" in {

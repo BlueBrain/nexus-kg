@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.typesafe.config.{Config, ConfigFactory}
@@ -76,16 +77,18 @@ class EventsSpecBase
     UUID.randomUUID(),
     UUID.randomUUID(),
     1L,
-    false,
+    deprecated = false,
     instant,
     base + "subject",
     instant,
     base + "subject"
   )
 
+  val projectRef = ProjectRef(projectUuid)
+
   val events = List(
     Created(
-      Id(ProjectRef(projectUuid), base + "Created"),
+      Id(projectRef, base + "Created"),
       schemaRef,
       types,
       Json.obj(
@@ -94,7 +97,7 @@ class EventsSpecBase
       instant,
       subject
     ),
-    Updated(Id(ProjectRef(projectUuid), base + "created"),
+    Updated(Id(projectRef, base + "created"),
             2L,
             types,
             Json.obj(
@@ -103,14 +106,14 @@ class EventsSpecBase
             instant,
             subject),
     Deprecated(
-      Id(ProjectRef(projectUuid), base + "created"),
+      Id(projectRef, base + "created"),
       3L,
       types,
       instant,
       subject
     ),
     TagAdded(
-      Id(ProjectRef(projectUuid), base + "created"),
+      Id(projectRef, base + "created"),
       4L,
       2L,
       "v1.0.0",
@@ -118,7 +121,8 @@ class EventsSpecBase
       subject
     ),
     FileCreated(
-      Id(ProjectRef(projectUuid), base + "file"),
+      Id(projectRef, base + "file"),
+      FileStorage.default(projectRef),
       FileAttributes(
         Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString),
         "attachment.json",
@@ -130,7 +134,8 @@ class EventsSpecBase
       subject
     ),
     FileUpdated(
-      Id(ProjectRef(projectUuid), base + "file"),
+      Id(projectRef, base + "file"),
+      FileStorage.default(projectRef),
       2L,
       FileAttributes(
         Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString),
