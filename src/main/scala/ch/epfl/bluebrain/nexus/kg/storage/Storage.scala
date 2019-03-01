@@ -76,7 +76,7 @@ sealed trait Storage { self =>
 }
 
 object Storage {
-  final case class FileStorage(ref: ProjectRef,
+  final case class DiskStorage(ref: ProjectRef,
                                id: AbsoluteIri,
                                rev: Long,
                                instant: Instant,
@@ -85,15 +85,15 @@ object Storage {
                                algorithm: String,
                                volume: Path)
       extends Storage
-  object FileStorage {
+  object DiskStorage {
 
     /**
       * Default [[FileConfig]] that gets created for every project.
       *
       * @param ref the project unique identifier
       */
-    def default(ref: ProjectRef)(implicit config: FileConfig): FileStorage =
-      FileStorage(ref,
+    def default(ref: ProjectRef)(implicit config: FileConfig): DiskStorage =
+      DiskStorage(ref,
                   nxv.defaultStorage,
                   1L,
                   Instant.EPOCH,
@@ -121,12 +121,12 @@ object Storage {
   final def apply(res: ResourceV): Either[Rejection, Storage] = {
     val c = res.value.graph.cursor()
 
-    def fileStorage(): Either[Rejection, Storage] =
+    def diskStorage(): Either[Rejection, Storage] =
       for {
         default   <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
         algorithm <- c.downField(nxv.algorithm).focus.as[String].toRejectionOnLeft(res.id.ref)
         volume    <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
-      } yield FileStorage(res.id.parent, res.id.value, res.rev, res.updated, res.deprecated, default, algorithm, volume)
+      } yield DiskStorage(res.id.parent, res.id.value, res.rev, res.updated, res.deprecated, default, algorithm, volume)
 
     def s3Storage(): Either[Rejection, Storage] =
       for {
@@ -134,7 +134,7 @@ object Storage {
         algorithm <- c.downField(nxv.algorithm).focus.as[String].toRejectionOnLeft(res.id.ref)
       } yield S3Storage(res.id.parent, res.id.value, res.rev, res.updated, res.deprecated, default, algorithm)
 
-    if (Set(nxv.Storage.value, nxv.FileStorage.value).subsetOf(res.types)) fileStorage()
+    if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage()
     else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage()
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the view types"))
   }
@@ -174,12 +174,10 @@ object Storage {
       def apply(storage: Storage): FetchFile[Out]
     }
     object Fetch {
-      implicit final def apply: Fetch[AkkaOut] =
-        (storage: Storage) =>
-          storage match {
-            case value: FileStorage => new FileStorageOperations.Fetch(value)
-            case _: S3Storage       => ??? //TODO
-        }
+      implicit final def apply: Fetch[AkkaSource] = {
+        case value: DiskStorage => new DiskStorageOperations.Fetch(value)
+        case _: S3Storage       => ??? //TODO
+      }
     }
 
     /**
@@ -193,12 +191,10 @@ object Storage {
     }
 
     object Save {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Save[F, AkkaIn] =
-        (storage: Storage) =>
-          storage match {
-            case value: FileStorage => new FileStorageOperations.Save(value)
-            case _: S3Storage       => ??? //TODO
-        }
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Save[F, AkkaSource] = {
+        case value: DiskStorage => new DiskStorageOperations.Save(value)
+        case _: S3Storage       => ??? //TODO
+      }
     }
   }
 }

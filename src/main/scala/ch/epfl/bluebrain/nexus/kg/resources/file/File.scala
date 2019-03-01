@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resources.file
 
-import java.nio.file.Path
 import java.util.UUID
 
 import io.circe.Decoder
@@ -29,20 +28,20 @@ object File {
     * Holds all the metadata information related to the file.
     *
     * @param uuid      the unique id that identifies this file.
-    * @param filePath  path where the file gets stored.
+    * @param filePath  path where the file gets stored relative to the storage
     * @param filename  the original filename of the file
     * @param mediaType the media type of the file
     * @param bytes     the size of the file file in bytes
     * @param digest    the digest information of the file
     */
   final case class FileAttributes(uuid: String,
-                                  filePath: Path,
+                                  filePath: String,
                                   filename: String,
                                   mediaType: String,
                                   bytes: Long,
                                   digest: Digest)
   object FileAttributes {
-    def apply(filePath: Path, filename: String, mediaType: String, size: Long, digest: Digest): FileAttributes =
+    def apply(filePath: String, filename: String, mediaType: String, size: Long, digest: Digest): FileAttributes =
       FileAttributes(randomUUID, filePath, filename, mediaType, size, digest)
   }
 
@@ -59,11 +58,11 @@ object File {
   /**
     * The summary after the file has been stored
     *
-    * @param filePath the location where the file has been stored
+    * @param filePath the location where the file has been stored relative to the storage
     * @param bytes    the size of the file in bytes
     * @param digest   the digest related information of the file
     */
-  final case class StoredSummary(filePath: Path, bytes: Long, digest: Digest)
+  final case class StoredSummary(filePath: String, bytes: Long, digest: Digest)
 
   implicit val digestDecoder: Decoder[Digest] = deriveDecoder[Digest]
 }

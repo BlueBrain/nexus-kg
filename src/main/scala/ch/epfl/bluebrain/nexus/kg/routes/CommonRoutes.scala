@@ -26,7 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
-import ch.epfl.bluebrain.nexus.kg.storage.AkkaOut
+import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
 import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -187,18 +187,18 @@ private[routes] abstract class CommonRoutes(
     trace("getFile") {
       concat(
         (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-          completeFile(resources.fetchFile[AkkaOut](Id(project.ref, id), rev).value.runNotFound(id.ref))
+          completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
         },
         (parameter('tag) & noParameter('rev)) { tag =>
-          completeFile(resources.fetchFile[AkkaOut](Id(project.ref, id), tag).value.runNotFound(id.ref))
+          completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
         },
         (noParameter('tag) & noParameter('rev)) {
-          completeFile(resources.fetchFile[AkkaOut](Id(project.ref, id)).value.runNotFound(id.ref))
+          completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
         }
       )
     }
 
-  private def completeFile(f: Future[(FileAttributes, AkkaOut)]): Route =
+  private def completeFile(f: Future[(FileAttributes, AkkaSource)]): Route =
     onSuccess(f) {
       case (info, source) =>
         val filename = urlEncodeOrElse(info.filename)("file")

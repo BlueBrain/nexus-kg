@@ -1,7 +1,7 @@
 {
   "@id": "http://example.com/id",
   "@type": [
-    "FileStorage",
+    "DiskStorage",
     "Storage"
   ],
   "algorithm": "SHA-256",

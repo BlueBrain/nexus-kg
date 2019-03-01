@@ -31,7 +31,7 @@ import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Save}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, FileStorage, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, SaveFile}
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{reset, when}
@@ -144,8 +144,8 @@ class ResourcesSpec
     val desc       = FileDescription("name", "text/plain")
     val source     = "some text"
     val relative   = Paths.get("./other")
-    val attributes = desc.process(StoredSummary(relative, 20L, Digest("MD5", "1234")))
-    val storage    = FileStorage.default(projectRef)
+    val attributes = desc.process(StoredSummary(relative.toString, 20L, Digest("MD5", "1234")))
+    val storage    = DiskStorage.default(projectRef)
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
     implicit val fetch: Fetch[String]   = (st: Storage) => if (st == storage) fetchFile else throw new RuntimeException

@@ -10,37 +10,37 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, FileStorage, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, SaveFile}
 import journal.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
-object FileStorageOperations {
+object DiskStorageOperations {
 
   /**
-    * [[FetchFile]] implementation for [[FileStorage]]
+    * [[FetchFile]] implementation for [[DiskStorage]]
     *
-    * @param storage the file storage
+    * @param storage the [[DiskStorage]]
     */
-  final class Fetch(storage: FileStorage) extends FetchFile[AkkaOut] {
+  final class Fetch(storage: DiskStorage) extends FetchFile[AkkaSource] {
 
-    override def apply(fileMeta: FileAttributes): AkkaOut =
+    override def apply(fileMeta: FileAttributes): AkkaSource =
       FileIO.fromPath(storage.volume.resolve(fileMeta.filePath))
   }
 
   /**
-    * [[SaveFile]] implementation for [[FileStorage]]
+    * [[SaveFile]] implementation for [[DiskStorage]]
     *
-    * @param storage the file storage
+    * @param storage the [[DiskStorage]]
     */
-  final class Save[F[_]](storage: FileStorage)(implicit F: Effect[F], as: ActorSystem) extends SaveFile[F, AkkaIn] {
+  final class Save[F[_]](storage: DiskStorage)(implicit F: Effect[F], as: ActorSystem) extends SaveFile[F, AkkaSource] {
 
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val mt: Materializer     = ActorMaterializer()
     private val logger: Logger                = Logger[this.type]
 
-    override def apply(id: ResId, fileDesc: FileDescription, source: AkkaIn): F[FileAttributes] = {
+    override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
       getLocation(fileDesc.uuid).flatMap {
         case (fullPath, relativePath) =>
           val future = source
@@ -50,7 +50,7 @@ object FileStorageOperations {
                 digFuture.zipWith(ioFuture) {
                   case (dig, io) if io.wasSuccessful && fullPath.toFile.exists() =>
                     val digest = Digest(dig.getAlgorithm, dig.digest().map("%02x".format(_)).mkString)
-                    Future(fileDesc.process(StoredSummary(relativePath, io.count, digest)))
+                    Future(fileDesc.process(StoredSummary(relativePath.toString, io.count, digest)))
                   case _ =>
                     Future.failed(KgError.InternalError(
                       s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"))

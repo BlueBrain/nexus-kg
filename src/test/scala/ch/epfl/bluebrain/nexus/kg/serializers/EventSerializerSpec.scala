@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
 import io.circe.parser._
@@ -56,10 +56,11 @@ class EventSerializerSpec
     val rep = Map(quote("{timestamp}") -> instant.toString)
 
     "using EventSerializer" should {
-      val value    = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
-      val storage  = FileStorage.default(key.parent)
-      val digest   = Digest("md5", "1234")
-      val fileAttr = FileAttributes("uuid", Paths.get("/test/path"), "test-file.json", "application/json", 128L, digest)
+      val value   = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
+      val storage = DiskStorage.default(key.parent)
+      val digest  = Digest("md5", "1234")
+      val fileAttr =
+        FileAttributes("uuid", Paths.get("/test/path").toString, "test-file.json", "application/json", 128L, digest)
       val results = List(
         Created(key, schema, types, value, instant, Anonymous) -> jsonContentOf("/serialization/created-resp.json",
                                                                                 rep),

@@ -3,7 +3,7 @@
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
     "Alpha": "nxv:Alpha",
     "Storage": "nxv:Storage",
-    "FileStorage": "nxv:FileStorage",
+    "DiskStorage": "nxv:DiskStorage",
     "S3Storage": "nxv:S3Storage",
     "default": "nxv:default",
     "volume": "nxv:volume",

@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -40,7 +40,7 @@ class StorageCacheSpec
   val initialInstant = clock.instant()
   val lastIdA        = url"http://example.com/lastA".value
 
-  val storage = FileStorage(ref1,
+  val storage = DiskStorage(ref1,
                             genIri,
                             1L,
                             initialInstant.minusSeconds(1L + genInt().toLong),
@@ -52,11 +52,11 @@ class StorageCacheSpec
   val lastStorageProj1 = storage.copy(id = lastIdA, instant = initialInstant)
   val lastStorageProj2 = storage.copy(ref = ref2, id = lastIdA, instant = initialInstant)
 
-  val storagesProj1: List[FileStorage] =
+  val storagesProj1: List[DiskStorage] =
     lastStorageProj1 :: List.fill(5)(
       storage
         .copy(id = genIri, instant = initialInstant.minusSeconds(1L + genInt().toLong)))
-  val storagesProj2: List[FileStorage] =
+  val storagesProj2: List[DiskStorage] =
     lastStorageProj2 :: List.fill(5)(
       storage
         .copy(ref = ref2, id = genIri, instant = initialInstant.minusSeconds(1L + genInt().toLong)))

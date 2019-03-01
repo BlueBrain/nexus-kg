@@ -32,7 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.FileStorage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
@@ -118,12 +118,12 @@ private class Indexing(
     }
   }
 
-  private def createFileStorage(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
-    val storage: Storage = FileStorage.default(project.ref)
+  private def createDiskStorage(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+    val storage: Storage = DiskStorage.default(project.ref)
     asJson(storage).flatMap { json =>
       val created = resources.create(Id(project.ref, storage.id), storageRef, json).value
       created.mapRetry(createdOrExists,
-                       InternalError(s"Couldn't create default FileStorage for project '${project.ref}'"): KgError)
+                       InternalError(s"Couldn't create default DiskStorage for project '${project.ref}'"): KgError)
     }
   }
 
@@ -145,7 +145,7 @@ private class Indexing(
           for {
             _ <- cache.project.replace(project)
             _ <- coordinator.start(project)
-            _ <- List(createElasticSearchView, createSparqlView, createResolver, createFileStorage).sequence
+            _ <- List(createElasticSearchView, createSparqlView, createResolver, createDiskStorage).sequence
           } yield (())
 
         case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>

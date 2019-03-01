@@ -4,31 +4,19 @@
     "https://bluebrain.github.io/nexus/contexts/resource.json",
     "https://bluebrain.github.io/nexus/contexts/storage.json"
   ],
-  "_total" : 2,
+  "_total" : 1,
   "_results" : [
     {
       "@id" : "http://example.com/id",
       "@type" : [
         "Storage",
-        "FileStorage"
+        "DiskStorage"
       ],
       "algorithm" : "SHA-256",
       "default" : false,
       "_deprecated" : false,
       "_rev" : 1,
       "volume" : "/tmp"
-    },
-    {
-      "@id" : "http://example.com/id2",
-      "@type" : [
-        "Alpha",
-        "S3Storage",
-        "Storage"
-      ],
-      "algorithm" : "MD-5",
-      "default" : true,
-      "_deprecated" : false,
-      "_rev" : 1
     }
   ]
 }
