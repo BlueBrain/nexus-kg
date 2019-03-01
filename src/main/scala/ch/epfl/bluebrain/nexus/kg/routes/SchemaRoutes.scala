@@ -4,7 +4,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.{StorageCache, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.async.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -17,7 +17,6 @@ import monix.eval.Task
 class SchemaRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
     implicit project: Project,
     viewCache: ViewCache[Task],
-    storageCache: StorageCache[Task],
     indexers: Clients[Task],
     config: AppConfig)
     extends CommonRoutes(resources, "schemas", acls, caller) {

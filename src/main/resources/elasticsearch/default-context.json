@@ -16,6 +16,10 @@
       "@id": "https://bluebrain.github.io/nexus/vocabulary/createdBy",
       "@type": "@id"
     },
+    "_storageId": {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/storageId",
+      "@type": "@id"
+    },
     "_constrainedBy": {
       "@id": "https://bluebrain.github.io/nexus/vocabulary/constrainedBy",
       "@type": "@id"

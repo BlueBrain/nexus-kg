@@ -6,6 +6,7 @@ import cats.Applicative
 import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -70,7 +71,7 @@ object State {
       types: Set[AbsoluteIri],
       deprecated: Boolean,
       tags: Map[String, Long],
-      file: Option[FileAttributes],
+      file: Option[(Storage, FileAttributes)],
       created: Instant,
       updated: Instant,
       createdBy: Subject,

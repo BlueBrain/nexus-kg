@@ -10,6 +10,9 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FileStorage, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.{Encoder, Json}
@@ -128,12 +131,14 @@ object Event {
     * A witness that a file resource has been created.
     *
     * @param id         the resource identifier
+    * @param storage    the storage used to save the file
     * @param attributes the metadata of the file
     * @param instant    the instant when this event was recorded
     * @param subject    the identity which generated this event
     */
   final case class FileCreated(
       id: Id[ProjectRef],
+      storage: Storage,
       attributes: FileAttributes,
       instant: Instant,
       subject: Subject
@@ -159,6 +164,7 @@ object Event {
     * A witness that a file resource has been updated.
     *
     * @param id         the resource identifier
+    * @param storage    the storage used to save the file
     * @param rev        the revision that this event generated
     * @param attributes the metadata of the file
     * @param instant    the instant when this event was recorded
@@ -166,6 +172,7 @@ object Event {
     */
   final case class FileUpdated(
       id: Id[ProjectRef],
+      storage: Storage,
       rev: Long,
       attributes: FileAttributes,
       instant: Instant,
@@ -186,6 +193,7 @@ object Event {
       .withDiscriminator("@type")
       .copy(transformMemberNames = {
         case "id"         => "_resourceId"
+        case "storage"    => "_storage"
         case "rev"        => "_rev"
         case "instant"    => "_instant"
         case "subject"    => "_subject"
@@ -216,6 +224,22 @@ object Event {
 
     private implicit def subjectIdEncoder(implicit ic: IamClientConfig): Encoder[Subject] =
       Encoder.encodeJson.contramap(_.id.asJson)
+
+    private implicit def storageEncoder: Encoder[Storage] = Encoder.instance {
+      case storage: FileStorage =>
+        Json.obj(
+          nxv.storageId.prefix -> storage.id.asJson,
+          "@type"              -> nxv.FileStorage.prefix.asJson,
+          nxv.volume.prefix    -> storage.volume.asJson,
+          nxv.default.prefix   -> storage.default.asJson
+        )
+      case storage: S3Storage =>
+        Json.obj(
+          nxv.storageId.prefix -> storage.id.asJson,
+          "@type"              -> nxv.FileStorage.prefix.asJson,
+          nxv.default.prefix   -> storage.default.asJson
+        )
+    }
 
     implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] =
       Encoder.encodeJson.contramap[Event] { ev =>
