@@ -1,7 +1,6 @@
 {
   "@id": "http://example.com/id",
   "@type": "DiskStorage",
-  "algorithm": "SHA-256",
   "volume": "/tmp",
   "default": false
 }

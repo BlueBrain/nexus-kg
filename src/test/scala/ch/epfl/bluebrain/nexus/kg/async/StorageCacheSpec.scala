@@ -37,40 +37,30 @@ class StorageCacheSpec
   val ref1 = ProjectRef(genUUID)
   val ref2 = ProjectRef(genUUID)
 
-  val initialInstant = clock.instant()
-  val lastIdA        = url"http://example.com/lastA".value
+  val time   = clock.instant()
+  val lastId = url"http://example.com/lastA".value
+  // initialInstant.minusSeconds(1L + genInt().toLong)
 
-  val storage = DiskStorage(ref1,
-                            genIri,
-                            1L,
-                            initialInstant.minusSeconds(1L + genInt().toLong),
-                            false,
-                            true,
-                            "alg",
-                            Paths.get("/tmp"))
+  val tempStorage = DiskStorage(ref1, genIri, 1L, false, true, "alg", Paths.get("/tmp"))
 
-  val lastStorageProj1 = storage.copy(id = lastIdA, instant = initialInstant)
-  val lastStorageProj2 = storage.copy(ref = ref2, id = lastIdA, instant = initialInstant)
+  val lastStorageProj1 = tempStorage.copy(id = lastId)
+  val lastStorageProj2 = tempStorage.copy(ref = ref2, id = lastId)
 
-  val storagesProj1: List[DiskStorage] =
-    lastStorageProj1 :: List.fill(5)(
-      storage
-        .copy(id = genIri, instant = initialInstant.minusSeconds(1L + genInt().toLong)))
-  val storagesProj2: List[DiskStorage] =
-    lastStorageProj2 :: List.fill(5)(
-      storage
-        .copy(ref = ref2, id = genIri, instant = initialInstant.minusSeconds(1L + genInt().toLong)))
+  val storagesProj1: List[DiskStorage] = List.fill(5)(tempStorage.copy(id = genIri)) :+ lastStorageProj1
+  val storagesProj2: List[DiskStorage] = List.fill(5)(tempStorage.copy(ref = ref2, id = genIri)) :+ lastStorageProj2
 
   private val cache = StorageCache[Task]
 
   "StorageCache" should {
 
     "index storages" in {
-      forAll(storagesProj1 ++ storagesProj2) { storage =>
-        cache.put(storage).runToFuture.futureValue
-        eventually {
-          cache.get(storage.ref, storage.id).runToFuture.futureValue shouldEqual Some(storage)
-        }
+      forAll((storagesProj1 ++ storagesProj2).zipWithIndex) {
+        case (storage, index) =>
+          implicit val instant = time.plusSeconds(index.toLong)
+          cache.put(storage).runToFuture.futureValue
+          eventually {
+            cache.get(storage.ref, storage.id).runToFuture.futureValue shouldEqual Some(storage)
+          }
       }
     }
 
@@ -86,7 +76,8 @@ class StorageCacheSpec
     }
 
     "deprecate storage" in {
-      val storage = storagesProj1.head
+      val storage          = storagesProj1.head
+      implicit val instant = time.plusSeconds(30L)
       cache.put(storage.copy(deprecated = true, rev = 2L)).runToFuture.futureValue
       cache.get(storage.ref, storage.id).runToFuture.futureValue shouldEqual None
       cache.get(ref1).runToFuture.futureValue should contain theSameElementsAs storagesProj1.filterNot(_ == storage)

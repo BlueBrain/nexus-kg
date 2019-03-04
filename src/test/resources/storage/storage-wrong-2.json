@@ -3,6 +3,5 @@
   "@type": [
     "S3Storage"
   ],
-  "algorithm": "MD-5",
   "default": true
 }

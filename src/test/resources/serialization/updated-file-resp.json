@@ -7,7 +7,6 @@
     "id" : "https://bluebrain.github.io/nexus/vocabulary/diskStorageDefault",
     "ref" : "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
     "rev" : 2,
-    "instant" : "1970-01-01T00:00:00Z",
     "deprecated" : false,
     "default" : true,
     "algorithm" : "SHA-256",

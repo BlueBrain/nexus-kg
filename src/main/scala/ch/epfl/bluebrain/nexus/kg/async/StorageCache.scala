@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import java.time.Clock
+import java.time.{Clock, Instant}
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -22,17 +22,21 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 class StorageCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedStorages])(implicit F: Monad[F], clock: Clock)
     extends Cache[F, UUID, RevisionedStorages](store) {
 
-  private implicit val ordering: Ordering[Storage] = Ordering.by((s: Storage) => s.instant).reverse
+  private implicit val ordering: Ordering[RevisionedStorage] = Ordering.by((s: RevisionedStorage) => s.rev).reverse
 
-  private implicit def toRevisioned(storages: List[Storage]): RevisionedStorages =
-    RevisionedValue(clock.instant().toEpochMilli, storages)
+  private implicit def toRevisioned(storages: List[RevisionedStorage])(implicit instant: Instant): RevisionedStorages =
+    RevisionedValue(instant.toEpochMilli, storages)
+
+  private def revisioned(storage: Storage)(implicit instant: Instant): RevisionedStorage =
+    RevisionedValue(instant.toEpochMilli, storage)
 
   /**
     * Fetches the storages for the provided project.
     *
     * @param ref the project unique reference
     */
-  def get(ref: ProjectRef): F[List[Storage]] = get(ref.id).map(_.map(_.value.sorted).getOrElse(List.empty))
+  def get(ref: ProjectRef): F[List[Storage]] =
+    get(ref.id).map(_.map(_.value.sorted.map(_.value)).getOrElse(List.empty))
 
   /**
     * Fetches the default storage from the provided project
@@ -49,8 +53,8 @@ class StorageCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedStorag
     * @param id  the storage unique id in the provided project
     */
   def get(ref: ProjectRef, id: AbsoluteIri): F[Option[Storage]] =
-    get(ref.id).map(_.collectFirstSome { s =>
-      s.value.find(_.id == id)
+    get(ref.id).map(_.collectFirstSome {
+      _.value.collectFirst { case RevisionedValue(_, storage) if storage.id == id => storage }
     })
 
   /**
@@ -58,25 +62,26 @@ class StorageCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedStorag
     *
     * @param storage the storage value
     */
-  def put(storage: Storage): F[Unit] =
+  def put(storage: Storage)(implicit instant: Instant = clock.instant()): F[Unit] =
     if (storage.deprecated) remove(storage)
     else add(storage)
 
-  private def add(storage: Storage): F[Unit] =
+  private def add(storage: Storage)(implicit instant: Instant): F[Unit] =
     store.get(storage.ref.id) flatMap {
       case Some(RevisionedValue(_, list)) =>
-        store.put(storage.ref.id, storage :: list.filterNot(_.id == storage.id))
-      case None => store.put(storage.ref.id, List(storage))
+        store.put(storage.ref.id, revisioned(storage) :: list.filterNot(_.value.id == storage.id))
+      case None => store.put(storage.ref.id, List(revisioned(storage)))
     }
 
-  private def remove(storage: Storage): F[Unit] =
-    store.computeIfPresent(storage.ref.id, _.value.filterNot(_.id == storage.id)) *> F.unit
+  private def remove(storage: Storage)(implicit instant: Instant): F[Unit] =
+    store.computeIfPresent(storage.ref.id, _.value.filterNot(_.value.id == storage.id)) *> F.unit
 
 }
 
 object StorageCache {
 
-  type RevisionedStorages = RevisionedValue[List[Storage]]
+  type RevisionedStorages = RevisionedValue[List[RevisionedStorage]]
+  type RevisionedStorage  = RevisionedValue[Storage]
 
   /**
     * Creates a new storage index.
