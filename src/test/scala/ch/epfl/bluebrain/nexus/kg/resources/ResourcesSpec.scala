@@ -131,6 +131,17 @@ class ResourcesSpec
     val types = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView, nxv.Alpha)
   }
 
+  trait StorageResource extends Base {
+    def storageFrom(json: Json) =
+      json.addContext(storageCtxUri) deepMerge Json.obj("@id" -> Json.fromString(id.show))
+
+    val schema      = Latest(storageSchemaUri)
+    val diskStorage = storageFrom(jsonContentOf("/storage/disk.json"))
+    val types       = Set[AbsoluteIri](nxv.Storage, nxv.DiskStorage)
+    val s3Storage   = storageFrom(jsonContentOf("/storage/s3.json"))
+    val typesUpdate = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage, nxv.Alpha)
+  }
+
   trait ResolverSchema extends Base {
     val schema   = Latest(shaclSchemaUri)
     val resolver = jsonContentOf("/schemas/resolver.json") deepMerge Json.obj("@id" -> Json.fromString(id.show))
@@ -210,6 +221,20 @@ class ResourcesSpec
         val result           = resources.create(projectRef, base, schema, view).value.accepted
         result.copy(value = result.value.removeKeys("_uuid")) shouldEqual
           expected.copy(value = result.value.removeKeys("_uuid"))
+      }
+
+      "create a new resource validated against the storage schema without passing the id on the call (but provided on the Json)" in new StorageResource {
+        resources.create(projectRef, base, schema, diskStorage).value.accepted shouldEqual
+          ResourceF.simpleF(resId, diskStorage, schema = schema, types = types)
+      }
+
+      "prevent to create a resource that does not validate against the storage schema" in new StorageResource {
+        val invalid = List.range(1, 2).map(i => jsonContentOf(s"/storage/storage-wrong-$i.json"))
+        forAll(invalid) { j =>
+          val json   = storageFrom(j)
+          val report = resources.create(projectRef, base, schema, json).value.rejected[InvalidResource]
+          report shouldBe a[InvalidResource]
+        }
       }
 
       "prevent to create a resource that does not validate against the view schema" in new ViewResource {
@@ -347,6 +372,12 @@ class ResourcesSpec
       "prevent to update a resource (resolver) that does not exists" in new ResolverResource {
         resources.update(resId, 1L, Some(schema), resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(
           resId.ref)
+      }
+
+      "update a resource (storage) when the provided schema matches the created schema" in new StorageResource {
+        resources.create(projectRef, base, schema, diskStorage).value.accepted shouldBe a[Resource]
+        resources.update(resId, 1L, Some(schema), s3Storage).value.accepted shouldEqual
+          ResourceF.simpleF(resId, s3Storage, 2L, schema = schema, types = typesUpdate)
       }
     }
 

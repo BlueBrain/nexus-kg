@@ -30,6 +30,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessCo
       case SchemaId(`resolverSchemaUri`) => new ResolverRoutes(resources, acls, caller).routes
       case SchemaId(`fileSchemaUri`)     => new FileRoutes(resources, acls, caller).routes
       case SchemaId(`viewSchemaUri`)     => new ViewRoutes(resources, acls, caller).routes
+      case SchemaId(`storageSchemaUri`)  => new StorageRoutes(resources, acls, caller).routes
       case SchemaId(schema) =>
         create(schema.ref) ~ list(Some(schema.ref)) ~
           pathPrefix(IdSegment) { id =>
