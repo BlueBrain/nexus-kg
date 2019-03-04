@@ -13,8 +13,8 @@
         "S3Storage",
         "Storage"
       ],
-      "algorithm" : "MD-5",
       "default" : true,
+      "_algorithm" : "MD-5",
       "_deprecated" : false,
       "_rev" : 1
     }

@@ -24,7 +24,8 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
       appConfig.persistence shouldEqual PersistenceConfig("cassandra-journal",
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
-      appConfig.files shouldEqual FileConfig(Paths.get("/tmp/"), "SHA-256")
+      appConfig.storage shouldEqual StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256"),
+                                                  S3StorageConfig("MD-5"))
       appConfig.iam shouldEqual IamConfig(url"http://localhost:8080/v1".value,
                                           url"http://localhost:8080/v1".value,
                                           None,

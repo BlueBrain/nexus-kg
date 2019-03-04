@@ -6,7 +6,7 @@ import cats.effect.Timer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, StorageCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, IndexingConfigs, PersistenceConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, IndexingConfigs, PersistenceConfig, StorageConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
@@ -19,7 +19,8 @@ import monix.execution.Scheduler
 
 private class StorageIndexerMapping[F[_]: Timer](resources: Resources[F])(implicit projectCache: ProjectCache[F],
                                                                           F: MonadError[F, Throwable],
-                                                                          indexing: IndexingConfig) {
+                                                                          indexing: IndexingConfig,
+                                                                          stConfig: StorageConfig) {
 
   private implicit val retry: Retry[F, Throwable] = Retry(indexing.retry.retryStrategy)
   private implicit val log                        = Logger[this.type]
@@ -66,7 +67,8 @@ object StorageIndexer {
       as: ActorSystem,
       s: Scheduler,
       persistence: PersistenceConfig,
-      indexingCollection: IndexingConfigs): ActorRef = {
+      indexingCollection: IndexingConfigs,
+      storageConfig: StorageConfig): ActorRef = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 

@@ -1,11 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
 import java.nio.file.{Path, Paths}
-import java.time.Instant
 
 import akka.actor.ActorSystem
 import cats.effect.Effect
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.FileConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
@@ -37,17 +36,12 @@ sealed trait Storage { self =>
   def rev: Long
 
   /**
-    * @return the instant when this store was updated
-    */
-  def instant: Instant
-
-  /**
     * @return the deprecation state of the store
     */
   def deprecated: Boolean
 
   /**
-    * @return ''true'' if this store is the project's default backend
+    * @return ''true'' if this store is the project's default backend, ''false'' otherwise
     */
   def default: Boolean
 
@@ -76,37 +70,57 @@ sealed trait Storage { self =>
 }
 
 object Storage {
+
+  /**
+    * A disk storage
+    *
+    * @param ref        a reference to the project that the store belongs to
+    * @param id         the user facing store id
+    * @param rev        the store revision
+    * @param deprecated the deprecation state of the store
+    * @param default    ''true'' if this store is the project's default backend, ''false'' otherwise
+    * @param algorithm  the digest algorithm, e.g. "SHA-256"
+    * @param volume     the volume this storage is going to use to save files
+    */
   final case class DiskStorage(ref: ProjectRef,
                                id: AbsoluteIri,
                                rev: Long,
-                               instant: Instant,
                                deprecated: Boolean,
                                default: Boolean,
                                algorithm: String,
                                volume: Path)
       extends Storage
+
   object DiskStorage {
 
     /**
-      * Default [[FileConfig]] that gets created for every project.
+      * Default [[DiskStorage]] that gets created for every project.
       *
       * @param ref the project unique identifier
       */
-    def default(ref: ProjectRef)(implicit config: FileConfig): DiskStorage =
+    def default(ref: ProjectRef)(implicit config: StorageConfig): DiskStorage =
       DiskStorage(ref,
                   nxv.defaultStorage,
                   1L,
-                  Instant.EPOCH,
                   deprecated = false,
                   default = true,
-                  config.digestAlgorithm,
-                  config.volume.resolve(ref.id.toString))
+                  config.disk.digestAlgorithm,
+                  config.disk.volume.resolve(ref.id.toString))
   }
 
+  /**
+    * Amazon Cloud Storage Service
+    *
+    * @param ref        a reference to the project that the store belongs to
+    * @param id         the user facing store id
+    * @param rev        the store revision
+    * @param deprecated the deprecation state of the store
+    * @param default    ''true'' if this store is the project's default backend, ''false'' otherwise
+    * @param algorithm  the digest algorithm, e.g. "SHA-256"
+    */
   final case class S3Storage(ref: ProjectRef,
                              id: AbsoluteIri,
                              rev: Long,
-                             instant: Instant,
                              deprecated: Boolean,
                              default: Boolean,
                              algorithm: String)
@@ -118,21 +132,20 @@ object Storage {
     * @param res a materialized resource
     * @return Right(storage) if the resource is compatible with a Storage, Left(rejection) otherwise
     */
-  final def apply(res: ResourceV): Either[Rejection, Storage] = {
+  final def apply(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, Storage] = {
     val c = res.value.graph.cursor()
 
     def diskStorage(): Either[Rejection, Storage] =
       for {
-        default   <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
-        algorithm <- c.downField(nxv.algorithm).focus.as[String].toRejectionOnLeft(res.id.ref)
-        volume    <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
-      } yield DiskStorage(res.id.parent, res.id.value, res.rev, res.updated, res.deprecated, default, algorithm, volume)
+        default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+        volume  <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
+      } yield
+        DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume)
 
     def s3Storage(): Either[Rejection, Storage] =
-      for {
-        default   <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
-        algorithm <- c.downField(nxv.algorithm).focus.as[String].toRejectionOnLeft(res.id.ref)
-      } yield S3Storage(res.id.parent, res.id.value, res.rev, res.updated, res.deprecated, default, algorithm)
+      c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref).map { default =>
+        S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm)
+      }
 
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage()
     else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage()

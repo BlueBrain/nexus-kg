@@ -290,6 +290,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
   private def addSchemaTypes(schemaRef: Ref): Option[AbsoluteIri] =
     schemaRef match {
       case `viewRef`     => Some(nxv.View.value)
+      case `storageRef`  => Some(nxv.Storage.value)
       case `resolverRef` => Some(nxv.Resolver.value)
       case `shaclRef`    => Some(nxv.Schema.value)
       case _             => None

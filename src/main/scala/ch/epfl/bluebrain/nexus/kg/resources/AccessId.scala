@@ -47,6 +47,7 @@ object AccessId {
       case `viewSchemaUri`          => prefix("views") + shortResourceId
       case `resolverSchemaUri`      => prefix("resolvers") + shortResourceId
       case `shaclSchemaUri`         => prefix("schemas") + shortResourceId
+      case `storageSchemaUri`       => prefix("storages") + shortResourceId
       case `unconstrainedSchemaUri` => prefix("resources") + "_" + shortResourceId
       case _                        => prefix("resources") + aliasOrCurieFor(schemaId) + shortResourceId
     }

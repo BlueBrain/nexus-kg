@@ -45,14 +45,6 @@
           "maxCount": 1
         },
         {
-          "path": "nxv:algorithm",
-          "name": "algorithm",
-          "description": "The algorithm that is going to be used to calculate the file digest",
-          "datatype": "xsd:string",
-          "minCount": 1,
-          "maxCount": 1
-        },
-        {
           "path": "nxv:volume",
           "name": "volume",
           "description": "The volume on the local file system where the files are going to be stored",
@@ -90,14 +82,6 @@
           "name": "default",
           "description": "Flag to determine whether or not the storage is a default storage",
           "datatype": "xsd:boolean",
-          "minCount": 1,
-          "maxCount": 1
-        },
-        {
-          "path": "nxv:algorithm",
-          "name": "algorithm",
-          "description": "The algorithm that is going to be used to calculate the file digest",
-          "datatype": "xsd:string",
           "minCount": 1,
           "maxCount": 1
         }

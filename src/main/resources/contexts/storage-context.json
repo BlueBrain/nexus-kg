@@ -7,7 +7,7 @@
     "S3Storage": "nxv:S3Storage",
     "default": "nxv:default",
     "volume": "nxv:volume",
-    "algorithm": "nxv:algorithm"
+    "_algorithm": "nxv:algorithm"
   },
   "@id": "https://bluebrain.github.io/nexus/contexts/storage.json"
 }

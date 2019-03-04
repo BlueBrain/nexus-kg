@@ -12,11 +12,11 @@
         "Storage",
         "DiskStorage"
       ],
-      "algorithm" : "SHA-256",
       "default" : false,
+      "volume" : "/tmp",
+      "_algorithm" : "SHA-256",
       "_deprecated" : false,
-      "_rev" : 1,
-      "volume" : "/tmp"
+      "_rev" : 1
     }
   ]
 }

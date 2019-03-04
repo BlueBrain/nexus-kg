@@ -30,7 +30,7 @@ import scala.concurrent.duration.FiniteDuration
   * @param http          http interface configuration
   * @param cluster       akka cluster configuration
   * @param persistence   persistence configuration
-  * @param files         files configuration
+  * @param storage       storages configuration
   * @param admin         admin client configuration
   * @param iam           IAM client configuration
   * @param sparql        Sparql endpoint configuration
@@ -45,7 +45,7 @@ final case class AppConfig(
     http: HttpConfig,
     cluster: ClusterConfig,
     persistence: PersistenceConfig,
-    files: FileConfig,
+    storage: StorageConfig,
     admin: AdminClientConfig,
     iam: IamConfig,
     sparql: SparqlConfig,
@@ -118,12 +118,27 @@ object AppConfig {
   final case class PersistenceConfig(journalPlugin: String, snapshotStorePlugin: String, queryJournalPlugin: String)
 
   /**
-    * File configuration
+    * Storage configuration for the allowed storages
+    *
+    * @param disk   the disk storage configuration
+    * @param amazon the amazon S3 storage configuration
+    */
+  final case class StorageConfig(disk: DiskStorageConfig, amazon: S3StorageConfig)
+
+  /**
+    * Amazon S3 storage configuration
+    *
+    * @param digestAlgorithm algorithm for checksum calculation
+    */
+  final case class S3StorageConfig(digestAlgorithm: String)
+
+  /**
+    * Disk storage configuration
     *
     * @param volume          the base [[Path]] where the files are stored
     * @param digestAlgorithm algorithm for checksum calculation
     */
-  final case class FileConfig(volume: Path, digestAlgorithm: String)
+  final case class DiskStorageConfig(volume: Path, digestAlgorithm: String)
 
   /**
     * IAM config
@@ -252,6 +267,6 @@ object AppConfig {
   implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfigs          = appConfig.indexing
   implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig    = appConfig.sourcing
   implicit def toStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig  = appConfig.keyValueStore
-  implicit def toFileConfig(implicit appConfig: AppConfig): FileConfig             = appConfig.files
+  implicit def toStorageConfig(implicit appConfig: AppConfig): StorageConfig       = appConfig.storage
 
 }

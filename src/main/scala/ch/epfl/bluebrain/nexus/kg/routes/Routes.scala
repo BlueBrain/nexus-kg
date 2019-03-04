@@ -164,19 +164,20 @@ object Routes {
     wrap(extractToken { implicit optToken =>
       (extractCallerAcls & extractCaller) { (acl, c) =>
         concat(
-          pathPrefix(config.http.prefix / Segment) {
-            resourceSegment =>
-              project.apply { implicit project =>
+          pathPrefix(config.http.prefix / Segment) { resourceSegment =>
+            project.apply {
+              implicit project =>
                 resourceSegment match {
                   case "resolvers" => new ResolverRoutes(resources, acl, c).routes
                   case "views"     => new ViewRoutes(resources, acl, c).routes
                   case "schemas"   => new SchemaRoutes(resources, acl, c).routes
                   case "files"     => new FileRoutes(resources, acl, c).routes
+                  case "storages"  => new StorageRoutes(resources, acl, c).routes
                   case "resources" => new ResourceRoutes(resources, acl, c).routes
                   case "events"    => new EventRoutes(acl, c).routes
                   case _           => reject()
                 }
-              }
+            }
           },
           (pathPrefix(config.http.prefix / "events") & pathEndOrSingleSlash) { new GlobalEventRoutes(acl, c).routes }
         )

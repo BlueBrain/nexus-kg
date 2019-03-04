@@ -130,6 +130,7 @@ class ResourceRoutesSpec
   private val manageRes      = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
   private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("resolvers/write"))
   private val manageSchemas  = Set(Permission.unsafe("resources/read"), Permission.unsafe("schemas/write"))
+  private val manageStorages = Set(Permission.unsafe("storages/read"), Permission.unsafe("storages/write"))
   private val manageFiles    = Set(Permission.unsafe("resources/read"), Permission.unsafe("files/write"))
   private val manageViews =
     Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"), Permission.unsafe("views/write"))
@@ -323,6 +324,20 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid"))
   }
 
+  abstract class Storage(perms: Set[Permission] = manageStorages) extends Context(perms) {
+    val storage = jsonContentOf("/storage/disk.json") deepMerge Json
+      .obj("@id" -> Json.fromString(id.value.show))
+    val schemaRef = Ref(storageSchemaUri)
+
+    val types = Set[AbsoluteIri](nxv.Storage, nxv.DiskStorage)
+
+    def storageResponse(deprecated: Boolean = false): Json =
+      response(deprecated) deepMerge Json.obj(
+        "@type" -> Json.arr(Json.fromString("DiskStorage"), Json.fromString("Storage")),
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid")
+      )
+  }
+
   abstract class Resolver extends Context(manageResolver) {
     val resolver = jsonContentOf("/resolve/cross-project.json") deepMerge Json
       .obj("@id" -> Json.fromString(id.value.show))
@@ -382,6 +397,30 @@ class ResourceRoutesSpec
         Post(s"/v1/resources/$organization/$project/resolver", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+        }
+      }
+    }
+
+    "performing operations on storages" should {
+
+      "create a storage without @id" in new Storage {
+        private val expected = ResourceF
+          .simpleF(id, storage, created = subject, updated = subject, schema = schemaRef, types = types)
+        when(
+          resources.create(
+            mEq(projectRef),
+            mEq(projectMeta.base),
+            mEq(schemaRef),
+            mEq(storage.addContext(storageCtxUri)))(mEq(subject), projectMatcher, isA[AdditionalValidation[Task]]))
+          .thenReturn(EitherT.rightT[Task, Rejection](expected))
+
+        val endpoints = List(s"/v1/storages/$organization/$project", s"/v1/resources/$organization/$project/storage")
+
+        forAll(endpoints) { endpoint =>
+          Post(endpoint, storage) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.Created
+            responseAs[Json] should equalIgnoreArrayOrder(storageResponse())
+          }
         }
       }
     }
