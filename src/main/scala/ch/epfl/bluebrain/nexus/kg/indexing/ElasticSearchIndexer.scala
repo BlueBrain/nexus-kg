@@ -24,8 +24,10 @@ import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, SequentialTagIndexer}
 import io.circe.Json
 import journal.Logger
+import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler
+import monix.execution.atomic.AtomicLong
 
 private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView, resources: Resources[F])(
     implicit config: AppConfig,
@@ -67,7 +69,6 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
           BulkOp.Index(view.index, config.elasticSearch.docType, res.id.value.asString, value.removeKeys("@context")))
     }
   }
-
 }
 
 object ElasticSearchIndexer {
@@ -98,6 +99,24 @@ object ElasticSearchIndexer {
         _ <- if (view.rev > 1) client.deleteIndex(view.copy(rev = view.rev - 1).index) else Task.pure(true)
       } yield ()
 
+    val processedEventsGauge = Kamon
+      .gauge("kg_indexer_gauge")
+      .refine(
+        "type"         -> "elasticsearch",
+        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "organization" -> project.organizationLabel,
+        "viewId"       -> view.id.show
+      )
+    val processedEventsCounter = Kamon
+      .counter("kg_indexer_counter")
+      .refine(
+        "type"         -> "elasticsearch",
+        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "organization" -> project.organizationLabel,
+        "viewId"       -> view.id.show
+      )
+    val processedEventsCount = AtomicLong(0L)
+
     SequentialTagIndexer.start(
       IndexerConfig
         .builder[Task]
@@ -110,6 +129,18 @@ object ElasticSearchIndexer {
         .init(init)
         .mapping(mapper.apply)
         .index(inserts => client.bulk(inserts.removeDupIds))
+        .mapInitialProgress { p =>
+          processedEventsCount.set(p.processedCount)
+          processedEventsGauge.set(p.processedCount)
+          Task.unit
+        }
+        .mapProgress { p =>
+          val previousCount = processedEventsCount.get()
+          processedEventsGauge.set(p.processedCount)
+          processedEventsCounter.increment(p.processedCount - previousCount)
+          processedEventsCount.set(p.processedCount)
+          Task.unit
+        }
         .build)
   }
   // $COVERAGE-ON$

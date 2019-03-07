@@ -101,13 +101,14 @@ class ResourceRoutesSpec
   private val adminUri           = appConfig.admin.publicIri.asUri
   private implicit val clock     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
-  private implicit val adminClient   = mock[AdminClient[Task]]
-  private implicit val iamClient     = mock[IamClient[Task]]
-  private implicit val projectCache  = mock[ProjectCache[Task]]
-  private implicit val viewCache     = mock[ViewCache[Task]]
-  private implicit val resolverCache = mock[ResolverCache[Task]]
-  private implicit val storageCache  = mock[StorageCache[Task]]
-  private implicit val resources     = mock[Resources[Task]]
+  private implicit val adminClient      = mock[AdminClient[Task]]
+  private implicit val iamClient        = mock[IamClient[Task]]
+  private implicit val projectCache     = mock[ProjectCache[Task]]
+  private implicit val viewCache        = mock[ViewCache[Task]]
+  private implicit val resolverCache    = mock[ResolverCache[Task]]
+  private implicit val storageCache     = mock[StorageCache[Task]]
+  private implicit val resources        = mock[Resources[Task]]
+  private implicit val projectViewCoord = mock[ProjectViewCoordinator[Task]]
 
   private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
 
@@ -134,7 +135,7 @@ class ResourceRoutesSpec
   private val manageFiles    = Set(Permission.unsafe("resources/read"), Permission.unsafe("files/write"))
   private val manageViews =
     Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"), Permission.unsafe("views/write"))
-  private val routes = Routes(resources)
+  private val routes = Routes(resources, projectViewCoord)
 
   //noinspection NameBooleanParameters
   abstract class Context(perms: Set[Permission]) {

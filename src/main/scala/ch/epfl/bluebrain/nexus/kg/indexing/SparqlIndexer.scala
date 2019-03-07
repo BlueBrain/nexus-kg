@@ -22,8 +22,10 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerO
 import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, SequentialTagIndexer}
 import io.circe.Json
 import journal.Logger
+import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler
+import monix.execution.atomic.AtomicLong
 import org.apache.jena.query.ResultSet
 
 import scala.collection.JavaConverters._
@@ -94,6 +96,24 @@ object SparqlIndexer {
         else Task.pure(true)
       } yield ()
 
+    val processedEventsGauge = Kamon
+      .gauge("kg_indexer_gauge")
+      .refine(
+        "type"         -> "sparql",
+        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "organization" -> project.organizationLabel,
+        "viewId"       -> view.id.show
+      )
+    val processedEventsCounter = Kamon
+      .counter("kg_indexer_counter")
+      .refine(
+        "type"         -> "sparql",
+        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "organization" -> project.organizationLabel,
+        "viewId"       -> view.id.show
+      )
+    val processedEventsCount = AtomicLong(0L)
+
     SequentialTagIndexer.start(
       IndexerConfig
         .builder[Task]
@@ -106,6 +126,18 @@ object SparqlIndexer {
         .init(init)
         .mapping(mapper.apply)
         .index(inserts => client.bulk(inserts.removeDupIds: _*))
+        .mapInitialProgress { p =>
+          processedEventsCount.set(p.processedCount)
+          processedEventsGauge.set(p.processedCount)
+          Task.unit
+        }
+        .mapProgress { p =>
+          val previousCount = processedEventsCount.get()
+          processedEventsGauge.set(p.processedCount)
+          processedEventsCounter.increment(p.processedCount - previousCount)
+          processedEventsCount.set(p.processedCount)
+          Task.unit
+        }
         .build)
   }
   // $COVERAGE-ON$

@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientE
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg._
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ProjectViewCoordinator, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.async.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
@@ -21,10 +21,10 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
-import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
+import ch.epfl.bluebrain.nexus.kg.indexing.{View, ViewStatistics}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, NotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, NoStatsForAggregateView, NotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -33,7 +33,10 @@ import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
-class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
+class ViewRoutes private[routes] (resources: Resources[Task],
+                                  acls: AccessControlLists,
+                                  caller: Caller,
+                                  projectViewCoordinator: ProjectViewCoordinator[Task])(
     implicit project: Project,
     cache: Caches[Task],
     indexers: Clients[Task],
@@ -51,7 +54,7 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
 
   def routes: Route = {
     val viewRefOpt = Some(viewRef)
-    create(viewRef) ~ list(viewRefOpt) ~ sparql ~ elasticSearch ~
+    create(viewRef) ~ list(viewRefOpt) ~ sparql ~ elasticSearch ~ stats ~
       pathPrefix(IdSegment) { id =>
         concat(
           create(id, viewRef),
@@ -110,6 +113,18 @@ class ViewRoutes private[routes] (resources: Resources[Task], acls: AccessContro
           }
           trace("searchElasticSearch")(complete(result.runWithStatus(StatusCodes.OK)))
         }
+      }
+    }
+
+  private def stats: Route =
+    pathPrefix(IdSegment / "statistics") { id =>
+      (get & hasPermissions(read)) {
+        val result: Task[Either[Rejection, ViewStatistics]] = viewCache.getBy[View](project.ref, id).flatMap {
+          case Some(view: SingleView) => projectViewCoordinator.viewStatistics(project, view).map(Right(_))
+          case Some(_)                => Task.pure(Left(NoStatsForAggregateView))
+          case None                   => Task.pure(Left(NotFound(id.ref)))
+        }
+        complete(result.runWithStatus(StatusCodes.OK))
       }
     }
 

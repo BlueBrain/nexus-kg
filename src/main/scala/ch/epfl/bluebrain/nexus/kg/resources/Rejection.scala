@@ -115,6 +115,12 @@ object Rejection {
         s"Incorrect revision '$provided' provided, expected '$expected', the resource '${ref.show}' may have been updated since last seen.")
 
   /**
+    * Signal an attempt to fetch view statistics for AggregateView.
+    */
+  final case object NoStatsForAggregateView
+      extends Rejection("Statistics are not currently available for aggregate view")
+
+  /**
     * Signals a mismatch between a resource representation and its id.
     *
     * @param ref a reference to the resource
@@ -206,6 +212,7 @@ object Rejection {
     case _: InvalidResourceFormat    => StatusCodes.BadRequest
     case _: InvalidJsonLD            => StatusCodes.BadRequest
     case _: NotAFileResource         => StatusCodes.BadRequest
+    case NoStatsForAggregateView     => StatusCodes.BadRequest
     case _: UnexpectedState          => StatusCodes.InternalServerError
     case _: LabelsNotFound           => StatusCodes.NotFound
     case _: NotFound                 => StatusCodes.NotFound

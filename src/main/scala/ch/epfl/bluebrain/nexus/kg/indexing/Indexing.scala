@@ -195,10 +195,11 @@ object Indexing {
     * @param resources the resources operations
     * @param cache     the distributed cache
     */
-  def start(resources: Resources[Task], adminClient: AdminClient[Task])(implicit cache: Caches[Task],
-                                                                        config: AppConfig,
-                                                                        as: ActorSystem,
-                                                                        ucl: HttpClient[Task, ResultSet]): Unit = {
+  def start(resources: Resources[Task], adminClient: AdminClient[Task])(
+      implicit cache: Caches[Task],
+      config: AppConfig,
+      as: ActorSystem,
+      ucl: HttpClient[Task, ResultSet]): ProjectViewCoordinator[Task] = {
     implicit val mt: ActorMaterializer                          = ActorMaterializer()
     implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]
     implicit val elasticSearchClient: ElasticSearchClient[Task] = ElasticSearchClient[Task](config.elasticSearch.base)
@@ -211,6 +212,7 @@ object Indexing {
     indexing.startResolverStream()
     indexing.startViewStream()
     indexing.startStorageStream()
+    coordinator
   }
 
 }
