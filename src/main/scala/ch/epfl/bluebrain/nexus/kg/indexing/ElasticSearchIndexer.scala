@@ -88,7 +88,7 @@ object ElasticSearchIndexer {
       config: AppConfig): ActorRef = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
-    implicit val p        = project
+    implicit val p        = project.copy(apiMappings = Map.empty)
     implicit val indexing = config.indexing.elasticSearch
 
     val mapper = new ElasticSearchIndexerMapping(view, resources)

@@ -65,7 +65,7 @@ object DiskStorageOperations {
 
     private def getLocation(uuid: String): F[(Path, Path)] = {
       F.catchNonFatal {
-          val relative = Paths.get(s"${uuid.takeWhile(_ != '-').mkString("/")}/$uuid")
+          val relative = Paths.get(s"${storage.ref.id}/${uuid.takeWhile(_ != '-').mkString("/")}/$uuid")
           val filePath = storage.volume.resolve(relative)
           Files.createDirectories(filePath.getParent)
           (filePath, relative)
