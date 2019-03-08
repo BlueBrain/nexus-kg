@@ -36,7 +36,7 @@ import io.circe.Json
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{reset, when}
 import org.scalatest._
-import org.scalatest.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._

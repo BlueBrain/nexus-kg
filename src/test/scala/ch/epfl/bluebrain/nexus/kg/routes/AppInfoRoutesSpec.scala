@@ -18,7 +18,7 @@ import io.circe.generic.auto._
 import monix.eval.Task
 import org.mockito.Mockito
 import org.mockito.Mockito.when
-import org.scalatest.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}
 
 class AppInfoRoutesSpec

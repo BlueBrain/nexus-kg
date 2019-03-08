@@ -26,7 +26,7 @@ import io.circe.Json
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest._
-import org.scalatest.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.collection.immutable.ListSet
 import scala.concurrent.duration._

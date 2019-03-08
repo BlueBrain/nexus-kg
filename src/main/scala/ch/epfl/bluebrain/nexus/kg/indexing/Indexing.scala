@@ -70,7 +70,7 @@ private class Indexing(
         logger.error(s"Could not convert storage '${storage.id}' from Graph to json. Reason: '${err.message}'")
         Task.raiseError(InternalError("Could not decode default storage from graph to Json"))
       case Right(json) =>
-        val jsonNoMeta = json.removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
+        val jsonNoMeta = json.removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix, nxv.algorithm.prefix)
         Task.pure(jsonNoMeta.addContext(storageCtxUri).addContext(resourceCtxUri))
     }
 
