@@ -1,9 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
 import java.nio.file.{Files, Path, Paths}
+import java.util.UUID
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{FileIO, Keep}
+import akka.stream.scaladsl.{FileIO, Keep, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import cats.Monad
 import cats.effect.{Effect, IO}
@@ -18,6 +19,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
 object DiskStorageOperations {
+
+  private val logger = Logger[this.type]
 
   /**
     * [[VerifyStorage]] implementation for [[DiskStorage]]
@@ -36,12 +39,15 @@ object DiskStorageOperations {
   /**
     * [[FetchFile]] implementation for [[DiskStorage]]
     *
-    * @param storage the [[DiskStorage]]
     */
-  final class FetchDiskFile(storage: DiskStorage) extends FetchFile[AkkaSource] {
+  object FetchDiskFile extends FetchFile[AkkaSource] {
 
-    override def apply(fileMeta: FileAttributes): AkkaSource =
-      FileIO.fromPath(storage.volume.resolve(fileMeta.filePath))
+    override def apply(fileMeta: FileAttributes): AkkaSource = uriToPath(fileMeta.location) match {
+      case Some(path) => FileIO.fromPath(path)
+      case None =>
+        logger.error(s"Invalid file location: '${fileMeta.location}'")
+        Source.empty
+    }
   }
 
   /**
@@ -54,7 +60,6 @@ object DiskStorageOperations {
 
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val mt: Materializer     = ActorMaterializer()
-    private val logger: Logger                = Logger[this.type]
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
       getLocation(fileDesc.uuid).flatMap {
@@ -79,9 +84,9 @@ object DiskStorageOperations {
       }
     }
 
-    private def getLocation(uuid: String): F[(Path, Path)] = {
+    private def getLocation(uuid: UUID): F[(Path, Path)] = {
       F.catchNonFatal {
-          val relative = Paths.get(s"${storage.ref.id}/${uuid.takeWhile(_ != '-').mkString("/")}/$uuid")
+          val relative = Paths.get(mangle(storage.ref, uuid))
           val filePath = storage.volume.resolve(relative)
           Files.createDirectories(filePath.getParent)
           (filePath, relative)

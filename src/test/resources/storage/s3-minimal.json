@@ -6,8 +6,5 @@
   ],
   "algorithm": "MD-5",
   "default": true,
-  "bucket": "bucket",
-  "region": "region",
-  "accessKey": "access",
-  "secretKey": "secret"
+  "bucket": "bucket"
 }

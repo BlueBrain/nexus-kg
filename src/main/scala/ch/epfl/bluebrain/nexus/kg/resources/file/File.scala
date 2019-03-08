@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resources.file
 
 import java.util.UUID
 
+import akka.http.scaladsl.model.Uri
 import io.circe.Decoder
 import io.circe.generic.semiauto.deriveDecoder
 
@@ -14,38 +15,37 @@ object File {
     * @param filename  the original filename of the file
     * @param mediaType the media type of the file
     */
-  final case class FileDescription(uuid: String, filename: String, mediaType: String) {
+  final case class FileDescription(uuid: UUID, filename: String, mediaType: String) {
     def process(stored: StoredSummary): FileAttributes =
-      FileAttributes(uuid, stored.filePath, filename, mediaType, stored.bytes, stored.digest)
+      FileAttributes(uuid, stored.location, filename, mediaType, stored.bytes, stored.digest)
   }
 
   object FileDescription {
     def apply(filename: String, mediaType: String): FileDescription =
-      FileDescription(randomUUID, filename, mediaType)
+      FileDescription(UUID.randomUUID, filename, mediaType)
   }
 
   /**
     * Holds all the metadata information related to the file.
     *
     * @param uuid      the unique id that identifies this file.
-    * @param filePath  path where the file gets stored relative to the storage
+    * @param location  the absolute location where the file gets stored
     * @param filename  the original filename of the file
     * @param mediaType the media type of the file
     * @param bytes     the size of the file file in bytes
     * @param digest    the digest information of the file
     */
-  final case class FileAttributes(uuid: String,
-                                  filePath: String,
+  final case class FileAttributes(uuid: UUID,
+                                  location: Uri,
                                   filename: String,
                                   mediaType: String,
                                   bytes: Long,
                                   digest: Digest)
   object FileAttributes {
-    def apply(filePath: String, filename: String, mediaType: String, size: Long, digest: Digest): FileAttributes =
-      FileAttributes(randomUUID, filePath, filename, mediaType, size, digest)
-  }
 
-  private def randomUUID: String = UUID.randomUUID.toString.toLowerCase
+    def apply(location: Uri, filename: String, mediaType: String, size: Long, digest: Digest): FileAttributes =
+      FileAttributes(UUID.randomUUID, location, filename, mediaType, size, digest)
+  }
 
   /**
     * Digest related information of the file
@@ -58,11 +58,11 @@ object File {
   /**
     * The summary after the file has been stored
     *
-    * @param filePath the location where the file has been stored relative to the storage
+    * @param location the absolute location where the file has been stored
     * @param bytes    the size of the file in bytes
     * @param digest   the digest related information of the file
     */
-  final case class StoredSummary(filePath: String, bytes: Long, digest: Digest)
+  final case class StoredSummary(location: Uri, bytes: Long, digest: Digest)
 
   implicit val digestDecoder: Decoder[Digest] = deriveDecoder[Digest]
 }

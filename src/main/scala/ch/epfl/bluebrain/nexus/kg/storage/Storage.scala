@@ -3,6 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.storage
 import java.nio.file.{Path, Paths}
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.Uri
+import akka.stream.alpakka.s3
+import akka.stream.alpakka.s3.{ApiVersion, MemoryBufferType}
 import cats.Monad
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
@@ -19,6 +22,11 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import com.amazonaws.auth._
+import com.amazonaws.regions.{AwsRegionProvider, DefaultAwsRegionProviderChain}
+
+import scala.collection.JavaConverters._
+import scala.util.Try
 
 /**
   * Contract for different types of storage back-end.
@@ -137,16 +145,16 @@ object Storage {
   }
 
   /**
-    * Amazon Cloud Storage Service
+    * An Amazon S3 compatible storage
     *
-    * @param ref             a reference to the project that the store belongs to
-    * @param id              the user facing store id
-    * @param rev             the store revision
-    * @param deprecated      the deprecation state of the store
-    * @param default         ''true'' if this store is the project's default backend, ''false'' otherwise
-    * @param algorithm       the digest algorithm, e.g. "SHA-256"
-    * @param readPermission  the permission required in order to download a file from this storage
-    * @param writePermission the permission required in order to upload a file to this storage
+    * @param ref        a reference to the project that the store belongs to
+    * @param id         the user facing store id
+    * @param rev        the store revision
+    * @param deprecated the deprecation state of the store
+    * @param default    ''true'' if this store is the project's default backend, ''false'' otherwise
+    * @param algorithm  the digest algorithm, e.g. "SHA-256"
+    * @param bucket     the bucket
+    * @param settings   an instance of [[S3Settings]] with proper credentials to access the bucket
     */
   final case class S3Storage(ref: ProjectRef,
                              id: AbsoluteIri,
@@ -154,14 +162,62 @@ object Storage {
                              deprecated: Boolean,
                              default: Boolean,
                              algorithm: String,
-                             readPermission: Permission,
-                             writePermission: Permission)
+                             bucket: String,
+                             settings: S3Settings)
       extends Storage
 
-  private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
-    stringEncoder(node).flatMap { perm =>
-      Permission(perm).toRight(IllegalConversion(s"Invalid Permission '$perm'"))
+  /**
+    * S3 connection settings with reasonable defaults.
+    *
+    * @param credentials optional credentials
+    * @param region      optional region
+    */
+  final case class S3Settings(credentials: Option[S3Credentials], region: Option[String]) {
+
+    /**
+      * @return these settings converted to an instance of [[akka.stream.alpakka.s3.S3Settings]]
+      */
+    def toAlpakka: s3.S3Settings = {
+      val credsProvider = credentials match {
+        case Some(S3Credentials(accessKey, secretKey)) =>
+          new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey))
+        case None => new AWSStaticCredentialsProvider(new AnonymousAWSCredentials)
+      }
+
+      val regionProvider = region match {
+        case Some(reg) =>
+          new AwsRegionProvider {
+            val getRegion: String = reg
+          }
+        case None => new DefaultAwsRegionProviderChain()
+      }
+
+      val proxy = System
+        .getenv()
+        .asScala
+        .collectFirst {
+          case (k, v) if k.toLowerCase == "https_proxy" && v.nonEmpty => v
+        }
+        .flatMap(address => Try(Uri(address)).toOption)
+        .map(uri => s3.Proxy(uri.authority.host.address, uri.effectivePort, uri.scheme))
+
+      s3.S3Settings(MemoryBufferType,
+                    proxy,
+                    credsProvider,
+                    regionProvider,
+                    pathStyleAccess = true,
+                    None,
+                    ApiVersion.ListBucketVersion2)
+    }
   }
+
+  /**
+    * S3 credentials.
+    *
+    * @param accessKey the AWS access key ID
+    * @param secretKey the AWS secret key
+    */
+  final case class S3Credentials(accessKey: String, secretKey: String)
 
   /**
     * Attempts to transform the resource into a [[Storage]].
@@ -173,25 +229,34 @@ object Storage {
     val c = res.value.graph.cursor()
 
     def diskStorage(): Either[Rejection, Storage] =
-      // format: off
       for {
         default     <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
         volume      <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
         readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
         writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
       } yield
-        DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume, readPerms, writePerms)
-    // format: on
+        DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume)
 
     def s3Storage(): Either[Rejection, Storage] =
-      // format: off
       for {
-        default     <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+        default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+        bucket  <- c.downField(nxv.bucket).focus.as[String].toRejectionOnLeft(res.id.ref)
+        region = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
         readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.amazon.readPermission).toRejectionOnLeft(res.id.ref)
         writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.amazon.writePermission).toRejectionOnLeft(res.id.ref)
+        credentials = for {
+          ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
+          sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
+        } yield S3Credentials(ak, sk)
       } yield
-        S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, readPerms, writePerms)
-    // format: on
+        S3Storage(res.id.parent,
+                  res.id.value,
+                  res.rev,
+                  res.deprecated,
+                  default,
+                  config.amazon.digestAlgorithm,
+                  bucket,
+                  S3Settings(credentials, region))
 
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage()
     else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage()
@@ -256,10 +321,11 @@ object Storage {
     trait Fetch[Out] {
       def apply(storage: Storage): FetchFile[Out]
     }
+
     object Fetch {
       implicit final def apply: Fetch[AkkaSource] = {
-        case value: DiskStorage => new DiskStorageOperations.FetchDiskFile(value)
-        case _: S3Storage       => ??? //TODO
+        case _: DiskStorage => DiskStorageOperations.FetchDiskFile
+        case s: S3Storage   => new S3StorageOperations.Fetch(s)
       }
     }
 
@@ -275,8 +341,8 @@ object Storage {
 
     object Save {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Save[F, AkkaSource] = {
-        case value: DiskStorage => new DiskStorageOperations.SaveDiskFile(value)
-        case _: S3Storage       => ??? //TODO
+        case s: DiskStorage => new DiskStorageOperations.SaveDiskFile(s)
+        case s: S3Storage   => new S3StorageOperations.Save(s)
       }
     }
   }
