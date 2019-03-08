@@ -30,7 +30,7 @@ import io.circe.generic.auto._
 import monix.eval.Task
 import org.mockito.Mockito
 import org.mockito.Mockito._
-import org.scalatest.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfter, EitherValues, Matchers, WordSpecLike}
 
 //noinspection NameBooleanParameters

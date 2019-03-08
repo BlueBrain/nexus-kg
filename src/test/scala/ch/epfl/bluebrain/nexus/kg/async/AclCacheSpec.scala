@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.{Inspectors, Matchers}
 
 import scala.concurrent.duration._
