@@ -105,7 +105,7 @@ object Storage {
                   deprecated = false,
                   default = true,
                   config.disk.digestAlgorithm,
-                  config.disk.volume.resolve(ref.id.toString))
+                  config.disk.volume)
   }
 
   /**

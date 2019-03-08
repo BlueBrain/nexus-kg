@@ -10,7 +10,7 @@
     "deprecated" : false,
     "default" : true,
     "algorithm" : "SHA-256",
-    "volume" : "/tmp/4947db1e-33d8-462b-9754-3e8ae74fcd4e"
+    "volume" : "/tmp"
   },
   "attributes": {
     "uuid": "uuid",
