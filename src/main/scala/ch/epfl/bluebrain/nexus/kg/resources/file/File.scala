@@ -3,8 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources.file
 import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
-import io.circe.Decoder
-import io.circe.generic.semiauto.deriveDecoder
 
 object File {
 
@@ -64,5 +62,4 @@ object File {
     */
   final case class StoredSummary(location: Uri, bytes: Long, digest: Digest)
 
-  implicit val digestDecoder: Decoder[Digest] = deriveDecoder[Digest]
 }

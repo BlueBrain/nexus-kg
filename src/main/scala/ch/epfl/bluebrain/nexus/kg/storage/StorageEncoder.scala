@@ -37,7 +37,8 @@ object StorageEncoder {
       RootedGraph(rootNode, triples)
     case (rootNode, storage: S3Storage) =>
       val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.S3Storage),
-                                                        (storage.id, rdf.tpe, nxv.Alpha))
+                                                        (storage.id, rdf.tpe, nxv.Alpha),
+                                                        (storage.id, nxv.bucket, storage.bucket))
       RootedGraph(rootNode, triples)
   }
 

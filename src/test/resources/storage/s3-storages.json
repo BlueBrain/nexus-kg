@@ -17,13 +17,6 @@
       "readPermission": "s3-read",
       "writePermission": "s3-write",
       "bucket": "bucket",
-      "settings": {
-        "credentials": {
-          "access": "access",
-          "secret": "secret"
-        },
-        "region": "region"
-      },
       "_algorithm": "MD-5",
       "_deprecated": false,
       "_rev": 1

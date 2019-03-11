@@ -226,41 +226,43 @@ object Storage {
     * @return Right(storage) if the resource is compatible with a Storage, Left(rejection) otherwise
     */
   final def apply(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, Storage] = {
-    val c = res.value.graph.cursor()
-
-    def diskStorage(): Either[Rejection, Storage] =
-      for {
-        default     <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
-        volume      <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
-        readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
-        writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
-      } yield
-        DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume)
-
-    def s3Storage(): Either[Rejection, Storage] =
-      for {
-        default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
-        bucket  <- c.downField(nxv.bucket).focus.as[String].toRejectionOnLeft(res.id.ref)
-        region = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
-        readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.amazon.readPermission).toRejectionOnLeft(res.id.ref)
-        writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.amazon.writePermission).toRejectionOnLeft(res.id.ref)
-        credentials = for {
-          ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
-          sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
-        } yield S3Credentials(ak, sk)
-      } yield
-        S3Storage(res.id.parent,
-                  res.id.value,
-                  res.rev,
-                  res.deprecated,
-                  default,
-                  config.amazon.digestAlgorithm,
-                  bucket,
-                  S3Settings(credentials, region))
-
-    if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage()
-    else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage()
+    if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage(res)
+    else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res)
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the view types"))
+  }
+
+  private def diskStorage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, DiskStorage] = {
+    val c = res.value.graph.cursor()
+    for {
+      default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+      volume  <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
+      readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
+      writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
+    } yield
+      DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume)
+  }
+
+  private def s3Storage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, S3Storage] = {
+    val c = res.value.graph.cursor()
+    for {
+      default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+      bucket  <- c.downField(nxv.bucket).focus.as[String].toRejectionOnLeft(res.id.ref)
+      region = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
+      readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
+      writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
+      credentials = for {
+        ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
+        sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
+      } yield S3Credentials(ak, sk)
+    } yield
+      S3Storage(res.id.parent,
+                res.id.value,
+                res.rev,
+                res.deprecated,
+                default,
+                config.amazon.digestAlgorithm,
+                bucket,
+                S3Settings(credentials, region))
   }
 
   trait FetchFile[Out] {

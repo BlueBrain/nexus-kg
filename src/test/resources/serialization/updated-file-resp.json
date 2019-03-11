@@ -2,26 +2,33 @@
   "@type": "FileUpdated",
   "id": "https://bbp.epfl.ch/nexus/data/resourceName",
   "project": "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
-  "storage" : {
-    "@type" : "DiskStorage",
-    "id" : "https://bluebrain.github.io/nexus/vocabulary/diskStorageDefault",
-    "ref" : "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
-    "rev" : 2,
-    "deprecated" : false,
-    "default" : true,
-    "algorithm" : "SHA-256",
-    "volume" : "/tmp",
+  "storage": {
+    "@type": "S3Storage",
+    "id": "https://bbp.epfl.ch/nexus/storages/org/proj/s3",
+    "ref": "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
+    "rev": 2,
+    "deprecated": false,
+    "default": false,
+    "algorithm": "MD-5",
+    "bucket": "bucket",
     "readPermission" : "resources/read",
-    "writePermission" : "files/write"
+    "writePermission" : "files/write",
+    "settings": {
+      "credentials": {
+        "accessKey": "ak",
+        "secretKey": "sk"
+      },
+      "region": "region"
+    }
   },
   "attributes": {
-    "uuid": "uuid",
-    "filePath": "/test/path",
+    "uuid": "b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7",
+    "location": "s3://test/path",
     "filename": "test-file.json",
     "mediaType": "application/json",
     "bytes": 128,
     "digest": {
-      "algorithm": "md5",
+      "algorithm": "MD-5",
       "value": "1234"
     }
   },

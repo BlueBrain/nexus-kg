@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.nio.file.Path
 import java.time.Instant
 
 import akka.http.scaladsl.model.Uri
@@ -9,12 +8,14 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import io.circe.generic.extras.semiauto._
 import io.circe.generic.extras.Configuration
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
@@ -186,8 +187,6 @@ object Event {
   }
 
   object JsonLd {
-    import ch.epfl.bluebrain.nexus.rdf.instances._
-    import io.circe.generic.extras.semiauto._
 
     private implicit val config: Configuration = Configuration.default
       .withDiscriminator("@type")
@@ -210,11 +209,10 @@ object Event {
         case other        => other
       })
 
-    private implicit val refEncoder: Encoder[Ref] = Encoder.encodeJson.contramap(_.iri.asJson)
-
-    private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
-    private implicit val pathEncoder: Encoder[Path]     = Encoder.encodeString.contramap(_.toString)
+    private implicit val refEncoder: Encoder[Ref]       = Encoder.encodeJson.contramap(_.iri.asJson)
     private implicit val uriEncoder: Encoder[Uri]       = Encoder.encodeString.contramap(_.toString)
+    private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
+
     private implicit val fileAttributesEncoder: Encoder[FileAttributes] =
       deriveEncoder[FileAttributes]
         .mapJsonObject(_.remove("location").remove("uuid"))
