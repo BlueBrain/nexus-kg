@@ -5,18 +5,32 @@ import java.nio.file.{Files, Path, Paths}
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{FileIO, Keep}
 import akka.stream.{ActorMaterializer, Materializer}
+import cats.Monad
 import cats.effect.{Effect, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, SaveFile, VerifyStorage}
 import journal.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
 object DiskStorageOperations {
+
+  /**
+    * [[VerifyStorage]] implementation for [[DiskStorage]]
+    *
+    * @param storage the [[DiskStorage]]
+    */
+  final class Verify[F[_]](storage: DiskStorage)(implicit F: Monad[F]) extends VerifyStorage[F] {
+    override def apply: F[Either[String, Unit]] =
+      if (!Files.isDirectory(storage.volume)) F.pure(Left(s"Volume '${storage.volume}' does not exist."))
+      else if (!Files.isWritable(storage.volume))
+        F.pure(Left(s"Volume '${storage.volume}' does not have write access."))
+      else F.pure(Right(()))
+  }
 
   /**
     * [[FetchFile]] implementation for [[DiskStorage]]

@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.storage
 import java.nio.file.{Path, Paths}
 
 import akka.actor.ActorSystem
+import cats.Monad
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -10,8 +11,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Rejection, ResId, ResourceV}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Save}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, SaveFile, VerifyStorage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 
@@ -66,6 +67,11 @@ sealed trait Storage { self =>
     * Provides a [[FetchFile]] instance.
     */
   def fetch[F[_], Out](implicit fetch: Fetch[Out]): FetchFile[Out] = fetch(self)
+
+  /**
+    * Provides a [[VerifyStorage]] instance.
+    */
+  def isValid[F[_]](implicit verify: Verify[F]): VerifyStorage[F] = verify(self)
 
 }
 
@@ -176,7 +182,31 @@ object Storage {
     def apply(id: ResId, fileDesc: FileDescription, source: In): F[FileAttributes]
   }
 
+  trait VerifyStorage[F[_]] {
+
+    /**
+      * Verifies a storage
+      */
+    def apply: F[Either[String, Unit]]
+  }
+
   object StorageOperations {
+
+    /**
+      * Verifies that the provided storage can be used
+      *
+      * @tparam F the effect type
+      */
+    trait Verify[F[_]] {
+      def apply(storage: Storage): VerifyStorage[F]
+    }
+
+    object Verify {
+      implicit final def apply[F[_]: Monad]: Verify[F] = {
+        case value: DiskStorage => new DiskStorageOperations.Verify[F](value)
+        case _: S3Storage       => ??? //TODO
+      }
+    }
 
     /**
       * Provides a selected storage with [[FetchFile]] operation

@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 import java.util.regex.Pattern.quote
@@ -9,11 +10,12 @@ import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticServerError
 import ch.epfl.bluebrain.nexus.commons.test
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticSearchConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -43,12 +45,15 @@ class AdditionalValidationSpec
     with MacroBasedMatchers
     with TestHelper
     with BeforeAndAfter
-    with Inspectors {
+    with Inspectors
+    with Randomness {
 
   private implicit val clock: Clock                           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private implicit val elasticSearch: ElasticSearchClient[IO] = mock[ElasticSearchClient[IO]]
   private implicit val projectCache: ProjectCache[IO]         = mock[ProjectCache[IO]]
   private implicit val viewCache: ViewCache[IO]               = mock[ViewCache[IO]]
+  private implicit val storageConfig =
+    StorageConfig(DiskStorageConfig(Paths.get("/tmp"), "SHA-256"), S3StorageConfig("MD-5"))
 
   before {
     Mockito.reset(elasticSearch)
@@ -75,6 +80,7 @@ class AdditionalValidationSpec
     val path = Path(s"/${label1.organization}").right.value
     val acls =
       AccessControlLists(path -> resourceAcls(AccessControlList(user -> (View.query ++ View.write))))
+
     "applied to generic resources" should {
 
       "pass always" in {
@@ -258,6 +264,25 @@ class AdditionalValidationSpec
         val resource   = simpleV(id, sparqlView, types = types)
 
         validation(id, schema, types, resource.value, 1L).value.accepted shouldEqual resource.value
+      }
+    }
+
+    "applied to storages" should {
+      val schema      = Ref(storageSchemaUri)
+      val diskStorage = jsonContentOf("/storage/disk.json").appendContextOf(storageCtx)
+      val types       = Set[AbsoluteIri](nxv.DiskStorage, nxv.Storage)
+
+      "fail when volume does not exist" in {
+        val finalDiskStorage = diskStorage deepMerge Json.obj("volume" -> Json.fromString(s"/${genString()}"))
+        val validation       = AdditionalValidation.storage[IO]
+        val resource         = simpleV(id, finalDiskStorage, types = types)
+        validation(id, schema, types, resource.value, 1L).value.rejected[InvalidResourceFormat]
+      }
+
+      "pass when the right volume is selected" in {
+        val validation = AdditionalValidation.storage[IO]
+        val resource   = simpleV(id, diskStorage, types = types)
+        validation(id, schema, types, resource.value, 1L).value.accepted.source shouldEqual diskStorage
       }
     }
   }

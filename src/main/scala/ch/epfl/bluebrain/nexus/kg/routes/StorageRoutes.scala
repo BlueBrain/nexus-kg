@@ -36,6 +36,8 @@ class StorageRoutes private[routes] (resources: Resources[Task], acls: AccessCon
       }
   }
 
+  override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.storage[Task]
+
   override def transform(json: Json): Json =
     json.addContext(storageCtxUri)
 
