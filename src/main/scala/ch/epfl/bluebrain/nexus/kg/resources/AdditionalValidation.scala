@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticSearchConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticSearchConfig, StorageConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView}
@@ -18,6 +18,8 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidJsonLD, InvalidResourceFormat}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 
@@ -108,6 +110,25 @@ object AdditionalValidation {
           case None =>
             EitherT.leftT[F, Value](
               InvalidResourceFormat(id.ref, "The provided payload could not be mapped to a Resolver"): Rejection)
+        }
+      }
+  }
+
+  /**
+    * Additional validation used for validating storage
+    *
+    * @tparam F the monadic effect type
+    */
+  final def storage[F[_]: Monad](implicit config: StorageConfig, verify: Verify[F]): AdditionalValidation[F] = {
+
+    (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) =>
+      {
+        val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
+        EitherT.fromEither(Storage(resource)).flatMap { storage =>
+          EitherT(storage.isValid.apply.map {
+            case Right(_)      => Right(value)
+            case Left(message) => Left(InvalidResourceFormat(id.ref, message): Rejection)
+          })
         }
       }
   }
