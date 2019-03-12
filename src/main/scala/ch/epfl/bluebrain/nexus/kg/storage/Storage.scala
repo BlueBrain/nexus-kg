@@ -170,9 +170,10 @@ object Storage {
     * S3 connection settings with reasonable defaults.
     *
     * @param credentials optional credentials
+    * @param endpoint    optional endpoint, either a domain or a full URL
     * @param region      optional region
     */
-  final case class S3Settings(credentials: Option[S3Credentials], region: Option[String]) {
+  final case class S3Settings(credentials: Option[S3Credentials], endpoint: Option[String], region: Option[String]) {
 
     /**
       * @return these settings converted to an instance of [[akka.stream.alpakka.s3.S3Settings]]
@@ -206,7 +207,7 @@ object Storage {
                     credsProvider,
                     regionProvider,
                     pathStyleAccess = true,
-                    None,
+                    endpoint,
                     ApiVersion.ListBucketVersion2)
     }
   }
@@ -247,9 +248,8 @@ object Storage {
     for {
       default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
       bucket  <- c.downField(nxv.bucket).focus.as[String].toRejectionOnLeft(res.id.ref)
-      region = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
-      readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
-      writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
+      endpoint = c.downField(nxv.endpoint).focus.flatMap(_.as[String].toOption)
+      region   = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
       credentials = for {
         ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
         sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
@@ -262,7 +262,7 @@ object Storage {
                 default,
                 config.amazon.digestAlgorithm,
                 bucket,
-                S3Settings(credentials, region))
+                S3Settings(credentials, endpoint, region))
   }
 
   trait FetchFile[Out] {

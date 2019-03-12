@@ -4,7 +4,7 @@
     "S3Storage",
     "Alpha"
   ],
-  "algorithm": "MD-5",
+  "algorithm": "MD5",
   "default": true,
   "bucket": "bucket"
 }

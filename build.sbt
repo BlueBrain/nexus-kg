@@ -47,6 +47,7 @@ val pureconfigVersion           = "0.10.2"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.6"
 val kryoVersion                 = "0.5.2"
+val s3mockVersion               = "0.2.4"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"               % adminVersion
@@ -81,6 +82,7 @@ lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"       
 lazy val scalaTest            = "org.scalatest"           %% "scalatest"                  % scalaTestVersion
 lazy val shapeless            = "com.chuusai"             %% "shapeless"                  % shapelessVersion
 lazy val kryo                 = "com.github.romix.akka"   %% "akka-kryo-serialization"    % kryoVersion
+lazy val s3mock               = "io.findify"              %% "s3mock"                     % s3mockVersion
 
 lazy val kg = project
   .in(file("."))
@@ -117,7 +119,8 @@ lazy val kg = project
       akkaPersistenceInMem % Test,
       commonsTest          % Test,
       mockito              % Test,
-      scalaTest            % Test,
+      s3mock               % Test,
+      scalaTest            % Test
     ),
     cleanFiles ++= (baseDirectory.value * "ddata*").get
   )

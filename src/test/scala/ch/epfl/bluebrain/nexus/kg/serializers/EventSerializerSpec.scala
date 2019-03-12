@@ -67,11 +67,11 @@ class EventSerializerSpec
         2L,
         false,
         false,
-        "MD-5",
+        "MD5",
         "bucket",
-        S3Settings(Some(S3Credentials("ak", "sk")), Some("region"))
+        S3Settings(Some(S3Credentials("ak", "sk")), Some("http://endpoint"), Some("region"))
       )
-      val digest    = Digest("MD-5", "1234")
+      val digest    = Digest("MD5", "1234")
       val filedUuid = UUID.fromString("b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7")
       val fileAttr =
         FileAttributes(filedUuid,

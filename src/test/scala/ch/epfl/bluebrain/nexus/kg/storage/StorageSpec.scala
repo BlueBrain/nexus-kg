@@ -29,7 +29,7 @@ class StorageSpec extends WordSpecLike with Matchers with OptionValues with Reso
   val writeS3                = Permission.unsafe("s3-write")
   private implicit val storageConfig =
     StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk),
-                  S3StorageConfig("MD-5", readS3, writeS3))
+                  S3StorageConfig("MD5", readS3, writeS3))
   "A Storage" when {
     val iri        = url"http://example.com/id".value
     val projectRef = ProjectRef(genUUID)
@@ -60,14 +60,14 @@ class StorageSpec extends WordSpecLike with Matchers with OptionValues with Reso
       "return an S3Storage" in {
         val resource = simpleV(id, s3Minimal, types = Set(nxv.Storage, nxv.S3Storage, nxv.Alpha))
         Storage(resource).right.value shouldEqual
-          S3Storage(projectRef, iri, 1L, false, true, "MD-5", "bucket", S3Settings(None, None))
+          S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", S3Settings(None, None, None))
       }
 
       "return an S3Storage with credentials and region" in {
         val resource = simpleV(id, s3Storage, types = Set(nxv.Storage, nxv.S3Storage, nxv.Alpha))
-        val settings = S3Settings(Some(S3Credentials("access", "secret")), Some("region"))
+        val settings = S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region"))
         Storage(resource).right.value shouldEqual
-          S3Storage(projectRef, iri, 1L, false, true, "MD-5", "bucket", settings)
+          S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings)
       }
 
       "fail on DiskStorage when types are wrong" in {
@@ -102,8 +102,8 @@ class StorageSpec extends WordSpecLike with Matchers with OptionValues with Reso
       }
 
       "return the json representation for a query results list of S3Storage" in {
-        val settings  = S3Settings(Some(S3Credentials("access", "secret")), Some("region"))
-        val s3Storage = S3Storage(projectRef, iri, 1L, false, true, "MD-5", "bucket", settings)
+        val settings  = S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region"))
+        val s3Storage = S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings)
         val storages: QueryResults[Storage] =
           QueryResults(1L, List(UnscoredQueryResult(s3Storage)))
         StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(

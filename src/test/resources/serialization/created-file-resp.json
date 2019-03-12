@@ -21,7 +21,7 @@
     "mediaType": "application/json",
     "bytes": 128,
     "digest": {
-      "algorithm": "MD-5",
+      "algorithm": "MD5",
       "value": "1234"
     }
   },

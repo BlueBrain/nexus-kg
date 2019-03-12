@@ -10,6 +10,7 @@
     "readPermission": "nxv:readPermission",
     "writePermission": "nxv:writePermission",
     "bucket": "nxv:bucket",
+    "endpoint": "nxv:endpoint",
     "region": "nxv:region",
     "accessKey": "nxv:accessKey",
     "secretKey": "nxv:secretKey",

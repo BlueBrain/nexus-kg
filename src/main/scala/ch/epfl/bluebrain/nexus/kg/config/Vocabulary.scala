@@ -87,6 +87,7 @@ object Vocabulary {
 
     // S3 storage payload vocabulary
     val bucket    = PrefixMapping.prefix("bucket")
+    val endpoint  = PrefixMapping.prefix("endpoint")
     val region    = PrefixMapping.prefix("region")
     val accessKey = PrefixMapping.prefix("accessKey")
     val secretKey = PrefixMapping.prefix("secretKey")

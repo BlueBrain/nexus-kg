@@ -110,6 +110,14 @@
           "maxCount": 1
         },
         {
+          "path": "nxv:endpoint",
+          "name": "endpoint",
+          "description": "An optional S3 endpoint, either the domain or a full URL",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
+        },
+        {
           "path": "nxv:region",
           "name": "region",
           "description": "An optional S3 region",

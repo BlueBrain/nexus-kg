@@ -17,7 +17,7 @@
       "readPermission": "s3-read",
       "writePermission": "s3-write",
       "bucket": "bucket",
-      "_algorithm": "MD-5",
+      "_algorithm": "MD5",
       "_deprecated": false,
       "_rev": 1
     }

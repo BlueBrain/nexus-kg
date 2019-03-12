@@ -1,6 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.Uri.Path
+import akka.http.scaladsl.model.Uri.Path._
 import akka.stream.alpakka.s3.S3Attributes
 import akka.stream.alpakka.s3.scaladsl.S3
 import akka.stream.scaladsl.{Keep, Sink, Source}
@@ -20,14 +22,20 @@ object S3StorageOperations {
 
   final class Fetch(storage: S3Storage) extends FetchFile[AkkaSource] {
 
+    private def getKey(path: Path): String = path match {
+      case Slash(Segment(head, Slash(tail))) if head == storage.bucket => tail.toString
+      case _                                                           => throw new IllegalArgumentException
+    }
+
     override def apply(fileMeta: FileAttributes): AkkaSource = {
-      val key = fileMeta.location.path.toString
+      val key = getKey(fileMeta.location.path)
       S3.download(storage.bucket, key)
         .withAttributes(S3Attributes.settings(storage.settings.toAlpakka))
         .flatMapConcat {
           case Some((source, _)) => source
           case None =>
-            logger.error(s"Error fetching file '${fileMeta.filename}' from S3 bucket '${storage.bucket}'")
+            logger.error(
+              s"Error fetching file '${fileMeta.filename}' with key '$key' from S3 bucket '${storage.bucket}'")
             Source.empty
         }
     }
@@ -52,12 +60,17 @@ object S3StorageOperations {
             digFuture.zipWith(ioFuture.runWith(Sink.head)) {
               case (dig, io) =>
                 val digest = Digest(dig.getAlgorithm, dig.digest.map("%02x".format(_)).mkString)
-                metaDataSource.runWith(Sink.head).flatMap {
-                  case Some(meta) =>
-                    Future.successful(fileDesc.process(StoredSummary(io.location, meta.contentLength, digest)))
-                  case None =>
-                    Future.failed(
-                      KgError.InternalError(s"I/O error fetching metadata for uploaded file '${io.location}'"))
+                if (digest.value == io.etag) {
+                  metaDataSource.runWith(Sink.head).flatMap {
+                    case Some(meta) =>
+                      Future.successful(fileDesc.process(StoredSummary(io.location, meta.contentLength, digest)))
+                    case None =>
+                      Future.failed(KgError.InternalError(
+                        s"I/O error fetching metadata for uploaded file '${fileDesc.filename}' to location '${io.location}'"))
+                  }
+                } else {
+                  Future.failed(KgError.InternalError(
+                    s"Digest for uploaded file '${fileDesc.filename}' to location '${io.location}' doesn't match computed value."))
                 }
               case _ =>
                 Future.failed(KgError.InternalError(
