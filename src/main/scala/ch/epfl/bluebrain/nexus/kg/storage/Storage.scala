@@ -203,7 +203,7 @@ object Storage {
 
     object Verify {
       implicit final def apply[F[_]: Monad]: Verify[F] = {
-        case value: DiskStorage => new DiskStorageOperations.Verify[F](value)
+        case value: DiskStorage => new DiskStorageOperations.VerifyDiskStorage[F](value)
         case _: S3Storage       => ??? //TODO
       }
     }
@@ -218,7 +218,7 @@ object Storage {
     }
     object Fetch {
       implicit final def apply: Fetch[AkkaSource] = {
-        case value: DiskStorage => new DiskStorageOperations.Fetch(value)
+        case value: DiskStorage => new DiskStorageOperations.FetchDiskFile(value)
         case _: S3Storage       => ??? //TODO
       }
     }
@@ -235,7 +235,7 @@ object Storage {
 
     object Save {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Save[F, AkkaSource] = {
-        case value: DiskStorage => new DiskStorageOperations.Save(value)
+        case value: DiskStorage => new DiskStorageOperations.SaveDiskFile(value)
         case _: S3Storage       => ??? //TODO
       }
     }

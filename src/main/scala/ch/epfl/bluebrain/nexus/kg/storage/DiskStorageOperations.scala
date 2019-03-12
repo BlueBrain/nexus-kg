@@ -24,9 +24,10 @@ object DiskStorageOperations {
     *
     * @param storage the [[DiskStorage]]
     */
-  final class Verify[F[_]](storage: DiskStorage)(implicit F: Monad[F]) extends VerifyStorage[F] {
+  final class VerifyDiskStorage[F[_]](storage: DiskStorage)(implicit F: Monad[F]) extends VerifyStorage[F] {
     override def apply: F[Either[String, Unit]] =
-      if (!Files.isDirectory(storage.volume)) F.pure(Left(s"Volume '${storage.volume}' does not exist."))
+      if (!Files.exists(storage.volume)) F.pure(Left(s"Volume '${storage.volume}' does not exist."))
+      else if (!Files.isDirectory(storage.volume)) F.pure(Left(s"Volume '${storage.volume}' is not a directory."))
       else if (!Files.isWritable(storage.volume))
         F.pure(Left(s"Volume '${storage.volume}' does not have write access."))
       else F.pure(Right(()))
@@ -37,7 +38,7 @@ object DiskStorageOperations {
     *
     * @param storage the [[DiskStorage]]
     */
-  final class Fetch(storage: DiskStorage) extends FetchFile[AkkaSource] {
+  final class FetchDiskFile(storage: DiskStorage) extends FetchFile[AkkaSource] {
 
     override def apply(fileMeta: FileAttributes): AkkaSource =
       FileIO.fromPath(storage.volume.resolve(fileMeta.filePath))
@@ -48,7 +49,8 @@ object DiskStorageOperations {
     *
     * @param storage the [[DiskStorage]]
     */
-  final class Save[F[_]](storage: DiskStorage)(implicit F: Effect[F], as: ActorSystem) extends SaveFile[F, AkkaSource] {
+  final class SaveDiskFile[F[_]](storage: DiskStorage)(implicit F: Effect[F], as: ActorSystem)
+      extends SaveFile[F, AkkaSource] {
 
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val mt: Materializer     = ActorMaterializer()

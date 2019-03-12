@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 import java.util.regex.Pattern.quote
@@ -273,10 +273,33 @@ class AdditionalValidationSpec
       val types       = Set[AbsoluteIri](nxv.DiskStorage, nxv.Storage)
 
       "fail when volume does not exist" in {
-        val finalDiskStorage = diskStorage deepMerge Json.obj("volume" -> Json.fromString(s"/${genString()}"))
+        val volume           = s"/${genString()}"
+        val finalDiskStorage = diskStorage deepMerge Json.obj("volume" -> Json.fromString(volume))
         val validation       = AdditionalValidation.storage[IO]
         val resource         = simpleV(id, finalDiskStorage, types = types)
-        validation(id, schema, types, resource.value, 1L).value.rejected[InvalidResourceFormat]
+        validation(id, schema, types, resource.value, 1L).value.rejected[InvalidResourceFormat] shouldEqual
+          InvalidResourceFormat(Ref(iri), s"Volume '$volume' does not exist.")
+      }
+
+      "fail when volume is a file" in {
+        val file = Files.createTempFile(genString(), genString())
+
+        val finalDiskStorage = diskStorage deepMerge Json.obj("volume" -> Json.fromString(file.toString))
+        val validation       = AdditionalValidation.storage[IO]
+        val resource         = simpleV(id, finalDiskStorage, types = types)
+        validation(id, schema, types, resource.value, 1L).value.rejected[InvalidResourceFormat] shouldEqual
+          InvalidResourceFormat(Ref(iri), s"Volume '${file.toString}' is not a directory.")
+      }
+
+      "fail when volume is not writable" in {
+        val dir = Files.createTempDirectory(genString())
+        dir.toFile.setWritable(false)
+
+        val finalDiskStorage = diskStorage deepMerge Json.obj("volume" -> Json.fromString(dir.toString))
+        val validation       = AdditionalValidation.storage[IO]
+        val resource         = simpleV(id, finalDiskStorage, types = types)
+        validation(id, schema, types, resource.value, 1L).value.rejected[InvalidResourceFormat] shouldEqual
+          InvalidResourceFormat(Ref(iri), s"Volume '${dir.toString}' does not have write access.")
       }
 
       "pass when the right volume is selected" in {
