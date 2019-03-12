@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import cats.MonadError
 import cats.effect.Timer
 import cats.implicits._
@@ -10,9 +10,11 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, IndexingConf
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig
 import ch.epfl.bluebrain.nexus.sourcing.persistence.OffsetStorage.Volatile
-import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionProgress, SequentialTagIndexer}
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
+import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
 import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -60,7 +62,8 @@ object ResolverIndexer {
       as: ActorSystem,
       s: Scheduler,
       persistence: PersistenceConfig,
-      indexingCollection: IndexingConfigs): ActorRef = {
+      indexingCollection: IndexingConfigs,
+      sourcingConfig: SourcingConfig): StreamCoordinator[Task, ProjectionProgress] = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 

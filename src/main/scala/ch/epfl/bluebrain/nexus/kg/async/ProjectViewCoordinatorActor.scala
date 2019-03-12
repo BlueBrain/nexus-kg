@@ -6,10 +6,9 @@ import java.util.UUID
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Stash}
 import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
-import akka.pattern.{ask, pipe}
+import akka.pattern.pipe
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
 import akka.stream.ActorMaterializer
-import akka.util.Timeout
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
@@ -22,8 +21,8 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{withUnmarshaller, Untype
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.kg.KgError
-import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.OffsetSyntax
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
+import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.OffsetSyntax
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache.RevisionedViews
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SingleView, SparqlView}
@@ -35,11 +34,7 @@ import ch.epfl.bluebrain.nexus.sourcing.persistence.ProjectionProgress.NoProgres
 import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionProgress, SequentialTagIndexer}
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
-import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator.{
-  FetchLatestState,
-  LatestState,
-  Stop => StreamCoordinatorStop
-}
+import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
 import io.circe.Json
 import kamon.Kamon
 import monix.eval.Task
@@ -61,27 +56,27 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     with Stash
     with ActorLogging {
 
-  private val children = mutable.Map.empty[SingleView, ActorRef]
+  private val children = mutable.Map.empty[SingleView, StreamCoordinator[Task, ProjectionProgress]]
 
-  private var projectStream: Option[ActorRef] = None
+  private var projectStream: Option[StreamCoordinator[Task, ProjectionProgress]] = None
 
   def receive: Receive = {
     case Start(_, project: Project, views) =>
       log.debug("Started coordinator for project '{}' with initial views '{}'", project.projectLabel.show, views)
       context.become(initialized(project))
       viewCache.subscribe(onChange(project.ref))
-      children ++= views.map(view => view -> startActor(view, project, restartOffset = false))
+      children ++= views.map(view => view -> startCoordinator(view, project, restartOffset = false))
       projectStream = Some(startProjectStream(project))
       unstashAll()
-    case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).pipeTo(sender())
+    case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).runToFuture pipeTo sender()
     case other =>
       log.debug("Received non Start message '{}', stashing until the actor is initialized", other)
       stash()
   }
 
-  private def viewProgress(view: SingleView): Future[ViewProgress] = {
-    val viewProgress    = children.get(view).map(projectionProgress).getOrElse(Future.successful(NoProgress))
-    val projectProgress = projectStream.map(projectionProgress).getOrElse(Future.successful(NoProgress))
+  private def viewProgress(view: SingleView): Task[ViewProgress] = {
+    val viewProgress    = children.get(view).map(projectionProgress).getOrElse(Task.pure(NoProgress))
+    val projectProgress = projectStream.map(projectionProgress).getOrElse(Task.pure(NoProgress))
     for {
       vp <- viewProgress
       pp <- projectProgress
@@ -95,19 +90,14 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
       )
   }
 
-  private def projectionProgress(actor: ActorRef): Future[ProjectionProgress] = {
-    implicit val timeout: Timeout = config.sourcing.askTimeout
-    (actor ? FetchLatestState)
-      .map {
-        case LatestState(Some(p: ProjectionProgress)) => p
-        case LatestState(_)                           => NoProgress
-      }
-  }
+  private def projectionProgress(coordinator: StreamCoordinator[Task, ProjectionProgress]): Task[ProjectionProgress] =
+    coordinator.state().map(_.getOrElse(NoProgress))
 
-  private def startProjectStream(project: Project): ActorRef = {
+  private def startProjectStream(project: Project): StreamCoordinator[Task, ProjectionProgress] = {
     implicit val indexing = config.indexing.elasticSearch
     import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
-    implicit val iam = config.iam.iamClient
+    implicit val iam            = config.iam.iamClient
+    implicit val sourcingConfig = config.sourcing
     val g = Kamon
       .gauge("kg_indexer_gauge")
       .refine(
@@ -158,7 +148,9 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     * @param restartOffset a flag to decide whether to restart from the beginning or to resume from the previous offset
     * @return the actor reference
     */
-  def startActor(view: SingleView, project: Project, restartOffset: Boolean): ActorRef
+  def startCoordinator(view: SingleView,
+                       project: Project,
+                       restartOffset: Boolean): StreamCoordinator[Task, ProjectionProgress]
 
   /**
     * Triggered once an indexer actor has been stopped to clean up the indices
@@ -175,21 +167,19 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     */
   def onChange(projectRef: ProjectRef): OnKeyValueStoreChange[UUID, RevisionedViews]
 
-  private def stopActor(ref: ActorRef): Unit = {
-    ref ! StreamCoordinatorStop
-    context.stop(ref)
-
+  private def stopCoordinator(coordinator: StreamCoordinator[Task, ProjectionProgress]): Unit = {
+    val _ = coordinator.stop()
   }
 
   def initialized(project: Project): Receive = {
-    def stopView(v: SingleView, ref: ActorRef, deleteIndices: Boolean = true) = {
-      stopActor(ref)
+    def stopView(v: SingleView, ref: StreamCoordinator[Task, ProjectionProgress], deleteIndices: Boolean = true) = {
+      stopCoordinator(ref)
       children -= v
       if (deleteIndices) deleteViewIndices(v, project).runToFuture else Future.unit
     }
 
     def startView(view: SingleView, restartOffset: Boolean) = {
-      val ref = startActor(view, project, restartOffset)
+      val ref = startCoordinator(view, project, restartOffset)
       children += view -> ref
     }
 
@@ -223,7 +213,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
 
       case Stop(_) =>
         children.foreach { case (view, ref) => stopView(view, ref, deleteIndices = false) }
-      case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).pipeTo(sender())
+      case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).runToFuture pipeTo sender()
     }
   }
 
@@ -287,7 +277,9 @@ object ProjectViewCoordinatorActor {
         private val sparql                                      = config.sparql
         private implicit val jsonClient: HttpClient[Task, Json] = withUnmarshaller[Task, Json]
 
-        override def startActor(view: SingleView, project: Project, restartOffset: Boolean): ActorRef =
+        override def startCoordinator(view: SingleView,
+                                      project: Project,
+                                      restartOffset: Boolean): StreamCoordinator[Task, ProjectionProgress] =
           view match {
             case v: ElasticSearchView => ElasticSearchIndexer.start(v, resources, project, restartOffset)
             case v: SparqlView        => SparqlIndexer.start(v, resources, project, restartOffset)

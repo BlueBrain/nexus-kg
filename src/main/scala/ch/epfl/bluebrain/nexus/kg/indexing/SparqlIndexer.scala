@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.Properties
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.Monad
@@ -11,15 +11,16 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlWriteQuery}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
-import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionProgress, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
 import io.circe.Json
 import journal.Logger
 import kamon.Kamon
@@ -74,7 +75,7 @@ object SparqlIndexer {
       ul: UntypedHttpClient[Task],
       s: Scheduler,
       uclRs: HttpClient[Task, ResultSet],
-      config: AppConfig): ActorRef = {
+      config: AppConfig): StreamCoordinator[Task, ProjectionProgress] = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
     implicit val lb       = project

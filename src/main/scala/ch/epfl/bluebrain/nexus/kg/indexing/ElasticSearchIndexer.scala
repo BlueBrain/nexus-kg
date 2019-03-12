@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import cats.Functor
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -21,7 +21,8 @@ import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
-import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionProgress, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
 import io.circe.Json
 import journal.Logger
 import kamon.Kamon
@@ -86,7 +87,7 @@ object ElasticSearchIndexer {
       implicit client: ElasticSearchClient[Task],
       s: Scheduler,
       as: ActorSystem,
-      config: AppConfig): ActorRef = {
+      config: AppConfig): StreamCoordinator[Task, ProjectionProgress] = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
     implicit val p        = project.copy(apiMappings = Map.empty)
