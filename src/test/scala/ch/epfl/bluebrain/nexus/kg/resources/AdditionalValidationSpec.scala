@@ -5,6 +5,7 @@ import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 import java.util.regex.Pattern.quote
 
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
@@ -267,6 +268,8 @@ class AdditionalValidationSpec
     }
 
     "applied to storages" should {
+      implicit val as: ActorSystem = ActorSystem("AdditionalValidationSpec")
+
       val schema      = Ref(storageSchemaUri)
       val diskStorage = jsonContentOf("/storage/disk.json").appendContextOf(storageCtx)
       val types       = Set[AbsoluteIri](nxv.DiskStorage, nxv.Storage)

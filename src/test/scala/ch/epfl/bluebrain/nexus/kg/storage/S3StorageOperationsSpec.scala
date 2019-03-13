@@ -8,7 +8,7 @@ import akka.http.scaladsl.model.Uri
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.{FileIO, Sink}
 import cats.effect.IO
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Resources}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Settings, S3Storage}
@@ -26,15 +26,16 @@ class S3StorageOperationsSpec
     with Matchers
     with BeforeAndAfterAll
     with ScalaFutures
+    with Randomness
     with Resources {
 
   private implicit val mt: Materializer = ActorMaterializer()
 
-  private val port    = 9191
+  private val port    = freePort
   private val address = s"http://localhost:$port"
   private val region  = "fake-region"
   private val bucket  = "bucket"
-  private val s3mock  = S3Mock(9191)
+  private val s3mock  = S3Mock(port)
 
   protected override def beforeAll(): Unit = {
     s3mock.start
@@ -78,6 +79,7 @@ class S3StorageOperationsSpec
       val filePath = "/storage/s3.json"
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val attr     = save(resid, desc, FileIO.fromPath(path)).unsafeRunSync()
+      // http://s3.amazonaws.com is hardcoded in S3Mock
       attr.location shouldEqual Uri(s"http://s3.amazonaws.com/$bucket/${mangle(projectRef, fileUuid)}")
       attr.mediaType shouldEqual "text/plain"
       attr.bytes shouldEqual 244L

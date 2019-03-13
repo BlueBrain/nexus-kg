@@ -6,7 +6,6 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{FileIO, Keep, Source}
 import akka.stream.{ActorMaterializer, Materializer}
-import cats.Monad
 import cats.effect.{Effect, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
@@ -27,7 +26,7 @@ object DiskStorageOperations {
     *
     * @param storage the [[DiskStorage]]
     */
-  final class VerifyDiskStorage[F[_]](storage: DiskStorage)(implicit F: Monad[F]) extends VerifyStorage[F] {
+  final class VerifyDiskStorage[F[_]](storage: DiskStorage)(implicit F: Effect[F]) extends VerifyStorage[F] {
     override def apply: F[Either[String, Unit]] =
       if (!Files.exists(storage.volume)) F.pure(Left(s"Volume '${storage.volume}' does not exist."))
       else if (!Files.isDirectory(storage.volume)) F.pure(Left(s"Volume '${storage.volume}' is not a directory."))

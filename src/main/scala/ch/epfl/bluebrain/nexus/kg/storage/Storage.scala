@@ -6,7 +6,6 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.alpakka.s3
 import akka.stream.alpakka.s3.{ApiVersion, MemoryBufferType}
-import cats.Monad
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
@@ -309,9 +308,9 @@ object Storage {
     }
 
     object Verify {
-      implicit final def apply[F[_]: Monad]: Verify[F] = {
-        case value: DiskStorage => new DiskStorageOperations.VerifyDiskStorage[F](value)
-        case _: S3Storage       => ??? //TODO
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Verify[F] = {
+        case s: DiskStorage => new DiskStorageOperations.VerifyDiskStorage[F](s)
+        case s: S3Storage   => new S3StorageOperations.Verify[F](s)
       }
     }
 
