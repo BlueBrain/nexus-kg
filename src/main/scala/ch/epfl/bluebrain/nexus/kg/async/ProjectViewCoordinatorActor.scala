@@ -102,14 +102,14 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
       .gauge("kg_indexer_gauge")
       .refine(
         "type"         -> "eventCount",
-        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "project"      -> project.projectLabel.show,
         "organization" -> project.organizationLabel
       )
     val c = Kamon
       .counter("kg_indexer_counter")
       .refine(
         "type"         -> "eventCount",
-        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "project"      -> project.projectLabel.show,
         "organization" -> project.organizationLabel
       )
     val count = AtomicLong(0L)
@@ -167,13 +167,11 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     */
   def onChange(projectRef: ProjectRef): OnKeyValueStoreChange[UUID, RevisionedViews]
 
-  private def stopCoordinator(coordinator: StreamCoordinator[Task, ProjectionProgress]): Unit = {
-    val _ = coordinator.stop()
-  }
-
   def initialized(project: Project): Receive = {
-    def stopView(v: SingleView, ref: StreamCoordinator[Task, ProjectionProgress], deleteIndices: Boolean = true) = {
-      stopCoordinator(ref)
+    def stopView(v: SingleView,
+                 coordinator: StreamCoordinator[Task, ProjectionProgress],
+                 deleteIndices: Boolean = true) = {
+      coordinator.stop()
       children -= v
       if (deleteIndices) deleteViewIndices(v, project).runToFuture else Future.unit
     }

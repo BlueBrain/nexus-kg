@@ -123,14 +123,14 @@ class ProjectViewCoordinatorSpec
       viewCache.put(view.copy(deprecated = true)).runToFuture.futureValue
       eventually(counterStop.get shouldEqual 1)
       eventually(counterStart.get shouldEqual 3)
-      verify(coordinator1).stop()
+      eventually(verify(coordinator1).stop())
     }
 
     "stop old view start new view when current view updated" in {
       viewCache.put(view2Updated).runToFuture.futureValue
       eventually(counterStop.get shouldEqual 2)
       eventually(counterStart.get shouldEqual 4)
-      verify(coordinator2).stop()
+      eventually(verify(coordinator2).stop())
     }
 
     "do nothing when a view that should not re-trigger indexing gets updated" ignore {
@@ -143,7 +143,7 @@ class ProjectViewCoordinatorSpec
       coordinator.stop(OrganizationRef(orgUuid)).runToFuture.futureValue
       eventually(counterStop.get shouldEqual 2)
       eventually(counterStart.get shouldEqual 4)
-      verify(coordinator2Updated).stop()
+      eventually(verify(coordinator2Updated).stop())
     }
 
     "restart all related views when project changes" in {
@@ -151,7 +151,7 @@ class ProjectViewCoordinatorSpec
       coordinator.change(project2Updated, project2).runToFuture.futureValue
       eventually(counterStop.get shouldEqual 3)
       eventually(counterStart.get shouldEqual 5)
-      verify(coordinator3).stop()
+      eventually(verify(coordinator3).stop())
     }
 
     "stop related views when project is deprecated" in {
@@ -159,7 +159,7 @@ class ProjectViewCoordinatorSpec
       coordinator.stop(project2Updated.ref).runToFuture.futureValue
       eventually(counterStop.get shouldEqual 3)
       eventually(counterStart.get shouldEqual 5)
-      verify(coordinator3Updated).stop()
+      eventually(verify(coordinator3Updated).stop())
     }
   }
 

@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
 import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionProgress, SequentialTagIndexer}
 import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
@@ -101,7 +102,7 @@ object SparqlIndexer {
       .gauge("kg_indexer_gauge")
       .refine(
         "type"         -> "sparql",
-        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "project"      -> project.projectLabel.show,
         "organization" -> project.organizationLabel,
         "viewId"       -> view.id.show
       )
@@ -109,7 +110,7 @@ object SparqlIndexer {
       .counter("kg_indexer_counter")
       .refine(
         "type"         -> "sparql",
-        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "project"      -> project.projectLabel.show,
         "organization" -> project.organizationLabel,
         "viewId"       -> view.id.show
       )

@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticSearchIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
@@ -104,7 +105,7 @@ object ElasticSearchIndexer {
       .gauge("kg_indexer_gauge")
       .refine(
         "type"         -> "elasticsearch",
-        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "project"      -> project.projectLabel.show,
         "organization" -> project.organizationLabel,
         "viewId"       -> view.id.show
       )
@@ -112,7 +113,7 @@ object ElasticSearchIndexer {
       .counter("kg_indexer_counter")
       .refine(
         "type"         -> "elasticsearch",
-        "project"      -> s"${project.organizationLabel}/${project.label}",
+        "project"      -> project.projectLabel.show,
         "organization" -> project.organizationLabel,
         "viewId"       -> view.id.show
       )
