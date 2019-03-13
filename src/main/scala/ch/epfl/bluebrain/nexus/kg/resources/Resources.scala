@@ -306,8 +306,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param id the id of the resource.
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out: Fetch](id: ResId): OptionT[F, (FileAttributes, Out)] =
-    fetch(id, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
+  def fetchFile[Out: Fetch](id: ResId): OptionT[F, (Storage, FileAttributes, Out)] =
+    fetch(id, None).subflatMap(_.file).map { case (storage, attr) => (storage, attr, storage.fetch.apply(attr)) }
 
   /**
     * Attempts to stream the file resource with specific revision.
@@ -317,8 +317,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param rev the revision of the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out: Fetch](id: ResId, rev: Long): OptionT[F, (FileAttributes, Out)] =
-    fetch(id, rev, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
+  def fetchFile[Out: Fetch](id: ResId, rev: Long): OptionT[F, (Storage, FileAttributes, Out)] =
+    fetch(id, rev, None).subflatMap(_.file).map { case (storage, attr) => (storage, attr, storage.fetch.apply(attr)) }
 
   /**
     * Attempts to stream the file resource with specific tag. The
@@ -328,8 +328,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param tag the tag of the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out: Fetch](id: ResId, tag: String): OptionT[F, (FileAttributes, Out)] =
-    fetch(id, tag, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
+  def fetchFile[Out: Fetch](id: ResId, tag: String): OptionT[F, (Storage, FileAttributes, Out)] =
+    fetch(id, tag, None).subflatMap(_.file).map { case (storage, attr) => (storage, attr, storage.fetch.apply(attr)) }
 
   /**
     * Lists resources for the given project and schema

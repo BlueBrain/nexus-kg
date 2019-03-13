@@ -10,6 +10,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{DiskStorageConfig, S3StorageConfig, StorageConfig}
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
@@ -30,12 +31,12 @@ class EventSerializerSpec
     with ScalatestRouteTest
     with OptionValues
     with Randomness
-    with Resources {
-
+    with Resources
+    with TestHelper {
   private final val UTF8: Charset = Charset.forName("UTF-8")
   private final val serialization = SerializationExtension(system)
   private implicit val storageConfig =
-    StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256"), S3StorageConfig("MD-5"))
+    StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write), S3StorageConfig("MD-5", read, write))
   private case class Other(str: String)
 
   private def findConcreteSerializer[A <: SerializerWithStringManifest](o: AnyRef)(implicit t: Typeable[A]): A =

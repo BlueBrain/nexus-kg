@@ -51,6 +51,22 @@
           "datatype": "xsd:string",
           "minCount": 1,
           "maxCount": 1
+        },
+        {
+          "path": "nxv:readPermission",
+          "name": "readPermission",
+          "description": "The permission required in order to download a file from this storage",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:writePermission",
+          "name": "writePermission",
+          "description": "The permission required in order to upload a file to this storage",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
         }
       ]
     },
@@ -83,6 +99,22 @@
           "description": "Flag to determine whether or not the storage is a default storage",
           "datatype": "xsd:boolean",
           "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:readPermission",
+          "name": "readPermission",
+          "description": "The permission required in order to download a file from this storage",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:writePermission",
+          "name": "writePermission",
+          "description": "The permission required in order to upload a file to this storage",
+          "datatype": "xsd:string",
+          "minCount": 0,
           "maxCount": 1
         }
       ]

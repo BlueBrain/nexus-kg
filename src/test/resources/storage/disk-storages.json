@@ -14,6 +14,8 @@
       ],
       "default" : false,
       "volume" : "/tmp",
+      "readPermission" : "disk-read",
+      "writePermission" : "disk-write",
       "_algorithm" : "SHA-256",
       "_deprecated" : false,
       "_rev" : 1

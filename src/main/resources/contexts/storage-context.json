@@ -7,6 +7,8 @@
     "S3Storage": "nxv:S3Storage",
     "default": "nxv:default",
     "volume": "nxv:volume",
+    "readPermission": "nxv:readPermission",
+    "writePermission": "nxv:writePermission",
     "_algorithm": "nxv:algorithm"
   },
   "@id": "https://bluebrain.github.io/nexus/contexts/storage.json"

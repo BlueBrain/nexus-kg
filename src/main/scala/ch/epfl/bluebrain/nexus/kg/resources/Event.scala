@@ -227,16 +227,20 @@ object Event {
     private implicit def storageEncoder: Encoder[Storage] = Encoder.instance {
       case storage: DiskStorage =>
         Json.obj(
-          nxv.storageId.prefix -> storage.id.asJson,
-          "@type"              -> nxv.DiskStorage.prefix.asJson,
-          nxv.volume.prefix    -> storage.volume.asJson,
-          nxv.default.prefix   -> storage.default.asJson
+          nxv.storageId.prefix       -> storage.id.asJson,
+          "@type"                    -> nxv.DiskStorage.prefix.asJson,
+          nxv.volume.prefix          -> storage.volume.asJson,
+          nxv.default.prefix         -> storage.default.asJson,
+          nxv.readPermission.prefix  -> storage.readPermission.asJson,
+          nxv.writePermission.prefix -> storage.writePermission.asJson
         )
       case storage: S3Storage =>
         Json.obj(
-          nxv.storageId.prefix -> storage.id.asJson,
-          "@type"              -> nxv.DiskStorage.prefix.asJson,
-          nxv.default.prefix   -> storage.default.asJson
+          nxv.storageId.prefix       -> storage.id.asJson,
+          "@type"                    -> nxv.DiskStorage.prefix.asJson,
+          nxv.default.prefix         -> storage.default.asJson,
+          nxv.readPermission.prefix  -> storage.readPermission.asJson,
+          nxv.writePermission.prefix -> storage.writePermission.asJson
         )
     }
 

@@ -35,10 +35,9 @@ class AclCacheSpec
     IamConfig(url"http://base.com".value, url"http://base.com".value, None, 1 second)
   private implicit val appConfig = Settings(system).appConfig.copy(iam = iamConfig)
 
-  val read  = Permission.unsafe("resources/read")
-  val write = Permission.unsafe("resources/write")
-  val user  = User("mySub", "myRealm")
-  val group = User("myGroup", "myRealm")
+  override val write = Permission.unsafe("resources/write")
+  val user           = User("mySub", "myRealm")
+  val group          = User("myGroup", "myRealm")
 
   private val cache = AclsCache[Task](client)
 

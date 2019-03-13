@@ -45,8 +45,8 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
   }
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & projectNotDeprecated & pathEndOrSingleSlash & storage & hasPermissions(write)) { storage =>
-      fileUpload("file") {
+    (put & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
+      (hasPermission(storage.writePermission) & fileUpload("file")) {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
           trace("createFile") {
@@ -59,8 +59,8 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def create(schema: Ref): Route =
-    (post & projectNotDeprecated & pathEndOrSingleSlash & storage & hasPermissions(write)) { storage =>
-      fileUpload("file") {
+    (post & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
+      (hasPermission(storage.writePermission) & fileUpload("file")) {
         case (metadata, byteSource) =>
           val description = FileDescription(metadata.fileName, metadata.contentType.value)
           trace("createFile") {
@@ -73,17 +73,16 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     }
 
   override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & storage & hasPermissions(write)) {
-      (rev, storage) =>
-        fileUpload("file") {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("updateFile") {
-              extractActorSystem { implicit as =>
-                val resId = Id(project.ref, id)
-                complete(resources.updateFile(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
-              }
+    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & storage) { (rev, storage) =>
+      (hasPermission(storage.writePermission) & fileUpload("file")) {
+        case (metadata, byteSource) =>
+          val description = FileDescription(metadata.fileName, metadata.contentType.value)
+          trace("updateFile") {
+            extractActorSystem { implicit as =>
+              val resId = Id(project.ref, id)
+              complete(resources.updateFile(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
             }
-        }
+          }
+      }
     }
 }

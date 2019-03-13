@@ -54,6 +54,8 @@ class AuthDirectivesSpec
                                                   Instant.EPOCH,
                                                   genIri)
   private val readWrite = Set(Permission.unsafe("read"), Permission.unsafe("write"))
+  override val read     = Permission.unsafe("read")
+  override val write    = Permission.unsafe("write")
 
   before {
     Mockito.reset(iamClient)
@@ -94,7 +96,7 @@ class AuthDirectivesSpec
         )
       )
       implicit val caller: Caller = Caller(Anonymous, Set(Anonymous))
-      val route                   = Routes.wrap(hasPermissions(readWrite).apply(complete("")))
+      val route                   = Routes.wrap(hasPermission(read).apply(complete("")))
       Get("/") ~> route ~> check {
         status shouldEqual StatusCodes.OK
       }
@@ -104,7 +106,7 @@ class AuthDirectivesSpec
       "there are no permissions" in {
         implicit val acls: AccessControlLists = AccessControlLists()
         implicit val caller: Caller           = Caller(Anonymous, Set(Anonymous))
-        val route                             = Routes.wrap(hasPermissions(readWrite).apply(complete("")))
+        val route                             = Routes.wrap(hasPermission(write).apply(complete("")))
         Get("/") ~> route ~> check {
           status shouldEqual StatusCodes.Forbidden
         }

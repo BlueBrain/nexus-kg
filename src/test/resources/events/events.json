@@ -59,8 +59,8 @@
     "_attributes": {
       "_bytes": 47,
       "_digest": {
-        "_algorithm": "SHA-256",
-        "_value": "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda"
+        "_value": "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda",
+        "_algorithm": "SHA-256"
       },
       "_filename": "attachment.json",
       "_mediaType": "application/json"
@@ -69,7 +69,9 @@
       "@type": "DiskStorage",
       "_storageId": "https://bluebrain.github.io/nexus/vocabulary/diskStorageDefault",
       "default": true,
-      "volume": "/tmp"
+      "volume": "/tmp",
+      "readPermission": "resources/read",
+      "writePermission": "files/write"
     },
     "_projectUuid": "7f8039a0-3141-11e9-b210-d663bd873d93",
     "_instant": "1970-01-01T00:00:00Z",
@@ -82,8 +84,8 @@
     "_attributes": {
       "_bytes": 47,
       "_digest": {
-        "_algorithm": "SHA-256",
-        "_value": "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda"
+        "_value": "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda",
+        "_algorithm": "SHA-256"
       },
       "_filename": "attachment.json",
       "_mediaType": "text/json"
@@ -92,7 +94,9 @@
       "@type": "DiskStorage",
       "_storageId": "https://bluebrain.github.io/nexus/vocabulary/diskStorageDefault",
       "default": true,
-      "volume": "/tmp"
+      "volume": "/tmp",
+      "readPermission": "resources/read",
+      "writePermission": "files/write"
     },
     "_projectUuid": "7f8039a0-3141-11e9-b210-d663bd873d93",
     "_rev": 2,

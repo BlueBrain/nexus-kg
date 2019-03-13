@@ -41,7 +41,7 @@ class StorageCacheSpec
   val lastId = url"http://example.com/lastA".value
   // initialInstant.minusSeconds(1L + genInt().toLong)
 
-  val tempStorage = DiskStorage(ref1, genIri, 1L, false, true, "alg", Paths.get("/tmp"))
+  val tempStorage = DiskStorage(ref1, genIri, 1L, false, true, "alg", Paths.get("/tmp"), read, write)
 
   val lastStorageProj1 = tempStorage.copy(id = lastId)
   val lastStorageProj2 = tempStorage.copy(ref = ref2, id = lastId)

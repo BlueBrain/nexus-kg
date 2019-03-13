@@ -86,7 +86,7 @@ class ViewRoutes private[routes] (resources: Resources[Task],
 
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>
-      (post & pathEndOrSingleSlash & hasPermissions(query)) {
+      (post & pathEndOrSingleSlash & hasPermission(query)) {
         entity(as[String]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
             case Some(view) => sparqlQuery(id, view, query)
@@ -99,7 +99,7 @@ class ViewRoutes private[routes] (resources: Resources[Task],
 
   private def elasticSearch: Route =
     pathPrefix(IdSegment / "_search") { id =>
-      (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermissions(query)) { params =>
+      (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermission(query)) { params =>
         entity(as[Json]) { query =>
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
             case Some(v: ElasticSearchView) =>

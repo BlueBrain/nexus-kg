@@ -30,17 +30,13 @@ object AuthDirectives {
     }
 
   /**
-    * Checks if the current caller has the required permissions.
+    * Checks if the current caller has the required permission.
     *
-    * @param perms the permissions to check on the current project
-    * @return pass if the ''perms'' is present on the current project, fail with [[AuthorizationFailed]] otherwise
+    * @param perm the permission to check on the current project
+    * @return pass if the ''perm'' is present on the current project, fail with [[AuthorizationFailed]] otherwise
     */
-  def hasPermissions(perms: Set[Permission])(
-      implicit acls: AccessControlLists,
-      caller: Caller,
-      project: Project
-  ): Directive0 =
-    if (acls.exists(caller.identities, project.projectLabel, perms)) pass
+  def hasPermission(perm: Permission)(implicit acls: AccessControlLists, caller: Caller, project: Project): Directive0 =
+    if (acls.exists(caller.identities, project.projectLabel, perm)) pass
     else failWith(AuthorizationFailed)
 
   /**
@@ -49,7 +45,7 @@ object AuthDirectives {
     * @param  perms the permissions to check on `/`
     * @return pass if the ''perms'' are present on `/`, fail with [[AuthorizationFailed]] otherwise
     */
-  def hasPermissionsOnRoot(perms: Set[Permission])(
+  def hasPermissionsOnRoot(perms: Permission)(
       implicit acls: AccessControlLists,
       caller: Caller
   ): Directive0 =

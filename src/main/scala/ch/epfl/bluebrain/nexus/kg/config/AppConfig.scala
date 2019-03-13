@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.commons.search.Pagination
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
-import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -129,16 +129,23 @@ object AppConfig {
     * Amazon S3 storage configuration
     *
     * @param digestAlgorithm algorithm for checksum calculation
+    * @param readPermission  the default permission required in order to download a file from a disk storage
+    * @param writePermission the default permission required in order to upload a file to a disk storage
     */
-  final case class S3StorageConfig(digestAlgorithm: String)
+  final case class S3StorageConfig(digestAlgorithm: String, readPermission: Permission, writePermission: Permission)
 
   /**
     * Disk storage configuration
     *
     * @param volume          the base [[Path]] where the files are stored
     * @param digestAlgorithm algorithm for checksum calculation
+    * @param readPermission  the default permission required in order to download a file from a disk storage
+    * @param writePermission the default permission required in order to upload a file to a disk storage
     */
-  final case class DiskStorageConfig(volume: Path, digestAlgorithm: String)
+  final case class DiskStorageConfig(volume: Path,
+                                     digestAlgorithm: String,
+                                     readPermission: Permission,
+                                     writePermission: Permission)
 
   /**
     * IAM config
@@ -240,6 +247,9 @@ object AppConfig {
       nxv.results.prefix,
       nxv.score.prefix,
       "",
+      nxv.readPermission.prefix,
+      nxv.writePermission.prefix,
+      nxv.algorithm.prefix,
       nxv.self.prefix,
       nxv.constrainedBy.prefix,
       nxv.project.prefix,

@@ -48,7 +48,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
-import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
+import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Fetch
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
@@ -127,7 +127,6 @@ class ResourceRoutesSpec
   private implicit val token: Option[AuthToken] = Some(AuthToken("valid"))
 
   private val oauthToken     = OAuth2BearerToken("valid")
-  private val read           = Set(Permission.unsafe("resources/read"))
   private val manageRes      = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
   private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("resolvers/write"))
   private val manageSchemas  = Set(Permission.unsafe("resources/read"), Permission.unsafe("schemas/write"))
@@ -325,7 +324,7 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid"))
   }
 
-  abstract class Storage(perms: Set[Permission] = manageStorages) extends Context(perms) {
+  abstract class StorageCtx(perms: Set[Permission] = manageStorages) extends Context(perms) {
     val storage = jsonContentOf("/storage/disk.json") deepMerge Json
       .obj("@id" -> Json.fromString(id.value.show))
     val schemaRef = Ref(storageSchemaUri)
@@ -404,7 +403,7 @@ class ResourceRoutesSpec
 
     "performing operations on storages" should {
 
-      "create a storage without @id" in new Storage {
+      "create a storage without @id" in new StorageCtx {
         private val expected = ResourceF
           .simpleF(id, storage, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
@@ -618,7 +617,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "list views" in new Ctx(read) {
+      "list views" in new Ctx(Set(read)) {
         when(
           resources.list(mEq(Some(defaultEsView)),
                          mEq(SearchParams(schema = Some(viewSchemaUri))),
@@ -637,7 +636,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "list resolvers not deprecated" in new Ctx(read) {
+      "list resolvers not deprecated" in new Ctx(Set(read)) {
         when(
           resources.list(mEq(Some(defaultEsView)),
                          mEq(SearchParams(deprecated = Some(false), schema = Some(resolverSchemaUri))),
@@ -711,7 +710,7 @@ class ResourceRoutesSpec
 
       when(resources.fetch(mEq(id), mEq(None))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetchFile(mEq(id), any[Long])(any[Fetch[AkkaSource]]))
-        .thenReturn(OptionT.some[Task](at1 -> source))
+        .thenReturn(OptionT.some[Task]((storage: Storage, at1, source)))
 
       val endpoints = List(
         s"/v1/files/$organization/$project/nxv:$genUuid?rev=1",
@@ -1150,7 +1149,7 @@ class ResourceRoutesSpec
         }
       }
 
-      "reject when creating a schema and the resources/create permissions are not present" in new Schema(read) {
+      "reject when creating a schema and the resources/create permissions are not present" in new Schema(Set(read)) {
         Post(s"/v1/schemas/$organization/$project", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Forbidden
           responseAs[Error].tpe shouldEqual "AuthorizationFailed"

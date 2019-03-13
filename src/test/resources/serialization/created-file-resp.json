@@ -10,7 +10,9 @@
     "deprecated" : false,
     "default" : true,
     "algorithm" : "SHA-256",
-    "volume" : "/tmp"
+    "volume" : "/tmp",
+    "readPermission" : "resources/read",
+    "writePermission" : "files/write"
   },
   "attributes": {
     "uuid": "uuid",

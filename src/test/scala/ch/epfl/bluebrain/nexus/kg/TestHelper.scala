@@ -4,7 +4,7 @@ import java.time.Clock
 import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, ResourceAccessControlList}
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, Permission, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.unconstrainedSchemaUri
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, Ref, ResourceF}
@@ -21,6 +21,8 @@ import scala.reflect.ClassTag
 trait TestHelper extends MockitoMatchers with EitherValues {
 
   private val clock = Clock.systemUTC()
+  val read          = Permission.unsafe("resources/read")
+  val write         = Permission.unsafe("files/write")
 
   def resourceAcls(acl: AccessControlList): ResourceAccessControlList =
     ResourceAccessControlList(url"http://example.com/id".value,

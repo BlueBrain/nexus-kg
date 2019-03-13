@@ -16,13 +16,13 @@ class EventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: ActorSy
                                                             config: AppConfig)
     extends EventCommonRoutes {
 
-  private val read: Set[Permission]             = Set(Permission.unsafe("resources/read"))
+  private val read: Permission                  = Permission.unsafe("resources/read")
   private implicit val acl: AccessControlLists  = acls
   private implicit val c: Caller                = caller
   private implicit val iamConf: IamClientConfig = config.iam.iamClient
 
   def routes: Route =
-    (lastEventId & hasPermissions(read)) { offset =>
+    (lastEventId & hasPermission(read)) { offset =>
       complete(source(s"project=${project.uuid}", offset))
     }
 }

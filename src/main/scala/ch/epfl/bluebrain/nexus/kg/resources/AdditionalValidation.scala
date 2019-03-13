@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.AdditionalValidation._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, InvalidJsonLD, InvalidResourceFormat}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
+import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 
@@ -126,8 +127,12 @@ object AdditionalValidation {
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
         EitherT.fromEither(Storage(resource)).flatMap { storage =>
           EitherT(storage.isValid.apply.map {
-            case Right(_)      => Right(value)
-            case Left(message) => Left(InvalidResourceFormat(id.ref, message): Rejection)
+            case Right(_) =>
+              value
+                .map(storage, _.removeKeys("@context").addContext(storageCtxUri))
+                .toRight(InvalidJsonLD("Could not convert the graph to Json"))
+            case Left(message) =>
+              Left(InvalidResourceFormat(id.ref, message): Rejection)
           })
         }
       }

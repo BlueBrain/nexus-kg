@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.config
 import java.nio.file.Paths
 
 import akka.http.scaladsl.model.headers.BasicHttpCredentials
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.typesafe.config.ConfigFactory
@@ -10,7 +11,7 @@ import org.scalatest.{Matchers, OptionValues, WordSpecLike}
 
 import scala.concurrent.duration._
 
-class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
+class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with TestHelper {
 
   "An AppConfig" should {
     val valid = ConfigFactory.parseResources("app.conf").resolve()
@@ -24,8 +25,8 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues {
       appConfig.persistence shouldEqual PersistenceConfig("cassandra-journal",
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
-      appConfig.storage shouldEqual StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256"),
-                                                  S3StorageConfig("MD-5"))
+      appConfig.storage shouldEqual StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write),
+                                                  S3StorageConfig("MD-5", read, write))
       appConfig.iam shouldEqual IamConfig(url"http://localhost:8080/v1".value,
                                           url"http://localhost:8080/v1".value,
                                           None,
