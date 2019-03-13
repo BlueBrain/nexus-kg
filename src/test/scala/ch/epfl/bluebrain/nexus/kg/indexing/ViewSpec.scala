@@ -114,7 +114,8 @@ class ViewSpec extends WordSpecLike with Matchers with OptionValues with Resourc
       "fail on ElasticSearchView when invalid payload" in {
         val wrong = List(
           jsonContentOf("/view/elasticview-wrong.json").appendContextOf(viewCtx),
-          jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx)
+          jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx),
+          jsonContentOf("/view/elasticview-wrong-3.json").appendContextOf(viewCtx)
         )
         forAll(wrong) { json =>
           val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticSearchView, nxv.Alpha))

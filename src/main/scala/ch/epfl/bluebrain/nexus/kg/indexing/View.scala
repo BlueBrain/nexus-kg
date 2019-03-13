@@ -143,10 +143,10 @@ object View {
         uuid          <- uuidEither.toRejectionOnLeft(res.id.ref)
         mappingStr    <- c.downField(nxv.mapping).focus.as[String].toRejectionOnLeft(res.id.ref)
         mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidResourceFormat(res.id.ref, "mappings cannot be parsed into Json"))
-        schemas       = c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].map(_.toSet).getOrElse(Set.empty)
-        tag           = c.downField(nxv.resourceTag).focus.as[String].toOption
-        includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
-        sourceAsText  = c.downField(nxv.sourceAsText).focus.as[Boolean].getOrElse(false)
+        schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
+        tag            = c.downField(nxv.resourceTag).focus.as[String].toOption
+        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
+        sourceAsText  <- c.downField(nxv.sourceAsText).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
       } yield
         ElasticSearchView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
