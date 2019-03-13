@@ -98,7 +98,7 @@ object syntax {
   final implicit class CallerSyntax(private val caller: Caller) extends AnyVal {
 
     /**
-      * Evaluates if the provided ''project'' has some of the passed ''permission'' on the ''acls''.
+      * Evaluates if the provided ''project'' has the passed ''permission'' on the ''acls''.
       *
       * @param acls         the full list of ACLs
       * @param projectLabel the project to check for permissions validity
@@ -108,7 +108,7 @@ object syntax {
       acls.exists(caller.identities, projectLabel, permission)
 
     /**
-      * Filters from the provided ''projects'' the ones where the caller has some of the passed ''permission'' on the ''acls''.
+      * Filters from the provided ''projects'' the ones where the caller has the passed ''permission'' on the ''acls''.
       *
       * @param acls       the full list of ACLs
       * @param projects   the list of projects to check for permissions validity
