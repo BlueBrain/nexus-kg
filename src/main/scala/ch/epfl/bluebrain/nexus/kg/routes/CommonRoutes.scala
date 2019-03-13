@@ -86,7 +86,7 @@ private[routes] abstract class CommonRoutes(
     (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
-          complete(resources.create(project.ref, project.base, schema, transform(source)).value.runWithStatus(Created))
+          complete(resources.create(project.base, schema, transform(source)).value.runWithStatus(Created))
         }
       }
     }

@@ -5,13 +5,13 @@ import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
-import ch.epfl.bluebrain.nexus.kg.config.Contexts
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.generic.extras.Configuration
@@ -224,32 +224,26 @@ object Event {
     private implicit def subjectIdEncoder(implicit ic: IamClientConfig): Encoder[Subject] =
       Encoder.encodeJson.contramap(_.id.asJson)
 
-    private implicit def storageEncoder: Encoder[Storage] = Encoder.instance {
-      case storage: DiskStorage =>
-        Json.obj(
-          nxv.storageId.prefix       -> storage.id.asJson,
-          "@type"                    -> nxv.DiskStorage.prefix.asJson,
-          nxv.volume.prefix          -> storage.volume.asJson,
-          nxv.default.prefix         -> storage.default.asJson,
-          nxv.readPermission.prefix  -> storage.readPermission.asJson,
-          nxv.writePermission.prefix -> storage.writePermission.asJson
-        )
-      case storage: S3Storage =>
-        Json.obj(
-          nxv.storageId.prefix       -> storage.id.asJson,
-          "@type"                    -> nxv.DiskStorage.prefix.asJson,
-          nxv.default.prefix         -> storage.default.asJson,
-          nxv.readPermission.prefix  -> storage.readPermission.asJson,
-          nxv.writePermission.prefix -> storage.writePermission.asJson
-        )
+    private implicit def storageEncoder: Encoder[Storage] = Encoder.instance { storage =>
+      val json = Json.obj(
+        nxv.storageId.prefix       -> storage.id.asJson,
+        nxv.default.prefix         -> storage.default.asJson,
+        nxv.readPermission.prefix  -> storage.readPermission.asJson,
+        nxv.writePermission.prefix -> storage.writePermission.asJson
+      )
+      storage match {
+        case disk: DiskStorage =>
+          json deepMerge Json.obj("@type" -> nxv.DiskStorage.prefix.asJson, nxv.volume.prefix -> disk.volume.asJson)
+        case _ =>
+          json deepMerge Json.obj("@type" -> nxv.S3Storage.prefix.asJson)
+      }
     }
 
-    implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] =
+    implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] = {
+      val enc = deriveEncoder[Event]
       Encoder.encodeJson.contramap[Event] { ev =>
-        deriveEncoder[Event]
-          .apply(ev)
-          .addContext(Contexts.resourceCtxUri)
-          .mapObject(_.add("_projectUuid", Json.fromString(ev.id.parent.id.toString)))
+        enc(ev).addContext(resourceCtxUri) deepMerge Json.obj(nxv.projectUuid.prefix -> ev.id.parent.id.toString.asJson)
       }
+    }
   }
 }

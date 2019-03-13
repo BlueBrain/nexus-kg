@@ -190,8 +190,4 @@ object Resolver {
         case _                    => None
       }
   }
-
-  final implicit val resolverRevisionedId: RevisionedId[Resolver] = RevisionedId(r => (r.id, r.rev))
-  final implicit val resolverDeprecatedId: DeprecatedId[Resolver] = DeprecatedId(r => (r.id, r.deprecated))
-
 }

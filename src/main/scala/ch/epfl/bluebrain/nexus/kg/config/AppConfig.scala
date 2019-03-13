@@ -129,8 +129,8 @@ object AppConfig {
     * Amazon S3 storage configuration
     *
     * @param digestAlgorithm algorithm for checksum calculation
-    * @param readPermission  the default permission required in order to download a file from a disk storage
-    * @param writePermission the default permission required in order to upload a file to a disk storage
+    * @param readPermission  the default permission required in order to download a file from a s3 storage
+    * @param writePermission the default permission required in order to upload a file to a s3 storage
     */
   final case class S3StorageConfig(digestAlgorithm: String, readPermission: Permission, writePermission: Permission)
 

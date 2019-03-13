@@ -384,10 +384,9 @@ class ResourceRoutesSpec
         private val expected = ResourceF
           .simpleF(id, resolver, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
-          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(resolver))(
-            mEq(subject),
-            projectMatcher,
-            isA[AdditionalValidation[Task]]))
+          resources.create(mEq(projectMeta.base), mEq(schemaRef), mEq(resolver))(mEq(subject),
+                                                                                 projectMatcher,
+                                                                                 isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/resolvers/$organization/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -407,11 +406,10 @@ class ResourceRoutesSpec
         private val expected = ResourceF
           .simpleF(id, storage, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
-          resources.create(
-            mEq(projectRef),
-            mEq(projectMeta.base),
-            mEq(schemaRef),
-            mEq(storage.addContext(storageCtxUri)))(mEq(subject), projectMatcher, isA[AdditionalValidation[Task]]))
+          resources.create(mEq(projectMeta.base), mEq(schemaRef), mEq(storage.addContext(storageCtxUri)))(
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         val endpoints = List(s"/v1/storages/$organization/$project", s"/v1/resources/$organization/$project/storage")
@@ -431,12 +429,10 @@ class ResourceRoutesSpec
         private val expected =
           ResourceF.simpleF(id, view, created = subject, updated = subject, schema = schemaRef, types = types)
         when(
-          resources.create(mEq(projectRef),
-                           mEq(projectMeta.base),
-                           mEq(schemaRef),
-                           matches[Json](_.removeKeys("_uuid") == view))(mEq(subject),
-                                                                         projectMatcher,
-                                                                         isA[AdditionalValidation[Task]]))
+          resources.create(mEq(projectMeta.base), mEq(schemaRef), matches[Json](_.removeKeys("_uuid") == view))(
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](expected))
 
         Post(s"/v1/views/$organization/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -531,11 +527,11 @@ class ResourceRoutesSpec
 
       "create a resource without @id" in new Ctx {
         when(
-          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(
-            mEq(subject),
-            projectMatcher,
-            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
-          ResourceF.simpleF(id, ctx, created = subject, updated = subject, schema = schemaRef)))
+          resources.create(mEq(projectMeta.base), mEq(schemaRef), mEq(ctx))(mEq(subject),
+                                                                            projectMatcher,
+                                                                            isA[AdditionalValidation[Task]]))
+          .thenReturn(EitherT.rightT[Task, Rejection](
+            ResourceF.simpleF(id, ctx, created = subject, updated = subject, schema = schemaRef)))
         val endpoints = List(s"/v1/resources/$organization/$project/resource",
                              s"/v1/resources/$organization/$project/_",
                              s"/v1/resources/$organization/$project")
@@ -564,11 +560,11 @@ class ResourceRoutesSpec
       "create a plain JSON resource without an @id" in new Ctx {
         val json = Json.obj("foo" -> Json.fromString("bar"))
         when(
-          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(json))(
-            mEq(subject),
-            projectMatcher,
-            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
-          ResourceF.simpleF(id, json, created = subject, updated = subject, schema = schemaRef)))
+          resources.create(mEq(projectMeta.base), mEq(schemaRef), mEq(json))(mEq(subject),
+                                                                             projectMatcher,
+                                                                             isA[AdditionalValidation[Task]]))
+          .thenReturn(EitherT.rightT[Task, Rejection](
+            ResourceF.simpleF(id, json, created = subject, updated = subject, schema = schemaRef)))
 
         Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
@@ -578,17 +574,10 @@ class ResourceRoutesSpec
 
       "create a plain JSON resource with an @id" in new Ctx {
         val json = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
-        when(
-          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(json))(
-            mEq(subject),
-            projectMatcher,
-            isA[AdditionalValidation[Task]])).thenReturn(
-          EitherT.rightT[Task, Rejection](
-            ResourceF.simpleF(Id(projectRef, url"http://example.com/foobar"),
-                              json,
-                              created = subject,
-                              updated = subject,
-                              schema = schemaRef)))
+        // format: off
+        when(resources.create(mEq(projectMeta.base), mEq(schemaRef), mEq(json))(mEq(subject), projectMatcher, isA[AdditionalValidation[Task]])).thenReturn(
+          EitherT.rightT[Task, Rejection](ResourceF.simpleF(Id(projectRef, url"http://example.com/foobar"), json, created = subject, updated = subject, schema = schemaRef)))
+        // format: on
         Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
           responseAs[Json] shouldEqual response().deepMerge(
@@ -957,11 +946,11 @@ class ResourceRoutesSpec
 
       "create a schema without @id" in new Schema {
         when(
-          resources.create(mEq(projectRef), mEq(projectMeta.base), mEq(schemaRef), mEq(schema))(
-            mEq(subject),
-            projectMatcher,
-            isA[AdditionalValidation[Task]])).thenReturn(EitherT.rightT[Task, Rejection](
-          ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
+          resources.create(mEq(projectMeta.base), mEq(schemaRef), mEq(schema))(mEq(subject),
+                                                                               projectMatcher,
+                                                                               isA[AdditionalValidation[Task]]))
+          .thenReturn(EitherT.rightT[Task, Rejection](
+            ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
 
         Post(s"/v1/schemas/$organization/$project", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.Created
