@@ -65,60 +65,60 @@ object syntax {
   final implicit class AclsSyntax(private val acls: AccessControlLists) extends AnyVal {
 
     /**
-      * Checks if on the list of ACLs there are some which contains any of the provided ''identities'', ''perms'' in
+      * Checks if on the list of ACLs there are some which contains any of the provided ''identities'', ''perm'' in
       * the root path, the organization path or the project path.
       *
       * @param identities the list of identities to filter from the ''acls''
       * @param label      the organization and project label information to be used to generate the paths to filter
-      * @param perms      the permissions to filter
+      * @param perm       the permission to filter
       * @return true if the conditions are met, false otherwise
       */
-    def exists(identities: Set[Identity], label: ProjectLabel, perms: Set[Permission]): Boolean =
+    def exists(identities: Set[Identity], label: ProjectLabel, perm: Permission): Boolean =
       acls.filter(identities).value.exists {
         case (path, v) =>
           (path == / || path == Segment(label.organization, /) || path == label.organization / label.value) &&
-            v.value.permissions.exists(perms.contains)
+            v.value.permissions.contains(perm)
       }
 
     /**
-      * Checks if on the list of ACLs there are some which contain any of the provided ''identities'', ''perms'' in
+      * Checks if on the list of ACLs there are some which contain any of the provided ''identities'', ''perm'' in
       * the root path.
       *
       * @param identities the list of identities to filter from the ''acls''
-      * @param perms      the permissions to filter
+      * @param perm       the permission to filter
       * @return true if the conditions are met, false otherwise
       */
-    def existsOnRoot(identities: Set[Identity], perms: Set[Permission]): Boolean =
+    def existsOnRoot(identities: Set[Identity], perm: Permission): Boolean =
       acls.filter(identities).value.exists {
         case (path, v) =>
-          path == / && v.value.permissions.exists(perms.contains)
+          path == / && v.value.permissions.contains(perm)
       }
   }
 
   final implicit class CallerSyntax(private val caller: Caller) extends AnyVal {
 
     /**
-      * Evaluates if the provided ''project'' has some of the passed ''permissions'' on the ''acls''.
+      * Evaluates if the provided ''project'' has the passed ''permission'' on the ''acls''.
       *
       * @param acls         the full list of ACLs
       * @param projectLabel the project to check for permissions validity
-      * @param permissions  the permissions to filter
+      * @param permission   the permission to filter
       */
-    def hasPermission(acls: AccessControlLists, projectLabel: ProjectLabel, permissions: Set[Permission]): Boolean =
-      acls.exists(caller.identities, projectLabel, permissions)
+    def hasPermission(acls: AccessControlLists, projectLabel: ProjectLabel, permission: Permission): Boolean =
+      acls.exists(caller.identities, projectLabel, permission)
 
     /**
-      * Filters from the provided ''projects'' the ones where the caller has some of the passed ''permissions'' on the ''acls''.
+      * Filters from the provided ''projects'' the ones where the caller has the passed ''permission'' on the ''acls''.
       *
-      * @param acls        the full list of ACLs
-      * @param projects    the list of projects to check for permissions validity
-      * @param permissions the permissions to filter
+      * @param acls       the full list of ACLs
+      * @param projects   the list of projects to check for permissions validity
+      * @param permission the permission to filter
       * @return a set of [[ProjectLabel]]
       */
     def hasPermission(acls: AccessControlLists,
                       projects: Set[ProjectLabel],
-                      permissions: Set[Permission]): Set[ProjectLabel] =
-      projects.filter(hasPermission(acls, _, permissions))
+                      permission: Permission): Set[ProjectLabel] =
+      projects.filter(hasPermission(acls, _, permission))
   }
 
   implicit class AbsoluteIriSyntax(private val iri: AbsoluteIri) extends AnyVal {

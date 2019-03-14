@@ -58,20 +58,18 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     *   <li>if it's a bnode a new iri will be generated using the base value</li>
     * </ul>
     *
-    * @param projectRef reference for the project in which the resource is going to be created.
     * @param base       base used to generate new ids.
     * @param schema     a schema reference that constrains the resource
     * @param source     the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(projectRef: ProjectRef, base: AbsoluteIri, schema: Ref, source: Json)(
-      implicit subject: Subject,
-      project: Project,
-      additional: AdditionalValidation[F]): RejOrResource =
+  def create(base: AbsoluteIri, schema: Ref, source: Json)(implicit subject: Subject,
+                                                           project: Project,
+                                                           additional: AdditionalValidation[F]): RejOrResource =
     // format: off
     for {
-      rawValue       <- materialize(projectRef, schema, source)
-      value          <- checkOrAssignId(Right((projectRef, base)), rawValue)
+      rawValue       <- materialize(schema, source)
+      value          <- checkOrAssignId(Right((project.ref, base)), rawValue)
       (id, assigned)  = value
       resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata))
     } yield resource
@@ -306,8 +304,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param id the id of the resource.
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out: Fetch](id: ResId): OptionT[F, (FileAttributes, Out)] =
-    fetch(id, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
+  def fetchFile[Out: Fetch](id: ResId): OptionT[F, (Storage, FileAttributes, Out)] =
+    fetch(id, None).subflatMap(_.file).map { case (storage, attr) => (storage, attr, storage.fetch.apply(attr)) }
 
   /**
     * Attempts to stream the file resource with specific revision.
@@ -317,8 +315,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param rev the revision of the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out: Fetch](id: ResId, rev: Long): OptionT[F, (FileAttributes, Out)] =
-    fetch(id, rev, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
+  def fetchFile[Out: Fetch](id: ResId, rev: Long): OptionT[F, (Storage, FileAttributes, Out)] =
+    fetch(id, rev, None).subflatMap(_.file).map { case (storage, attr) => (storage, attr, storage.fetch.apply(attr)) }
 
   /**
     * Attempts to stream the file resource with specific tag. The
@@ -328,8 +326,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param tag the tag of the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out: Fetch](id: ResId, tag: String): OptionT[F, (FileAttributes, Out)] =
-    fetch(id, tag, None).subflatMap(_.file).map { case (storage, attr) => attr -> storage.fetch.apply(attr) }
+  def fetchFile[Out: Fetch](id: ResId, tag: String): OptionT[F, (Storage, FileAttributes, Out)] =
+    fetch(id, tag, None).subflatMap(_.file).map { case (storage, attr) => (storage, attr, storage.fetch.apply(attr)) }
 
   /**
     * Lists resources for the given project and schema
@@ -418,7 +416,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     lookup(Map.empty, importsValues(resId.value, graph).toList)
   }
 
-  private def materialize(projectRef: ProjectRef, schema: Ref, source: Json)(
+  private def materialize(schema: Ref, source: Json)(
       implicit project: Project): EitherT[F, Rejection, ResourceF.Value] = {
 
     def flattenCtx(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
@@ -427,7 +425,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
           val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
           for {
             next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
-            res   <- next.resolveOr(projectRef)(NotFound(_))
+            res   <- next.resolveOr(project.ref)(NotFound(_))
             value <- flattenCtx(next :: refs, res.value.contextValue)
           } yield value
         case (_, Some(arr), _) =>
@@ -461,7 +459,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
       implicit project: Project): EitherT[F, Rejection, ResourceF.Value] =
     // format: off
     for {
-      rawValue      <- materialize(id.parent, schema, source)
+      rawValue      <- materialize(schema, source)
       value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata))
       (_, assigned)  = value
     } yield assigned

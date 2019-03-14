@@ -103,11 +103,13 @@ object Resolver {
       } yield InProjectResolver(id.parent, id.value, res.rev, res.deprecated, priority)
 
     def crossProject: Option[CrossProjectResolver[_]] = {
+      // format: off
       val result = for {
-        ids  <- identities(c.downField(nxv.identities).downArray)
-        prio <- c.downField(nxv.priority).focus.as[Int].toOption
-        types = c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].getOrElse(List.empty).toSet
+        ids   <- identities(c.downField(nxv.identities).downArray)
+        prio  <- c.downField(nxv.priority).focus.as[Int].toOption
+        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toOption
       } yield CrossProjectResolver(types, Set.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
+      // format: on
       result.flatMap { r =>
         val nodes = c.downField(nxv.projects).values
         nodes.asListOf[ProjectLabel].toOption.map(labels => r.copy(projects = labels.toSet)) orElse
@@ -190,8 +192,4 @@ object Resolver {
         case _                    => None
       }
   }
-
-  final implicit val resolverRevisionedId: RevisionedId[Resolver] = RevisionedId(r => (r.id, r.rev))
-  final implicit val resolverDeprecatedId: DeprecatedId[Resolver] = DeprecatedId(r => (r.id, r.deprecated))
-
 }

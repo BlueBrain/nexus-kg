@@ -26,7 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
-import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
+import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
 import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -59,9 +59,9 @@ private[routes] abstract class CommonRoutes(
   private[routes] val simultaneousParamsRejection: AkkaRejection =
     MalformedQueryParamRejection("rev", "'rev' and 'tag' query parameters cannot be present simultaneously")
 
-  protected val read: Set[Permission] = Set(Permission.unsafe("resources/read"))
+  protected val read: Permission = Permission.unsafe("resources/read")
 
-  protected val write: Set[Permission] = Set(Permission.unsafe(s"$prefix/write"))
+  protected val write: Permission = Permission.unsafe(s"$prefix/write")
 
   /**
     * Performs transformations on the retrieved resource from the primary store
@@ -83,16 +83,16 @@ private[routes] abstract class CommonRoutes(
   def routes: Route
 
   def create(schema: Ref): Route =
-    (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
+    (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
-          complete(resources.create(project.ref, project.base, schema, transform(source)).value.runWithStatus(Created))
+          complete(resources.create(project.base, schema, transform(source)).value.runWithStatus(Created))
         }
       }
     }
 
   def create(id: AbsoluteIri, schema: Ref): Route =
-    (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) {
+    (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
       entity(as[Json]) { source =>
         trace(s"create$resourceName") {
           complete(resources.create(Id(project.ref, id), schema, transform(source)).value.runWithStatus(Created))
@@ -101,7 +101,7 @@ private[routes] abstract class CommonRoutes(
     }
 
   def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
+    (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
       entity(as[Json]) { source =>
         trace(s"update$resourceName") {
           complete(resources.update(Id(project.ref, id), rev, schemaOpt, transform(source)).value.runWithStatus(OK))
@@ -111,7 +111,7 @@ private[routes] abstract class CommonRoutes(
 
   def tag(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     pathPrefix("tags") {
-      (post & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
+      (post & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
         entity(as[Json]) { source =>
           trace(s"addTag$resourceName") {
             val tagged = resources.tag(Id(project.ref, id), rev, schemaOpt, source.addContext(tagCtxUri))
@@ -123,17 +123,16 @@ private[routes] abstract class CommonRoutes(
 
   def tags(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
     pathPrefix("tags") {
-      (get & parameter('rev.as[Long].?) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(read)) {
-        revOpt =>
-          val tags = revOpt
-            .map(rev => resources.fetchTags(Id(project.ref, id), rev, schemaOpt))
-            .getOrElse(resources.fetchTags(Id(project.ref, id), schemaOpt))
-          complete(tags.value.runNotFound(id.ref))
+      (get & parameter('rev.as[Long].?) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(read)) { revOpt =>
+        val tags = revOpt
+          .map(rev => resources.fetchTags(Id(project.ref, id), rev, schemaOpt))
+          .getOrElse(resources.fetchTags(Id(project.ref, id), schemaOpt))
+        complete(tags.value.runNotFound(id.ref))
       }
     }
 
   def deprecate(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
-    (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermissions(write)) { rev =>
+    (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
       trace(s"deprecate$resourceName") {
         complete(resources.deprecate(Id(project.ref, id), rev, schemaOpt).value.runWithStatus(OK))
       }
@@ -141,26 +140,28 @@ private[routes] abstract class CommonRoutes(
 
   def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route = {
     val defaultOutput: OutputFormat = schemaOpt.collect { case `fileRef` => Binary }.getOrElse(Compacted)
-    (get & outputFormat(defaultOutput == Binary, defaultOutput) & pathEndOrSingleSlash & hasPermissions(read)) {
+    (get & outputFormat(defaultOutput == Binary, defaultOutput) & pathEndOrSingleSlash) {
       case Binary                        => getFile(id)
       case format: NonBinaryOutputFormat => getResource(id, schemaOpt)(format)
     }
   }
 
   private def getResource(id: AbsoluteIri, schemaOpt: Option[Ref])(implicit format: NonBinaryOutputFormat): Route =
-    trace(s"get$resourceName") {
-      val idRes = Id(project.ref, id)
-      concat(
-        (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-          completeWithFormat(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref, Some(rev), None))
-        },
-        (parameter('tag) & noParameter('rev)) { tag =>
-          completeWithFormat(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref, None, Some(tag)))
-        },
-        (noParameter('tag) & noParameter('rev)) {
-          completeWithFormat(resources.fetch(idRes, schemaOpt).materializeRun(id.ref, None, None))
-        }
-      )
+    hasPermission(read).apply {
+      trace(s"get$resourceName") {
+        val idRes = Id(project.ref, id)
+        concat(
+          (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+            completeWithFormat(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref, Some(rev), None))
+          },
+          (parameter('tag) & noParameter('rev)) { tag =>
+            completeWithFormat(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref, None, Some(tag)))
+          },
+          (noParameter('tag) & noParameter('rev)) {
+            completeWithFormat(resources.fetch(idRes, schemaOpt).materializeRun(id.ref, None, None))
+          }
+        )
+      }
     }
 
   private def completeWithFormat(fetched: Future[Either[Rejection, (StatusCode, ResourceV)]])(
@@ -198,24 +199,28 @@ private[routes] abstract class CommonRoutes(
       )
     }
 
-  private def completeFile(f: Future[(FileAttributes, AkkaSource)]): Route =
+  private def completeFile(f: Future[(Storage, FileAttributes, AkkaSource)]): Route =
     onSuccess(f) {
-      case (info, source) =>
-        val filename = urlEncodeOrElse(info.filename)("file")
-        (respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")) & encodeResponse) {
-          headerValueByType[Accept](()) { accept =>
-            val contentType = ContentType.parse(info.mediaType).getOrElse(Binary.contentType)
-            if (accept.mediaRanges.exists(_.matches(contentType.mediaType)))
-              complete(HttpEntity(contentType, info.bytes, source))
-            else
-              failWith(UnacceptedResponseContentType(
-                s"File Media Type '$contentType' does not match the Accept header value '${accept.mediaRanges.mkString(", ")}'"))
+      case (storage, info, source) =>
+        hasPermission(storage.readPermission).apply {
+          val filename = urlEncodeOrElse(info.filename)("file")
+          (respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")) & encodeResponse) {
+            headerValueByType[Accept](()) { accept =>
+              val contentType = ContentType.parse(info.mediaType).getOrElse(Binary.contentType)
+              if (accept.mediaRanges.exists(_.matches(contentType.mediaType)))
+                complete(HttpEntity(contentType, info.bytes, source))
+              else
+                failWith(
+                  UnacceptedResponseContentType(
+                    s"File Media Type '$contentType' does not match the Accept header value '${accept.mediaRanges
+                      .mkString(", ")}'"))
+            }
           }
         }
     }
 
   def list(schemaOpt: Option[Ref]): Route =
-    (get & paginated & searchParams & pathEndOrSingleSlash & hasPermissions(read)) { (pagination, params) =>
+    (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read)) { (pagination, params) =>
       val schema = schemaOpt.map(_.iri).orElse(params.schema)
       trace(s"list$resourceName") {
         complete(

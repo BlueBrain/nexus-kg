@@ -14,13 +14,13 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event.JsonLd._
 class GlobalEventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: ActorSystem, config: AppConfig)
     extends EventCommonRoutes {
 
-  private val read: Set[Permission]             = Set(Permission.unsafe("events/read"))
+  private val read: Permission                  = Permission.unsafe("events/read")
   private implicit val acl: AccessControlLists  = acls
   private implicit val c: Caller                = caller
   private implicit val iamConf: IamClientConfig = config.iam.iamClient
 
   def routes: Route =
-    (lastEventId & hasPermissionsOnRoot(read)) { offset =>
+    (lastEventId & hasPermissionOnRoot(read)) { offset =>
       complete(source(TaggingAdapter.EventTag, offset))
     }
 }

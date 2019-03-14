@@ -47,13 +47,12 @@ class AdditionalValidationSpec
     with BeforeAndAfter
     with Inspectors
     with Randomness {
-
   private implicit val clock: Clock                           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private implicit val elasticSearch: ElasticSearchClient[IO] = mock[ElasticSearchClient[IO]]
   private implicit val projectCache: ProjectCache[IO]         = mock[ProjectCache[IO]]
   private implicit val viewCache: ViewCache[IO]               = mock[ViewCache[IO]]
   private implicit val storageConfig =
-    StorageConfig(DiskStorageConfig(Paths.get("/tmp"), "SHA-256"), S3StorageConfig("MD-5"))
+    StorageConfig(DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write), S3StorageConfig("MD-5", read, write))
 
   before {
     Mockito.reset(elasticSearch)
@@ -79,7 +78,7 @@ class AdditionalValidationSpec
 
     val path = Path(s"/${label1.organization}").right.value
     val acls =
-      AccessControlLists(path -> resourceAcls(AccessControlList(user -> (View.query ++ View.write))))
+      AccessControlLists(path -> resourceAcls(AccessControlList(user -> Set(View.query, View.write))))
 
     "applied to generic resources" should {
 
@@ -305,7 +304,9 @@ class AdditionalValidationSpec
       "pass when the right volume is selected" in {
         val validation = AdditionalValidation.storage[IO]
         val resource   = simpleV(id, diskStorage, types = types)
-        validation(id, schema, types, resource.value, 1L).value.accepted.source shouldEqual diskStorage
+        val expected = jsonContentOf("/storage/diskPermsStored.json",
+                                     Map(quote("{read}") -> "resources/read", quote("{write}") -> "files/write"))
+        validation(id, schema, types, resource.value, 1L).value.accepted.source should equalIgnoreArrayOrder(expected)
       }
     }
   }

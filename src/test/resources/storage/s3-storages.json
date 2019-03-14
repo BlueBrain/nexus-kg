@@ -14,6 +14,8 @@
         "Storage"
       ],
       "default" : true,
+      "readPermission" : "s3-read",
+      "writePermission" : "s3-write",
       "_algorithm" : "MD-5",
       "_deprecated" : false,
       "_rev" : 1

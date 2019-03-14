@@ -176,14 +176,14 @@ class ResourcesSpec
         private val json =
           Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
                    "@id"      -> Json.fromString(genId.show))
-        resources.create(projectRef, base, schemaRef, json).value.accepted shouldEqual
+        resources.create(base, schemaRef, json).value.accepted shouldEqual
           ResourceF.simpleF(genRes, json, schema = schemaRef)
       }
 
       "create a new resource validated against empty schema (resource schema) with a payload only containing @context" in new ResolverResource {
         private val schemaRef = Ref(unconstrainedSchemaUri)
         private val json      = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
-        private val resource  = resources.create(projectRef, base, schemaRef, json).value.accepted
+        private val resource  = resources.create(base, schemaRef, json).value.accepted
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
 
@@ -212,19 +212,19 @@ class ResourcesSpec
       }
 
       "create a new resource validated against the resolver schema without passing the id on the call (but provided on the Json)" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldEqual
+        resources.create(base, schema, resolver).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
       }
 
       "create a new resource validated against the view schema without passing the id on the call (but provided on the Json)" in new ViewResource {
         private val expected = ResourceF.simpleF(resId, view, schema = schema, types = types)
-        val result           = resources.create(projectRef, base, schema, view).value.accepted
+        val result           = resources.create(base, schema, view).value.accepted
         result.copy(value = result.value.removeKeys("_uuid")) shouldEqual
           expected.copy(value = result.value.removeKeys("_uuid"))
       }
 
       "create a new resource validated against the storage schema without passing the id on the call (but provided on the Json)" in new StorageResource {
-        resources.create(projectRef, base, schema, diskStorage).value.accepted shouldEqual
+        resources.create(base, schema, diskStorage).value.accepted shouldEqual
           ResourceF.simpleF(resId, diskStorage, schema = schema, types = types)
       }
 
@@ -232,7 +232,7 @@ class ResourcesSpec
         val invalid = List.range(1, 2).map(i => jsonContentOf(s"/storage/storage-wrong-$i.json"))
         forAll(invalid) { j =>
           val json   = storageFrom(j)
-          val report = resources.create(projectRef, base, schema, json).value.rejected[InvalidResource]
+          val report = resources.create(base, schema, json).value.rejected[InvalidResource]
           report shouldBe a[InvalidResource]
         }
       }
@@ -241,7 +241,7 @@ class ResourcesSpec
         val invalid = List.range(1, 3).map(i => jsonContentOf(s"/view/aggelasticviewwrong$i.json"))
         forAll(invalid) { j =>
           val json   = resolverFrom(j)
-          val report = resources.create(projectRef, base, schema, json).value.rejected[InvalidResource]
+          val report = resources.create(base, schema, json).value.rejected[InvalidResource]
           report shouldBe a[InvalidResource]
         }
       }
@@ -253,7 +253,7 @@ class ResourcesSpec
         forAll(valid) { j =>
           new ViewResource {
             val json     = resolverFrom(j)
-            val result   = resources.create(projectRef, base, schema, json).value.accepted
+            val result   = resources.create(base, schema, json).value.accepted
             val expected = ResourceF.simpleF(resId, json, schema = schema, types = tpes)
             result.copy(value = result.value.removeKeys("_uuid")) shouldEqual
               expected.copy(value = result.value.removeKeys("_uuid"))
@@ -263,7 +263,7 @@ class ResourcesSpec
 
       "create a new resource validated against the resolver schema without passing the id on the call (neither on the Json)" in new ResolverResource {
         private val resolverNoId = resolver removeKeys "@id"
-        private val result       = resources.create(projectRef, base, schema, resolverNoId).value.accepted
+        private val result       = resources.create(base, schema, resolverNoId).value.accepted
         private val generatedId  = result.id.copy(parent = projectRef)
         result.id.value.show should startWith(base.show)
         result shouldEqual ResourceF.simpleF(generatedId, resolverNoId, schema = schema, types = types)
@@ -284,7 +284,7 @@ class ResourcesSpec
           case (tpe, j) =>
             new ResolverResource {
               val json = resolverFrom(j)
-              resources.create(projectRef, base, schema, json).value.accepted shouldEqual
+              resources.create(base, schema, json).value.accepted shouldEqual
                 ResourceF.simpleF(resId, json, schema = schema, types = Set(tpe, nxv.Resolver.value))
             }
         }
@@ -294,21 +294,21 @@ class ResourcesSpec
         val invalid = List.range(1, 2).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
         forAll(invalid) { j =>
           val json   = resolverFrom(j)
-          val report = resources.create(projectRef, base, schema, json).value.rejected[InvalidResource]
+          val report = resources.create(base, schema, json).value.rejected[InvalidResource]
           report shouldBe a[InvalidResource]
         }
       }
 
       "prevent to create a resource with non existing schema" in new ResolverResource {
         private val refSchema = Ref(genIri)
-        resources.create(projectRef, base, refSchema, resolver).value.rejected[NotFound] shouldEqual NotFound(refSchema)
+        resources.create(base, refSchema, resolver).value.rejected[NotFound] shouldEqual NotFound(refSchema)
       }
 
       "prevent to create a resource with wrong context value" in new ResolverResource {
         private val json = resolver deepMerge Json.obj(
           "@context" -> Json.arr(Json.fromString(resolverCtxUri.show), Json.fromInt(3)))
         resources
-          .create(projectRef, base, schema, json)
+          .create(base, schema, json)
           .value
           .rejected[IllegalContextValue] shouldEqual IllegalContextValue(List.empty)
       }
@@ -316,7 +316,7 @@ class ResourcesSpec
       "prevent to create a resource with wrong context that cannot be resolved" in new ResolverResource {
         private val notFoundIri = genIri
         private val json        = resolver removeKeys "@context" addContext resolverCtxUri addContext notFoundIri
-        resources.create(projectRef, base, schema, json).value.rejected[NotFound] shouldEqual NotFound(Ref(notFoundIri))
+        resources.create(base, schema, json).value.rejected[NotFound] shouldEqual NotFound(Ref(notFoundIri))
       }
 
       "prevent creating a schema with wrong imports" in new ResolverSchema {
@@ -331,7 +331,7 @@ class ResourcesSpec
       }
 
       "create a new schema without passing the id on the call (but provided on the Json)" in new ResolverSchema {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldEqual
+        resources.create(base, schema, resolver).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, types = types, schema = schema)
       }
 
@@ -341,7 +341,7 @@ class ResourcesSpec
         */
       "create a new schema without passing the id on the call (neither on the Json)" ignore new ResolverSchema {
         private val resolverNoId = resolver removeKeys "@id"
-        private val result       = resources.create(projectRef, base, schema, resolverNoId).value.accepted
+        private val result       = resources.create(base, schema, resolverNoId).value.accepted
         private val generatedId  = result.id.copy(parent = projectRef)
         result.id.value.show should startWith(base.show)
         result shouldEqual ResourceF.simpleF(generatedId, resolverNoId, schema = schema, types = types)
@@ -351,19 +351,19 @@ class ResourcesSpec
     "performing update operations" should {
 
       "update a resource (resolver)" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
       }
 
       "update a resource (resolver) when the provided schema matches the created schema" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, Some(schema), resolverUpdated).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
       }
 
       "prevent to update a resource (resolver) when the provided schema does not match the created schema" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         private val schemaRef = Ref(genIri)
         resources.update(resId, 1L, Some(schemaRef), resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(
           schemaRef)
@@ -375,7 +375,7 @@ class ResourcesSpec
       }
 
       "update a resource (storage) when the provided schema matches the created schema" in new StorageResource {
-        resources.create(projectRef, base, schema, diskStorage).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, diskStorage).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, Some(schema), s3Storage).value.accepted shouldEqual
           ResourceF.simpleF(resId, s3Storage, 2L, schema = schema, types = typesUpdate)
       }
@@ -385,7 +385,7 @@ class ResourcesSpec
       val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(1L))
 
       "tag a resource" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
         resources.tag(resId, 2L, None, tag).value.accepted shouldEqual
           ResourceF
@@ -394,14 +394,14 @@ class ResourcesSpec
       }
 
       "prevent tagging a resource with incorrect payload" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
         private val invalidPayload: Json = Json.obj("a" -> Json.fromString("b"))
         resources.tag(resId, 2L, None, invalidPayload).value.rejected[InvalidResourceFormat]
       }
 
       "prevent tagging a resource when the provided schema does not match the created schema" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         private val schemaRef = Ref(genIri)
         resources.tag(resId, 1L, Some(schemaRef), tag).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
       }
@@ -409,13 +409,13 @@ class ResourcesSpec
 
     "performing deprecate operations" should {
       "deprecate a resource" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.deprecate(resId, 1L, None).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, 2L, schema = schema, types = types, deprecated = true)
       }
 
       "prevent deprecating a resource when the provided schema does not match the created schema" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         private val schemaRef = Ref(genIri)
         resources.deprecate(resId, 1L, Some(schemaRef)).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
       }
@@ -431,19 +431,19 @@ class ResourcesSpec
     "performing read operations" should {
 
       "return a resource" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.fetch(resId, None).value.some shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
       }
 
       "return a specific revision of the resource" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.fetch(resId, None).value.some shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
       }
 
       "return the requested resource on a specific revision" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
         resources.fetch(resId, 2L, None).value.some shouldEqual
           ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
@@ -454,7 +454,7 @@ class ResourcesSpec
 
       "return the requested resource on a specific tag" in new ResolverResource {
         private val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(2L))
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
         resources.tag(resId, 2L, None, tag).value.accepted shouldBe a[Resource]
         resources.fetch(resId, "some", None).value.some shouldEqual
@@ -463,7 +463,7 @@ class ResourcesSpec
       }
 
       "return None when the provided schema does not match the created schema" in new ResolverResource {
-        resources.create(projectRef, base, schema, resolver).value.accepted shouldBe a[Resource]
+        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         private val schemaRef = Ref(genIri)
         resources.fetch(resId, Some(schemaRef)).value.ioValue shouldEqual None
       }
@@ -471,7 +471,7 @@ class ResourcesSpec
 
     "performing materialize operations" should {
       "materialize a resource" in new ResolverResource {
-        private val resource     = resources.create(projectRef, base, schema, resolver).value.accepted
+        private val resource     = resources.create(base, schema, resolver).value.accepted
         private val materialized = resources.materialize(resource).value.accepted
         materialized.value.source shouldEqual resolver
         materialized.value.ctx shouldEqual resolverCtx.contextValue
@@ -479,7 +479,7 @@ class ResourcesSpec
 
       "materialize a plain JSON resource" in new ResolverResource {
         private val json         = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
-        private val resource     = resources.create(projectRef, base, Latest(unconstrainedSchemaUri), json).value.accepted
+        private val resource     = resources.create(base, Latest(unconstrainedSchemaUri), json).value.accepted
         private val materialized = resources.materialize(resource).value.accepted
         materialized.value.source shouldEqual json
         materialized.value.ctx shouldEqual Json.obj("@base"  -> Json.fromString(base.asString),
@@ -490,7 +490,7 @@ class ResourcesSpec
       }
 
       "materialize a resource with its metadata" in new ResolverResource {
-        private val resource     = resources.create(projectRef, base, schema, resolver).value.accepted
+        private val resource     = resources.create(base, schema, resolver).value.accepted
         private val materialized = resources.materializeWithMeta(resource).value.accepted
         materialized.value.source shouldEqual resolver
         materialized.value.ctx shouldEqual resolverCtx.contextValue
@@ -499,7 +499,7 @@ class ResourcesSpec
 
       "materialize a plain JSON resource with its metadata" in new ResolverResource {
         private val json         = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
-        private val resource     = resources.create(projectRef, base, Latest(unconstrainedSchemaUri), json).value.accepted
+        private val resource     = resources.create(base, Latest(unconstrainedSchemaUri), json).value.accepted
         private val materialized = resources.materializeWithMeta(resource).value.accepted
         materialized.value.source shouldEqual json
         materialized.value.ctx shouldEqual Json.obj("@base"  -> Json.fromString(base.asString),

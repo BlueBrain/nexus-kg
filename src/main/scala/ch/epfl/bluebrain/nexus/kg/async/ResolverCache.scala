@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import java.time.Clock
+import java.time.{Clock, Instant}
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -25,8 +25,8 @@ class ResolverCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedResol
 
   private implicit val ordering: Ordering[Resolver] = Ordering.by(_.priority)
 
-  private implicit def toRevisioned(resolvers: List[Resolver]): RevisionedResolvers =
-    RevisionedValue(clock.instant().toEpochMilli, resolvers)
+  private implicit def toRevisioned(resolvers: List[Resolver])(implicit instant: Instant): RevisionedResolvers =
+    RevisionedValue(instant.toEpochMilli, resolvers)
 
   /**
     * Fetches resolvers for the provided project.
@@ -51,17 +51,17 @@ class ResolverCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedResol
     *
     * @param value the resolver value
     */
-  def put(value: Resolver): F[Unit] =
+  def put(value: Resolver)(implicit instant: Instant = clock.instant()): F[Unit] =
     if (value.deprecated) remove(value)
     else add(value)
 
-  private def add(resolver: Resolver): F[Unit] =
+  private def add(resolver: Resolver)(implicit instant: Instant): F[Unit] =
     store.get(resolver.ref.id) flatMap {
       case Some(RevisionedValue(_, list)) => store.put(resolver.ref.id, resolver :: list.filterNot(_.id == resolver.id))
       case None                           => store.put(resolver.ref.id, List(resolver))
     }
 
-  private def remove(resolver: Resolver): F[Unit] =
+  private def remove(resolver: Resolver)(implicit instant: Instant): F[Unit] =
     store.computeIfPresent(resolver.ref.id, _.value.filterNot(_.id == resolver.id)) *> F.unit
 
 }

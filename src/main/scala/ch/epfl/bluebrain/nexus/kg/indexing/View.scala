@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, DeprecatedId, KgError, RevisionedId}
+import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, KgError}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
@@ -114,8 +114,8 @@ sealed trait View extends Product with Serializable {
 
 object View {
 
-  val query: Set[Permission] = Set(Permission.unsafe("resources/read"), Permission.unsafe("views/query"))
-  val write: Set[Permission] = Set(Permission.unsafe("views/write"))
+  val query: Permission = Permission.unsafe("views/query")
+  val write: Permission = Permission.unsafe("views/write")
 
   /**
     * Enumeration of single view types.
@@ -143,10 +143,10 @@ object View {
         uuid          <- uuidEither.toRejectionOnLeft(res.id.ref)
         mappingStr    <- c.downField(nxv.mapping).focus.as[String].toRejectionOnLeft(res.id.ref)
         mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidResourceFormat(res.id.ref, "mappings cannot be parsed into Json"))
-        schemas       = c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].map(_.toSet).getOrElse(Set.empty)
-        tag           = c.downField(nxv.resourceTag).focus.as[String].toOption
-        includeMeta   = c.downField(nxv.includeMetadata).focus.as[Boolean].getOrElse(false)
-        sourceAsText  = c.downField(nxv.sourceAsText).focus.as[Boolean].getOrElse(false)
+        schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
+        tag            = c.downField(nxv.resourceTag).focus.as[String].toOption
+        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
+        sourceAsText  <- c.downField(nxv.sourceAsText).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
       } yield
         ElasticSearchView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
@@ -355,8 +355,5 @@ object View {
         case _                              => None
       }
   }
-
-  final implicit val viewRevisionedId: RevisionedId[View] = RevisionedId(view => (view.id, view.rev))
-  final implicit val viewDeprecatedId: DeprecatedId[View] = DeprecatedId(r => (r.id, r.deprecated))
 
 }

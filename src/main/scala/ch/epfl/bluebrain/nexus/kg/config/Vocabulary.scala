@@ -80,8 +80,10 @@ object Vocabulary {
     val viewId          = PrefixMapping.prefix("viewId")
 
     //Storage payload vocabulary
-    val default = PrefixMapping.prefix("default")
-    val volume  = PrefixMapping.prefix("volume")
+    val default         = PrefixMapping.prefix("default")
+    val volume          = PrefixMapping.prefix("volume")
+    val readPermission  = PrefixMapping.prefix("readPermission")
+    val writePermission = PrefixMapping.prefix("writePermission")
 
     // View default ids
     val defaultElasticSearchIndex = PrefixMapping.prefix("defaultElasticSearchIndex")

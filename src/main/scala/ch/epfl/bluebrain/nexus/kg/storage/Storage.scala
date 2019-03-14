@@ -5,6 +5,7 @@ import java.nio.file.{Path, Paths}
 import akka.actor.ActorSystem
 import cats.Monad
 import cats.effect.Effect
+import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
@@ -14,6 +15,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Rejection, ResId, Resou
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, SaveFile, VerifyStorage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 
 /**
@@ -58,6 +62,16 @@ sealed trait Storage { self =>
   def name: String = s"${ref.id}_${id.asString}_$rev"
 
   /**
+    * @return the permission required in order to download a file from this storage
+    */
+  def readPermission: Permission
+
+  /**
+    * @return the permission required in order to upload a file to this storage
+    */
+  def writePermission: Permission
+
+  /**
     * Provides a [[SaveFile]] instance.
     *
     */
@@ -80,13 +94,15 @@ object Storage {
   /**
     * A disk storage
     *
-    * @param ref        a reference to the project that the store belongs to
-    * @param id         the user facing store id
-    * @param rev        the store revision
-    * @param deprecated the deprecation state of the store
-    * @param default    ''true'' if this store is the project's default backend, ''false'' otherwise
-    * @param algorithm  the digest algorithm, e.g. "SHA-256"
-    * @param volume     the volume this storage is going to use to save files
+    * @param ref             a reference to the project that the store belongs to
+    * @param id              the user facing store id
+    * @param rev             the store revision
+    * @param deprecated      the deprecation state of the store
+    * @param default         ''true'' if this store is the project's default backend, ''false'' otherwise
+    * @param algorithm       the digest algorithm, e.g. "SHA-256"
+    * @param volume          the volume this storage is going to use to save files
+    * @param readPermission  the permission required in order to download a file from this storage
+    * @param writePermission the permission required in order to upload a file to this storage
     */
   final case class DiskStorage(ref: ProjectRef,
                                id: AbsoluteIri,
@@ -94,7 +110,9 @@ object Storage {
                                deprecated: Boolean,
                                default: Boolean,
                                algorithm: String,
-                               volume: Path)
+                               volume: Path,
+                               readPermission: Permission,
+                               writePermission: Permission)
       extends Storage
 
   object DiskStorage {
@@ -105,32 +123,45 @@ object Storage {
       * @param ref the project unique identifier
       */
     def default(ref: ProjectRef)(implicit config: StorageConfig): DiskStorage =
-      DiskStorage(ref,
-                  nxv.defaultStorage,
-                  1L,
-                  deprecated = false,
-                  default = true,
-                  config.disk.digestAlgorithm,
-                  config.disk.volume)
+      DiskStorage(
+        ref,
+        nxv.defaultStorage,
+        1L,
+        deprecated = false,
+        default = true,
+        config.disk.digestAlgorithm,
+        config.disk.volume,
+        config.disk.readPermission,
+        config.disk.writePermission
+      )
   }
 
   /**
     * Amazon Cloud Storage Service
     *
-    * @param ref        a reference to the project that the store belongs to
-    * @param id         the user facing store id
-    * @param rev        the store revision
-    * @param deprecated the deprecation state of the store
-    * @param default    ''true'' if this store is the project's default backend, ''false'' otherwise
-    * @param algorithm  the digest algorithm, e.g. "SHA-256"
+    * @param ref             a reference to the project that the store belongs to
+    * @param id              the user facing store id
+    * @param rev             the store revision
+    * @param deprecated      the deprecation state of the store
+    * @param default         ''true'' if this store is the project's default backend, ''false'' otherwise
+    * @param algorithm       the digest algorithm, e.g. "SHA-256"
+    * @param readPermission  the permission required in order to download a file from this storage
+    * @param writePermission the permission required in order to upload a file to this storage
     */
   final case class S3Storage(ref: ProjectRef,
                              id: AbsoluteIri,
                              rev: Long,
                              deprecated: Boolean,
                              default: Boolean,
-                             algorithm: String)
+                             algorithm: String,
+                             readPermission: Permission,
+                             writePermission: Permission)
       extends Storage
+
+  private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
+    stringEncoder(node).flatMap { perm =>
+      Permission(perm).toRight(IllegalConversion(s"Invalid Permission '$perm'"))
+  }
 
   /**
     * Attempts to transform the resource into a [[Storage]].
@@ -142,16 +173,25 @@ object Storage {
     val c = res.value.graph.cursor()
 
     def diskStorage(): Either[Rejection, Storage] =
+      // format: off
       for {
-        default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
-        volume  <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
+        default     <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+        volume      <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
+        readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
+        writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
       } yield
-        DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume)
+        DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume, readPerms, writePerms)
+    // format: on
 
     def s3Storage(): Either[Rejection, Storage] =
-      c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref).map { default =>
-        S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm)
-      }
+      // format: off
+      for {
+        default     <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+        readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.amazon.readPermission).toRejectionOnLeft(res.id.ref)
+        writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.amazon.writePermission).toRejectionOnLeft(res.id.ref)
+      } yield
+        S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, readPerms, writePerms)
+    // format: on
 
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage()
     else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage()

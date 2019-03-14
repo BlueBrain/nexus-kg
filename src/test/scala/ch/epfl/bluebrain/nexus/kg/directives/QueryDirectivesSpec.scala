@@ -54,7 +54,7 @@ class QueryDirectivesSpec
   "A QueryDirectives" should {
     implicit val config = PaginationConfig(0L, 10, 50)
     implicit val storageConfig =
-      StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256"), S3StorageConfig("MD-5"))
+      StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write), S3StorageConfig("MD-5", read, write))
 
     def genProject = Project(
       genIri,

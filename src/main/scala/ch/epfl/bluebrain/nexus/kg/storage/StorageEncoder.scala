@@ -55,7 +55,9 @@ object StorageEncoder {
       (s, nxv.deprecated, storage.deprecated),
       (s, nxv.rev, storage.rev),
       (s, nxv.default, storage.default),
-      (s, nxv.algorithm, storage.algorithm)
+      (s, nxv.algorithm, storage.algorithm),
+      (s, nxv.readPermission, storage.readPermission.value),
+      (s, nxv.writePermission, storage.writePermission.value)
     )
   }
 }
