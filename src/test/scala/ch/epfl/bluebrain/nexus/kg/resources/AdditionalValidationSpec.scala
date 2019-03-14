@@ -23,6 +23,9 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.VerifyStorage
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
@@ -48,12 +51,14 @@ class AdditionalValidationSpec
     with BeforeAndAfter
     with Inspectors
     with Randomness {
+
+  private implicit val as: ActorSystem                        = ActorSystem("AdditionalValidationSpec")
   private implicit val clock: Clock                           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private implicit val elasticSearch: ElasticSearchClient[IO] = mock[ElasticSearchClient[IO]]
   private implicit val projectCache: ProjectCache[IO]         = mock[ProjectCache[IO]]
   private implicit val viewCache: ViewCache[IO]               = mock[ViewCache[IO]]
   private implicit val storageConfig =
-    StorageConfig(DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write), S3StorageConfig("MD-5", read, write))
+    StorageConfig(DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write), S3StorageConfig("MD5", read, write))
 
   before {
     Mockito.reset(elasticSearch)
@@ -267,9 +272,7 @@ class AdditionalValidationSpec
       }
     }
 
-    "applied to storages" should {
-      implicit val as: ActorSystem = ActorSystem("AdditionalValidationSpec")
-
+    "applied to disk storages" should {
       val schema      = Ref(storageSchemaUri)
       val diskStorage = jsonContentOf("/storage/disk.json").appendContextOf(storageCtx)
       val types       = Set[AbsoluteIri](nxv.DiskStorage, nxv.Storage)
@@ -310,6 +313,35 @@ class AdditionalValidationSpec
         val expected = jsonContentOf("/storage/diskPermsStored.json",
                                      Map(quote("{read}") -> "resources/read", quote("{write}") -> "files/write"))
         validation(id, schema, types, resource.value, 1L).value.accepted.source should equalIgnoreArrayOrder(expected)
+      }
+    }
+
+    "applied to S3 storages" should {
+      val schema    = Ref(storageSchemaUri)
+      val s3storage = jsonContentOf("/storage/s3.json").appendContextOf(storageCtx)
+      val types     = Set[AbsoluteIri](nxv.S3Storage, nxv.Storage, nxv.Alpha)
+
+      "fail when verification fails" in {
+        implicit val verify: Verify[IO] = new Verify[IO] {
+          override def apply(storage: Storage): VerifyStorage[IO] = new VerifyStorage[IO] {
+            override def apply: IO[Either[String, Unit]] = IO.pure(Left("Error accessing S3 bucket 'bucket'"))
+          }
+        }
+        val validation = AdditionalValidation.storage[IO]
+        val resource   = simpleV(id, s3storage, types = types)
+        validation(id, schema, types, resource.value, 1L).value.rejected[InvalidResourceFormat] shouldEqual
+          InvalidResourceFormat(Ref(iri), "Error accessing S3 bucket 'bucket'")
+      }
+
+      "pass when verification is successful" in {
+        implicit val verify: Verify[IO] = new Verify[IO] {
+          override def apply(storage: Storage): VerifyStorage[IO] = new VerifyStorage[IO] {
+            override def apply: IO[Either[String, Unit]] = IO.pure(Right(()))
+          }
+        }
+        val validation = AdditionalValidation.storage[IO]
+        val resource   = simpleV(id, s3storage, types = types)
+        validation(id, schema, types, resource.value, 1L).value.accepted.source shouldEqual s3storage
       }
     }
   }

@@ -4,7 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{FileIO, Keep, Source}
+import akka.stream.scaladsl.{FileIO, Keep}
 import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect.{Effect, IO}
 import cats.implicits._
@@ -39,13 +39,13 @@ object DiskStorageOperations {
     * [[FetchFile]] implementation for [[DiskStorage]]
     *
     */
-  object FetchDiskFile extends FetchFile[AkkaSource] {
+  final class FetchDiskFile[F[_]](implicit F: Effect[F]) extends FetchFile[F, AkkaSource] {
 
-    override def apply(fileMeta: FileAttributes): AkkaSource = uriToPath(fileMeta.location) match {
-      case Some(path) => FileIO.fromPath(path)
+    override def apply(fileMeta: FileAttributes): F[AkkaSource] = uriToPath(fileMeta.location) match {
+      case Some(path) => F.pure(FileIO.fromPath(path))
       case None =>
         logger.error(s"Invalid file location: '${fileMeta.location}'")
-        Source.empty
+        F.raiseError(KgError.InternalError(s"Invalid file location: '${fileMeta.location}'"))
     }
   }
 
@@ -92,8 +92,8 @@ object DiskStorageOperations {
         }
         .recoverWith {
           case NonFatal(err) =>
-            logger.error(s"Unable to derive Location for path '${storage.volume}'", err)
-            F.raiseError(KgError.InternalError(s"Unable to derive Location for path '${storage.volume}'"))
+            logger.error(s"Unable to resolve location for path '${storage.volume}'", err)
+            F.raiseError(KgError.InternalError(s"Unable to resolve location for path '${storage.volume}'"))
         }
     }
   }

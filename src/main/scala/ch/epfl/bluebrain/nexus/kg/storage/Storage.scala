@@ -87,7 +87,7 @@ sealed trait Storage { self =>
   /**
     * Provides a [[FetchFile]] instance.
     */
-  def fetch[F[_], Out](implicit fetch: Fetch[Out]): FetchFile[Out] = fetch(self)
+  def fetch[F[_], Out](implicit fetch: Fetch[F, Out]): FetchFile[F, Out] = fetch(self)
 
   /**
     * Provides a [[VerifyStorage]] instance.
@@ -264,14 +264,14 @@ object Storage {
                 S3Settings(credentials, endpoint, region))
   }
 
-  trait FetchFile[Out] {
+  trait FetchFile[F[_], Out] {
 
     /**
       * Fetches the file associated to the provided ''fileMeta''.
       *
       * @param fileMeta the file metadata
       */
-    def apply(fileMeta: FileAttributes): Out
+    def apply(fileMeta: FileAttributes): F[Out]
   }
 
   trait SaveFile[F[_], In] {
@@ -317,15 +317,16 @@ object Storage {
     /**
       * Provides a selected storage with [[FetchFile]] operation
       *
+      * @tparam F   the effect type
       * @tparam Out the output type
       */
-    trait Fetch[Out] {
-      def apply(storage: Storage): FetchFile[Out]
+    trait Fetch[F[_], Out] {
+      def apply(storage: Storage): FetchFile[F, Out]
     }
 
     object Fetch {
-      implicit final def apply: Fetch[AkkaSource] = {
-        case _: DiskStorage => DiskStorageOperations.FetchDiskFile
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Fetch[F, AkkaSource] = {
+        case _: DiskStorage => new DiskStorageOperations.FetchDiskFile[F]
         case s: S3Storage   => new S3StorageOperations.Fetch(s)
       }
     }

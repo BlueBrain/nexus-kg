@@ -1,11 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
+import java.util.NoSuchElementException
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model.Uri.Path._
 import akka.stream.alpakka.s3.S3Attributes
 import akka.stream.alpakka.s3.scaladsl.S3
-import akka.stream.scaladsl.{Keep, Sink, Source}
+import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect._
 import ch.epfl.bluebrain.nexus.kg.KgError
@@ -24,18 +26,25 @@ object S3StorageOperations {
 
     private implicit val mt: Materializer = ActorMaterializer()
 
-    private val attributes = S3Attributes.settings(storage.settings.toAlpakka)
-
     override def apply: F[Either[String, Unit]] = {
-      val results = IO(S3.listBucket(storage.bucket, None).withAttributes(attributes).runWith(Sink.head))
-      IO.fromFuture(results)
-        .map(_ => Right(()))
-        .handleErrorWith(_ => IO.pure(Left(s"Error accessing S3 bucket '${storage.bucket}'")))
+      val future = IO(
+        S3.listBucket(storage.bucket, None)
+          .withAttributes(S3Attributes.settings(storage.settings.toAlpakka))
+          .runWith(Sink.head))
+      IO.fromFuture(future)
+        .attempt
+        .map {
+          case Right(_)                        => Right(())
+          case Left(_: NoSuchElementException) => Right(()) // bucket is empty, that is fine
+          case Left(e)                         => Left(s"Error accessing S3 bucket '${storage.bucket}': ${e.getMessage}")
+        }
         .to[F]
     }
   }
 
-  final class Fetch(storage: S3Storage) extends FetchFile[AkkaSource] {
+  final class Fetch[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends FetchFile[F, AkkaSource] {
+
+    private implicit val mt: Materializer = ActorMaterializer()
 
     private def getKey(path: Path): Option[String] = path match {
       case Slash(Segment(head, Slash(tail))) if head == storage.bucket =>
@@ -45,19 +54,33 @@ object S3StorageOperations {
         None
     }
 
-    override def apply(fileMeta: FileAttributes): AkkaSource =
+    override def apply(fileMeta: FileAttributes): F[AkkaSource] =
       getKey(fileMeta.location.path) match {
         case Some(key) =>
-          S3.download(storage.bucket, key)
-            .withAttributes(S3Attributes.settings(storage.settings.toAlpakka))
-            .flatMapConcat {
-              case Some((source, _)) => source
+          val future = IO(
+            S3.download(storage.bucket, key)
+              .withAttributes(S3Attributes.settings(storage.settings.toAlpakka))
+              .runWith(Sink.head))
+          IO.fromFuture(future)
+            .flatMap {
+              case Some((source, _)) => IO.pure(source: AkkaSource)
               case None =>
-                logger.error(
-                  s"Error fetching file '${fileMeta.filename}' with key '$key' from S3 bucket '${storage.bucket}'")
-                Source.empty
+                IO.raiseError(
+                  KgError.InternalError(
+                    s"Empty content fetching S3 object with key '$key' in bucket '${storage.bucket}'"))
             }
-        case None => Source.empty
+            .handleErrorWith {
+              case e: KgError => IO.raiseError(e)
+              case e: Throwable =>
+                IO.raiseError(
+                  KgError.DownstreamServiceError(
+                    s"Error fetching S3 object with key '$key' in bucket '${storage.bucket}': ${e.getMessage}"))
+            }
+            .to[F]
+        case None =>
+          F.raiseError(
+            KgError.InternalError(
+              s"Error decoding key from S3 object URI '${fileMeta.location}' in bucket '${storage.bucket}'"))
       }
   }
 
@@ -86,7 +109,7 @@ object S3StorageOperations {
                       Future.successful(fileDesc.process(StoredSummary(io.location, meta.contentLength, digest)))
                     case None =>
                       Future.failed(KgError.InternalError(
-                        s"I/O error fetching metadata for uploaded file '${fileDesc.filename}' to location '${io.location}'"))
+                        s"Empty content fetching metadata for uploaded file '${fileDesc.filename}' to location '${io.location}'"))
                   }
                 } else {
                   Future.failed(KgError.InternalError(
@@ -100,7 +123,14 @@ object S3StorageOperations {
         .run()
         .flatten
 
-      F.liftIO(IO.fromFuture(IO(future)))
+      IO.fromFuture(IO(future))
+        .handleErrorWith {
+          case e: KgError => IO.raiseError(e)
+          case e: Throwable =>
+            IO.raiseError(KgError.DownstreamServiceError(
+              s"Error uploading S3 object with filename '${fileDesc.filename}' in bucket '${storage.bucket}': ${e.getMessage}"))
+        }
+        .to[F]
     }
   }
 
