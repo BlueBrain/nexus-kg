@@ -1,11 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
 import akka.actor.ActorRef
-import cats.effect.Async
+import akka.pattern.ask
+import akka.util.Timeout
+import cats.effect.{Async, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
+import ch.epfl.bluebrain.nexus.kg.indexing.ViewStatistics
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef}
 
@@ -16,7 +20,28 @@ import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef}
   * @param ref   the underlying actor reference
   * @tparam F the effect type
   */
-class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(implicit F: Async[F]) {
+class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(implicit config: AppConfig, F: Async[F]) {
+
+  /**
+    * Fetches view statistics for a given view.
+    *
+    * @param project  project to which the view belongs.
+    * @param view     the view to fetch the statistics for.
+    * @return [[ViewStatistics]] wrapped in [[F]]
+    */
+  def viewStatistics(project: Project, view: SingleView): F[ViewStatistics] = {
+    implicit val timeout: Timeout = config.sourcing.askTimeout
+    IO.fromFuture(IO(ref ? FetchProgress(project.uuid, view))).to[F].map {
+      case p: ViewProgress =>
+        ViewStatistics(
+          processedEvents = p.processedEvents,
+          discardedEvents = p.discardedEvents,
+          totalEvents = p.totalEvents,
+          lastEventDateTime = p.lastEvent,
+          lastProcessedEventDateTime = p.lastProcessedEvent
+        )
+    }
+  }
 
   /**
     * Starts the project view coordinator for the provided project sending a Start message to the

@@ -4,7 +4,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectViewCoordinator, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.async.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -20,7 +20,10 @@ import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
 
-final class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller)(
+final class UnderscoreRoutes private[routes] (resources: Resources[Task],
+                                              acls: AccessControlLists,
+                                              caller: Caller,
+                                              projectViewCoordinator: ProjectViewCoordinator[Task])(
     implicit project: Project,
     cache: Caches[Task],
     indexers: Clients[Task],
@@ -46,7 +49,8 @@ final class UnderscoreRoutes private[routes] (resources: Resources[Task], acls: 
     resources
       .fetch(Id(project.ref, id), None)
       .map { res =>
-        if (res.types(nxv.View.value)) ResourceType(new ViewRoutes(resources, acls, caller), Some(viewRef))
+        if (res.types(nxv.View.value))
+          ResourceType(new ViewRoutes(resources, acls, caller, projectViewCoordinator), Some(viewRef))
         else if (res.types(nxv.File.value)) ResourceType(new FileRoutes(resources, acls, caller), Some(fileRef))
         else if (res.types(nxv.Resolver.value))
           ResourceType(new ResolverRoutes(resources, acls, caller), Some(resolverRef))

@@ -108,7 +108,8 @@ object Main {
     cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
 
-      val routes: Route = Routes(resources)
+      val projectCoordinator = Indexing.start(resources, indexers.adminClient)
+      val routes: Route      = Routes(resources, projectCoordinator)
 
       val httpBinding = {
         Http().bindAndHandle(routes, appConfig.http.interface, appConfig.http.port)
@@ -120,8 +121,6 @@ object Main {
           logger.error(th, "Failed to perform an http binding on {}:{}", appConfig.http.interface, appConfig.http.port)
           Await.result(as.terminate(), 10 seconds)
       }
-
-      Indexing.start(resources, indexers.adminClient)
     }
 
     cluster.joinSeedNodes(seeds)

@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RejectionHandling
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ProjectViewCoordinator, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.async.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
@@ -137,7 +137,7 @@ object Routes {
     *
     * @param resources the resources operations
     */
-  def apply(resources: Resources[Task])(
+  def apply(resources: Resources[Task], projectViewCoordinator: ProjectViewCoordinator[Task])(
       implicit as: ActorSystem,
       clients: Clients[Task],
       cache: Caches[Task],
@@ -169,11 +169,11 @@ object Routes {
               implicit project =>
                 resourceSegment match {
                   case "resolvers" => new ResolverRoutes(resources, acl, c).routes
-                  case "views"     => new ViewRoutes(resources, acl, c).routes
+                  case "views"     => new ViewRoutes(resources, acl, c, projectViewCoordinator).routes
                   case "schemas"   => new SchemaRoutes(resources, acl, c).routes
                   case "files"     => new FileRoutes(resources, acl, c).routes
                   case "storages"  => new StorageRoutes(resources, acl, c).routes
-                  case "resources" => new ResourceRoutes(resources, acl, c).routes
+                  case "resources" => new ResourceRoutes(resources, acl, c, projectViewCoordinator).routes
                   case "events"    => new EventRoutes(acl, c).routes
                   case _           => reject()
                 }

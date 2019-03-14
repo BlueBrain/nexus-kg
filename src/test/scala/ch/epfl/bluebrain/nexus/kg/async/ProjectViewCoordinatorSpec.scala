@@ -4,8 +4,8 @@ import java.time.{Clock, Instant}
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
-import akka.actor.{Actor, ActorRef, Props}
-import akka.testkit.{DefaultTimeout, TestProbe}
+import akka.actor.{Actor, Props}
+import akka.testkit.DefaultTimeout
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
@@ -18,9 +18,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef}
+import ch.epfl.bluebrain.nexus.sourcing.persistence.ProjectionProgress
+import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
+import org.mockito.Mockito.verify
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.{Matchers, WordSpecLike}
@@ -58,28 +61,23 @@ class ProjectViewCoordinatorSpec
     val counterStart = new AtomicInteger(0)
     val counterStop  = new AtomicInteger(0)
 
-    val probe              = TestProbe()
-    val childActor1        = system.actorOf(Props(new DummyActor))
-    val childActor2        = system.actorOf(Props(new DummyActor))
-    val childActor2Updated = system.actorOf(Props(new DummyActor))
-    val childActor3        = system.actorOf(Props(new DummyActor))
-    val childActor3Updated = system.actorOf(Props(new DummyActor))
-
-    probe watch childActor1
-    probe watch childActor2
-    probe watch childActor2Updated
-    probe watch childActor3
-    probe watch childActor3Updated
+    val coordinator1        = mock[StreamCoordinator[Task, ProjectionProgress]]
+    val coordinator2        = mock[StreamCoordinator[Task, ProjectionProgress]]
+    val coordinator2Updated = mock[StreamCoordinator[Task, ProjectionProgress]]
+    val coordinator3        = mock[StreamCoordinator[Task, ProjectionProgress]]
+    val coordinator3Updated = mock[StreamCoordinator[Task, ProjectionProgress]]
 
     val coordinatorProps = Props(
       new ProjectViewCoordinatorActor(viewCache) {
-        override def startActor(v: View.SingleView, proj: Project, restartOffset: Boolean): ActorRef = {
+        override def startCoordinator(v: View.SingleView,
+                                      proj: Project,
+                                      restartOffset: Boolean): StreamCoordinator[Task, ProjectionProgress] = {
           counterStart.incrementAndGet()
-          if (v == view && proj == project) childActor1
-          else if (v == view2 && proj == project) childActor2
-          else if (v == view2Updated && proj == project) childActor2Updated
-          else if (v == view3 && proj == project2) childActor3
-          else if (v == view3 && proj == project2Updated && restartOffset) childActor3Updated
+          if (v == view && proj == project) coordinator1
+          else if (v == view2 && proj == project) coordinator2
+          else if (v == view2Updated && proj == project) coordinator2Updated
+          else if (v == view3 && proj == project2) coordinator3
+          else if (v == view3 && proj == project2Updated && restartOffset) coordinator3Updated
           else throw new RuntimeException()
         }
 
@@ -125,14 +123,14 @@ class ProjectViewCoordinatorSpec
       viewCache.put(view.copy(deprecated = true)).runToFuture.futureValue
       eventually(counterStop.get shouldEqual 1)
       eventually(counterStart.get shouldEqual 3)
-      probe.expectTerminated(childActor1)
+      eventually(verify(coordinator1).stop())
     }
 
     "stop old view start new view when current view updated" in {
       viewCache.put(view2Updated).runToFuture.futureValue
-      probe.expectTerminated(childActor2)
       eventually(counterStop.get shouldEqual 2)
       eventually(counterStart.get shouldEqual 4)
+      eventually(verify(coordinator2).stop())
     }
 
     "do nothing when a view that should not re-trigger indexing gets updated" ignore {
@@ -143,25 +141,25 @@ class ProjectViewCoordinatorSpec
 
     "stop all related views when organization is deprecated" in {
       coordinator.stop(OrganizationRef(orgUuid)).runToFuture.futureValue
-      probe.expectTerminated(childActor2Updated)
       eventually(counterStop.get shouldEqual 2)
       eventually(counterStart.get shouldEqual 4)
+      eventually(verify(coordinator2Updated).stop())
     }
 
     "restart all related views when project changes" in {
       projectCache.replace(project2Updated).runToFuture.futureValue
       coordinator.change(project2Updated, project2).runToFuture.futureValue
-      probe.expectTerminated(childActor3)
       eventually(counterStop.get shouldEqual 3)
       eventually(counterStart.get shouldEqual 5)
+      eventually(verify(coordinator3).stop())
     }
 
     "stop related views when project is deprecated" in {
       projectCache.replace(project2Updated.copy(deprecated = true)).runToFuture.futureValue
       coordinator.stop(project2Updated.ref).runToFuture.futureValue
-      probe.expectTerminated(childActor3Updated)
       eventually(counterStop.get shouldEqual 3)
       eventually(counterStart.get shouldEqual 5)
+      eventually(verify(coordinator3Updated).stop())
     }
   }
 
