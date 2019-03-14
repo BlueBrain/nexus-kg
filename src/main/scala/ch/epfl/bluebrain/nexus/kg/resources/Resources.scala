@@ -69,9 +69,9 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     // format: off
     for {
       rawValue       <- materialize(schema, source)
-      value          <- checkOrAssignId(Right((project.ref, base)), rawValue)
-      (id, assigned)  = value
-      resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata))
+      value          <- checkOrAssignId(base, rawValue)
+      (id, graph)  = value
+      resource       <- create(id, schema, rawValue.copy(graph = graph.removeMetadata))
     } yield resource
   // format: on
 
@@ -472,9 +472,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     // format: off
     for {
       rawValue      <- materialize(schema, source)
-      value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata))
-      (_, assigned)  = value
-    } yield assigned
+      graph         <- checkId(id, rawValue.copy(graph = rawValue.graph.removeMetadata))
+    } yield rawValue.copy(graph = graph)
   // format: on
 
   private def checkSchema(id: ResId, schemaOpt: Option[Ref])(op: => RejOrResource): RejOrResource =
@@ -527,39 +526,34 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     }
   }
 
-  private def checkOrAssignId(idOrGenInput: Either[ResId, (ProjectRef, AbsoluteIri)],
-                              value: ResourceF.Value): EitherT[F, Rejection, (ResId, ResourceF.Value)] = {
+  private def replaceBNode(bnode: BNode, id: AbsoluteIri, value: ResourceF.Value): RootedGraph =
+    RootedGraph(id, value.graph.replaceNode(bnode, id))
 
-    def replaceBNode(bnode: BNode, id: AbsoluteIri): ResourceF.Value =
-      value.copy(graph = RootedGraph(id, value.graph.replaceNode(bnode, id)))
-
-    def rootNode: Option[IriOrBNode] = {
-      val resolvedSource = value.source appendContextOf Json.obj("@context" -> value.ctx)
-      resolvedSource.id.map(IriNode(_)) orElse (value.graph: Graph).rootNode orElse Option(value.graph.triples.isEmpty)
-        .collectFirst {
-          case true => blank
-        }
-    }
-
-    idOrGenInput match {
-      case Left(id) =>
-        rootNode match {
-          case Some(IriNode(iri)) if iri.value == id.value =>
-            EitherT.rightT(id -> value.copy(graph = RootedGraph(id.value, value.graph)))
-          case Some(bNode: BNode) => EitherT.rightT(id -> replaceBNode(bNode, id.value))
-          case _                  => EitherT.leftT(IncorrectId(id.ref))
-        }
-      case Right((projRef, base)) =>
-        rootNode match {
-          case Some(IriNode(iri)) =>
-            EitherT.rightT(Id(projRef, iri.value) -> value.copy(graph = RootedGraph(iri, value.graph)))
-          case Some(bNode: BNode) =>
-            val iri = generateId(base)
-            EitherT.rightT(Id(projRef, iri.value) -> replaceBNode(bNode, iri))
-          case _ => EitherT.leftT(UnableToSelectResourceId)
-        }
-    }
+  private def rootNode(value: ResourceF.Value): Option[IriOrBNode] = {
+    val resolvedSource = value.source appendContextOf Json.obj("@context" -> value.ctx)
+    resolvedSource.id.map(IriNode.apply) orElse
+      (value.graph: Graph).rootNode orElse
+      (if (value.graph.triples.isEmpty) Some(blank) else None)
   }
+
+  private def checkId(id: ResId, value: ResourceF.Value): EitherT[F, Rejection, RootedGraph] =
+    rootNode(value) match {
+      case Some(IriNode(iri)) if iri.value == id.value => EitherT.rightT(RootedGraph(id.value, value.graph))
+      case Some(bNode: BNode)                          => EitherT.rightT(replaceBNode(bNode, id.value, value))
+      case _                                           => EitherT.leftT(IncorrectId(id.ref))
+    }
+
+  private def checkOrAssignId(base: AbsoluteIri, value: ResourceF.Value)(
+      implicit project: Project): EitherT[F, Rejection, (ResId, RootedGraph)] =
+    rootNode(value) match {
+      case Some(IriNode(iri)) =>
+        EitherT.rightT(Id(project.ref, iri.value) -> RootedGraph(iri, value.graph))
+      case Some(bNode: BNode) =>
+        val iri = generateId(base)
+        EitherT.rightT(Id(project.ref, iri.value) -> replaceBNode(bNode, iri, value))
+      case _ =>
+        EitherT.leftT(UnableToSelectResourceId)
+    }
 
   private def generateId(base: AbsoluteIri): AbsoluteIri = url"${base.asString}${uuid()}"
 

@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.data.EitherT
 import cats.syntax.all._
 import cats.{Applicative, Monad, MonadError}
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticClientError
 import ch.epfl.bluebrain.nexus.iam.client.types._

@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.MonadError
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig

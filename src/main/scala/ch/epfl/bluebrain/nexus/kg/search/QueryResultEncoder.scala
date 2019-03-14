@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.search
 
 import cats.Id
 import cats.instances.either._
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}

@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import cats.Id
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._

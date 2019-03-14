@@ -4,7 +4,6 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.test.Resources
