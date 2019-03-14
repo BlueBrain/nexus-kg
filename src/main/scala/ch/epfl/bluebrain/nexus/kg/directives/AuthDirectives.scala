@@ -45,7 +45,7 @@ object AuthDirectives {
     * @param  perms the permissions to check on `/`
     * @return pass if the ''perms'' are present on `/`, fail with [[AuthorizationFailed]] otherwise
     */
-  def hasPermissionsOnRoot(perms: Permission)(
+  def hasPermissionOnRoot(perms: Permission)(
       implicit acls: AccessControlLists,
       caller: Caller
   ): Directive0 =

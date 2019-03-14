@@ -20,7 +20,7 @@ class GlobalEventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: A
   private implicit val iamConf: IamClientConfig = config.iam.iamClient
 
   def routes: Route =
-    (lastEventId & hasPermissionsOnRoot(read)) { offset =>
+    (lastEventId & hasPermissionOnRoot(read)) { offset =>
       complete(source(TaggingAdapter.EventTag, offset))
     }
 }
