@@ -12,12 +12,12 @@ package object resources {
   /**
     * Primary resource representation.
     */
-  type Resource = ResourceF[ProjectRef, Ref, Json]
+  type Resource = ResourceF[Json]
 
   /**
     * Resource representation with a "source", "flattened" context and "computed" graph.
     */
-  type ResourceV = ResourceF[ProjectRef, Ref, ResourceF.Value]
+  type ResourceV = ResourceF[ResourceF.Value]
 
   /**
     * Resource tags

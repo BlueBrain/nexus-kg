@@ -749,8 +749,9 @@ class ResourceRoutesSpec
           .copy(file = Some(storage -> at1))
       when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
       when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.materializeWithMeta(mEq(resource))(projectMatcher)).thenReturn(EitherT.rightT[Task, Rejection](
-        resourceV.copy(value = resourceV.value.copy(graph = RootedGraph(IriNode(id.value), resourceV.metadata)))))
+      when(resources.materializeWithMeta(mEq(resource), mEq(false))(projectMatcher)).thenReturn(
+        EitherT.rightT[Task, Rejection](
+          resourceV.copy(value = resourceV.value.copy(graph = RootedGraph(IriNode(id.value), resourceV.metadata())))))
 
       val json = jsonContentOf("/resources/file-metadata.json",
                                Map(quote("{account}") -> organizationMeta.label,
@@ -1046,10 +1047,10 @@ class ResourceRoutesSpec
             value =
               Value(json,
                     json.contextValue,
-                    RootedGraph(IriNode(id.value), json.asGraph(id.value).right.value ++ Graph(resource.metadata))))
+                    RootedGraph(IriNode(id.value), json.asGraph(id.value).right.value ++ Graph(resource.metadata()))))
 
         when(resources.fetch(id2, None)).thenReturn(OptionT.some[Task](resource))
-        when(resources.materializeWithMeta(mEq(resource))(projectMatcher))
+        when(resources.materializeWithMeta(mEq(resource), mEq(false))(projectMatcher))
           .thenReturn(EitherT.rightT[Task, Rejection](resourceV))
 
         Get(s"/v1/resources/$organization/$project/_/nxv:me") ~> Accept(`application/n-triples`) ~> addCredentials(
@@ -1117,7 +1118,7 @@ class ResourceRoutesSpec
           temp.copy(
             value = Value(schema,
                           ctx.contextValue,
-                          RootedGraph(IriNode(id.value), ctx.asGraph(id.value).right.value ++ Graph(temp.metadata))))
+                          RootedGraph(IriNode(id.value), ctx.asGraph(id.value).right.value ++ Graph(temp.metadata()))))
 
         when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))

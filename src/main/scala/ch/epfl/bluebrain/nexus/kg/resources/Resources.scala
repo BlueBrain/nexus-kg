@@ -407,7 +407,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
         current
           .find(_._1 == ref)
           .map(tuple => EitherT.rightT[F, Rejection](tuple))
-          .getOrElse(ref.resolveOr(resId.parent)(NotFound(_)).flatMap(materialize).map(ref -> _))
+          .getOrElse(resolveOrNotFound(ref).flatMap(materialize).map(ref -> _))
 
       if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
       else {
@@ -436,7 +436,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
           val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
           for {
             next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
-            res   <- next.resolveOr(project.ref)(NotFound(_))
+            res   <- resolveOrNotFound(next)
             value <- flattenCtx(next :: refs, res.value.contextValue)
           } yield value
         case (_, Some(arr), _) =>
@@ -499,7 +499,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     def schemaContext(): EitherT[F, Rejection, SchemaContext] =
       // format: off
       for {
-        resolvedSchema                <- schema.resolveOr(resId.parent)(NotFound(_))
+        resolvedSchema                <- resolveOrNotFound(schema)
         materializedSchema            <- materialize(resolvedSchema)
         importedResources             <- imports(materializedSchema.id, materializedSchema.value.graph)
         (schemaImports, dataImports)  = partition(importedResources)
@@ -562,11 +562,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
 
   private def generateId(base: AbsoluteIri): AbsoluteIri = url"${base.asString}${uuid()}"
 
-  private final implicit class RefSyntax(ref: Ref) {
-
-    def resolveOr(projectRef: ProjectRef)(f: Ref => Rejection): EitherT[F, Rejection, Resource] =
-      EitherT.fromOptionF(resolution(projectRef)(self).resolve(ref), f(ref))
-  }
+  private def resolveOrNotFound(ref: Ref)(implicit project: Project): EitherT[F, Rejection, Resource] =
+    EitherT.fromOptionF(resolution(project.ref)(self).resolve(ref), NotFound(ref))
 
 }
 
