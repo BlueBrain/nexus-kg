@@ -26,7 +26,7 @@ object ResourceEncoder {
   private implicit val resourceVGraphEncEither: GraphEncoder[DecoderResult, ResourceV] = resourceVGraphEnc.toEither
 
   private implicit def resourceGraphEnc(implicit config: AppConfig, project: Project): GraphEncoder[Id, Resource] =
-    GraphEncoder((rootNode, res) => RootedGraph(rootNode, res.metadata))
+    GraphEncoder((rootNode, res) => RootedGraph(rootNode, res.metadata()))
   private implicit def resourceGraphEncEither(implicit config: AppConfig,
                                               project: Project): GraphEncoder[DecoderResult, Resource] =
     resourceGraphEnc.toEither

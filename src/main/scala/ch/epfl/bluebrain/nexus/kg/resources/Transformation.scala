@@ -43,7 +43,7 @@ object Transformation {
                                      projectCache: ProjectCache[F]): F[ResourceV] =
         View(resource) match {
           case Right(r) =>
-            val metadata = resource.metadata
+            val metadata = resource.metadata()
             r.labeled.getOrElse(r).flatMap { view =>
               resource.value.map(view, _.removeKeys("@context").addContext(viewCtxUri)) match {
                 case None => F.raiseError(InternalError("Could not convert view to Json"))
@@ -71,7 +71,7 @@ object Transformation {
                                      projectCache: ProjectCache[F]): F[ResourceV] =
         Resolver(resource) match {
           case Some(r) =>
-            val metadata = resource.metadata
+            val metadata = resource.metadata()
             r.labeled
               .getOrElse(r)
               .flatMap { resolver =>

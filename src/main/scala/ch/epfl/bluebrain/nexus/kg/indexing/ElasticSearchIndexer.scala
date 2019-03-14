@@ -57,7 +57,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
 
     val transformed: DecoderResult[Json] = {
-      val metaGraph = if (view.includeMetadata) Graph(res.metadata) else Graph()
+      val metaGraph = if (view.includeMetadata) Graph(res.metadata()) else Graph()
       if (view.sourceAsText) asJson(metaGraph.add(rootNode, nxv.originalSource, res.value.noSpaces))
       else asJson(metaGraph).map(metaJson => res.value deepMerge metaJson)
     }

@@ -495,7 +495,7 @@ class ResourcesSpec
         private val materialized = resources.materializeWithMeta(resource).value.accepted
         materialized.value.source shouldEqual resolver
         materialized.value.ctx shouldEqual resolverCtx.contextValue
-        materialized.value.graph.triples should contain allElementsOf materialized.metadata
+        materialized.value.graph.triples should contain allElementsOf materialized.metadata()
       }
 
       "materialize a plain JSON resource with its metadata" in new ResolverResource {
@@ -505,7 +505,7 @@ class ResourcesSpec
         materialized.value.source shouldEqual json
         materialized.value.ctx shouldEqual Json.obj("@base"  -> Json.fromString(base.asString),
                                                     "@vocab" -> Json.fromString(voc.asString))
-        private val triples = materialized.metadata ++ Set(
+        private val triples = materialized.metadata() ++ Set(
           (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar")))
         materialized.value.graph.triples should contain allElementsOf triples
       }

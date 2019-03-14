@@ -380,11 +380,12 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     *
     * @param resource the resource to materialize
     */
-  def materializeWithMeta(resource: Resource)(implicit project: Project): RejOrResourceV =
+  def materializeWithMeta(resource: Resource, selfAsIri: Boolean = false)(implicit project: Project): RejOrResourceV =
     for {
       resourceV <- materialize(resource)
       value = resourceV.value.copy(
-        graph = RootedGraph(resourceV.value.graph.rootNode, resourceV.value.graph.triples ++ resourceV.metadata))
+        graph =
+          RootedGraph(resourceV.value.graph.rootNode, resourceV.value.graph.triples ++ resourceV.metadata(selfAsIri)))
     } yield resourceV.map(_ => value)
 
   /**

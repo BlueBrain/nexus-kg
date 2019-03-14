@@ -85,7 +85,7 @@ class SparqlIndexerMappingSpec
     "return a SparqlWriteQuery" in {
       val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
       when(resources.fetch(id, None)).thenReturn(OptionT.some[IO](res))
-      when(resources.materializeWithMeta(res)).thenReturn(
+      when(resources.materializeWithMeta(res, selfAsIri = true)).thenReturn(
         EitherT.rightT[IO, Rejection](
           ResourceF.simpleV(id,
                             ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
