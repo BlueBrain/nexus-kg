@@ -118,7 +118,7 @@ class ViewRoutes private[routes] (resources: Resources[Task],
 
   private def stats: Route =
     pathPrefix(IdSegment / "statistics") { id =>
-      (get & hasPermissions(read)) {
+      (get & hasPermission(read)) {
         val result: Task[Either[Rejection, ViewStatistics]] = viewCache.getBy[View](project.ref, id).flatMap {
           case Some(view: SingleView) => projectViewCoordinator.viewStatistics(project, view).map(Right(_))
           case Some(_)                => Task.pure(Left(NoStatsForAggregateView))

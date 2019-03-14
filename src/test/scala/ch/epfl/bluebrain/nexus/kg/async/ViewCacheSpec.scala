@@ -39,6 +39,7 @@ class ViewCacheSpec
 
   private implicit val clock: Clock         = Clock.systemUTC
   private implicit val appConfig: AppConfig = Settings(system).appConfig
+  private val time                          = clock.instant()
 
   val ref1 = ProjectRef(genUUID)
   val ref2 = ProjectRef(genUUID)
@@ -76,11 +77,14 @@ class ViewCacheSpec
   "ViewCache" should {
 
     "index views" in {
-      forAll(esViewsProj1 ++ sparqlViewsProj1 ++ esViewsProj2 ++ sparqlViewsProj2) { view =>
-        cache.put(view).runToFuture.futureValue
-        eventually {
-          cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
-        }
+      val list = (esViewsProj1 ++ sparqlViewsProj1 ++ esViewsProj2 ++ sparqlViewsProj2).toList
+      forAll(list.zipWithIndex) {
+        case (view, index) =>
+          implicit val instant = time.plusSeconds(index.toLong)
+          cache.put(view).runToFuture.futureValue
+          eventually {
+            cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
+          }
       }
     }
 
@@ -103,7 +107,8 @@ class ViewCacheSpec
     }
 
     "deprecate view" in {
-      val view = esViewsProj1.head
+      val view             = esViewsProj1.head
+      implicit val instant = time.plusSeconds(300L)
       cache.put(view.copy(deprecated = true, rev = 2L)).runToFuture.futureValue
       cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual None
       val expectedSet = esViewsProj1.filterNot(_ == view) ++ sparqlViewsProj1

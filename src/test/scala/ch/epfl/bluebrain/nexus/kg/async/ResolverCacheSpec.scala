@@ -35,6 +35,7 @@ class ResolverCacheSpec
 
   private implicit val clock: Clock         = Clock.systemUTC
   private implicit val appConfig: AppConfig = Settings(system).appConfig
+  private val time                          = clock.instant()
 
   val ref1 = ProjectRef(genUUID)
   val ref2 = ProjectRef(genUUID)
@@ -56,11 +57,14 @@ class ResolverCacheSpec
   "ResolverCache" should {
 
     "index resolvers" in {
-      forAll(resolverProj1 ++ resolverProj2) { resolver =>
-        cache.put(resolver).runToFuture.futureValue
-        eventually {
-          cache.get(resolver.ref, resolver.id).runToFuture.futureValue shouldEqual Some(resolver)
-        }
+      val list = (resolverProj1 ++ resolverProj2).toList
+      forAll(list.zipWithIndex) {
+        case (resolver, index) =>
+          implicit val instant = time.plusSeconds(index.toLong)
+          cache.put(resolver).runToFuture.futureValue
+          eventually {
+            cache.get(resolver.ref, resolver.id).runToFuture.futureValue shouldEqual Some(resolver)
+          }
       }
     }
 
@@ -70,7 +74,8 @@ class ResolverCacheSpec
     }
 
     "deprecate resolver" in {
-      val resolver = resolverProj1.head
+      val resolver         = resolverProj1.head
+      implicit val instant = time.plusSeconds(300L)
       cache.put(resolver.copy(deprecated = true, rev = 2L)).runToFuture.futureValue
       cache.get(resolver.ref, resolver.id).runToFuture.futureValue shouldEqual None
       cache.get(ref1).runToFuture.futureValue should contain theSameElementsAs resolverProj1.filterNot(_ == resolver)

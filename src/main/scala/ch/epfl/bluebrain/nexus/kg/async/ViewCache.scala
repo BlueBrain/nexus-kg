@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import java.time.Clock
+import java.time.{Clock, Instant}
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -23,8 +23,8 @@ import shapeless.{TypeCase, Typeable}
 class ViewCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedViews])(implicit F: Monad[F], clock: Clock)
     extends Cache[F, UUID, RevisionedViews](store) {
 
-  private implicit def toRevisioned(views: Set[View]): RevisionedViews =
-    RevisionedValue(clock.instant().toEpochMilli, views)
+  private implicit def toRevisioned(views: Set[View])(implicit instant: Instant): RevisionedViews =
+    RevisionedValue(instant.toEpochMilli, views)
 
   /**
     * Fetches views for the provided project.
@@ -64,17 +64,17 @@ class ViewCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedViews])(i
     *
     * @param value the view value
     */
-  def put(value: View): F[Unit] =
+  def put(value: View)(implicit instant: Instant = clock.instant()): F[Unit] =
     if (value.deprecated) remove(value)
     else add(value)
 
-  private def add(view: View): F[Unit] =
+  private def add(view: View)(implicit instant: Instant): F[Unit] =
     store.get(view.ref.id) flatMap {
       case Some(RevisionedValue(_, views)) => store.put(view.ref.id, views.filterNot(_.id == view.id) + view)
       case None                            => store.put(view.ref.id, Set(view))
     }
 
-  private def remove(view: View): F[Unit] =
+  private def remove(view: View)(implicit instant: Instant): F[Unit] =
     store.computeIfPresent(view.ref.id, _.value.filterNot(_.id == view.id)) *> F.unit
 
 }
