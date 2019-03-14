@@ -17,6 +17,8 @@
       "readPermission": "s3-read",
       "writePermission": "s3-write",
       "bucket": "bucket",
+      "region": "region",
+      "endpoint": "endpoint",
       "_algorithm": "MD5",
       "_deprecated": false,
       "_rev": 1

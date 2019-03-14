@@ -6,16 +6,15 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Storage}
-
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node._
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
 import io.circe.Json
 
 /**
@@ -36,10 +35,17 @@ object StorageEncoder {
                                                         (storage.id, nxv.volume, storage.volume.toString))
       RootedGraph(rootNode, triples)
     case (rootNode, storage: S3Storage) =>
-      val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.S3Storage),
-                                                        (storage.id, rdf.tpe, nxv.Alpha),
-                                                        (storage.id, nxv.bucket, storage.bucket))
-      RootedGraph(rootNode, triples)
+      val main = mainTriples(storage)
+      val triples = Set[Triple]((storage.id, rdf.tpe, nxv.S3Storage),
+                                (storage.id, rdf.tpe, nxv.Alpha),
+                                (storage.id, nxv.bucket, storage.bucket))
+      val region = storage.settings.region
+        .map(region => (IriNode(storage.id), IriNode(nxv.region), Node.literal(region)))
+        .toSet[Triple]
+      val endpoint = storage.settings.endpoint
+        .map(endpoint => (IriNode(storage.id), IriNode(nxv.endpoint), Node.literal(endpoint)))
+        .toSet[Triple]
+      RootedGraph(rootNode, main ++ triples ++ region ++ endpoint)
   }
 
   implicit val storageGraphEncoderEither: GraphEncoder[EncoderResult, Storage] = storageGraphEncoder.toEither

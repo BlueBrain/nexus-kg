@@ -339,9 +339,10 @@ class AdditionalValidationSpec
             override def apply: IO[Either[String, Unit]] = IO.pure(Right(()))
           }
         }
+        val expected   = jsonContentOf("/storage/s3-stored.json")
         val validation = AdditionalValidation.storage[IO]
         val resource   = simpleV(id, s3storage, types = types)
-        validation(id, schema, types, resource.value, 1L).value.accepted.source shouldEqual s3storage
+        validation(id, schema, types, resource.value, 1L).value.accepted.source should equalIgnoreArrayOrder(expected)
       }
     }
   }

@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Credentials, S3Settings, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.typesafe.config.{Config, ConfigFactory}
@@ -135,7 +135,18 @@ class EventsSpecBase
     ),
     FileUpdated(
       Id(projectRef, base + "file"),
-      DiskStorage.default(projectRef),
+      S3Storage(
+        projectRef,
+        base + "storages" + "s3",
+        1L,
+        deprecated = false,
+        default = false,
+        "MD5",
+        "bucket",
+        S3Settings(Some(S3Credentials("ak", "sk")), Some("endpoint"), Some("region")),
+        Permission.unsafe("resources/read"),
+        Permission.unsafe("files/write")
+      ),
       2L,
       FileAttributes(
         Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString).toString,

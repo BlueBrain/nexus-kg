@@ -146,14 +146,16 @@ object Storage {
   /**
     * An Amazon S3 compatible storage
     *
-    * @param ref        a reference to the project that the store belongs to
-    * @param id         the user facing store id
-    * @param rev        the store revision
-    * @param deprecated the deprecation state of the store
-    * @param default    ''true'' if this store is the project's default backend, ''false'' otherwise
-    * @param algorithm  the digest algorithm, e.g. "SHA-256"
-    * @param bucket     the bucket
-    * @param settings   an instance of [[S3Settings]] with proper credentials to access the bucket
+    * @param ref             a reference to the project that the store belongs to
+    * @param id              the user facing store id
+    * @param rev             the store revision
+    * @param deprecated      the deprecation state of the store
+    * @param default         ''true'' if this store is the project's default backend, ''false'' otherwise
+    * @param algorithm       the digest algorithm, e.g. "SHA-256"
+    * @param bucket          the bucket
+    * @param settings        an instance of [[S3Settings]] with proper credentials to access the bucket
+    * @param readPermission  the permission required in order to download a file from this storage
+    * @param writePermission the permission required in order to upload a file to this storage
     */
   final case class S3Storage(ref: ProjectRef,
                              id: AbsoluteIri,
@@ -162,8 +164,15 @@ object Storage {
                              default: Boolean,
                              algorithm: String,
                              bucket: String,
-                             settings: S3Settings)
+                             settings: S3Settings,
+                             readPermission: Permission,
+                             writePermission: Permission)
       extends Storage
+
+  private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
+    stringEncoder(node).flatMap { perm =>
+      Permission(perm).toRight(IllegalConversion(s"Invalid Permission '$perm'"))
+  }
 
   /**
     * S3 connection settings with reasonable defaults.
@@ -228,7 +237,7 @@ object Storage {
   final def apply(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, Storage] = {
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage(res)
     else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res)
-    else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the view types"))
+    else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the storage types"))
   }
 
   private def diskStorage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, DiskStorage] = {
@@ -236,10 +245,28 @@ object Storage {
     for {
       default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
       volume  <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
-      readPerms   <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
-      writePerms  <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
+      readPerms <- c
+        .downField(nxv.readPermission)
+        .focus
+        .as[Permission]
+        .orElse(config.disk.readPermission)
+        .toRejectionOnLeft(res.id.ref)
+      writePerms <- c
+        .downField(nxv.writePermission)
+        .focus
+        .as[Permission]
+        .orElse(config.disk.writePermission)
+        .toRejectionOnLeft(res.id.ref)
     } yield
-      DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume)
+      DiskStorage(res.id.parent,
+                  res.id.value,
+                  res.rev,
+                  res.deprecated,
+                  default,
+                  config.disk.digestAlgorithm,
+                  volume,
+                  readPerms,
+                  writePerms)
   }
 
   private def s3Storage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, S3Storage] = {
@@ -249,19 +276,35 @@ object Storage {
       bucket  <- c.downField(nxv.bucket).focus.as[String].toRejectionOnLeft(res.id.ref)
       endpoint = c.downField(nxv.endpoint).focus.flatMap(_.as[String].toOption)
       region   = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
+      readPerms <- c
+        .downField(nxv.readPermission)
+        .focus
+        .as[Permission]
+        .orElse(config.amazon.readPermission)
+        .toRejectionOnLeft(res.id.ref)
+      writePerms <- c
+        .downField(nxv.writePermission)
+        .focus
+        .as[Permission]
+        .orElse(config.amazon.writePermission)
+        .toRejectionOnLeft(res.id.ref)
       credentials = for {
         ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
         sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
       } yield S3Credentials(ak, sk)
     } yield
-      S3Storage(res.id.parent,
-                res.id.value,
-                res.rev,
-                res.deprecated,
-                default,
-                config.amazon.digestAlgorithm,
-                bucket,
-                S3Settings(credentials, endpoint, region))
+      S3Storage(
+        res.id.parent,
+        res.id.value,
+        res.rev,
+        res.deprecated,
+        default,
+        config.amazon.digestAlgorithm,
+        bucket,
+        S3Settings(credentials, endpoint, region),
+        readPerms,
+        writePerms
+      )
   }
 
   trait FetchFile[F[_], Out] {

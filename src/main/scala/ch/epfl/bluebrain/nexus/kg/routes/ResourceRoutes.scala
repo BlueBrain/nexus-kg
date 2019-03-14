@@ -15,12 +15,14 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import monix.eval.Task
 
-class ResourceRoutes private[routes] (resources: Resources[Task], acls: AccessControlLists, caller: Caller, projectViewCoordinator: ProjectViewCoordinator[Task])(
-    implicit as: ActorSystem,
-    project: Project,
-    cache: Caches[Task],
-    indexers: Clients[Task],
-    config: AppConfig)
+class ResourceRoutes private[routes] (resources: Resources[Task],
+                                      acls: AccessControlLists,
+                                      caller: Caller,
+                                      projectViewCoordinator: ProjectViewCoordinator[Task])(implicit as: ActorSystem,
+                                                                                            project: Project,
+                                                                                            cache: Caches[Task],
+                                                                                            indexers: Clients[Task],
+                                                                                            config: AppConfig)
     extends CommonRoutes(resources, "resources", acls, caller) {
 
   private implicit val viewCache = cache.view

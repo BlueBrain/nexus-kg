@@ -91,10 +91,14 @@
       "_mediaType": "text/json"
     },
     "_storage": {
-      "@type": "DiskStorage",
-      "_storageId": "https://bluebrain.github.io/nexus/vocabulary/diskStorageDefault",
-      "default": true,
-      "volume": "/tmp",
+      "@type": "S3Storage",
+      "_storageId": "http://example.com/base/storages/s3",
+      "bucket": "bucket",
+      "default": false,
+      "settings": {
+        "endpoint": "endpoint",
+        "region": "region"
+      },
       "readPermission": "resources/read",
       "writePermission": "files/write"
     },

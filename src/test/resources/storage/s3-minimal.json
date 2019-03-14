@@ -1,6 +1,7 @@
 {
   "@id": "http://example.com/id",
   "@type": [
+    "Storage",
     "S3Storage",
     "Alpha"
   ],

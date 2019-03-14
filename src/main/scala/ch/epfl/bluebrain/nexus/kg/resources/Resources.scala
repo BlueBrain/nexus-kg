@@ -318,7 +318,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param rev the revision of the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId, rev: Long)(implicit fetchStorage: Fetch[F, Out]): OptionT[F, (Storage, FileAttributes, Out)] =
+  def fetchFile[Out](id: ResId, rev: Long)(
+      implicit fetchStorage: Fetch[F, Out]): OptionT[F, (Storage, FileAttributes, Out)] =
     for {
       (storage, attr) <- fetch(id, rev, None).subflatMap(_.file)
       source          <- OptionT.liftF(storage.fetch.apply(attr))
@@ -332,7 +333,8 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param tag the tag of the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId, tag: String)(implicit fetchStorage: Fetch[F, Out]): OptionT[F, (Storage, FileAttributes, Out)] =
+  def fetchFile[Out](id: ResId, tag: String)(
+      implicit fetchStorage: Fetch[F, Out]): OptionT[F, (Storage, FileAttributes, Out)] =
     for {
       (storage, attr) <- fetch(id, tag, None).subflatMap(_.file)
       source          <- OptionT.liftF(storage.fetch.apply(attr))

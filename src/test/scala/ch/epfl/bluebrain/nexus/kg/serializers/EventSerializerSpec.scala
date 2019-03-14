@@ -38,7 +38,7 @@ class EventSerializerSpec
   private final val UTF8: Charset = Charset.forName("UTF-8")
   private final val serialization = SerializationExtension(system)
   private implicit val storageConfig =
-    StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write), S3StorageConfig("MD-5", read, write))
+    StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write), S3StorageConfig("MD5", read, write))
   private case class Other(str: String)
 
   private def findConcreteSerializer[A <: SerializerWithStringManifest](o: AnyRef)(implicit t: Typeable[A]): A =
@@ -69,7 +69,9 @@ class EventSerializerSpec
         false,
         "MD5",
         "bucket",
-        S3Settings(Some(S3Credentials("ak", "sk")), Some("http://endpoint"), Some("region"))
+        S3Settings(Some(S3Credentials("ak", "sk")), Some("http://endpoint"), Some("region")),
+        read,
+        write
       )
       val digest    = Digest("MD5", "1234")
       val filedUuid = UUID.fromString("b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7")

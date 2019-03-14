@@ -10,6 +10,7 @@ import akka.stream.scaladsl.{FileIO, Sink}
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.test.io.IOValues
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Resources}
+import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.DownstreamServiceError
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
@@ -38,6 +39,8 @@ class S3StorageOperationsSpec
   private val region  = "fake-region"
   private val bucket  = "bucket"
   private val s3mock  = S3Mock(port)
+  private val readS3  = Permission.unsafe("s3-read")
+  private val writeS3 = Permission.unsafe("s3-write")
 
   protected override def beforeAll(): Unit = {
     s3mock.start
@@ -70,7 +73,9 @@ class S3StorageOperationsSpec
                   default = true,
                   "MD5",
                   bucket,
-                  S3Settings(None, Some(address), Some(region)))
+                  S3Settings(None, Some(address), Some(region)),
+                  readS3,
+                  writeS3)
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       val save   = new S3StorageOperations.Save[IO](storage)
@@ -88,9 +93,9 @@ class S3StorageOperationsSpec
       // http://s3.amazonaws.com is hardcoded in S3Mock
       attr.location shouldEqual Uri(s"http://s3.amazonaws.com/$bucket/${mangle(projectRef, fileUuid)}")
       attr.mediaType shouldEqual "text/plain"
-      attr.bytes shouldEqual 244L
+      attr.bytes shouldEqual 323L
       attr.filename shouldEqual "s3.json"
-      attr.digest shouldEqual Digest("MD5", "1f5bde6da40b1595352f031d2f4f9527")
+      attr.digest shouldEqual Digest("MD5", "c322c0eaa0031ed8b22cd5bc21a8e79f")
 
       val download =
         fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(StandardCharsets.UTF_8)
@@ -119,7 +124,9 @@ class S3StorageOperationsSpec
                   default = true,
                   "MD5",
                   "foobar",
-                  S3Settings(None, Some(address), Some(region)))
+                  S3Settings(None, Some(address), Some(region)),
+                  readS3,
+                  writeS3)
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       val save   = new S3StorageOperations.Save[IO](storage)
@@ -139,8 +146,8 @@ class S3StorageOperationsSpec
         Uri(s"http://s3.amazonaws.com/foobar/${mangle(projectRef, fileUuid)}"),
         desc.filename,
         desc.mediaType,
-        244L,
-        Digest("MD5", "1f5bde6da40b1595352f031d2f4f9527")
+        323L,
+        Digest("MD5", "c322c0eaa0031ed8b22cd5bc21a8e79f")
       )
       val download = fetch(attr).failed[DownstreamServiceError]
       download.msg shouldEqual s"Error fetching S3 object with key '${mangle(projectRef, fileUuid)}' in bucket 'foobar': The specified bucket does not exist"
