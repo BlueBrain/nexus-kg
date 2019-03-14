@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
-import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
@@ -8,8 +8,8 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class PackageObjectSpec extends FlatSpec with Matchers {
 
-  "uriToPath" should "convert a valid Akka Uri to a Path" in {
-    uriToPath("file:///some/path") shouldEqual Some(Path.of("/some/path"))
+  "uriToPath" should "convert an Akka Uri that represents a valid file path to a Java Path" in {
+    uriToPath("file:///some/path") shouldEqual Some(Paths.get("/some/path"))
     uriToPath("s3://some/path") shouldEqual None
     uriToPath("foo") shouldEqual None
   }

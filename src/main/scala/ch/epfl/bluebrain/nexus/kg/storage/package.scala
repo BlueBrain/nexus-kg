@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg
 
 import java.net.URI
-import java.nio.file.Path
+import java.nio.file.{Path, Paths}
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -32,7 +32,7 @@ package object storage {
     * @return Some(path) if the input Uri was valid, None otherwise
     */
   def uriToPath(uri: Uri): Option[Path] =
-    if (uri.scheme == "file") Some(Path.of(URI.create(uri.toString)))
+    if (uri.scheme == "file") Some(Paths.get(URI.create(uri.toString)))
     else None
 
   /**
