@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import java.nio.file.{Files, Paths}
 import java.time.{Clock, Instant, ZoneId}
+import java.util.UUID
 import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.MediaTypes._
@@ -691,14 +692,15 @@ class ResourceRoutesSpec
                                        updated = subject,
                                        schema = schemaRef,
                                        types = Set(nxv.File.value))
-      val path    = Paths.get(getClass.getResource("/resources/file.txt").toURI)
-      val at1     = FileAttributes("uuid1", path.toString, "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
-      val content = new String(Files.readAllBytes(path))
+      val path    = getClass.getResource("/resources/file.txt")
+      val uuid    = UUID.randomUUID
+      val at1     = FileAttributes(uuid, Uri(path.toString), "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
+      val content = new String(Files.readAllBytes(Paths.get(path.toURI)))
       val source: Source[ByteString, Any] =
         Source.single(ByteString(content)).mapMaterializedValue[Any](v => v)
 
       when(resources.fetch(mEq(id), mEq(None))).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetchFile(mEq(id), any[Long])(any[Fetch[AkkaSource]]))
+      when(resources.fetchFile(mEq(id), any[Long])(any[Fetch[Task, AkkaSource]]))
         .thenReturn(OptionT.some[Task]((storage: Storage, at1, source)))
 
       val endpoints = List(
@@ -739,13 +741,9 @@ class ResourceRoutesSpec
 
     "get the file metadata" in new File {
       val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
+      val uuid     = UUID.randomUUID
       val at1 =
-        FileAttributes("uuid1",
-                       Paths.get("some1").toString,
-                       "filename1.txt",
-                       "text/plain",
-                       1024,
-                       Digest("SHA-256", "digest1"))
+        FileAttributes(uuid, Uri("file:///some1"), "filename1.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
       val resourceV =
         simpleV(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
           .copy(file = Some(storage -> at1))

@@ -85,6 +85,13 @@ object Vocabulary {
     val readPermission  = PrefixMapping.prefix("readPermission")
     val writePermission = PrefixMapping.prefix("writePermission")
 
+    // S3 storage payload vocabulary
+    val bucket    = PrefixMapping.prefix("bucket")
+    val endpoint  = PrefixMapping.prefix("endpoint")
+    val region    = PrefixMapping.prefix("region")
+    val accessKey = PrefixMapping.prefix("accessKey")
+    val secretKey = PrefixMapping.prefix("secretKey")
+
     // View default ids
     val defaultElasticSearchIndex = PrefixMapping.prefix("defaultElasticSearchIndex")
     val defaultSparqlIndex        = PrefixMapping.prefix("defaultSparqlIndex")

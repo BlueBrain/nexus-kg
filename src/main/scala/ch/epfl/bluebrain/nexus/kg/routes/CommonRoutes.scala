@@ -186,17 +186,19 @@ private[routes] abstract class CommonRoutes(
 
   private def getFile(id: AbsoluteIri): Route =
     trace("getFile") {
-      concat(
-        (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-          completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
-        },
-        (parameter('tag) & noParameter('rev)) { tag =>
-          completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
-        },
-        (noParameter('tag) & noParameter('rev)) {
-          completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
-        }
-      )
+      extractActorSystem { implicit as =>
+        concat(
+          (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+            completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
+          },
+          (parameter('tag) & noParameter('rev)) { tag =>
+            completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
+          },
+          (noParameter('tag) & noParameter('rev)) {
+            completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
+          }
+        )
+      }
     }
 
   private def completeFile(f: Future[(Storage, FileAttributes, AkkaSource)]): Route =

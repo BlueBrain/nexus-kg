@@ -65,13 +65,13 @@ class ResourcesSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  implicit private val repo                  = Repo[IO].ioValue
-  private val saveFile: SaveFile[IO, String] = mock[SaveFile[IO, String]]
-  private val fetchFile: FetchFile[String]   = mock[FetchFile[String]]
-  private val projectCache                   = mock[ProjectCache[IO]]
-  private val resolverCache                  = mock[ResolverCache[IO]]
-  private val aclsCache                      = mock[AclsCache[IO]]
-  private implicit val additional            = AdditionalValidation.pass[IO]
+  implicit private val repo                    = Repo[IO].ioValue
+  private val saveFile: SaveFile[IO, String]   = mock[SaveFile[IO, String]]
+  private val fetchFile: FetchFile[IO, String] = mock[FetchFile[IO, String]]
+  private val projectCache                     = mock[ProjectCache[IO]]
+  private val resolverCache                    = mock[ResolverCache[IO]]
+  private val aclsCache                        = mock[AclsCache[IO]]
+  private implicit val additional              = AdditionalValidation.pass[IO]
   when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List.empty[Resolver]))
   val acls = AccessControlLists(
     "some" / "path" -> resourceAcls(
@@ -159,10 +159,11 @@ class ResourcesSpec
     val storage    = DiskStorage.default(projectRef)
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
-    implicit val fetch: Fetch[String]   = (st: Storage) => if (st == storage) fetchFile else throw new RuntimeException
+    implicit val fetch: Fetch[IO, String] = (st: Storage) =>
+      if (st == storage) fetchFile else throw new RuntimeException
 
     when(saveFile(resId, desc, source)).thenReturn(IO.pure(attributes))
-    when(fetchFile(attributes)).thenReturn(source)
+    when(fetchFile(attributes)).thenReturn(IO.pure(source))
   }
 
   "A Resources bundle" when {

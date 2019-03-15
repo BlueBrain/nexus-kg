@@ -102,6 +102,46 @@
           "maxCount": 1
         },
         {
+          "path": "nxv:bucket",
+          "name": "bucket",
+          "description": "The S3 bucket where the files are going to be stored",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:endpoint",
+          "name": "endpoint",
+          "description": "An optional S3 endpoint, either the domain or a full URL",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:region",
+          "name": "region",
+          "description": "An optional S3 region",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:accessKey",
+          "name": "accessKey",
+          "description": "The S3 access key",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:secretKey",
+          "name": "secretKey",
+          "description": "The S3 secret key",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
+        },
+        {
           "path": "nxv:readPermission",
           "name": "readPermission",
           "description": "The permission required in order to download a file from this storage",

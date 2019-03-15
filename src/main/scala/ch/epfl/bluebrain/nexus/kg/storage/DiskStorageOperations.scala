@@ -1,11 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
 import java.nio.file.{Files, Path, Paths}
+import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{FileIO, Keep}
 import akka.stream.{ActorMaterializer, Materializer}
-import cats.Monad
 import cats.effect.{Effect, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
@@ -19,12 +19,14 @@ import scala.util.control.NonFatal
 
 object DiskStorageOperations {
 
+  private val logger = Logger[this.type]
+
   /**
     * [[VerifyStorage]] implementation for [[DiskStorage]]
     *
     * @param storage the [[DiskStorage]]
     */
-  final class VerifyDiskStorage[F[_]](storage: DiskStorage)(implicit F: Monad[F]) extends VerifyStorage[F] {
+  final class VerifyDiskStorage[F[_]](storage: DiskStorage)(implicit F: Effect[F]) extends VerifyStorage[F] {
     override def apply: F[Either[String, Unit]] =
       if (!Files.exists(storage.volume)) F.pure(Left(s"Volume '${storage.volume}' does not exist."))
       else if (!Files.isDirectory(storage.volume)) F.pure(Left(s"Volume '${storage.volume}' is not a directory."))
@@ -36,12 +38,15 @@ object DiskStorageOperations {
   /**
     * [[FetchFile]] implementation for [[DiskStorage]]
     *
-    * @param storage the [[DiskStorage]]
     */
-  final class FetchDiskFile(storage: DiskStorage) extends FetchFile[AkkaSource] {
+  final class FetchDiskFile[F[_]](implicit F: Effect[F]) extends FetchFile[F, AkkaSource] {
 
-    override def apply(fileMeta: FileAttributes): AkkaSource =
-      FileIO.fromPath(storage.volume.resolve(fileMeta.filePath))
+    override def apply(fileMeta: FileAttributes): F[AkkaSource] = uriToPath(fileMeta.location) match {
+      case Some(path) => F.pure(FileIO.fromPath(path))
+      case None =>
+        logger.error(s"Invalid file location: '${fileMeta.location}'")
+        F.raiseError(KgError.InternalError(s"Invalid file location: '${fileMeta.location}'"))
+    }
   }
 
   /**
@@ -54,7 +59,6 @@ object DiskStorageOperations {
 
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val mt: Materializer     = ActorMaterializer()
-    private val logger: Logger                = Logger[this.type]
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
       getLocation(fileDesc.uuid).flatMap {
@@ -79,17 +83,17 @@ object DiskStorageOperations {
       }
     }
 
-    private def getLocation(uuid: String): F[(Path, Path)] = {
+    private def getLocation(uuid: UUID): F[(Path, Path)] = {
       F.catchNonFatal {
-          val relative = Paths.get(s"${storage.ref.id}/${uuid.takeWhile(_ != '-').mkString("/")}/$uuid")
+          val relative = Paths.get(mangle(storage.ref, uuid))
           val filePath = storage.volume.resolve(relative)
           Files.createDirectories(filePath.getParent)
           (filePath, relative)
         }
         .recoverWith {
           case NonFatal(err) =>
-            logger.error(s"Unable to derive Location for path '${storage.volume}'", err)
-            F.raiseError(KgError.InternalError(s"Unable to derive Location for path '${storage.volume}'"))
+            logger.error(s"Unable to resolve location for path '${storage.volume}'", err)
+            F.raiseError(KgError.InternalError(s"Unable to resolve location for path '${storage.volume}'"))
         }
     }
   }

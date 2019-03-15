@@ -1,24 +1,27 @@
 {
-  "@context" : [
+  "@context": [
     "https://bluebrain.github.io/nexus/contexts/search.json",
     "https://bluebrain.github.io/nexus/contexts/resource.json",
     "https://bluebrain.github.io/nexus/contexts/storage.json"
   ],
-  "_total" : 1,
-  "_results" : [
+  "_total": 1,
+  "_results": [
     {
-      "@id" : "http://example.com/id",
-      "@type" : [
+      "@id": "http://example.com/id",
+      "@type": [
         "Alpha",
         "S3Storage",
         "Storage"
       ],
-      "default" : true,
-      "readPermission" : "s3-read",
-      "writePermission" : "s3-write",
-      "_algorithm" : "MD-5",
-      "_deprecated" : false,
-      "_rev" : 1
+      "default": true,
+      "readPermission": "s3-read",
+      "writePermission": "s3-write",
+      "bucket": "bucket",
+      "region": "region",
+      "endpoint": "endpoint",
+      "_algorithm": "MD5",
+      "_deprecated": false,
+      "_rev": 1
     }
   ]
 }
