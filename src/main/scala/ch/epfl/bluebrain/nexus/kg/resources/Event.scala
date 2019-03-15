@@ -215,7 +215,7 @@ object Event {
     private implicit val refEncoder: Encoder[Ref]         = Encoder.encodeJson.contramap(_.iri.asJson)
     private implicit val uriEncoder: Encoder[Uri]         = Encoder.encodeString.contramap(_.toString)
     private implicit val pathEncoder: Encoder[Path]       = Encoder.encodeString.contramap(_.toString)
-    private implicit val permEncoder: Encoder[Permission] = Encoder.encodeString.contramap(_.value.toString)
+    private implicit val permEncoder: Encoder[Permission] = Encoder.encodeString.contramap(_.value)
 
     private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
 

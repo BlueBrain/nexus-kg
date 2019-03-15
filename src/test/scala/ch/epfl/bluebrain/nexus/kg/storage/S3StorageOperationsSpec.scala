@@ -5,6 +5,7 @@ import java.nio.file.Paths
 import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
+import akka.stream.alpakka.s3
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.{FileIO, Sink}
 import cats.effect.IO
@@ -22,6 +23,9 @@ import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import io.findify.s3mock.S3Mock
 import org.scalatest._
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 class S3StorageOperationsSpec
     extends ActorSystemFixture("S3StorageOperationsSpec")
@@ -42,7 +46,14 @@ class S3StorageOperationsSpec
   private val readS3  = Permission.unsafe("s3-read")
   private val writeS3 = Permission.unsafe("s3-write")
 
+  private val keys  = Set("http.proxyHost", "http.proxyPort", "https.proxyHost", "https.proxyPort", "http.nonProxyHosts")
+  private val props = mutable.Map[String, String]()
+
   protected override def beforeAll(): Unit = {
+    // saving the current system properties so that we can restore them later
+    props ++= System.getProperties.asScala.toMap.filterKeys(keys.contains)
+    keys.foreach(System.clearProperty)
+
     s3mock.start
     val endpoint = new EndpointConfiguration(address, region)
     val client = AmazonS3ClientBuilder.standard
@@ -56,12 +67,20 @@ class S3StorageOperationsSpec
 
   override protected def afterAll(): Unit = {
     s3mock.stop
+    keys.foreach { k =>
+      props.get(k) match {
+        case Some(v) => System.setProperty(k, v)
+        case None    => System.clearProperty(k)
+      }
+    }
     super.afterAll()
   }
 
   "S3StorageOperations" should {
 
     "save and fetch files" in {
+      keys.foreach(System.clearProperty)
+
       val base       = url"https://nexus.example.com/".value
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
@@ -113,6 +132,8 @@ class S3StorageOperationsSpec
     }
 
     "fail if the bucket doesn't exist" in {
+      keys.foreach(System.clearProperty)
+
       val base       = url"https://nexus.example.com/".value
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
@@ -151,6 +172,22 @@ class S3StorageOperationsSpec
       )
       val download = fetch(attr).failed[DownstreamServiceError]
       download.msg shouldEqual s"Error fetching S3 object with key '${mangle(projectRef, fileUuid)}' in bucket 'foobar': The specified bucket does not exist"
+    }
+  }
+
+  "S3Settings" should {
+    "select the system proxy" in {
+      System.setProperty("http.proxyHost", "example.com")
+      System.setProperty("http.proxyPort", "8080")
+      System.setProperty("https.proxyHost", "secure.example.com")
+      System.setProperty("https.proxyPort", "8080")
+      System.setProperty("http.nonProxyHosts", "*.epfl.ch|*.cluster.local")
+
+      S3Settings.getSystemProxy("http://s3.amazonaws.com") shouldEqual Some(s3.Proxy("example.com", 8080, "http"))
+      S3Settings.getSystemProxy("https://s3.amazonaws.com") shouldEqual Some(
+        s3.Proxy("secure.example.com", 8080, "http"))
+      S3Settings.getSystemProxy("https://www.epfl.ch") shouldEqual None
+      S3Settings.getSystemProxy("http://foo.bar.cluster.local") shouldEqual None
     }
   }
 

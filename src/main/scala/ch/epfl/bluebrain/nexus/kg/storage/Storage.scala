@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
+import java.net.{InetSocketAddress, ProxySelector, URI}
+import java.net.Proxy.Type
 import java.nio.file.{Path, Paths}
 
 import akka.actor.ActorSystem
@@ -201,22 +203,43 @@ object Storage {
         case None => new DefaultAwsRegionProviderChain()
       }
 
-      val proxy = System
-        .getenv()
-        .asScala
-        .collectFirst {
-          case (k, v) if k.toLowerCase == "https_proxy" && v.nonEmpty => v
-        }
-        .flatMap(address => Try(Uri(address)).toOption)
-        .map(uri => s3.Proxy(uri.authority.host.address, uri.effectivePort, uri.scheme))
+      val address = endpoint match {
+        case None => "https://s3.amazonaws.com"
+        case Some(s) =>
+          if (s.startsWith("https://") || s.startsWith("http://")) s
+          else s"https://$s"
+      }
 
       s3.S3Settings(MemoryBufferType,
-                    proxy,
+                    S3Settings.getSystemProxy(address),
                     credsProvider,
                     regionProvider,
                     pathStyleAccess = true,
                     endpoint,
                     ApiVersion.ListBucketVersion2)
+    }
+  }
+
+  object S3Settings {
+
+    /**
+      * Attempts to select the system proxy for a given target URI.
+      *
+      * @param target a valid target URI
+      * @return Some instance of [[akka.stream.alpakka.s3.Proxy]] if a proxy was found
+      */
+    private[storage] def getSystemProxy(target: String): Option[s3.Proxy] = {
+      System.setProperty("java.net.useSystemProxies", "true")
+      Try(new URI(target)).toOption
+        .flatMap { uri =>
+          val selector = ProxySelector.getDefault.select(uri)
+          if (selector.isEmpty) None
+          else selector.asScala.find(_.`type` == Type.HTTP).map(_.address)
+        }
+        .flatMap {
+          case isa: InetSocketAddress => Some(s3.Proxy(isa.getHostString, isa.getPort, Uri.httpScheme(false)))
+          case _                      => None
+        }
     }
   }
 
