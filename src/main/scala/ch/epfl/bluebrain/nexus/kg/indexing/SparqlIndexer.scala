@@ -42,9 +42,9 @@ private class SparqlIndexerMapping[F[_]](resources: Resources[F])(implicit F: Mo
     * @param event event to be mapped to a Sparql insert query
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
-    resources.fetch(event.id, None).value.flatMap {
-      case None           => F.pure(None)
-      case Some(resource) => buildInsertQuery(resource)
+    resources.fetch(event.id).value.flatMap {
+      case Right(resource) => buildInsertQuery(resource)
+      case _               => F.pure(None)
     }
 
   private def buildInsertQuery(res: Resource): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =

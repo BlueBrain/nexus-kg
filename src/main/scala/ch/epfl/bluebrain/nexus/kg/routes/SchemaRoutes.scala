@@ -21,20 +21,18 @@ class SchemaRoutes private[routes] (resources: Resources[Task], acls: AccessCont
     config: AppConfig)
     extends CommonRoutes(resources, "schemas", acls, caller) {
 
-  def routes: Route = {
-    val shaclRefOpt = Some(shaclRef)
-    create(shaclRef) ~ list(shaclRefOpt) ~
+  def routes: Route =
+    create(shaclRef) ~ list(shaclRef) ~
       pathPrefix(IdSegment) { id =>
         concat(
           create(id, shaclRef),
-          update(id, shaclRefOpt),
-          tag(id, shaclRefOpt),
-          deprecate(id, shaclRefOpt),
-          fetch(id, shaclRefOpt),
-          tags(id, shaclRefOpt)
+          update(id, shaclRef),
+          tag(id, shaclRef),
+          deprecate(id, shaclRef),
+          fetch(id, shaclRef),
+          tags(id, shaclRef)
         )
       }
-  }
 
   override def transform(json: Json) =
     json.addContext(shaclCtxUri)

@@ -24,20 +24,18 @@ class StorageRoutes private[routes] (resources: Resources[Task], acls: AccessCon
     config: AppConfig)
     extends CommonRoutes(resources, "storages", acls, caller) {
 
-  def routes: Route = {
-    val storageRefOpt = Some(storageRef)
-    create(storageRef) ~ list(storageRefOpt) ~
+  def routes: Route =
+    create(storageRef) ~ list(storageRef) ~
       pathPrefix(IdSegment) { id =>
         concat(
           create(id, storageRef),
-          update(id, storageRefOpt),
-          tag(id, storageRefOpt),
-          deprecate(id, storageRefOpt),
-          fetch(id, storageRefOpt),
-          tags(id, storageRefOpt)
+          update(id, storageRef),
+          tag(id, storageRef),
+          deprecate(id, storageRef),
+          fetch(id, storageRef),
+          tags(id, storageRef)
         )
       }
-  }
 
   override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.storage[Task]
 

@@ -28,7 +28,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task],
   private implicit val viewCache = cache.view
 
   def routes: Route =
-    list(None) ~ pathPrefix(IdSegmentOrUnderscore) {
+    list ~ pathPrefix(IdSegmentOrUnderscore) {
       case Underscore                    => new UnderscoreRoutes(resources, acls, caller, projectViewCoordinator).routes
       case SchemaId(`shaclSchemaUri`)    => new SchemaRoutes(resources, acls, caller).routes
       case SchemaId(`resolverSchemaUri`) => new ResolverRoutes(resources, acls, caller).routes
@@ -36,15 +36,15 @@ class ResourceRoutes private[routes] (resources: Resources[Task],
       case SchemaId(`viewSchemaUri`)     => new ViewRoutes(resources, acls, caller, projectViewCoordinator).routes
       case SchemaId(`storageSchemaUri`)  => new StorageRoutes(resources, acls, caller).routes
       case SchemaId(schema) =>
-        create(schema.ref) ~ list(Some(schema.ref)) ~
+        create(schema.ref) ~ list(schema.ref) ~
           pathPrefix(IdSegment) { id =>
             concat(
               create(id, schema.ref),
-              update(id, Some(schema.ref)),
-              tag(id, Some(schema.ref)),
-              deprecate(id, Some(schema.ref)),
-              fetch(id, Some(schema.ref)),
-              tags(id, Some(schema.ref))
+              update(id, schema.ref),
+              tag(id, schema.ref),
+              deprecate(id, schema.ref),
+              fetch(id, schema.ref),
+              tags(id, schema.ref)
             )
           }
     } ~ create(unconstrainedRef)

@@ -1,13 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.Description
+import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.{HealthStatusGroup, ServiceDescription}
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import io.circe.Encoder
 import io.circe.generic.auto._
-import io.circe.{Encoder, Printer}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -16,13 +17,11 @@ import monix.execution.Scheduler.Implicits.global
   */
 class AppInfoRoutes(serviceDescription: ServiceDescription, healthStatus: HealthStatusGroup) {
 
-  private implicit val printer = Printer.noSpaces.copy(dropNullValues = true)
-
   def routes: Route =
     (get & pathEndOrSingleSlash) {
-      complete(serviceDescription)
+      complete(OK -> serviceDescription)
     } ~ (pathPrefix("health") & get & pathEndOrSingleSlash) {
-      complete(healthStatus.check.runToFuture)
+      complete(healthStatus.check.runWithStatus(OK))
     }
 
 }

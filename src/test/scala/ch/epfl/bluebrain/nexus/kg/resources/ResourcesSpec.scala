@@ -352,31 +352,31 @@ class ResourcesSpec
 
       "update a resource (resolver)" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldEqual
+        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
       }
 
       "update a resource (resolver) when the provided schema matches the created schema" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, Some(schema), resolverUpdated).value.accepted shouldEqual
+        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
       }
 
       "prevent to update a resource (resolver) when the provided schema does not match the created schema" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         private val schemaRef = Ref(genIri)
-        resources.update(resId, 1L, Some(schemaRef), resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(
-          schemaRef)
+        resources.update(resId, 1L, schemaRef, resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
       }
 
       "prevent to update a resource (resolver) that does not exists" in new ResolverResource {
-        resources.update(resId, 1L, Some(schema), resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(
-          resId.ref)
+        resources.update(resId, 1L, schema, resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(resId.ref,
+                                                                                                           revOpt =
+                                                                                                             Some(1L))
       }
 
       "update a resource (storage) when the provided schema matches the created schema" in new StorageResource {
         resources.create(base, schema, diskStorage).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, Some(schema), s3Storage).value.accepted shouldEqual
+        resources.update(resId, 1L, schema, s3Storage).value.accepted shouldEqual
           ResourceF.simpleF(resId, s3Storage, 2L, schema = schema, types = typesUpdate)
       }
     }
@@ -386,8 +386,8 @@ class ResourcesSpec
 
       "tag a resource" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
-        resources.tag(resId, 2L, None, tag).value.accepted shouldEqual
+        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldBe a[Resource]
+        resources.tag(resId, 2L, schema, tag).value.accepted shouldEqual
           ResourceF
             .simpleF(resId, resolverUpdated, 3L, schema = schema, types = types)
             .copy(tags = Map("some" -> 1L))
@@ -395,29 +395,29 @@ class ResourcesSpec
 
       "prevent tagging a resource with incorrect payload" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
+        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldBe a[Resource]
         private val invalidPayload: Json = Json.obj("a" -> Json.fromString("b"))
-        resources.tag(resId, 2L, None, invalidPayload).value.rejected[InvalidResourceFormat]
+        resources.tag(resId, 2L, schema, invalidPayload).value.rejected[InvalidResourceFormat]
       }
 
       "prevent tagging a resource when the provided schema does not match the created schema" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         private val schemaRef = Ref(genIri)
-        resources.tag(resId, 1L, Some(schemaRef), tag).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
+        resources.tag(resId, 1L, schemaRef, tag).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
       }
     }
 
     "performing deprecate operations" should {
       "deprecate a resource" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.deprecate(resId, 1L, None).value.accepted shouldEqual
+        resources.deprecate(resId, 1L, schema).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, 2L, schema = schema, types = types, deprecated = true)
       }
 
       "prevent deprecating a resource when the provided schema does not match the created schema" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         private val schemaRef = Ref(genIri)
-        resources.deprecate(resId, 1L, Some(schemaRef)).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
+        resources.deprecate(resId, 1L, schemaRef).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
       }
     }
 
@@ -432,40 +432,41 @@ class ResourcesSpec
 
       "return a resource" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.fetch(resId, None).value.some shouldEqual
+        resources.fetch(resId).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
       }
 
       "return a specific revision of the resource" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.fetch(resId, None).value.some shouldEqual
+        resources.fetch(resId).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
       }
 
       "return the requested resource on a specific revision" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
-        resources.fetch(resId, 2L, None).value.some shouldEqual
+        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldBe a[Resource]
+        resources.fetch(resId, 2L).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
-        resources.fetch(resId, 1L, None).value.some shouldEqual
+        resources.fetch(resId, 2L).value.accepted shouldEqual resources.fetch(resId, 2L, schema).value.accepted
+        resources.fetch(resId, 1L).value.accepted shouldEqual
           ResourceF.simpleF(resId, resolver, schema = schema, types = types)
-        resources.fetch(resId, 2L, None).value.some shouldEqual resources.fetch(resId, None).value.some
+        resources.fetch(resId, 2L).value.accepted shouldEqual resources.fetch(resId).value.accepted
       }
 
       "return the requested resource on a specific tag" in new ResolverResource {
         private val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(2L))
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, None, resolverUpdated).value.accepted shouldBe a[Resource]
-        resources.tag(resId, 2L, None, tag).value.accepted shouldBe a[Resource]
-        resources.fetch(resId, "some", None).value.some shouldEqual
+        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldBe a[Resource]
+        resources.tag(resId, 2L, schema, tag).value.accepted shouldBe a[Resource]
+        resources.fetch(resId, "some").value.accepted shouldEqual
           ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
-        resources.fetch(resId, "some", None).value.some shouldEqual resources.fetch(resId, 2L, None).value.some
+        resources.fetch(resId, "some").value.accepted shouldEqual resources.fetch(resId, 2L).value.accepted
       }
 
-      "return None when the provided schema does not match the created schema" in new ResolverResource {
+      "return NotFound when the provided schema does not match the created schema" in new ResolverResource {
         resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
         private val schemaRef = Ref(genIri)
-        resources.fetch(resId, Some(schemaRef)).value.ioValue shouldEqual None
+        resources.fetch(resId, schemaRef).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
       }
     }
 

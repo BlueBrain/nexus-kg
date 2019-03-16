@@ -42,9 +42,9 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     * @param event event to be mapped to a Elastic Search insert query
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
-    view.resourceTag.map(resources.fetch(event.id, _, None)).getOrElse(resources.fetch(event.id, None)).value.map {
-      case Some(resource) if validCandidate(resource) => transformAndIndex(resource).map(event.id -> _)
-      case _                                          => None
+    view.resourceTag.map(resources.fetch(event.id, _)).getOrElse(resources.fetch(event.id)).value.map {
+      case Right(resource) if validCandidate(resource) => transformAndIndex(resource).map(event.id -> _)
+      case _                                           => None
     }
 
   private def validCandidate(resource: Resource): Boolean =

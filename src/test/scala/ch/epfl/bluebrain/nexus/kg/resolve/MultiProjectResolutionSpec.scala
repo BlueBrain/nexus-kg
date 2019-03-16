@@ -5,7 +5,7 @@ import java.time.{Clock, Instant}
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import akka.util.Timeout
-import cats.data.OptionT
+import cats.data.EitherT
 import cats.effect.{IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -18,8 +18,10 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.simpleF
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import io.circe.Json
@@ -104,13 +106,13 @@ class MultiProjectResolutionSpec
       (Id(ProjectRef(proj1Id), resId), Id(ProjectRef(proj2Id), resId), Id(ProjectRef(proj3Id), resId))
     "look in all projects to resolve a resource" in {
       val value = simpleF(id3, genJson, types = types)
-      when(resources.fetch(id1, None)).thenReturn(OptionT.none[IO, Resource])
-      when(resources.fetch(id2, None)).thenReturn(OptionT.none[IO, Resource])
-      when(resources.fetch(id3, None)).thenReturn(OptionT.some[IO](value))
+      when(resources.fetch(id1)).thenReturn(EitherT.leftT[IO, Resource](NotFound(id1.ref): Rejection))
+      when(resources.fetch(id2)).thenReturn(EitherT.leftT[IO, Resource](NotFound(id2.ref): Rejection))
+      when(resources.fetch(id3)).thenReturn(EitherT.rightT[IO, Rejection](value))
 
       resolution.resolve(Latest(resId)).some shouldEqual value
-      verify(resources, times(1)).fetch(id1, None)
-      verify(resources, times(1)).fetch(id2, None)
+      verify(resources, times(1)).fetch(id1)
+      verify(resources, times(1)).fetch(id2)
     }
 
     "filter results according to the resolvers' resource types" in {
@@ -118,7 +120,7 @@ class MultiProjectResolutionSpec
       val value2 = simpleF(id2, genJson, types = Set(nxv.Schema.value))
       val value3 = simpleF(id3, genJson, types = Set(nxv.Ontology.value))
       List(id1 -> value1, id2 -> value2, id3 -> value3).foreach {
-        case (id, value) => when(resources.fetch(id, None)).thenReturn(OptionT.some[IO](value))
+        case (id, value) => when(resources.fetch(id)).thenReturn(EitherT.rightT[IO, Rejection](value))
       }
 
       resolution.resolve(Latest(resId)).ioValue shouldEqual Some(value2)
@@ -127,7 +129,7 @@ class MultiProjectResolutionSpec
     "filter results according to the resolvers' identities" in {
       val List(_, value2, _) = List(id1, id2, id3).map { id =>
         val value = simpleF(id, genJson, types = types)
-        when(resources.fetch(id, None)).thenReturn(OptionT.some[IO](value))
+        when(resources.fetch(id)).thenReturn(EitherT.rightT[IO, Rejection](value))
         value
       }
       val acl =
@@ -140,7 +142,8 @@ class MultiProjectResolutionSpec
 
     "return none if the resource is not found in any project" in {
       List(proj1Id, proj2Id, proj3Id).foreach { id =>
-        when(resources.fetch(Id(ProjectRef(id), resId), None)).thenReturn(OptionT.none[IO, Resource])
+        when(resources.fetch(Id(ProjectRef(id), resId)))
+          .thenReturn(EitherT.leftT[IO, Resource](NotFound(resId.ref): Rejection))
       }
       resolution.resolve(Latest(resId)).ioValue shouldEqual None
     }

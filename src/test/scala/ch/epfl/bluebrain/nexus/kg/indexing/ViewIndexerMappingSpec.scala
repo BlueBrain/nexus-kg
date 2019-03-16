@@ -2,10 +2,11 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.time.{Clock, Instant, ZoneId}
 
-import cats.data.{EitherT, OptionT}
+import cats.data.EitherT
 import cats.effect.{IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
@@ -13,12 +14,12 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
 
@@ -84,7 +85,7 @@ class ViewIndexerMappingSpec
     val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
 
     "return a view" in {
-      resources.fetch(id, None) shouldReturn OptionT.some(resource)
+      resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](resource)
       resources.materialize(resource)(project) shouldReturn EitherT.rightT[IO, Rejection](resourceV)
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
 
@@ -93,12 +94,12 @@ class ViewIndexerMappingSpec
 
     "return none when the resource cannot be found" in {
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      resources.fetch(id, None) shouldReturn OptionT.none[IO, Resource]
+      resources.fetch(id) shouldReturn EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection)
       mapper(ev).ioValue shouldEqual None
     }
 
     "raise error when the resource cannot be materialized" in {
-      resources.fetch(id, None) shouldReturn OptionT.some(resource)
+      resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](resource)
       val err = IO.raiseError[Either[Rejection, ResourceV]](KgError.InternalError(""))
       resources.materialize(resource)(project) shouldReturn EitherT(err)
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))

@@ -5,7 +5,7 @@ import java.time.{Clock, Instant, ZoneId, ZoneOffset}
 import java.util.UUID
 import java.util.regex.Pattern.quote
 
-import cats.data.OptionT
+import cats.data.EitherT
 import cats.effect.IO
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -19,6 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Updated}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -102,13 +103,13 @@ class ElasticIndexerMappingSpec
       val mapper = new ElasticSearchIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
-        resources.fetch(id, None) shouldReturn OptionT.none[IO, Resource]
+        resources.fetch(id) shouldReturn EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection)
         mapper(ev).ioValue shouldEqual None
       }
 
       "return a ElasticSearch BulkOp" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-        resources.fetch(id, None) shouldReturn OptionT.some(res)
+        resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json
           .obj(
@@ -146,13 +147,13 @@ class ElasticIndexerMappingSpec
 
       "return none when the schema is not on the view" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-        resources.fetch(id, None) shouldReturn OptionT.some(res)
+        resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](res)
         mapper(ev).ioValue shouldEqual None
       }
 
       "return a ElasticSearch BulkOp" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value))
-        resources.fetch(id, None) shouldReturn OptionT.some(res)
+        resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json
           .obj(
@@ -194,14 +195,15 @@ class ElasticIndexerMappingSpec
 
       "return a ElasticSearch BulkOp" in {
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
-        resources.fetch(id, "one", None) shouldReturn OptionT.some(res)
+        resources.fetch(id, "one") shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
         mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
       }
 
       "return None when it is not matching the tag defined on the view" in {
-        resources.fetch(id, "one", None) shouldReturn OptionT.none[IO, Resource]
+        resources.fetch(id, "one") shouldReturn EitherT.leftT[IO, Resource](
+          NotFound(id.ref, tagOpt = Some("one")): Rejection)
         mapper(ev).ioValue shouldEqual None
       }
 

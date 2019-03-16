@@ -15,13 +15,13 @@ class RefSpec extends WordSpecLike with Matchers with Inspectors with EitherValu
       val list = List[(AbsoluteIri, Ref)](
         url"http://ex.com?rev=1&other=value".value          -> Revision(url"http://ex.com?other=value", 1L),
         url"http://ex.com?rev=1".value                      -> Revision(url"http://ex.com", 1L),
-        url"http://ex.com?tag=this&other=value".value       -> Tag(url"http://ex.com?other=value", "this"),
+        url"http://ex.com?tag=this&other=value".value       -> Ref.Tag(url"http://ex.com?other=value", "this"),
         url"http://ex.com?rev=1&tag=this&other=value".value -> Revision(url"http://ex.com?other=value", 1L),
         url"http://ex.com?other=value".value                -> Latest(url"http://ex.com?other=value"),
         url"http://ex.com#fragment".value                   -> Latest(url"http://ex.com#fragment"),
         Urn("urn:ex:a/b/c").right.value                     -> Latest(Urn("urn:ex:a/b/c").right.value),
         Urn("urn:ex:a/b/c?=rev=1").right.value              -> Revision(Urn("urn:ex:a/b/c").right.value, 1L),
-        Urn("urn:ex:a?=tag=this&other=value").right.value   -> Tag(Urn("urn:ex:a?=other=value").right.value, "this")
+        Urn("urn:ex:a?=tag=this&other=value").right.value   -> Ref.Tag(Urn("urn:ex:a?=other=value").right.value, "this")
       )
       forAll(list) {
         case (iri, ref) => Ref(iri) shouldEqual ref
@@ -31,7 +31,7 @@ class RefSpec extends WordSpecLike with Matchers with Inspectors with EitherValu
     "print properly" in {
       (Latest(url"http://ex.com#fragment"): Ref).show shouldEqual url"http://ex.com#fragment".value.show
       (Revision(url"http://ex.com?other=value", 1L): Ref).show shouldEqual url"http://ex.com?other=value".value.show + s" @ rev: '1'"
-      (Tag(url"http://ex.com?other=value", "this"): Ref).show shouldEqual url"http://ex.com?other=value".value.show + s" @ tag: 'this'"
+      (Ref.Tag(url"http://ex.com?other=value", "this"): Ref).show shouldEqual url"http://ex.com?other=value".value.show + s" @ tag: 'this'"
     }
   }
 

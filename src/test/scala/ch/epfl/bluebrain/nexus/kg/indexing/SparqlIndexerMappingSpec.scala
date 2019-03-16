@@ -5,7 +5,7 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import cats.data.{EitherT, OptionT}
+import cats.data.EitherT
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlWriteQuery
@@ -15,15 +15,16 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.Json
 import org.mockito.Mockito
 import org.mockito.Mockito._
-import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.duration._
 
@@ -78,13 +79,13 @@ class SparqlIndexerMappingSpec
     val ev                    = Created(id, schema, Set.empty, json, clock.instant(), Anonymous)
 
     "return none when the event resource is not found on the resources" in {
-      when(resources.fetch(id, None)).thenReturn(OptionT.none[IO, Resource])
+      when(resources.fetch(id)).thenReturn(EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection))
       mapper(ev).ioValue shouldEqual None
     }
 
     "return a SparqlWriteQuery" in {
       val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-      when(resources.fetch(id, None)).thenReturn(OptionT.some[IO](res))
+      when(resources.fetch(id)).thenReturn(EitherT.rightT[IO, Rejection](res))
       when(resources.materializeWithMeta(res, selfAsIri = true)).thenReturn(
         EitherT.rightT[IO, Rejection](
           ResourceF.simpleV(id,
