@@ -74,7 +74,7 @@ object AdditionalValidation {
           )
         case agg: AggregateElasticSearchView[_] =>
           agg.referenced[F](caller, acls).flatMap { r =>
-            EitherT.fromOption[F](value.map(r, _.removeKeys("@context").addContext(viewCtxUri)),
+            EitherT.fromOption[F](value.map(r, _.replaceContext(viewCtxUri)),
                                   InvalidJsonLD("Could not convert the graph to Json"))
           }
         case _ => EitherT.rightT(value)
@@ -100,7 +100,7 @@ object AdditionalValidation {
         Resolver(resource) match {
           case Some(resolver: CrossProjectResolver[_]) if aclContains(resolver.identities) =>
             resolver.referenced.flatMap { r =>
-              EitherT.fromOption[F](value.map(r, _.removeKeys("@context").addContext(resolverCtxUri)),
+              EitherT.fromOption[F](value.map(r, _.replaceContext(resolverCtxUri)),
                                     InvalidJsonLD("Could not convert the graph to Json"))
             }
           case Some(_: CrossProjectResolver[_]) =>
@@ -128,7 +128,7 @@ object AdditionalValidation {
           EitherT(storage.isValid.apply.map {
             case Right(_) =>
               value
-                .map(storage, _.removeKeys("@context").addContext(storageCtxUri))
+                .map(storage, _.replaceContext(storageCtxUri))
                 .toRight(InvalidJsonLD("Could not convert the graph to Json"))
             case Left(message) =>
               Left(InvalidResourceFormat(id.ref, message): Rejection)

@@ -44,7 +44,7 @@ object Transformation {
           case Right(r) =>
             val metadata = resource.metadata()
             r.labeled.getOrElse(r).flatMap { view =>
-              resource.value.map(view, _.removeKeys("@context").addContext(viewCtxUri)) match {
+              resource.value.map(view, _.replaceContext(viewCtxUri)) match {
                 case None => F.raiseError(InternalError("Could not convert view to Json"))
                 case Some(value) =>
                   F.pure(resource.map(_ =>
@@ -74,7 +74,7 @@ object Transformation {
             r.labeled
               .getOrElse(r)
               .flatMap { resolver =>
-                resource.value.map(resolver, _.removeKeys("@context").addContext(resolverCtxUri)) match {
+                resource.value.map(resolver, _.replaceContext(resolverCtxUri)) match {
                   case None => F.raiseError(InternalError("Could not convert resolver to Json"))
                   case Some(value) =>
                     F.pure(resource.map(_ =>

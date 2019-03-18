@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.routes.{RejectionEncoder, TextOutputFormat}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe._
 import io.circe.syntax._
-import monix.execution.Scheduler
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
@@ -92,12 +91,12 @@ object instances extends LowPriority {
       statusFrom(value) -> value.asJson
     }
 
-  implicit class EitherFSyntax[F[_], R <: Rejection, A](f: F[Either[R, A]])(implicit s: Scheduler, F: Effect[F]) {
+  implicit class EitherFSyntax[F[_], R <: Rejection, A](f: F[Either[R, A]])(implicit F: Effect[F]) {
     def runWithStatus(code: StatusCode): Future[Either[R, (StatusCode, A)]] =
       F.toIO(f.map(_.map(code -> _))).unsafeToFuture()
   }
 
-  implicit class FSyntax[F[_], A](f: F[A])(implicit s: Scheduler, F: Effect[F]) {
+  implicit class FSyntax[F[_], A](f: F[A])(implicit F: Effect[F]) {
     def runWithStatus(code: StatusCode): Future[(StatusCode, A)] =
       F.toIO(f.map(code -> _)).unsafeToFuture()
   }

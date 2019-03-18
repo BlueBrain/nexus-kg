@@ -59,8 +59,8 @@ private class Indexing(
         logger.error(s"Could not convert view with id '${view.id}' from Graph back to json. Reason: '${err.message}'")
         Task.raiseError(InternalError("Could not decode default view from graph to Json"))
       case Right(json) =>
-        val jsonNoMeta = json.removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
-        Task.pure(jsonNoMeta.addContext(viewCtxUri).addContext(resourceCtxUri))
+        val jsonNoMeta = json.removeKeys(nxv.rev.prefix, nxv.deprecated.prefix)
+        Task.pure(jsonNoMeta.replaceContext(viewCtxUri).addContext(resourceCtxUri))
     }
 
   private def asJson(storage: Storage): Task[Json] =
@@ -69,8 +69,8 @@ private class Indexing(
         logger.error(s"Could not convert storage '${storage.id}' from Graph to json. Reason: '${err.message}'")
         Task.raiseError(InternalError("Could not decode default storage from graph to Json"))
       case Right(json) =>
-        val jsonNoMeta = json.removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix, nxv.algorithm.prefix)
-        Task.pure(jsonNoMeta.addContext(storageCtxUri).addContext(resourceCtxUri))
+        val jsonNoMeta = json.removeKeys(nxv.rev.prefix, nxv.deprecated.prefix, nxv.algorithm.prefix)
+        Task.pure(jsonNoMeta.replaceContext(storageCtxUri).addContext(resourceCtxUri))
     }
 
   private def asJson(resolver: Resolver): Task[Json] =
@@ -79,8 +79,8 @@ private class Indexing(
         logger.error(s"Could not convert resolver '${resolver.id}' from Graph to json. Reason: '${err.message}'")
         Task.raiseError(InternalError("Could not decode default in project resolver from graph to Json"))
       case Right(json) =>
-        val jsonNoMeta = json.removeKeys("@context", nxv.rev.prefix, nxv.deprecated.prefix)
-        Task.pure(jsonNoMeta.addContext(resolverCtxUri).addContext(resourceCtxUri))
+        val jsonNoMeta = json.removeKeys(nxv.rev.prefix, nxv.deprecated.prefix)
+        Task.pure(jsonNoMeta.replaceContext(resolverCtxUri).addContext(resourceCtxUri))
     }
 
   private val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[ResourceAlreadyExists, Resource]] = {

@@ -325,7 +325,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param schema the schema reference that constrains the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out: Fetch](id: ResId, rev: Long, schema: Ref)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
+  def fetchFile[Out](id: ResId, rev: Long, schema: Ref)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
     fetchFile(fetch(id, rev, schema))
 
   /**
@@ -337,13 +337,12 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     * @param schema the schema reference that constrains the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out: Fetch](id: ResId, tag: String, schema: Ref)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
+  def fetchFile[Out](id: ResId, tag: String, schema: Ref)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
     fetchFile(fetch(id, tag, schema))
 
-  //TODO: FIX
-  private def fetchFile[Out: Fetch](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
+  private def fetchFile[Out](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
     rejOrResource.subflatMap(resource => resource.file.toRight(NotFound(resource.id.ref))).flatMapF {
-      case (storage, attr) => storage.fetch.apply(attr).map(out => Right(storage, attr, out))
+      case (storage, attr) => storage.fetch.apply(attr).map(out => Right((storage, attr, out)))
     }
 
   /**

@@ -46,7 +46,7 @@ object QueryResultEncoder {
       node: RootNode[QueryResults[A]]): DecoderResult[Json] =
     value
       .as[Json](searchCtx deepMerge extraCtx)
-      .map(_.removeKeys("@context", "@id").addContext(searchCtxUri).addContext(resourceCtxUri))
+      .map(_.removeKeys("@id").replaceContext(searchCtxUri).addContext(resourceCtxUri))
 
   implicit def qrsEncoderJson: Encoder[QueryResults[Json]] = {
     implicit def qrEncoderJson: Encoder[QueryResult[Json]] = Encoder.instance {

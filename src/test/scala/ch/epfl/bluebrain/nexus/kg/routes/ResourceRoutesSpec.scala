@@ -700,7 +700,7 @@ class ResourceRoutesSpec
         Source.single(ByteString(content)).mapMaterializedValue[Any](v => v)
 
       when(resources.fetch(mEq(id))).thenReturn(EitherT.rightT[Task, Rejection](resource))
-      when(resources.fetchFile(mEq(id), any[Long], mEq(fileRef))(any[Fetch[AkkaSource]]))
+      when(resources.fetchFile(mEq(id), any[Long], mEq(fileRef))(any[Fetch[Task, AkkaSource]]))
         .thenReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
 
       val endpoints = List(
