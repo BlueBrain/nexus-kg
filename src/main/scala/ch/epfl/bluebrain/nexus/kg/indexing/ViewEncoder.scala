@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import cats.Id
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -64,8 +65,10 @@ object ViewEncoder {
       RootedGraph(rootNode, view.mainTriples(nxv.SparqlView))
     case (rootNode, view @ AggregateElasticSearchView(_, _, _, _, _, _)) =>
       val valueString = view match {
-        case AggregateElasticSearchViewLabels(value) => value.valueString
-        case AggregateElasticSearchViewRefs(value)   => value.valueString
+        case AggregateElasticSearchView(`Set[ViewRef[ProjectRef]]`(viewRefs), _, _, _, _, _) =>
+          viewRefs.map(v => ViewRef(v.project.show, v.id))
+        case AggregateElasticSearchView(`Set[ViewRef[ProjectLabel]]`(viewRefs), _, _, _, _, _) =>
+          viewRefs.map(v => ViewRef(v.project.show, v.id))
       }
       RootedGraph(rootNode,
                   view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(valueString))

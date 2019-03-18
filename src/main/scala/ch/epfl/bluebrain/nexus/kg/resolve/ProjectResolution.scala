@@ -40,9 +40,9 @@ class ProjectResolution[F[_]](resolverCache: ResolverCache[F],
       def resolverResolution(resolver: Resolver): F[Resolution[F]] =
         resolver match {
           case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, resources))
-          case CrossProjectRefs(r) =>
+          case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _) =>
             aclCache.list.map(
-              MultiProjectResolution(resources, F.pure(r.projects), r.resourceTypes, r.identities, projectCache, _))
+              MultiProjectResolution(resources, F.pure(projects), r.resourceTypes, r.identities, projectCache, _))
         }
 
       private val resolution = resolverCache.get(ref).flatMap {

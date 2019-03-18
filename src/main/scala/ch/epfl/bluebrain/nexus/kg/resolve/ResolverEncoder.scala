@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
 import cats.Id
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
@@ -35,8 +36,8 @@ object ResolverEncoder {
     case (rootNode, r: InProjectResolver) => RootedGraph(rootNode, r.mainTriples(nxv.InProject))
     case (rootNode, r @ CrossProjectResolver(resTypes, _, identities, _, _, _, _, _)) =>
       val projectsString = r match {
-        case CrossProjectRefs(value)   => value.projectsString
-        case CrossProjectLabels(value) => value.projectsString
+        case CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _)   => projects.map(_.show)
+        case CrossProjectResolver(_, `Set[ProjectLabel]`(projects), _, _, _, _, _, _) => projects.map(_.show)
       }
       val projTriples: Set[Triple] = projectsString.map(p => (rootNode, nxv.projects, p): Triple)
       RootedGraph(rootNode,
