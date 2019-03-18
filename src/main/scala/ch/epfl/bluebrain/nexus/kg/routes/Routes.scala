@@ -10,13 +10,13 @@ import akka.http.scaladsl.server.{ExceptionHandler, RejectionHandler, Route}
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, PredefinedFromEntityUnmarshallers}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
-import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes
-import ch.epfl.bluebrain.nexus.commons.http.RejectionHandling
+import ch.epfl.bluebrain.nexus.commons.http.directives.PrefixDirectives.uriPrefix
+import ch.epfl.bluebrain.nexus.commons.http.{RdfMediaTypes, RejectionHandling}
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ProjectViewCoordinator, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.async.Caches._
+import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ProjectViewCoordinator, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
@@ -25,8 +25,6 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
-import ch.epfl.bluebrain.nexus.commons.http.directives.PrefixDirectives.uriPrefix
-import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import io.circe.parser.parse
@@ -44,45 +42,41 @@ object Routes {
     * @return an ExceptionHandler that ensures a descriptive message is returned to the caller
     */
   final val exceptionHandler: ExceptionHandler = {
-    def completeGeneric(): Route = {
-      val error: KgError = InternalError("The system experienced an unexpected error, please try again later.")
-      complete(KgError.kgErrorStatusFrom(error) -> error)
-    }
+    def completeGeneric(): Route =
+      complete(InternalError("The system experienced an unexpected error, please try again later."): KgError)
 
     ExceptionHandler {
       case _: IamClientError.Unauthorized =>
         // suppress errors for authentication failures
-        val status         = KgError.kgErrorStatusFrom(AuthenticationFailed)
-        val header         = `WWW-Authenticate`(HttpChallenges.oAuth2("*"))
-        val error: KgError = AuthenticationFailed
-        complete((status, List(header), error))
+        val status = KgError.kgErrorStatusFrom(AuthenticationFailed)
+        val header = `WWW-Authenticate`(HttpChallenges.oAuth2("*"))
+        complete((status, List(header), AuthenticationFailed: KgError))
       case _: IamClientError.Forbidden =>
         // suppress errors for authorization failures
-        complete(KgError.kgErrorStatusFrom(AuthorizationFailed) -> (AuthorizationFailed: KgError))
+        complete(AuthorizationFailed: KgError)
       case err: NotFound =>
         // suppress errors for not found
-        complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
+        complete((err: KgError))
       case AuthenticationFailed =>
         // suppress errors for authentication failures
-        val status         = KgError.kgErrorStatusFrom(AuthenticationFailed)
-        val header         = `WWW-Authenticate`(HttpChallenges.oAuth2("*"))
-        val error: KgError = AuthenticationFailed
-        complete((status, List(header), error))
+        val status = KgError.kgErrorStatusFrom(AuthenticationFailed)
+        val header = `WWW-Authenticate`(HttpChallenges.oAuth2("*"))
+        complete((status, List(header), AuthenticationFailed: KgError))
       case AuthorizationFailed =>
         // suppress errors for authorization failures
-        complete(KgError.kgErrorStatusFrom(AuthorizationFailed) -> (AuthorizationFailed: KgError))
+        complete(AuthorizationFailed: KgError)
       case err: UnacceptedResponseContentType =>
         // suppress errors for unaccepted response content type
-        complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
+        complete(err: KgError)
       case err: ProjectNotFound =>
         // suppress error
-        complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
+        complete(err: KgError)
       case err: ProjectIsDeprecated =>
         // suppress error
-        complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
+        complete(err: KgError)
       case err: InvalidOutputFormat =>
         // suppress error
-        complete(KgError.kgErrorStatusFrom(err) -> (err: KgError))
+        complete(err: KgError)
       case ElasticClientError(status, body) =>
         parse(body) match {
           case Right(json) => complete(status -> json)
@@ -104,10 +98,9 @@ object Routes {
     * @return a complete RejectionHandler for all library and code rejections
     */
   final val rejectionHandler: RejectionHandler = {
-    val statusFrom: StatusFrom[Rejection] = implicitly[StatusFrom[Rejection]]
-    val custom = RejectionHandling.apply[Rejection]({ r: Rejection =>
-      logger.debug(s"Handling rejection '$rejection'")
-      statusFrom(r) -> r
+    val custom = RejectionHandling.apply({ r: Rejection =>
+      logger.debug(s"Handling rejection '$r'")
+      r
     })
     corsRejectionHandler withFallback custom withFallback RejectionHandling.notFound withFallback RejectionHandler.default
   }

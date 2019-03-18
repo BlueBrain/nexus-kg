@@ -27,7 +27,7 @@ import io.circe.Json
 /**
   * A resource representation.
   *
-  * @param id         the unique identifier of the resource
+  * @param id         the unique identifier of the resource in a given project
   * @param rev        the revision of the resource
   * @param types      the collection of known types of this resource
   * @param deprecated whether the resource is deprecated of not
@@ -39,12 +39,10 @@ import io.circe.Json
   * @param updatedBy  the last identity that updated this resource
   * @param schema     the schema that this resource conforms to
   * @param value      the resource value
-  * @tparam P the parent type of the resource identifier
-  * @tparam S the schema type
   * @tparam A the resource value type
   */
-final case class ResourceF[P, S, A](
-    id: Id[P],
+final case class ResourceF[A](
+    id: Id[ProjectRef],
     rev: Long,
     types: Set[AbsoluteIri],
     deprecated: Boolean,
@@ -54,7 +52,7 @@ final case class ResourceF[P, S, A](
     updated: Instant,
     createdBy: Identity,
     updatedBy: Identity,
-    schema: S,
+    schema: Ref,
     value: A
 ) {
 
@@ -65,7 +63,7 @@ final case class ResourceF[P, S, A](
     * @tparam B the output type of the mapping
     * @return a new resource with a mapped value
     */
-  def map[B](f: A => B): ResourceF[P, S, B] =
+  def map[B](f: A => B): ResourceF[B] =
     copy(value = f(value))
 
   /**
@@ -76,7 +74,7 @@ final case class ResourceF[P, S, A](
   /**
     * Computes the metadata triples for this resource.
     */
-  def metadata(implicit config: AppConfig, project: Project, ev: S =:= Ref): Set[Triple] = {
+  def metadata(selfAsIri: Boolean = false)(implicit config: AppConfig, project: Project): Set[Triple] = {
 
     def triplesFor(storageAndAttributes: (Storage, FileAttributes)): Set[Triple] = {
       val blankDigest   = Node.blank
@@ -92,9 +90,9 @@ final case class ResourceF[P, S, A](
         (node, nxv.filename, at.filename)
       )
     }
-    val schemaIri   = ev(schema).iri
     val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
     val projectUri  = config.admin.publicIri + "projects" / project.organizationLabel / project.label
+    val self        = AccessId(id.value, schema.iri)
     fileTriples + (
       (node, nxv.rev, rev),
       (node, nxv.deprecated, deprecated),
@@ -102,9 +100,9 @@ final case class ResourceF[P, S, A](
       (node, nxv.updatedAt, updated),
       (node, nxv.createdBy, createdBy.id),
       (node, nxv.updatedBy, updatedBy.id),
-      (node, nxv.constrainedBy, schemaIri),
+      (node, nxv.constrainedBy, schema.iri),
       (node, nxv.project, projectUri),
-      (node, nxv.self, AccessId(id.value, schemaIri).asString)
+      (node, nxv.self, if (selfAsIri) self else self.asString)
     ) ++ typeTriples
   }
 
@@ -116,10 +114,9 @@ final case class ResourceF[P, S, A](
   /**
     * The context value (without @context) that gets injected to the HTTP response
     */
-  def contextValueForJsonLd(implicit asRef: S =:= Ref, asValue: A =:= ResourceF.Value): Json = {
-    val s = asRef(schema).iri
+  def contextValueForJsonLd(implicit asValue: A =:= ResourceF.Value): Json = {
     val v = asValue(value)
-    if (s == unconstrainedSchemaUri && v.source.contextValue == Json.obj()) v.ctx
+    if (schema.iri == unconstrainedSchemaUri && v.source.contextValue == Json.obj()) v.ctx
     else v.source.contextValue
   }
 }
@@ -171,16 +168,15 @@ object ResourceF {
     * @param schema     the schema that this resource conforms to
     * @param created    the identity that created this resource
     * @param updated    the last identity that updated this resource
-    * @tparam P the parent type of the resource identifier
     */
-  def simpleF[P](id: Id[P],
-                 value: Json,
-                 rev: Long = 1L,
-                 types: Set[AbsoluteIri] = Set.empty,
-                 deprecated: Boolean = false,
-                 schema: Ref = unconstrainedSchemaUri.ref,
-                 created: Identity = Anonymous,
-                 updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[P, Ref, Json] =
+  def simpleF(id: Id[ProjectRef],
+              value: Json,
+              rev: Long = 1L,
+              types: Set[AbsoluteIri] = Set.empty,
+              deprecated: Boolean = false,
+              schema: Ref = unconstrainedSchemaUri.ref,
+              created: Identity = Anonymous,
+              updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[Json] =
     ResourceF(id,
               rev,
               types,
@@ -205,16 +201,15 @@ object ResourceF {
     * @param schema     the schema that this resource conforms to
     * @param created    the identity that created this resource
     * @param updated    the last identity that updated this resource
-    * @tparam P the parent type of the resource identifier
     */
-  def simpleV[P](id: Id[P],
-                 value: Value,
-                 rev: Long = 1L,
-                 types: Set[AbsoluteIri] = Set.empty,
-                 deprecated: Boolean = false,
-                 schema: Ref = unconstrainedSchemaUri.ref,
-                 created: Identity = Anonymous,
-                 updated: Identity = Anonymous)(implicit clock: Clock = Clock.systemUTC): ResourceF[P, Ref, Value] =
+  def simpleV(id: Id[ProjectRef],
+              value: Value,
+              rev: Long = 1L,
+              types: Set[AbsoluteIri] = Set.empty,
+              deprecated: Boolean = false,
+              schema: Ref = unconstrainedSchemaUri.ref,
+              created: Identity = Anonymous,
+              updated: Identity = Anonymous)(implicit clock: Clock = Clock.systemUTC): ResourceF[Value] =
     ResourceF(id,
               rev,
               types,

@@ -37,7 +37,7 @@ object syntax {
       }
   }
 
-  final implicit class ResourceSyntax(resource: ResourceF[_, _, _]) {
+  final implicit class ResourceSyntax(resource: ResourceF[_]) {
     def isSchema: Boolean = resource.types.contains(nxv.Schema.value)
   }
 

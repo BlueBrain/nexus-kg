@@ -1,8 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
+import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
-import cats.{Monad, Show}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg._
@@ -15,8 +15,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
-import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import shapeless.TypeCase
 
 /**
   * Enumeration of Resolver types.
@@ -55,12 +56,11 @@ sealed trait Resolver extends Product with Serializable {
     */
   def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
     this match {
-      case CrossProjectRefs(r) =>
-        val refToLabel = projectCache.getProjectLabels(r.projects)
-        EitherT(
-          refToLabel.map(
-            resultOrFailures(_).bimap(LabelsNotFound,
-                                      res => r.copy(projects = res.map { case (_, label) => label }.toSet))))
+      case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projectRefs), _, _, _, _, _, _) =>
+        EitherT(projectCache.getProjectLabels(projectRefs).map(resultOrFailures).map {
+          case Right(result)  => Right(r.copy(projects = result.map { case (_, label) => label }.toSet))
+          case Left(projects) => Left(LabelsNotFound(projects))
+        })
       case o =>
         EitherT.rightT(o)
     }
@@ -72,14 +72,11 @@ sealed trait Resolver extends Product with Serializable {
     */
   def referenced[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
     this match {
-      case CrossProjectLabels(r) =>
-        val labelToRef = projectCache.getProjectRefs(r.projects)
-        EitherT(
-          labelToRef.map(
-            resultOrFailures(_)
-              .map(res => r.copy(projects = res.map { case (_, ref) => ref }.toSet))
-              .left
-              .map(ProjectsNotFound)))
+      case r @ CrossProjectResolver(_, `Set[ProjectLabel]`(projectLabels), _, _, _, _, _, _) =>
+        EitherT(projectCache.getProjectRefs(projectLabels).map(resultOrFailures).map {
+          case Right(result)  => Right(r.copy(projects = result.map { case (_, ref) => ref }.toSet))
+          case Left(projects) => Left(ProjectsNotFound(projects))
+        })
       case o =>
         EitherT.rightT(o)
     }
@@ -160,7 +157,7 @@ object Resolver {
   }
 
   /**
-    * A resolver that can looks across several projects.
+    * A resolver that can look across several projects.
     */
   final case class CrossProjectResolver[P](
       resourceTypes: Set[AbsoluteIri],
@@ -171,25 +168,8 @@ object Resolver {
       rev: Long,
       deprecated: Boolean,
       priority: Int
-  ) extends Resolver {
-    def projectsString(implicit P: Show[P]): Set[String] = projects.map(_.show)
-  }
+  ) extends Resolver
 
-  private[resolve] type CrossProjectLabels = CrossProjectResolver[ProjectLabel]
-  private[resolve] object CrossProjectLabels {
-    final def unapply(arg: CrossProjectResolver[_]): Option[CrossProjectLabels] =
-      arg.projects.toSeq match {
-        case (_: ProjectLabel) +: _ => Some(arg.asInstanceOf[CrossProjectLabels])
-        case _                      => None
-      }
-  }
-
-  private[resolve] type CrossProjectRefs = CrossProjectResolver[ProjectRef]
-  private[resolve] object CrossProjectRefs {
-    final def unapply(arg: CrossProjectResolver[_]): Option[CrossProjectRefs] =
-      arg.projects.toSeq match {
-        case (_: ProjectRef) +: _ => Some(arg.asInstanceOf[CrossProjectRefs])
-        case _                    => None
-      }
-  }
+  private[resolve] val `Set[ProjectRef]`   = TypeCase[Set[ProjectRef]]
+  private[resolve] val `Set[ProjectLabel]` = TypeCase[Set[ProjectLabel]]
 }

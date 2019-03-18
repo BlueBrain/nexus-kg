@@ -34,8 +34,8 @@ private class ResolverIndexerMapping[F[_]: Timer](resources: Resources[F])(impli
     */
   def apply(event: Event): F[Option[Resolver]] =
     fetchProject(event.id.parent).flatMap { implicit project =>
-      resources.fetch(event.id, None).value.flatMap {
-        case Some(resource) =>
+      resources.fetch(event.id).value.flatMap {
+        case Right(resource) =>
           resources.materialize(resource).value.map {
             case Left(err) =>
               log.error(s"Error on event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")

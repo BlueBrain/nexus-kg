@@ -74,7 +74,7 @@ class ResourceFSpec
       val resource = ResourceF
         .simpleF(resId, json, 2L, schema = schema, types = Set(nxv.Schema))
         .copy(createdBy = identity, updatedBy = Anonymous)
-      resource.metadata should contain allElementsOf Set[Triple](
+      resource.metadata() should contain allElementsOf Set[Triple](
         (IriNode(id), nxv.rev, 2L),
         (IriNode(id), nxv.deprecated, false),
         (IriNode(id), nxv.updatedAt, clock.instant()),
@@ -82,6 +82,23 @@ class ResourceFSpec
         (IriNode(id), nxv.createdBy, IriNode(userIri)),
         (IriNode(id), nxv.updatedBy, IriNode(anonIri)),
         (IriNode(id), nxv.self, s"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:${projectRef.id}"),
+        (IriNode(id), nxv.project, url"http://localhost:8080/v1/projects/bbp/core"),
+        (IriNode(id), nxv.constrainedBy, IriNode(schema.iri))
+      )
+    }
+
+    "compute the metadata graph for a resource when self is an iri" in {
+      val resource = ResourceF
+        .simpleF(resId, json, 2L, schema = schema, types = Set(nxv.Schema))
+        .copy(createdBy = identity, updatedBy = Anonymous)
+      resource.metadata(selfAsIri = true) should contain allElementsOf Set[Triple](
+        (IriNode(id), nxv.rev, 2L),
+        (IriNode(id), nxv.deprecated, false),
+        (IriNode(id), nxv.updatedAt, clock.instant()),
+        (IriNode(id), nxv.createdAt, clock.instant()),
+        (IriNode(id), nxv.createdBy, IriNode(userIri)),
+        (IriNode(id), nxv.updatedBy, IriNode(anonIri)),
+        (IriNode(id), nxv.self, url"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:${projectRef.id}"),
         (IriNode(id), nxv.project, url"http://localhost:8080/v1/projects/bbp/core"),
         (IriNode(id), nxv.constrainedBy, IriNode(schema.iri))
       )

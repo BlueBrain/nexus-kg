@@ -14,7 +14,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import cats.data.{EitherT, OptionT}
+import cats.data.EitherT
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
@@ -22,7 +22,6 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.{ElasticClientError, ElasticUnexpectedError}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
@@ -72,6 +71,7 @@ import org.mockito.matchers.MacroBasedMatchers
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import shapeless.Typeable
+import ch.epfl.bluebrain.nexus.kg.resources.{Tag => ResourceTag}
 
 import scala.concurrent.duration._
 
@@ -506,7 +506,7 @@ class ResourceRoutesSpec
           when(
             resources.update(mEq(id),
                              mEq(1L),
-                             mEq(Some(Latest(viewSchemaUri))),
+                             mEq(Latest(viewSchemaUri)),
                              matches[Json](_.removeKeys("_uuid") == jsonUpdateTransformed))(
               mEq(subject),
               projectMatcher,
@@ -699,9 +699,9 @@ class ResourceRoutesSpec
       val source: Source[ByteString, Any] =
         Source.single(ByteString(content)).mapMaterializedValue[Any](v => v)
 
-      when(resources.fetch(mEq(id), mEq(None))).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetchFile(mEq(id), any[Long])(any[Fetch[Task, AkkaSource]]))
-        .thenReturn(OptionT.some[Task]((storage: Storage, at1, source)))
+      when(resources.fetch(mEq(id))).thenReturn(EitherT.rightT[Task, Rejection](resource))
+      when(resources.fetchFile(mEq(id), any[Long], mEq(fileRef))(any[Fetch[Task, AkkaSource]]))
+        .thenReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
 
       val endpoints = List(
         s"/v1/files/$organization/$project/nxv:$genUuid?rev=1",
@@ -747,10 +747,11 @@ class ResourceRoutesSpec
       val resourceV =
         simpleV(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
           .copy(file = Some(storage -> at1))
-      when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetch(id, 1L, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.materializeWithMeta(mEq(resource))(projectMatcher)).thenReturn(EitherT.rightT[Task, Rejection](
-        resourceV.copy(value = resourceV.value.copy(graph = RootedGraph(IriNode(id.value), resourceV.metadata)))))
+      when(resources.fetch(id, 1L, schemaRef)).thenReturn(EitherT.rightT[Task, Rejection](resource))
+      when(resources.fetch(id, 1L)).thenReturn(EitherT.rightT[Task, Rejection](resource))
+      when(resources.materializeWithMeta(mEq(resource), mEq(false))(projectMatcher)).thenReturn(
+        EitherT.rightT[Task, Rejection](
+          resourceV.copy(value = resourceV.value.copy(graph = RootedGraph(IriNode(id.value), resourceV.metadata())))))
 
       val json = jsonContentOf("/resources/file-metadata.json",
                                Map(quote("{account}") -> organizationMeta.label,
@@ -786,7 +787,7 @@ class ResourceRoutesSpec
     }
 
     "reject getting a resource that does not exist" in new Ctx {
-      when(resources.fetch(id, None)).thenReturn(OptionT.none[Task, Resource])
+      when(resources.fetch(id)).thenReturn(EitherT.leftT[Task, Resource](NotFound(id.ref): Rejection))
 
       Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid") ~> Accept(`application/json`) ~> addCredentials(
         oauthToken) ~> routes ~> check {
@@ -798,23 +799,42 @@ class ResourceRoutesSpec
     "reject getting a revision that does not exist" in new Ctx {
 
       val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
-      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetch(id, 1L, None)).thenReturn(OptionT.none[Task, Resource])
+      when(resources.fetch(id)).thenReturn(EitherT.rightT[Task, Rejection](resource))
+      when(resources.fetch(id, 1L, schemaRef))
+        .thenReturn(EitherT.leftT[Task, Resource](NotFound(id.ref, revOpt = Some(1L)): Rejection))
 
-      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1") ~> Accept(`application/json`) ~> addCredentials(
-        oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
-        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
+      forAll(
+        List(s"/v1/resources/$organization/$project/_/nxv:$genUuid?rev=1",
+             s"/v1/resources/$organization/$project/${schemaRef.iri}/nxv:$genUuid?rev=1")) { endpoint =>
+        Get(endpoint) ~> Accept(`application/json`) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.NotFound
+          responseAs[Error].tpe shouldEqual classNameOf[NotFound]
+        }
       }
+
     }
 
     "reject getting a tag that does not exist" in new Ctx {
 
       val resource = ResourceF.simpleF(id, Json.obj(), created = subject, updated = subject, schema = schemaRef)
-      when(resources.fetch(id, None)).thenReturn(OptionT.some[Task](resource))
-      when(resources.fetch(id, "one", None)).thenReturn(OptionT.none[Task, Resource])
+      when(resources.fetch(id)).thenReturn(EitherT.rightT[Task, Rejection](resource))
+      when(resources.fetch(id, "one", schemaRef))
+        .thenReturn(EitherT.leftT[Task, Resource](NotFound(id.ref, tagOpt = Some("one")): Rejection))
 
-      Get(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one") ~> Accept(`application/json`) ~> addCredentials(
+      forAll(
+        List(s"/v1/resources/$organization/$project/_/nxv:$genUuid?tag=one",
+             s"/v1/resources/$organization/$project/${schemaRef.iri}/nxv:$genUuid?tag=one")) { endpoint =>
+        Get(endpoint) ~> Accept(`application/json`) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.NotFound
+          responseAs[Error].tpe shouldEqual classNameOf[NotFound]
+        }
+      }
+    }
+
+    "reject getting tags of a resource that does not exist" in new Ctx {
+      when(resources.fetchTags(id, schemaRef)).thenReturn(EitherT.leftT[Task, Tags](NotFound(id.ref): Rejection))
+
+      Get(s"/v1/resources/$organization/$project/${schemaRef.iri}/nxv:$genUuid/tags") ~> Accept(`application/json`) ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
@@ -973,9 +993,9 @@ class ResourceRoutesSpec
       "update a schema" in new Schema {
         when(
           resources
-            .update(mEq(id), mEq(1L), mEq(Some(schemaRef)), mEq(schema))(mEq(subject),
-                                                                         projectMatcher,
-                                                                         isA[AdditionalValidation[Task]]))
+            .update(mEq(id), mEq(1L), mEq(schemaRef), mEq(schema))(mEq(subject),
+                                                                   projectMatcher,
+                                                                   isA[AdditionalValidation[Task]]))
           .thenReturn(EitherT.rightT[Task, Rejection](
             ResourceF.simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)))
 
@@ -987,7 +1007,7 @@ class ResourceRoutesSpec
 
       "add a tag to a schema" in new Schema {
         val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(1L)).addContext(tagCtxUri)
-        when(resources.tag(id, 1L, Some(schemaRef), tag)).thenReturn(
+        when(resources.tag(id, 1L, schemaRef, tag)).thenReturn(
           EitherT.rightT[Task, Rejection](
             ResourceF
               .simpleF(id, schema, created = subject, updated = subject, schema = schemaRef)
@@ -999,40 +1019,40 @@ class ResourceRoutesSpec
         }
       }
 
-      val map = Map("name1" -> 1L, "name2" -> 2L)
+      val set = Set(ResourceTag(1L, "name1"), ResourceTag(2L, "name2"))
 
       "listing tags for schemas" in new Schema {
-        when(resources.fetchTags(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](map))
+        when(resources.fetchTags(id, 1L, schemaRef)).thenReturn(EitherT.rightT[Task, Rejection](set))
         val endpoints = List(s"/v1/schemas/$organization/$project/nxv:$genUuid/tags?rev=1",
                              s"/v1/resources/$organization/$project/schema/nxv:$genUuid/tags?rev=1")
         forAll(endpoints) { endpoint =>
           Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
             status shouldEqual StatusCodes.OK
-            responseAs[Json] shouldEqual jsonContentOf("/resources/tags.json")
+            responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/tags.json"))
           }
         }
       }
 
       "listing tags for resolvers" in new Resolver {
-        when(resources.fetchTags(id, Some(schemaRef))).thenReturn(OptionT.some[Task](map))
+        when(resources.fetchTags(id, schemaRef)).thenReturn(EitherT.rightT[Task, Rejection](set))
         val endpoints = List(s"/v1/resolvers/$organization/$project/nxv:$genUuid/tags",
                              s"/v1/resources/$organization/$project/resolver/nxv:$genUuid/tags")
         forAll(endpoints) { endpoint =>
           Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
             status shouldEqual StatusCodes.OK
-            responseAs[Json] shouldEqual jsonContentOf("/resources/tags.json")
+            responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/tags.json"))
           }
         }
       }
 
       "listing tags for views" in new Views {
-        when(resources.fetchTags(id, Some(schemaRef))).thenReturn(OptionT.some[Task](map))
+        when(resources.fetchTags(id, schemaRef)).thenReturn(EitherT.rightT[Task, Rejection](set))
         val endpoints = List(s"/v1/views/$organization/$project/nxv:$genUuid/tags",
                              s"/v1/resources/$organization/$project/view/nxv:$genUuid/tags")
         forAll(endpoints) { endpoint =>
           Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
             status shouldEqual StatusCodes.OK
-            responseAs[Json] shouldEqual jsonContentOf("/resources/tags.json")
+            responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/resources/tags.json"))
           }
         }
       }
@@ -1046,10 +1066,11 @@ class ResourceRoutesSpec
             value =
               Value(json,
                     json.contextValue,
-                    RootedGraph(IriNode(id.value), json.asGraph(id.value).right.value ++ Graph(resource.metadata))))
+                    RootedGraph(IriNode(id.value), json.asGraph(id.value).right.value ++ Graph(resource.metadata()))))
 
-        when(resources.fetch(id2, None)).thenReturn(OptionT.some[Task](resource))
-        when(resources.materializeWithMeta(mEq(resource))(projectMatcher))
+        when(resources.fetch(id2)).thenReturn(EitherT.rightT[Task, Rejection](resource))
+        when(resources.fetch(id2, schemaRef)).thenReturn(EitherT.rightT[Task, Rejection](resource))
+        when(resources.materializeWithMeta(mEq(resource), mEq(false))(projectMatcher))
           .thenReturn(EitherT.rightT[Task, Rejection](resourceV))
 
         Get(s"/v1/resources/$organization/$project/_/nxv:me") ~> Accept(`application/n-triples`) ~> addCredentials(
@@ -1092,7 +1113,7 @@ class ResourceRoutesSpec
 
       "deprecate a schema" in new Schema {
         val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(1L)).addContext(tagCtxUri)
-        when(resources.deprecate(id, 1L, Some(schemaRef))).thenReturn(EitherT.rightT[Task, Rejection](
+        when(resources.deprecate(id, 1L, schemaRef)).thenReturn(EitherT.rightT[Task, Rejection](
           ResourceF.simpleF(id, schema, deprecated = true, created = subject, updated = subject, schema = schemaRef)))
 
         Delete(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1", tag) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -1117,9 +1138,9 @@ class ResourceRoutesSpec
           temp.copy(
             value = Value(schema,
                           ctx.contextValue,
-                          RootedGraph(IriNode(id.value), ctx.asGraph(id.value).right.value ++ Graph(temp.metadata))))
+                          RootedGraph(IriNode(id.value), ctx.asGraph(id.value).right.value ++ Graph(temp.metadata()))))
 
-        when(resources.fetch(id, 1L, Some(schemaRef))).thenReturn(OptionT.some[Task](resource))
+        when(resources.fetch(id, 1L, schemaRef)).thenReturn(EitherT.rightT[Task, Rejection](resource))
         when(resources.materializeWithMeta(resource)).thenReturn(EitherT.rightT[Task, Rejection](resourceV))
 
         Get(s"/v1/schemas/$organization/$project/nxv:$genUuid?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {

@@ -6,7 +6,6 @@ import akka.actor.ExtendedActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.serialization.SerializerWithStringManifest
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.serialization.AkkaCoproductSerializer
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -18,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}

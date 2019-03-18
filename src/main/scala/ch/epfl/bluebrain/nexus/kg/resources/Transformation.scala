@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.MonadError
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -43,9 +42,9 @@ object Transformation {
                                      projectCache: ProjectCache[F]): F[ResourceV] =
         View(resource) match {
           case Right(r) =>
-            val metadata = resource.metadata
+            val metadata = resource.metadata()
             r.labeled.getOrElse(r).flatMap { view =>
-              resource.value.map(view, _.removeKeys("@context").addContext(viewCtxUri)) match {
+              resource.value.map(view, _.replaceContext(viewCtxUri)) match {
                 case None => F.raiseError(InternalError("Could not convert view to Json"))
                 case Some(value) =>
                   F.pure(resource.map(_ =>
@@ -71,11 +70,11 @@ object Transformation {
                                      projectCache: ProjectCache[F]): F[ResourceV] =
         Resolver(resource) match {
           case Some(r) =>
-            val metadata = resource.metadata
+            val metadata = resource.metadata()
             r.labeled
               .getOrElse(r)
               .flatMap { resolver =>
-                resource.value.map(resolver, _.removeKeys("@context").addContext(resolverCtxUri)) match {
+                resource.value.map(resolver, _.replaceContext(resolverCtxUri)) match {
                   case None => F.raiseError(InternalError("Could not convert resolver to Json"))
                   case Some(value) =>
                     F.pure(resource.map(_ =>

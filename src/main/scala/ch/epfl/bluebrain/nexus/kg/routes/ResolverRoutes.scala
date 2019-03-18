@@ -26,20 +26,18 @@ class ResolverRoutes private[routes] (resources: Resources[Task], acls: AccessCo
 
   private implicit val projectCache = cache.project
 
-  def routes: Route = {
-    val resolverRefOpt = Some(resolverRef)
-    create(resolverRef) ~ list(resolverRefOpt) ~
+  def routes: Route =
+    create(resolverRef) ~ list(resolverRef) ~
       pathPrefix(IdSegment) { id =>
         concat(
           create(id, resolverRef),
-          update(id, resolverRefOpt),
-          tag(id, resolverRefOpt),
-          deprecate(id, resolverRefOpt),
-          fetch(id, resolverRefOpt),
-          tags(id, resolverRefOpt)
+          update(id, resolverRef),
+          tag(id, resolverRef),
+          deprecate(id, resolverRef),
+          fetch(id, resolverRef),
+          tags(id, resolverRef)
         )
       }
-  }
 
   override def transform(json: Json) = json.addContext(resolverCtxUri)
 

@@ -52,20 +52,18 @@ class ViewRoutes private[routes] (resources: Resources[Task],
   private implicit val esClient: ElasticSearchClient[Task] = indexers.elasticSearch
   private implicit val ujClient: HttpClient[Task, Json]    = indexers.uclJson
 
-  def routes: Route = {
-    val viewRefOpt = Some(viewRef)
-    create(viewRef) ~ list(viewRefOpt) ~ sparql ~ elasticSearch ~ stats ~
+  def routes: Route =
+    create(viewRef) ~ list(viewRef) ~ sparql ~ elasticSearch ~ stats ~
       pathPrefix(IdSegment) { id =>
         concat(
           create(id, viewRef),
-          update(id, viewRefOpt),
-          tag(id, viewRefOpt),
-          deprecate(id, viewRefOpt),
-          fetch(id, viewRefOpt),
-          tags(id, viewRefOpt)
+          update(id, viewRef),
+          tag(id, viewRef),
+          deprecate(id, viewRef),
+          fetch(id, viewRef),
+          tags(id, viewRef)
         )
       }
-  }
 
   override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.view[Task](caller, acls)
 
@@ -92,7 +90,9 @@ class ViewRoutes private[routes] (resources: Resources[Task],
             case Some(view) => sparqlQuery(id, view, query)
             case _          => Task.pure(Left(NotFound(id.ref)))
           }
-          trace("searchSparql")(complete(result.runWithStatus(StatusCodes.OK)))
+          trace("searchSparql") {
+            complete(result.runWithStatus(StatusCodes.OK))
+          }
         }
       }
     }
@@ -104,8 +104,8 @@ class ViewRoutes private[routes] (resources: Resources[Task],
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
             case Some(v: ElasticSearchView) =>
               indexers.elasticSearch.searchRaw(query, Set(v.index), params).map(Right.apply)
-            case Some(AggregateElasticSearchViewRefs(v)) =>
-              allowedIndices(v).flatMap {
+            case Some(AggregateElasticSearchView(`Set[ViewRef[ProjectRef]]`(viewRefs), _, _, _, _, _)) =>
+              allowedIndices(viewRefs).flatMap {
                 case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
                 case indices                    => indexers.elasticSearch.searchRaw(query, indices.toSet, params).map(Right.apply)
               }
@@ -128,8 +128,8 @@ class ViewRoutes private[routes] (resources: Resources[Task],
       }
     }
 
-  private def allowedIndices(v: AggregateElasticSearchViewRefs): Task[List[String]] =
-    v.value.toList.foldM(List.empty[String]) {
+  private def allowedIndices(viewRefs: Set[ViewRef[ProjectRef]]): Task[List[String]] =
+    viewRefs.toList.foldM(List.empty[String]) {
       case (acc, ViewRef(ref, id)) =>
         (cache.view.getBy[ElasticSearchView](ref, id) -> cache.project.getLabel(ref)).mapN {
           case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, query) =>

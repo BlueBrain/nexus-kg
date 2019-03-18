@@ -23,6 +23,7 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.parser._
+import shapeless.TypeCase
 
 /**
   * Enumeration of view types.
@@ -67,10 +68,12 @@ sealed trait View extends Product with Serializable {
     */
   def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, View] =
     this match {
-      case AggregateElasticSearchViewRefs(v) =>
-        val refToLabel = projectCache.getProjectLabels(v.projects)
-        EitherT(refToLabel.map(
-          resultOrFailures(_).bimap(LabelsNotFound, res => v.copy(value = v.value.map(vr => vr.map(res(vr.project)))))))
+      case v @ AggregateElasticSearchView(`Set[ViewRef[ProjectRef]]`(viewRefs), _, _, _, _, _) =>
+        val projectRefs = viewRefs.map(_.project)
+        EitherT(projectCache.getProjectLabels(projectRefs).map(resultOrFailures).map {
+          case Right(res)     => Right(v.copy(value = viewRefs.map { case ViewRef(ref, id) => ViewRef(res(ref), id) }))
+          case Left(projects) => Left(LabelsNotFound(projects))
+        })
       case o => EitherT.rightT(o)
     }
 
@@ -84,17 +87,17 @@ sealed trait View extends Product with Serializable {
                                                                  viewCache: ViewCache[F],
                                                                  F: Monad[F]): EitherT[F, Rejection, View] = {
     this match {
-      case AggregateElasticSearchViewLabels(r) =>
-        val labelIris = r.value.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
+      case v @ AggregateElasticSearchView(`Set[ViewRef[ProjectLabel]]`(viewRefs), _, _, _, _, _) =>
+        val labelIris = viewRefs.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
           acc + (c.project -> (acc.getOrElse(c.project, Set.empty) + c.id))
         }
         val projectsPerms = caller.hasPermission(acls, labelIris.keySet, query)
         val inaccessible  = labelIris.keySet -- projectsPerms
         if (inaccessible.nonEmpty) EitherT.leftT[F, View](ProjectsNotFound(inaccessible))
         else {
-          val labelToRef = projectCache.getProjectRefs(r.projects)
+          val labelToRef = projectCache.getProjectRefs(labelIris.keySet)
           EitherT(labelToRef.map(resultOrFailures(_).left.map(ProjectsNotFound))).flatMap { projMap =>
-            val view: View = r.copy(value = r.value.map(vr => vr.map(projMap(vr.project))))
+            val view: View = v.copy(value = viewRefs.map { case ViewRef(label, id) => ViewRef(projMap(label), id) })
             projMap.foldLeft(EitherT.rightT[F, Rejection](view)) {
               case (acc, (label, ref)) =>
                 acc.flatMap { _ =>
@@ -307,10 +310,6 @@ object View {
       rev: Long,
       deprecated: Boolean
   ) extends AggregateView {
-    def valueString(implicit P: Show[P]): Set[ViewRef[String]] = value.map(v => v.copy(project = v.project.show))
-
-    def projects: Set[P] = value.map(_.project)
-
     def indices[F[_]](implicit projectCache: ProjectCache[F],
                       viewCache: ViewCache[F],
                       acls: AccessControlLists,
@@ -338,22 +337,7 @@ object View {
     def map[A](a: A): ViewRef[A] = copy(project = a)
   }
 
-  type AggregateElasticSearchViewLabels = AggregateElasticSearchView[ProjectLabel]
-  object AggregateElasticSearchViewLabels {
-    final def unapply(arg: AggregateElasticSearchView[_]): Option[AggregateElasticSearchViewLabels] =
-      arg.value.toSeq match {
-        case ViewRef(_: ProjectLabel, _) +: _ => Some(arg.asInstanceOf[AggregateElasticSearchViewLabels])
-        case _                                => None
-      }
-  }
-
-  type AggregateElasticSearchViewRefs = AggregateElasticSearchView[ProjectRef]
-  object AggregateElasticSearchViewRefs {
-    final def unapply(arg: AggregateElasticSearchView[_]): Option[AggregateElasticSearchViewRefs] =
-      arg.value.toSeq match {
-        case ViewRef(_: ProjectRef, _) +: _ => Some(arg.asInstanceOf[AggregateElasticSearchViewRefs])
-        case _                              => None
-      }
-  }
+  val `Set[ViewRef[ProjectRef]]`   = TypeCase[Set[ViewRef[ProjectRef]]]
+  val `Set[ViewRef[ProjectLabel]]` = TypeCase[Set[ViewRef[ProjectLabel]]]
 
 }

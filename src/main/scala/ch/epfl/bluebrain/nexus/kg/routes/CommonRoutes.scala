@@ -5,8 +5,10 @@ import akka.http.scaladsl.model.headers.{Accept, RawHeader}
 import akka.http.scaladsl.model.{ContentType, HttpEntity, StatusCode}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{MalformedQueryParamRejection, Route, Rejection => AkkaRejection}
-import cats.data.{EitherT, OptionT}
+import cats.data.EitherT
+import cats.instances.future._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.search.Pagination
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.UnacceptedResponseContentType
 import ch.epfl.bluebrain.nexus.kg.async.ViewCache
@@ -20,7 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -31,6 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Dot, NTriples}
+import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -56,8 +58,8 @@ private[routes] abstract class CommonRoutes(
     if (c.endsWith("s")) c.dropRight(1) else c
   }
 
-  private[routes] val simultaneousParamsRejection: AkkaRejection =
-    MalformedQueryParamRejection("rev", "'rev' and 'tag' query parameters cannot be present simultaneously")
+  private val wrongSchema: AkkaRejection =
+    MalformedQueryParamRejection("schema", "The provided schema does not match the schema on the Uri")
 
   protected val read: Permission = Permission.unsafe("resources/read")
 
@@ -100,110 +102,102 @@ private[routes] abstract class CommonRoutes(
       }
     }
 
-  def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
+  def update(id: AbsoluteIri, schema: Ref): Route =
     (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
       entity(as[Json]) { source =>
         trace(s"update$resourceName") {
-          complete(resources.update(Id(project.ref, id), rev, schemaOpt, transform(source)).value.runWithStatus(OK))
+          complete(resources.update(Id(project.ref, id), rev, schema, transform(source)).value.runWithStatus(OK))
         }
       }
     }
 
-  def tag(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
+  def tag(id: AbsoluteIri, schema: Ref): Route =
     pathPrefix("tags") {
       (post & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
         entity(as[Json]) { source =>
           trace(s"addTag$resourceName") {
-            val tagged = resources.tag(Id(project.ref, id), rev, schemaOpt, source.addContext(tagCtxUri))
+            val tagged = resources.tag(Id(project.ref, id), rev, schema, source.addContext(tagCtxUri))
             complete(tagged.value.runWithStatus(Created))
           }
         }
       }
     }
 
-  def tags(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
+  def tags(id: AbsoluteIri, schema: Ref): Route =
     pathPrefix("tags") {
-      (get & parameter('rev.as[Long].?) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(read)) { revOpt =>
-        val tags = revOpt
-          .map(rev => resources.fetchTags(Id(project.ref, id), rev, schemaOpt))
-          .getOrElse(resources.fetchTags(Id(project.ref, id), schemaOpt))
-        complete(tags.value.runNotFound(id.ref))
+      (get & parameter('rev.as[Long].?) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(read)) {
+        case Some(rev) => complete(resources.fetchTags(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
+        case _         => complete(resources.fetchTags(Id(project.ref, id), schema).value.runWithStatus(OK))
       }
     }
 
-  def deprecate(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
+  def deprecate(id: AbsoluteIri, schema: Ref): Route =
     (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
       trace(s"deprecate$resourceName") {
-        complete(resources.deprecate(Id(project.ref, id), rev, schemaOpt).value.runWithStatus(OK))
+        complete(resources.deprecate(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
       }
     }
 
-  def fetch(id: AbsoluteIri, schemaOpt: Option[Ref]): Route = {
-    val defaultOutput: OutputFormat = schemaOpt.collect { case `fileRef` => Binary }.getOrElse(Compacted)
+  def fetch(id: AbsoluteIri, schema: Ref): Route = {
+    val defaultOutput: OutputFormat = if (schema == fileRef) Binary else Compacted
     (get & outputFormat(defaultOutput == Binary, defaultOutput) & pathEndOrSingleSlash) {
-      case Binary                        => getFile(id)
-      case format: NonBinaryOutputFormat => getResource(id, schemaOpt)(format)
+      case Binary                        => getFile(id, schema)
+      case format: NonBinaryOutputFormat => getResource(id, schema)(format)
     }
   }
 
-  private def getResource(id: AbsoluteIri, schemaOpt: Option[Ref])(implicit format: NonBinaryOutputFormat): Route =
+  private def getResource(id: AbsoluteIri, schema: Ref)(implicit format: NonBinaryOutputFormat): Route =
     hasPermission(read).apply {
       trace(s"get$resourceName") {
         val idRes = Id(project.ref, id)
         concat(
           (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-            completeWithFormat(resources.fetch(idRes, rev, schemaOpt).materializeRun(id.ref, Some(rev), None))
+            completeWithFormat(resources.fetch(idRes, rev, schema).materializeRun)
           },
           (parameter('tag) & noParameter('rev)) { tag =>
-            completeWithFormat(resources.fetch(idRes, tag, schemaOpt).materializeRun(id.ref, None, Some(tag)))
+            completeWithFormat(resources.fetch(idRes, tag, schema).materializeRun)
           },
           (noParameter('tag) & noParameter('rev)) {
-            completeWithFormat(resources.fetch(idRes, schemaOpt).materializeRun(id.ref, None, None))
+            completeWithFormat(resources.fetch(idRes, schema).materializeRun)
           }
         )
       }
     }
 
-  private def completeWithFormat(fetched: Future[Either[Rejection, (StatusCode, ResourceV)]])(
+  private def completeWithFormat(fetched: EitherT[Future, Rejection, (StatusCode, ResourceV)])(
       implicit format: NonBinaryOutputFormat): Route =
     format match {
       case f: JsonLDOutputFormat =>
         implicit val format = f
-        complete(fetched)
+        complete(fetched.value)
       case Triples =>
-        implicit val marshaller = stringMarshaller(Triples)
-        complete(fetched.map(_.map {
-          case (status, resource) =>
-            status -> resource.value.graph.as[NTriples]().value
-        }))
+        implicit val format = Triples
+        complete(fetched.map { case (status, resource) => status -> resource.value.graph.as[NTriples]().value }.value)
       case DOT =>
-        implicit val marshaller = stringMarshaller(DOT)
-        complete(fetched.map(_.map {
-          case (status, resource) =>
-            status -> resource.value.graph.as[Dot]().value
-        }))
+        implicit val format = DOT
+        complete(fetched.map { case (status, resource) => status -> resource.value.graph.as[Dot]().value }.value)
     }
 
-  private def getFile(id: AbsoluteIri): Route =
+  private def getFile(id: AbsoluteIri, schema: Ref): Route =
     trace("getFile") {
       extractActorSystem { implicit as =>
         concat(
           (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-            completeFile(resources.fetchFile(Id(project.ref, id), rev).value.runNotFound(id.ref))
+            completeFile(resources.fetchFile(Id(project.ref, id), rev, schema).value.runToFuture)
           },
           (parameter('tag) & noParameter('rev)) { tag =>
-            completeFile(resources.fetchFile(Id(project.ref, id), tag).value.runNotFound(id.ref))
+            completeFile(resources.fetchFile(Id(project.ref, id), tag, schema).value.runToFuture)
           },
           (noParameter('tag) & noParameter('rev)) {
-            completeFile(resources.fetchFile(Id(project.ref, id)).value.runNotFound(id.ref))
+            completeFile(resources.fetchFile(Id(project.ref, id), schema).value.runToFuture)
           }
         )
       }
     }
 
-  private def completeFile(f: Future[(Storage, FileAttributes, AkkaSource)]): Route =
+  private def completeFile(f: Future[Either[Rejection, (Storage, FileAttributes, AkkaSource)]]): Route =
     onSuccess(f) {
-      case (storage, info, source) =>
+      case Right((storage, info, source)) =>
         hasPermission(storage.readPermission).apply {
           val filename = urlEncodeOrElse(info.filename)("file")
           (respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")) & encodeResponse) {
@@ -219,37 +213,41 @@ private[routes] abstract class CommonRoutes(
             }
           }
         }
+      case Left(err) => complete(err)
     }
 
-  def list(schemaOpt: Option[Ref]): Route =
+  def list: Route =
     (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read)) { (pagination, params) =>
-      val schema = schemaOpt.map(_.iri).orElse(params.schema)
       trace(s"list$resourceName") {
-        complete(
-          viewCache
-            .getBy[ElasticSearchView](project.ref, nxv.defaultElasticSearchIndex.value)
-            .flatMap(v => resources.list(v, params.copy(schema = schema), pagination))
-            .runToFuture)
+        complete(list(pagination, params))
       }
     }
 
-  private implicit class OptionTaskSyntax(resource: OptionT[Task, Resource]) {
-    def materializeRun(ref: => Ref,
-                       rev: Option[Long],
-                       tag: Option[String]): Future[Either[Rejection, (StatusCode, ResourceV)]] =
-      (for {
-        res          <- resource.toRight(NotFound(ref, rev, tag): Rejection)
+  def list(schema: Ref): Route =
+    (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read)) { (pagination, params) =>
+      if (params.schema.getOrElse(schema.iri) != schema.iri) reject(wrongSchema)
+      else {
+        trace(s"list$resourceName") {
+          complete(list(pagination, params.copy(schema = Some(schema.iri))))
+        }
+      }
+    }
+
+  private def list(pagination: Pagination, params: SearchParams): Future[(StatusCode, JsonResults)] =
+    viewCache
+      .getBy[ElasticSearchView](project.ref, nxv.defaultElasticSearchIndex.value)
+      .flatMap(resources.list(_, params, pagination))
+      .runWithStatus(OK)
+
+  private implicit class OptionTaskSyntax(rejOrResource: EitherT[Task, Rejection, Resource]) {
+    def materializeRun: EitherT[Future, Rejection, (StatusCode, ResourceV)] =
+      EitherT((for {
+        res          <- rejOrResource
         materialized <- resources.materializeWithMeta(res)
         transformed  <- EitherT.right[Rejection](transform(materialized))
-      } yield transformed).value.runWithStatus(OK)
+      } yield transformed).value.runWithStatus(OK))
   }
 
-  private implicit val tagsEncoder: Encoder[Tags] = Encoder.instance { tags =>
-    val arr = tags.foldLeft(List.empty[Json]) {
-      case (acc, (tag, rev)) =>
-        Json.obj(nxv.tag.prefix -> Json.fromString(tag), "rev" -> Json.fromLong(rev)) :: acc
-    }
-    Json.obj(nxv.tags.prefix -> Json.arr(arr: _*)).addContext(tagCtxUri)
-  }
-
+  private implicit def tagsEncoder: Encoder[Tags] =
+    Encoder.instance(tags => Json.obj(nxv.tags.prefix -> Json.arr(tags.map(_.asJson).toSeq: _*)).addContext(tagCtxUri))
 }

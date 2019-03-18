@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import cats.Id
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -26,13 +25,13 @@ object ResourceEncoder {
   private implicit val resourceVGraphEncEither: GraphEncoder[DecoderResult, ResourceV] = resourceVGraphEnc.toEither
 
   private implicit def resourceGraphEnc(implicit config: AppConfig, project: Project): GraphEncoder[Id, Resource] =
-    GraphEncoder((rootNode, res) => RootedGraph(rootNode, res.metadata))
+    GraphEncoder((rootNode, res) => RootedGraph(rootNode, res.metadata()))
   private implicit def resourceGraphEncEither(implicit config: AppConfig,
                                               project: Project): GraphEncoder[DecoderResult, Resource] =
     resourceGraphEnc.toEither
 
   def json(r: Resource)(implicit config: AppConfig, project: Project): DecoderResult[Json] = {
-    r.as[Json](resourceCtx).map(_.removeKeys("@context").addContext(resourceCtxUri))
+    r.as[Json](resourceCtx).map(_.replaceContext(resourceCtxUri))
   }
 
   def json(res: ResourceV)(implicit output: JsonLDOutputFormat): DecoderResult[Json] =

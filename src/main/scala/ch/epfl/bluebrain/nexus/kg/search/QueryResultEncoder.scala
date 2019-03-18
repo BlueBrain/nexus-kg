@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.search
 
 import cats.Id
 import cats.instances.either._
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
@@ -47,7 +46,7 @@ object QueryResultEncoder {
       node: RootNode[QueryResults[A]]): DecoderResult[Json] =
     value
       .as[Json](searchCtx deepMerge extraCtx)
-      .map(_.removeKeys("@context", "@id").addContext(searchCtxUri).addContext(resourceCtxUri))
+      .map(_.removeKeys("@id").replaceContext(searchCtxUri).addContext(resourceCtxUri))
 
   implicit def qrsEncoderJson: Encoder[QueryResults[Json]] = {
     implicit def qrEncoderJson: Encoder[QueryResult[Json]] = Encoder.instance {

@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import cats.data.{EitherT, OptionT}
+import cats.data.EitherT
 import cats.effect.Effect
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -14,15 +14,15 @@ import ch.epfl.bluebrain.nexus.commons.shacl.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg._
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Contexts}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.SchemaContext
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileDescription
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder._
@@ -30,7 +30,6 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Save}
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.MarshallingError.rootNotFound
 import ch.epfl.bluebrain.nexus.rdf.Node.{blank, BNode, IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -44,11 +43,6 @@ import org.apache.jena.rdf.model.Model
   */
 class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: ProjectResolution[F], config: AppConfig) {
   self =>
-
-  type RejOrResourceV = EitherT[F, Rejection, ResourceV]
-  type RejOrResource  = EitherT[F, Rejection, Resource]
-  type OptResource    = OptionT[F, Resource]
-  type JsonResults    = QueryResults[Json]
 
   /**
     * Creates a new resource attempting to extract the id from the source. If a primary node of the resulting graph
@@ -65,13 +59,13 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     */
   def create(base: AbsoluteIri, schema: Ref, source: Json)(implicit subject: Subject,
                                                            project: Project,
-                                                           additional: AdditionalValidation[F]): RejOrResource =
+                                                           additional: AdditionalValidation[F]): RejOrResource[F] =
     // format: off
     for {
       rawValue       <- materialize(schema, source)
-      value          <- checkOrAssignId(Right((project.ref, base)), rawValue)
-      (id, assigned)  = value
-      resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata))
+      value          <- checkOrAssignId(base, rawValue)
+      (id, graph)  = value
+      resource       <- create(id, schema, rawValue.copy(graph = graph.removeMetadata))
     } yield resource
   // format: on
 
@@ -85,7 +79,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     */
   def create(id: ResId, schema: Ref, source: Json)(implicit subject: Subject,
                                                    project: Project,
-                                                   additional: AdditionalValidation[F]): RejOrResource =
+                                                   additional: AdditionalValidation[F]): RejOrResource[F] =
     for {
       assigned <- materialize(id, schema, source)
       resource <- create(id, schema, assigned)
@@ -106,7 +100,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
                      base: AbsoluteIri,
                      storage: Storage,
                      fileDesc: FileDescription,
-                     source: In)(implicit subject: Subject, saveStorage: Save[F, In]): RejOrResource =
+                     source: In)(implicit subject: Subject, saveStorage: Save[F, In]): RejOrResource[F] =
     createFile(Id(projectRef, generateId(base)), storage, fileDesc, source)
 
   /**
@@ -121,7 +115,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     */
   def createFile[In](id: ResId, storage: Storage, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
-      saveStorage: Save[F, In]): RejOrResource =
+      saveStorage: Save[F, In]): RejOrResource[F] =
     repo.createFile(id, storage, fileDesc, source)
 
   /**
@@ -137,13 +131,13 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     */
   def updateFile[In](id: ResId, storage: Storage, rev: Long, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
-      saveStorage: Save[F, In]): RejOrResource =
+      saveStorage: Save[F, In]): RejOrResource[F] =
     repo.updateFile(id, storage, rev, fileDesc, source)
 
   private def create(id: ResId, schema: Ref, value: ResourceF.Value)(
       implicit subject: Subject,
       project: Project,
-      additional: AdditionalValidation[F]): RejOrResource = {
+      additional: AdditionalValidation[F]): RejOrResource[F] = {
 
     val schemaType  = addSchemaTypes(schema)
     val graph       = schemaType.map(tpe => value.graph + ((id.value, rdf.tpe, tpe): Triple)).getOrElse(value.graph)
@@ -158,131 +152,150 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
   /**
     * Fetches the latest revision of a resource
     *
-    * @param id        the id of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @return Some(resource) in the F context when found and None in the F context when not found
+    * @param id     the id of the resource
+    * @param schema the schema reference that constrains the resource
+    * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
-  def fetch(id: ResId, schemaOpt: Option[Ref]): OptResource =
-    repo.get(id, schemaOpt)
+  def fetch(id: ResId, schema: Ref): RejOrResource[F] =
+    fetch(id).check(schema)
 
   /**
     * Fetches the provided revision of a resource
     *
-    * @param id        the id of the resource
-    * @param rev       the revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @return Some(resource) in the F context when found and None in the F context when not found
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @param schema the schema reference that constrains the resource
+    * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
-  def fetch(id: ResId, rev: Long, schemaOpt: Option[Ref]): OptResource =
-    repo.get(id, rev, schemaOpt)
+  def fetch(id: ResId, rev: Long, schema: Ref): RejOrResource[F] =
+    fetch(id, rev).check(schema)
 
   /**
     * Fetches the provided tag of a resource
     *
-    * @param id        the id of the resource
-    * @param tag       the tag of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @param schema the schema reference that constrains the resource
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
-  def fetch(id: ResId, tag: String, schemaOpt: Option[Ref]): OptResource =
-    repo.get(id, tag, schemaOpt)
+  def fetch(id: ResId, tag: String, schema: Ref): RejOrResource[F] =
+    fetch(id, tag).check(schema)
+
+  /**
+    * Fetches the latest revision of a resource
+    *
+    * @param id     the id of the resource
+    * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetch(id: ResId): RejOrResource[F] =
+    repo.get(id, None).toRight(NotFound(id.ref))
+
+  /**
+    * Fetches the provided revision of a resource
+    *
+    * @param id     the id of the resource
+    * @param rev    the rev of the resource
+    * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetch(id: ResId, rev: Long): RejOrResource[F] =
+    repo.get(id, rev, None).toRight(NotFound(id.ref, revOpt = Some(rev)))
+
+  /**
+    * Fetches the provided tag of a resource
+    *
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetch(id: ResId, tag: String): RejOrResource[F] =
+    repo.get(id, tag, None).toRight(NotFound(id.ref, tagOpt = Some(tag)))
 
   /**
     * Fetches the latest revision of a resource tags.
     *
-    * @param id        the id of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
+    * @param id     the id of the resource
+    * @param schema the schema reference that constrains the resource
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
-  def fetchTags(id: ResId, schemaOpt: Option[Ref]): OptionT[F, Tags] =
-    fetch(id, schemaOpt).map(_.tags)
+  def fetchTags(id: ResId, schema: Ref): RejOrTags[F] =
+    fetch(id, schema).map(_.tags.map { case (tag, tagRev) => Tag(tagRev, tag) }.toSet)
 
   /**
     * Fetches the provided revision of a resource tags.
     *
-    * @param id        the id of the resource
-    * @param rev       the revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @param schema the schema reference that constrains the resource
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
-  def fetchTags(id: ResId, rev: Long, schemaOpt: Option[Ref]): OptionT[F, Tags] =
-    fetch(id, rev, schemaOpt).map(_.tags)
+  def fetchTags(id: ResId, rev: Long, schema: Ref): RejOrTags[F] =
+    fetch(id, rev, schema).map(_.tags.map { case (tag, tagRev) => Tag(tagRev, tag) }.toSet)
 
   /**
     * Fetches the provided tag of a resource tags.
     *
-    * @param id        the id of the resource
-    * @param tag       the tag of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @param schema the schema reference that constrains the resource
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
-  def fetchTags(id: ResId, tag: String, schemaOpt: Option[Ref]): OptionT[F, Tags] =
-    fetch(id, tag, schemaOpt).map(_.tags)
+  def fetchTags(id: ResId, tag: String, schema: Ref): RejOrTags[F] =
+    fetch(id, tag, schema).map(_.tags.map { case (tagValue, rev) => Tag(rev, tagValue) }.toSet)
 
   /**
     * Updates an existing resource.
     *
-    * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param source    the new source representation in json-ld format
+    * @param id     the id of the resource
+    * @param rev    the last known revision of the resource
+    * @param schema the schema reference that constrains the resource
+    * @param source the new source representation in json-ld format
     * @return either a rejection or the updated resource in the F context
     */
-  def update(id: ResId, rev: Long, schemaOpt: Option[Ref], source: Json)(
-      implicit subject: Subject,
-      project: Project,
-      additional: AdditionalValidation[F]): RejOrResource = {
-    def checkSchema(res: Resource): EitherT[F, Rejection, Unit] = schemaOpt match {
-      case Some(schema) if schema != res.schema => EitherT.leftT(NotFound(schema))
-      case _                                    => EitherT.rightT(())
-    }
-
+  def update(id: ResId, rev: Long, schema: Ref, source: Json)(implicit subject: Subject,
+                                                              project: Project,
+                                                              additional: AdditionalValidation[F]): RejOrResource[F] =
     // format: off
     for {
-      resource    <- fetch(id, rev, None).toRight(NotFound(id.ref))
-      schemaType   = addSchemaTypes(resource.schema)
-      _           <- checkSchema(resource)
-      value       <- materialize(id, resource.schema, source)
+      _           <- fetch(id, rev, schema)
+      schemaType   = addSchemaTypes(schema)
+      value       <- materialize(id, schema, source)
       graph        = schemaType.map(tpe => value.graph + ((id.value, rdf.tpe, tpe): Triple)).getOrElse(value.graph)
-      _           <- validate(id, resource.schema, graph)
+      _           <- validate(id, schema, graph)
       joinedTypes  = graph.types(id.value).map(_.value)
-      newValue    <- additional(id, resource.schema, joinedTypes, value.copy(graph = RootedGraph(id.value, graph)), rev + 1)
+      newValue    <- additional(id, schema, joinedTypes, value.copy(graph = RootedGraph(id.value, graph)), rev + 1)
       updated     <- repo.update(id, rev, joinedTypes, newValue.source)
     } yield updated
     // format: on
-  }
 
   /**
     * Deprecates an existing resource
     *
-    * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
+    * @param id     the id of the resource
+    * @param rev    the last known revision of the resource
+    * @param schema the schema reference that constrains the resource
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
-  def deprecate(id: ResId, rev: Long, schemaOpt: Option[Ref])(implicit subject: Subject): RejOrResource =
-    checkSchema(id, schemaOpt)(repo.deprecate(id, rev))
+  def deprecate(id: ResId, rev: Long, schema: Ref)(implicit subject: Subject): RejOrResource[F] =
+    for {
+      _          <- fetch(id, rev, schema)
+      deprecated <- repo.deprecate(id, rev)
+    } yield deprecated
 
   /**
     * Tags a resource. This operation aliases the provided ''targetRev'' with the  provided ''tag''.
     *
-    * @param id        the id of the resource
-    * @param rev       the last known revision of the resource
-    * @param schemaOpt optional schema reference that constrains the resource
-    * @param json      the json payload which contains the targetRev and the tag
+    * @param id     the id of the resource
+    * @param rev    the last known revision of the resource
+    * @param schema the schema reference that constrains the resource
+    * @param json   the json payload which contains the targetRev and the tag
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
-  def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], json: Json)(implicit subject: Subject): RejOrResource = {
-    val result = for {
-      graph <- (json deepMerge Contexts.tagCtx).asGraph(_.rootNode.toRight(rootNotFound()))
-      cursor = graph.cursor()
-      revValue <- cursor.downField(nxv.rev).focus.as[Long]
-      tagValue <- cursor.downField(nxv.tag).focus.as[String]
-    } yield tag(id, rev, schemaOpt, revValue, tagValue)
-    result match {
-      case Right(v) => v
-      case _        => EitherT.leftT(InvalidResourceFormat(id.ref, "Both 'tag' and 'rev' fields must be present."))
-    }
+  def tag(id: ResId, rev: Long, schema: Ref, json: Json)(implicit subject: Subject): RejOrResource[F] = {
+    for {
+      _      <- fetch(id, rev, schema)
+      tag    <- EitherT.fromEither[F](Tag(id, json))
+      tagged <- repo.tag(id, rev, tag.rev, tag.value)
+    } yield tagged
   }
 
   private def addSchemaTypes(schemaRef: Ref): Option[AbsoluteIri] =
@@ -294,51 +307,43 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
       case _             => None
     }
 
-  private def tag(id: ResId, rev: Long, schemaOpt: Option[Ref], targetRev: Long, tag: String)(
-      implicit subject: Subject): RejOrResource =
-    checkSchema(id, schemaOpt)(repo.tag(id, rev, targetRev, tag))
-
   /**
     * Attempts to stream the file resource for the latest revision.
     *
-    * @param id the id of the resource.
+    * @param id     the id of the resource
+    * @param schema the schema reference that constrains the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId)(implicit fetchStorage: Fetch[F, Out]): OptionT[F, (Storage, FileAttributes, Out)] =
-    for {
-      (storage, attr) <- fetch(id, None).subflatMap(_.file)
-      source          <- OptionT.liftF(storage.fetch.apply(attr))
-    } yield (storage, attr, source)
+  def fetchFile[Out](id: ResId, schema: Ref)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
+    fetchFile(fetch(id, schema))
 
   /**
     * Attempts to stream the file resource with specific revision.
-
     *
-    * @param id  the id of the resource.
-    * @param rev the revision of the resource
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @param schema the schema reference that constrains the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId, rev: Long)(
-      implicit fetchStorage: Fetch[F, Out]): OptionT[F, (Storage, FileAttributes, Out)] =
-    for {
-      (storage, attr) <- fetch(id, rev, None).subflatMap(_.file)
-      source          <- OptionT.liftF(storage.fetch.apply(attr))
-    } yield (storage, attr, source)
+  def fetchFile[Out](id: ResId, rev: Long, schema: Ref)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
+    fetchFile(fetch(id, rev, schema))
 
   /**
     * Attempts to stream the file resource with specific tag. The
     * tag is transformed into a revision value using the latest resource tag to revision mapping.
     *
-    * @param id  the id of the resource.
-    * @param tag the tag of the resource
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @param schema the schema reference that constrains the resource
     * @return the optional streamed file in the F context
     */
-  def fetchFile[Out](id: ResId, tag: String)(
-      implicit fetchStorage: Fetch[F, Out]): OptionT[F, (Storage, FileAttributes, Out)] =
-    for {
-      (storage, attr) <- fetch(id, tag, None).subflatMap(_.file)
-      source          <- OptionT.liftF(storage.fetch.apply(attr))
-    } yield (storage, attr, source)
+  def fetchFile[Out](id: ResId, tag: String, schema: Ref)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
+    fetchFile(fetch(id, tag, schema))
+
+  private def fetchFile[Out](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
+    rejOrResource.subflatMap(resource => resource.file.toRight(NotFound(resource.id.ref))).flatMapF {
+      case (storage, attr) => storage.fetch.apply(attr).map(out => Right((storage, attr, out)))
+    }
 
   /**
     * Lists resources for the given project and schema
@@ -367,7 +372,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     *
     * @param resource the resource to materialize
     */
-  def materialize(resource: Resource)(implicit project: Project): RejOrResourceV =
+  def materialize(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
     for {
       value <- materialize(resource.id, resource.schema, resource.value)
     } yield resource.map(_ => value)
@@ -380,11 +385,13 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     *
     * @param resource the resource to materialize
     */
-  def materializeWithMeta(resource: Resource)(implicit project: Project): RejOrResourceV =
+  def materializeWithMeta(resource: Resource, selfAsIri: Boolean = false)(
+      implicit project: Project): RejOrResourceV[F] =
     for {
       resourceV <- materialize(resource)
       value = resourceV.value.copy(
-        graph = RootedGraph(resourceV.value.graph.rootNode, resourceV.value.graph.triples ++ resourceV.metadata))
+        graph =
+          RootedGraph(resourceV.value.graph.rootNode, resourceV.value.graph.triples ++ resourceV.metadata(selfAsIri)))
     } yield resourceV.map(_ => value)
 
   /**
@@ -407,7 +414,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
         current
           .find(_._1 == ref)
           .map(tuple => EitherT.rightT[F, Rejection](tuple))
-          .getOrElse(ref.resolveOr(resId.parent)(NotFound(_)).flatMap(materialize).map(ref -> _))
+          .getOrElse(resolveOrNotFound(ref).flatMap(materialize).map(ref -> _))
 
       if (remaining.isEmpty) EitherT.rightT(current.values.toSet)
       else {
@@ -436,7 +443,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
           val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
           for {
             next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
-            res   <- next.resolveOr(project.ref)(NotFound(_))
+            res   <- resolveOrNotFound(next)
             value <- flattenCtx(next :: refs, res.value.contextValue)
           } yield value
         case (_, Some(arr), _) =>
@@ -471,16 +478,9 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     // format: off
     for {
       rawValue      <- materialize(schema, source)
-      value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata))
-      (_, assigned)  = value
-    } yield assigned
+      graph         <- checkId(id, rawValue.copy(graph = rawValue.graph.removeMetadata))
+    } yield rawValue.copy(graph = graph)
   // format: on
-
-  private def checkSchema(id: ResId, schemaOpt: Option[Ref])(op: => RejOrResource): RejOrResource =
-    schemaOpt match {
-      case Some(schema) => fetch(id, schemaOpt).toRight[Rejection](NotFound(schema)).flatMap(_ => op)
-      case _            => op
-    }
 
   private def validate(resId: ResId, schema: Ref, data: Graph)(
       implicit project: Project): EitherT[F, Rejection, Unit] = {
@@ -499,7 +499,7 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     def schemaContext(): EitherT[F, Rejection, SchemaContext] =
       // format: off
       for {
-        resolvedSchema                <- schema.resolveOr(resId.parent)(NotFound(_))
+        resolvedSchema                <- resolveOrNotFound(schema)
         materializedSchema            <- materialize(resolvedSchema)
         importedResources             <- imports(materializedSchema.id, materializedSchema.value.graph)
         (schemaImports, dataImports)  = partition(importedResources)
@@ -526,46 +526,46 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     }
   }
 
-  private def checkOrAssignId(idOrGenInput: Either[ResId, (ProjectRef, AbsoluteIri)],
-                              value: ResourceF.Value): EitherT[F, Rejection, (ResId, ResourceF.Value)] = {
+  private def replaceBNode(bnode: BNode, id: AbsoluteIri, value: ResourceF.Value): RootedGraph =
+    RootedGraph(id, value.graph.replaceNode(bnode, id))
 
-    def replaceBNode(bnode: BNode, id: AbsoluteIri): ResourceF.Value =
-      value.copy(graph = RootedGraph(id, value.graph.replaceNode(bnode, id)))
-
-    def rootNode: Option[IriOrBNode] = {
-      val resolvedSource = value.source appendContextOf Json.obj("@context" -> value.ctx)
-      resolvedSource.id.map(IriNode(_)) orElse (value.graph: Graph).rootNode orElse Option(value.graph.triples.isEmpty)
-        .collectFirst {
-          case true => blank
-        }
-    }
-
-    idOrGenInput match {
-      case Left(id) =>
-        rootNode match {
-          case Some(IriNode(iri)) if iri.value == id.value =>
-            EitherT.rightT(id -> value.copy(graph = RootedGraph(id.value, value.graph)))
-          case Some(bNode: BNode) => EitherT.rightT(id -> replaceBNode(bNode, id.value))
-          case _                  => EitherT.leftT(IncorrectId(id.ref))
-        }
-      case Right((projRef, base)) =>
-        rootNode match {
-          case Some(IriNode(iri)) =>
-            EitherT.rightT(Id(projRef, iri.value) -> value.copy(graph = RootedGraph(iri, value.graph)))
-          case Some(bNode: BNode) =>
-            val iri = generateId(base)
-            EitherT.rightT(Id(projRef, iri.value) -> replaceBNode(bNode, iri))
-          case _ => EitherT.leftT(UnableToSelectResourceId)
-        }
-    }
+  private def rootNode(value: ResourceF.Value): Option[IriOrBNode] = {
+    val resolvedSource = value.source appendContextOf Json.obj("@context" -> value.ctx)
+    resolvedSource.id.map(IriNode.apply) orElse
+      (value.graph: Graph).rootNode orElse
+      (if (value.graph.triples.isEmpty) Some(blank) else None)
   }
+
+  private def checkId(id: ResId, value: ResourceF.Value): EitherT[F, Rejection, RootedGraph] =
+    rootNode(value) match {
+      case Some(IriNode(iri)) if iri.value == id.value => EitherT.rightT(RootedGraph(id.value, value.graph))
+      case Some(bNode: BNode)                          => EitherT.rightT(replaceBNode(bNode, id.value, value))
+      case _                                           => EitherT.leftT(IncorrectId(id.ref))
+    }
+
+  private def checkOrAssignId(base: AbsoluteIri, value: ResourceF.Value)(
+      implicit project: Project): EitherT[F, Rejection, (ResId, RootedGraph)] =
+    rootNode(value) match {
+      case Some(IriNode(iri)) =>
+        EitherT.rightT(Id(project.ref, iri.value) -> RootedGraph(iri, value.graph))
+      case Some(bNode: BNode) =>
+        val iri = generateId(base)
+        EitherT.rightT(Id(project.ref, iri.value) -> replaceBNode(bNode, iri, value))
+      case _ =>
+        EitherT.leftT(UnableToSelectResourceId)
+    }
 
   private def generateId(base: AbsoluteIri): AbsoluteIri = url"${base.asString}${uuid()}"
 
-  private final implicit class RefSyntax(ref: Ref) {
+  private def resolveOrNotFound(ref: Ref)(implicit project: Project): EitherT[F, Rejection, Resource] =
+    EitherT.fromOptionF(resolution(project.ref)(self).resolve(ref), NotFound(ref))
 
-    def resolveOr(projectRef: ProjectRef)(f: Ref => Rejection): EitherT[F, Rejection, Resource] =
-      EitherT.fromOptionF(resolution(projectRef)(self).resolve(ref), f(ref))
+  private final implicit class ResourceSchemaSyntax(private val resourceF: RejOrResource[F]) {
+    def check(schema: Ref): RejOrResource[F] =
+      resourceF.subflatMap {
+        case resource if resource.schema == schema => Right(resource)
+        case _                                     => Left(NotFound(schema))
+      }
   }
 
 }

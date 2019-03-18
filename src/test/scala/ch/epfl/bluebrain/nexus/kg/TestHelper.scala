@@ -7,7 +7,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, Permission, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.unconstrainedSchemaUri
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, Ref, ResourceF}
+import ch.epfl.bluebrain.nexus.kg.resources.{Ref, ResId, ResourceF}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.syntax._
@@ -34,14 +34,14 @@ trait TestHelper extends MockitoMatchers with EitherValues {
                               Anonymous,
                               acl)
 
-  def simpleV[P](id: Id[P],
-                 value: Json,
-                 rev: Long = 1L,
-                 types: Set[AbsoluteIri] = Set.empty,
-                 deprecated: Boolean = false,
-                 schema: Ref = Ref(unconstrainedSchemaUri),
-                 created: Identity = Anonymous,
-                 updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[P, Ref, Value] =
+  def simpleV(id: ResId,
+              value: Json,
+              rev: Long = 1L,
+              types: Set[AbsoluteIri] = Set.empty,
+              deprecated: Boolean = false,
+              schema: Ref = Ref(unconstrainedSchemaUri),
+              created: Identity = Anonymous,
+              updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[Value] =
     ResourceF(
       id,
       rev,
@@ -56,7 +56,7 @@ trait TestHelper extends MockitoMatchers with EitherValues {
       schema,
       Value(value, value.contextValue, value.asGraph(id.value).right.value)
     )
-  def simpleV[P, S](res: ResourceF[P, S, Json])(implicit clock: Clock) = ResourceF(
+  def simpleV(res: ResourceF[Json])(implicit clock: Clock) = ResourceF(
     res.id,
     res.rev,
     res.types,

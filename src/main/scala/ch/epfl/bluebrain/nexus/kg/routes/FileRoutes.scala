@@ -29,20 +29,18 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
     config: AppConfig)
     extends CommonRoutes(resources, "files", acls, caller) {
 
-  def routes: Route = {
-    val fileRefOpt = Some(fileRef)
-    create(fileRef) ~ list(fileRefOpt) ~
+  def routes: Route =
+    create(fileRef) ~ list(fileRef) ~
       pathPrefix(IdSegment) { id =>
         concat(
-          update(id, fileRefOpt),
+          update(id, fileRef),
           create(id, fileRef),
-          tag(id, fileRefOpt),
-          deprecate(id, fileRefOpt),
-          fetch(id, fileRefOpt),
-          tags(id, fileRefOpt)
+          tag(id, fileRef),
+          deprecate(id, fileRef),
+          fetch(id, fileRef),
+          tags(id, fileRef)
         )
       }
-  }
 
   override def create(id: AbsoluteIri, schema: Ref): Route =
     (put & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
@@ -72,7 +70,7 @@ class FileRoutes private[routes] (resources: Resources[Task], acls: AccessContro
       }
     }
 
-  override def update(id: AbsoluteIri, schemaOpt: Option[Ref]): Route =
+  override def update(id: AbsoluteIri, schema: Ref): Route =
     (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & storage) { (rev, storage) =>
       (hasPermission(storage.writePermission) & fileUpload("file")) {
         case (metadata, byteSource) =>

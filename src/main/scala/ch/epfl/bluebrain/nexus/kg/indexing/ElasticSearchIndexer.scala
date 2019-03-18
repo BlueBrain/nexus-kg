@@ -4,7 +4,6 @@ import akka.actor.ActorSystem
 import cats.Functor
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
@@ -43,9 +42,9 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     * @param event event to be mapped to a Elastic Search insert query
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
-    view.resourceTag.map(resources.fetch(event.id, _, None)).getOrElse(resources.fetch(event.id, None)).value.map {
-      case Some(resource) if validCandidate(resource) => transformAndIndex(resource).map(event.id -> _)
-      case _                                          => None
+    view.resourceTag.map(resources.fetch(event.id, _)).getOrElse(resources.fetch(event.id)).value.map {
+      case Right(resource) if validCandidate(resource) => transformAndIndex(resource).map(event.id -> _)
+      case _                                           => None
     }
 
   private def validCandidate(resource: Resource): Boolean =
@@ -57,7 +56,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
 
     val transformed: DecoderResult[Json] = {
-      val metaGraph = if (view.includeMetadata) Graph(res.metadata) else Graph()
+      val metaGraph = if (view.includeMetadata) Graph(res.metadata()) else Graph()
       if (view.sourceAsText) asJson(metaGraph.add(rootNode, nxv.originalSource, res.value.noSpaces))
       else asJson(metaGraph).map(metaJson => res.value deepMerge metaJson)
     }
