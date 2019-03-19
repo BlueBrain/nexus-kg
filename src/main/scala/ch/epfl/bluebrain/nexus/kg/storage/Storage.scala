@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
-import java.net.{InetSocketAddress, ProxySelector, URI}
 import java.net.Proxy.Type
+import java.net.{InetSocketAddress, ProxySelector, URI}
 import java.nio.file.{Path, Paths}
 
 import akka.actor.ActorSystem
@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.amazonaws.auth._
-import com.amazonaws.regions.{AwsRegionProvider, DefaultAwsRegionProviderChain}
+import com.amazonaws.regions.AwsRegionProvider
 
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -195,12 +195,14 @@ object Storage {
         case None => new AWSStaticCredentialsProvider(new AnonymousAWSCredentials)
       }
 
-      val regionProvider = region match {
-        case Some(reg) =>
-          new AwsRegionProvider {
-            val getRegion: String = reg
+      val regionProvider: AwsRegionProvider = new AwsRegionProvider {
+        val getRegion: String = region.getOrElse {
+          endpoint match {
+            case None                                   => "us-east-1"
+            case Some(s) if s.contains("amazonaws.com") => "us-east-1"
+            case _                                      => "no-region"
           }
-        case None => new DefaultAwsRegionProviderChain()
+        }
       }
 
       val address = endpoint match {

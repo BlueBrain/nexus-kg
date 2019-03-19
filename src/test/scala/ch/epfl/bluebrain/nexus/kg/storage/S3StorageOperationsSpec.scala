@@ -173,6 +173,28 @@ class S3StorageOperationsSpec
       val download = fetch(attr).failed[DownstreamServiceError]
       download.msg shouldEqual s"Error fetching S3 object with key '${mangle(projectRef, fileUuid)}' in bucket 'foobar': The specified bucket does not exist"
     }
+
+    "verify storage with no region" in {
+      keys.foreach(System.clearProperty)
+
+      val base       = url"https://nexus.example.com/".value
+      val projectId  = base + "org" + "proj"
+      val projectRef = ProjectRef(UUID.randomUUID)
+      val storage =
+        S3Storage(projectRef,
+                  projectId,
+                  1L,
+                  deprecated = false,
+                  default = true,
+                  "MD5",
+                  bucket,
+                  S3Settings(None, Some(address), None),
+                  readS3,
+                  writeS3)
+
+      val verify = new S3StorageOperations.Verify[IO](storage)
+      verify.apply.ioValue shouldEqual Right(())
+    }
   }
 
   "S3Settings" should {
