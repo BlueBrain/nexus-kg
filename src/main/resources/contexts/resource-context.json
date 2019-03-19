@@ -12,6 +12,7 @@
     "DiskStorage": "nxv:DiskStorage",
     "S3Storage": "nxv:S3Storage",
     "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
+    "AggregateSparqlView": "nxv:AggregateSparqlView",
     "SparqlView":  "nxv:SparqlView",
     "Alpha": "nxv:Alpha",
     "_deprecated": "nxv:deprecated",

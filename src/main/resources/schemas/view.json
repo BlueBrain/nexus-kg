@@ -22,6 +22,9 @@
         },
         {
           "node": "this:AggregateElasticSearchViewShape"
+        },
+        {
+          "node": "this:AggregateSparqlViewShape"
         }
       ]
     },
@@ -131,6 +134,39 @@
           "nodeKind": "sh:IRI",
           "sh:hasValue": {
             "@id": "nxv:AggregateElasticSearchView"
+          }
+        },
+        {
+          "path": "nxv:uuid",
+          "name": "UUID",
+          "description": "The underlying uuid generated for this view.",
+          "datatype": "xsd:string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:views",
+          "name": "viewsref",
+          "description": "the collection of views references.",
+          "node": "this:ViewRefShape",
+          "minCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:AggregateSparqlViewShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF types",
+          "description": "The rdf types.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:AggregateSparqlView"
           }
         },
         {

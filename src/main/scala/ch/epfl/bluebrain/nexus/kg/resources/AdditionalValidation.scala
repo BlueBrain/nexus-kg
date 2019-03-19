@@ -4,7 +4,7 @@ import cats.data.EitherT
 import cats.syntax.all._
 import cats.{Applicative, Monad, MonadError}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticClientError
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchClientError
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticSearchConfig, StorageConfig}
@@ -69,7 +69,7 @@ object AdditionalValidation {
             es.createIndex[F]
               .map[Either[Rejection, Value]](_ => Right(value))
               .recoverWith {
-                case ElasticClientError(_, body) => F.pure(Left(InvalidResourceFormat(id.ref, body)))
+                case ElasticSearchClientError(_, body) => F.pure(Left(InvalidResourceFormat(id.ref, body)))
               }
           )
         case agg: AggregateElasticSearchView[_] =>

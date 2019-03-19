@@ -14,8 +14,8 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticSearchClient, ElasticSearchDecoder}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults
-import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlCirceSupport._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -32,7 +32,6 @@ import kamon.system.SystemMetrics
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock
-import org.apache.jena.query.ResultSet
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -68,11 +67,11 @@ object Main {
     implicit val mt                = ActorMaterializer()
     implicit val eff: Effect[Task] = Task.catsEffect(Scheduler.global)
 
-    implicit val utClient   = untyped[Task]
-    implicit val jsonClient = withUnmarshaller[Task, Json]
-    implicit val rsClient   = withUnmarshaller[Task, ResultSet]
-    implicit val esDecoders = ElasticSearchDecoder[Json]
-    implicit val qrClient   = withUnmarshaller[Task, QueryResults[Json]]
+    implicit val utClient            = untyped[Task]
+    implicit val jsonClient          = withUnmarshaller[Task, Json]
+    implicit val sparqlResultsClient = withUnmarshaller[Task, SparqlResults]
+    implicit val esDecoders          = ElasticSearchDecoder[Json]
+    implicit val qrClient            = withUnmarshaller[Task, QueryResults[Json]]
 
     def clients(implicit elasticSearchConfig: ElasticSearchConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
       val sparql                 = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)

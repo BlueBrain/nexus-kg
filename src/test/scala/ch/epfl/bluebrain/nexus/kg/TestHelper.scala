@@ -10,11 +10,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Ref, ResId, ResourceF}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import io.circe.syntax._
-import io.circe.{Json, JsonObject}
+import io.circe.Json
 import org.mockito.ArgumentMatchers.{argThat, isA => mockIsA}
 import org.scalatest.EitherValues
-import org.scalatest.matchers.{MatchResult, Matcher}
 
 import scala.reflect.ClassTag
 
@@ -74,30 +72,6 @@ trait TestHelper extends MockitoMatchers with EitherValues {
   def genUUID: UUID = UUID.randomUUID()
 
   def genIri: AbsoluteIri = url"http://example.com/".value + genUUID.toString
-
-  def equalIgnoreArrayOrder(json: Json) = IgnoredArrayOrder(json)
-
-  case class IgnoredArrayOrder(json: Json) extends Matcher[Json] {
-    private def sortKeys(value: Json): Json = {
-      def canonicalJson(json: Json): Json =
-        json.arrayOrObject[Json](json,
-                                 arr => Json.fromValues(arr.sortBy(_.hashCode()).map(canonicalJson)),
-                                 obj => sorted(obj).asJson)
-
-      def sorted(jObj: JsonObject): JsonObject =
-        JsonObject.fromIterable(jObj.toVector.sortBy(_._1).map { case (k, v) => k -> canonicalJson(v) })
-
-      canonicalJson(value)
-    }
-
-    override def apply(left: Json): MatchResult = {
-      val leftSorted  = sortKeys(left)
-      val rightSorted = sortKeys(json)
-      MatchResult(leftSorted == rightSorted,
-                  s"Both Json are not equal (ignoring array order)\n$leftSorted\ndid not equal\n$rightSorted",
-                  "")
-    }
-  }
 }
 
 trait MockitoMatchers {

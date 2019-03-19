@@ -40,7 +40,7 @@ class ResolverIndexerMappingSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 15 milliseconds)
 
   private implicit val appConfig          = Settings(system).appConfig
-  private implicit val indexingConfig     = appConfig.indexing.keyValueStore
+  private implicit val indexingConfig     = appConfig.keyValueStore.indexing
   private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
 
   private val resources             = mock[Resources[IO]]

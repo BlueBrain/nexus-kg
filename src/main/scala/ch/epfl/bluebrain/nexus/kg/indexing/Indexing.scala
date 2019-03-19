@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError
@@ -40,7 +41,6 @@ import io.circe.Json
 import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import org.apache.jena.query.ResultSet
 
 // $COVERAGE-OFF$
 private class Indexing(
@@ -51,7 +51,7 @@ private class Indexing(
   private val logger                                          = Logger[this.type]
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
   private implicit val retry: Retry[Task, KgError] =
-    Retry[Task, KgError](config.indexing.keyValueStore.retry.retryStrategy)
+    Retry[Task, KgError](config.keyValueStore.indexing.retry.retryStrategy)
 
   private def asJson(view: View): Task[Json] =
     view.as[Json](viewCtx.appendContextOf(resourceCtx)) match {
@@ -198,7 +198,7 @@ object Indexing {
       implicit cache: Caches[Task],
       config: AppConfig,
       as: ActorSystem,
-      ucl: HttpClient[Task, ResultSet]): ProjectViewCoordinator[Task] = {
+      ucl: HttpClient[Task, SparqlResults]): ProjectViewCoordinator[Task] = {
     implicit val mt: ActorMaterializer                          = ActorMaterializer()
     implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]
     implicit val elasticSearchClient: ElasticSearchClient[Task] = ElasticSearchClient[Task](config.elasticSearch.base)

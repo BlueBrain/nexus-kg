@@ -4,16 +4,17 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
-import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg._
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ProjectViewCoordinator, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.async.Caches._
+import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ProjectViewCoordinator, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -24,11 +25,12 @@ import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.{View, ViewStatistics}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, NoStatsForAggregateView, NotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NoStatsForAggregateView, NotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
+import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -77,18 +79,24 @@ class ViewRoutes private[routes] (resources: Resources[Task],
     }
   }
 
-  private def sparqlQuery(id: AbsoluteIri, view: View, query: String): Task[Either[Rejection, Json]] =
-    indexers.sparql.copy(namespace = view.name).queryRaw(query).map[Either[Rejection, Json]](Right.apply).recoverWith {
-      case SparqlClientError(_, body) => Task.pure(Left(InvalidResourceFormat(id.ref, body)))
-    }
+  private def sparqlQuery(view: SparqlView, query: String): Task[SparqlResults] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
+    implicit val retryer: Retry[Task, SparqlServerOrUnexpectedFailure] = Retry(config.sparql.query.retryStrategy)
+    indexers.sparql.copy(namespace = view.name).queryRaw(query).retry
+  }
 
   private def sparql: Route =
     pathPrefix(IdSegment / "sparql") { id =>
       (post & pathEndOrSingleSlash & hasPermission(query)) {
         entity(as[String]) { query =>
-          val result: Task[Either[Rejection, Json]] = viewCache.getBy[SparqlView](project.ref, id).flatMap {
-            case Some(view) => sparqlQuery(id, view, query)
-            case _          => Task.pure(Left(NotFound(id.ref)))
+          val result: Task[Either[Rejection, SparqlResults]] = viewCache.getBy[View](project.ref, id).flatMap {
+            case Some(v: SparqlView) => sparqlQuery(v, query).map(Right.apply)
+            case Some(agg: AggregateSparqlView[_]) =>
+              val resultListF = agg.queryableViews.flatMap { views =>
+                Task.gatherUnordered(views.map(sparqlQuery(_, query)))
+              }
+              resultListF.map(list => Right(list.foldLeft(SparqlResults.empty)(_ ++ _)))
+            case _ => Task.pure(Left(NotFound(id.ref)))
           }
           trace("searchSparql") {
             complete(result.runWithStatus(StatusCodes.OK))
@@ -101,13 +109,17 @@ class ViewRoutes private[routes] (resources: Resources[Task],
     pathPrefix(IdSegment / "_search") { id =>
       (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermission(query)) { params =>
         entity(as[Json]) { query =>
+          import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
+          implicit val retryer: Retry[Task, ElasticSearchServerOrUnexpectedFailure] =
+            Retry(config.elasticSearch.query.retryStrategy)
+
           val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
             case Some(v: ElasticSearchView) =>
-              indexers.elasticSearch.searchRaw(query, Set(v.index), params).map(Right.apply)
-            case Some(AggregateElasticSearchView(`Set[ViewRef[ProjectRef]]`(viewRefs), _, _, _, _, _)) =>
-              allowedIndices(viewRefs).flatMap {
+              indexers.elasticSearch.searchRaw(query, Set(v.index), params).map(Right.apply).retry
+            case Some(agg: AggregateElasticSearchView[_]) =>
+              agg.queryableIndices.flatMap {
                 case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
-                case indices                    => indexers.elasticSearch.searchRaw(query, indices.toSet, params).map(Right.apply)
+                case indices                    => indexers.elasticSearch.searchRaw(query, indices, params).map(Right.apply).retry
               }
             case _ => Task.pure(Left(NotFound(id.ref)))
           }
@@ -126,16 +138,5 @@ class ViewRoutes private[routes] (resources: Resources[Task],
         }
         complete(result.runWithStatus(StatusCodes.OK))
       }
-    }
-
-  private def allowedIndices(viewRefs: Set[ViewRef[ProjectRef]]): Task[List[String]] =
-    viewRefs.toList.foldM(List.empty[String]) {
-      case (acc, ViewRef(ref, id)) =>
-        (cache.view.getBy[ElasticSearchView](ref, id) -> cache.project.getLabel(ref)).mapN {
-          case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, query) =>
-            view.index :: acc
-          case _ =>
-            acc
-        }
     }
 }

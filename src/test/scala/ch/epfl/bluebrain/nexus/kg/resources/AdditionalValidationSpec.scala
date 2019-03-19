@@ -11,7 +11,7 @@ import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticServerError
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq, Randomness}
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -19,6 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
@@ -40,7 +41,8 @@ import org.scalatest._
 
 //noinspection NameBooleanParameters
 class AdditionalValidationSpec
-    extends WordSpecLike
+    extends ActorSystemFixture("AdditionalValidationSpec")
+    with WordSpecLike
     with Matchers
     with IOEitherValues
     with IOOptionValues
@@ -50,15 +52,19 @@ class AdditionalValidationSpec
     with TestHelper
     with BeforeAndAfter
     with Inspectors
-    with Randomness {
+    with Randomness
+    with CirceEq {
 
   private implicit val as: ActorSystem                        = ActorSystem("AdditionalValidationSpec")
   private implicit val clock: Clock                           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private implicit val elasticSearch: ElasticSearchClient[IO] = mock[ElasticSearchClient[IO]]
   private implicit val projectCache: ProjectCache[IO]         = mock[ProjectCache[IO]]
   private implicit val viewCache: ViewCache[IO]               = mock[ViewCache[IO]]
-  private implicit val storageConfig =
+  private val storageConfig =
     StorageConfig(DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write), S3StorageConfig("MD5", read, write))
+  val appConfig = Settings(system).appConfig.copy(storage = storageConfig)
+  private implicit val config =
+    appConfig.copy(elasticSearch = appConfig.elasticSearch.copy("http://localhost", "kg", "doc", "default"))
 
   before {
     Mockito.reset(elasticSearch)
@@ -67,11 +73,10 @@ class AdditionalValidationSpec
   }
 
   "An AdditionalValidation" when {
-    implicit val config: ElasticSearchConfig = ElasticSearchConfig("http://localhost", "kg", "doc", "default")
-    val iri                                  = Iri.absolute("http://example.com/id").right.value
-    val projectRef                           = ProjectRef(genUUID)
-    val id                                   = Id(projectRef, iri)
-    val user                                 = User("dmontero", "ldap")
+    val iri        = Iri.absolute("http://example.com/id").right.value
+    val projectRef = ProjectRef(genUUID)
+    val id         = Id(projectRef, iri)
+    val user       = User("dmontero", "ldap")
     val matchingCaller: Caller =
       Caller(user, Set[Identity](user, User("dmontero2", "ldap"), Group("bbp-ou-neuroinformatics", "ldap2")))
 
@@ -187,7 +192,7 @@ class AdditionalValidationSpec
         val resource   = simpleV(id, elasticSearchView, types = types)
         val idx        = index(3L)
         elasticSearch.createIndex(idx, any[Json]) shouldReturn IO.pure(true)
-        elasticSearch.updateMapping(idx, config.docType, mappings) shouldReturn IO.pure(false)
+        elasticSearch.updateMapping(idx, config.elasticSearch.docType, mappings) shouldReturn IO.pure(false)
         validation(id, schema, types, resource.value, 3L).value.failed[KgError.InternalError]
       }
 
@@ -196,7 +201,7 @@ class AdditionalValidationSpec
         val resource   = simpleV(id, elasticSearchView, types = types, rev = 2L)
         val idx        = index(2L)
         elasticSearch.createIndex(idx, any[Json]) shouldReturn IO.pure(true)
-        elasticSearch.updateMapping(idx, config.docType, mappings) shouldReturn IO.pure(true)
+        elasticSearch.updateMapping(idx, config.elasticSearch.docType, mappings) shouldReturn IO.pure(true)
         validation(id, schema, types, resource.value, 2L).value.accepted shouldEqual resource.value
       }
 
