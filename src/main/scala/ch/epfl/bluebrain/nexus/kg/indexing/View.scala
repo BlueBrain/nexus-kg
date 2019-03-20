@@ -143,6 +143,7 @@ object View {
       */
     def value: Set[ViewRef[P]]
 
+    @SuppressWarnings(Array("RepeatedCaseBody"))
     def toValue[PP](newValue: Set[ViewRef[PP]]): AggregateView[PP] = this match {
       case agg: AggregateElasticSearchView[_] => agg.copy(value = newValue)
       case agg: AggregateSparqlView[_]        => agg.copy(value = newValue)
