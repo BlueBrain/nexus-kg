@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticSearchConfig, StorageConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateView, ElasticSearchView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
@@ -39,6 +39,8 @@ trait AdditionalValidation[F[_]] {
 }
 
 object AdditionalValidation {
+
+  private val conversionError = "Could not convert the graph to Json"
 
   type Value = ResourceF.Value
 
@@ -72,10 +74,9 @@ object AdditionalValidation {
                 case ElasticSearchClientError(_, body) => F.pure(Left(InvalidResourceFormat(id.ref, body)))
               }
           )
-        case agg: AggregateElasticSearchView[_] =>
+        case agg: AggregateView[_] =>
           agg.referenced[F](caller, acls).flatMap { r =>
-            EitherT.fromOption[F](value.map(r, _.replaceContext(viewCtxUri)),
-                                  InvalidJsonLD("Could not convert the graph to Json"))
+            EitherT.fromOption[F](value.map(r, _.replaceContext(viewCtxUri)), InvalidJsonLD(conversionError))
           }
         case _ => EitherT.rightT(value)
       }
@@ -100,8 +101,7 @@ object AdditionalValidation {
         Resolver(resource) match {
           case Some(resolver: CrossProjectResolver[_]) if aclContains(resolver.identities) =>
             resolver.referenced.flatMap { r =>
-              EitherT.fromOption[F](value.map(r, _.replaceContext(resolverCtxUri)),
-                                    InvalidJsonLD("Could not convert the graph to Json"))
+              EitherT.fromOption[F](value.map(r, _.replaceContext(resolverCtxUri)), InvalidJsonLD(conversionError))
             }
           case Some(_: CrossProjectResolver[_]) =>
             EitherT.leftT[F, Value](
@@ -126,12 +126,8 @@ object AdditionalValidation {
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
         EitherT.fromEither(Storage(resource)).flatMap { storage =>
           EitherT(storage.isValid.apply.map {
-            case Right(_) =>
-              value
-                .map(storage, _.replaceContext(storageCtxUri))
-                .toRight(InvalidJsonLD("Could not convert the graph to Json"))
-            case Left(message) =>
-              Left(InvalidResourceFormat(id.ref, message): Rejection)
+            case Right(_)      => value.map(storage, _.replaceContext(storageCtxUri)).toRight(InvalidJsonLD(conversionError))
+            case Left(message) => Left(InvalidResourceFormat(id.ref, message): Rejection)
           })
         }
       }
