@@ -6,6 +6,8 @@ import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.sourcing.IndexingConfig
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{Matchers, OptionValues, WordSpecLike}
 
@@ -31,18 +33,38 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
                                           url"http://localhost:8080/v1".value,
                                           None,
                                           1 second)
-      appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
-      SparqlConfig("http://localhost:9999/bigdata", Some("user"), Some("pass"), "kg").akkaCredentials.value shouldEqual BasicHttpCredentials(
-        "user",
-        "pass")
-      appConfig.elasticSearch shouldEqual ElasticSearchConfig("http://localhost:9200", "kg", "doc", "kg_default")
+      val retryIndex = RetryStrategyConfig("exponential", 100 millis, 10 minutes, 7, 0.2, 500 millis)
+      val retryQuery = RetryStrategyConfig("exponential", 100 millis, 1 minute, 4, 0.2, 500 millis)
+      appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata",
+                                                None,
+                                                None,
+                                                "kg",
+                                                IndexingConfig(10, 300 millis, retryIndex),
+                                                retryQuery)
+      appConfig.sparql
+        .copy(username = Some("user"), password = Some("pass"))
+        .akkaCredentials
+        .value shouldEqual BasicHttpCredentials("user", "pass")
+      appConfig.elasticSearch shouldEqual ElasticSearchConfig("http://localhost:9200",
+                                                              "kg",
+                                                              "doc",
+                                                              "kg_default",
+                                                              IndexingConfig(30, 300 millis, retryIndex),
+                                                              retryQuery)
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
 
-      implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata", None, None, "kg")
+      implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata",
+                                                        None,
+                                                        None,
+                                                        "kg",
+                                                        IndexingConfig(10, 300 millis, retryIndex),
+                                                        retryQuery)
       implicitly[ElasticSearchConfig] shouldEqual ElasticSearchConfig("http://localhost:9200",
                                                                       "kg",
                                                                       "doc",
-                                                                      "kg_default")
+                                                                      "kg_default",
+                                                                      IndexingConfig(30, 300 millis, retryIndex),
+                                                                      retryQuery)
       implicitly[PaginationConfig] shouldEqual PaginationConfig(0L, 20, 100)
       implicitly[PersistenceConfig] shouldEqual PersistenceConfig("cassandra-journal",
                                                                   "cassandra-snapshot-store",

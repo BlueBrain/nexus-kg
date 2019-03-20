@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.sourcing.IndexingConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka._
 import io.circe.Json
@@ -37,7 +38,6 @@ import scala.concurrent.duration.FiniteDuration
   * @param elasticSearch ElasticSearch endpoint configuration
   * @param pagination    Pagination configuration
   * @param keyValueStore Distributed data configuration
-  * @param indexing      Indexing configuration
   * @param sourcing      Sourcing configuration
   */
 final case class AppConfig(
@@ -51,8 +51,7 @@ final case class AppConfig(
     sparql: SparqlConfig,
     elasticSearch: ElasticSearchConfig,
     pagination: PaginationConfig,
-    keyValueStore: KeyValueStoreConfig,
-    indexing: IndexingConfigs,
+    keyValueStore: StoreConfig,
     sourcing: SourcingConfig,
 )
 
@@ -93,6 +92,21 @@ object AppConfig {
     val baseIri: AbsoluteIri = url"$publicUri/$prefix".value
 
     val projectsIri: AbsoluteIri = baseIri + "projects"
+  }
+
+  /**
+    * KeyValueStore configuration.
+    *
+    * @param askTimeout         the maximum duration to wait for the replicator to reply
+    * @param consistencyTimeout the maximum duration to wait for a consistent read or write across the cluster
+    * @param retry              the retry strategy configuration
+    * @param indexing           the indexing configuration
+    */
+  final case class StoreConfig(askTimeout: FiniteDuration,
+                               consistencyTimeout: FiniteDuration,
+                               retry: RetryStrategyConfig,
+                               indexing: IndexingConfig) {
+    val keyValueStoreConfig: KeyValueStoreConfig = KeyValueStoreConfig(askTimeout, consistencyTimeout, retry)
   }
 
   /**
@@ -171,8 +185,15 @@ object AppConfig {
     * @param username     the SPARQL endpoint username
     * @param password     the SPARQL endpoint password
     * @param defaultIndex the SPARQL default index
+    * @param indexing     the indexing configuration
+    * @param query        the query retry strategy configuration
     */
-  final case class SparqlConfig(base: Uri, username: Option[String], password: Option[String], defaultIndex: String) {
+  final case class SparqlConfig(base: Uri,
+                                username: Option[String],
+                                password: Option[String],
+                                defaultIndex: String,
+                                indexing: IndexingConfig,
+                                query: RetryStrategyConfig) {
 
     val akkaCredentials: Option[BasicHttpCredentials] =
       for {
@@ -188,8 +209,15 @@ object AppConfig {
     * @param indexPrefix  the prefix of the index
     * @param docType      the name of the `type`
     * @param defaultIndex the default index
+    * @param indexing     the indexing configuration
+    * @param query        the query retry strategy configuration
     */
-  final case class ElasticSearchConfig(base: Uri, indexPrefix: String, docType: String, defaultIndex: String)
+  final case class ElasticSearchConfig(base: Uri,
+                                       indexPrefix: String,
+                                       docType: String,
+                                       defaultIndex: String,
+                                       indexing: IndexingConfig,
+                                       query: RetryStrategyConfig)
 
   /**
     * Pagination configuration
@@ -201,24 +229,6 @@ object AppConfig {
   final case class PaginationConfig(from: Long, size: Int, sizeLimit: Int) {
     val pagination: Pagination = Pagination(from, size)
   }
-
-  /**
-    * Indexing configuration
-    *
-    * @param batch        the maximum number of events taken on each batch
-    * @param batchTimeout the maximum amount of time to wait for the number of events to be taken on each batch
-    * @param retry        the retry configuration when indexing failures
-    */
-  final case class IndexingConfig(batch: Int, batchTimeout: FiniteDuration, retry: RetryStrategyConfig)
-
-  /**
-    * The indexing configuration for the different indexers
-    *
-    * @param sparql        the indexing configuration applied to Sparql indexer
-    * @param elasticSearch the indexing configuration applied to Elastic Search indexer
-    * @param keyValueStore the indexing configuration applied to the Distributed Data store
-    */
-  final case class IndexingConfigs(sparql: IndexingConfig, elasticSearch: IndexingConfig, keyValueStore: IndexingConfig)
 
   val iriResolution: Map[AbsoluteIri, Json] = Map(
     tagCtxUri         -> tagCtx,
@@ -274,9 +284,10 @@ object AppConfig {
   implicit def toIam(implicit appConfig: AppConfig): IamConfig                     = appConfig.iam
   implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig         = appConfig.iam.iamClient
   implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig           = appConfig.admin
-  implicit def toIndexing(implicit appConfig: AppConfig): IndexingConfigs          = appConfig.indexing
   implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig    = appConfig.sourcing
-  implicit def toStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig  = appConfig.keyValueStore
-  implicit def toStorageConfig(implicit appConfig: AppConfig): StorageConfig       = appConfig.storage
+  implicit def toStoreConfing(implicit appConfig: AppConfig): StoreConfig          = appConfig.keyValueStore
+  implicit def toKeyValueStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig =
+    appConfig.keyValueStore.keyValueStoreConfig
+  implicit def toStorageConfig(implicit appConfig: AppConfig): StorageConfig = appConfig.storage
 
 }

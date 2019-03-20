@@ -8,7 +8,6 @@ import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
-import akka.stream.ActorMaterializer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
@@ -17,9 +16,8 @@ import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{withUnmarshaller, UntypedHttpClient}
-import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.OffsetSyntax
@@ -35,12 +33,10 @@ import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionPr
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
-import io.circe.Json
 import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.atomic.AtomicLong
-import org.apache.jena.query.ResultSet
 import shapeless.TypeCase
 
 import scala.collection.immutable.Set
@@ -94,7 +90,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     coordinator.state().map(_.getOrElse(NoProgress))
 
   private def startProjectStream(project: Project): StreamCoordinator[Task, ProjectionProgress] = {
-    implicit val indexing = config.indexing.elasticSearch
+    implicit val indexing = config.elasticSearch.indexing
     import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
     implicit val iam            = config.iam.iamClient
     implicit val sourcingConfig = config.sourcing
@@ -263,17 +259,15 @@ object ProjectViewCoordinatorActor {
                   shardingSettings: Option[ClusterShardingSettings],
                   shards: Int)(implicit esClient: ElasticSearchClient[Task],
                                config: AppConfig,
-                               mt: ActorMaterializer,
                                ul: UntypedHttpClient[Task],
-                               ucl: HttpClient[Task, ResultSet],
+                               ucl: HttpClient[Task, SparqlResults],
                                as: ActorSystem): ActorRef = {
 
     val props = Props(
       new ProjectViewCoordinatorActor(viewCache) {
-        private implicit val retry: Retry[Task, Throwable] = Retry(config.indexing.keyValueStore.retry.retryStrategy)
+        private implicit val retry: Retry[Task, Throwable] = Retry(config.keyValueStore.indexing.retry.retryStrategy)
 
-        private val sparql                                      = config.sparql
-        private implicit val jsonClient: HttpClient[Task, Json] = withUnmarshaller[Task, Json]
+        private val sparql = config.sparql
 
         override def startCoordinator(view: SingleView,
                                       project: Project,

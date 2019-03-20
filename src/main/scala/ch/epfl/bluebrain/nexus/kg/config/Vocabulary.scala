@@ -117,6 +117,7 @@ object Vocabulary {
     val ElasticSearchView          = PrefixMapping.prefix("ElasticSearchView")
     val SparqlView                 = PrefixMapping.prefix("SparqlView")
     val AggregateElasticSearchView = PrefixMapping.prefix("AggregateElasticSearchView")
+    val AggregateSparqlView        = PrefixMapping.prefix("AggregateSparqlView")
     val User                       = PrefixMapping.prefix("User")
     val Group                      = PrefixMapping.prefix("Group")
     val Authenticated              = PrefixMapping.prefix("Authenticated")

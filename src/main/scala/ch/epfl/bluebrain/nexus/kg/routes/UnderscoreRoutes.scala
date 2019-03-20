@@ -59,7 +59,7 @@ final class UnderscoreRoutes private[routes] (resources: Resources[Task],
       .value
       .runToFuture
 
-  private def update(id: AbsoluteIri): Route = execute(id, rt => rt.routes.tag(id, rt.schema))
+  private def update(id: AbsoluteIri): Route = execute(id, rt => rt.routes.update(id, rt.schema))
 
   private def tag(id: AbsoluteIri): Route = execute(id, rt => rt.routes.tag(id, rt.schema))
 
