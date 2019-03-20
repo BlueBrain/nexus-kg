@@ -1,8 +1,7 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg.cache
 
 import akka.testkit._
-import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists, Permission}
@@ -14,8 +13,8 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.{Inspectors, Matchers}
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.duration._
 

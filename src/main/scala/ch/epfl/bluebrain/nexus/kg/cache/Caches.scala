@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg.cache
 
 /**
   * Aggregator of the caches used in the service

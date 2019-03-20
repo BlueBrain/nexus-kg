@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg.cache
 
 import java.nio.file.Paths
 import java.time.Clock

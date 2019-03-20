@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg.cache
 
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -8,7 +8,7 @@ import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig, OnKeyValueStoreChange}
-import ch.epfl.bluebrain.nexus.kg.async.Cache.mapError
+import ch.epfl.bluebrain.nexus.kg.cache.Cache._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri

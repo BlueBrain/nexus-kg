@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg.cache
 
 import java.time.{Clock, Instant}
 import java.util.UUID
@@ -9,8 +9,9 @@ import cats.Monad
 import cats.effect.{Async, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
-import ch.epfl.bluebrain.nexus.kg.async.Cache.mapError
-import ch.epfl.bluebrain.nexus.kg.async.StorageProjectCache._
+import ch.epfl.bluebrain.nexus.kg.RevisionedValue
+import ch.epfl.bluebrain.nexus.kg.cache.Cache._
+import ch.epfl.bluebrain.nexus.kg.cache.StorageProjectCache._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri

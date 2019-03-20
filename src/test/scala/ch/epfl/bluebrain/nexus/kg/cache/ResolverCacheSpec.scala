@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg.cache
 
 import akka.actor.ExtendedActorSystem
 import akka.serialization.Serialization

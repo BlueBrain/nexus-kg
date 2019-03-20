@@ -16,8 +16,9 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientE
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
-import ch.epfl.bluebrain.nexus.kg.async.Caches._
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ProjectViewCoordinator, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.cache.Caches._
+import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
+import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
