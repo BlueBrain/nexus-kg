@@ -41,5 +41,9 @@ object Cache {
 
   private[async] implicit class ConcurrentHashMapSyntax[K, V](private val map: ConcurrentHashMap[K, V]) extends AnyVal {
     def getSafe(key: K): Option[V] = Option(map.get(key))
+    def putAndReturn(key: K, value: V): V = {
+      map.put(key, value)
+      value
+    }
   }
 }

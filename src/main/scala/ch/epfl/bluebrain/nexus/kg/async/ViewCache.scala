@@ -63,11 +63,7 @@ class ViewCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, Vi
     getOrCreate(ref).subscribe(value)
 
   private def getOrCreate(ref: ProjectRef): ViewProjectCache[F] =
-    projectToCache.getSafe(ref.id).getOrElse {
-      val cache = ViewProjectCache[F](ref)
-      projectToCache.put(ref.id, cache)
-      cache
-    }
+    projectToCache.getSafe(ref.id).getOrElse(projectToCache.putAndReturn(ref.id, ViewProjectCache[F](ref)))
 }
 
 /**
@@ -106,9 +102,6 @@ private object ViewProjectCache {
 
 object ViewCache {
 
-  /**
-    * Creates a new view index.
-    */
   def apply[F[_]: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ViewCache[F] =
     new ViewCache(new ConcurrentHashMap[UUID, ViewProjectCache[F]]())
 }

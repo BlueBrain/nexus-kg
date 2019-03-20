@@ -194,7 +194,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
         }
 
       case ViewsRemoved(_, views) =>
-        children.foreach { case (v, ref) if views.exists(_.id == v.id) => stopView(v, ref)}
+        children.foreach { case (v, ref) if views.exists(_.id == v.id) => stopView(v, ref) }
 
       case ProjectChanges(_, newProject) =>
         context.become(initialized(newProject))

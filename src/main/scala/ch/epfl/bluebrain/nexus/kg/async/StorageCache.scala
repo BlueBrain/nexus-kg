@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.async
 
 import java.time.{Clock, Instant}
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 import akka.actor.ActorSystem
 import cats.Monad
@@ -9,53 +10,41 @@ import cats.effect.{Async, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
 import ch.epfl.bluebrain.nexus.kg.async.Cache.mapError
-import ch.epfl.bluebrain.nexus.kg.async.StorageCache._
+import ch.epfl.bluebrain.nexus.kg.async.StorageProjectCache._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
-/**
-  * The storage cache backed by a KeyValueStore using akka Distributed Data
-  *
-  * @param store the underlying Distributed Data LWWMap store.
-  */
-class StorageCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedStorages])(implicit F: Monad[F], clock: Clock)
-    extends Cache[F, UUID, RevisionedStorages](store) {
-
-  private implicit val ordering: Ordering[RevisionedStorage] = Ordering.by((s: RevisionedStorage) => s.rev).reverse
-
-  private implicit def toRevisioned(storages: List[RevisionedStorage])(implicit instant: Instant): RevisionedStorages =
-    RevisionedValue(instant.toEpochMilli, storages)
-
-  private def revisioned(storage: Storage)(implicit instant: Instant): RevisionedStorage =
-    RevisionedValue(instant.toEpochMilli, storage)
+class StorageCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, StorageProjectCache[F]])(
+    implicit as: ActorSystem,
+    F: Async[F],
+    config: KeyValueStoreConfig,
+    clock: Clock) {
 
   /**
-    * Fetches the storages for the provided project.
+    * Fetches storages for the provided project.
     *
     * @param ref the project unique reference
     */
   def get(ref: ProjectRef): F[List[Storage]] =
-    get(ref.id).map(_.map(_.value.sorted.map(_.value)).getOrElse(List.empty))
+    getOrCreate(ref).get
 
   /**
-    * Fetches the default storage from the provided project
+    * Fetches storage from the provided project and with the provided id
+    *
+    * @param ref the project unique reference
+    * @param id  the view unique id in the provided project
+    */
+  def get(ref: ProjectRef, id: AbsoluteIri): F[Option[Storage]] =
+    getOrCreate(ref).getBy(id)
+
+  /**
+    * Fetches the default storage from the provided project.
     *
     * @param ref the project unique reference
     */
   def getDefault(ref: ProjectRef): F[Option[Storage]] =
-    get(ref).map(_.collectFirst { case storage if storage.default => storage })
-
-  /**
-    * Fetches the storage from the provided project and with the provided id
-    *
-    * @param ref the project unique reference
-    * @param id  the storage unique id in the provided project
-    */
-  def get(ref: ProjectRef, id: AbsoluteIri): F[Option[Storage]] =
-    get(ref.id).map(_.collectFirstSome {
-      _.value.collectFirst { case RevisionedValue(_, storage) if storage.id == id => storage }
-    })
+    getOrCreate(ref).getDefault
 
   /**
     * Adds/updates or deprecates a storage on the provided project.
@@ -63,36 +52,58 @@ class StorageCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedStorag
     * @param storage the storage value
     */
   def put(storage: Storage)(implicit instant: Instant = clock.instant()): F[Unit] =
-    if (storage.deprecated) remove(storage)
-    else add(storage)
+    getOrCreate(storage.ref).put(storage)
 
-  private def add(storage: Storage)(implicit instant: Instant): F[Unit] =
-    store.get(storage.ref.id) flatMap {
-      case Some(RevisionedValue(_, list)) =>
-        store.put(storage.ref.id, revisioned(storage) :: list.filterNot(_.value.id == storage.id))
-      case None => store.put(storage.ref.id, List(revisioned(storage)))
-    }
+  private def getOrCreate(ref: ProjectRef): StorageProjectCache[F] =
+    projectToCache.getSafe(ref.id).getOrElse(projectToCache.putAndReturn(ref.id, StorageProjectCache[F](ref)))
+}
 
-  private def remove(storage: Storage)(implicit instant: Instant): F[Unit] =
-    store.computeIfPresent(storage.ref.id, _.value.filterNot(_.value.id == storage.id)) *> F.unit
+/**
+  * The storage cache backed by a KeyValueStore using akka Distributed Data
+  *
+  * @param store the underlying Distributed Data LWWMap store.
+  */
+class StorageProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIri, RevisionedStorage])(implicit F: Monad[F])
+    extends Cache[F, AbsoluteIri, RevisionedStorage](store) {
+
+  private implicit val ordering: Ordering[RevisionedStorage] = Ordering.by((s: RevisionedStorage) => s.rev).reverse
+
+  private implicit def revisioned(storage: Storage)(implicit instant: Instant): RevisionedStorage =
+    RevisionedValue(instant.toEpochMilli, storage)
+
+  def get: F[List[Storage]] =
+    store.values.map(_.toList.sorted.map(_.value))
+
+  def getDefault: F[Option[Storage]] =
+    get.map(_.collectFirst { case storage if storage.default => storage })
+
+  def getBy(id: AbsoluteIri): F[Option[Storage]] =
+    get(id).map(_.collectFirst { case RevisionedValue(_, storage) if storage.id == id => storage })
+
+  def put(storage: Storage)(implicit instant: Instant): F[Unit] =
+    if (storage.deprecated) store.remove(storage.id)
+    else store.put(storage.id, storage)
+}
+
+object StorageProjectCache {
+
+  type RevisionedStorage = RevisionedValue[Storage]
+
+  def apply[F[_]: Timer](project: ProjectRef)(implicit as: ActorSystem,
+                                              config: KeyValueStoreConfig,
+                                              F: Async[F]): StorageProjectCache[F] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
+    new StorageProjectCache(
+      KeyValueStore.distributed(s"storage-${project.id}", (_, storage) => storage.value.rev, mapError))(F)
+  }
 
 }
 
 object StorageCache {
 
-  type RevisionedStorages = RevisionedValue[List[RevisionedStorage]]
-  type RevisionedStorage  = RevisionedValue[Storage]
-
-  /**
-    * Creates a new storage index.
-    */
   def apply[F[_]: Timer](implicit as: ActorSystem,
                          config: KeyValueStoreConfig,
                          F: Async[F],
-                         clock: Clock): StorageCache[F] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    val function: (Long, RevisionedStorages) => Long = { case (_, res) => res.rev }
-    new StorageCache(KeyValueStore.distributed("storage", function, mapError))(F, clock)
-  }
-
+                         clock: Clock): StorageCache[F] =
+    new StorageCache(new ConcurrentHashMap[UUID, StorageProjectCache[F]]())
 }
