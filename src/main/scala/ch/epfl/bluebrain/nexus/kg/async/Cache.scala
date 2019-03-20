@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
+import java.util.concurrent.ConcurrentHashMap
+
 import cats.Monad
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStore.Subscription
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreError._
@@ -36,4 +38,8 @@ object Cache {
         OperationTimedOut(s"Timeout while interacting with the cache due to '${e.timeout}'")
       case e: DistributedDataError => InternalError(e.reason)
     }
+
+  private[async] implicit class ConcurrentHashMapSyntax[K, V](private val map: ConcurrentHashMap[K, V]) extends AnyVal {
+    def getSafe(key: K): Option[V] = Option(map.get(key))
+  }
 }

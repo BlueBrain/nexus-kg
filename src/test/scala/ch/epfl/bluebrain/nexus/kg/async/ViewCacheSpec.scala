@@ -1,7 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import java.time.Clock
-
 import akka.actor.ExtendedActorSystem
 import akka.serialization.Serialization
 import akka.testkit._
@@ -37,9 +35,7 @@ class ViewCacheSpec
 
   private def genJson: Json = Json.obj("key" -> Json.fromString(genString()))
 
-  private implicit val clock: Clock         = Clock.systemUTC
   private implicit val appConfig: AppConfig = Settings(system).appConfig
-  private val time                          = clock.instant()
 
   val ref1 = ProjectRef(genUUID)
   val ref2 = ProjectRef(genUUID)
@@ -78,13 +74,9 @@ class ViewCacheSpec
 
     "index views" in {
       val list = (esViewsProj1 ++ sparqlViewsProj1 ++ esViewsProj2 ++ sparqlViewsProj2).toList
-      forAll(list.zipWithIndex) {
-        case (view, index) =>
-          implicit val instant = time.plusSeconds(index.toLong)
-          cache.put(view).runToFuture.futureValue
-          eventually {
-            cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
-          }
+      forAll(list) { view =>
+        cache.put(view).runToFuture.futureValue
+        cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
       }
     }
 
@@ -107,8 +99,7 @@ class ViewCacheSpec
     }
 
     "deprecate view" in {
-      val view             = esViewsProj1.head
-      implicit val instant = time.plusSeconds(300L)
+      val view = esViewsProj1.head
       cache.put(view.copy(deprecated = true, rev = 2L)).runToFuture.futureValue
       cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual None
       val expectedSet = esViewsProj1.filterNot(_ == view) ++ sparqlViewsProj1
