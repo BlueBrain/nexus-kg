@@ -63,7 +63,8 @@ class StorageCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID,
   *
   * @param store the underlying Distributed Data LWWMap store.
   */
-class StorageProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIri, RevisionedStorage])(implicit F: Monad[F])
+private class StorageProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIri, RevisionedStorage])(
+    implicit F: Monad[F])
     extends Cache[F, AbsoluteIri, RevisionedStorage](store) {
 
   private implicit val ordering: Ordering[RevisionedStorage] = Ordering.by((s: RevisionedStorage) => s.rev).reverse
@@ -85,7 +86,7 @@ class StorageProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIri, Re
     else store.put(storage.id, storage)
 }
 
-object StorageProjectCache {
+private object StorageProjectCache {
 
   type RevisionedStorage = RevisionedValue[Storage]
 
@@ -101,9 +102,6 @@ object StorageProjectCache {
 
 object StorageCache {
 
-  def apply[F[_]: Timer](implicit as: ActorSystem,
-                         config: KeyValueStoreConfig,
-                         F: Async[F],
-                         clock: Clock): StorageCache[F] =
+  def apply[F[_]: Timer: Async](implicit as: ActorSystem, config: KeyValueStoreConfig, clock: Clock): StorageCache[F] =
     new StorageCache(new ConcurrentHashMap[UUID, StorageProjectCache[F]]())
 }

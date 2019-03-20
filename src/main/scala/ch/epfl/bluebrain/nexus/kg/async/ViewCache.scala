@@ -96,12 +96,12 @@ private object ViewProjectCache {
   def apply[F[_]: Timer](
       project: ProjectRef)(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ViewProjectCache[F] = {
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    new ViewProjectCache(KeyValueStore.distributed(s"views-${project.id}", (_, view) => view.rev, mapError))(F)
+    new ViewProjectCache(KeyValueStore.distributed(s"view-${project.id}", (_, view) => view.rev, mapError))(F)
   }
 }
 
 object ViewCache {
 
-  def apply[F[_]: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ViewCache[F] =
+  def apply[F[_]: Async: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig): ViewCache[F] =
     new ViewCache(new ConcurrentHashMap[UUID, ViewProjectCache[F]]())
 }
