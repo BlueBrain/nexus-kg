@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.http.{RdfMediaTypes, RejectionHandling}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
@@ -77,11 +78,12 @@ object Routes {
       case err: InvalidOutputFormat =>
         // suppress error
         complete(err: KgError)
-      case ElasticClientError(status, body) =>
+      case ElasticSearchClientError(status, body) =>
         parse(body) match {
           case Right(json) => complete(status -> json)
           case Left(_)     => complete(status -> body)
         }
+      case SparqlClientError(status, body) => complete(status -> body)
       case f: ElasticSearchFailure =>
         logger.error(s"Received unexpected response from ES: '${f.message}' with body: '${f.body}'")
         completeGeneric()

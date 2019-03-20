@@ -53,25 +53,27 @@ object ViewEncoder {
         .getOrElse(jsonWithCtx)
     }
 
+  private def refsString(view: AggregateView[_]) = view.value match {
+    case `Set[ViewRef[ProjectRef]]`(viewRefs)    => viewRefs.map(v => ViewRef(v.project.show, v.id))
+    case `Set[ViewRef[ProjectLabel]]`(viewLabes) => viewLabes.map(v => ViewRef(v.project.show, v.id))
+  }
+
   implicit val viewGraphEncoder: GraphEncoder[Id, View] = GraphEncoder {
-    case (rootNode,
-          view @ ElasticSearchView(mapping, resourceSchemas, resourceTag, includeMeta, sourceAsText, _, _, _, _, _)) =>
-      RootedGraph(
-        rootNode,
-        view.mainTriples(nxv.ElasticSearchView, nxv.Alpha) ++ view
-          .triplesFor(resourceSchemas) ++ view.triplesFor(includeMeta, sourceAsText, resourceTag, mapping)
-      )
+    case (rootNode, view @ ElasticSearchView(mapping, resSchemas, resTags, includeMeta, sourceAsText, _, _, _, _, _)) =>
+      val triples = view.mainTriples(nxv.ElasticSearchView, nxv.Alpha) ++ view.triplesFor(resSchemas) ++
+        view.triplesFor(includeMeta, sourceAsText, resTags, mapping)
+      RootedGraph(rootNode, triples)
+
     case (rootNode, view: SparqlView) =>
       RootedGraph(rootNode, view.mainTriples(nxv.SparqlView))
-    case (rootNode, view @ AggregateElasticSearchView(_, _, _, _, _, _)) =>
-      val valueString = view match {
-        case AggregateElasticSearchView(`Set[ViewRef[ProjectRef]]`(viewRefs), _, _, _, _, _) =>
-          viewRefs.map(v => ViewRef(v.project.show, v.id))
-        case AggregateElasticSearchView(`Set[ViewRef[ProjectLabel]]`(viewRefs), _, _, _, _, _) =>
-          viewRefs.map(v => ViewRef(v.project.show, v.id))
-      }
-      RootedGraph(rootNode,
-                  view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(valueString))
+
+    case (rootNode, view: AggregateElasticSearchView[_]) =>
+      val triples = view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(refsString(view))
+      RootedGraph(rootNode, triples)
+
+    case (rootNode, view: AggregateSparqlView[_]) =>
+      val triples = view.mainTriples(nxv.AggregateSparqlView, nxv.Alpha) ++ view.triplesForView(refsString(view))
+      RootedGraph(rootNode, triples)
 
   }
 

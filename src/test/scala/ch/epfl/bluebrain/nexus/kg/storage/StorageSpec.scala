@@ -6,7 +6,7 @@ import java.util.regex.Pattern.quote
 
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults
-import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{DiskStorageConfig, S3StorageConfig, StorageConfig}
@@ -20,7 +20,14 @@ import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
 
-class StorageSpec extends WordSpecLike with Matchers with OptionValues with Resources with TestHelper with Inspectors {
+class StorageSpec
+    extends WordSpecLike
+    with Matchers
+    with OptionValues
+    with Resources
+    with TestHelper
+    with Inspectors
+    with CirceEq {
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   val readDisk               = Permission.unsafe("disk-read")
   val writeDisk              = Permission.unsafe("disk-write")

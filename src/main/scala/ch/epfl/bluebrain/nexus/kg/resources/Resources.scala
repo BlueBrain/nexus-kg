@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
-import cats.effect.Effect
+import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.Pagination
 import ch.epfl.bluebrain.nexus.commons.shacl.{ShaclEngine, ValidationReport}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
@@ -35,13 +35,18 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
+import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
 
 /**
   * Resource operations.
   */
-class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: ProjectResolution[F], config: AppConfig) {
+class Resources[F[_]: Timer](implicit F: Effect[F],
+                             val repo: Repo[F],
+                             resolution: ProjectResolution[F],
+                             config: AppConfig) {
   self =>
 
   /**
@@ -355,15 +360,15 @@ class Resources[F[_]](implicit F: Effect[F], val repo: Repo[F], resolution: Proj
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]): F[JsonResults] = {
+    import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
+    implicit val retryer = Retry[F, ElasticSearchServerOrUnexpectedFailure](config.elasticSearch.query.retryStrategy)
+
     view
       .map(v => elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination))
       .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))
-      .recoverWith {
-        case ElasticClientError(status, body) =>
-          F.raiseError[QueryResults[Json]](
-            KgError.InternalError(s"ElasticSearch query failed with status '${status.value}' and body '$body'"))
-      }
+      .retry
+  }
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references
@@ -577,7 +582,7 @@ object Resources {
     * @tparam F the monadic effect type
     * @return a new [[Resources]] for the provided F type
     */
-  final def apply[F[_]: Repo: ProjectResolution: Effect](implicit config: AppConfig): Resources[F] =
+  final def apply[F[_]: Timer: Repo: ProjectResolution: Effect](implicit config: AppConfig): Resources[F] =
     new Resources[F]()
 
   private[resources] final case class SchemaContext(schema: ResourceV,

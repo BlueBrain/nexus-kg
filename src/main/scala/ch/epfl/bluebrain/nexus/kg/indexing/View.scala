@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.parser._
-import shapeless.TypeCase
+import shapeless.{TypeCase, Typeable}
 
 /**
   * Enumeration of view types.
@@ -64,53 +64,61 @@ sealed trait View extends Product with Serializable {
   /**
     * Attempts to convert the current view to a labeled view when required. This conversion is only targetting ''AggregateElasticSearchView of ViewRef[ProjectRef]'',
     * returning all the other views unchanged.
-    * For the case of ''AggregateElasticSearchView of ViewRef[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
+    * For the case of ''AggregateView of ViewRef[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
     */
   def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, View] =
     this match {
-      case v @ AggregateElasticSearchView(`Set[ViewRef[ProjectRef]]`(viewRefs), _, _, _, _, _) =>
-        val projectRefs = viewRefs.map(_.project)
-        EitherT(projectCache.getProjectLabels(projectRefs).map(resultOrFailures).map {
-          case Right(res)     => Right(v.copy(value = viewRefs.map { case ViewRef(ref, id) => ViewRef(res(ref), id) }))
-          case Left(projects) => Left(LabelsNotFound(projects))
-        })
+      case v: AggregateView[_] =>
+        v.value match {
+          case `Set[ViewRef[ProjectRef]]`(viewRefs) =>
+            val projectRefs = viewRefs.map(_.project)
+            EitherT(projectCache.getProjectLabels(projectRefs).map(resultOrFailures).map {
+              case Right(res)     => Right(v.toValue(viewRefs.map { case ViewRef(ref, id) => ViewRef(res(ref), id) }))
+              case Left(projects) => Left(LabelsNotFound(projects))
+            })
+          case _ => EitherT.rightT(v)
+        }
       case o => EitherT.rightT(o)
     }
 
   /**
     * Attempts to convert the current view to a referenced view when required. This conversion is only targetting ''AggregateElasticSearchView of ViewRef[ProjectLabel]'',
     * returning all the other views unchanged.
-    * For the case of ''AggregateElasticSearchView of ViewRef[ProjectLabel]'',
+    * For the case of ''AggregateView of ViewRef[ProjectLabel]'',
     * the conversion is successful when the the mapping ''projectLabel -> projectRef'' and the viewId exists on the ''cache''
     */
   def referenced[F[_]](caller: Caller, acls: AccessControlLists)(implicit projectCache: ProjectCache[F],
                                                                  viewCache: ViewCache[F],
                                                                  F: Monad[F]): EitherT[F, Rejection, View] = {
     this match {
-      case v @ AggregateElasticSearchView(`Set[ViewRef[ProjectLabel]]`(viewRefs), _, _, _, _, _) =>
-        val labelIris = viewRefs.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
-          acc + (c.project -> (acc.getOrElse(c.project, Set.empty) + c.id))
-        }
-        val projectsPerms = caller.hasPermission(acls, labelIris.keySet, query)
-        val inaccessible  = labelIris.keySet -- projectsPerms
-        if (inaccessible.nonEmpty) EitherT.leftT[F, View](ProjectsNotFound(inaccessible))
-        else {
-          val labelToRef = projectCache.getProjectRefs(labelIris.keySet)
-          EitherT(labelToRef.map(resultOrFailures(_).left.map(ProjectsNotFound))).flatMap { projMap =>
-            val view: View = v.copy(value = viewRefs.map { case ViewRef(label, id) => ViewRef(projMap(label), id) })
-            projMap.foldLeft(EitherT.rightT[F, Rejection](view)) {
-              case (acc, (label, ref)) =>
-                acc.flatMap { _ =>
-                  EitherT(viewCache.get(ref).map { views =>
-                    val toTarget = labelIris.getOrElse(label, Set.empty)
-                    val found    = views.collect { case es: ElasticSearchView if toTarget.contains(es.id) => es.id }
-                    (toTarget -- found).headOption.map(iri => NotFound(iri.ref)).toLeft(view)
-                  })
-                }
+      case v: AggregateView[_] =>
+        v.value match {
+          case `Set[ViewRef[ProjectLabel]]`(viewLabels) =>
+            val labelIris = viewLabels.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
+              acc + (c.project -> (acc.getOrElse(c.project, Set.empty) + c.id))
             }
-          }
+            val projectsPerms = caller.hasPermission(acls, labelIris.keySet, query)
+            val inaccessible  = labelIris.keySet -- projectsPerms
+            if (inaccessible.nonEmpty) EitherT.leftT[F, View](ProjectsNotFound(inaccessible))
+            else {
+              val labelToRef = projectCache.getProjectRefs(labelIris.keySet)
+              EitherT(labelToRef.map(resultOrFailures(_).left.map(ProjectsNotFound))).flatMap { projMap =>
+                val view: View = v.toValue(viewLabels.map { case ViewRef(label, id) => ViewRef(projMap(label), id) })
+                projMap.foldLeft(EitherT.rightT[F, Rejection](view)) {
+                  case (acc, (label, ref)) =>
+                    acc.flatMap { _ =>
+                      EitherT(viewCache.get(ref).map { views =>
+                        val toTarget = labelIris.getOrElse(label, Set.empty)
+                        val found    = views.collect { case es: ElasticSearchView if toTarget.contains(es.id) => es.id }
+                        (toTarget -- found).headOption.map(iri => NotFound(iri.ref)).toLeft(view)
+                      })
+                    }
+                }
+              }
+            }
+          case _ => EitherT.rightT(v)
         }
-      case o => EitherT.rightT(o)
+      case v => EitherT.rightT(v)
     }
   }
 }
@@ -128,7 +136,37 @@ object View {
   /**
     * Enumeration of multiple view types.
     */
-  sealed trait AggregateView extends View
+  sealed trait AggregateView[P] extends View {
+
+    /**
+      * @return the set of views that this view connects to when performing searches
+      */
+    def value: Set[ViewRef[P]]
+
+    @SuppressWarnings(Array("RepeatedCaseBody"))
+    def toValue[PP](newValue: Set[ViewRef[PP]]): AggregateView[PP] = this match {
+      case agg: AggregateElasticSearchView[_] => agg.copy(value = newValue)
+      case agg: AggregateSparqlView[_]        => agg.copy(value = newValue)
+    }
+
+    /**
+      * Return the views with ''views/query'' permissions that are not deprecated from the provided ''viewRefs''
+      *
+      * @param viewRefs the provided set of view references
+      */
+    def queryableViews[F[_]: Monad, T <: View: Typeable](viewRefs: Set[ViewRef[ProjectRef]])(
+        implicit projectCache: ProjectCache[F],
+        viewCache: ViewCache[F],
+        caller: Caller,
+        acls: AccessControlLists): F[Set[T]] =
+      viewRefs.toList.foldM(Set.empty[T]) {
+        case (acc, ViewRef(ref, id)) =>
+          (viewCache.getBy[T](ref, id) -> projectCache.getLabel(ref)).mapN {
+            case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, query) => acc + view
+            case _                                                                                         => acc
+          }
+      }
+  }
 
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.indexing.View]].
@@ -138,12 +176,12 @@ object View {
     */
   final def apply(res: ResourceV): Either[Rejection, View] = {
     val c          = res.value.graph.cursor()
-    val uuidEither = c.downField(nxv.uuid).focus.as[UUID]
+    val uuidResult = c.downField(nxv.uuid).focus.as[UUID]
 
     def elasticSearch(): Either[Rejection, View] =
       // format: off
       for {
-        uuid          <- uuidEither.toRejectionOnLeft(res.id.ref)
+        uuid          <- uuidResult.toRejectionOnLeft(res.id.ref)
         mappingStr    <- c.downField(nxv.mapping).focus.as[String].toRejectionOnLeft(res.id.ref)
         mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidResourceFormat(res.id.ref, "mappings cannot be parsed into Json"))
         schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
@@ -155,37 +193,46 @@ object View {
       // format: on
 
     def sparql(): Either[Rejection, View] =
-      uuidEither
+      uuidResult
         .toRejectionOnLeft(res.id.ref)
         .map(uuid => SparqlView(res.id.parent, res.id.value, uuid, res.rev, res.deprecated))
 
-    def multiEsView(): Either[Rejection, View] = {
-      val id = res.id
-      def viewRefs[A: NodeEncoder: Show](cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef[A]]] =
-        cursor.foldM(Set.empty[ViewRef[A]]) { (acc, blankC) =>
-          for {
-            project <- blankC.downField(nxv.project).focus.as[A].toRejectionOnLeft(res.id.ref)
-            id      <- blankC.downField(nxv.viewId).focus.as[AbsoluteIri].toRejectionOnLeft(res.id.ref)
-          } yield acc + ViewRef(project, id)
-        }
+    def viewRefs[A: NodeEncoder: Show](cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef[A]]] =
+      cursor.foldM(Set.empty[ViewRef[A]]) { (acc, blankC) =>
+        for {
+          project <- blankC.downField(nxv.project).focus.as[A].toRejectionOnLeft(res.id.ref)
+          id      <- blankC.downField(nxv.viewId).focus.as[AbsoluteIri].toRejectionOnLeft(res.id.ref)
+        } yield acc + ViewRef(project, id)
+      }
 
-      val result = for {
-        uuid <- uuidEither.toRejectionOnLeft(res.id.ref)
-        emptyViewRefs = Set.empty[ViewRef[String]]
-      } yield AggregateElasticSearchView(emptyViewRefs, id.parent, uuid, id.value, res.rev, res.deprecated)
-
-      val cursorList = c.downField(nxv.views).downArray.toList
-      result.flatMap { v =>
+    def aggregatedEsView(): Either[Rejection, View] =
+      uuidResult.toRejectionOnLeft(res.id.ref).flatMap { uuid =>
+        val cursorList = c.downField(nxv.views).downArray.toList
         viewRefs[ProjectLabel](cursorList) match {
-          case Right(projectLabels) => Right(v.copy(value = projectLabels))
-          case Left(_)              => viewRefs[ProjectRef](cursorList).map(projectRefs => v.copy(value = projectRefs))
+          case Right(labels) =>
+            Right(AggregateElasticSearchView(labels, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
+          case Left(_) =>
+            viewRefs[ProjectRef](cursorList).map(refs =>
+              AggregateElasticSearchView(refs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
         }
       }
-    }
+
+    def aggregatedSparqlView(): Either[Rejection, View] =
+      uuidResult.toRejectionOnLeft(res.id.ref).flatMap { uuid =>
+        val cursorList = c.downField(nxv.views).downArray.toList
+        viewRefs[ProjectLabel](cursorList) match {
+          case Right(labels) =>
+            Right(AggregateSparqlView(labels, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
+          case Left(_) =>
+            viewRefs[ProjectRef](cursorList).map(refs =>
+              AggregateSparqlView(refs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
+        }
+      }
 
     if (Set(nxv.View.value, nxv.Alpha.value, nxv.ElasticSearchView.value).subsetOf(res.types)) elasticSearch()
     else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
-    else if (Set(nxv.View.value, nxv.AggregateElasticSearchView.value).subsetOf(res.types)) multiEsView()
+    else if (Set(nxv.View.value, nxv.AggregateElasticSearchView.value).subsetOf(res.types)) aggregatedEsView()
+    else if (Set(nxv.View.value, nxv.AggregateSparqlView.value).subsetOf(res.types)) aggregatedSparqlView()
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the view types"))
   }
 
@@ -295,7 +342,7 @@ object View {
   /**
     * Aggregation of [[ElasticSearchView]].
     *
-    * @param value      the set of views that this view connects to when performing searches
+    * @param value      the set of elastic search views that this view connects to when performing searches
     * @param ref        a reference to the project that the view belongs to
     * @param id         the user facing view id
     * @param uuid       the underlying uuid generated for this view
@@ -309,21 +356,55 @@ object View {
       id: AbsoluteIri,
       rev: Long,
       deprecated: Boolean
-  ) extends AggregateView {
-    def indices[F[_]](implicit projectCache: ProjectCache[F],
-                      viewCache: ViewCache[F],
-                      acls: AccessControlLists,
-                      caller: Caller,
-                      config: ElasticSearchConfig,
-                      F: Monad[F]): F[Set[String]] =
-      value.foldLeft(F.pure(Set.empty[String])) {
-        case (accF, ViewRef(ref: ProjectRef, viewId)) =>
-          (accF, viewCache.getBy[ElasticSearchView](ref, viewId), projectCache.getLabel(ref)).mapN {
-            case (acc, Some(view), Some(label)) if caller.hasPermission(acls, label, query) =>
-              acc + view.index
-            case (acc, _, _) => acc
-          }
-        case (accF, _) => accF
+  ) extends AggregateView[P] {
+
+    /**
+      * Fetches each View from the ViewRefs and checks its deprecation status. It also checks if the permission for the project where the view is located
+      * for the current client is ''views/query''.
+      */
+    def queryableIndices[F[_]](implicit projectCache: ProjectCache[F],
+                               viewCache: ViewCache[F],
+                               acls: AccessControlLists,
+                               caller: Caller,
+                               config: ElasticSearchConfig,
+                               F: Monad[F]): F[Set[String]] =
+      value match {
+        case `Set[ViewRef[ProjectRef]]`(viewRefs) => queryableViews[F, ElasticSearchView](viewRefs).map(_.map(_.index))
+        case _                                    => F.pure(Set.empty)
+      }
+  }
+
+  /**
+    * Aggregation of [[SparqlView]].
+    *
+    * @param value      the set of sparql views that this view connects to when performing searches
+    * @param ref        a reference to the project that the view belongs to
+    * @param id         the user facing view id
+    * @param uuid       the underlying uuid generated for this view
+    * @param rev        the view revision
+    * @param deprecated the deprecation state of the view
+    */
+  final case class AggregateSparqlView[P](
+      value: Set[ViewRef[P]],
+      ref: ProjectRef,
+      uuid: UUID,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean
+  ) extends AggregateView[P] {
+
+    /**
+      * Fetches each View from the ViewRefs and checks its deprecation status. It also checks if the permission for the project where the view is located
+      * for the current client is ''views/query''.
+      */
+    def queryableViews[F[_]](implicit projectCache: ProjectCache[F],
+                             viewCache: ViewCache[F],
+                             acls: AccessControlLists,
+                             caller: Caller,
+                             F: Monad[F]): F[Set[SparqlView]] =
+      value match {
+        case `Set[ViewRef[ProjectRef]]`(viewRefs) => queryableViews[F, SparqlView](viewRefs)
+        case _                                    => F.pure(Set.empty)
       }
   }
 

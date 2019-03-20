@@ -6,6 +6,7 @@
     "ElasticSearchView": "nxv:ElasticSearchView",
     "SparqlView": "nxv:SparqlView",
     "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
+    "AggregateSparqlView": "nxv:AggregateSparqlView",
     "_uuid": "nxv:uuid",
     "resourceSchemas": {
       "@id": "nxv:resourceSchemas",

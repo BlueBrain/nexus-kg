@@ -6,11 +6,12 @@ import cats.effect.Timer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, StorageCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{IndexingConfig, IndexingConfigs, PersistenceConfig, StorageConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig
+import ch.epfl.bluebrain.nexus.sourcing.IndexingConfig
 import ch.epfl.bluebrain.nexus.sourcing.persistence.OffsetStorage.Volatile
 import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionProgress, SequentialTagIndexer}
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
@@ -68,14 +69,11 @@ object StorageIndexer {
       projectCache: ProjectCache[Task],
       as: ActorSystem,
       s: Scheduler,
-      persistence: PersistenceConfig,
-      indexingCollection: IndexingConfigs,
-      storageConfig: StorageConfig,
-      sourcingConfig: SourcingConfig): StreamCoordinator[Task, ProjectionProgress] = {
+      config: AppConfig): StreamCoordinator[Task, ProjectionProgress] = {
 
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 
-    implicit val indexing = indexingCollection.keyValueStore
+    implicit val indexing = config.keyValueStore.indexing
 
     val mapper = new StorageIndexerMapping[Task](resources)
     SequentialTagIndexer.start(
@@ -83,7 +81,7 @@ object StorageIndexer {
         .builder[Task]
         .name("storage-indexer")
         .tag(s"type=${nxv.Storage.value.show}")
-        .plugin(persistence.queryJournalPlugin)
+        .plugin(config.persistence.queryJournalPlugin)
         .retry[KgError](indexing.retry.retryStrategy)
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)

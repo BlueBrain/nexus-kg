@@ -19,14 +19,14 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.{ElasticClientError, ElasticUnexpectedError}
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.{ElasticSearchClientError, ElasticUnexpectedError}
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
-import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Randomness}
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
@@ -40,7 +40,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView, SparqlView, ViewRef}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{apply => _, _}
 import ch.epfl.bluebrain.nexus.kg.indexing.{View => IndexingView}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
@@ -69,7 +69,7 @@ import org.mockito.IdiomaticMockito
 import org.mockito.Mockito.when
 import org.mockito.matchers.MacroBasedMatchers
 import org.scalatest._
-import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import shapeless.Typeable
 import ch.epfl.bluebrain.nexus.kg.resources.{Tag => ResourceTag}
 
@@ -89,7 +89,9 @@ class ResourceRoutesSpec
     with IdiomaticMockito
     with MacroBasedMatchers
     with TestHelper
-    with Inspectors {
+    with Inspectors
+    with CirceEq
+    with Eventually {
 
   // required to be able to spin up the routes (CassandraClusterHealth depends on a cassandra session)
   override def testConfig: Config =
@@ -113,11 +115,12 @@ class ResourceRoutesSpec
 
   private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
 
-  private implicit val ec            = system.dispatcher
-  private implicit val mt            = ActorMaterializer()
-  private implicit val utClient      = untyped[Task]
-  private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
-  private implicit val jsonClient    = withUnmarshaller[Task, Json]
+  private implicit val ec         = system.dispatcher
+  private implicit val mt         = ActorMaterializer()
+  private implicit val utClient   = untyped[Task]
+  private implicit val qrClient   = withUnmarshaller[Task, QueryResults[Json]]
+  private implicit val jsonClient = withUnmarshaller[Task, Json]
+//  private implicit val sparqlResultsClient = withUnmarshaller[Task, SparqlResults]
   private val sparql                 = mock[BlazegraphClient[Task]]
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val aclsCache     = mock[AclsCache[Task]]
@@ -217,8 +220,9 @@ class ResourceRoutesSpec
                         false)
 
     val defaultSQLView = SparqlView(projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
+    val otherSQLView   = SparqlView(projectRef, nxv.withSuffix("otherSparql").value, genUUID, 1L, false)
 
-    val aggView = AggregateElasticSearchView(
+    val aggEsView = AggregateElasticSearchView(
       Set(ViewRef(projectRef, nxv.defaultElasticSearchIndex.value),
           ViewRef(projectRef, nxv.withSuffix("otherEs").value)),
       projectRef,
@@ -228,12 +232,23 @@ class ResourceRoutesSpec
       false
     )
 
+    val aggSparqlView = AggregateSparqlView(
+      Set(ViewRef(projectRef, nxv.defaultSparqlIndex.value), ViewRef(projectRef, nxv.withSuffix("otherSparql").value)),
+      projectRef,
+      genUUID,
+      nxv.withSuffix("aggSparql").value,
+      1L,
+      false
+    )
+
     private val label = ProjectLabel(organization, project)
     when(projectCache.getBy(label)).thenReturn(Task.pure(Some(projectMeta)))
     when(projectCache.getLabel(projectRef)).thenReturn(Task.pure(Some(label)))
     when(projectCache.get(projectRef)).thenReturn(Task.pure(Some(projectMeta)))
     when(viewCache.get(projectRef))
-      .thenReturn(Task.pure(Set[IndexingView](defaultEsView, defaultSQLView, aggView, otherEsView)))
+      .thenReturn(
+        Task.pure(
+          Set[IndexingView](defaultEsView, defaultSQLView, aggEsView, otherEsView, otherSQLView, aggSparqlView)))
     when(
       viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.defaultElasticSearchIndex.value))(
         any[Typeable[IndexingView]]))
@@ -246,8 +261,17 @@ class ResourceRoutesSpec
       viewCache.getBy[ElasticSearchView](mEq(projectRef), mEq(nxv.withSuffix("otherEs").value))(
         any[Typeable[ElasticSearchView]]))
       .thenReturn(Task.pure(Some(otherEsView)))
+    when(
+      viewCache.getBy[SparqlView](mEq(projectRef), mEq(nxv.withSuffix("otherSparql").value))(any[Typeable[SparqlView]]))
+      .thenReturn(Task.pure(Some(otherSQLView)))
+    when(viewCache.getBy[SparqlView](mEq(projectRef), mEq(nxv.defaultSparqlIndex.value))(any[Typeable[SparqlView]]))
+      .thenReturn(Task.pure(Some(defaultSQLView)))
     when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.withSuffix("agg").value))(any[Typeable[IndexingView]]))
-      .thenReturn(Task.pure(Some(aggView)))
+      .thenReturn(Task.pure(Some(aggEsView)))
+    when(
+      viewCache
+        .getBy[IndexingView](mEq(projectRef), mEq(nxv.withSuffix("aggSparql").value))(any[Typeable[IndexingView]]))
+      .thenReturn(Task.pure(Some(aggSparqlView)))
     when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.withSuffix("some").value))(any[Typeable[IndexingView]]))
       .thenReturn(Task.pure(None: Option[IndexingView]))
     when(viewCache.getBy[IndexingView](mEq(projectRef), mEq(nxv.defaultSparqlIndex.value))(any[Typeable[IndexingView]]))
@@ -882,7 +906,7 @@ class ResourceRoutesSpec
         elasticSearch.searchRaw(mEq(query),
                                 mEq(Set(s"kg_${defaultEsView.name}")),
                                 mEq(Uri.Query(Map("other" -> "value"))))(any[HttpClient[Task, Json]]))
-        .thenReturn(Task.raiseError(ElasticClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
+        .thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
 
       Post(s"/v1/views/$organization/$project/nxv:defaultElasticSearchIndex/_search?other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
@@ -899,7 +923,7 @@ class ResourceRoutesSpec
         elasticSearch.searchRaw(mEq(query),
                                 mEq(Set(s"kg_${defaultEsView.name}")),
                                 mEq(Uri.Query(Map("other" -> "value"))))(any[HttpClient[Task, Json]]))
-        .thenReturn(Task.raiseError(ElasticClientError(StatusCodes.BadRequest, esResponse)))
+        .thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse)))
 
       Post(s"/v1/views/$organization/$project/nxv:defaultElasticSearchIndex/_search?other=value", query) ~> addCredentials(
         oauthToken) ~> routes ~> check {
@@ -927,9 +951,9 @@ class ResourceRoutesSpec
 
     "search for resources on a custom SparqlView" in new Views {
       val query  = "SELECT ?s where {?s ?p ?o} LIMIT 10"
-      val result = Json.obj("key1" -> Json.fromString("value1"))
+      val result = jsonContentOf("/search/sparql-query-result.json")
       when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
-      when(sparql.queryRaw(query)).thenReturn(Task.pure(result))
+      when(sparql.queryRaw(query)).thenReturn(Task.pure(result.as[SparqlResults].right.value))
 
       Post(
         s"/v1/views/$organization/$project/nxv:defaultSparqlIndex/sparql",
@@ -939,7 +963,7 @@ class ResourceRoutesSpec
       }
     }
 
-    "reject searching when search has a client error" in new Views {
+    "return sparql error when sparql search has a client error" in new Views {
       val query = "SELECT ?s where {?s ?p ?o} LIMIT 10"
       when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
       when(sparql.queryRaw(query)).thenReturn(Task.raiseError(SparqlClientError(StatusCodes.BadRequest, "some error")))
@@ -948,7 +972,30 @@ class ResourceRoutesSpec
         s"/v1/views/$organization/$project/nxv:defaultSparqlIndex/sparql",
         HttpEntity(RdfMediaTypes.`application/sparql-query`, query)) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].tpe shouldEqual classNameOf[InvalidResourceFormat]
+        responseAs[String] shouldEqual "some error"
+      }
+    }
+
+    "search for resources on a AggSparqlView" in new Views {
+      val query     = "SELECT ?s where {?s ?p ?o} LIMIT 10"
+      val response1 = jsonContentOf("/search/sparql-query-result.json")
+      val response2 = jsonContentOf("/search/sparql-query-result2.json")
+
+      val sparql1 = mock[BlazegraphClient[Task]]
+      val sparql2 = mock[BlazegraphClient[Task]]
+
+      when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql1)
+      when(sparql.copy(namespace = otherSQLView.name)).thenReturn(sparql2)
+      when(sparql1.queryRaw(query)).thenReturn(Task.pure(response1.as[SparqlResults].right.value))
+      when(sparql2.queryRaw(query)).thenReturn(Task.pure(response2.as[SparqlResults].right.value))
+
+      Post(
+        s"/v1/views/$organization/$project/nxv:aggSparql/sparql",
+        HttpEntity(RdfMediaTypes.`application/sparql-query`, query)) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        eventually {
+          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/search/sparql-query-result-combined.json"))
+        }
       }
     }
 
