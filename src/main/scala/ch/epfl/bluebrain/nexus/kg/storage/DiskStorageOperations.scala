@@ -61,41 +61,39 @@ object DiskStorageOperations {
     private implicit val mt: Materializer     = ActorMaterializer()
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
-      getLocation(fileDesc.uuid).flatMap {
-        case (fullPath, relativePath) =>
-          val future = source
-            .alsoToMat(digestSink(storage.algorithm))(Keep.right)
-            .toMat(FileIO.toPath(fullPath)) {
-              case (digFuture, ioFuture) =>
-                digFuture.zipWith(ioFuture) {
-                  case (dig, io) if io.wasSuccessful && fullPath.toFile.exists() =>
-                    val digest = Digest(dig.getAlgorithm, dig.digest().map("%02x".format(_)).mkString)
-                    Future(fileDesc.process(StoredSummary(relativePath.toString, io.count, digest)))
-                  case _ =>
-                    Future.failed(KgError.InternalError(
-                      s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"))
-                }
-            }
-            .run()
-            .flatten
+      getLocation(fileDesc.uuid).flatMap { fullPath =>
+        val future = source
+          .alsoToMat(digestSink(storage.algorithm))(Keep.right)
+          .toMat(FileIO.toPath(fullPath)) {
+            case (digFuture, ioFuture) =>
+              digFuture.zipWith(ioFuture) {
+                case (dig, io) if io.wasSuccessful && fullPath.toFile.exists() =>
+                  val digest = Digest(dig.getAlgorithm, dig.digest().map("%02x".format(_)).mkString)
+                  Future(fileDesc.process(StoredSummary("file://" + fullPath, io.count, digest)))
+                case _ =>
+                  Future.failed(KgError.InternalError(
+                    s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"))
+              }
+          }
+          .run()
+          .flatten
 
-          F.liftIO(IO.fromFuture(IO(future)))
+        F.liftIO(IO.fromFuture(IO(future)))
       }
     }
 
-    private def getLocation(uuid: UUID): F[(Path, Path)] = {
+    private def getLocation(uuid: UUID): F[Path] =
       F.catchNonFatal {
           val relative = Paths.get(mangle(storage.ref, uuid))
           val filePath = storage.volume.resolve(relative)
           Files.createDirectories(filePath.getParent)
-          (filePath, relative)
+          filePath
         }
         .recoverWith {
           case NonFatal(err) =>
             logger.error(s"Unable to resolve location for path '${storage.volume}'", err)
             F.raiseError(KgError.InternalError(s"Unable to resolve location for path '${storage.volume}'"))
         }
-    }
   }
 
 }
