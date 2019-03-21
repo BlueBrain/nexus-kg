@@ -89,7 +89,7 @@ sealed trait View extends Product with Serializable {
     */
   def referenced[F[_]](caller: Caller, acls: AccessControlLists)(implicit projectCache: ProjectCache[F],
                                                                  viewCache: ViewCache[F],
-                                                                 F: Monad[F]): EitherT[F, Rejection, View] = {
+                                                                 F: Monad[F]): EitherT[F, Rejection, View] =
     this match {
       case v: AggregateView[_] =>
         v.value match {
@@ -109,7 +109,12 @@ sealed trait View extends Product with Serializable {
                     acc.flatMap { _ =>
                       EitherT(viewCache.get(ref).map { views =>
                         val toTarget = labelIris.getOrElse(label, Set.empty)
-                        val found    = views.collect { case es: ElasticSearchView if toTarget.contains(es.id) => es.id }
+                        val found = v match {
+                          case _: AggregateElasticSearchView[_] =>
+                            views.collect { case es: ElasticSearchView if toTarget.contains(es.id) => es.id }
+                          case _: AggregateSparqlView[_] =>
+                            views.collect { case sparql: SparqlView if toTarget.contains(sparql.id) => sparql.id }
+                        }
                         (toTarget -- found).headOption.map(iri => NotFound(iri.ref)).toLeft(view)
                       })
                     }
@@ -120,7 +125,6 @@ sealed trait View extends Product with Serializable {
         }
       case v => EitherT.rightT(v)
     }
-  }
 }
 
 object View {
@@ -329,7 +333,7 @@ object View {
     /**
       * Generates the sparql index
       *
-      * @param config the [[ElasticSearchConfig]]
+      * @param config the [[SparqlConfig]]
       */
     def index(implicit config: SparqlConfig): String = s"${config.indexPrefix}_$name"
   }
@@ -428,5 +432,4 @@ object View {
 
   val `Set[ViewRef[ProjectRef]]`   = TypeCase[Set[ViewRef[ProjectRef]]]
   val `Set[ViewRef[ProjectLabel]]` = TypeCase[Set[ViewRef[ProjectLabel]]]
-
 }

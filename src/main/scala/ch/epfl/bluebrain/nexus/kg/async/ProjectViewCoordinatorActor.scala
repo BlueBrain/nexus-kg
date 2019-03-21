@@ -318,6 +318,7 @@ object ProjectViewCoordinatorActor {
             case ((write, removed), ValueAdded(_, `SingleView`(view)))    => (write + view, removed)
             case ((write, removed), ValueModified(_, `SingleView`(view))) => (write + view, removed)
             case ((write, removed), ValueRemoved(_, `SingleView`(view)))  => (write, removed + view)
+            case ((write, removed), _)  => (write, removed)
           }
         toWrite.headOption.foreach(view => actorRef ! ViewsAddedOrModified(view.ref.id, restartOffset = false, toWrite))
         toRemove.headOption.foreach(view => actorRef ! ViewsRemoved(view.ref.id, toRemove))
