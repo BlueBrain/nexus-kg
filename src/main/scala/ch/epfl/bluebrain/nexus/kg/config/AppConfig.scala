@@ -182,6 +182,7 @@ object AppConfig {
     * Collection of configurable settings specific to the Sparql indexer.
     *
     * @param base         the base uri
+    * @param indexPrefix  the prefix of the index
     * @param username     the SPARQL endpoint username
     * @param password     the SPARQL endpoint password
     * @param defaultIndex the SPARQL default index
@@ -189,6 +190,7 @@ object AppConfig {
     * @param query        the query retry strategy configuration
     */
   final case class SparqlConfig(base: Uri,
+                                indexPrefix: String,
                                 username: Option[String],
                                 password: Option[String],
                                 defaultIndex: String,

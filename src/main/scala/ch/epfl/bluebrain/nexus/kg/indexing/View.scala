@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ElasticSearchConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticSearchConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -324,7 +324,15 @@ object View {
       uuid: UUID,
       rev: Long,
       deprecated: Boolean
-  ) extends SingleView
+  ) extends SingleView {
+
+    /**
+      * Generates the sparql index
+      *
+      * @param config the [[ElasticSearchConfig]]
+      */
+    def index(implicit config: SparqlConfig): String = s"${config.indexPrefix}_$name"
+  }
 
   object SparqlView {
     private val defaultViewId = UUID.fromString("d88b71d2-b8a4-4744-bf22-2d99ef5bd26b")

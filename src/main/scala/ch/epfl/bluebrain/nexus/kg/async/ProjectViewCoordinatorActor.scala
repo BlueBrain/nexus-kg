@@ -284,12 +284,12 @@ object ProjectViewCoordinatorActor {
               .deleteIndex(v.index)
               .mapRetry({ case true => () },
                         KgError.InternalError(s"Could not delete ElasticSearch index '${v.index}'"): Throwable)
-          case _: SparqlView =>
-            log.info("Blazegraph keyspace '{}' is removed from project '{}'", view.name, project.projectLabel.show)
-            val client = BlazegraphClient[Task](sparql.base, view.name, sparql.akkaCredentials)
+          case v: SparqlView =>
+            log.info("Blazegraph keyspace '{}' is removed from project '{}'", v.index, project.projectLabel.show)
+            val client = BlazegraphClient[Task](sparql.base, v.index, sparql.akkaCredentials)
             client.deleteNamespace.mapRetry(
               { case true => () },
-              KgError.InternalError(s"Could not delete Sparql keyspace '${view.name}'"): Throwable)
+              KgError.InternalError(s"Could not delete Sparql keyspace '${v.name}'"): Throwable)
         }
 
         override def onChange: OnKeyValueStoreChange[AbsoluteIri, View] =

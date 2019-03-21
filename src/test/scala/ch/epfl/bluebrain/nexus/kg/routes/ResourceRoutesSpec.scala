@@ -953,7 +953,7 @@ class ResourceRoutesSpec
     "search for resources on a custom SparqlView" in new Views {
       val query  = "SELECT ?s where {?s ?p ?o} LIMIT 10"
       val result = jsonContentOf("/search/sparql-query-result.json")
-      when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
+      when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql)
       when(sparql.queryRaw(query)).thenReturn(Task.pure(result.as[SparqlResults].right.value))
 
       Post(
@@ -966,7 +966,7 @@ class ResourceRoutesSpec
 
     "return sparql error when sparql search has a client error" in new Views {
       val query = "SELECT ?s where {?s ?p ?o} LIMIT 10"
-      when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql)
+      when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql)
       when(sparql.queryRaw(query)).thenReturn(Task.raiseError(SparqlClientError(StatusCodes.BadRequest, "some error")))
 
       Post(
@@ -985,8 +985,8 @@ class ResourceRoutesSpec
       val sparql1 = mock[BlazegraphClient[Task]]
       val sparql2 = mock[BlazegraphClient[Task]]
 
-      when(sparql.copy(namespace = defaultSQLView.name)).thenReturn(sparql1)
-      when(sparql.copy(namespace = otherSQLView.name)).thenReturn(sparql2)
+      when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql1)
+      when(sparql.copy(namespace = s"kg_${otherSQLView.name}")).thenReturn(sparql2)
       when(sparql1.queryRaw(query)).thenReturn(Task.pure(response1.as[SparqlResults].right.value))
       when(sparql2.queryRaw(query)).thenReturn(Task.pure(response2.as[SparqlResults].right.value))
 
