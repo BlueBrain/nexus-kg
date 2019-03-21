@@ -83,7 +83,7 @@ class ViewRoutes private[routes] (resources: Resources[Task],
   private def sparqlQuery(view: SparqlView, query: String): Task[SparqlResults] = {
     import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
     implicit val retryer: Retry[Task, SparqlServerOrUnexpectedFailure] = Retry(config.sparql.query.retryStrategy)
-    indexers.sparql.copy(namespace = view.name).queryRaw(query).retry
+    indexers.sparql.copy(namespace = view.index).queryRaw(query).retry
   }
 
   private def sparql: Route =

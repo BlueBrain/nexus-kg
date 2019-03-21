@@ -36,6 +36,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
       val retryIndex = RetryStrategyConfig("exponential", 100 millis, 10 minutes, 7, 0.2, 500 millis)
       val retryQuery = RetryStrategyConfig("exponential", 100 millis, 1 minute, 4, 0.2, 500 millis)
       appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata",
+                                                "kg",
                                                 None,
                                                 None,
                                                 "kg",
@@ -54,6 +55,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
       appConfig.pagination shouldEqual PaginationConfig(0L, 20, 100)
 
       implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata",
+                                                        "kg",
                                                         None,
                                                         None,
                                                         "kg",

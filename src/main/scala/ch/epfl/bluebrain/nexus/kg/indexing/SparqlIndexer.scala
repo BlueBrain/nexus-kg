@@ -83,12 +83,12 @@ object SparqlIndexer {
       props.asScala.toMap
     }
 
-    val client = BlazegraphClient[Task](config.sparql.base, view.name, config.sparql.akkaCredentials)
+    val client = BlazegraphClient[Task](config.sparql.base, view.index, config.sparql.akkaCredentials)
     val mapper = new SparqlIndexerMapping(resources)
     val init =
       for {
         _ <- client.createNamespace(properties)
-        _ <- if (view.rev > 1) client.copy(namespace = view.copy(rev = view.rev - 1).name).deleteNamespace
+        _ <- if (view.rev > 1) client.copy(namespace = view.copy(rev = view.rev - 1).index).deleteNamespace
         else Task.pure(true)
       } yield ()
 
@@ -113,7 +113,7 @@ object SparqlIndexer {
     SequentialTagIndexer.start(
       IndexerConfig
         .builder[Task]
-        .name(s"sparql-indexer-${view.name}")
+        .name(s"sparql-indexer-${view.index}")
         .tag(s"project=${view.ref.id}")
         .plugin(config.persistence.queryJournalPlugin)
         .retry[SparqlServerOrUnexpectedFailure](indexing.retry.retryStrategy)
