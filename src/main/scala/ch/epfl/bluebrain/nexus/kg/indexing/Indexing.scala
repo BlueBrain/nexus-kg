@@ -16,7 +16,9 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.async._
-import ch.epfl.bluebrain.nexus.kg.async.Caches._
+import ch.epfl.bluebrain.nexus.kg.cache._
+import ch.epfl.bluebrain.nexus.kg.cache.Caches._
+import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._

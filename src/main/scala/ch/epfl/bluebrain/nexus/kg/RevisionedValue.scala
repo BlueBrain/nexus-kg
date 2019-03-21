@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg
 
 import akka.cluster.ddata.LWWRegister.Clock
 
@@ -12,6 +12,6 @@ final case class RevisionedValue[A](rev: Long, value: A)
 
 object RevisionedValue {
 
-  private[async] def revisionedValueClock[A]: Clock[RevisionedValue[A]] =
+  def revisionedValueClock[A]: Clock[RevisionedValue[A]] =
     (_: Long, value: RevisionedValue[A]) => value.rev
 }

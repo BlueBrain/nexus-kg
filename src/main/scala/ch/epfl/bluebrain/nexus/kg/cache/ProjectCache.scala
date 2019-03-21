@@ -1,4 +1,4 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg.cache
 
 import java.util.UUID
 
@@ -8,7 +8,7 @@ import cats.effect.{Async, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
-import ch.epfl.bluebrain.nexus.kg.async.Cache._
+import ch.epfl.bluebrain.nexus.kg.cache.Cache._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
 
@@ -96,7 +96,6 @@ object ProjectCache {
     */
   def apply[F[_]: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ProjectCache[F] = {
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    val function: (Long, Project) => Long = { case (_, res) => res.rev }
-    new ProjectCache(KeyValueStore.distributed("projects", function, mapError))(F)
+    new ProjectCache(KeyValueStore.distributed("projects", (_, project) => project.rev, mapError))(F)
   }
 }

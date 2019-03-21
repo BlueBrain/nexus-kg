@@ -4,7 +4,7 @@ import cats.MonadError
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
-import ch.epfl.bluebrain.nexus.kg.async.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resolverCtxUri, viewCtxUri}
 import ch.epfl.bluebrain.nexus.kg.indexing.View

@@ -13,8 +13,9 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg._
-import ch.epfl.bluebrain.nexus.kg.async.Caches._
-import ch.epfl.bluebrain.nexus.kg.async.{Caches, ProjectCache, ProjectViewCoordinator, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
+import ch.epfl.bluebrain.nexus.kg.cache.Caches._
+import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._

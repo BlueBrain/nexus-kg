@@ -1,12 +1,9 @@
-package ch.epfl.bluebrain.nexus.kg.async
-
-import java.time.Clock
+package ch.epfl.bluebrain.nexus.kg.cache
 
 import akka.actor.ExtendedActorSystem
 import akka.serialization.Serialization
 import akka.testkit._
-import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -15,7 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{Inspectors, Matchers, TryValues}
 
 import scala.concurrent.duration._
@@ -28,14 +25,11 @@ class ResolverCacheSpec
     with Inspectors
     with ScalaFutures
     with TryValues
-    with TestHelper
-    with Eventually {
+    with TestHelper {
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.seconds.dilated, 5.milliseconds)
 
-  private implicit val clock: Clock         = Clock.systemUTC
   private implicit val appConfig: AppConfig = Settings(system).appConfig
-  private val time                          = clock.instant()
 
   val ref1 = ProjectRef(genUUID)
   val ref2 = ProjectRef(genUUID)
@@ -58,13 +52,9 @@ class ResolverCacheSpec
 
     "index resolvers" in {
       val list = (resolverProj1 ++ resolverProj2).toList
-      forAll(list.zipWithIndex) {
-        case (resolver, index) =>
-          implicit val instant = time.plusSeconds(index.toLong)
-          cache.put(resolver).runToFuture.futureValue
-          eventually {
-            cache.get(resolver.ref, resolver.id).runToFuture.futureValue shouldEqual Some(resolver)
-          }
+      forAll(list) { resolver =>
+        cache.put(resolver).runToFuture.futureValue
+        cache.get(resolver.ref, resolver.id).runToFuture.futureValue shouldEqual Some(resolver)
       }
     }
 
@@ -74,8 +64,7 @@ class ResolverCacheSpec
     }
 
     "deprecate resolver" in {
-      val resolver         = resolverProj1.head
-      implicit val instant = time.plusSeconds(300L)
+      val resolver = resolverProj1.head
       cache.put(resolver.copy(deprecated = true, rev = 2L)).runToFuture.futureValue
       cache.get(resolver.ref, resolver.id).runToFuture.futureValue shouldEqual None
       cache.get(ref1).runToFuture.futureValue should contain theSameElementsAs resolverProj1.filterNot(_ == resolver)

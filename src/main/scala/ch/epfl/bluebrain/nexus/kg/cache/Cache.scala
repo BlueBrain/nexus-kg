@@ -1,4 +1,6 @@
-package ch.epfl.bluebrain.nexus.kg.async
+package ch.epfl.bluebrain.nexus.kg.cache
+
+import java.util.concurrent.ConcurrentHashMap
 
 import cats.Monad
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStore.Subscription
@@ -7,7 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.cache._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
 
-abstract class Cache[F[_]: Monad, K, V](private[async] val store: KeyValueStore[F, K, V]) {
+abstract class Cache[F[_]: Monad, K, V](private[cache] val store: KeyValueStore[F, K, V]) {
 
   /**
     * Adds a subscription to the cache
@@ -23,17 +25,25 @@ abstract class Cache[F[_]: Monad, K, V](private[async] val store: KeyValueStore[
     */
   def unsubscribe(subscription: Subscription): F[Unit] = store.unsubscribe(subscription)
 
-  private[async] def get(id: K): F[Option[V]] = store.get(id)
+  private[cache] def get(id: K): F[Option[V]] = store.get(id)
 
-  private[async] def replace(id: K, value: V): F[Unit] = store.put(id, value)
+  private[cache] def replace(id: K, value: V): F[Unit] = store.put(id, value)
 }
 
 object Cache {
 
-  private[async] def mapError(cacheError: KeyValueStoreError): KgError =
+  private[cache] def mapError(cacheError: KeyValueStoreError): KgError =
     cacheError match {
       case e: ReadWriteConsistencyTimeout =>
         OperationTimedOut(s"Timeout while interacting with the cache due to '${e.timeout}'")
       case e: DistributedDataError => InternalError(e.reason)
     }
+
+  private[cache] implicit class ConcurrentHashMapSyntax[K, V](private val map: ConcurrentHashMap[K, V]) extends AnyVal {
+    def getSafe(key: K): Option[V] = Option(map.get(key))
+    def putAndReturn(key: K, value: V): V = {
+      map.put(key, value)
+      value
+    }
+  }
 }

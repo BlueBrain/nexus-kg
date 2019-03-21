@@ -5,7 +5,7 @@ import cats.MonadError
 import cats.effect.Timer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectCache, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
