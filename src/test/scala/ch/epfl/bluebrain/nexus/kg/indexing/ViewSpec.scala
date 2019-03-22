@@ -43,7 +43,7 @@ class ViewSpec
     "constructing" should {
 
       "return an ElasticSearchView" in {
-        val resource = simpleV(id, elasticSearchview, types = Set(nxv.View, nxv.ElasticSearchView, nxv.Alpha))
+        val resource = simpleV(id, elasticSearchview, types = Set(nxv.View, nxv.ElasticSearchView))
         View(resource).right.value shouldEqual ElasticSearchView(
           mapping,
           Set(nxv.Schema, nxv.Resource),
@@ -86,7 +86,7 @@ class ViewSpec
 
       "return an AggregateElasticSearchView from ProjectLabel ViewRef" in {
         val resource =
-          simpleV(id, aggElasticSearchView, types = Set(nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha))
+          simpleV(id, aggElasticSearchView, types = Set(nxv.View, nxv.AggregateElasticSearchView))
         val views = Set(
           ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
           ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
@@ -102,7 +102,7 @@ class ViewSpec
 
       "return an AggregateSparqlView from ProjectLabel ViewRef" in {
         val resource =
-          simpleV(id, aggSparqlView, types = Set(nxv.View, nxv.AggregateSparqlView, nxv.Alpha))
+          simpleV(id, aggSparqlView, types = Set(nxv.View, nxv.AggregateSparqlView))
         val views = Set(
           ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
           ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
@@ -120,7 +120,7 @@ class ViewSpec
         val aggElasticSearchViewRefs = jsonContentOf("/view/aggelasticviewrefs.json").appendContextOf(viewCtx)
 
         val resource =
-          simpleV(id, aggElasticSearchViewRefs, types = Set(nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha))
+          simpleV(id, aggElasticSearchViewRefs, types = Set(nxv.View, nxv.AggregateElasticSearchView))
         val views = Set(
           ViewRef(ProjectRef(UUID.fromString("64b202b4-1060-42b5-9b4f-8d6a9d0d9113")),
                   url"http://example.com/id2".value),
@@ -150,7 +150,7 @@ class ViewSpec
         val wrongAggElasticSearchView = jsonContentOf("/view/aggelasticviewwrong.json").appendContextOf(viewCtx)
 
         val resource =
-          simpleV(id, wrongAggElasticSearchView, types = Set(nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha))
+          simpleV(id, wrongAggElasticSearchView, types = Set(nxv.View, nxv.AggregateElasticSearchView))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
@@ -166,7 +166,7 @@ class ViewSpec
           jsonContentOf("/view/elasticview-wrong-3.json").appendContextOf(viewCtx)
         )
         forAll(wrong) { json =>
-          val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticSearchView, nxv.Alpha))
+          val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticSearchView))
           View(resource).left.value shouldBe a[InvalidResourceFormat]
         }
       }
@@ -180,7 +180,7 @@ class ViewSpec
         val resource =
           simpleV(id,
                   jsonContentOf("/view/sparqlview-wrong.json").appendContextOf(viewCtx),
-                  types = Set(nxv.View, nxv.ElasticSearchView, nxv.Alpha))
+                  types = Set(nxv.View, nxv.ElasticSearchView))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
     }

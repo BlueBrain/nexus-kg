@@ -239,7 +239,7 @@ object View {
         }
       }
 
-    if (Set(nxv.View.value, nxv.Alpha.value, nxv.ElasticSearchView.value).subsetOf(res.types)) elasticSearch()
+    if (Set(nxv.View.value, nxv.ElasticSearchView.value).subsetOf(res.types)) elasticSearch()
     else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
     else if (Set(nxv.View.value, nxv.AggregateElasticSearchView.value).subsetOf(res.types)) aggregatedEsView()
     else if (Set(nxv.View.value, nxv.AggregateSparqlView.value).subsetOf(res.types)) aggregatedSparqlView()

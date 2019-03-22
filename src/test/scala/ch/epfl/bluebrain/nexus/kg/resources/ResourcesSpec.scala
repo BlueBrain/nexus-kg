@@ -128,7 +128,7 @@ class ResourcesSpec
     val schema = Latest(viewSchemaUri)
     val view = jsonContentOf("/view/elasticview.json").addContext(viewCtxUri) deepMerge Json.obj(
       "@id" -> Json.fromString(id.show))
-    val types = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView, nxv.Alpha)
+    val types = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView)
   }
 
   trait StorageResource extends Base {
@@ -250,7 +250,7 @@ class ResourcesSpec
       "create resources that validate against view schema" in {
         val valid =
           List(jsonContentOf("/view/aggelasticviewrefs.json"), jsonContentOf("/view/aggelasticview.json"))
-        val tpes = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
+        val tpes = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView)
         forAll(valid) { j =>
           new ViewResource {
             val json     = resolverFrom(j)

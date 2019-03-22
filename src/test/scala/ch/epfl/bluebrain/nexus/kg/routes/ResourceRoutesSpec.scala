@@ -385,13 +385,13 @@ class ResourceRoutesSpec
       .deepMerge(Json.obj("@id" -> Json.fromString(id.value.show)))
       .addContext(viewCtxUri)
 
-    val types     = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView, nxv.Alpha)
+    val types     = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView)
     val schemaRef = Ref(viewSchemaUri)
 
     def viewResponse(): Json =
       response() deepMerge Json.obj(
         "@type" -> Json
-          .arr(Json.fromString("View"), Json.fromString("ElasticSearchView"), Json.fromString("Alpha")),
+          .arr(Json.fromString("View"), Json.fromString("ElasticSearchView")),
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/views/$organization/$project/nxv:$genUuid")
       )
   }

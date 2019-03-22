@@ -2,7 +2,6 @@
   "@context": {
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
     "View": "nxv:View",
-    "Alpha": "nxv:Alpha",
     "ElasticSearchView": "nxv:ElasticSearchView",
     "SparqlView": "nxv:SparqlView",
     "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",

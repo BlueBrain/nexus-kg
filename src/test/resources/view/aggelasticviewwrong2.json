@@ -2,8 +2,7 @@
   "@id": "http://example.com/id",
   "@type": [
     "View",
-    "AggregateElasticSearchView",
-    "Alpha"
+    "AggregateElasticSearchView"
   ],
   "views": [
     {
