@@ -220,8 +220,9 @@ class ResourceRoutesSpec
                         1L,
                         false)
 
-    val defaultSQLView = SparqlView(projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
-    val otherSQLView   = SparqlView(projectRef, nxv.withSuffix("otherSparql").value, genUUID, 1L, false)
+    val defaultSQLView = SparqlView(Set.empty, None, true, projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
+    val otherSQLView =
+      SparqlView(Set.empty, None, true, projectRef, nxv.withSuffix("otherSparql").value, genUUID, 1L, false)
 
     val aggEsView = AggregateElasticSearchView(
       Set(ViewRef(projectRef, nxv.defaultElasticSearchIndex.value),

@@ -28,7 +28,8 @@ import monix.execution.atomic.AtomicLong
 
 import scala.collection.JavaConverters._
 
-private class SparqlIndexerMapping[F[_]](resources: Resources[F])(implicit F: Monad[F], project: Project) {
+private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[F])(implicit F: Monad[F],
+                                                                                    project: Project) {
 
   private val logger: Logger = Logger[this.type]
 
@@ -38,10 +39,13 @@ private class SparqlIndexerMapping[F[_]](resources: Resources[F])(implicit F: Mo
     * @param event event to be mapped to a Sparql insert query
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
-    resources.fetch(event.id).value.flatMap {
-      case Right(resource) => buildInsertQuery(resource)
-      case _               => F.pure(None)
+    view.resourceTag.map(resources.fetch(event.id, _)).getOrElse(resources.fetch(event.id)).value.flatMap {
+      case Right(resource) if validCandidate(resource) => buildInsertQuery(resource)
+      case _                                           => F.pure(None)
     }
+
+  private def validCandidate(resource: Resource): Boolean =
+    view.resourceSchemas.isEmpty || view.resourceSchemas.contains(resource.schema.iri)
 
   private def buildInsertQuery(res: Resource): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
     resources.materializeWithMeta(res, selfAsIri = true).value.map {
@@ -84,7 +88,7 @@ object SparqlIndexer {
     }
 
     val client = BlazegraphClient[Task](config.sparql.base, view.index, config.sparql.akkaCredentials)
-    val mapper = new SparqlIndexerMapping(resources)
+    val mapper = new SparqlIndexerMapping(view, resources)
     val init =
       for {
         _ <- client.createNamespace(properties)

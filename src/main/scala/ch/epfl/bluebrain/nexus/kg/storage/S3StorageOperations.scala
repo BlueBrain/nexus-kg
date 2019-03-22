@@ -100,7 +100,7 @@ object S3StorageOperations {
         .alsoToMat(digestSink(storage.algorithm))(Keep.right)
         .toMat(s3Sink) {
           case (digFuture, ioFuture) =>
-            digFuture.zipWith(ioFuture.runWith(Sink.head)) {
+            digFuture.zipWith(ioFuture) {
               case (dig, io) =>
                 val digest = Digest(dig.getAlgorithm, dig.digest.map("%02x".format(_)).mkString)
                 if (digest.value == io.etag) {

@@ -57,7 +57,7 @@ class ViewCacheSpec
     false
   )
 
-  val sparqlView = SparqlView(ref1, nxv.defaultSparqlIndex.value, genUUID, 1L, false)
+  val sparqlView = SparqlView(Set.empty, None, true, ref1, nxv.defaultSparqlIndex.value, genUUID, 1L, false)
 
   val esViewsProj1: Set[ElasticSearchView] =
     List.fill(5)(esView.copy(mapping = genJson, id = genIri + "elasticSearch1", uuid = genUUID)).toSet

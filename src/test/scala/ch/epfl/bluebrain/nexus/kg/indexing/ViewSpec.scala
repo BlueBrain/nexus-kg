@@ -35,6 +35,7 @@ class ViewSpec
     val projectRef           = ProjectRef(genUUID)
     val id                   = Id(projectRef, iri)
     val sparqlview           = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
+    val sparqlview2          = jsonContentOf("/view/sparqlview-tag-schema.json").appendContextOf(viewCtx)
     val elasticSearchview    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
     val aggElasticSearchView = jsonContentOf("/view/aggelasticview.json").appendContextOf(viewCtx)
     val aggSparqlView        = jsonContentOf("/view/aggsparql.json").appendContextOf(viewCtx)
@@ -59,7 +60,23 @@ class ViewSpec
 
       "return an SparqlView" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.View, nxv.SparqlView))
-        View(resource).right.value shouldEqual SparqlView(projectRef,
+        View(resource).right.value shouldEqual SparqlView(Set.empty,
+                                                          None,
+                                                          false,
+                                                          projectRef,
+                                                          iri,
+                                                          UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
+                                                          resource.rev,
+                                                          resource.deprecated)
+
+      }
+
+      "return an SparqlView with tag and schema" in {
+        val resource = simpleV(id, sparqlview2, types = Set(nxv.View, nxv.SparqlView))
+        View(resource).right.value shouldEqual SparqlView(Set(nxv.Schema, nxv.Resource),
+                                                          Some("one"),
+                                                          true,
+                                                          projectRef,
                                                           iri,
                                                           UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
                                                           resource.rev,
@@ -222,7 +239,14 @@ class ViewSpec
 
       "return the json representation for a queryresults list with SparqlView" in {
         val sparql: View =
-          SparqlView(projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
+          SparqlView(Set.empty,
+                     None,
+                     true,
+                     projectRef,
+                     iri,
+                     UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
+                     1L,
+                     false)
         val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(sparql)))
         ViewEncoder.json(views).right.value should equalIgnoreArrayOrder(
           jsonContentOf("/view/view-list-resp-sparql.json"))
