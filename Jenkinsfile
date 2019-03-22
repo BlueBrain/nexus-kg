@@ -2,8 +2,6 @@ String version = env.BRANCH_NAME
 Boolean isRelease = version ==~ /v\d+\.\d+\.\d+.*/
 Boolean isPR = env.CHANGE_ID != null
 
-def buildResults = [:]
-
 pipeline {
     agent { label 'slave-sbt' }
     options {
@@ -35,6 +33,56 @@ pipeline {
                 }
             }
         }
+        stage("Build & Publish Artifacts") {
+            when {
+                expression { !isPR }
+            }
+            steps {
+                checkout scm
+                sh 'sbt releaseEarly universal:packageZipTarball'
+                stash name: "service", includes: "target/universal/kg*.tgz"
+            }
+        }
+        stage("Build Image") {
+            when {
+                expression { !isPR }
+            }
+            steps {
+                unstash name: "service"
+                sh "mv target/universal/kg*.tgz ./kg.tgz"
+                sh "oc start-build kg-build --from-file=kg.tgz --wait"
+            }
+        }
+        stage("Redeploy & Test") {
+            when {
+                expression { !isPR && !isRelease }
+            }
+            steps {
+                sh "oc scale statefulset kg --replicas=0 --namespace=bbp-nexus-dev"
+                sh "oc wait pods/kg-0 --for=delete --namespace=bbp-nexus-dev --timeout=3m"
+                sh "oc scale statefulset kg --replicas=1 --namespace=bbp-nexus-dev"
+                sh "oc wait pods/kg-0 --for condition=ready --namespace=bbp-nexus-dev --timeout=4m"
+                build job: 'nexus/nexus-tests/master', parameters: [booleanParam(name: 'run', value: true)], wait: true
+            }
+        }
+        stage("Tag Images") {
+            when {
+                expression { isRelease }
+            }
+            steps {
+                openshiftTag srcStream: 'kg', srcTag: 'latest', destStream: 'kg', destTag: version.substring(1), verbose: 'false'
+            }
+        }
+       stage("Push to Docker Hub") {
+           when {
+               expression { isRelease }
+           }
+           steps {
+               unstash name: "service"
+               sh "mv target/universal/kg*.tgz ./kg.tgz"
+               sh "oc start-build nexus-kg-build --from-file=kg.tgz --wait"
+            }
+        }
         stage("Report Coverage") {
             when {
                 expression { !isPR }
@@ -50,65 +98,6 @@ pipeline {
                     junit 'target/test-reports/TEST*.xml'
                 }
             }
-        }
-        stage("Build Snapshot & Deploy") {
-            when {
-                expression { !isPR && !isRelease }
-            }
-            steps {
-                checkout scm
-                sh 'sbt releaseEarly universal:packageZipTarball'
-                sh "mv target/universal/kg*.tgz ./kg.tgz"
-                sh "oc start-build kg-build --from-file=kg.tgz --follow"
-                sh "oc scale statefulset kg --replicas=0 --namespace=bbp-nexus-dev"
-                sh "oc wait pods/kg-0 --for=delete --namespace=bbp-nexus-dev --timeout=3m"
-                sh "oc scale statefulset kg --replicas=1 --namespace=bbp-nexus-dev"
-                sh "oc wait pods/kg-0 --for condition=ready --namespace=bbp-nexus-dev --timeout=4m"
-            }
-        }
-        stage('Run integration tests') {
-            when {
-                expression { !isPR && !isRelease }
-            }
-            steps {
-                script {
-                    def jobBuild = build job:  'nexus/nexus-tests/master', parameters: [booleanParam(name: 'run', value: true)], wait: true
-                    def jobResult = jobBuild.getResult()
-                    echo "Integration tests of 'nexus-tests' returned result: ${jobResult}"
-
-                    s['nexus-tests']buildResult = jobResult
-
-                    if (jobResult != 'SUCCESS') {
-                        error("nexus-tests failed with result: ${jobResult}")
-                    }
-                }
-            }
-        }
-        stage("Build & Publish Release") {
-            when {
-                expression { isRelease }
-            }
-            steps {
-                checkout scm
-                sh 'sbt releaseEarly universal:packageZipTarball'
-                sh "mv target/universal/kg*.tgz ./kg.tgz"
-                echo "Pushing to internal image registry..."
-                sh "oc start-build kg-build --from-file=kg.tgz --wait"
-                openshiftTag srcStream: 'kg', srcTag: 'latest', destStream: 'kg', destTag: version.substring(1), verbose: 'false'
-                echo "Pushing to Docker Hub..."
-                sh "oc start-build nexus-kg-build --from-file=kg.tgz --wait"
-            }
-        }
-    }
-    post {
-        always {
-            echo "Build results: ${buildResults.toString()}"
-        }
-        success {
-            echo "All builds completed OK"
-        }
-        failure {
-            echo "Job failed"
         }
     }
 }
