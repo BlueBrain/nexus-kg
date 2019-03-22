@@ -60,19 +60,21 @@ object ViewEncoder {
 
   implicit val viewGraphEncoder: GraphEncoder[Id, View] = GraphEncoder {
     case (rootNode, view @ ElasticSearchView(mapping, resSchemas, resTags, includeMeta, sourceAsText, _, _, _, _, _)) =>
-      val triples = view.mainTriples(nxv.ElasticSearchView, nxv.Alpha) ++ view.triplesFor(resSchemas) ++
-        view.triplesFor(includeMeta, sourceAsText, resTags, mapping)
+      val triples = view.mainTriples(nxv.ElasticSearchView) ++ view.triplesFor(resSchemas) ++
+        view.triplesFor(includeMeta, resTags) ++ view.triplesFor(sourceAsText, mapping)
       RootedGraph(rootNode, triples)
 
-    case (rootNode, view: SparqlView) =>
-      RootedGraph(rootNode, view.mainTriples(nxv.SparqlView))
+    case (rootNode, view @ SparqlView(resSchemas, resTags, includeMeta, _, _, _, _, _)) =>
+      val triples = view.mainTriples(nxv.SparqlView) ++ view.triplesFor(resSchemas) ++ view
+        .triplesFor(includeMeta, resTags)
+      RootedGraph(rootNode, triples)
 
     case (rootNode, view: AggregateElasticSearchView[_]) =>
-      val triples = view.mainTriples(nxv.AggregateElasticSearchView, nxv.Alpha) ++ view.triplesForView(refsString(view))
+      val triples = view.mainTriples(nxv.AggregateElasticSearchView) ++ view.triplesForView(refsString(view))
       RootedGraph(rootNode, triples)
 
     case (rootNode, view: AggregateSparqlView[_]) =>
-      val triples = view.mainTriples(nxv.AggregateSparqlView, nxv.Alpha) ++ view.triplesForView(refsString(view))
+      val triples = view.mainTriples(nxv.AggregateSparqlView) ++ view.triplesForView(refsString(view))
       RootedGraph(rootNode, triples)
 
   }
@@ -102,14 +104,13 @@ object ViewEncoder {
         Set[Triple]((s, nxv.views, ss), (ss, nxv.viewId, viewRef.id), (ss, nxv.project, viewRef.project))
       }
 
-    def triplesFor(includeMetadata: Boolean,
-                   sourceAsText: Boolean,
-                   resourceTagOpt: Option[String],
-                   mapping: Json): Set[Triple] = {
-      val triples = Set[Triple]((s, nxv.includeMetadata, includeMetadata),
-                                (s, nxv.sourceAsText, sourceAsText),
-                                (s, nxv.mapping, mapping.noSpaces))
-      resourceTagOpt.map(resourceTag => triples + ((s, nxv.resourceTag, resourceTag))).getOrElse(triples)
+    def triplesFor(includeMetadata: Boolean, resourceTagOpt: Option[String]): Set[Triple] = {
+      val triple: Triple = (s, nxv.includeMetadata, includeMetadata)
+      resourceTagOpt.map(resourceTag => Set[Triple](triple, (s, nxv.resourceTag, resourceTag))).getOrElse(Set(triple))
+    }
+
+    def triplesFor(sourceAsText: Boolean, mapping: Json): Set[Triple] = {
+      Set[Triple]((s, nxv.sourceAsText, sourceAsText), (s, nxv.mapping, mapping.noSpaces))
     }
 
   }

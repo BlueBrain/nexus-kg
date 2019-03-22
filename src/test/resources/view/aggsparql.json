@@ -2,8 +2,7 @@
   "@id": "http://example.com/id",
   "@type": [
     "View",
-    "AggregateSparqlView",
-    "Alpha"
+    "AggregateSparqlView"
   ],
   "views": [
     {

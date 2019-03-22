@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -21,10 +22,9 @@ import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.Json
-import org.mockito.Mockito
 import org.mockito.Mockito._
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}
-import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.duration._
 
@@ -32,7 +32,7 @@ class SparqlIndexerMappingSpec
     extends TestKit(ActorSystem("SparqlIndexerMappingSpec"))
     with WordSpecLike
     with Matchers
-    with MockitoSugar
+    with IdiomaticMockito
     with IOEitherValues
     with IOOptionValues
     with test.Resources
@@ -63,37 +63,82 @@ class SparqlIndexerMappingSpec
       genIri
     )
 
-  private val mapper = new SparqlIndexerMapping(resources)
-
   before {
     Mockito.reset(resources)
   }
 
-  "An Sparql event mapping function" should {
+  "An Sparql event mapping function" when {
 
     val id: ResId = Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
                        url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+
     val schema: Ref           = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
     val json                  = Json.obj("key" -> Json.fromInt(2))
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
     val ev                    = Created(id, schema, Set.empty, json, clock.instant(), Anonymous)
 
-    "return none when the event resource is not found on the resources" in {
-      when(resources.fetch(id)).thenReturn(EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection))
-      mapper(ev).ioValue shouldEqual None
+    "using default view" should {
+
+      val view   = SparqlView(Set.empty, None, true, id.parent, genIri, genUUID, 1L, deprecated = false)
+      val mapper = new SparqlIndexerMapping(view, resources)
+
+      "return none when the event resource is not found on the resources" in {
+        when(resources.fetch(id)).thenReturn(EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection))
+        mapper(ev).ioValue shouldEqual None
+      }
+
+      "return a SparqlWriteQuery" in {
+        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
+        when(resources.fetch(id)).thenReturn(EitherT.rightT[IO, Rejection](res))
+        when(resources.materializeWithMeta(res, selfAsIri = true)).thenReturn(
+          EitherT.rightT[IO, Rejection](
+            ResourceF.simpleV(id,
+                              ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+                              2L,
+                              schema = schema)))
+
+        mapper(ev).some shouldEqual res.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
+      }
     }
 
-    "return a SparqlWriteQuery" in {
-      val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-      when(resources.fetch(id)).thenReturn(EitherT.rightT[IO, Rejection](res))
-      when(resources.materializeWithMeta(res, selfAsIri = true)).thenReturn(
-        EitherT.rightT[IO, Rejection](
-          ResourceF.simpleV(id,
-                            ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
-                            2L,
-                            schema = schema)))
+    "using a view for a specific schema and tag" should {
+      val view = SparqlView(
+        Set(nxv.Resolver.value, nxv.Resource.value),
+        Some("one"),
+        includeMetadata = true,
+        id.parent,
+        nxv.defaultElasticSearchIndex.value,
+        genUUID,
+        1L,
+        deprecated = false
+      )
+      val mapper = new SparqlIndexerMapping(view, resources)
 
-      mapper(ev).some shouldEqual res.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
+      "return none when the resource does not have the valid tag" in {
+        resources.fetch(id, "one") shouldReturn EitherT.leftT[IO, Resource](NotFound(Ref(genIri)): Rejection)
+        mapper(ev).ioValue shouldEqual None
+      }
+
+      "return none when the schema is not on the view" in {
+        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
+        resources.fetch(id, "one") shouldReturn EitherT.rightT[IO, Rejection](res)
+        mapper(ev).ioValue shouldEqual None
+      }
+
+      "return a SparqlWriteQuery" in {
+        val res = ResourceF.simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value)).copy(tags = Map("one" -> 2L))
+        when(resources.fetch(id, "one")).thenReturn(EitherT.rightT[IO, Rejection](res))
+        when(resources.materializeWithMeta(res, selfAsIri = true)).thenReturn(
+          EitherT.rightT[IO, Rejection](
+            ResourceF.simpleV(id,
+                              ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+                              2L,
+                              schema = Ref(nxv.Resource.value))))
+
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
+          id.value.asString + "/graph",
+          Graph())
+      }
     }
   }
 

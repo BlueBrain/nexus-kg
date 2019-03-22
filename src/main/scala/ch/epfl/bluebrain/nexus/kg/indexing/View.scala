@@ -197,9 +197,15 @@ object View {
       // format: on
 
     def sparql(): Either[Rejection, View] =
-      uuidResult
-        .toRejectionOnLeft(res.id.ref)
-        .map(uuid => SparqlView(res.id.parent, res.id.value, uuid, res.rev, res.deprecated))
+      // format: off
+      for {
+        uuid          <- uuidResult.toRejectionOnLeft(res.id.ref)
+        schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
+        tag            = c.downField(nxv.resourceTag).focus.as[String].toOption
+        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
+      } yield
+        SparqlView(schemas, tag, includeMeta, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
+    // format: on
 
     def viewRefs[A: NodeEncoder: Show](cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef[A]]] =
       cursor.foldM(Set.empty[ViewRef[A]]) { (acc, blankC) =>
@@ -233,7 +239,7 @@ object View {
         }
       }
 
-    if (Set(nxv.View.value, nxv.Alpha.value, nxv.ElasticSearchView.value).subsetOf(res.types)) elasticSearch()
+    if (Set(nxv.View.value, nxv.ElasticSearchView.value).subsetOf(res.types)) elasticSearch()
     else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
     else if (Set(nxv.View.value, nxv.AggregateElasticSearchView.value).subsetOf(res.types)) aggregatedEsView()
     else if (Set(nxv.View.value, nxv.AggregateSparqlView.value).subsetOf(res.types)) aggregatedSparqlView()
@@ -245,7 +251,7 @@ object View {
     *
     * @param mapping         the ElasticSearch mapping for the index
     * @param resourceSchemas set of schemas absolute iris used in the view. Indexing will be triggered only for
-    *                        resources validated against any of those schemas
+    *                        resources validated against any of those schemas. When empty, all the schemas are being indexed.
     * @param resourceTag     an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
     * @param includeMetadata flag to include or exclude metadata on the indexed Document
     * @param sourceAsText    flag to include or exclude the source Json as a blob
@@ -316,13 +322,20 @@ object View {
   /**
     * Sparql specific view.
     *
-    * @param ref        a reference to the project that the view belongs to
-    * @param id         the user facing view id
-    * @param uuid       the underlying uuid generated for this view
-    * @param rev        the view revision
-    * @param deprecated the deprecation state of the view
+    * @param resourceSchemas set of schemas absolute iris used in the view. Indexing will be triggered only for
+    *                        resources validated against any of those schemas. When empty, all the schemas are being indexed.
+    * @param resourceTag     an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
+    * @param includeMetadata flag to include or exclude metadata on the index
+    * @param ref             a reference to the project that the view belongs to
+    * @param id              the user facing view id
+    * @param uuid            the underlying uuid generated for this view
+    * @param rev             the view revision
+    * @param deprecated      the deprecation state of the view
     */
   final case class SparqlView(
+      resourceSchemas: Set[AbsoluteIri],
+      resourceTag: Option[String],
+      includeMetadata: Boolean,
       ref: ProjectRef,
       id: AbsoluteIri,
       uuid: UUID,
@@ -347,7 +360,9 @@ object View {
       * @param ref the project unique identifier
       */
     def default(ref: ProjectRef): SparqlView =
-      SparqlView(ref, nxv.defaultSparqlIndex.value, defaultViewId, 1L, deprecated = false)
+      // format: off
+      SparqlView(Set.empty, None, includeMetadata = true, ref, nxv.defaultSparqlIndex.value, defaultViewId, 1L, deprecated = false)
+      // format: on
 
   }
 

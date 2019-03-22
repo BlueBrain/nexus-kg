@@ -2,8 +2,7 @@
   "@id": "http://example.com/id",
   "@type": [
     "View",
-    "ElasticSearchView",
-    "Alpha"
+    "ElasticSearchView"
   ],
   "resourceSchemas": [
     "nxv:Schema",

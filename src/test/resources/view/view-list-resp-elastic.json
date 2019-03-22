@@ -10,8 +10,7 @@
       "@id": "http://example.com/id",
       "@type": [
         "View",
-        "ElasticSearchView",
-        "Alpha"
+        "ElasticSearchView"
       ],
       "mapping": {
         "properties": {

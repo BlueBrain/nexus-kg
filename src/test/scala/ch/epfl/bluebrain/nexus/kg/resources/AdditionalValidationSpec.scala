@@ -153,7 +153,7 @@ class AdditionalValidationSpec
       val elasticSearchView    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
       val aggElasticSearchView = jsonContentOf("/view/aggelasticview.json").appendContextOf(viewCtx)
       val sparqlView           = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-      val types                = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView, nxv.Alpha)
+      val types                = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView)
       val mappings             = elasticSearchView.hcursor.get[String]("mapping").flatMap(parse).right.value
       def index(rev: Long)     = s"kg_${projectRef.id}_3aa14a1a-81e7-4147-8306-136d8270bb01_$rev"
 
@@ -206,7 +206,7 @@ class AdditionalValidationSpec
       }
 
       "fail when project not found in cache for a AggregateElasticSearchView" in {
-        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
+        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView)
 
         projectCache.getProjectRefs(labels) shouldReturn IO.pure(Map[ProjectLabel, Option[ProjectRef]](label1 -> None))
 
@@ -216,7 +216,7 @@ class AdditionalValidationSpec
       }
 
       "fail when view cannot be found on cache using AggregateElasticSearchView" in {
-        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
+        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView)
 
         val id2 = url"http://example.com/id3"
         val id3 = url"http://example.com/other"
@@ -230,7 +230,7 @@ class AdditionalValidationSpec
       }
 
       "fail no permissions found on project referenced on AggregateElasticSearchView" in {
-        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
+        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView)
 
         val aclsWrongPerms =
           List(
@@ -251,7 +251,7 @@ class AdditionalValidationSpec
       }
 
       "pass when correct AggregateElasticSearchView" in {
-        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView, nxv.Alpha)
+        val types = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView)
 
         val id1 = url"http://example.com/id2"
         val id2 = url"http://example.com/id3"
@@ -270,7 +270,7 @@ class AdditionalValidationSpec
 
       "pass when it is an SparqlView" in {
         val validation = AdditionalValidation.view[IO](matchingCaller, acls)
-        val types      = Set[AbsoluteIri](nxv.SparqlView.value, nxv.View, nxv.Alpha)
+        val types      = Set[AbsoluteIri](nxv.SparqlView.value, nxv.View)
         val resource   = simpleV(id, sparqlView, types = types)
 
         validation(id, schema, types, resource.value, 1L).value.accepted shouldEqual resource.value
