@@ -1,8 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 
+import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
@@ -188,9 +188,9 @@ class RepoSpec
       val source      = "some text"
       val desc2       = FileDescription("name2", "text/plain")
       val source2     = "some text2"
-      val relative    = Paths.get("./other")
-      val attributes  = desc.process(StoredSummary(relative.toString, 20L, Digest("MD5", "1234")))
-      val attributes2 = desc2.process(StoredSummary(relative.toString, 30L, Digest("MD5", "4567")))
+      val location    = Uri("file:///tmp/other")
+      val attributes  = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
+      val attributes2 = desc2.process(StoredSummary(location, 30L, Digest("MD5", "4567")))
 
       "create file resource" in new File {
         when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
@@ -310,13 +310,13 @@ class RepoSpec
     }
 
     "performing get file operations" should {
-      val relative    = Paths.get("./other")
+      val location    = Uri("file:///tmp/other")
       val desc        = FileDescription("name", "text/plain")
       val source      = "some text"
-      val attributes  = desc.process(StoredSummary(relative.toString, 20L, Digest("MD5", "1234")))
+      val attributes  = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
       val desc2       = FileDescription("name2", "text/plain")
       val source2     = "some text2"
-      val attributes2 = desc2.process(StoredSummary(relative.toString, 30L, Digest("MD5", "4567")))
+      val attributes2 = desc2.process(StoredSummary(location, 30L, Digest("MD5", "4567")))
 
       "get a file resource" in new File {
         when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))

@@ -1,8 +1,8 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 
+import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
@@ -154,8 +154,8 @@ class ResourcesSpec
     val types      = Set[AbsoluteIri](nxv.File)
     val desc       = FileDescription("name", "text/plain")
     val source     = "some text"
-    val relative   = Paths.get("./other")
-    val attributes = desc.process(StoredSummary(relative.toString, 20L, Digest("MD5", "1234")))
+    val location   = Uri("file:///tmp/other")
+    val attributes = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
     val storage    = DiskStorage.default(projectRef)
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException

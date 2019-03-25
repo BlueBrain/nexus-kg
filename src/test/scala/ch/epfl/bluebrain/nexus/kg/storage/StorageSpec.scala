@@ -29,10 +29,10 @@ class StorageSpec
     with Inspectors
     with CirceEq {
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  val readDisk               = Permission.unsafe("disk-read")
-  val writeDisk              = Permission.unsafe("disk-write")
-  val readS3                 = Permission.unsafe("s3-read")
-  val writeS3                = Permission.unsafe("s3-write")
+  val readDisk               = Permission.unsafe("disk/read")
+  val writeDisk              = Permission.unsafe("disk/write")
+  val readS3                 = Permission.unsafe("s3/read")
+  val writeS3                = Permission.unsafe("s3/write")
   private implicit val storageConfig =
     StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk),
                   S3StorageConfig("MD5", readS3, writeS3))

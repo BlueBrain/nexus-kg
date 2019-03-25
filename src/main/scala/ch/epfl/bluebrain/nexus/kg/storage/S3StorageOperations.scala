@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
+import java.net.URLDecoder
 import java.util.NoSuchElementException
 
 import akka.actor.ActorSystem
@@ -48,7 +49,7 @@ object S3StorageOperations {
 
     private def getKey(path: Path): Option[String] = path match {
       case Slash(Segment(head, Slash(tail))) if head == storage.bucket =>
-        Some(tail.toString)
+        Some(URLDecoder.decode(tail.toString, "UTF-8"))
       case _ =>
         logger.error(s"Error decoding key from S3 object URI '$path' in bucket '${storage.bucket}'")
         None
@@ -103,17 +104,12 @@ object S3StorageOperations {
             digFuture.zipWith(ioFuture) {
               case (dig, io) =>
                 val digest = Digest(dig.getAlgorithm, dig.digest.map("%02x".format(_)).mkString)
-                if (digest.value == io.etag) {
-                  metaDataSource.runWith(Sink.head).flatMap {
-                    case Some(meta) =>
-                      Future.successful(fileDesc.process(StoredSummary(io.location, meta.contentLength, digest)))
-                    case None =>
-                      Future.failed(KgError.InternalError(
-                        s"Empty content fetching metadata for uploaded file '${fileDesc.filename}' to location '${io.location}'"))
-                  }
-                } else {
-                  Future.failed(KgError.InternalError(
-                    s"Digest for uploaded file '${fileDesc.filename}' to location '${io.location}' doesn't match computed value."))
+                metaDataSource.runWith(Sink.head).flatMap {
+                  case Some(meta) =>
+                    Future.successful(fileDesc.process(StoredSummary(io.location, meta.contentLength, digest)))
+                  case None =>
+                    Future.failed(KgError.InternalError(
+                      s"Empty content fetching metadata for uploaded file '${fileDesc.filename}' to location '${io.location}'"))
                 }
               case _ =>
                 Future.failed(KgError.InternalError(
