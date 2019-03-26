@@ -14,8 +14,8 @@
         "Storage"
       ],
       "default": true,
-      "readPermission": "s3-read",
-      "writePermission": "s3-write",
+      "readPermission": "s3/read",
+      "writePermission": "s3/write",
       "bucket": "bucket",
       "region": "region",
       "endpoint": "endpoint",

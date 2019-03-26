@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
-import java.nio.charset.StandardCharsets
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
 import java.util.UUID
 
@@ -16,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.DownstreamServiceError
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Settings, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials}
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
@@ -117,7 +118,7 @@ class S3StorageOperationsSpec
       attr.digest shouldEqual Digest("MD5", "c322c0eaa0031ed8b22cd5bc21a8e79f")
 
       val download =
-        fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(StandardCharsets.UTF_8)
+        fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
       download shouldEqual contentOf(filePath)
 
       // bucket has one object
@@ -194,6 +195,66 @@ class S3StorageOperationsSpec
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       verify.apply.ioValue shouldEqual Right(())
+    }
+
+    "save and fetch files in AWS" ignore {
+      keys.foreach(System.clearProperty)
+
+      val ak = "accesskey"
+      val sk = "secretkey"
+
+      val base       = url"https://nexus.example.com/".value
+      val projectId  = base + "org" + "proj"
+      val projectRef = ProjectRef(UUID.randomUUID)
+      val storage =
+        S3Storage(
+          projectRef,
+          projectId,
+          1L,
+          deprecated = false,
+          default = true,
+          "MD5",
+          "bbp-nexus-storage",
+          S3Settings(Some(S3Credentials(ak, sk)), None, Some("eu-central-1")),
+          readS3,
+          writeS3
+        )
+
+      val verify = new S3StorageOperations.Verify[IO](storage)
+      val save   = new S3StorageOperations.Save[IO](storage)
+      val fetch  = new S3StorageOperations.Fetch[IO](storage)
+
+      // bucket is empty
+      verify.apply.ioValue shouldEqual Right(())
+
+      val resid    = Id(projectRef, base + "files" + "id")
+      val fileUuid = UUID.randomUUID
+      val desc     = FileDescription(fileUuid, "s3.json", "text/plain")
+      val filePath = "/storage/s3.json"
+      val path     = Paths.get(getClass.getResource(filePath).toURI)
+      val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
+
+      attr.location shouldEqual Uri(
+        s"https://s3-eu-central-1.amazonaws.com/bbp-nexus-storage/${URLEncoder.encode(mangle(projectRef, fileUuid), "UTF-8")}")
+      attr.mediaType shouldEqual "text/plain"
+      attr.bytes shouldEqual 323L
+      attr.filename shouldEqual "s3.json"
+      attr.digest shouldEqual Digest("MD5", "c322c0eaa0031ed8b22cd5bc21a8e79f")
+
+      val download =
+        fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
+      download shouldEqual contentOf(filePath)
+
+      // bucket has one object
+      verify.apply.ioValue shouldEqual Right(())
+
+      val randomUuid = UUID.randomUUID
+      val inexistent = fetch(
+        attr.copy(uuid = randomUuid,
+                  location =
+                    Uri(s"https://s3-eu-central-1.amazonaws.com/bbp-nexus-storage/${mangle(projectRef, randomUuid)}")))
+        .failed[KgError.InternalError]
+      inexistent.msg shouldEqual s"Empty content fetching S3 object with key '${mangle(projectRef, randomUuid)}' in bucket 'bbp-nexus-storage'"
     }
   }
 
