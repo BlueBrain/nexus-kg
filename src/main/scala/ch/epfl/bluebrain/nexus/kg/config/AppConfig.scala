@@ -15,12 +15,14 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.storage.Crypto
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.sourcing.IndexingConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka._
 import io.circe.Json
+import javax.crypto.SecretKey
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -134,10 +136,14 @@ object AppConfig {
   /**
     * Storage configuration for the allowed storages
     *
-    * @param disk   the disk storage configuration
-    * @param amazon the amazon S3 storage configuration
+    * @param disk     the disk storage configuration
+    * @param amazon   the amazon S3 storage configuration
+    * @param password the password used to encrypt credentials at rest
+    * @param salt     the associated salt
     */
-  final case class StorageConfig(disk: DiskStorageConfig, amazon: S3StorageConfig)
+  final case class StorageConfig(disk: DiskStorageConfig, amazon: S3StorageConfig, password: String, salt: String) {
+    val derivedKey: SecretKey = Crypto.deriveKey(password, salt)
+  }
 
   /**
     * Amazon S3 storage configuration
@@ -286,10 +292,9 @@ object AppConfig {
   implicit def toIam(implicit appConfig: AppConfig): IamConfig                     = appConfig.iam
   implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig         = appConfig.iam.iamClient
   implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig           = appConfig.admin
-  implicit def toSourcingConfing(implicit appConfig: AppConfig): SourcingConfig    = appConfig.sourcing
-  implicit def toStoreConfing(implicit appConfig: AppConfig): StoreConfig          = appConfig.keyValueStore
-  implicit def toKeyValueStoreConfing(implicit appConfig: AppConfig): KeyValueStoreConfig =
-    appConfig.keyValueStore.keyValueStoreConfig
-  implicit def toStorageConfig(implicit appConfig: AppConfig): StorageConfig = appConfig.storage
+  implicit def toSourcing(implicit appConfig: AppConfig): SourcingConfig           = appConfig.sourcing
+  implicit def toStore(implicit appConfig: AppConfig): StoreConfig                 = appConfig.keyValueStore
+  implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig           = appConfig.keyValueStore.keyValueStoreConfig
+  implicit def toStorage(implicit appConfig: AppConfig): StorageConfig             = appConfig.storage
 
 }

@@ -25,6 +25,7 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.amazonaws.auth._
 import com.amazonaws.regions.AwsRegionProvider
+import javax.crypto.SecretKey
 
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -186,12 +187,15 @@ object Storage {
   final case class S3Settings(credentials: Option[S3Credentials], endpoint: Option[String], region: Option[String]) {
 
     /**
+      * @param aesKey the AES key to decrypt credentials
+      *
       * @return these settings converted to an instance of [[akka.stream.alpakka.s3.S3Settings]]
       */
-    def toAlpakka: s3.S3Settings = {
+    def toAlpakka(aesKey: SecretKey): s3.S3Settings = {
       val credsProvider = credentials match {
         case Some(S3Credentials(accessKey, secretKey)) =>
-          new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey))
+          new AWSStaticCredentialsProvider(
+            new BasicAWSCredentials(Crypto.decrypt(aesKey, accessKey), Crypto.decrypt(aesKey, secretKey)))
         case None => new AWSStaticCredentialsProvider(new AnonymousAWSCredentials)
       }
 
@@ -261,7 +265,7 @@ object Storage {
     */
   final def apply(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, Storage] = {
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage(res)
-    else if (Set(nxv.Storage.value, nxv.Alpha.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res)
+    else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res)
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the storage types"))
   }
 
@@ -376,7 +380,7 @@ object Storage {
     }
 
     object Verify {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Verify[F] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Verify[F] = {
         case s: DiskStorage => new DiskStorageOperations.VerifyDiskStorage[F](s)
         case s: S3Storage   => new S3StorageOperations.Verify[F](s)
       }
@@ -393,7 +397,7 @@ object Storage {
     }
 
     object Fetch {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Fetch[F, AkkaSource] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Fetch[F, AkkaSource] = {
         case _: DiskStorage => new DiskStorageOperations.FetchDiskFile[F]
         case s: S3Storage   => new S3StorageOperations.Fetch(s)
       }
@@ -410,7 +414,7 @@ object Storage {
     }
 
     object Save {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Save[F, AkkaSource] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Save[F, AkkaSource] = {
         case s: DiskStorage => new DiskStorageOperations.SaveDiskFile(s)
         case s: S3Storage   => new S3StorageOperations.Save(s)
       }

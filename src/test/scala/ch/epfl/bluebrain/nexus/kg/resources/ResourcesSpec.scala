@@ -139,7 +139,7 @@ class ResourcesSpec
     val diskStorage = storageFrom(jsonContentOf("/storage/disk.json"))
     val types       = Set[AbsoluteIri](nxv.Storage, nxv.DiskStorage)
     val s3Storage   = storageFrom(jsonContentOf("/storage/s3.json"))
-    val typesUpdate = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage, nxv.Alpha)
+    val typesUpdate = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
   }
 
   trait ResolverSchema extends Base {

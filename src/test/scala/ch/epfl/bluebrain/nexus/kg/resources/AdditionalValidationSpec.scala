@@ -61,8 +61,11 @@ class AdditionalValidationSpec
   private implicit val projectCache: ProjectCache[IO]         = mock[ProjectCache[IO]]
   private implicit val viewCache: ViewCache[IO]               = mock[ViewCache[IO]]
   private val storageConfig =
-    StorageConfig(DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write), S3StorageConfig("MD5", read, write))
-  val appConfig = Settings(system).appConfig.copy(storage = storageConfig)
+    StorageConfig(DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write),
+                  S3StorageConfig("MD5", read, write),
+                  "password",
+                  "salt")
+  private val appConfig = Settings(system).appConfig.copy(storage = storageConfig)
   private implicit val config =
     appConfig.copy(elasticSearch = appConfig.elasticSearch.copy("http://localhost", "kg", "doc", "default"))
 
@@ -324,7 +327,7 @@ class AdditionalValidationSpec
     "applied to S3 storages" should {
       val schema    = Ref(storageSchemaUri)
       val s3storage = jsonContentOf("/storage/s3.json").appendContextOf(storageCtx)
-      val types     = Set[AbsoluteIri](nxv.S3Storage, nxv.Storage, nxv.Alpha)
+      val types     = Set[AbsoluteIri](nxv.S3Storage, nxv.Storage)
 
       "fail when verification fails" in {
         implicit val verify: Verify[IO] = new Verify[IO] {

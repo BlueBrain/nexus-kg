@@ -58,7 +58,7 @@ object Routes {
         complete(AuthorizationFailed: KgError)
       case err: NotFound =>
         // suppress errors for not found
-        complete((err: KgError))
+        complete(err: KgError)
       case AuthenticationFailed =>
         // suppress errors for authentication failures
         val status = KgError.kgErrorStatusFrom(AuthenticationFailed)
@@ -101,10 +101,10 @@ object Routes {
     * @return a complete RejectionHandler for all library and code rejections
     */
   final val rejectionHandler: RejectionHandler = {
-    val custom = RejectionHandling.apply({ r: Rejection =>
+    val custom = RejectionHandling.apply { r: Rejection =>
       logger.debug(s"Handling rejection '$r'")
       r
-    })
+    }
     corsRejectionHandler withFallback custom withFallback RejectionHandling.notFound withFallback RejectionHandler.default
   }
 

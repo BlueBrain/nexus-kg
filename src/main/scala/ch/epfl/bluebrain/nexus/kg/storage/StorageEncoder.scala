@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.storage
 
 import cats.Id
 import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder
@@ -24,38 +25,52 @@ object StorageEncoder {
 
   implicit val storageRootNode: RootNode[Storage] = s => IriNode(s.id)
 
-  def json(qrsResolvers: QueryResults[Storage])(implicit enc: GraphEncoder[EncoderResult, QueryResults[Storage]],
-                                                node: RootNode[QueryResults[Storage]]): DecoderResult[Json] =
-    QueryResultEncoder.json(qrsResolvers, storageCtx mergeContext resourceCtx).map(_ addContext storageCtxUri)
-
-  //TODO: Check if we want to allow everyone to see the volume or we protect it using permissions
-  implicit val storageGraphEncoder: GraphEncoder[Id, Storage] = GraphEncoder {
+  private def storageGraphEncoder(includeCredentials: Boolean)(
+      implicit config: StorageConfig): GraphEncoder[Id, Storage] = GraphEncoder {
     case (rootNode, storage: DiskStorage) =>
       val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.DiskStorage),
                                                         (storage.id, nxv.volume, storage.volume.toString))
       RootedGraph(rootNode, triples)
     case (rootNode, storage: S3Storage) =>
-      val main = mainTriples(storage)
-      val triples = Set[Triple]((storage.id, rdf.tpe, nxv.S3Storage),
-                                (storage.id, rdf.tpe, nxv.Alpha),
-                                (storage.id, nxv.bucket, storage.bucket))
+      val main    = mainTriples(storage)
+      val triples = Set[Triple]((storage.id, rdf.tpe, nxv.S3Storage), (storage.id, nxv.bucket, storage.bucket))
       val region = storage.settings.region
         .map(region => (IriNode(storage.id), IriNode(nxv.region), Node.literal(region)))
         .toSet[Triple]
       val endpoint = storage.settings.endpoint
         .map(endpoint => (IriNode(storage.id), IriNode(nxv.endpoint), Node.literal(endpoint)))
         .toSet[Triple]
-      RootedGraph(rootNode, main ++ triples ++ region ++ endpoint)
+      if (includeCredentials) {
+        val credentials = storage.settings.credentials match {
+          case Some(creds) =>
+            Set[Triple](
+              (storage.id, nxv.accessKey, Crypto.encrypt(config.derivedKey, creds.accessKey)),
+              (storage.id, nxv.secretKey, Crypto.encrypt(config.derivedKey, creds.secretKey))
+            )
+          case None => Set.empty[Triple]
+        }
+        RootedGraph(rootNode, main ++ triples ++ region ++ endpoint ++ credentials)
+      } else {
+        RootedGraph(rootNode, main ++ triples ++ region ++ endpoint)
+      }
   }
 
-  implicit val storageGraphEncoderEither: GraphEncoder[EncoderResult, Storage] = storageGraphEncoder.toEither
+  implicit def storageGraphEncoderWithCredentials(implicit config: StorageConfig): GraphEncoder[Id, Storage] =
+    storageGraphEncoder(includeCredentials = true)
 
-  implicit def qqStorageEncoder: GraphEncoder[Id, QueryResult[Storage]] =
+  implicit def storageGraphEncoderEither(implicit config: StorageConfig): GraphEncoder[EncoderResult, Storage] =
+    storageGraphEncoder(includeCredentials = true).toEither
+
+  implicit def qqStorageEncoder(implicit config: StorageConfig): GraphEncoder[Id, QueryResult[Storage]] =
     GraphEncoder { (rootNode, res) =>
-      storageGraphEncoder(rootNode, res.source)
+      storageGraphEncoder(includeCredentials = false)(config)(rootNode, res.source)
     }
 
-  def mainTriples(storage: Storage): Set[Triple] = {
+  def json(qrsResolvers: QueryResults[Storage])(implicit enc: GraphEncoder[EncoderResult, QueryResults[Storage]],
+                                                node: RootNode[QueryResults[Storage]]): DecoderResult[Json] =
+    QueryResultEncoder.json(qrsResolvers, storageCtx mergeContext resourceCtx).map(_ addContext storageCtxUri)
+
+  private def mainTriples(storage: Storage): Set[Triple] = {
     val s = IriNode(storage.id)
     Set(
       (s, rdf.tpe, nxv.Storage),

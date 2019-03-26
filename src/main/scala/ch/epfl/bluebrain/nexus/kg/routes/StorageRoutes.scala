@@ -9,8 +9,11 @@ import ch.epfl.bluebrain.nexus.kg.cache.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives.IdSegment
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
+import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import monix.eval.Task
@@ -41,5 +44,13 @@ class StorageRoutes private[routes] (resources: Resources[Task], acls: AccessCon
 
   override def transform(json: Json): Json =
     json.addContext(storageCtxUri)
+
+  override def transform(r: ResourceV): Task[ResourceV] = Task.pure {
+    r.map { value =>
+      val filter = Set[IriNode](nxv.accessKey, nxv.secretKey)
+      val graph  = value.graph.remove(p = filter.contains)
+      value.copy(graph = RootedGraph(value.graph.rootNode, graph))
+    }
+  }
 
 }
