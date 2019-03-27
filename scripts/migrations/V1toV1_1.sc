@@ -40,7 +40,7 @@ root.setLevel(Level.INFO)
     implicit val session = Cluster.builder
       .addContactPoint(cassandraContactPoint)
       .withPort(cassandraPort)
-      .withCredentials("", "")
+      .withCredentials(cassandraUsername, cassandraPassword)
       .build
       .connect()
 
