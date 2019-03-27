@@ -146,7 +146,10 @@ object syntax {
       * @param ref the reference to the resource
       */
     def toRejectionOnLeft(ref: Ref): Either[Rejection, A] =
-      enc.left.map(err =>
-        InvalidResourceFormat(ref, s"The provided payload could not be mapped to a view due to '${err.message}'"))
+      enc.left.map(
+        err =>
+          InvalidResourceFormat(
+            ref,
+            s"The provided payload could not be mapped to the targeted resource due to '${err.message}'"))
   }
 }

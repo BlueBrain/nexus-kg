@@ -21,8 +21,8 @@ import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
-import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, Repo, Resources}
+import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution}
+import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.routes.{Clients, Routes}
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import com.github.jsonldjava.core.DocumentLoader
@@ -98,9 +98,20 @@ object Main {
     implicit val indexers = clients
     implicit val cache =
       Caches(ProjectCache[Task], ViewCache[Task], ResolverCache[Task], StorageCache[Task])
-    implicit val aclCache          = AclsCache[Task](clients.iamClient)
-    implicit val projectResolution = ProjectResolution.task(cache.resolver, cache.project, aclCache)
+    implicit val aclCache                         = AclsCache[Task](clients.iamClient)
+    implicit val projectResolution                = ProjectResolution.task(cache.resolver, cache.project, aclCache)
+    implicit val materializer: Materializer[Task] = new Materializer[Task](repo, projectResolution)
+    implicit val projectCache                     = cache.project
+    implicit val viewCache                        = cache.view
+    import indexers.elasticSearch
+
     val resources: Resources[Task] = Resources[Task]
+    val storages: Storages[Task]   = Storages[Task]
+    val files: Files[Task]         = Files[Task]
+    val views: Views[Task]         = Views[Task]
+    val resolvers: Resolvers[Task] = Resolvers[Task]
+    val schemas: Schemas[Task]     = Schemas[Task]
+    val tags: Tags[Task]           = Tags[Task]
 
     implicit val projections: Projections[Task, Event] = {
       import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
@@ -113,8 +124,8 @@ object Main {
     cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
 
-      val projectCoordinator = Indexing.start(resources, indexers.adminClient)
-      val routes: Route      = Routes(resources, projectCoordinator)
+      val projectCoordinator = Indexing.start(resources, storages, views, resolvers, indexers.adminClient)
+      val routes: Route      = Routes(resources, resolvers, views, storages, schemas, files, tags, projectCoordinator)
 
       val httpBinding = {
         Http().bindAndHandle(routes, appConfig.http.interface, appConfig.http.port)

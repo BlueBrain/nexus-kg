@@ -11,18 +11,16 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.async._
-import ch.epfl.bluebrain.nexus.kg.cache._
-import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
+import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
@@ -47,15 +45,14 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 // $COVERAGE-OFF$
-private class Indexing(resources: Resources[Task],
-                       adminClient: AdminClient[Task],
-                       coordinator: ProjectViewCoordinator[Task])(implicit cache: Caches[Task],
-                                                                  config: AppConfig,
-                                                                  as: ActorSystem,
-                                                                  elasticSearch: ElasticSearchClient[Task]) {
+private class Indexing(
+    storages: Storages[Task],
+    views: Views[Task],
+    resolvers: Resolvers[Task],
+    adminClient: AdminClient[Task],
+    coordinator: ProjectViewCoordinator[Task])(implicit cache: Caches[Task], config: AppConfig, as: ActorSystem) {
 
-  private val logger                                          = Logger[this.type]
-  private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
+  private val logger = Logger[this.type]
   private implicit val retry: Retry[Task, KgError] =
     Retry[Task, KgError](config.keyValueStore.indexing.retry.retryStrategy)
 
@@ -94,37 +91,31 @@ private class Indexing(resources: Resources[Task],
     case Right(value)                        => Right(value)
   }
 
-  private def createElasticSearchView(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
-    val view = ElasticSearchView.default(project.ref)
+  private def createElasticSearchView(implicit project: Project, c: Caller): Task[Either[Rejection, Resource]] = {
+    implicit val acls: AccessControlLists = AccessControlLists.empty
+    val view: View                        = ElasticSearchView.default(project.ref)
     asJson(view).flatMap { json =>
-      view
-        .createIndex[Task]
-        .recover {
-          case err =>
-            logger.error("There was a problem while creating index for default ElasticSearch view", err)
-            ()
-        } >> resources
-        .create(Id(project.ref, view.id), viewRef, json)
-        .value
-        .mapRetry(createdOrExists,
-                  InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError)
-
+      val created = views.create(Id(project.ref, view.id), json).value
+      created.mapRetry(
+        createdOrExists,
+        InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError)
     }
   }
 
-  private def createSparqlView(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
-    val view: View = SparqlView.default(project.ref)
+  private def createSparqlView(implicit project: Project, c: Caller): Task[Either[Rejection, Resource]] = {
+    implicit val acls: AccessControlLists = AccessControlLists.empty
+    val view: View                        = SparqlView.default(project.ref)
     asJson(view).flatMap { json =>
-      val created = resources.create(Id(project.ref, view.id), viewRef, json).value
+      val created = views.create(Id(project.ref, view.id), json).value
       created.mapRetry(createdOrExists,
                        InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError)
     }
   }
 
-  private def createResolver(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
+  private def createResolver(implicit project: Project, c: Caller): Task[Either[Rejection, Resource]] = {
     val resolver: Resolver = InProjectResolver.default(project.ref)
     asJson(resolver).flatMap { json =>
-      val created = resources.create(Id(project.ref, resolver.id), resolverRef, json).value
+      val created = resolvers.create(Id(project.ref, resolver.id), json).value
       created.mapRetry(
         createdOrExists,
         InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError)
@@ -134,7 +125,7 @@ private class Indexing(resources: Resources[Task],
   private def createDiskStorage(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
     val storage: Storage = DiskStorage.default(project.ref)
     asJson(storage).flatMap { json =>
-      val created = resources.create(Id(project.ref, storage.id), storageRef, json).value
+      val created = storages.create(Id(project.ref, storage.id), json).value
       created.mapRetry(createdOrExists,
                        InternalError(s"Couldn't create default DiskStorage for project '${project.ref}'"): KgError)
     }
@@ -154,7 +145,7 @@ private class Indexing(resources: Resources[Task],
           // format: off
           implicit val project: Project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
-          implicit val s: Identity.Subject = subject
+          implicit val caller: Caller = Caller(subject, Set(subject))
           for {
             _ <- cache.project.replace(project)
             _ <- coordinator.start(project)
@@ -179,17 +170,17 @@ private class Indexing(resources: Resources[Task],
   }
 
   def startResolverStream(): Unit = {
-    ResolverIndexer.start(resources, cache.resolver)
+    ResolverIndexer.start(resolvers, cache.resolver)
     ()
   }
 
   def startViewStream(): Unit = {
-    ViewIndexer.start(resources, cache.view)
+    ViewIndexer.start(views, cache.view)
     ()
   }
 
   def startStorageStream(): Unit = {
-    StorageIndexer.start(resources, cache.storage)
+    StorageIndexer.start(storages, cache.storage)
     ()
   }
 }
@@ -199,21 +190,28 @@ object Indexing {
   /**
     * Starts all indexing streams:
     * <ul>
-    *   <li>Views</li>
-    *   <li>Projects</li>
-    *   <li>Accounts</li>
-    *   <li>Resolvers</li>
+    * <li>Views</li>
+    * <li>Projects</li>
+    * <li>Accounts</li>
+    * <li>Resolvers</li>
     * </ul>
     *
     * @param resources the resources operations
+    * @param storages  the storages operations
+    * @param views     the views operations
+    * @param resolvers the resolvers operations
     * @param cache     the distributed cache
     */
-  def start(resources: Resources[Task], adminClient: AdminClient[Task])(
-      implicit cache: Caches[Task],
-      config: AppConfig,
-      as: ActorSystem,
-      projections: Projections[Task, Event],
-      ucl: HttpClient[Task, SparqlResults]): ProjectViewCoordinator[Task] = {
+  def start(resources: Resources[Task],
+            storages: Storages[Task],
+            views: Views[Task],
+            resolvers: Resolvers[Task],
+            adminClient: AdminClient[Task])(implicit cache: Caches[Task],
+                                            config: AppConfig,
+                                            as: ActorSystem,
+    projections: Projections[Task, Event],
+
+    ucl: HttpClient[Task, SparqlResults]): ProjectViewCoordinator[Task] = {
     implicit val mt: ActorMaterializer                          = ActorMaterializer()
     implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]
     implicit val elasticSearchClient: ElasticSearchClient[Task] = ElasticSearchClient[Task](config.elasticSearch.base)
@@ -221,7 +219,7 @@ object Indexing {
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)
 
-    val indexing = new Indexing(resources, adminClient, coordinator)
+    val indexing = new Indexing(storages, views, resolvers, adminClient, coordinator)
     indexing.startAdminStream()
     indexing.startResolverStream()
     indexing.startViewStream()

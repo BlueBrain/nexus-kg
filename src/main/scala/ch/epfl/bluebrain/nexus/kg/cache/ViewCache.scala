@@ -9,7 +9,9 @@ import cats.effect.{Async, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig, OnKeyValueStoreChange}
 import ch.epfl.bluebrain.nexus.kg.cache.Cache._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import shapeless.{TypeCase, Typeable}
@@ -26,6 +28,14 @@ class ViewCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, Vi
     */
   def get(ref: ProjectRef): F[Set[View]] =
     getOrCreate(ref).get
+
+  /**
+    * Fetches the default Elastic Search view for the provided project.
+    *
+    * @param ref the project unique reference
+    */
+  def getDefaultElasticSearch(ref: ProjectRef): F[Option[ElasticSearchView]] =
+    getBy[ElasticSearchView](ref, nxv.defaultElasticSearchIndex.value)
 
   /**
     * Fetches views filtered by type for the provided project.

@@ -29,20 +29,20 @@ class ProjectResolution[F[_]](resolverCache: ResolverCache[F],
     * Looks up the collection of defined resolvers for the argument project
     * and generates an aggregated [[Resolution]] out of them.
     *
-    * @param ref       the project reference
-    * @param resources the resource operations
+    * @param ref  the project reference
+    * @param repo the resource repository
     * @return a new [[Resolution]] which is composed by all the resolutions generated from
     *         the resolvers found for the given ''projectRef''
     */
-  def apply(ref: ProjectRef)(resources: Resources[F]): Resolution[F] =
+  def apply(ref: ProjectRef)(repo: Repo[F]): Resolution[F] =
     new Resolution[F] {
 
       def resolverResolution(resolver: Resolver): F[Resolution[F]] =
         resolver match {
-          case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, resources))
+          case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, repo))
           case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _) =>
             aclCache.list.map(
-              MultiProjectResolution(resources, F.pure(projects), r.resourceTypes, r.identities, projectCache, _))
+              MultiProjectResolution(repo, F.pure(projects), r.resourceTypes, r.identities, projectCache, _))
         }
 
       private val resolution = resolverCache.get(ref).flatMap {

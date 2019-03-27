@@ -39,23 +39,23 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     * @param event event to be mapped to a Elastic Search insert query
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
-    view.resourceTag.map(resources.fetch(event.id, _)).getOrElse(resources.fetch(event.id)).value.map {
+    view.resourceTag.map(resources.fetch(event.id, _, false)).getOrElse(resources.fetch(event.id, false)).value.map {
       case Right(resource) if validCandidate(resource) => transformAndIndex(resource).map(event.id -> _)
       case _                                           => None
     }
 
-  private def validCandidate(resource: Resource): Boolean =
+  private def validCandidate(resource: ResourceV): Boolean =
     view.resourceSchemas.isEmpty || view.resourceSchemas.contains(resource.schema.iri)
 
-  private def transformAndIndex(res: Resource): Option[BulkOp] = {
+  private def transformAndIndex(res: ResourceV): Option[BulkOp] = {
     val rootNode = IriNode(res.id.value)
 
     def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
 
     val transformed: DecoderResult[Json] = {
       val metaGraph = if (view.includeMetadata) Graph(res.metadata()) else Graph()
-      if (view.sourceAsText) asJson(metaGraph.add(rootNode, nxv.originalSource, res.value.noSpaces))
-      else asJson(metaGraph).map(metaJson => res.value deepMerge metaJson)
+      if (view.sourceAsText) asJson(metaGraph.add(rootNode, nxv.originalSource, res.value.source.noSpaces))
+      else asJson(metaGraph).map(metaJson => res.value.source deepMerge metaJson)
     }
     transformed match {
       case Left(err) =>

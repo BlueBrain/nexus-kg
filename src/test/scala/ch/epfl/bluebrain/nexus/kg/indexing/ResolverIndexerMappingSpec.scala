@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.resolverCtx
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -17,7 +18,6 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -43,12 +43,12 @@ class ResolverIndexerMappingSpec
   private implicit val indexingConfig     = appConfig.keyValueStore.indexing
   private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
 
-  private val resources             = mock[Resources[IO]]
+  private val resolvers             = mock[Resolvers[IO]]
   private implicit val projectCache = mock[ProjectCache[IO]]
-  private val mapper                = new ResolverIndexerMapping(resources)
+  private val mapper                = new ResolverIndexerMapping(resolvers)
 
   before {
-    Mockito.reset(resources)
+    Mockito.reset(resolvers)
     Mockito.reset(projectCache)
   }
 
@@ -60,52 +60,41 @@ class ResolverIndexerMappingSpec
     val subject               = base + "anonymous"
     val projectRef            = ProjectRef(genUUID)
     val id                    = Id(projectRef, iri)
-    val project = Project(id.value,
-                          "proj",
-                          "org",
-                          None,
-                          base,
-                          voc,
-                          Map.empty,
-                          projectRef.id,
-                          genUUID,
-                          1L,
-                          deprecated = false,
-                          Instant.now(clock),
-                          subject,
-                          Instant.now(clock),
-                          subject)
+    implicit val project = Project(id.value,
+                                   "proj",
+                                   "org",
+                                   None,
+                                   base,
+                                   voc,
+                                   Map.empty,
+                                   projectRef.id,
+                                   genUUID,
+                                   1L,
+                                   deprecated = false,
+                                   Instant.now(clock),
+                                   subject,
+                                   Instant.now(clock),
+                                   subject)
     val schema = Ref(Schemas.resolverSchemaUri)
 
     val types = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
 
     val json      = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
-    val resource  = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
-    val resolver  = Resolver(resourceV).value
+    val resolver  = Resolver(resourceV).right.value
     val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
 
     "return a resolver" in {
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](resource)
-      resources.materialize(resource)(project) shouldReturn EitherT.rightT[IO, Rejection](resourceV)
+      resolvers.fetchResolver(id) shouldReturn EitherT.rightT[IO, Rejection](resolver)
 
       mapper(ev).some shouldEqual resolver
     }
 
     "return none when the resource cannot be found" in {
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      resources.fetch(id) shouldReturn EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection)
+      resolvers.fetchResolver(id) shouldReturn EitherT.leftT[IO, Resolver](NotFound(id.ref): Rejection)
       mapper(ev).ioValue shouldEqual None
     }
-
-    "raise error when the resource cannot be materialized" in {
-      resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](resource)
-      val err = IO.raiseError[Either[Rejection, ResourceV]](KgError.InternalError(""))
-      resources.materialize(resource)(project) shouldReturn EitherT(err)
-      projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      mapper(ev).failed[KgError.InternalError]
-    }
   }
-
 }

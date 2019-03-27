@@ -103,13 +103,14 @@ class ElasticIndexerMappingSpec
       val mapper = new ElasticSearchIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
-        resources.fetch(id) shouldReturn EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection)
+        resources.fetch(id, selfAsIri = false) shouldReturn EitherT.leftT[IO, ResourceV](NotFound(id.ref): Rejection)
         mapper(ev).ioValue shouldEqual None
       }
 
       "return a ElasticSearch BulkOp" in {
-        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-        resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](res)
+        val res =
+          ResourceF.simpleV(id, Value(json, json.contextValue, RootedGraph(blank, Graph())), rev = 2L, schema = schema)
+        resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json
           .obj(
@@ -146,14 +147,18 @@ class ElasticIndexerMappingSpec
       val mapper = new ElasticSearchIndexerMapping(view, resources)
 
       "return none when the schema is not on the view" in {
-        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-        resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](res)
+        val res =
+          ResourceF.simpleV(id, Value(json, json.contextValue, RootedGraph(blank, Graph())), rev = 2L, schema = schema)
+        resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
         mapper(ev).ioValue shouldEqual None
       }
 
       "return a ElasticSearch BulkOp" in {
-        val res = ResourceF.simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value))
-        resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](res)
+        val res = ResourceF.simpleV(id,
+                                    Value(json, json.contextValue, RootedGraph(blank, Graph())),
+                                    rev = 2L,
+                                    schema = Ref(nxv.Resource.value))
+        resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json
           .obj(
@@ -194,15 +199,17 @@ class ElasticIndexerMappingSpec
       val mapper = new ElasticSearchIndexerMapping(view, resources)
 
       "return a ElasticSearch BulkOp" in {
-        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema).copy(tags = Map("two" -> 1L, "one" -> 2L))
-        resources.fetch(id, "one") shouldReturn EitherT.rightT[IO, Rejection](res)
+        val res = ResourceF
+          .simpleV(id, Value(json, json.contextValue, RootedGraph(blank, Graph())), rev = 2L, schema = schema)
+          .copy(tags = Map("two" -> 1L, "one" -> 2L))
+        resources.fetch(id, "one", selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
         mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
       }
 
       "return None when it is not matching the tag defined on the view" in {
-        resources.fetch(id, "one") shouldReturn EitherT.leftT[IO, Resource](
+        resources.fetch(id, "one", selfAsIri = false) shouldReturn EitherT.leftT[IO, ResourceV](
           NotFound(id.ref, tagOpt = Some("one")): Rejection)
         mapper(ev).ioValue shouldEqual None
       }

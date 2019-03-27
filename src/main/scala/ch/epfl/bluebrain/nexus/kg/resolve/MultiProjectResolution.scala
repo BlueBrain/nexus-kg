@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
 /**
   * Common resolution logic for resolvers that look through several projects.
   *
-  * @param resources    the resources operations
+  * @param repo         the resources repository
   * @param projects     the set of projects to traverse
   * @param types        the set of resource types to filter against
   * @param identities   the resolver identities
@@ -22,7 +22,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
   * @param acls         the ACLs for all identities in all projects
   * @tparam F the resolution effect type
   */
-class MultiProjectResolution[F[_]](resources: Resources[F],
+class MultiProjectResolution[F[_]](repo: Repo[F],
                                    projects: F[Set[ProjectRef]],
                                    types: Set[Iri.AbsoluteIri],
                                    identities: List[Identity],
@@ -44,7 +44,7 @@ class MultiProjectResolution[F[_]](resources: Resources[F],
       case false =>
         F.pure(None)
       case true =>
-        InProjectResolution(project, resources).resolve(ref).map {
+        InProjectResolution(project, repo).resolve(ref).map {
           case v @ Some(resource) if containsAny(resource.types, types) => v
           case _                                                        => None
         }
@@ -62,11 +62,11 @@ object MultiProjectResolution {
   /**
     * Builds a [[MultiProjectResolution]] instance.
     */
-  def apply[F[_]: Monad](resources: Resources[F],
+  def apply[F[_]: Monad](repo: Repo[F],
                          projects: F[Set[ProjectRef]],
                          types: Set[Iri.AbsoluteIri],
                          identities: List[Identity],
                          projectCache: ProjectCache[F],
                          acls: AccessControlLists): MultiProjectResolution[F] =
-    new MultiProjectResolution(resources, projects, types, identities, projectCache, acls)
+    new MultiProjectResolution(repo, projects, types, identities, projectCache, acls)
 }

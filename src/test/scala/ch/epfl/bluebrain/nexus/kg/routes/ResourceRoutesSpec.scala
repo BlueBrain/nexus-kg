@@ -909,7 +909,7 @@ class ResourceRoutesSpec
     }
 
     "reject getting tags of a resource that does not exist" in new Ctx {
-      when(resources.fetchTags(id, schemaRef)).thenReturn(EitherT.leftT[Task, Tags](NotFound(id.ref): Rejection))
+      when(resources.fetchTags(id, schemaRef)).thenReturn(EitherT.leftT[Task, TagSet](NotFound(id.ref): Rejection))
 
       Get(s"/v1/resources/$organization/$project/${schemaRef.iri}/nxv:$genUuid/tags") ~> Accept(`application/json`) ~> addCredentials(
         oauthToken) ~> routes ~> check {

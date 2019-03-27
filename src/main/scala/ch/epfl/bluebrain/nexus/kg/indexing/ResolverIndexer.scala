@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import journal.Logger
 
-private class ResolverIndexerMapping[F[_]: Timer](resources: Resources[F])(implicit projectCache: ProjectCache[F],
+private class ResolverIndexerMapping[F[_]: Timer](resolvers: Resolvers[F])(implicit projectCache: ProjectCache[F],
                                                                            F: MonadError[F, Throwable],
                                                                            indexing: IndexingConfig) {
 
@@ -31,15 +31,11 @@ private class ResolverIndexerMapping[F[_]: Timer](resources: Resources[F])(impli
     */
   def apply(event: Event): F[Option[Resolver]] =
     fetchProject(event.id.parent).flatMap { implicit project =>
-      resources.fetch(event.id).value.flatMap {
-        case Right(resource) =>
-          resources.materialize(resource).value.map {
-            case Left(err) =>
-              log.error(s"Error on event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")
-              None
-            case Right(materialized) => Resolver(materialized)
-          }
-        case _ => F.pure(None)
+      resolvers.fetchResolver(event.id).value.map {
+        case Left(err) =>
+          log.error(s"Error on event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")
+          None
+        case Right(resolver) => Some(resolver)
       }
     }
 }
@@ -50,22 +46,21 @@ object ResolverIndexer {
   /**
     * Starts the index process for resolvers across all projects in the system.
     *
-    * @param resources     the resources operations
+    * @param resolvers     the resolvers operations
     * @param resolverCache the distributed cache
     */
-  final def start[F[_]: Timer](resources: Resources[F], resolverCache: ResolverCache[F])(
+  final def start[F[_]: Timer](resolvers: Resolvers[F], resolverCache: ResolverCache[F])(
       implicit
       projectCache: ProjectCache[F],
       as: ActorSystem,
-      config: AppConfig,
       F: Effect[F],
-  ): StreamSupervisor[F, ProjectionProgress] = {
+      config: AppConfig): StreamSupervisor[F, ProjectionProgress] = {
 
     val kgErrorMonadError = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 
     implicit val indexing: IndexingConfig = config.keyValueStore.indexing
 
-    val mapper = new ResolverIndexerMapping[F](resources)
+    val mapper = new ResolverIndexerMapping[F](resolvers)
     TagProjection.start(
       ProjectionConfig
         .builder[F]
@@ -83,15 +78,16 @@ object ResolverIndexer {
   /**
     * Starts the index process for resolvers across all projects in the system.
     *
-    * @param resources     the resources operations
+    * @param resolvers     the resolvers operations
     * @param resolverCache the distributed cache
     */
-  final def delay[F[_]: Timer: Effect](resources: Resources[F], resolverCache: ResolverCache[F])(
+  final def delay[F[_]: Timer: Effect](resolvers: Resolvers[F], resolverCache: ResolverCache[F])(
       implicit
       projectCache: ProjectCache[F],
       as: ActorSystem,
       config: AppConfig,
   ): F[StreamSupervisor[F, ProjectionProgress]] =
-    Effect[F].delay(start(resources, resolverCache))
+    Effect[F].delay(start(resolvers, resolverCache))
+
   // $COVERAGE-ON$
 }

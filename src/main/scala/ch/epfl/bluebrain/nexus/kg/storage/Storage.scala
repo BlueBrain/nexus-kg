@@ -101,6 +101,8 @@ sealed trait Storage { self =>
 
 object Storage {
 
+  val write: Permission = Permission.unsafe("storages/write")
+
   /**
     * A disk storage
     *

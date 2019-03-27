@@ -15,9 +15,9 @@ import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import journal.Logger
 
-private class ViewIndexerMapping[F[_]: Timer](resources: Resources[F])(implicit projectCache: ProjectCache[F],
-                                                                       F: MonadError[F, Throwable],
-                                                                       indexing: IndexingConfig) {
+private class ViewIndexerMapping[F[_]: Timer](views: Views[F])(implicit projectCache: ProjectCache[F],
+                                                               F: MonadError[F, Throwable],
+                                                               indexing: IndexingConfig) {
 
   private implicit val retry: Retry[F, Throwable] = Retry[F, Throwable](indexing.retry.retryStrategy)
   private implicit val log: Logger                = Logger[this.type]
@@ -30,15 +30,11 @@ private class ViewIndexerMapping[F[_]: Timer](resources: Resources[F])(implicit 
     */
   def apply(event: Event): F[Option[View]] =
     fetchProject(event.id.parent).flatMap { implicit project =>
-      resources.fetch(event.id).value.flatMap {
-        case Right(resource) =>
-          resources.materialize(resource).value.map {
-            case Left(err) =>
-              log.error(s"Error on event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")
-              None
-            case Right(materialized) => View(materialized).toOption
-          }
-        case _ => F.pure(None)
+      views.fetchView(event.id).value.map {
+        case Left(err) =>
+          log.error(s"Error on event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")
+          None
+        case Right(view) => Some(view)
       }
     }
 }
@@ -49,20 +45,19 @@ object ViewIndexer {
   /**
     * Starts the index process for views across all projects in the system.
     *
-    * @param resources the resources operations
+    * @param views the views operations
     * @param viewCache the distributed cache
     */
-  final def start[F[_]: Timer](resources: Resources[F], viewCache: ViewCache[F])(
+  final def start[F[_]: Timer](views: Views[F], viewCache: ViewCache[F])(
       implicit projectCache: ProjectCache[F],
       as: ActorSystem,
-      config: AppConfig,
-      F: Effect[F],
-  ): StreamSupervisor[F, ProjectionProgress] = {
+    F: Effect[F],
+      config: AppConfig): StreamSupervisor[F, ProjectionProgress] = {
 
     val kgErrorMonadError                 = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     implicit val indexing: IndexingConfig = config.keyValueStore.indexing
 
-    val mapper = new ViewIndexerMapping[F](resources)
+    val mapper = new ViewIndexerMapping[F](views)
     TagProjection.start(
       ProjectionConfig
         .builder[F]
@@ -80,14 +75,14 @@ object ViewIndexer {
   /**
     * Starts the index process for views across all projects in the system.
     *
-    * @param resources the resources operations
+    * @param views     the views operations
     * @param viewCache the distributed cache
     */
-  final def delay[F[_]: Timer: Effect](resources: Resources[F], viewCache: ViewCache[F])(
+  final def delay[F[_]: Timer: Effect](views: Views[F], viewCache: ViewCache[F])(
       implicit projectCache: ProjectCache[F],
       as: ActorSystem,
       config: AppConfig,
   ): F[StreamSupervisor[F, ProjectionProgress]] =
-    Effect[F].delay(start(resources, viewCache))
+    Effect[F].delay(start(views, viewCache))
   // $COVERAGE-ON$
 }

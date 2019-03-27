@@ -1,57 +1,123 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import akka.actor.ActorSystem
+import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
-import ch.epfl.bluebrain.nexus.kg.cache.Caches._
-import ch.epfl.bluebrain.nexus.kg.cache.Caches
+import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
+import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
+import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
+import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import io.circe.Json
 import monix.eval.Task
+import monix.execution.Scheduler.Implicits.global
 
-class ResourceRoutes private[routes] (resources: Resources[Task],
-                                      acls: AccessControlLists,
-                                      caller: Caller,
-                                      projectViewCoordinator: ProjectViewCoordinator[Task])(implicit as: ActorSystem,
-                                                                                            project: Project,
-                                                                                            cache: Caches[Task],
-                                                                                            indexers: Clients[Task],
-                                                                                            config: AppConfig)
-    extends CommonRoutes(resources, "resources", acls, caller) {
+class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Task], schema: Ref)(
+    implicit acls: AccessControlLists,
+    caller: Caller,
+    project: Project,
+    viewCache: ViewCache[Task],
+    indexers: Clients[Task],
+    config: AppConfig) {
 
-  private implicit val viewCache = cache.view
+  import indexers._
 
+  /**
+    * Routes for resources. Those routes should get triggered after the following segments have been consumed:
+    * {prefix}/resources/{org}/{project}/{schema}. E.g.: v1/resources/myorg/myproject/myschema
+    */
   def routes: Route =
-    events ~ list ~ pathPrefix(IdSegmentOrUnderscore) {
-      case Underscore                    => new UnderscoreRoutes(resources, acls, caller, projectViewCoordinator).routes
-      case SchemaId(`shaclSchemaUri`)    => new SchemaRoutes(resources, acls, caller).routes
-      case SchemaId(`resolverSchemaUri`) => new ResolverRoutes(resources, acls, caller).routes
-      case SchemaId(`fileSchemaUri`)     => new FileRoutes(resources, acls, caller).routes
-      case SchemaId(`viewSchemaUri`)     => new ViewRoutes(resources, acls, caller, projectViewCoordinator).routes
-      case SchemaId(`storageSchemaUri`)  => new StorageRoutes(resources, acls, caller).routes
-      case SchemaId(schema) =>
-        create(schema.ref) ~ list(schema.ref) ~
-          pathPrefix(IdSegment) { id =>
+    concat(
+      // Create resource when id is not provided on the Uri (POST)
+      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
+        entity(as[Json]) { source =>
+          trace("createResource") {
+            complete(resources.create(project.base, schema, source).value.runWithStatus(Created))
+          }
+        }
+      },
+      // List resources
+      (get & paginated & searchParams(fixedSchema = schema.iri) & pathEndOrSingleSlash & hasPermission(read)) {
+        (pagination, params) =>
+          trace(s"listResource") {
+            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
+            complete(listed.runWithStatus(OK))
+          }
+      },
+      // Resource events
+      (pathPrefix("events") & pathEndOrSingleSlash & extractActorSystem) { implicit system =>
+        new EventRoutes(acls, caller).routes
+      },
+      // Consume the resource id segment
+      pathPrefix(IdSegment) { id =>
+        routes(id)
+      },
+      new TagRoutes(tags, schema, write).routes
+    )
+
+  /**
+    * Routes for resources when the id is specified.
+    * Those routes should get triggered after the following segments have been consumed:
+    * {prefix}/resources/{org}/{project}/{schema}/{id}. E.g.: v1/resources/myorg/myproject/myschema/myresource
+    */
+  def routes(id: AbsoluteIri): Route =
+    concat(
+      // Create resource (PUT)
+      (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
+        entity(as[Json]) { source =>
+          trace("createResource") {
+            complete(resources.create(Id(project.ref, id), schema, source).value.runWithStatus(Created))
+          }
+        }
+      },
+      // Update resource
+      (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
+        entity(as[Json]) { source =>
+          trace("UpdateResource") {
+            complete(resources.update(Id(project.ref, id), rev, schema, source).value.runWithStatus(OK))
+          }
+        }
+      },
+      // Deprecate resource
+      (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
+        trace("deprecateResource") {
+          complete(resources.deprecate(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
+        }
+      },
+      // Fetch resource
+      (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
+        case Binary => failWith(InvalidOutputFormat("Binary"))
+        case format: NonBinaryOutputFormat =>
+          trace(s"getResource") {
             concat(
-              create(id, schema.ref),
-              update(id, schema.ref),
-              tag(id, schema.ref),
-              deprecate(id, schema.ref),
-              fetch(id, schema.ref),
-              tags(id, schema.ref)
+              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                completeWithFormat(resources.fetch(Id(project.ref, id), rev, schema).value.runWithStatus(OK))(format)
+              },
+              (parameter('tag) & noParameter('rev)) { tag =>
+                completeWithFormat(resources.fetch(Id(project.ref, id), tag, schema).value.runWithStatus(OK))(format)
+              },
+              (noParameter('tag) & noParameter('rev)) {
+                completeWithFormat(resources.fetch(Id(project.ref, id), schema).value.runWithStatus(OK))(format)
+              }
             )
           }
-    } ~ create(unconstrainedRef)
+      }
+    )
+}
 
-  private def events: Route =
-    (pathPrefix("events") & pathEndOrSingleSlash) {
-      new EventRoutes(acls, caller).routes
-    }
+object ResourceRoutes {
+  val write: Permission = Permission.unsafe("resources/write")
+
 }
