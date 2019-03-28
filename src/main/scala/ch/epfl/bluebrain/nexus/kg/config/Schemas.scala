@@ -41,6 +41,6 @@ object Schemas {
   val fileRef          = fileSchemaUri.ref
 
   private def resolveSchema(schema: Json): Json =
-    schema.removeKeys("@context").mergeContext(shaclCtx)
+    schema.replaceContext(schema.removeContextIris.appendContextOf(shaclCtx))
 
 }

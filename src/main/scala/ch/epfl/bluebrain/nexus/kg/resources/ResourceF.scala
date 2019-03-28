@@ -116,7 +116,7 @@ final case class ResourceF[A](
     */
   def contextValueForJsonLd(implicit asValue: A =:= ResourceF.Value): Json = {
     val v = asValue(value)
-    if (schema.iri == unconstrainedSchemaUri && v.source.contextValue == Json.obj()) v.ctx
+    if (v.source.contextValue == Json.obj()) v.ctx
     else v.source.contextValue
   }
 }

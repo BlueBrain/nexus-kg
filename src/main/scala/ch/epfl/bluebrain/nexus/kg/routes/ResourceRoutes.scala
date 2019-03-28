@@ -74,19 +74,18 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
     */
   def routes(id: AbsoluteIri): Route =
     concat(
-      // Create resource (PUT)
-      (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
+      // Create or update a resource (depending on rev query parameter)
+      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createResource") {
-            complete(resources.create(Id(project.ref, id), schema, source).value.runWithStatus(Created))
-          }
-        }
-      },
-      // Update resource
-      (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        entity(as[Json]) { source =>
-          trace("UpdateResource") {
-            complete(resources.update(Id(project.ref, id), rev, schema, source).value.runWithStatus(OK))
+          parameter('rev.as[Long].?) {
+            case None =>
+              trace("createResource") {
+                complete(resources.create(Id(project.ref, id), schema, source).value.runWithStatus(Created))
+              }
+            case Some(rev) =>
+              trace("updateResource") {
+                complete(resources.update(Id(project.ref, id), rev, schema, source).value.runWithStatus(OK))
+              }
           }
         }
       },

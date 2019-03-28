@@ -78,19 +78,18 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
     */
   def routes(id: AbsoluteIri): Route =
     concat(
-      // Create storage (PUT)
-      (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
+      // Create or update a storage (depending on rev query parameter)
+      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createStorage") {
-            complete(storages.create(Id(project.ref, id), source).value.runWithStatus(Created))
-          }
-        }
-      },
-      // Update storage
-      (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        entity(as[Json]) { source =>
-          trace("UpdateStorage") {
-            complete(storages.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
+          parameter('rev.as[Long].?) {
+            case None =>
+              trace("createStorage") {
+                complete(storages.create(Id(project.ref, id), source).value.runWithStatus(Created))
+              }
+            case Some(rev) =>
+              trace("updateStorage") {
+                complete(storages.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
+              }
           }
         }
       },

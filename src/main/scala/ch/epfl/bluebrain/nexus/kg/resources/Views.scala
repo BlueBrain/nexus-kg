@@ -31,7 +31,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.uuid
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.blank
+import ch.epfl.bluebrain.nexus.rdf.Node.{blank, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -62,7 +62,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     val transformedSource = transform(source)
     for {
       graph         <- materialize(transformedSource)
-      assignedValue <- checkOrAssignId[F](base, Value(transformedSource, viewCtx, graph))
+      assignedValue <- checkOrAssignId[F](base, Value(transformedSource, viewCtx.contextValue, graph))
       (id, rootedGraph) = assignedValue
       resource <- create(id, transformedSource, rootedGraph)
     } yield resource
@@ -78,8 +78,8 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
   def create(id: ResId, source: Json)(implicit acls: AccessControlLists, caller: Caller): RejOrResource[F] = {
     val transformedSource = transform(source)
     for {
-      graph       <- materialize(transformedSource)
-      rootedGraph <- checkId[F](id, Value(transformedSource, viewCtx, graph))
+      graph       <- materialize(transformedSource, id.value)
+      rootedGraph <- checkId[F](id, Value(transformedSource, viewCtx.contextValue, graph))
       resource    <- create(id, transformedSource, rootedGraph)
     } yield resource
   }
@@ -96,8 +96,8 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     for {
       _ <- repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref))
       transformedSource = transform(source, extractUuidFrom(source))
-      graph       <- materialize(transformedSource)
-      rootedGraph <- checkId[F](id, Value(transformedSource, viewCtx, graph))
+      graph       <- materialize(transformedSource, id.value)
+      rootedGraph <- checkId[F](id, Value(transformedSource, viewCtx.contextValue, graph))
       typedGraph = addViewType(id.value, rootedGraph)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
@@ -188,13 +188,14 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     } yield resource
   }
 
-  private def materialize(source: Json): EitherT[F, Rejection, RootedGraph] = {
-    val valueOrMarshallingError = source.replaceContext(viewCtx).asGraph(blank)
+  private def materialize(source: Json, id: IriOrBNode = blank): EitherT[F, Rejection, RootedGraph] = {
+    val valueOrMarshallingError = source.replaceContext(viewCtx).asGraph(id)
     EitherT.fromEither[F](valueOrMarshallingError).leftSemiflatMap(fromMarshallingErr(_)(F))
   }
 
   private def materializeWithMeta(resource: Resource)(implicit project: Project): EitherT[F, Rejection, RootedGraph] =
-    materialize(resource.value).map(graph => RootedGraph(graph.rootNode, graph.triples ++ resource.metadata()))
+    materialize(resource.value, resource.id.value).map(graph =>
+      RootedGraph(graph.rootNode, graph.triples ++ resource.metadata()))
 
   private def addViewType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
     RootedGraph(id, graph.triples + ((id.value, rdf.tpe, nxv.View): Triple))
@@ -212,7 +213,8 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
   private def viewValidation(resId: ResId, source: Json, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
       implicit acls: AccessControlLists,
       caller: Caller): EitherT[F, Rejection, View] = {
-    val resource = ResourceF.simpleV(resId, Value(source, viewCtx, graph), rev = rev, types = types, schema = viewRef)
+    val resource =
+      ResourceF.simpleV(resId, Value(source, viewCtx.contextValue, graph), rev = rev, types = types, schema = viewRef)
     EitherT.fromEither[F](View(resource)).flatMap {
       case es: ElasticSearchView => validateElasticSearchMappings(resId, es).map(_ => es)
       case agg: AggregateView[_] => agg.referenced[F](caller, acls)
@@ -227,7 +229,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
 
   private def jsonForRepo(view: View): EitherT[F, Rejection, Json] = {
     val graph                = view.asGraph[CId].removeMetadata
-    val jsonOrMarshallingErr = graph.as[Json](Json.obj("@context" -> viewCtx)).map(_.replaceContext(viewCtxUri))
+    val jsonOrMarshallingErr = graph.as[Json](viewCtx).map(_.replaceContext(viewCtxUri))
     EitherT.fromEither[F](jsonOrMarshallingErr).leftSemiflatMap(fromMarshallingErr(_)(F))
   }
 
@@ -249,7 +251,9 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
           val graph = labeledView.asGraph[CId]
           //TODO: We don't care about the Value here, since the Encoder will use the Graph to build the json representation
           val value =
-            Value(Json.obj(), viewCtx, RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata()))
+            Value(Json.obj(),
+                  viewCtx.contextValue,
+                  RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata()))
           EitherT.rightT(originalResource.copy(value = value))
         }
       case _ => EitherT.rightT(originalResource)

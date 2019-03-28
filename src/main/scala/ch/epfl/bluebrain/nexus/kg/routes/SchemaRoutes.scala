@@ -76,19 +76,18 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
     */
   def routes(id: AbsoluteIri): Route =
     concat(
-      // Create schema (PUT)
-      (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
+      // Create or update a schema (depending on rev query parameter)
+      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createSchema") {
-            complete(schemas.create(Id(project.ref, id), source).value.runWithStatus(Created))
-          }
-        }
-      },
-      // Update schema
-      (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        entity(as[Json]) { source =>
-          trace("UpdateSchema") {
-            complete(schemas.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
+          parameter('rev.as[Long].?) {
+            case None =>
+              trace("createSchema") {
+                complete(schemas.create(Id(project.ref, id), source).value.runWithStatus(Created))
+              }
+            case Some(rev) =>
+              trace("updateSchema") {
+                complete(schemas.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
+              }
           }
         }
       },

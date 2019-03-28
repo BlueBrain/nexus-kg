@@ -97,19 +97,18 @@ class ViewRoutes private[routes] (views: Views[Task],
     */
   def routes(id: AbsoluteIri): Route =
     concat(
-      // Create view (PUT)
-      (put & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
+      // Create or update a view (depending on rev query parameter)
+      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createView") {
-            complete(views.create(Id(project.ref, id), source).value.runWithStatus(Created))
-          }
-        }
-      },
-      // Update view
-      (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        entity(as[Json]) { source =>
-          trace("UpdateView") {
-            complete(views.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
+          parameter('rev.as[Long].?) {
+            case None =>
+              trace("createView") {
+                complete(views.create(Id(project.ref, id), source).value.runWithStatus(Created))
+              }
+            case Some(rev) =>
+              trace("updateView") {
+                complete(views.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
+              }
           }
         }
       },

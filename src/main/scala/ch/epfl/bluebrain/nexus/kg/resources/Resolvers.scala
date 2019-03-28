@@ -28,7 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.blank
+import ch.epfl.bluebrain.nexus.rdf.Node.{blank, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -56,7 +56,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     val transformedSource = transform(source)
     for {
       graph         <- materialize(transformedSource)
-      assignedValue <- checkOrAssignId[F](base, Value(transformedSource, resolverCtx, graph))
+      assignedValue <- checkOrAssignId[F](base, Value(transformedSource, resolverCtx.contextValue, graph))
       (id, rootedGraph) = assignedValue
       resource <- create(id, transformedSource, rootedGraph)
     } yield resource
@@ -72,8 +72,8 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
   def create(id: ResId, source: Json)(implicit caller: Caller): RejOrResource[F] = {
     val transformedSource = transform(source)
     for {
-      graph       <- materialize(transformedSource)
-      rootedGraph <- checkId[F](id, Value(transformedSource, resolverCtx, graph))
+      graph       <- materialize(transformedSource, id.value)
+      rootedGraph <- checkId[F](id, Value(transformedSource, resolverCtx.contextValue, graph))
       resource    <- create(id, transformedSource, rootedGraph)
     } yield resource
   }
@@ -90,8 +90,8 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     for {
       _ <- repo.get(id, rev, Some(resolverRef)).toRight(NotFound(id.ref))
       transformedSource = transform(source)
-      graph       <- materialize(transformedSource)
-      rootedGraph <- checkId[F](id, Value(transformedSource, resolverCtx, graph))
+      graph       <- materialize(transformedSource, id.value)
+      rootedGraph <- checkId[F](id, Value(transformedSource, resolverCtx.contextValue, graph))
       typedGraph = addResolverType(id.value, rootedGraph)
       types      = typedGraph.rootTypes.map(_.value)
       _        <- validateShacl(typedGraph)
@@ -182,13 +182,14 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     } yield resource
   }
 
-  private def materialize(source: Json): EitherT[F, Rejection, RootedGraph] = {
-    val valueOrMarshallingError = source.replaceContext(resolverCtx).asGraph(blank)
+  private def materialize(source: Json, id: IriOrBNode = blank): EitherT[F, Rejection, RootedGraph] = {
+    val valueOrMarshallingError = source.replaceContext(resolverCtx).asGraph(id)
     EitherT.fromEither[F](valueOrMarshallingError).leftSemiflatMap(fromMarshallingErr(_)(F))
   }
 
   private def materializeWithMeta(resource: Resource)(implicit project: Project): EitherT[F, Rejection, RootedGraph] =
-    materialize(resource.value).map(graph => RootedGraph(graph.rootNode, graph.triples ++ resource.metadata()))
+    materialize(resource.value, resource.id.value).map(graph =>
+      RootedGraph(graph.rootNode, graph.triples ++ resource.metadata()))
 
   private def addResolverType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
     RootedGraph(id, graph.triples + ((id.value, rdf.tpe, nxv.Resolver): Triple))
@@ -213,7 +214,11 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
       identities.forall(caller.identities.contains)
 
     val resource =
-      ResourceF.simpleV(resId, Value(source, resolverCtx, graph), rev = rev, types = types, schema = resolverRef)
+      ResourceF.simpleV(resId,
+                        Value(source, resolverCtx.contextValue, graph),
+                        rev = rev,
+                        types = types,
+                        schema = resolverRef)
 
     EitherT.fromEither[F](Resolver(resource)).flatMap {
       case r: CrossProjectResolver[_] if foundInCaller(r.identities) => r.referenced[F]
@@ -224,7 +229,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
 
   private def jsonForRepo(resolver: Resolver): EitherT[F, Rejection, Json] = {
     val graph                = resolver.asGraph[CId].removeMetadata
-    val jsonOrMarshallingErr = graph.as[Json](Json.obj("@context" -> resolverCtx)).map(_.replaceContext(resolverCtxUri))
+    val jsonOrMarshallingErr = graph.as[Json](resolverCtx).map(_.replaceContext(resolverCtxUri))
     EitherT.fromEither[F](jsonOrMarshallingErr).leftSemiflatMap(fromMarshallingErr(_)(F))
   }
 
@@ -237,7 +242,9 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
           val graph = labeledResolver.asGraph[CId]
           //TODO: We don't care about the Value here, since the Encoder will use the Graph to build the json representation
           val value =
-            Value(Json.obj(), resolverCtx, RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata()))
+            Value(Json.obj(),
+                  resolverCtx.contextValue,
+                  RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata()))
           EitherT.rightT(originalResource.copy(value = value))
         }
       case _ => EitherT.rightT(originalResource)

@@ -88,25 +88,21 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     */
   def routes(id: AbsoluteIri): Route =
     concat(
-      // Create file (PUT)
+      // Create or update a file (depending on rev query parameter)
       (put & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
         (hasPermission(storage.writePermission) & fileUpload("file")) {
           case (metadata, byteSource) =>
             val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("createFile") {
-              val resId = Id(project.ref, id)
-              complete(files.create(resId, storage, description, byteSource).value.runWithStatus(Created))
-            }
-        }
-      },
-      // Update file
-      (put & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & storage) { (rev, storage) =>
-        (hasPermission(storage.writePermission) & fileUpload("file")) {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("updateFile") {
-              val resId = Id(project.ref, id)
-              complete(files.update(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
+            val resId       = Id(project.ref, id)
+            parameter('rev.as[Long].?) {
+              case None =>
+                trace("createFile") {
+                  complete(files.create(resId, storage, description, byteSource).value.runWithStatus(Created))
+                }
+              case Some(rev) =>
+                trace("updateFile") {
+                  complete(files.update(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
+                }
             }
         }
       },
