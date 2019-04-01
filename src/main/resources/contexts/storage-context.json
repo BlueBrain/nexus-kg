@@ -1,7 +1,6 @@
 {
   "@context": {
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
-    "Alpha": "nxv:Alpha",
     "Storage": "nxv:Storage",
     "DiskStorage": "nxv:DiskStorage",
     "S3Storage": "nxv:S3Storage",

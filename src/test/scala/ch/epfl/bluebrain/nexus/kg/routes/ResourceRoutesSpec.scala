@@ -351,18 +351,15 @@ class ResourceRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid"))
   }
 
-  abstract class StorageCtx(perms: Set[Permission] = manageStorages) extends Context(perms) {
+  abstract class StorageCtx(perms: Set[Permission] = manageStorages ++ manageRes) extends Context(perms) {
     val storage = jsonContentOf("/storage/disk.json") deepMerge Json
+      .obj("@id" -> Json.fromString(id.value.show))
+    val s3storage = jsonContentOf("/storage/s3.json") deepMerge Json
       .obj("@id" -> Json.fromString(id.value.show))
     val schemaRef = Ref(storageSchemaUri)
 
-    val types = Set[AbsoluteIri](nxv.Storage, nxv.DiskStorage)
-
-    def storageResponse(deprecated: Boolean = false): Json =
-      response(deprecated) deepMerge Json.obj(
-        "@type" -> Json.arr(Json.fromString("DiskStorage"), Json.fromString("Storage")),
-        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid")
-      )
+    val diskTypes = Set[AbsoluteIri](nxv.Storage, nxv.DiskStorage)
+    val s3Types   = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
   }
 
   abstract class Resolver extends Context(manageResolver) {
@@ -429,9 +426,9 @@ class ResourceRoutesSpec
 
     "performing operations on storages" should {
 
-      "create a storage without @id" in new StorageCtx {
+      "create a disk storage" in new StorageCtx {
         private val expected = ResourceF
-          .simpleF(id, storage, created = subject, updated = subject, schema = schemaRef, types = types)
+          .simpleF(id, storage, created = subject, updated = subject, schema = schemaRef, types = diskTypes)
         when(
           resources.create(mEq(projectMeta.base), mEq(schemaRef), mEq(storage.addContext(storageCtxUri)))(
             mEq(subject),
@@ -444,8 +441,62 @@ class ResourceRoutesSpec
         forAll(endpoints) { endpoint =>
           Post(endpoint, storage) ~> addCredentials(oauthToken) ~> routes ~> check {
             status shouldEqual StatusCodes.Created
-            responseAs[Json] should equalIgnoreArrayOrder(storageResponse())
+            responseAs[Json] should equalIgnoreArrayOrder(response().deepMerge(Json.obj(
+              "@type" -> Json.arr(Json.fromString("DiskStorage"), Json.fromString("Storage")),
+              "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid")
+            )))
           }
+        }
+      }
+
+      "create an S3 storage" in new StorageCtx {
+        private val expected = ResourceF
+          .simpleF(id, s3storage, created = subject, updated = subject, schema = schemaRef, types = s3Types)
+        when(
+          resources.create(mEq(projectMeta.base), mEq(schemaRef), mEq(s3storage.addContext(storageCtxUri)))(
+            mEq(subject),
+            projectMatcher,
+            isA[AdditionalValidation[Task]]))
+          .thenReturn(EitherT.rightT[Task, Rejection](expected))
+
+        val endpoints = List(s"/v1/storages/$organization/$project", s"/v1/resources/$organization/$project/storage")
+
+        forAll(endpoints) { endpoint =>
+          Post(endpoint, s3storage) ~> addCredentials(oauthToken) ~> routes ~> check {
+            status shouldEqual StatusCodes.Created
+            responseAs[Json] should equalIgnoreArrayOrder(response().deepMerge(Json.obj(
+              "@type" -> Json.arr(Json.fromString("S3Storage"), Json.fromString("Storage")),
+              "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid")
+            )))
+          }
+        }
+      }
+
+      "get an S3 storage" in new StorageCtx {
+        val resource = ResourceF
+          .simpleF(id, s3storage, created = subject, updated = subject, schema = schemaRef, types = s3Types)
+        val json = s3storage.appendContextOf(storageCtx)
+        val resourceV =
+          resource.copy(
+            value =
+              Value(json,
+                    json.contextValue,
+                    RootedGraph(IriNode(id.value), json.asGraph(id.value).right.value ++ Graph(resource.metadata()))))
+
+        when(resources.fetch(id)).thenReturn(EitherT.rightT[Task, Rejection](resource))
+        when(resources.fetch(id, schemaRef)).thenReturn(EitherT.rightT[Task, Rejection](resource))
+        when(resources.materializeWithMeta(mEq(resource), mEq(false))(projectMatcher))
+          .thenReturn(EitherT.rightT[Task, Rejection](resourceV))
+
+        Get(s"/v1/storages/$organization/$project/nxv:$genUuid") ~> Accept(`application/json`) ~> addCredentials(
+          oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          contentType shouldEqual `application/ld+json`.toContentType
+          responseAs[Json] should equalIgnoreArrayOrder(
+            jsonContentOf("/resources/s3-response.json",
+                          Map(quote("{uuid}")    -> genUuid.toString,
+                              quote("{org}")     -> organization,
+                              quote("{project}") -> project)))
         }
       }
     }

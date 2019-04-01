@@ -12,6 +12,7 @@ import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect._
 import ch.epfl.bluebrain.nexus.kg.KgError
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
@@ -23,14 +24,15 @@ object S3StorageOperations {
 
   private val logger = Logger[this.type]
 
-  final class Verify[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends VerifyStorage[F] {
+  final class Verify[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem, config: StorageConfig)
+      extends VerifyStorage[F] {
 
     private implicit val mt: Materializer = ActorMaterializer()
 
     override def apply: F[Either[String, Unit]] = {
       val future = IO(
         S3.listBucket(storage.bucket, None)
-          .withAttributes(S3Attributes.settings(storage.settings.toAlpakka))
+          .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
           .runWith(Sink.head))
       IO.fromFuture(future)
         .attempt
@@ -43,7 +45,8 @@ object S3StorageOperations {
     }
   }
 
-  final class Fetch[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends FetchFile[F, AkkaSource] {
+  final class Fetch[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem, config: StorageConfig)
+      extends FetchFile[F, AkkaSource] {
 
     private implicit val mt: Materializer = ActorMaterializer()
 
@@ -60,7 +63,7 @@ object S3StorageOperations {
         case Some(key) =>
           val future = IO(
             S3.download(storage.bucket, key)
-              .withAttributes(S3Attributes.settings(storage.settings.toAlpakka))
+              .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
               .runWith(Sink.head))
           IO.fromFuture(future)
             .flatMap {
@@ -85,12 +88,13 @@ object S3StorageOperations {
       }
   }
 
-  final class Save[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends SaveFile[F, AkkaSource] {
+  final class Save[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem, config: StorageConfig)
+      extends SaveFile[F, AkkaSource] {
 
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val mt: Materializer     = ActorMaterializer()
 
-    private val attributes = S3Attributes.settings(storage.settings.toAlpakka)
+    private val attributes = S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey))
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
       val key            = mangle(storage.ref, fileDesc.uuid)

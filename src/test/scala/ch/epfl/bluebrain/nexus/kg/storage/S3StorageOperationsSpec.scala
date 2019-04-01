@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
-import java.net.URLEncoder
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
 import java.util.UUID
@@ -15,6 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Res
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.DownstreamServiceError
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{DiskStorageConfig, S3StorageConfig, StorageConfig}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3Storage}
@@ -44,8 +44,18 @@ class S3StorageOperationsSpec
   private val region  = "fake-region"
   private val bucket  = "bucket"
   private val s3mock  = S3Mock(port)
-  private val readS3  = Permission.unsafe("s3-read")
-  private val writeS3 = Permission.unsafe("s3-write")
+  private val readS3  = Permission.unsafe("s3/read")
+  private val writeS3 = Permission.unsafe("s3/write")
+
+  private implicit val sc: StorageConfig = StorageConfig(
+    DiskStorageConfig(Paths.get("/tmp"),
+                      "SHA-256",
+                      Permission.unsafe("resources/read"),
+                      Permission.unsafe("files/write")),
+    S3StorageConfig("MD5", readS3, writeS3),
+    "password",
+    "salt"
+  )
 
   private val keys  = Set("http.proxyHost", "http.proxyPort", "https.proxyHost", "https.proxyPort", "http.nonProxyHosts")
   private val props = mutable.Map[String, String]()
@@ -113,9 +123,9 @@ class S3StorageOperationsSpec
       // http://s3.amazonaws.com is hardcoded in S3Mock
       attr.location shouldEqual Uri(s"http://s3.amazonaws.com/$bucket/${mangle(projectRef, fileUuid)}")
       attr.mediaType shouldEqual "text/plain"
-      attr.bytes shouldEqual 323L
+      attr.bytes shouldEqual 263L
       attr.filename shouldEqual "s3.json"
-      attr.digest shouldEqual Digest("MD5", "c322c0eaa0031ed8b22cd5bc21a8e79f")
+      attr.digest shouldEqual Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
 
       val download =
         fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
@@ -168,8 +178,8 @@ class S3StorageOperationsSpec
         Uri(s"http://s3.amazonaws.com/foobar/${mangle(projectRef, fileUuid)}"),
         desc.filename,
         desc.mediaType,
-        323L,
-        Digest("MD5", "c322c0eaa0031ed8b22cd5bc21a8e79f")
+        263L,
+        Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
       )
       val download = fetch(attr).failed[DownstreamServiceError]
       download.msg shouldEqual s"Error fetching S3 object with key '${mangle(projectRef, fileUuid)}' in bucket 'foobar': The specified bucket does not exist"
@@ -200,8 +210,8 @@ class S3StorageOperationsSpec
     "save and fetch files in AWS" ignore {
       keys.foreach(System.clearProperty)
 
-      val ak = "accesskey"
-      val sk = "secretkey"
+      val ak = "encryptedAccessKey"
+      val sk = "encryptedSecretKey"
 
       val base       = url"https://nexus.example.com/".value
       val projectId  = base + "org" + "proj"
@@ -213,9 +223,9 @@ class S3StorageOperationsSpec
           1L,
           deprecated = false,
           default = true,
-          "MD5",
-          "bbp-nexus-storage",
-          S3Settings(Some(S3Credentials(ak, sk)), None, Some("eu-central-1")),
+          "SHA-256",
+          "nexus-storage",
+          S3Settings(Some(S3Credentials(ak, sk)), Some("http://minio.dev.nexus.ocp.bbp.epfl.ch"), None),
           readS3,
           writeS3
         )
@@ -235,11 +245,11 @@ class S3StorageOperationsSpec
       val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
 
       attr.location shouldEqual Uri(
-        s"https://s3-eu-central-1.amazonaws.com/bbp-nexus-storage/${URLEncoder.encode(mangle(projectRef, fileUuid), "UTF-8")}")
+        s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, fileUuid)}")
       attr.mediaType shouldEqual "text/plain"
-      attr.bytes shouldEqual 323L
+      attr.bytes shouldEqual 263L
       attr.filename shouldEqual "s3.json"
-      attr.digest shouldEqual Digest("MD5", "c322c0eaa0031ed8b22cd5bc21a8e79f")
+      attr.digest shouldEqual Digest("SHA-256", "5602c497e51680bef1f3120b1d6f65d480555002a3290029f8178932e8f4801a")
 
       val download =
         fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
@@ -252,9 +262,9 @@ class S3StorageOperationsSpec
       val inexistent = fetch(
         attr.copy(uuid = randomUuid,
                   location =
-                    Uri(s"https://s3-eu-central-1.amazonaws.com/bbp-nexus-storage/${mangle(projectRef, randomUuid)}")))
+                    Uri(s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, randomUuid)}")))
         .failed[KgError.InternalError]
-      inexistent.msg shouldEqual s"Empty content fetching S3 object with key '${mangle(projectRef, randomUuid)}' in bucket 'bbp-nexus-storage'"
+      inexistent.msg shouldEqual s"Empty content fetching S3 object with key '${mangle(projectRef, randomUuid)}' in bucket 'nexus-storage'"
     }
   }
 

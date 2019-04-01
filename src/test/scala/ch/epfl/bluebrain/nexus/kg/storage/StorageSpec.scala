@@ -35,7 +35,9 @@ class StorageSpec
   val writeS3                = Permission.unsafe("s3/write")
   private implicit val storageConfig =
     StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk),
-                  S3StorageConfig("MD5", readS3, writeS3))
+                  S3StorageConfig("MD5", readS3, writeS3),
+                  "password",
+                  "salt")
   "A Storage" when {
     val iri        = url"http://example.com/id".value
     val projectRef = ProjectRef(genUUID)
@@ -64,14 +66,14 @@ class StorageSpec
       }
 
       "return an S3Storage" in {
-        val resource = simpleV(id, s3Minimal, types = Set(nxv.Storage, nxv.S3Storage, nxv.Alpha))
+        val resource = simpleV(id, s3Minimal, types = Set(nxv.Storage, nxv.S3Storage))
 
         Storage(resource).right.value shouldEqual
           S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", S3Settings(None, None, None), readS3, writeS3)
       }
 
       "return an S3Storage with credentials and region" in {
-        val resource      = simpleV(id, s3Storage, types = Set(nxv.Storage, nxv.S3Storage, nxv.Alpha))
+        val resource      = simpleV(id, s3Storage, types = Set(nxv.Storage, nxv.S3Storage))
         val settings      = S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region"))
         val expectedRead  = Permission.unsafe("my/read")
         val expectedWrite = Permission.unsafe("my/write")
@@ -85,7 +87,7 @@ class StorageSpec
       }
 
       "fail on S3Storage when types are wrong" in {
-        val resource = simpleV(id, s3Storage, types = Set(nxv.Storage, nxv.S3Storage))
+        val resource = simpleV(id, s3Storage, types = Set(nxv.S3Storage))
         Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
@@ -95,7 +97,7 @@ class StorageSpec
       }
 
       "fail on S3Storage when required parameters are not present" in {
-        val resource = simpleV(id, s3Storage.removeKeys("default"), types = Set(nxv.Storage, nxv.S3Storage, nxv.Alpha))
+        val resource = simpleV(id, s3Storage.removeKeys("default"), types = Set(nxv.Storage, nxv.S3Storage))
         Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
     }

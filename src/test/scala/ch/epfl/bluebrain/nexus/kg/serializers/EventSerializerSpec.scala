@@ -38,7 +38,10 @@ class EventSerializerSpec
   private final val UTF8: Charset = Charset.forName("UTF-8")
   private final val serialization = SerializationExtension(system)
   private implicit val storageConfig =
-    StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write), S3StorageConfig("MD5", read, write))
+    StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write),
+                  S3StorageConfig("MD5", read, write),
+                  "password",
+                  "salt")
   private case class Other(str: String)
 
   private def findConcreteSerializer[A <: SerializerWithStringManifest](o: AnyRef)(implicit t: Typeable[A]): A =

@@ -9,7 +9,6 @@
     {
       "@id": "http://example.com/id",
       "@type": [
-        "Alpha",
         "S3Storage",
         "Storage"
       ],

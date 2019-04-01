@@ -120,7 +120,6 @@ object AdditionalValidation {
     * @tparam F the monadic effect type
     */
   final def storage[F[_]: Monad](implicit config: StorageConfig, verify: Verify[F]): AdditionalValidation[F] = {
-
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) =>
       {
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)

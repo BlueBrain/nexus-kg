@@ -1,11 +1,6 @@
 {
   "@id": "http://example.com/id",
-  "@type": [
-    "Storage",
-    "S3Storage",
-    "Alpha"
-  ],
-  "algorithm": "MD5",
+  "@type": "S3Storage",
   "default": true,
   "bucket": "bucket",
   "endpoint": "endpoint",
