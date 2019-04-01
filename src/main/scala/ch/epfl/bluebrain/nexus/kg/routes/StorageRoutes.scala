@@ -64,8 +64,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       // Consume the storage id segment
       pathPrefix(IdSegment) { id =>
         routes(id)
-      },
-      new TagRoutes(tags, storageRef, write).routes
+      }
     )
 
   /**
@@ -116,6 +115,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
               }
             )
           }
-      }
+      },
+      new TagRoutes(tags, storageRef, write).routes(id)
     )
 }

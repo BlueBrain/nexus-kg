@@ -23,6 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Node.blank
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -47,7 +48,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
   def create(base: AbsoluteIri, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] = {
     val transformedSource = transform(source)
     for {
-      matValue      <- materializer(transformedSource)
+      matValue      <- materializer(transformedSource, blank)
       assignedValue <- checkOrAssignId[F](base, matValue.copy(graph = matValue.graph.removeMetadata))
       (id, rootedGraph) = assignedValue
       created <- create(id, transformedSource, rootedGraph)
@@ -64,7 +65,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
   def create(id: ResId, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] = {
     val transformedSource = transform(source)
     for {
-      matValue    <- materializer(transformedSource)
+      matValue    <- materializer(transformedSource, id.value)
       rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
       created     <- create(id, transformedSource, rootedGraph)
     } yield created
@@ -82,7 +83,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     for {
       _ <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref))
       transformedSource = transform(source)
-      matValue    <- materializer(transformedSource)
+      matValue    <- materializer(transformedSource, id.value)
       rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
       typedGraph = addSchemaType(id.value, rootedGraph)
       types      = typedGraph.rootTypes.map(_.value)

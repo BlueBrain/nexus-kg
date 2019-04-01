@@ -63,8 +63,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       // Consume the resource id segment
       pathPrefix(IdSegment) { id =>
         routes(id)
-      },
-      new TagRoutes(tags, schema, write).routes
+      }
     )
 
   /**
@@ -112,7 +111,8 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
               }
             )
           }
-      }
+      },
+      new TagRoutes(tags, schema, write).routes(id)
     )
 }
 

@@ -83,8 +83,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       // Consume the view id segment
       pathPrefix(IdSegment) { id =>
         routes(id)
-      },
-      new TagRoutes(tags, viewRef, write).routes
+      }
     )
 
   /**
@@ -135,7 +134,8 @@ class ViewRoutes private[routes] (views: Views[Task],
               }
             )
           }
-      }
+      },
+      new TagRoutes(tags, viewRef, write).routes(id)
     )
 
   private def sparqlQuery(view: SparqlView, query: String): Task[SparqlResults] = {

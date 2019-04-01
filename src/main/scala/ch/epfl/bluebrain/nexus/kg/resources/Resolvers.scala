@@ -120,7 +120,11 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     * @return Some(resolver) in the F context when found and None in the F context when not found
     */
   def fetchResolver(id: ResId)(implicit project: Project): EitherT[F, Rejection, Resolver] =
-    fetch(id).subflatMap(Resolver.apply)
+    for {
+      resource <- EitherT.fromOptionF(repo.get(id, Some(resolverRef)).value, notFound(id.ref))
+      graph    <- materializeWithMeta(resource)
+      view     <- EitherT.fromEither[F](Resolver(resource.map(Value(_, resolverCtx.contextValue, graph))))
+    } yield view
 
   /**
     * Fetches the latest revision of a resolver.
@@ -240,9 +244,8 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
       case Right(resolver) =>
         resolver.labeled.flatMap { labeledResolver =>
           val graph = labeledResolver.asGraph[CId]
-          //TODO: We don't care about the Value here, since the Encoder will use the Graph to build the json representation
           val value =
-            Value(Json.obj(),
+            Value(originalResource.value.source,
                   resolverCtx.contextValue,
                   RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata()))
           EitherT.rightT(originalResource.copy(value = value))

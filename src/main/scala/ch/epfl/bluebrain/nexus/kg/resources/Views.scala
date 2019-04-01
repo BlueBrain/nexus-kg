@@ -126,7 +126,11 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(view) in the F context when found and None in the F context when not found
     */
   def fetchView(id: ResId)(implicit project: Project): EitherT[F, Rejection, View] =
-    fetch(id).subflatMap(View.apply)
+    for {
+      resource <- EitherT.fromOptionF(repo.get(id, Some(viewRef)).value, notFound(id.ref))
+      graph    <- materializeWithMeta(resource)
+      view     <- EitherT.fromEither[F](View(resource.map(Value(_, viewCtx.contextValue, graph))))
+    } yield view
 
   /**
     * Fetches the latest revision of a view.
@@ -249,9 +253,8 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
       case Right(view) =>
         view.labeled.flatMap { labeledView =>
           val graph = labeledView.asGraph[CId]
-          //TODO: We don't care about the Value here, since the Encoder will use the Graph to build the json representation
           val value =
-            Value(Json.obj(),
+            Value(originalResource.value.source,
                   viewCtx.contextValue,
                   RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata()))
           EitherT.rightT(originalResource.copy(value = value))

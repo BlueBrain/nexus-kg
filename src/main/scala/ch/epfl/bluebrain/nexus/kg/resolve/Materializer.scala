@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.{blank, IriNode}
+import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -47,17 +47,20 @@ class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F]
     * Resolves the context URIs using the [[ProjectResolution]] and once resolved, it replaces the URIs for the actual payload.
     *
     * @param source  the payload to resolve and flatten
+    * @param id      the rootNode of the graph
     * @param project the project where the payload belongs to
     * @return Left(rejection) when failed and Right(value) when passed, wrapped in the effect type ''F''
     */
-  def apply(source: Json)(implicit project: Project): EitherT[F, Rejection, Value] =
+  def apply(source: Json, id: IriOrBNode)(implicit project: Project): EitherT[F, Rejection, Value] =
     flattenCtx(Nil, source.contextValue)
       .map {
         case `emptyJson` => Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson)
         case flattened   => flattened
       }
       .flatMap { ctx =>
-        val value = source.deepMerge(Json.obj("@context" -> ctx)).asGraph(blank).map(Value(source, ctx, _))
+        val resolved = source.replaceContext(Json.obj("@context" -> ctx)) deepMerge Json.obj(
+          "@id" -> Json.fromString(id.toString))
+        val value = resolved.asGraph(id).map(Value(source, ctx, _))
         EitherT.fromEither[F](value).leftSemiflatMap(e => Rejection.fromMarshallingErr[F](e))
       }
 
@@ -71,7 +74,7 @@ class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F]
   def apply(ref: Ref)(implicit project: Project): RejOrResourceV[F] =
     for {
       resource <- EitherT.fromOptionF(resolution(project.ref)(repo).resolve(ref), notFound(ref))
-      value    <- apply(resource.value)
+      value    <- apply(resource.value, resource.id.value)
     } yield resource.map(_ => value.copy(graph = value.graph.removeMetadata))
 
   /**
@@ -82,7 +85,7 @@ class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F]
     * @param resource the resource to materialize
     */
   def apply(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
-    apply(resource.value).map {
+    apply(resource.value, resource.id.value).map {
       case Value(json, flattened, graph) => resource.map(_ => Value(json, flattened, graph.removeMetadata))
     }
 

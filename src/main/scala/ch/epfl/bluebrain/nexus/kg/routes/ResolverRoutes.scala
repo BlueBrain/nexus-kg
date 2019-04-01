@@ -62,8 +62,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       // Consume the resolver id segment
       pathPrefix(IdSegment) { id =>
         routes(id)
-      },
-      new TagRoutes(tags, resolverRef, write).routes
+      }
     )
 
   /**
@@ -114,6 +113,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
               }
             )
           }
-      }
+      },
+      new TagRoutes(tags, resolverRef, write).routes(id)
     )
 }

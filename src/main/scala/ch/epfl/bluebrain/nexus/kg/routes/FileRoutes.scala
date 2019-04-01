@@ -74,8 +74,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       // Consume the file id segment
       pathPrefix(IdSegment) { id =>
         routes(id)
-      },
-      new TagRoutes(tags, fileRef, write).routes
+      }
     )
 
   /**
@@ -116,7 +115,8 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       (get & outputFormat(strict = true, Binary) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary                        => getFile(id)
         case format: NonBinaryOutputFormat => getResource(id)(format)
-      }
+      },
+      new TagRoutes(tags, fileRef, write).routes(id)
     )
 
   private def getResource(id: AbsoluteIri)(implicit format: NonBinaryOutputFormat) =

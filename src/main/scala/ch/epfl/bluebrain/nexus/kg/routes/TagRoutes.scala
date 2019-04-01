@@ -10,11 +10,11 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.tagCtxUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
-import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
@@ -26,9 +26,17 @@ class TagRoutes private[routes] (tags: Tags[Task], schema: Ref, write: Permissio
                                                                                    project: Project,
                                                                                    config: AppConfig) {
 
-  def routes: Route =
-    // Consume the resource id segment and the tag segment
-    (pathPrefix(IdSegment) & pathPrefix("tags")) { id =>
+  /**
+    * Routes for tags when the id is specified.
+    * Those routes should get triggered after the following segments have been consumed:
+    * <ul>
+    *   <li> {prefix}/{resourceType}/{org}/{project}/{id}. E.g.: v1/views/myorg/myproject/myview </li>
+    *   <li> {prefix}/resources/{org}/{project}/{viewSchemaUri}/{id}. E.g.: v1/resources/myorg/myproject/view/myview </li>
+    * </ul>
+    */
+  def routes(id: AbsoluteIri): Route =
+    // Consume the tag segment
+    pathPrefix("tags") {
       concat(
         // Create tag
         (post & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>

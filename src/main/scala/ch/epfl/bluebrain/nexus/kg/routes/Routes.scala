@@ -206,15 +206,18 @@ object Routes {
 
     def routeSelectorUndescore(implicit acls: AccessControlLists, caller: Caller, project: Project) =
       pathPrefix(IdSegment) { id =>
+        // format: off
         onSuccess(resources.fetch(Id(project.ref, id), selfAsIri = false).value.runToFuture) {
-          case Left(err)                                         => complete(err)
           case Right(resource) if resource.schema == resolverRef => new ResolverRoutes(resolvers, tags).routes(id)
           case Right(resource) if resource.schema == viewRef     => new ViewRoutes(views, tags, coordinator).routes(id)
           case Right(resource) if resource.schema == shaclRef    => new SchemaRoutes(schemas, tags).routes(id)
           case Right(resource) if resource.schema == fileRef     => new FileRoutes(files, resources, tags).routes(id)
           case Right(resource) if resource.schema == storageRef  => new StorageRoutes(storages, tags).routes(id)
           case Right(resource)                                   => new ResourceRoutes(resources, tags, resource.schema).routes(id) ~ list ~ createDefault
+          case Left(_: Rejection.NotFound)                       => new ResourceRoutes(resources, tags, unconstrainedRef).routes(id) ~ list ~ createDefault
+          case Left(err) => complete(err)
         }
+        // format: on
       } ~ list ~ createDefault
 
     wrap(extractToken { implicit optToken =>

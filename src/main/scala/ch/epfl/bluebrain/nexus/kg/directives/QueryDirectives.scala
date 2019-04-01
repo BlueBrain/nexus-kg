@@ -122,7 +122,7 @@ object QueryDirectives {
   def searchParams(fixedSchema: AbsoluteIri)(implicit project: Project): Directive1[SearchParams] =
     parameter('schema.as[AbsoluteIri] ? fixedSchema).flatMap {
       case `fixedSchema` =>
-        searchParams
+        searchParams.map(_.copy(schema = Some(fixedSchema)))
       case _ =>
         reject(MalformedQueryParamRejection("schema", "The provided schema does not match the schema on the Uri"))
     }

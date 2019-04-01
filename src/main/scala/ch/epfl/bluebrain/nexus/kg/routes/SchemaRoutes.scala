@@ -62,8 +62,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       // Consume the schema id segment
       pathPrefix(IdSegment) { id =>
         routes(id)
-      },
-      new TagRoutes(tags, shaclRef, write).routes
+      }
     )
 
   /**
@@ -114,7 +113,8 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
               }
             )
           }
-      }
+      },
+      new TagRoutes(tags, shaclRef, write).routes(id)
     )
 }
 

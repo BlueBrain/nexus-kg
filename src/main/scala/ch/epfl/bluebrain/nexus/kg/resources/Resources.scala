@@ -54,7 +54,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
   def create(base: AbsoluteIri, schema: Ref, source: Json)(implicit subject: Subject,
                                                            project: Project): RejOrResource[F] =
     for {
-      matValue      <- materializer(source)
+      matValue      <- materializer(source, blank)
       assignedValue <- checkOrAssignId[F](base, matValue.copy(graph = matValue.graph.removeMetadata))
       (id, rootedGraph) = assignedValue
       created <- create(id, schema, source, rootedGraph)
@@ -70,7 +70,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     */
   def create(id: ResId, schema: Ref, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
     for {
-      matValue    <- materializer(source)
+      matValue    <- materializer(source, id.value)
       rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
       created     <- create(id, schema, source, rootedGraph)
     } yield created
@@ -95,7 +95,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
                                                               project: Project): RejOrResource[F] =
     for {
       _           <- repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref, Some(rev)))
-      matValue    <- materializer(source)
+      matValue    <- materializer(source, id.value)
       rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
       _           <- validate(schema, rootedGraph)
       updated     <- repo.update(id, rev, rootedGraph.types(id.value).map(_.value), source)
