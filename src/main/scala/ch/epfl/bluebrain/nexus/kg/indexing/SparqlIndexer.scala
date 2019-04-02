@@ -53,7 +53,8 @@ private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[
         logger.error(s"Unable to materialize with meta, due to '$e'")
         None
       case Right(r) =>
-        Some(res.id -> SparqlWriteQuery.replace(toGraphUri(res.id), r.value.graph))
+        val graph = if (view.includeMetadata) r.value.graph else r.value.graph.removeMetadata
+        Some(res.id -> SparqlWriteQuery.replace(toGraphUri(res.id), graph))
     }
 
   private def toGraphUri(id: ResId): Uri = (id.value + "graph").toAkkaUri
