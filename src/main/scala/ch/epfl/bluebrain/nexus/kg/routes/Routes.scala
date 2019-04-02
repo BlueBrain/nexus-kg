@@ -160,6 +160,10 @@ object Routes {
     wrap(extractToken { implicit optToken =>
       (extractCallerAcls & extractCaller) { (acl, c) =>
         concat(
+          (pathPrefix(config.http.prefix / "events") & pathEndOrSingleSlash) { new GlobalEventRoutes(acl, c).routes },
+          (pathPrefix(config.http.prefix / "resources" / "events") & pathEndOrSingleSlash) {
+            new GlobalEventRoutes(acl, c).routes
+          },
           pathPrefix(config.http.prefix / Segment) { resourceSegment =>
             project.apply {
               implicit project =>
@@ -170,12 +174,10 @@ object Routes {
                   case "files"     => new FileRoutes(resources, acl, c).routes
                   case "storages"  => new StorageRoutes(resources, acl, c).routes
                   case "resources" => new ResourceRoutes(resources, acl, c, projectViewCoordinator).routes
-                  case "events"    => new EventRoutes(acl, c).routes
                   case _           => reject()
                 }
             }
-          },
-          (pathPrefix(config.http.prefix / "events") & pathEndOrSingleSlash) { new GlobalEventRoutes(acl, c).routes }
+          }
         )
       }
     } ~ appInfoRoutes)
