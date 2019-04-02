@@ -292,7 +292,7 @@ class ResourcesSpec
       }
 
       "prevent to create a resource that does not validate against the resolver schema" in new ResolverResource {
-        val invalid = List.range(1, 2).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
+        val invalid = List.range(1, 3).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
         forAll(invalid) { j =>
           val json   = resolverFrom(j)
           val report = resources.create(base, schema, json).value.rejected[InvalidResource]
