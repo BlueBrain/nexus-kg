@@ -22,8 +22,9 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
 import ch.epfl.bluebrain.nexus.kg.resolve.ProjectResolution
-import ch.epfl.bluebrain.nexus.kg.resources.{Repo, Resources}
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, Repo, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.{Clients, Routes}
+import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import com.github.jsonldjava.core.DocumentLoader
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -100,6 +101,11 @@ object Main {
     implicit val aclCache          = AclsCache[Task](clients.iamClient)
     implicit val projectResolution = ProjectResolution.task(cache.resolver, cache.project, aclCache)
     val resources: Resources[Task] = Resources[Task]
+
+    implicit val projections: Projections[Task, Event] = {
+      import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
+      Projections[Task, Event].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
+    }
 
     val logger = Logging(as, getClass)
     System.setProperty(DocumentLoader.DISALLOW_REMOTE_CONTEXT_LOADING, "true")

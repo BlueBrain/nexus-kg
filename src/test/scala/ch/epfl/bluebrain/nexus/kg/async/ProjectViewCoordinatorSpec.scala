@@ -15,11 +15,10 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.resources.OrganizationRef
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.sourcing.persistence.ProjectionProgress
-import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
+import ch.epfl.bluebrain.nexus.sourcing.projections.{ProjectionProgress, Projections, StreamSupervisor}
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -60,17 +59,18 @@ class ProjectViewCoordinatorSpec
     val counterStart = new AtomicInteger(0)
     val counterStop  = new AtomicInteger(0)
 
-    val coordinator1        = mock[StreamCoordinator[Task, ProjectionProgress]]
-    val coordinator2        = mock[StreamCoordinator[Task, ProjectionProgress]]
-    val coordinator2Updated = mock[StreamCoordinator[Task, ProjectionProgress]]
-    val coordinator3        = mock[StreamCoordinator[Task, ProjectionProgress]]
-    val coordinator3Updated = mock[StreamCoordinator[Task, ProjectionProgress]]
+    val coordinator1         = mock[StreamSupervisor[Task, ProjectionProgress]]
+    val coordinator2         = mock[StreamSupervisor[Task, ProjectionProgress]]
+    val coordinator2Updated  = mock[StreamSupervisor[Task, ProjectionProgress]]
+    val coordinator3         = mock[StreamSupervisor[Task, ProjectionProgress]]
+    val coordinator3Updated  = mock[StreamSupervisor[Task, ProjectionProgress]]
+    implicit val projections = mock[Projections[Task, Event]]
 
     val coordinatorProps = Props(
       new ProjectViewCoordinatorActor(viewCache) {
         override def startCoordinator(v: View.SingleView,
                                       proj: Project,
-                                      restartOffset: Boolean): StreamCoordinator[Task, ProjectionProgress] = {
+                                      restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress] = {
           counterStart.incrementAndGet()
           if (v == view && proj == project) coordinator1
           else if (v == view2 && proj == project) coordinator2
