@@ -260,12 +260,13 @@ object Storage {
   /**
     * Attempts to transform the resource into a [[Storage]].
     *
-    * @param res a materialized resource
+    * @param res     a materialized resource
+    * @param encrypt whether to encrypt the credentials during encoding
     * @return Right(storage) if the resource is compatible with a Storage, Left(rejection) otherwise
     */
-  final def apply(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, Storage] = {
+  final def apply(res: ResourceV, encrypt: Boolean)(implicit config: StorageConfig): Either[Rejection, Storage] = {
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage(res)
-    else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res)
+    else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res, encrypt)
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the storage types"))
   }
 
@@ -298,7 +299,8 @@ object Storage {
                   writePerms)
   }
 
-  private def s3Storage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, S3Storage] = {
+  private def s3Storage(res: ResourceV, encrypt: Boolean)(
+      implicit config: StorageConfig): Either[Rejection, S3Storage] = {
     val c = res.value.graph.cursor()
     for {
       default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
@@ -320,7 +322,12 @@ object Storage {
       credentials = for {
         ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
         sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
-      } yield S3Credentials(ak, sk)
+      } yield
+        if (encrypt) {
+          S3Credentials(Crypto.encrypt(config.derivedKey, ak), Crypto.encrypt(config.derivedKey, sk))
+        } else {
+          S3Credentials(ak, sk)
+        }
     } yield
       S3Storage(
         res.id.parent,

@@ -39,7 +39,7 @@ private class StorageIndexerMapping[F[_]: Timer](resources: Resources[F])(implic
               log.error(s"Error on event '${event.id.show}' (rev = ${event.rev})', cause: '${err.msg}'")
               None
             case Right(materialized) =>
-              Storage.apply(materialized) match {
+              Storage.apply(materialized, encrypt = false) match {
                 case Left(err) =>
                   log.error(s"Error on converting resource from event '${event.id.show}' to storage. Reason: '$err'")
                   None
