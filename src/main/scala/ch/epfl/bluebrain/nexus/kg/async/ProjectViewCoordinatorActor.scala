@@ -118,7 +118,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
         .plugin(config.persistence.queryJournalPlugin)
         .retry[ElasticSearchServerOrUnexpectedFailure](indexing.retry.retryStrategy)(elasticErrorMonadError)
         .batch(indexing.batch, indexing.batchTimeout)
-        .restart(value = false)
+        .restart(false)
         .init(Task.unit)
         .mapping[Event, Event](a => Task.pure(Some(a)))
         .index(_ => Task.unit)

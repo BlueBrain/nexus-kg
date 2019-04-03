@@ -76,7 +76,7 @@ object ResolverIndexer {
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)
         .mapping(mapper.apply)
-        .index(resolverList => resolverList.traverse(resolverCache.put) >> F.unit)
+        .index(_.traverse(resolverCache.put) >> F.unit)
         .build)
   }
 
