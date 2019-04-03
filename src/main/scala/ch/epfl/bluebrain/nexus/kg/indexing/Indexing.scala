@@ -5,7 +5,7 @@ import akka.stream.ActorMaterializer
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types._
-import ch.epfl.bluebrain.nexus.admin.client.types.events.Event
+import ch.epfl.bluebrain.nexus.admin.client.types.events.{Event => AdminEvent}
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -32,11 +32,13 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.Event
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
@@ -130,7 +132,7 @@ private class Indexing(
 
   def startAdminStream(): Unit = {
 
-    def handle(event: Event): Task[Unit] = {
+    def handle(event: AdminEvent): Task[Unit] = {
 
       logger.debug(s"Handling admin event: '$event'")
 
@@ -200,6 +202,7 @@ object Indexing {
       implicit cache: Caches[Task],
       config: AppConfig,
       as: ActorSystem,
+      projections: Projections[Task, Event],
       ucl: HttpClient[Task, SparqlResults]): ProjectViewCoordinator[Task] = {
     implicit val mt: ActorMaterializer                          = ActorMaterializer()
     implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]

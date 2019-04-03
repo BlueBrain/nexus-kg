@@ -29,7 +29,7 @@ val adminVersion                = "42a3b238"
 val iamVersion                  = "6920d6da"
 val commonsVersion              = "0.11.8"
 val rdfVersion                  = "0.3.3"
-val sourcingVersion             = "0.14.0"
+val sourcingVersion             = "0.16.0"
 val akkaVersion                 = "2.5.21"
 val akkaCorsVersion             = "0.4.0"
 val akkaHttpVersion             = "10.1.8"
@@ -58,7 +58,7 @@ lazy val commonsCore          = "ch.epfl.bluebrain.nexus" %% "commons-core"     
 lazy val commonsTest          = "ch.epfl.bluebrain.nexus" %% "commons-test"               % commonsVersion
 lazy val rdf                  = "ch.epfl.bluebrain.nexus" %% "rdf"                        % rdfVersion
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"              % sourcingVersion
-lazy val sourcingStream       = "ch.epfl.bluebrain.nexus" %% "sourcing-stream"            % sourcingVersion
+lazy val sourcingProjections  = "ch.epfl.bluebrain.nexus" %% "sourcing-projections"       % sourcingVersion
 lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"               % akkaVersion
 lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"      % akkaVersion
@@ -77,7 +77,7 @@ lazy val circeCore            = "io.circe"                %% "circe-core"       
 lazy val journalCore          = "io.verizon.journal"      %% "core"                       % journalVersion
 lazy val mockito              = "org.mockito"             %% "mockito-scala"              % mockitoVersion
 lazy val logbackClassic       = "ch.qos.logback"          % "logback-classic"             % logbackVersion
-lazy val monixTail            = "io.monix"                %% "monix-tail"                 % monixVersion
+lazy val monixEval            = "io.monix"                %% "monix-eval"                 % monixVersion
 lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"                 % pureconfigVersion
 lazy val scalaTest            = "org.scalatest"           %% "scalatest"                  % scalaTestVersion
 lazy val shapeless            = "com.chuusai"             %% "shapeless"                  % shapelessVersion
@@ -109,11 +109,11 @@ lazy val kg = project
       journalCore,
       kryo,
       logbackClassic,
-      monixTail,
+      monixEval,
       pureconfig,
       rdf,
       sourcingCore,
-      sourcingStream,
+      sourcingProjections,
       sparqlClient,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,

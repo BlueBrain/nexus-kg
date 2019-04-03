@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.ActorSystem
 import cats.MonadError
-import cats.effect.Timer
+import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
@@ -10,21 +10,17 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.sourcing.IndexingConfig
-import ch.epfl.bluebrain.nexus.sourcing.persistence.OffsetStorage.Volatile
-import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionProgress, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressStorage.Volatile
+import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
-import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
 import journal.Logger
-import monix.eval.Task
-import monix.execution.Scheduler
 
 private class ViewIndexerMapping[F[_]: Timer](resources: Resources[F])(implicit projectCache: ProjectCache[F],
                                                                        F: MonadError[F, Throwable],
                                                                        indexing: IndexingConfig) {
 
-  private implicit val retry: Retry[F, Throwable] = Retry(indexing.retry.retryStrategy)
-  private implicit val log                        = Logger[this.type]
+  private implicit val retry: Retry[F, Throwable] = Retry[F, Throwable](indexing.retry.retryStrategy)
+  private implicit val log: Logger                = Logger[this.type]
 
   /**
     * Fetches the view which corresponds to the argument event. If the resource is not found, or it's not
@@ -49,35 +45,49 @@ private class ViewIndexerMapping[F[_]: Timer](resources: Resources[F])(implicit 
 
 object ViewIndexer {
 
+  // $COVERAGE-OFF$
   /**
     * Starts the index process for views across all projects in the system.
     *
     * @param resources the resources operations
     * @param viewCache the distributed cache
     */
-  // $COVERAGE-OFF$
-  final def start(resources: Resources[Task], viewCache: ViewCache[Task])(
-      implicit projectCache: ProjectCache[Task],
+  final def start[F[_]: Timer](resources: Resources[F], viewCache: ViewCache[F])(
+      implicit projectCache: ProjectCache[F],
       as: ActorSystem,
-      s: Scheduler,
-      config: AppConfig): StreamCoordinator[Task, ProjectionProgress] = {
+      config: AppConfig,
+      F: Effect[F],
+  ): StreamSupervisor[F, ProjectionProgress] = {
 
-    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    implicit val indexing = config.keyValueStore.indexing
+    val kgErrorMonadError                 = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
+    implicit val indexing: IndexingConfig = config.keyValueStore.indexing
 
-    val mapper = new ViewIndexerMapping[Task](resources)
-    SequentialTagIndexer.start(
-      IndexerConfig
-        .builder[Task]
+    val mapper = new ViewIndexerMapping[F](resources)
+    TagProjection.start(
+      ProjectionConfig
+        .builder[F]
         .name("view-indexer")
         .tag(s"type=${nxv.View.value.show}")
         .plugin(config.persistence.queryJournalPlugin)
-        .retry[KgError](indexing.retry.retryStrategy)
+        .retry[KgError](indexing.retry.retryStrategy)(kgErrorMonadError)
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)
         .mapping(mapper.apply)
-        .index(_.traverse(viewCache.put) *> Task.unit)
+        .index(_.traverse(viewCache.put)(F) >> F.unit)
         .build)
   }
+
+  /**
+    * Starts the index process for views across all projects in the system.
+    *
+    * @param resources the resources operations
+    * @param viewCache the distributed cache
+    */
+  final def delay[F[_]: Timer: Effect](resources: Resources[F], viewCache: ViewCache[F])(
+      implicit projectCache: ProjectCache[F],
+      as: ActorSystem,
+      config: AppConfig,
+  ): F[StreamSupervisor[F, ProjectionProgress]] =
+    Effect[F].delay(start(resources, viewCache))
   // $COVERAGE-ON$
 }

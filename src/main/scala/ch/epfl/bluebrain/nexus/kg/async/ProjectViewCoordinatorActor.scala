@@ -27,13 +27,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SingleView, 
 import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticSearchIndexer, SparqlIndexer, View}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Resources}
-import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.sourcing.persistence.ProjectionProgress.NoProgress
-import ch.epfl.bluebrain.nexus.sourcing.persistence.{IndexerConfig, ProjectionProgress, SequentialTagIndexer}
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
+import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
-import ch.epfl.bluebrain.nexus.sourcing.stream.StreamCoordinator
 import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -47,15 +46,17 @@ import scala.concurrent.Future
 /**
   * Coordinator backed by akka actor which runs the views' streams inside the provided project
   */
+//noinspection ActorMutableStateInspection
 private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(implicit val config: AppConfig,
-                                                                               as: ActorSystem)
+                                                                               as: ActorSystem,
+                                                                               projections: Projections[Task, Event])
     extends Actor
     with Stash
     with ActorLogging {
 
-  private val children = mutable.Map.empty[SingleView, StreamCoordinator[Task, ProjectionProgress]]
+  private val children = mutable.Map.empty[SingleView, StreamSupervisor[Task, ProjectionProgress]]
 
-  private var projectStream: Option[StreamCoordinator[Task, ProjectionProgress]] = None
+  private var projectStream: Option[StreamSupervisor[Task, ProjectionProgress]] = None
 
   def receive: Receive = {
     case Start(_, project: Project, views) =>
@@ -87,14 +88,13 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
       )
   }
 
-  private def projectionProgress(coordinator: StreamCoordinator[Task, ProjectionProgress]): Task[ProjectionProgress] =
+  private def projectionProgress(coordinator: StreamSupervisor[Task, ProjectionProgress]): Task[ProjectionProgress] =
     coordinator.state().map(_.getOrElse(NoProgress))
 
-  private def startProjectStream(project: Project): StreamCoordinator[Task, ProjectionProgress] = {
-    implicit val indexing = config.elasticSearch.indexing
-    import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
-    implicit val iam            = config.iam.iamClient
-    implicit val sourcingConfig = config.sourcing
+  private def startProjectStream(project: Project): StreamSupervisor[Task, ProjectionProgress] = {
+    val elasticErrorMonadError                  = ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError[Task]
+    implicit val indexing: IndexingConfig       = config.elasticSearch.indexing
+    implicit val sourcingConfig: SourcingConfig = config.sourcing
     val g = Kamon
       .gauge("kg_indexer_gauge")
       .refine(
@@ -110,13 +110,13 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
         "organization" -> project.organizationLabel
       )
     val count = AtomicLong(0L)
-    SequentialTagIndexer.start(
-      IndexerConfig
+    TagProjection.start(
+      ProjectionConfig
         .builder[Task]
         .name(s"project-event-count-${project.uuid}")
         .tag(s"project=${project.uuid}")
         .plugin(config.persistence.queryJournalPlugin)
-        .retry[ElasticSearchServerOrUnexpectedFailure](indexing.retry.retryStrategy)
+        .retry[ElasticSearchServerOrUnexpectedFailure](indexing.retry.retryStrategy)(elasticErrorMonadError)
         .batch(indexing.batch, indexing.batchTimeout)
         .restart(false)
         .init(Task.unit)
@@ -147,7 +147,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     */
   def startCoordinator(view: SingleView,
                        project: Project,
-                       restartOffset: Boolean): StreamCoordinator[Task, ProjectionProgress]
+                       restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress]
 
   /**
     * Triggered once an indexer actor has been stopped to clean up the indices
@@ -164,7 +164,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
 
   def initialized(project: Project): Receive = {
     def stopView(v: SingleView,
-                 coordinator: StreamCoordinator[Task, ProjectionProgress],
+                 coordinator: StreamSupervisor[Task, ProjectionProgress],
                  deleteIndices: Boolean = true) = {
       coordinator.stop()
       children -= v
@@ -261,7 +261,8 @@ object ProjectViewCoordinatorActor {
                                config: AppConfig,
                                ul: UntypedHttpClient[Task],
                                ucl: HttpClient[Task, SparqlResults],
-                               as: ActorSystem): ActorRef = {
+                               as: ActorSystem,
+                               projections: Projections[Task, Event]): ActorRef = {
 
     val props = Props(
       new ProjectViewCoordinatorActor(viewCache) {
@@ -271,7 +272,7 @@ object ProjectViewCoordinatorActor {
 
         override def startCoordinator(view: SingleView,
                                       project: Project,
-                                      restartOffset: Boolean): StreamCoordinator[Task, ProjectionProgress] =
+                                      restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress] =
           view match {
             case v: ElasticSearchView => ElasticSearchIndexer.start(v, resources, project, restartOffset)
             case v: SparqlView        => SparqlIndexer.start(v, resources, project, restartOffset)

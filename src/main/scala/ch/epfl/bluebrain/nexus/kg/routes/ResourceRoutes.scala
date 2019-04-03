@@ -29,7 +29,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task],
   private implicit val viewCache = cache.view
 
   def routes: Route =
-    list ~ pathPrefix(IdSegmentOrUnderscore) {
+    events ~ list ~ pathPrefix(IdSegmentOrUnderscore) {
       case Underscore                    => new UnderscoreRoutes(resources, acls, caller, projectViewCoordinator).routes
       case SchemaId(`shaclSchemaUri`)    => new SchemaRoutes(resources, acls, caller).routes
       case SchemaId(`resolverSchemaUri`) => new ResolverRoutes(resources, acls, caller).routes
@@ -49,4 +49,9 @@ class ResourceRoutes private[routes] (resources: Resources[Task],
             )
           }
     } ~ create(unconstrainedRef)
+
+  private def events: Route =
+    (pathPrefix("events") & pathEndOrSingleSlash) {
+      new EventRoutes(acls, caller).routes
+    }
 }
