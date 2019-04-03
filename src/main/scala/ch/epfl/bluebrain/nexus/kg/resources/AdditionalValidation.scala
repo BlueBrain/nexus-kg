@@ -123,7 +123,7 @@ object AdditionalValidation {
     (id: ResId, schema: Ref, types: Set[AbsoluteIri], value: Value, rev: Long) =>
       {
         val resource = ResourceF.simpleV(id, value, rev = rev, types = types, schema = schema)
-        EitherT.fromEither(Storage(resource)).flatMap { storage =>
+        EitherT.fromEither(Storage(resource, encrypt = true)).flatMap { storage =>
           EitherT(storage.isValid.apply.map {
             case Right(_)      => value.map(storage, _.replaceContext(storageCtxUri)).toRight(InvalidJsonLD(conversionError))
             case Left(message) => Left(InvalidResourceFormat(id.ref, message): Rejection)
