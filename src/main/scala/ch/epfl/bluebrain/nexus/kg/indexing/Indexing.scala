@@ -103,7 +103,7 @@ private class Indexing(resources: Resources[Task],
           case err =>
             logger.error("There was a problem while creating index for default ElasticSearch view", err)
             ()
-        } *> resources
+        } >> resources
         .create(Id(project.ref, view.id), viewRef, json)
         .value
         .mapRetry(createdOrExists,
