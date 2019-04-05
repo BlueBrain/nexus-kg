@@ -47,10 +47,12 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 // $COVERAGE-OFF$
-private class Indexing(
-    resources: Resources[Task],
-    adminClient: AdminClient[Task],
-    coordinator: ProjectViewCoordinator[Task])(implicit cache: Caches[Task], config: AppConfig, as: ActorSystem) {
+private class Indexing(resources: Resources[Task],
+                       adminClient: AdminClient[Task],
+                       coordinator: ProjectViewCoordinator[Task])(implicit cache: Caches[Task],
+                                                                  config: AppConfig,
+                                                                  as: ActorSystem,
+                                                                  elasticSearch: ElasticSearchClient[Task]) {
 
   private val logger                                          = Logger[this.type]
   private implicit val validation: AdditionalValidation[Task] = AdditionalValidation.pass
@@ -93,12 +95,20 @@ private class Indexing(
   }
 
   private def createElasticSearchView(implicit project: Project, s: Subject): Task[Either[Rejection, Resource]] = {
-    val view: View = ElasticSearchView.default(project.ref)
+    val view = ElasticSearchView.default(project.ref)
     asJson(view).flatMap { json =>
-      val created = resources.create(Id(project.ref, view.id), viewRef, json).value
-      created.mapRetry(
-        createdOrExists,
-        InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError)
+      view
+        .createIndex[Task]
+        .recover {
+          case err =>
+            logger.error("There was a problem while creating index for default ElasticSearch view", err)
+            ()
+        } *> resources
+        .create(Id(project.ref, view.id), viewRef, json)
+        .value
+        .mapRetry(createdOrExists,
+                  InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError)
+
     }
   }
 
