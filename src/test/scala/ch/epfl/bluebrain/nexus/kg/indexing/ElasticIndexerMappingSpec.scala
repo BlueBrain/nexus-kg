@@ -20,9 +20,11 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Updated}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.Node._
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}

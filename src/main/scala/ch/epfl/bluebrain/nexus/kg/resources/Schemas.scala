@@ -81,7 +81,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     */
   def update(id: ResId, rev: Long, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
     for {
-      _ <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref))
+      _ <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref, Some(rev)))
       transformedSource = transform(source)
       matValue    <- materializer(transformedSource, id.value)
       rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
@@ -100,7 +100,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
     for {
-      _          <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref))
+      _          <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref, Some(rev)))
       deprecated <- repo.deprecate(id, rev)
     } yield deprecated
 

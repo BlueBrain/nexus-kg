@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Schemas, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -50,7 +50,7 @@ class ResourceFSpec
     val apiMappings = Map[String, AbsoluteIri](
       "nxv"           -> nxv.base,
       "ex"            -> url"http://example.com/",
-      "resource"      -> Schemas.unconstrainedSchemaUri,
+      "resource"      -> unconstrainedSchemaUri,
       "elasticsearch" -> nxv.defaultElasticSearchIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )

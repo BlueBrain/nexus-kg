@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.{Caller, Identity}
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -88,7 +89,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     */
   def update(id: ResId, rev: Long, source: Json)(implicit caller: Caller): RejOrResource[F] =
     for {
-      _ <- repo.get(id, rev, Some(resolverRef)).toRight(NotFound(id.ref))
+      _ <- repo.get(id, rev, Some(resolverRef)).toRight(NotFound(id.ref, Some(rev)))
       transformedSource = transform(source)
       graph       <- materialize(transformedSource, id.value)
       rootedGraph <- checkId[F](id, Value(transformedSource, resolverCtx.contextValue, graph))
@@ -109,7 +110,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
     for {
-      _          <- repo.get(id, rev, Some(resolverRef)).toRight(NotFound(id.ref))
+      _          <- repo.get(id, rev, Some(resolverRef)).toRight(NotFound(id.ref, Some(rev)))
       deprecated <- repo.deprecate(id, rev)
     } yield deprecated
 

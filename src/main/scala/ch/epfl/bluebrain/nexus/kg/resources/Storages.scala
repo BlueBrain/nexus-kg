@@ -90,7 +90,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCon
     */
   def update(id: ResId, rev: Long, source: Json)(implicit subject: Subject, verify: Verify[F]): RejOrResource[F] =
     for {
-      _ <- repo.get(id, rev, Some(storageRef)).toRight(NotFound(id.ref))
+      _ <- repo.get(id, rev, Some(storageRef)).toRight(NotFound(id.ref, Some(rev)))
       transformedSource = transform(source)
       graph       <- materialize(transformedSource, id.value)
       rootedGraph <- checkId[F](id, Value(transformedSource, storageCtx.contextValue, graph))
@@ -111,7 +111,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCon
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
     for {
-      _          <- repo.get(id, rev, Some(storageRef)).toRight(NotFound(id.ref))
+      _          <- repo.get(id, rev, Some(storageRef)).toRight(NotFound(id.ref, Some(rev)))
       deprecated <- repo.deprecate(id, rev)
     } yield deprecated
 

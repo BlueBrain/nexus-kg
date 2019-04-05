@@ -1,0 +1,223 @@
+package ch.epfl.bluebrain.nexus.kg.resources
+
+import java.time.{Clock, Instant, ZoneId}
+import java.util.regex.Pattern.quote
+
+import akka.stream.ActorMaterializer
+import cats.effect.{ContextShift, IO, Timer}
+import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.test
+import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq, Randomness}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import io.circe.Json
+import org.mockito.IdiomaticMockito
+import org.scalatest._
+
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
+
+//noinspection TypeAnnotation
+class ResolversSpec
+    extends ActorSystemFixture("ResolversSpec", true)
+    with IOEitherValues
+    with IOOptionValues
+    with WordSpecLike
+    with IdiomaticMockito
+    with Matchers
+    with OptionValues
+    with EitherValues
+    with Randomness
+    with test.Resources
+    with TestHelper
+    with Inspectors
+    with CirceEq {
+
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+
+  private implicit val appConfig              = Settings(system).appConfig
+  private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val mat: ActorMaterializer = ActorMaterializer()
+  private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
+  private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+
+  private implicit val repo            = Repo[IO].ioValue
+  private implicit val projectCache    = mock[ProjectCache[IO]]
+  private val resolvers: Resolvers[IO] = Resolvers[IO]
+
+  // format: off
+  val project1 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
+  val project2 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
+  // format: on
+  projectCache.getBy(ProjectLabel("account1", "project1")) shouldReturn IO.pure(Some(project1))
+  projectCache.getBy(ProjectLabel("account1", "project2")) shouldReturn IO.pure(Some(project2))
+  val label1 = ProjectLabel("account1", "project1")
+  val label2 = ProjectLabel("account1", "project2")
+  projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO.pure(
+    Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref)))
+
+  trait Base {
+    implicit lazy val caller =
+      Caller(Anonymous, Set(Anonymous, Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero", "ldap")))
+    val projectRef = ProjectRef(genUUID)
+    val base       = Iri.absolute(s"http://example.com/base/").right.value
+    val id         = Iri.absolute(s"http://example.com/$genUUID").right.value
+    val resId      = Id(projectRef, id)
+    val voc        = Iri.absolute(s"http://example.com/voc/").right.value
+    // format: off
+    implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, caller.subject.id, Instant.EPOCH, caller.subject.id)
+    // format: on
+    def updateId(json: Json) =
+      json deepMerge Json.obj("@id" -> Json.fromString(id.show))
+    val resolver = updateId(jsonContentOf("/resolve/cross-project.json"))
+    val types    = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
+
+    def resourceV(json: Json, rev: Long = 1L): ResourceV = {
+      val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
+        .replaceContext(resolverCtx)
+        .asGraph(resId.value)
+        .right
+        .value
+
+      val resourceV =
+        ResourceF.simpleV(resId, Value(json, resolverCtx.contextValue, graph), rev, schema = resolverRef, types = types)
+      resourceV.copy(
+        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata())))
+    }
+  }
+
+  "A Resolver bundle" when {
+
+    "performing create operations" should {
+
+      "prevent to create a resolver that does not validate against the resolver schema" in new Base {
+        val invalid = List.range(1, 2).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
+        forAll(invalid) { j =>
+          val json = updateId(j)
+          resolvers.create(base, json).value.rejected[InvalidResource]
+        }
+      }
+
+      "create a InProject resolver" in new Base {
+        val json   = updateId(jsonContentOf("/resolve/in-project.json"))
+        val result = resolvers.create(base, json).value.accepted
+        val expected =
+          ResourceF.simpleF(resId, json, schema = resolverRef, types = Set[AbsoluteIri](nxv.Resolver, nxv.InProject))
+        result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
+      }
+
+      "create a CrossProject resolver" in new Base {
+        val result   = resolvers.create(resId, resolver).value.accepted
+        val expected = ResourceF.simpleF(resId, resolver, schema = resolverRef, types = types)
+        result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
+      }
+
+      "prevent creating an CrossProject when project not found in the cache" in new Base {
+        val label1 = ProjectLabel("account2", "project1")
+        val label2 = ProjectLabel("account2", "project2")
+        projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO(Map(label1 -> None, label2 -> None))
+        val json = resolver.removeKeys("projects") deepMerge Json.obj(
+          "projects" -> Json.arr(Json.fromString("account2/project1"), Json.fromString("account2/project2")))
+        resolvers.create(resId, json).value.rejected[ProjectsNotFound] shouldEqual ProjectsNotFound(Set(label1, label2))
+      }
+
+      "prevent creating a CrossProject resolver when the caller does not have some of the resolver identities" in new Base {
+        override implicit lazy val caller = Caller(Anonymous, Set(Anonymous))
+        resolvers.create(resId, resolver).value.rejected[InvalidIdentity]
+      }
+
+      "prevent creating a resolver with the id passed on the call not matching the @id on the payload" in new Base {
+        val json = resolver deepMerge Json.obj("@id" -> Json.fromString(genIri.asString))
+        resolvers.create(resId, json).value.rejected[IncorrectId] shouldEqual IncorrectId(resId.ref)
+      }
+
+    }
+
+    "performing update operations" should {
+
+      "update a resolver" in new Base {
+        val resolverUpdated = resolver deepMerge Json.obj("priority" -> Json.fromInt(34))
+        resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
+        val result   = resolvers.update(resId, 1L, resolverUpdated).value.accepted
+        val expected = ResourceF.simpleF(resId, resolverUpdated, 2L, schema = resolverRef, types = types)
+        result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
+      }
+
+      "prevent to update a resolver that does not exists" in new Base {
+        resolvers.update(resId, 1L, resolver).value.rejected[NotFound] shouldEqual
+          NotFound(resId.ref, Some(1L))
+      }
+    }
+
+    "performing deprecate operations" should {
+
+      "deprecate a resolver" in new Base {
+        resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
+        val result   = resolvers.deprecate(resId, 1L).value.accepted
+        val expected = ResourceF.simpleF(resId, resolver, 2L, schema = resolverRef, types = types, deprecated = true)
+        result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
+      }
+
+      "prevent deprecating a resolver already deprecated" in new Base {
+        resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
+        resolvers.deprecate(resId, 1L).value.accepted shouldBe a[Resource]
+        resolvers.deprecate(resId, 2L).value.rejected[ResourceIsDeprecated] shouldBe a[ResourceIsDeprecated]
+      }
+    }
+
+    "performing read operations" should {
+
+      def resolverForGraph(id: AbsoluteIri) =
+        jsonContentOf("/resolve/cross-project-to-graph.json", Map(quote("{id}") -> id.asString))
+
+      projectCache.getProjectLabels(Set(project1.ref, project2.ref)) shouldReturn IO(
+        Map(project1.ref -> Some(label1), project2.ref -> Some(label2)))
+
+      "return a resolver" in new Base {
+        resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
+        val result   = resolvers.fetch(resId).value.accepted
+        val expected = resourceV(resolverForGraph(resId.value))
+        result.value.ctx shouldEqual expected.value.ctx
+        result.value.graph shouldEqual expected.value.graph
+        result shouldEqual expected.copy(value = result.value)
+      }
+
+      "return the requested resolver on a specific revision" in new Base {
+        val resolverUpdated         = resolver deepMerge Json.obj("priority"                      -> Json.fromInt(34))
+        val resolverUpdatedForGraph = resolverForGraph(resId.value) deepMerge Json.obj("priority" -> Json.fromInt(34))
+        resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
+        resolvers.update(resId, 1L, resolverUpdated).value.accepted shouldBe a[Resource]
+
+        val resultLatest   = resolvers.fetch(resId, 2L).value.accepted
+        val expectedLatest = resourceV(resolverUpdatedForGraph, 2L)
+        resultLatest.value.ctx shouldEqual expectedLatest.value.ctx
+        resultLatest.value.graph shouldEqual expectedLatest.value.graph
+        resultLatest shouldEqual expectedLatest.copy(value = resultLatest.value)
+
+        resolvers.fetch(resId, 2L).value.accepted shouldEqual resolvers.fetch(resId).value.accepted
+
+        val result   = resolvers.fetch(resId, 1L).value.accepted
+        val expected = resourceV(resolverForGraph(resId.value))
+        result.value.ctx shouldEqual expected.value.ctx
+        result.value.graph shouldEqual expected.value.graph
+        result shouldEqual expected.copy(value = result.value)
+      }
+    }
+  }
+}

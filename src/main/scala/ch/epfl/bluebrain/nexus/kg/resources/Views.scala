@@ -94,7 +94,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     */
   def update(id: ResId, rev: Long, source: Json)(implicit acls: AccessControlLists, caller: Caller): RejOrResource[F] =
     for {
-      _ <- repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref))
+      _ <- repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref, Some(rev)))
       transformedSource = transform(source, extractUuidFrom(source))
       graph       <- materialize(transformedSource, id.value)
       rootedGraph <- checkId[F](id, Value(transformedSource, viewCtx.contextValue, graph))
@@ -115,7 +115,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
     for {
-      _          <- repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref))
+      _          <- repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref, Some(rev)))
       deprecated <- repo.deprecate(id, rev)
     } yield deprecated
 

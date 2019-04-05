@@ -77,7 +77,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
     for {
-      _          <- repo.get(id, rev, Some(fileRef)).toRight(NotFound(id.ref))
+      _          <- repo.get(id, rev, Some(fileRef)).toRight(NotFound(id.ref, Some(rev)))
       deprecated <- repo.deprecate(id, rev)
     } yield deprecated
 

@@ -236,7 +236,7 @@ object Routes {
                   project.apply { implicit project =>
                     resourceSegment match {
                       case "events"    => new EventRoutes(acls, caller).routes
-                      case "resources" => list ~ pathPrefix(IdSegmentOrUnderscore)(routesSelector)
+                      case "resources" => pathPrefix(IdSegmentOrUnderscore)(routesSelector)  ~ list ~ createDefault
                       case segment     => mapToSchema(segment).map(routesSelector).getOrElse(reject())
                     }
                   }
