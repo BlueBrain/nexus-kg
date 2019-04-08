@@ -1,9 +1,5 @@
 {
   "@context": {
-    "_updatedBy": {
-      "@id": "https://bluebrain.github.io/nexus/vocabulary/updatedBy",
-      "@type": "@id"
-    },
     "_deprecated": "https://bluebrain.github.io/nexus/vocabulary/deprecated",
     "_createdAt": "https://bluebrain.github.io/nexus/vocabulary/createdAt",
     "_updatedAt": "https://bluebrain.github.io/nexus/vocabulary/updatedAt",
@@ -12,10 +8,8 @@
       "@type": "@id"
     },
     "_self": "https://bluebrain.github.io/nexus/vocabulary/self",
-    "_createdBy": {
-      "@id": "https://bluebrain.github.io/nexus/vocabulary/createdBy",
-      "@type": "@id"
-    },
+    "_updatedBy": "https://bluebrain.github.io/nexus/vocabulary/updatedBy",
+    "_createdBy": "https://bluebrain.github.io/nexus/vocabulary/createdBy",
     "_storageId": {
       "@id": "https://bluebrain.github.io/nexus/vocabulary/storageId",
       "@type": "@id"

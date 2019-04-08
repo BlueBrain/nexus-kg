@@ -53,7 +53,7 @@ object StorageIndexer {
       implicit
       projectCache: ProjectCache[F],
       as: ActorSystem,
-    F: Effect[F],
+      F: Effect[F],
       config: AppConfig): StreamSupervisor[F, ProjectionProgress] = {
 
     val kgErrorMonadError = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError

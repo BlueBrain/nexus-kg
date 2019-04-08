@@ -89,8 +89,9 @@ class StoragesSpec
     val s3Storage = updateId(jsonContentOf("/storage/s3.json"))
     // format: off
     val s3StorageModel = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"))
+    val s3StorageModelEncrypted = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("ByjwlDNy8D1Gm1o0EFCXwA==", "SjMIILT+A5BTUH4LP8sJBg==")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"))
     // format: on
-    val typesS3 = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage, nxv.Alpha)
+    val typesS3 = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
 
     def resourceV(json: Json, rev: Long = 1L, types: Set[AbsoluteIri]): ResourceV = {
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
@@ -127,7 +128,7 @@ class StoragesSpec
       }
 
       "create a S3Storage" in new Base {
-        verify.apply(s3StorageModel) shouldReturn passVerify
+        verify.apply(s3StorageModelEncrypted) shouldReturn passVerify
         val result   = storages.create(resId, s3Storage).value.accepted
         val expected = ResourceF.simpleF(resId, s3Storage, schema = storageRef, types = typesS3)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
@@ -195,7 +196,7 @@ class StoragesSpec
 
       "return the requested storage on a specific revision" in new Base {
         verify.apply(diskStorageModel) shouldReturn passVerify
-        verify.apply(s3StorageModel) shouldReturn passVerify
+        verify.apply(s3StorageModelEncrypted) shouldReturn passVerify
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         storages.update(resId, 1L, s3Storage).value.accepted shouldBe a[Resource]
 

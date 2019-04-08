@@ -209,9 +209,8 @@ object Indexing {
             adminClient: AdminClient[Task])(implicit cache: Caches[Task],
                                             config: AppConfig,
                                             as: ActorSystem,
-    projections: Projections[Task, Event],
-
-    ucl: HttpClient[Task, SparqlResults]): ProjectViewCoordinator[Task] = {
+                                            projections: Projections[Task, Event],
+                                            ucl: HttpClient[Task, SparqlResults]): ProjectViewCoordinator[Task] = {
     implicit val mt: ActorMaterializer                          = ActorMaterializer()
     implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]
     implicit val elasticSearchClient: ElasticSearchClient[Task] = ElasticSearchClient[Task](config.elasticSearch.base)

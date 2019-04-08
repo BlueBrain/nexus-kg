@@ -74,7 +74,7 @@ final case class ResourceF[A](
   /**
     * Computes the metadata triples for this resource.
     */
-  def metadata(selfAsIri: Boolean = false)(implicit config: AppConfig, project: Project): Set[Triple] = {
+  def metadata(asIri: Boolean = false)(implicit config: AppConfig, project: Project): Set[Triple] = {
 
     def triplesFor(storageAndAttributes: (Storage, FileAttributes)): Set[Triple] = {
       val blankDigest   = Node.blank
@@ -98,11 +98,11 @@ final case class ResourceF[A](
       (node, nxv.deprecated, deprecated),
       (node, nxv.createdAt, created),
       (node, nxv.updatedAt, updated),
-      (node, nxv.createdBy, createdBy.id),
-      (node, nxv.updatedBy, updatedBy.id),
+      (node, nxv.createdBy, if (asIri) createdBy.id else createdBy.id.asString),
+      (node, nxv.updatedBy, if (asIri) updatedBy.id else updatedBy.id.asString),
       (node, nxv.constrainedBy, schema.iri),
       (node, nxv.project, projectUri),
-      (node, nxv.self, if (selfAsIri) self else self.asString)
+      (node, nxv.self, if (asIri) self else self.asString)
     ) ++ typeTriples
   }
 

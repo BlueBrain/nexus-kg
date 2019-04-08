@@ -51,7 +51,7 @@ object ViewIndexer {
   final def start[F[_]: Timer](views: Views[F], viewCache: ViewCache[F])(
       implicit projectCache: ProjectCache[F],
       as: ActorSystem,
-    F: Effect[F],
+      F: Effect[F],
       config: AppConfig): StreamSupervisor[F, ProjectionProgress] = {
 
     val kgErrorMonadError                 = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError

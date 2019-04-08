@@ -4,9 +4,9 @@ import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 
 import cats.{Id => CId}
-import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
@@ -16,14 +16,15 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import org.mockito.Mockito
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatestplus.mockito.MockitoSugar
+
 import scala.concurrent.duration._
 
 class ResolverSpec
@@ -35,7 +36,8 @@ class ResolverSpec
     with MockitoSugar
     with BeforeAndAfter
     with TestHelper
-    with TryValues {
+    with TryValues
+    with Inspectors {
 
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
@@ -119,9 +121,12 @@ class ResolverSpec
       }
 
       "fail when payload on identity is wrong" in {
-        val wrong    = jsonContentOf("/resolve/cross-project-wrong-1.json").appendContextOf(resolverCtx)
-        val resource = simpleV(id, wrong, types = Set(nxv.Resolver, nxv.CrossProject))
-        Resolver(resource).toOption shouldEqual None
+        val invalid = List.range(1, 3).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
+        forAll(invalid) { invalidResolver =>
+          val resource =
+            simpleV(id, invalidResolver.appendContextOf(resolverCtx), types = Set(nxv.Resolver, nxv.CrossProject))
+          Resolver(resource).toOption shouldEqual None
+        }
       }
     }
 

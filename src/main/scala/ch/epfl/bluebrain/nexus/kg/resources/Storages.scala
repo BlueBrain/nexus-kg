@@ -27,11 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-<<<<<<< HEAD
-import ch.epfl.bluebrain.nexus.rdf.Node.{blank, IriNode}
-=======
-import ch.epfl.bluebrain.nexus.rdf.Node.{blank, IriOrBNode}
->>>>>>> Added routes and materialization fixes
+import ch.epfl.bluebrain.nexus.rdf.Node.{blank, IriNode, IriOrBNode}
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -121,8 +117,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCon
     * @param id the id of the resolver
     * @return Some(storage) in the F context when found and None in the F context when not found
     */
-  def fetchStorage(id: ResId)(implicit project: Project): EitherT[F, Rejection, Storage] =
-    fetch(id).subflatMap(Storage(_, encrypt = false))
+  def fetchStorage(id: ResId)(implicit project: Project): EitherT[F, Rejection, Storage] = {
+    val repoOrNotFound = repo.get(id, Some(storageRef)).toRight(notFound(id.ref))
+    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(Storage(_, encrypt = false))
+  }
 
   /**
     * Fetches the latest revision of a storage.
@@ -131,7 +129,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCon
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, Some(storageRef)).value, notFound(id.ref)).flatMap(fetch)
+    repo.get(id, Some(storageRef)).toRight(notFound(id.ref)).flatMap(fetch(_, dropKeys = true))
 
   /**
     * Fetches the provided revision of a storage
@@ -141,7 +139,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCon
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, rev, Some(storageRef)).value, notFound(id.ref, Some(rev))).flatMap(fetch)
+    repo.get(id, rev, Some(storageRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch(_, dropKeys = true))
 
   /**
     * Fetches the provided tag of a storage.
@@ -151,7 +149,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCon
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, tag, Some(storageRef)).value, notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
+    repo.get(id, tag, Some(storageRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch(_, dropKeys = true))
 
   /**
     * Lists storages on the given project
@@ -166,11 +164,11 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCon
       elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
     listResources(view, params.copy(schema = Some(storageSchemaUri)), pagination)
 
-  private def fetch(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
+  private def fetch(resource: Resource, dropKeys: Boolean)(implicit project: Project): RejOrResourceV[F] =
     materializeWithMeta(resource).map { graph =>
-      val filter = Set[IriNode](nxv.accessKey, nxv.secretKey)
-      resource.map(source =>
-        Value(source, storageCtx.contextValue, RootedGraph(graph.rootNode, graph.remove(p = filter.contains))))
+      val filter     = Set[IriNode](nxv.accessKey, nxv.secretKey)
+      val finalGraph = if (dropKeys) graph.remove(p = filter.contains) else graph
+      resource.map(source => Value(source, storageCtx.contextValue, RootedGraph(graph.rootNode, finalGraph)))
     }
 
   private def create(id: ResId, source: Json, graph: RootedGraph)(implicit subject: Subject,

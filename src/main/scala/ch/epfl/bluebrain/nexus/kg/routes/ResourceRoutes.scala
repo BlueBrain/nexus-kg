@@ -56,10 +56,6 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
             complete(listed.runWithStatus(OK))
           }
       },
-      // Resource events
-      (pathPrefix("events") & pathEndOrSingleSlash & extractActorSystem) { implicit system =>
-        new EventRoutes(acls, caller).routes
-      },
       // Consume the resource id segment
       pathPrefix(IdSegment) { id =>
         routes(id)

@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
@@ -88,7 +87,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(EitherT.fromOptionF(repo.get(id, Some(fileRef)).value, notFound(id.ref)))
+    fetch(repo.get(id, Some(fileRef)).toRight(notFound(id.ref)))
 
   /**
     * Attempts to stream the file resource with specific revision.
@@ -98,7 +97,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId, rev: Long)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(EitherT.fromOptionF(repo.get(id, rev, Some(fileRef)).value, notFound(id.ref, Some(rev))))
+    fetch(repo.get(id, rev, Some(fileRef)).toRight(notFound(id.ref, Some(rev))))
 
   /**
     * Attempts to stream the file resource with specific tag. The
@@ -109,7 +108,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId, tag: String)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(EitherT.fromOptionF(repo.get(id, tag, Some(fileRef)).value, notFound(id.ref, tagOpt = Some(tag))))
+    fetch(repo.get(id, tag, Some(fileRef)).toRight(notFound(id.ref, tagOpt = Some(tag))))
 
   private def fetch[Out](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
     rejOrResource.subflatMap(resource => resource.file.toRight(NotFound(resource.id.ref))).flatMapF {

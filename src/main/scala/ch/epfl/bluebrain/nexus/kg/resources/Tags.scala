@@ -35,8 +35,9 @@ class Tags[F[_]: Effect](repo: Repo[F]) {
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, schema: Ref): RejOrTags[F] =
-    EitherT
-      .fromOptionF(repo.get(id, Some(schema)).value, notFound(id.ref))
+    repo
+      .get(id, Some(schema))
+      .toRight(notFound(id.ref))
       .map(_.tags.map { case (tag, tagRev) => Tag(tagRev, tag) }.toSet)
 
   /**
@@ -48,8 +49,9 @@ class Tags[F[_]: Effect](repo: Repo[F]) {
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long, schema: Ref): RejOrTags[F] =
-    EitherT
-      .fromOptionF(repo.get(id, rev, Some(schema)).value, notFound(id.ref, Some(rev)))
+    repo
+      .get(id, rev, Some(schema))
+      .toRight(notFound(id.ref, Some(rev)))
       .map(_.tags.map { case (tag, tagRev) => Tag(tagRev, tag) }.toSet)
 
   /**
@@ -61,8 +63,9 @@ class Tags[F[_]: Effect](repo: Repo[F]) {
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String, schema: Ref): RejOrTags[F] =
-    EitherT
-      .fromOptionF(repo.get(id, tag, Some(schema)).value, notFound(id.ref, tagOpt = Some(tag)))
+    repo
+      .get(id, tag, Some(schema))
+      .toRight(notFound(id.ref, tagOpt = Some(tag)))
       .map(_.tags.map { case (value, tagRev) => Tag(tagRev, value) }.toSet)
 
 }

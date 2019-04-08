@@ -122,7 +122,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     */
   def fetchResolver(id: ResId)(implicit project: Project): EitherT[F, Rejection, Resolver] =
     for {
-      resource <- EitherT.fromOptionF(repo.get(id, Some(resolverRef)).value, notFound(id.ref))
+      resource <- repo.get(id, Some(resolverRef)).toRight(notFound(id.ref))
       graph    <- materializeWithMeta(resource)
       view     <- EitherT.fromEither[F](Resolver(resource.map(Value(_, resolverCtx.contextValue, graph))))
     } yield view
@@ -134,7 +134,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, Some(resolverRef)).value, notFound(id.ref)).flatMap(fetch)
+    repo.get(id, Some(resolverRef)).toRight(notFound(id.ref)).flatMap(fetch)
 
   /**
     * Fetches the provided revision of a resolver
@@ -144,7 +144,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, rev, Some(resolverRef)).value, notFound(id.ref, Some(rev))).flatMap(fetch)
+    repo.get(id, rev, Some(resolverRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch)
 
   /**
     * Fetches the provided tag of a resolver.
@@ -154,7 +154,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], config: AppCo
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, tag, Some(resolverRef)).value, notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
+    repo.get(id, tag, Some(resolverRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
 
   /**
     * Lists resolvers on the given project

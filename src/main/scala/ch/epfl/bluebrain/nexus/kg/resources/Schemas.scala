@@ -111,7 +111,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, Some(shaclRef)).value, notFound(id.ref)).flatMap(materializer.withMeta(_))
+    repo.get(id, Some(shaclRef)).toRight(notFound(id.ref)).flatMap(materializer.withMeta(_))
 
   /**
     * Fetches the provided revision of a storage
@@ -121,9 +121,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    EitherT
-      .fromOptionF(repo.get(id, rev, Some(shaclRef)).value, notFound(id.ref, Some(rev)))
-      .flatMap(materializer.withMeta(_))
+    repo.get(id, rev, Some(shaclRef)).toRight(notFound(id.ref, Some(rev))).flatMap(materializer.withMeta(_))
 
   /**
     * Fetches the provided tag of a storage.
@@ -133,9 +131,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    EitherT
-      .fromOptionF(repo.get(id, tag, Some(shaclRef)).value, notFound(id.ref, tagOpt = Some(tag)))
-      .flatMap(materializer.withMeta(_))
+    repo.get(id, tag, Some(shaclRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(materializer.withMeta(_))
 
   /**
     * Lists schemas on the given project

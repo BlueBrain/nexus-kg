@@ -119,11 +119,11 @@ class StorageRoutesSpec
     val storage = jsonContentOf("/storage/s3.json") deepMerge Json
       .obj("@id" -> Json.fromString(id.value.show))
       .addContext(storageCtxUri)
-    val types = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage, nxv.Alpha)
+    val types = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
 
     def storageResponse(): Json =
       response(storageRef) deepMerge Json.obj(
-        "@type" -> Json.arr(Json.fromString("S3Storage"), Json.fromString("Storage"), Json.fromString("Alpha")),
+        "@type" -> Json.arr(Json.fromString("S3Storage"), Json.fromString("Storage")),
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid")
       )
 

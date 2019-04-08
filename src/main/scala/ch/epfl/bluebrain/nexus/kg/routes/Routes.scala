@@ -182,6 +182,13 @@ object Routes {
         }
       }
 
+    def projectEvents(implicit project: Project, acls: AccessControlLists, caller: Caller): Route =
+      (pathPrefix("events") & get & pathEndOrSingleSlash) {
+        trace(s"eventResource") {
+          new EventRoutes(acls, caller).routes
+        }
+      }
+
     def createDefault(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(
         ResourceRoutes.write)) {
@@ -235,9 +242,9 @@ object Routes {
                 pathPrefix(config.http.prefix / Segment) { resourceSegment =>
                   project.apply { implicit project =>
                     resourceSegment match {
-                      case "events"    => new EventRoutes(acls, caller).routes
-                      case "resources" => pathPrefix(IdSegmentOrUnderscore)(routesSelector)  ~ list ~ createDefault
-                      case segment     => mapToSchema(segment).map(routesSelector).getOrElse(reject())
+                      case "resources" =>
+                        pathPrefix(IdSegmentOrUnderscore)(routesSelector) ~ list ~ createDefault ~ projectEvents
+                      case segment => mapToSchema(segment).map(routesSelector).getOrElse(reject())
                     }
                   }
                 }

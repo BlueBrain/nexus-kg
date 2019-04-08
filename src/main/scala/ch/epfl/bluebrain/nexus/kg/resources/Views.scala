@@ -127,7 +127,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     */
   def fetchView(id: ResId)(implicit project: Project): EitherT[F, Rejection, View] =
     for {
-      resource <- EitherT.fromOptionF(repo.get(id, Some(viewRef)).value, notFound(id.ref))
+      resource <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref))
       graph    <- materializeWithMeta(resource)
       view     <- EitherT.fromEither[F](View(resource.map(Value(_, viewCtx.contextValue, graph))))
     } yield view
@@ -139,7 +139,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, Some(viewRef)).value, notFound(id.ref)).flatMap(fetch)
+    repo.get(id, Some(viewRef)).toRight(notFound(id.ref)).flatMap(fetch)
 
   /**
     * Fetches the provided revision of a view
@@ -149,7 +149,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, rev, Some(viewRef)).value, notFound(id.ref, Some(rev))).flatMap(fetch)
+    repo.get(id, rev, Some(viewRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch)
 
   /**
     * Fetches the provided tag of a view.
@@ -159,7 +159,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, tag, Some(viewRef)).value, notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
+    repo.get(id, tag, Some(viewRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
 
   /**
     * Lists views on the given project

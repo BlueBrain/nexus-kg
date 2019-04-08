@@ -140,7 +140,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetch(id: ResId, selfAsIri: Boolean)(implicit project: Project): RejOrResourceV[F] =
-    EitherT.fromOptionF(repo.get(id, None).value, notFound(id.ref)).flatMap(materializer.withMeta(_, selfAsIri))
+    repo.get(id, None).toRight(notFound(id.ref)).flatMap(materializer.withMeta(_, selfAsIri))
 
   /**
     * Fetches the provided revision of a resource
@@ -150,9 +150,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetch(id: ResId, rev: Long, selfAsIri: Boolean)(implicit project: Project): RejOrResourceV[F] =
-    EitherT
-      .fromOptionF(repo.get(id, rev, None).value, notFound(id.ref, Some(rev)))
-      .flatMap(materializer.withMeta(_, selfAsIri))
+    repo.get(id, rev, None).toRight(notFound(id.ref, Some(rev))).flatMap(materializer.withMeta(_, selfAsIri))
 
   /**
     * Fetches the provided tag of a resource
@@ -162,9 +160,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetch(id: ResId, tag: String, selfAsIri: Boolean)(implicit project: Project): RejOrResourceV[F] =
-    EitherT
-      .fromOptionF(repo.get(id, tag, None).value, notFound(id.ref, tagOpt = Some(tag)))
-      .flatMap(materializer.withMeta(_, selfAsIri))
+    repo.get(id, tag, None).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(materializer.withMeta(_, selfAsIri))
 
   /**
     * Deprecates an existing resource
