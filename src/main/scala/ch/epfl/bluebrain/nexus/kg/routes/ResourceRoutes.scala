@@ -51,7 +51,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       // List resources
       (get & paginated & searchParams(fixedSchema = schema.iri) & pathEndOrSingleSlash & hasPermission(read)) {
         (pagination, params) =>
-          trace(s"listResource") {
+          trace("listResource") {
             val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
@@ -94,7 +94,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace(s"getResource") {
+          trace("getResource") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(resources.fetch(Id(project.ref, id), rev, schema).value.runWithStatus(OK))(format)

@@ -54,7 +54,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       // List schemas
       (get & paginated & searchParams(fixedSchema = shaclSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (pagination, params) =>
-          trace(s"listSchema") {
+          trace("listSchema") {
             val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(schemas.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
@@ -100,7 +100,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace(s"getSchema") {
+          trace("getSchema") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(schemas.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)

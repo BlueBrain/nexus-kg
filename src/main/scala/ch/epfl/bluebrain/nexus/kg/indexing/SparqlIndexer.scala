@@ -47,6 +47,7 @@ private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[
   private def toGraphUri(id: ResId): Uri = (id.value + "graph").toAkkaUri
 }
 
+@SuppressWarnings(Array("MaxParameters"))
 object SparqlIndexer {
 
   // $COVERAGE-OFF$

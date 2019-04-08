@@ -99,7 +99,7 @@ object Routes {
         logger.error(s"Received unexpected response from ES: '${f.message}' with body: '${f.body}'")
         completeGeneric()
       case err: KgError =>
-        logger.error(s"Exception caught during routes processing", err)
+        logger.error("Exception caught during routes processing", err)
         completeGeneric()
       case NonFatal(err) =>
         logger.error("Exception caught during routes processing", err)
@@ -143,6 +143,7 @@ object Routes {
     *
     * @param resources the resources operations
     */
+  @SuppressWarnings(Array("MaxParameters"))
   def apply(resources: Resources[Task],
             resolvers: Resolvers[Task],
             views: Views[Task],
@@ -176,7 +177,7 @@ object Routes {
 
     def list(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
       (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read)) { (pagination, params) =>
-        trace(s"listResource") {
+        trace("listResource") {
           val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
           complete(listed.runWithStatus(OK))
         }
@@ -184,7 +185,7 @@ object Routes {
 
     def projectEvents(implicit project: Project, acls: AccessControlLists, caller: Caller): Route =
       (pathPrefix("events") & get & pathEndOrSingleSlash) {
-        trace(s"eventResource") {
+        trace("eventResource") {
           new EventRoutes(acls, caller).routes
         }
       }
@@ -193,7 +194,7 @@ object Routes {
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(
         ResourceRoutes.write)) {
         entity(as[Json]) { source =>
-          trace(s"createResource") {
+          trace("createResource") {
             complete(resources.create(project.base, unconstrainedRef, source).value.runWithStatus(Created))
           }
         }

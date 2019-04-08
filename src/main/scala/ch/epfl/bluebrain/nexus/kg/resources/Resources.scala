@@ -15,10 +15,10 @@ import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
-import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution}
+import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.Resources.{SchemaContext, _}
+import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -239,8 +239,7 @@ object Resources {
     * @tparam F the monadic effect type
     * @return a new [[Resources]] for the provided F type
     */
-  final def apply[F[_]: Timer: Repo: ProjectResolution: Effect: Materializer](
-      implicit config: AppConfig): Resources[F] =
+  final def apply[F[_]: Timer: Repo: Effect: Materializer](implicit config: AppConfig): Resources[F] =
     new Resources[F]()
 
   private[resources] final case class SchemaContext(schema: ResourceV,

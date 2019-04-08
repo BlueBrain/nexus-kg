@@ -135,7 +135,7 @@ object Resolver {
       (anonymous orElse user orElse group orElse authenticated).toRight(
         InvalidResourceFormat(
           res.id.ref,
-          s"The provided payload could not be mapped to a resolver because the identity format is wrong"))
+          "The provided payload could not be mapped to a resolver because the identity format is wrong"))
     }
 
     if (Set(nxv.Resolver.value, nxv.CrossProject.value).subsetOf(res.types)) crossProject

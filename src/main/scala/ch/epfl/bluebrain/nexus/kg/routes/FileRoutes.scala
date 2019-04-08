@@ -66,7 +66,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       // List files
       (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (pagination, params) =>
-          trace(s"listFile") {
+          trace("listFile") {
             val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(files.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
@@ -121,7 +121,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
 
   private def getResource(id: AbsoluteIri)(implicit format: NonBinaryOutputFormat) =
     hasPermission(read).apply {
-      trace(s"getFileMetadata") {
+      trace("getFileMetadata") {
         concat(
           (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
             completeWithFormat(resources.fetch(Id(project.ref, id), rev, fileRef).value.runWithStatus(OK))

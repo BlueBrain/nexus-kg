@@ -72,7 +72,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       // List views
       (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (pagination, params) =>
-          trace(s"listView") {
+          trace("listView") {
             val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
@@ -121,7 +121,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace(s"getView") {
+          trace("getView") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(views.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)

@@ -54,7 +54,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       // List views
       (get & paginated & searchParams(fixedSchema = resolverSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (pagination, params) =>
-          trace(s"listResolver") {
+          trace("listResolver") {
             val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resolvers.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
@@ -100,7 +100,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace(s"getResolver") {
+          trace("getResolver") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(resolvers.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)

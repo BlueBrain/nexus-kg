@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
 
+@SuppressWarnings(Array("OptionGet"))
 object Schemas {
 
   val base = url"https://bluebrain.github.io/nexus/schemas/".value

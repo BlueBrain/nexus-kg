@@ -56,7 +56,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       // List storages
       (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (pagination, params) =>
-          trace(s"listStorage") {
+          trace("listStorage") {
             val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(storages.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
@@ -102,7 +102,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace(s"getStorage") {
+          trace("getStorage") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(storages.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)

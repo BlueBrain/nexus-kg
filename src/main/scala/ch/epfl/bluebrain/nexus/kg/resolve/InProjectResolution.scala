@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
-import cats.Applicative
 import ch.epfl.bluebrain.nexus.kg.resources._
 
 /**
@@ -11,7 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
   * @param repo the resources repository
   * @tparam F      the resolution effect type
   */
-class InProjectResolution[F[_]: Applicative](project: ProjectRef, repo: Repo[F]) extends Resolution[F] {
+class InProjectResolution[F[_]](project: ProjectRef, repo: Repo[F]) extends Resolution[F] {
 
   override def resolve(ref: Ref): F[Option[Resource]] = ref match {
     case Ref.Latest(value)        => repo.get(Id(project, value), None).value
@@ -25,6 +24,6 @@ object InProjectResolution {
   /**
     * Constructs an [[InProjectResolution]] instance.
     */
-  def apply[F[_]: Applicative](project: ProjectRef, repo: Repo[F]): InProjectResolution[F] =
+  def apply[F[_]](project: ProjectRef, repo: Repo[F]): InProjectResolution[F] =
     new InProjectResolution(project, repo)
 }

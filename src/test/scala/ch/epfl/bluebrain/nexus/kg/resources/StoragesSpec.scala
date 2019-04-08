@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Credentials, S3Settings, S3Storage, VerifyStorage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -57,11 +58,10 @@ class StoragesSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private implicit val repo               = Repo[IO].ioValue
-  private implicit val verify: Verify[IO] = mock[Verify[IO]]
-  private val storages: Storages[IO]      = Storages[IO]
-  private val readPerms                   = Permission.unsafe("resources/read")
-  private val writePerms                  = Permission.unsafe("files/write")
+  private implicit val repo          = Repo[IO].ioValue
+  private val storages: Storages[IO] = Storages[IO]
+  private val readPerms              = Permission.unsafe("resources/read")
+  private val writePerms             = Permission.unsafe("files/write")
 
   private val passVerify = new VerifyStorage[IO] {
     override def apply: IO[Either[String, Unit]] = IO.pure(Right(()))
@@ -84,6 +84,13 @@ class StoragesSpec
     // format: off
     val diskStorageModel = DiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", Paths.get("/tmp"), readPerms, writePerms)
     // format: on
+
+    implicit val verify = new Verify[IO] {
+      override def apply(storage: Storage): VerifyStorage[IO] =
+        if (storage == diskStorageModel || storage == s3StorageModelEncrypted || storage == diskStorageModel.copy(
+              default = true)) passVerify
+        else throw new RuntimeException
+    }
 
     val typesDisk = Set[AbsoluteIri](nxv.Storage, nxv.DiskStorage)
     val s3Storage = updateId(jsonContentOf("/storage/s3.json"))
@@ -120,7 +127,6 @@ class StoragesSpec
       }
 
       "create a DiskStorage" in new Base {
-        verify.apply(diskStorageModel) shouldReturn passVerify
         val result = storages.create(base, diskStorage).value.accepted
         val expected =
           ResourceF.simpleF(resId, diskStorage, schema = storageRef, types = typesDisk)
@@ -128,7 +134,6 @@ class StoragesSpec
       }
 
       "create a S3Storage" in new Base {
-        verify.apply(s3StorageModelEncrypted) shouldReturn passVerify
         val result   = storages.create(resId, s3Storage).value.accepted
         val expected = ResourceF.simpleF(resId, s3Storage, schema = storageRef, types = typesS3)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
@@ -145,8 +150,6 @@ class StoragesSpec
 
       "update a storage" in new Base {
         val storageUpdated = diskStorage deepMerge Json.obj("default" -> Json.fromBoolean(true))
-        verify.apply(diskStorageModel) shouldReturn passVerify
-        verify.apply(diskStorageModel.copy(default = true)) shouldReturn passVerify
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         val result   = storages.update(resId, 1L, storageUpdated).value.accepted
         val expected = ResourceF.simpleF(resId, storageUpdated, 2L, schema = storageRef, types = typesDisk)
@@ -162,7 +165,6 @@ class StoragesSpec
     "performing deprecate operations" should {
 
       "deprecate a storage" in new Base {
-        verify.apply(diskStorageModel) shouldReturn passVerify
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         val result = storages.deprecate(resId, 1L).value.accepted
         val expected =
@@ -171,7 +173,6 @@ class StoragesSpec
       }
 
       "prevent deprecating a resolver already deprecated" in new Base {
-        verify.apply(diskStorageModel) shouldReturn passVerify
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         storages.deprecate(resId, 1L).value.accepted shouldBe a[Resource]
         storages.deprecate(resId, 2L).value.rejected[ResourceIsDeprecated] shouldBe a[ResourceIsDeprecated]
@@ -185,7 +186,6 @@ class StoragesSpec
       val s3AddedJson = Json.obj("_algorithm" -> Json.fromString("SHA-256"))
 
       "return a storage" in new Base {
-        verify.apply(diskStorageModel) shouldReturn passVerify
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         val result   = storages.fetch(resId).value.accepted
         val expected = resourceV(diskStorage deepMerge diskAddedJson, 1L, typesDisk)
@@ -195,8 +195,6 @@ class StoragesSpec
       }
 
       "return the requested storage on a specific revision" in new Base {
-        verify.apply(diskStorageModel) shouldReturn passVerify
-        verify.apply(s3StorageModelEncrypted) shouldReturn passVerify
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         storages.update(resId, 1L, s3Storage).value.accepted shouldBe a[Resource]
 

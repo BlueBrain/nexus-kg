@@ -41,7 +41,7 @@ class TagRoutes private[routes] (tags: Tags[Task], schema: Ref, write: Permissio
         // Create tag
         (post & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
           entity(as[Json]) { source =>
-            trace(s"addTag") {
+            trace("addTag") {
               complete(tags.create(Id(project.ref, id), rev, source, schema).value.runWithStatus(Created))
             }
           }

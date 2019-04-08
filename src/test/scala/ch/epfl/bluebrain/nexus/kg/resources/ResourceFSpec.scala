@@ -79,15 +79,15 @@ class ResourceFSpec
         (IriNode(id), nxv.deprecated, false),
         (IriNode(id), nxv.updatedAt, clock.instant()),
         (IriNode(id), nxv.createdAt, clock.instant()),
-        (IriNode(id), nxv.createdBy, IriNode(userIri)),
-        (IriNode(id), nxv.updatedBy, IriNode(anonIri)),
+        (IriNode(id), nxv.createdBy, userIri.asString),
+        (IriNode(id), nxv.updatedBy, anonIri.asString),
         (IriNode(id), nxv.self, s"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:${projectRef.id}"),
         (IriNode(id), nxv.project, url"http://localhost:8080/v1/projects/bbp/core"),
         (IriNode(id), nxv.constrainedBy, IriNode(schema.iri))
       )
     }
 
-    "compute the metadata graph for a resource when self is an iri" in {
+    "compute the metadata graph for a resource when self, createdAt and updatedAt are iri" in {
       val resource = ResourceF
         .simpleF(resId, json, 2L, schema = schema, types = Set(nxv.Schema))
         .copy(createdBy = identity, updatedBy = Anonymous)
