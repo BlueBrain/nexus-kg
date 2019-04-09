@@ -119,6 +119,17 @@ object QueryDirectives {
   /**
     * @return the extracted search parameters from the request query parameters.
     */
+  def searchParams(fixedSchema: AbsoluteIri)(implicit project: Project): Directive1[SearchParams] =
+    parameter('schema.as[AbsoluteIri] ? fixedSchema).flatMap {
+      case `fixedSchema` =>
+        searchParams.map(_.copy(schema = Some(fixedSchema)))
+      case _ =>
+        reject(MalformedQueryParamRejection("schema", "The provided schema does not match the schema on the Uri"))
+    }
+
+  /**
+    * @return the extracted search parameters from the request query parameters.
+    */
   def searchParams(implicit project: Project): Directive1[SearchParams] =
     (parameter('deprecated.as[Boolean].?) &
       parameter('rev.as[Long].?) &

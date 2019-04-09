@@ -4,31 +4,41 @@ import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.MediaTypes
+import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.model.headers.{`WWW-Authenticate`, HttpChallenges, Location}
-import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Directives.{as, _}
 import akka.http.scaladsl.server.{ExceptionHandler, RejectionHandler, Route}
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, PredefinedFromEntityUnmarshallers}
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.directives.PrefixDirectives.uriPrefix
 import ch.epfl.bluebrain.nexus.commons.http.{RdfMediaTypes, RejectionHandling}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError._
-import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
+import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import io.circe.Json
 import io.circe.parser.parse
 import journal.Logger
 import monix.eval.Task
@@ -89,7 +99,7 @@ object Routes {
         logger.error(s"Received unexpected response from ES: '${f.message}' with body: '${f.body}'")
         completeGeneric()
       case err: KgError =>
-        logger.error(s"Exception caught during routes processing", err)
+        logger.error("Exception caught during routes processing", err)
         completeGeneric()
       case NonFatal(err) =>
         logger.error("Exception caught during routes processing", err)
@@ -133,8 +143,16 @@ object Routes {
     *
     * @param resources the resources operations
     */
-  def apply(resources: Resources[Task], projectViewCoordinator: ProjectViewCoordinator[Task])(
-      implicit as: ActorSystem,
+  @SuppressWarnings(Array("MaxParameters"))
+  def apply(resources: Resources[Task],
+            resolvers: Resolvers[Task],
+            views: Views[Task],
+            storages: Storages[Task],
+            schemas: Schemas[Task],
+            files: Files[Task],
+            tags: Tags[Task],
+            coordinator: ProjectViewCoordinator[Task])(
+      implicit system: ActorSystem,
       clients: Clients[Task],
       cache: Caches[Task],
       config: AppConfig,
@@ -149,7 +167,7 @@ object Routes {
 
     val healthStatusGroup = HealthStatusGroup(
       new CassandraHealthStatus(),
-      new ClusterHealthStatus(Cluster(as)),
+      new ClusterHealthStatus(Cluster(system)),
       new IamHealthStatus(clients.iamClient),
       new AdminHealthStatus(clients.adminClient),
       new ElasticSearchHealthStatus(clients.elasticSearch),
@@ -157,30 +175,95 @@ object Routes {
     )
     val appInfoRoutes = AppInfoRoutes(config.description, healthStatusGroup).routes
 
-    wrap(extractToken { implicit optToken =>
-      (extractCallerAcls & extractCaller) { (acl, c) =>
-        concat(
-          (pathPrefix(config.http.prefix / "events") & pathEndOrSingleSlash) { new GlobalEventRoutes(acl, c).routes },
-          (pathPrefix(config.http.prefix / "resources" / "events") & pathEndOrSingleSlash) {
-            new GlobalEventRoutes(acl, c).routes
-          },
-          pathPrefix(config.http.prefix / Segment) { resourceSegment =>
-            project.apply {
-              implicit project =>
-                resourceSegment match {
-                  case "resolvers" => new ResolverRoutes(resources, acl, c).routes
-                  case "views"     => new ViewRoutes(resources, acl, c, projectViewCoordinator).routes
-                  case "schemas"   => new SchemaRoutes(resources, acl, c).routes
-                  case "files"     => new FileRoutes(resources, acl, c).routes
-                  case "storages"  => new StorageRoutes(resources, acl, c).routes
-                  case "resources" => new ResourceRoutes(resources, acl, c, projectViewCoordinator).routes
-                  case _           => reject()
-                }
-            }
+    def list(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
+      (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read)) { (pagination, params) =>
+        trace("listResource") {
+          val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
+          complete(listed.runWithStatus(OK))
+        }
+      }
+
+    def projectEvents(implicit project: Project, acls: AccessControlLists, caller: Caller): Route =
+      (pathPrefix("events") & get & pathEndOrSingleSlash) {
+        trace("eventResource") {
+          new EventRoutes(acls, caller).routes
+        }
+      }
+
+    def createDefault(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
+      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(
+        ResourceRoutes.write)) {
+        entity(as[Json]) { source =>
+          trace("createResource") {
+            complete(resources.create(project.base, unconstrainedRef, source).value.runWithStatus(Created))
           }
-        )
+        }
+      }
+
+    def routesSelector(segment: IdOrUnderscore)(implicit acls: AccessControlLists, caller: Caller, project: Project) =
+      segment match {
+        case Underscore                    => routeSelectorUndescore
+        case SchemaId(`resolverSchemaUri`) => new ResolverRoutes(resolvers, tags).routes
+        case SchemaId(`viewSchemaUri`)     => new ViewRoutes(views, tags, coordinator).routes
+        case SchemaId(`shaclSchemaUri`)    => new SchemaRoutes(schemas, tags).routes
+        case SchemaId(`fileSchemaUri`)     => new FileRoutes(files, resources, tags).routes
+        case SchemaId(`storageSchemaUri`)  => new StorageRoutes(storages, tags).routes
+        case SchemaId(schema)              => new ResourceRoutes(resources, tags, schema.ref).routes ~ list ~ createDefault
+        case _                             => reject()
+      }
+
+    def routeSelectorUndescore(implicit acls: AccessControlLists, caller: Caller, project: Project) =
+      pathPrefix(IdSegment) { id =>
+        // format: off
+        onSuccess(resources.fetch(Id(project.ref, id), selfAsIri = false).value.runToFuture) {
+          case Right(resource) if resource.schema == resolverRef => new ResolverRoutes(resolvers, tags).routes(id)
+          case Right(resource) if resource.schema == viewRef     => new ViewRoutes(views, tags, coordinator).routes(id)
+          case Right(resource) if resource.schema == shaclRef    => new SchemaRoutes(schemas, tags).routes(id)
+          case Right(resource) if resource.schema == fileRef     => new FileRoutes(files, resources, tags).routes(id)
+          case Right(resource) if resource.schema == storageRef  => new StorageRoutes(storages, tags).routes(id)
+          case Right(resource)                                   => new ResourceRoutes(resources, tags, resource.schema).routes(id) ~ list ~ createDefault
+          case Left(_: Rejection.NotFound)                       => new ResourceRoutes(resources, tags, unconstrainedRef).routes(id) ~ list ~ createDefault
+          case Left(err) => complete(err)
+        }
+        // format: on
+      } ~ list ~ createDefault
+
+    wrap(extractToken { implicit optToken =>
+      extractCallerAcls.apply {
+        implicit acls =>
+          extractCaller.apply {
+            implicit caller =>
+              concat(
+                (pathPrefix(config.http.prefix / "events") & pathEndOrSingleSlash) {
+                  new GlobalEventRoutes(acls, caller).routes
+                },
+                (pathPrefix(config.http.prefix / "resources" / "events") & pathEndOrSingleSlash) {
+                  new GlobalEventRoutes(acls, caller).routes
+                },
+                pathPrefix(config.http.prefix / Segment) { resourceSegment =>
+                  project.apply { implicit project =>
+                    resourceSegment match {
+                      case "resources" =>
+                        pathPrefix(IdSegmentOrUnderscore)(routesSelector) ~ list ~ createDefault ~ projectEvents
+                      case segment => mapToSchema(segment).map(routesSelector).getOrElse(reject())
+                    }
+                  }
+                }
+              )
+          }
       }
     } ~ appInfoRoutes)
   }
+
+  private def mapToSchema(resourceSegment: String): Option[SchemaId] =
+    resourceSegment match {
+      case "views"     => Some(SchemaId(viewSchemaUri))
+      case "resolvers" => Some(SchemaId(resolverSchemaUri))
+      case "schemas"   => Some(SchemaId(shaclSchemaUri))
+      case "storages"  => Some(SchemaId(storageSchemaUri))
+      case "files"     => Some(SchemaId(fileSchemaUri))
+      case _           => None
+
+    }
 
 }

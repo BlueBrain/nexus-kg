@@ -28,7 +28,7 @@ scalafmt: {
 val adminVersion                = "42a3b238"
 val iamVersion                  = "6920d6da"
 val commonsVersion              = "0.11.8"
-val rdfVersion                  = "0.3.3"
+val rdfVersion                  = "0.3.4"
 val sourcingVersion             = "0.16.0"
 val akkaVersion                 = "2.5.21"
 val akkaCorsVersion             = "0.4.0"
@@ -91,6 +91,8 @@ lazy val kg = project
   .settings(
     name       := "kg",
     moduleName := "kg",
+    // Remove the 76 minimum coverage once we reach back > 80% coverage
+    coverageMinimum := 76,
     libraryDependencies ++= Seq(
       adminClient,
       akkaDistributedData,

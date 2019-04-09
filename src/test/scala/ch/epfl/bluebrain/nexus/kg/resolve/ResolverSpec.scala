@@ -4,9 +4,10 @@ import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 
 import cats.{Id => CId}
-import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -15,14 +16,16 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import org.mockito.Mockito
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatestplus.mockito.MockitoSugar
+
+import scala.concurrent.duration._
 
 class ResolverSpec
     extends WordSpecLike
@@ -33,11 +36,15 @@ class ResolverSpec
     with MockitoSugar
     with BeforeAndAfter
     with TestHelper
-    with TryValues {
+    with TryValues
+    with Inspectors {
 
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   private implicit val projectCache = mock[ProjectCache[CId]]
+
+  private implicit val iamClientConfig =
+    IamClientConfig(url"http://example.com/iam/".value, url"http://example.com/iam/".value, 1 second)
 
   before {
     Mockito.reset(projectCache)
@@ -59,13 +66,17 @@ class ResolverSpec
 
       "return an InProjectResolver" in {
         val resource = simpleV(id, inProject, types = Set(nxv.Resolver, nxv.InProject, nxv.Resource))
-        Resolver(resource).value shouldEqual InProjectResolver(projectRef, iri, resource.rev, resource.deprecated, 10)
+        Resolver(resource).right.value shouldEqual InProjectResolver(projectRef,
+                                                                     iri,
+                                                                     resource.rev,
+                                                                     resource.deprecated,
+                                                                     10)
       }
 
       "return a CrossProjectResolver" in {
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val projects = Set(label1, label2)
-        val resolver = Resolver(resource).value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
+        val resolver = Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set(nxv.Schema.value)
@@ -77,7 +88,7 @@ class ResolverSpec
       }
       "return a CrossProjectResolver with anonymous identity" in {
         val resource = simpleV(id, crossProjectAnon, types = Set(nxv.Resolver, nxv.CrossProject))
-        Resolver(resource).value.asInstanceOf[CrossProjectResolver[ProjectLabel]] shouldEqual
+        Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]] shouldEqual
           CrossProjectResolver(
             Set(nxv.Schema.value),
             Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
@@ -93,7 +104,7 @@ class ResolverSpec
 
       "return a CrossProjectResolver that does not have resourceTypes" in {
         val resource = simpleV(id, crossProjectRefs, types = Set(nxv.Resolver, nxv.CrossProject))
-        val resolver = Resolver(resource).value.asInstanceOf[CrossProjectResolver[ProjectRef]]
+        val resolver = Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectRef]]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set.empty
@@ -106,13 +117,16 @@ class ResolverSpec
 
       "fail when the types don't match" in {
         val resource = simpleV(id, inProject, types = Set(nxv.Resource))
-        Resolver(resource) shouldEqual None
+        Resolver(resource).toOption shouldEqual None
       }
 
       "fail when payload on identity is wrong" in {
-        val wrong    = jsonContentOf("/resolve/cross-project-wrong-1.json").appendContextOf(resolverCtx)
-        val resource = simpleV(id, wrong, types = Set(nxv.Resolver, nxv.CrossProject))
-        Resolver(resource) shouldEqual None
+        val invalid = List.range(1, 3).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
+        forAll(invalid) { invalidResolver =>
+          val resource =
+            simpleV(id, invalidResolver.appendContextOf(resolverCtx), types = Set(nxv.Resolver, nxv.CrossProject))
+          Resolver(resource).toOption shouldEqual None
+        }
       }
     }
 
@@ -149,7 +163,7 @@ class ResolverSpec
         when(projectCache.getProjectRefs(Set(label1, label2)))
           .thenReturn(Map(label1 -> Option(ProjectRef(uuid1)), label2 -> Option(ProjectRef(uuid2))))
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
-        val exposed  = Resolver(resource).value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
+        val exposed  = Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
         val stored   = exposed.referenced.value.right.value.asInstanceOf[CrossProjectResolver[ProjectRef]]
         stored.priority shouldEqual 50
         stored.identities should contain theSameElementsAs identities
@@ -168,7 +182,7 @@ class ResolverSpec
           .thenReturn(Map(label1 -> Option(ProjectRef(uuid1)), label2 -> Option(ProjectRef(uuid2))))
 
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
-        val exposed  = Resolver(resource).value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
+        val exposed  = Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
         val stored   = exposed.referenced.value.right.value
         stored.labeled.value.right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]] shouldEqual exposed
       }

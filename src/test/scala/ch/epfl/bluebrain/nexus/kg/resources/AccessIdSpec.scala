@@ -6,7 +6,7 @@ import java.util.UUID
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.config.{Contexts, Schemas}
+import ch.epfl.bluebrain.nexus.kg.config.Contexts
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -20,7 +20,7 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
     implicit val http = HttpConfig("http://resources.nexus.com", 80, "v1", "http://resources.nexus.com")
     val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
       "nxv"           -> nxv.base,
-      "nxs"           -> Schemas.base,
+      "nxs"           -> base,
       "nxc"           -> Contexts.base,
       "resource"      -> unconstrainedSchemaUri,
       "elasticsearch" -> nxv.defaultElasticSearchIndex,
@@ -58,7 +58,7 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
         (url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
          unconstrainedSchemaUri,
          s"http://resources.nexus.com/v1/resources/bbp/core/_/test-schema:a"),
-        (url"${Schemas.base.asString}b".value,
+        (url"${base.asString}b".value,
          url"http://example.com/a".value,
          s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:b"),
         (url"https://bluebrain.github.io/nexus/schemas/some/other".value,

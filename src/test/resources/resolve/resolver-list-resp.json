@@ -24,6 +24,7 @@
       ],
       "identities" : [
         {
+          "@id" : "http://example.com/iam/realms/ldap/users/dmontero",
           "@type" : "User",
           "realm" : "ldap",
           "subject" : "dmontero"

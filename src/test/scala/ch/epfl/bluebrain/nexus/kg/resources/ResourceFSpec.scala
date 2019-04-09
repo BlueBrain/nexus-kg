@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Schemas, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -50,7 +50,7 @@ class ResourceFSpec
     val apiMappings = Map[String, AbsoluteIri](
       "nxv"           -> nxv.base,
       "ex"            -> url"http://example.com/",
-      "resource"      -> Schemas.unconstrainedSchemaUri,
+      "resource"      -> unconstrainedSchemaUri,
       "elasticsearch" -> nxv.defaultElasticSearchIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )
@@ -79,19 +79,19 @@ class ResourceFSpec
         (IriNode(id), nxv.deprecated, false),
         (IriNode(id), nxv.updatedAt, clock.instant()),
         (IriNode(id), nxv.createdAt, clock.instant()),
-        (IriNode(id), nxv.createdBy, IriNode(userIri)),
-        (IriNode(id), nxv.updatedBy, IriNode(anonIri)),
+        (IriNode(id), nxv.createdBy, userIri.asString),
+        (IriNode(id), nxv.updatedBy, anonIri.asString),
         (IriNode(id), nxv.self, s"http://127.0.0.1:8080/v1/schemas/bbp/core/ex:${projectRef.id}"),
         (IriNode(id), nxv.project, url"http://localhost:8080/v1/projects/bbp/core"),
         (IriNode(id), nxv.constrainedBy, IriNode(schema.iri))
       )
     }
 
-    "compute the metadata graph for a resource when self is an iri" in {
+    "compute the metadata graph for a resource when self, createdAt and updatedAt are iri" in {
       val resource = ResourceF
         .simpleF(resId, json, 2L, schema = schema, types = Set(nxv.Schema))
         .copy(createdBy = identity, updatedBy = Anonymous)
-      resource.metadata(selfAsIri = true) should contain allElementsOf Set[Triple](
+      resource.metadata(asIri = true) should contain allElementsOf Set[Triple](
         (IriNode(id), nxv.rev, 2L),
         (IriNode(id), nxv.deprecated, false),
         (IriNode(id), nxv.updatedAt, clock.instant()),

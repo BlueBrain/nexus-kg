@@ -1,84 +1,142 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg._
+import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
-import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.{View, ViewStatistics}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NoStatsForAggregateView, NotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
-class ViewRoutes private[routes] (resources: Resources[Task],
-                                  acls: AccessControlLists,
-                                  caller: Caller,
+class ViewRoutes private[routes] (views: Views[Task],
+                                  tags: Tags[Task],
                                   projectViewCoordinator: ProjectViewCoordinator[Task])(
-    implicit project: Project,
-    cache: Caches[Task],
+    implicit acls: AccessControlLists,
+    caller: Caller,
+    project: Project,
+    projectCache: ProjectCache[Task],
+    viewCache: ViewCache[Task],
     indexers: Clients[Task],
     config: AppConfig,
-    um: FromEntityUnmarshaller[String])
-    extends CommonRoutes(resources, "views", acls, caller) {
+    um: FromEntityUnmarshaller[String]) {
 
-  private val emptyEsList: Json                          = jsonContentOf("/elasticsearch/empty-list.json")
-  private val transformation: Transformation[Task, View] = Transformation.view
+  private val emptyEsList: Json = jsonContentOf("/elasticsearch/empty-list.json")
 
-  private implicit val projectCache: ProjectCache[Task]    = cache.project
-  private implicit val viewCache: ViewCache[Task]          = cache.view
-  private implicit val esClient: ElasticSearchClient[Task] = indexers.elasticSearch
-  private implicit val ujClient: HttpClient[Task, Json]    = indexers.uclJson
+  import indexers._
 
+  /**
+    * Routes for views. Those routes should get triggered after the following segments have been consumed:
+    * <ul>
+    *   <li> {prefix}/views/{org}/{project}. E.g.: v1/views/myorg/myproject </li>
+    *   <li> {prefix}/resources/{org}/{project}/{viewSchemaUri}. E.g.: v1/resources/myorg/myproject/view </li>
+    * </ul>
+    */
   def routes: Route =
-    create(viewRef) ~ list(viewRef) ~ sparql ~ elasticSearch ~ stats ~
+    concat(
+      // Create view when id is not provided on the Uri (POST)
+      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
+        entity(as[Json]) { source =>
+          trace("createView") {
+            complete(views.create(project.base, source).value.runWithStatus(Created))
+          }
+        }
+      },
+      // List views
+      (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
+        (pagination, params) =>
+          trace("listView") {
+            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, pagination))
+            complete(listed.runWithStatus(OK))
+          }
+      },
+      sparql,
+      elasticSearch,
+      stats,
+      // Consume the view id segment
       pathPrefix(IdSegment) { id =>
-        concat(
-          create(id, viewRef),
-          update(id, viewRef),
-          tag(id, viewRef),
-          deprecate(id, viewRef),
-          fetch(id, viewRef),
-          tags(id, viewRef)
-        )
+        routes(id)
       }
+    )
 
-  override implicit def additional: AdditionalValidation[Task] = AdditionalValidation.view[Task](caller, acls)
-
-  override def transform(r: ResourceV): Task[ResourceV] = transformation(r)
-
-  override def transform(payload: Json) = {
-    val transformed = payload.addContext(viewCtxUri) deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuid()))
-    transformed.hcursor.get[Json]("mapping") match {
-      case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
-      case _                      => transformed
-    }
-  }
+  /**
+    * Routes for views when the id is specified.
+    * Those routes should get triggered after the following segments have been consumed:
+    * <ul>
+    *   <li> {prefix}/views/{org}/{project}/{id}. E.g.: v1/views/myorg/myproject/myview </li>
+    *   <li> {prefix}/resources/{org}/{project}/{viewSchemaUri}/{id}. E.g.: v1/resources/myorg/myproject/view/myview </li>
+    * </ul>
+    */
+  def routes(id: AbsoluteIri): Route =
+    concat(
+      // Create or update a view (depending on rev query parameter)
+      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
+        entity(as[Json]) { source =>
+          parameter('rev.as[Long].?) {
+            case None =>
+              trace("createView") {
+                complete(views.create(Id(project.ref, id), source).value.runWithStatus(Created))
+              }
+            case Some(rev) =>
+              trace("updateView") {
+                complete(views.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
+              }
+          }
+        }
+      },
+      // Deprecate view
+      (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
+        trace("deprecateView") {
+          complete(views.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+        }
+      },
+      // Fetch view
+      (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
+        case Binary => failWith(InvalidOutputFormat("Binary"))
+        case format: NonBinaryOutputFormat =>
+          trace("getView") {
+            concat(
+              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                completeWithFormat(views.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
+              },
+              (parameter('tag) & noParameter('rev)) { tag =>
+                completeWithFormat(views.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
+              },
+              (noParameter('tag) & noParameter('rev)) {
+                completeWithFormat(views.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+              }
+            )
+          }
+      },
+      new TagRoutes(tags, viewRef, write).routes(id)
+    )
 
   private def sparqlQuery(view: SparqlView, query: String): Task[SparqlResults] = {
     import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError

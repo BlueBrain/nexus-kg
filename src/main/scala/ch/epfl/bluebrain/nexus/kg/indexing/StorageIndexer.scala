@@ -16,13 +16,12 @@ import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import journal.Logger
 
-private class StorageIndexerMapping[F[_]: Timer](resources: Resources[F])(implicit projectCache: ProjectCache[F],
-                                                                          F: MonadError[F, Throwable],
-                                                                          indexing: IndexingConfig,
-                                                                          stConfig: StorageConfig) {
+private class StorageIndexerMapping[F[_]: Timer](storages: Storages[F])(implicit projectCache: ProjectCache[F],
+                                                                        F: MonadError[F, Throwable],
+                                                                        indexing: IndexingConfig) {
 
   private implicit val retry: Retry[F, Throwable] = Retry[F, Throwable](indexing.retry.retryStrategy)
-  private implicit val log: Logger                = Logger[this.type]
+  private implicit val log                        = Logger[this.type]
 
   /**
     * Fetches the storage which corresponds to the argument event. If the resource is not found, or it's not
@@ -32,21 +31,11 @@ private class StorageIndexerMapping[F[_]: Timer](resources: Resources[F])(implic
     */
   def apply(event: Event): F[Option[Storage]] =
     fetchProject(event.id.parent).flatMap { implicit project =>
-      resources.fetch(event.id).value.flatMap {
-        case Right(resource) =>
-          resources.materialize(resource).value.map {
-            case Left(err) =>
-              log.error(s"Error on event '${event.id.show}' (rev = ${event.rev})', cause: '${err.msg}'")
-              None
-            case Right(materialized) =>
-              Storage.apply(materialized, encrypt = false) match {
-                case Left(err) =>
-                  log.error(s"Error on converting resource from event '${event.id.show}' to storage. Reason: '$err'")
-                  None
-                case Right(storage) => Some(storage)
-              }
-          }
-        case _ => F.pure(None)
+      storages.fetchStorage(event.id).value.map {
+        case Left(err) =>
+          log.error(s"Error on event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")
+          None
+        case Right(storage) => Some(storage)
       }
     }
 }
@@ -57,22 +46,21 @@ object StorageIndexer {
   /**
     * Starts the index process for storages across all projects in the system.
     *
-    * @param resources    the resources operations
+    * @param storages     the storages operations
     * @param storageCache the distributed cache for storages
     */
-  final def start[F[_]: Timer](resources: Resources[F], storageCache: StorageCache[F])(
+  final def start[F[_]: Timer](storages: Storages[F], storageCache: StorageCache[F])(
       implicit
       projectCache: ProjectCache[F],
       as: ActorSystem,
-      config: AppConfig,
       F: Effect[F],
-  ): StreamSupervisor[F, ProjectionProgress] = {
+      config: AppConfig): StreamSupervisor[F, ProjectionProgress] = {
 
     val kgErrorMonadError = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 
     implicit val indexing: IndexingConfig = config.keyValueStore.indexing
 
-    val mapper = new StorageIndexerMapping[F](resources)
+    val mapper = new StorageIndexerMapping[F](storages)
     TagProjection.start(
       ProjectionConfig
         .builder[F]
@@ -90,15 +78,15 @@ object StorageIndexer {
   /**
     * Starts the index process for storages across all projects in the system.
     *
-    * @param resources    the resources operations
+    * @param storages     the storages operations
     * @param storageCache the distributed cache for storages
     */
-  final def delay[F[_]: Timer: Effect](resources: Resources[F], storageCache: StorageCache[F])(
+  final def delay[F[_]: Timer: Effect](storages: Storages[F], storageCache: StorageCache[F])(
       implicit
       projectCache: ProjectCache[F],
       as: ActorSystem,
       config: AppConfig,
   ): F[StreamSupervisor[F, ProjectionProgress]] =
-    Effect[F].delay(start(resources, storageCache))
+    Effect[F].delay(start(storages, storageCache))
   // $COVERAGE-ON$
 }

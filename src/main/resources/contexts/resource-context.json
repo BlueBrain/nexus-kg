@@ -14,7 +14,6 @@
     "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
     "AggregateSparqlView": "nxv:AggregateSparqlView",
     "SparqlView":  "nxv:SparqlView",
-    "Alpha": "nxv:Alpha",
     "_deprecated": "nxv:deprecated",
     "_createdAt": "nxv:createdAt",
     "_updatedAt": "nxv:updatedAt",
@@ -23,14 +22,8 @@
       "@type": "@id"
     },
     "_self": "nxv:self",
-    "_createdBy": {
-      "@id": "nxv:createdBy",
-      "@type": "@id"
-    },
-    "_updatedBy": {
-      "@id": "nxv:updatedBy",
-      "@type": "@id"
-    },
+    "_createdBy": "nxv:createdBy",
+    "_updatedBy": "nxv:updatedBy",
     "_constrainedBy": {
       "@id": "nxv:constrainedBy",
       "@type": "@id"

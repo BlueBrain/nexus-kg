@@ -83,21 +83,19 @@ class SparqlIndexerMappingSpec
       val mapper = new SparqlIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
-        when(resources.fetch(id)).thenReturn(EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection))
+        when(resources.fetch(id, selfAsIri = true))
+          .thenReturn(EitherT.leftT[IO, ResourceV](NotFound(id.ref): Rejection))
         mapper(ev).ioValue shouldEqual None
       }
 
       "return a SparqlWriteQuery" in {
-        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-        when(resources.fetch(id)).thenReturn(EitherT.rightT[IO, Rejection](res))
-        when(resources.materializeWithMeta(res, selfAsIri = true)).thenReturn(
-          EitherT.rightT[IO, Rejection](
-            ResourceF.simpleV(id,
-                              ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
-                              2L,
-                              schema = schema)))
+        val resV = ResourceF.simpleV(id,
+                                     ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+                                     2L,
+                                     schema = schema)
+        when(resources.fetch(id, selfAsIri = true)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
-        mapper(ev).some shouldEqual res.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
+        mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
       }
     }
 
@@ -115,25 +113,29 @@ class SparqlIndexerMappingSpec
       val mapper = new SparqlIndexerMapping(view, resources)
 
       "return none when the resource does not have the valid tag" in {
-        resources.fetch(id, "one") shouldReturn EitherT.leftT[IO, Resource](NotFound(Ref(genIri)): Rejection)
+        resources.fetch(id, "one", selfAsIri = true) shouldReturn EitherT.leftT[IO, ResourceV](
+          NotFound(Ref(genIri)): Rejection)
         mapper(ev).ioValue shouldEqual None
       }
 
       "return none when the schema is not on the view" in {
-        val res = ResourceF.simpleF(id, json, rev = 2L, schema = schema)
-        resources.fetch(id, "one") shouldReturn EitherT.rightT[IO, Rejection](res)
+        val resV = ResourceF.simpleV(id,
+                                     ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+                                     2L,
+                                     schema = schema)
+        resources.fetch(id, "one", selfAsIri = true) shouldReturn EitherT.rightT[IO, Rejection](resV)
         mapper(ev).ioValue shouldEqual None
       }
 
       "return a SparqlWriteQuery" in {
+        val resV = ResourceF
+          .simpleV(id,
+                   ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+                   2L,
+                   schema = Ref(nxv.Resource.value))
+          .copy(tags = Map("one" -> 2L))
         val res = ResourceF.simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value)).copy(tags = Map("one" -> 2L))
-        when(resources.fetch(id, "one")).thenReturn(EitherT.rightT[IO, Rejection](res))
-        when(resources.materializeWithMeta(res, selfAsIri = true)).thenReturn(
-          EitherT.rightT[IO, Rejection](
-            ResourceF.simpleV(id,
-                              ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
-                              2L,
-                              schema = Ref(nxv.Resource.value))))
+        when(resources.fetch(id, "one", selfAsIri = true)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
           id.value.asString + "/graph",

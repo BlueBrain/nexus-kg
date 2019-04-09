@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import cats.Id
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -32,7 +33,7 @@ object ResolverEncoder {
                                                  node: RootNode[QueryResults[Resolver]]): DecoderResult[Json] =
     QueryResultEncoder.json(qrsResolvers, resolverCtx mergeContext resourceCtx).map(_ addContext resolverCtxUri)
 
-  implicit val resolverGraphEncoder: GraphEncoder[Id, Resolver] = GraphEncoder {
+  implicit def resolverGraphEncoder(implicit config: IamClientConfig): GraphEncoder[Id, Resolver] = GraphEncoder {
     case (rootNode, r: InProjectResolver) => RootedGraph(rootNode, r.mainTriples(nxv.InProject))
     case (rootNode, r @ CrossProjectResolver(resTypes, _, identities, _, _, _, _, _)) =>
       val projectsString = r match {
@@ -44,11 +45,12 @@ object ResolverEncoder {
                   r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes) ++ projTriples)
   }
 
-  implicit val resolverGraphEncoderEither: GraphEncoder[EncoderResult, Resolver] = resolverGraphEncoder.toEither
+  implicit def resolverGraphEncoderEither(implicit config: IamClientConfig): GraphEncoder[EncoderResult, Resolver] =
+    resolverGraphEncoder.toEither
 
-  implicit def qqResolverEncoder: GraphEncoder[Id, QueryResult[Resolver]] =
+  implicit def qqResolverEncoder(implicit config: IamClientConfig): GraphEncoder[Id, QueryResult[Resolver]] =
     GraphEncoder { (rootNode, res) =>
-      resolverGraphEncoder(rootNode, res.source)
+      resolverGraphEncoder.apply(rootNode, res.source)
     }
 
   private implicit class ResolverSyntax(resolver: Resolver) {
@@ -63,17 +65,17 @@ object ResolverEncoder {
         (s, nxv.rev, resolver.rev)
       )
 
-    def triplesFor(identities: List[Identity]): Set[Triple] =
+    def triplesFor(identities: List[Identity])(implicit config: IamClientConfig): Set[Triple] =
       identities.foldLeft(Set.empty[Triple]) { (acc, identity) =>
-        val (bNode, triples) = triplesFor(identity)
-        acc + ((s, nxv.identities, bNode)) ++ triples
+        val (identityId, triples) = triplesFor(identity)
+        acc + ((s, nxv.identities, identityId)) ++ triples
       }
 
     def triplesFor(resourceTypes: Set[AbsoluteIri]): Set[Triple] =
       resourceTypes.map(r => (s, nxv.resourceTypes, IriNode(r)): Triple)
 
-    private def triplesFor(identity: Identity): (BNode, Set[Triple]) = {
-      val ss = blank
+    private def triplesFor(identity: Identity)(implicit config: IamClientConfig): (IriNode, Set[Triple]) = {
+      val ss = IriNode(identity.id)
       identity match {
         case User(sub, realm)     => ss -> Set((ss, rdf.tpe, nxv.User), (ss, nxv.realm, realm), (ss, nxv.subject, sub))
         case Group(group, realm)  => ss -> Set((ss, rdf.tpe, nxv.Group), (ss, nxv.realm, realm), (ss, nxv.group, group))

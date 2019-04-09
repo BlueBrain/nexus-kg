@@ -79,6 +79,10 @@ object Rejection {
           case _                 => s"Resource '${ref.show}' not found."
         }
       )
+  object NotFound {
+    def notFound(ref: Ref, revOpt: Option[Long] = None, tagOpt: Option[String] = None): Rejection =
+      NotFound(ref, revOpt, tagOpt)
+  }
 
   /**
     * Signals an attempt to interact with a project that doesn't exist.

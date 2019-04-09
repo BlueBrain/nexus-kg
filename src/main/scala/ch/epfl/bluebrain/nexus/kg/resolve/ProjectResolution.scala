@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources._
+import journal.Logger
 import monix.eval.Task
 
 /**
@@ -25,29 +26,37 @@ class ProjectResolution[F[_]](resolverCache: ResolverCache[F],
                               staticResolution: Resolution[F],
                               aclCache: AclsCache[F])(implicit F: Monad[F]) {
 
+  private val logger = Logger[this.type]
+
   /**
     * Looks up the collection of defined resolvers for the argument project
     * and generates an aggregated [[Resolution]] out of them.
     *
-    * @param ref       the project reference
-    * @param resources the resource operations
+    * @param ref  the project reference
+    * @param repo the resource repository
     * @return a new [[Resolution]] which is composed by all the resolutions generated from
     *         the resolvers found for the given ''projectRef''
     */
-  def apply(ref: ProjectRef)(resources: Resources[F]): Resolution[F] =
+  def apply(ref: ProjectRef)(repo: Repo[F]): Resolution[F] =
     new Resolution[F] {
 
-      def resolverResolution(resolver: Resolver): F[Resolution[F]] =
+      def resolverResolution(resolver: Resolver): Option[F[Resolution[F]]] =
         resolver match {
-          case r: InProjectResolver => F.pure(InProjectResolution[F](r.ref, resources))
+          case r: InProjectResolver => Some(F.pure(InProjectResolution[F](r.ref, repo)))
           case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _) =>
-            aclCache.list.map(
-              MultiProjectResolution(resources, F.pure(projects), r.resourceTypes, r.identities, projectCache, _))
+            Some(
+              aclCache.list.map(
+                MultiProjectResolution(repo, F.pure(projects), r.resourceTypes, r.identities, projectCache, _)))
+          case other =>
+            logger.error(s"A corrupted resolver was found in the cache '$other'")
+            None
+
         }
 
       private val resolution = resolverCache.get(ref).flatMap {
         _.filterNot(_.deprecated)
           .map(resolverResolution)
+          .flatten
           .sequence
           .map(list => CompositeResolution(staticResolution :: list))
       }

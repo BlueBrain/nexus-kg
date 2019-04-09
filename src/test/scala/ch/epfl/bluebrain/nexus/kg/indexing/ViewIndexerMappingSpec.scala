@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -16,7 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -42,12 +42,12 @@ class ViewIndexerMappingSpec
   private implicit val indexingConfig     = appConfig.keyValueStore.indexing
   private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
 
-  private val resources             = mock[Resources[IO]]
+  private val views                 = mock[Views[IO]]
   private implicit val projectCache = mock[ProjectCache[IO]]
-  private val mapper                = new ViewIndexerMapping(resources)
+  private val mapper                = new ViewIndexerMapping(views)
 
   before {
-    Mockito.reset(resources)
+    Mockito.reset(views)
     Mockito.reset(projectCache)
   }
 
@@ -59,34 +59,32 @@ class ViewIndexerMappingSpec
     val subject               = base + "anonymous"
     val projectRef            = ProjectRef(genUUID)
     val id                    = Id(projectRef, iri)
-    val project = Project(id.value,
-                          "proj",
-                          "org",
-                          None,
-                          base,
-                          voc,
-                          Map.empty,
-                          projectRef.id,
-                          genUUID,
-                          1L,
-                          deprecated = false,
-                          Instant.now(clock),
-                          subject,
-                          Instant.now(clock),
-                          subject)
+    implicit val project = Project(id.value,
+                                   "proj",
+                                   "org",
+                                   None,
+                                   base,
+                                   voc,
+                                   Map.empty,
+                                   projectRef.id,
+                                   genUUID,
+                                   1L,
+                                   deprecated = false,
+                                   Instant.now(clock),
+                                   subject,
+                                   Instant.now(clock),
+                                   subject)
     val schema = Ref(Schemas.resolverSchemaUri)
 
     val types = Set[AbsoluteIri](nxv.View, nxv.SparqlView)
 
     val json      = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-    val resource  = ResourceF.simpleF(id, json, rev = 2, schema = schema, types = types)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
     val view      = View(resourceV).right.value
     val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
 
     "return a view" in {
-      resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](resource)
-      resources.materialize(resource)(project) shouldReturn EitherT.rightT[IO, Rejection](resourceV)
+      views.fetchView(id) shouldReturn EitherT.rightT[IO, Rejection](view)
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
 
       mapper(ev).some shouldEqual view
@@ -94,17 +92,8 @@ class ViewIndexerMappingSpec
 
     "return none when the resource cannot be found" in {
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-      resources.fetch(id) shouldReturn EitherT.leftT[IO, Resource](NotFound(id.ref): Rejection)
+      views.fetchView(id) shouldReturn EitherT.leftT[IO, View](NotFound(id.ref): Rejection)
       mapper(ev).ioValue shouldEqual None
-    }
-
-    "raise error when the resource cannot be materialized" in {
-      resources.fetch(id) shouldReturn EitherT.rightT[IO, Rejection](resource)
-      val err = IO.raiseError[Either[Rejection, ResourceV]](KgError.InternalError(""))
-      resources.materialize(resource)(project) shouldReturn EitherT(err)
-      projectCache.get(projectRef) shouldReturn IO.pure(Some(project))
-
-      mapper(ev).failed[KgError.InternalError]
     }
   }
 }

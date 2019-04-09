@@ -2,41 +2,32 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
 
-import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.cache._
+import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
-import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticResolution}
-import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
+import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
-import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
-import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Save}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, SaveFile}
+import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{reset, when}
+import org.mockito.IdiomaticMockito
 import org.scalatest._
-import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -47,12 +38,11 @@ class ResourcesSpec
     with IOEitherValues
     with IOOptionValues
     with WordSpecLike
-    with MockitoSugar
+    with IdiomaticMockito
     with Matchers
     with OptionValues
     with EitherValues
     with Randomness
-    with BeforeAndAfter
     with test.Resources
     with TestHelper
     with Inspectors {
@@ -65,27 +55,17 @@ class ResourcesSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  implicit private val repo                    = Repo[IO].ioValue
-  private val saveFile: SaveFile[IO, String]   = mock[SaveFile[IO, String]]
-  private val fetchFile: FetchFile[IO, String] = mock[FetchFile[IO, String]]
-  private val projectCache                     = mock[ProjectCache[IO]]
-  private val resolverCache                    = mock[ResolverCache[IO]]
-  private val aclsCache                        = mock[AclsCache[IO]]
-  private implicit val additional              = AdditionalValidation.pass[IO]
-  when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List.empty[Resolver]))
-  val acls = AccessControlLists(
-    "some" / "path" -> resourceAcls(
-      AccessControlList(User("sub", "realm") -> Set(Permission.unsafe("resources/manage")))))
-  when(aclsCache.list).thenReturn(IO.pure(acls))
+  private implicit val repo = Repo[IO].ioValue
+  private val projectCache  = mock[ProjectCache[IO]]
+  private val resolverCache = mock[ResolverCache[IO]]
+  private val aclsCache     = mock[AclsCache[IO]]
+  resolverCache.get(any[ProjectRef]) shouldReturn IO.pure(List.empty[Resolver])
+  aclsCache.list shouldReturn IO.pure(AccessControlLists.empty)
 
   private implicit val resolution =
     new ProjectResolution[IO](resolverCache, projectCache, StaticResolution(AppConfig.iriResolution), aclsCache)
+  private implicit val materializer    = new Materializer(repo, resolution)
   private val resources: Resources[IO] = Resources[IO]
-
-  before {
-    reset(saveFile)
-    reset(fetchFile)
-  }
 
   trait Base {
     implicit val subject: Subject = Anonymous
@@ -109,406 +89,145 @@ class ResourcesSpec
                                    subject.id,
                                    Instant.EPOCH,
                                    subject.id)
-  }
+    val schemaRef = Ref(unconstrainedSchemaUri)
 
-  trait ResolverResource extends Base {
-    def resolverFrom(json: Json) =
-      json.addContext(resolverCtxUri) deepMerge Json.obj("@id" -> Json.fromString(id.show))
+    def resourceV(json: Json, rev: Long = 1L): ResourceV = {
+      val defaultCtxValue = Json.obj("@base" -> Json.fromString("http://example.com/base/"),
+                                     "@vocab" -> Json.fromString("http://example.com/voc/"))
+      val graph = (json deepMerge Json.obj("@context" -> defaultCtxValue, "@id" -> Json.fromString(id.asString)))
+        .asGraph(resId.value)
+        .right
+        .value
+      val resourceV = ResourceF.simpleV(resId, Value(json, defaultCtxValue, graph), rev, schema = schemaRef)
+      resourceV.copy(
+        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata())))
+    }
 
-    val schema   = Latest(resolverSchemaUri)
-    val resolver = resolverFrom(jsonContentOf("/resolve/cross-project.json"))
-
-    val resolverUpdated = resolverFrom(jsonContentOf("/resolve/cross-project-updated.json"))
-    val types           = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
-  }
-
-  trait ViewResource extends Base {
-    def resolverFrom(json: Json) =
-      json.addContext(viewCtxUri) deepMerge Json.obj("@id" -> Json.fromString(id.show))
-    val schema = Latest(viewSchemaUri)
-    val view = jsonContentOf("/view/elasticview.json").addContext(viewCtxUri) deepMerge Json.obj(
-      "@id" -> Json.fromString(id.show))
-    val types = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView)
-  }
-
-  trait StorageResource extends Base {
-    def storageFrom(json: Json) =
-      json.addContext(storageCtxUri) deepMerge Json.obj("@id" -> Json.fromString(id.show))
-
-    val schema      = Latest(storageSchemaUri)
-    val diskStorage = storageFrom(jsonContentOf("/storage/disk.json"))
-    val types       = Set[AbsoluteIri](nxv.Storage, nxv.DiskStorage)
-    val s3Storage   = storageFrom(jsonContentOf("/storage/s3.json"))
-    val typesUpdate = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
-  }
-
-  trait ResolverSchema extends Base {
-    val schema   = Latest(shaclSchemaUri)
-    val resolver = jsonContentOf("/schemas/resolver.json") deepMerge Json.obj("@id" -> Json.fromString(id.show))
-    val types    = Set[AbsoluteIri](nxv.Schema)
-  }
-
-  trait File extends Base {
-    val value      = Json.obj()
-    val schema     = Latest(fileSchemaUri)
-    val types      = Set[AbsoluteIri](nxv.File)
-    val desc       = FileDescription("name", "text/plain")
-    val source     = "some text"
-    val location   = Uri("file:///tmp/other")
-    val attributes = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
-    val storage    = DiskStorage.default(projectRef)
-
-    implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
-    implicit val fetch: Fetch[IO, String] = (st: Storage) =>
-      if (st == storage) fetchFile else throw new RuntimeException
-
-    when(saveFile(resId, desc, source)).thenReturn(IO.pure(attributes))
-    when(fetchFile(attributes)).thenReturn(IO.pure(source))
   }
 
   "A Resources bundle" when {
 
     "performing create operations" should {
 
-      "create a new resource validated against empty schema (resource schema) with a payload only containing @id and @context" in new ResolverResource {
-        private val schemaRef = Ref(unconstrainedSchemaUri)
-        private val genId     = genIri
-        private val genRes    = Id(projectRef, genId)
-        private val json =
+      "create a new resource validated against empty schema (resource schema) with a payload only containing @id and @context" in new Base {
+        val genId  = genIri
+        val genRes = Id(projectRef, genId)
+        val json =
           Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
                    "@id"      -> Json.fromString(genId.show))
         resources.create(base, schemaRef, json).value.accepted shouldEqual
           ResourceF.simpleF(genRes, json, schema = schemaRef)
       }
 
-      "create a new resource validated against empty schema (resource schema) with a payload only containing @context" in new ResolverResource {
-        private val schemaRef = Ref(unconstrainedSchemaUri)
-        private val json      = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
-        private val resource  = resources.create(base, schemaRef, json).value.accepted
+      "create a new resource validated against empty schema (resource schema) with a payload only containing @context" in new Base {
+        val json     = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
+        val resource = resources.create(base, schemaRef, json).value.accepted
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
 
-      "create a new resource validated against empty schema (resource schema) with the id passed on the call and the payload only containing @context" in new ResolverResource {
-        private val schemaRef = Ref(unconstrainedSchemaUri)
-        private val json      = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
-        private val resource  = resources.create(resId, schemaRef, json).value.accepted
+      "create a new resource validated against empty schema (resource schema) with the id passed on the call and the payload only containing @context" in new Base {
+        val json     = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
+        val resource = resources.create(resId, schemaRef, json).value.accepted
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
 
-      "create a new resource validated against empty schema (resource schema) with the id passed on the call and the payload only containing @context and @id" in new ResolverResource {
-        private val schemaRef = Ref(unconstrainedSchemaUri)
-        private val json =
-          Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
-                   "@id"      -> Json.fromString(resId.value.asString))
-        private val resource = resources.create(resId, schemaRef, json).value.accepted
+      "create a new resource validated against empty schema (resource schema) with the id passed on the call and the payload only containing @context and @id" in new Base {
+        val json = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
+                            "@id" -> Json.fromString(resId.value.asString))
+        val resource = resources.create(resId, schemaRef, json).value.accepted
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
 
-      "prevent to create a new resource validated against empty schema (resource schema) with the id passed on the call not matching the @id on the payload" in new ResolverResource {
-        private val schemaRef = Ref(unconstrainedSchemaUri)
-        private val genId     = genIri
-        private val json = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
-                                    "@id" -> Json.fromString(genId.show))
+      "prevent to create a new resource validated against empty schema (resource schema) with the id passed on the call not matching the @id on the payload" in new Base {
+        val genId = genIri
+        val json = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
+                            "@id" -> Json.fromString(genId.show))
         resources.create(resId, schemaRef, json).value.rejected[IncorrectId] shouldEqual IncorrectId(resId.ref)
       }
 
-      "create a new resource validated against the resolver schema without passing the id on the call (but provided on the Json)" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, schema = schema, types = types)
+      "prevent to create a resource with non existing schema" in new Base {
+        val refSchema = Ref(genIri)
+        resources.create(base, refSchema, Json.obj()).value.rejected[NotFound] shouldEqual NotFound(refSchema)
       }
 
-      "create a new resource validated against the view schema without passing the id on the call (but provided on the Json)" in new ViewResource {
-        private val expected = ResourceF.simpleF(resId, view, schema = schema, types = types)
-        val result           = resources.create(base, schema, view).value.accepted
-        result.copy(value = result.value.removeKeys("_uuid")) shouldEqual
-          expected.copy(value = result.value.removeKeys("_uuid"))
+      "prevent to create a resource with wrong context value" in new Base {
+        val json = Json.obj("@context" -> Json.arr(Json.fromString(resolverCtxUri.show), Json.fromInt(3)))
+        resources.create(base, schemaRef, json).value.rejected[IllegalContextValue] shouldEqual IllegalContextValue(
+          List.empty)
       }
 
-      "create a new resource validated against the storage schema without passing the id on the call (but provided on the Json)" in new StorageResource {
-        resources.create(base, schema, diskStorage).value.accepted shouldEqual
-          ResourceF.simpleF(resId, diskStorage, schema = schema, types = types)
+      "prevent to create a resource with wrong context that cannot be resolved" in new Base {
+        val notFoundIri = genIri
+        val json        = Json.obj() addContext resolverCtxUri addContext notFoundIri
+        resources.create(base, schemaRef, json).value.rejected[NotFound] shouldEqual NotFound(Ref(notFoundIri))
       }
 
-      "prevent to create a resource that does not validate against the storage schema" in new StorageResource {
-        val invalid = List.range(1, 2).map(i => jsonContentOf(s"/storage/storage-wrong-$i.json"))
-        forAll(invalid) { j =>
-          val json   = storageFrom(j)
-          val report = resources.create(base, schema, json).value.rejected[InvalidResource]
-          report shouldBe a[InvalidResource]
-        }
-      }
-
-      "prevent to create a resource that does not validate against the view schema" in new ViewResource {
-        val invalid = List.range(1, 3).map(i => jsonContentOf(s"/view/aggelasticviewwrong$i.json"))
-        forAll(invalid) { j =>
-          val json   = resolverFrom(j)
-          val report = resources.create(base, schema, json).value.rejected[InvalidResource]
-          report shouldBe a[InvalidResource]
-        }
-      }
-
-      "create resources that validate against view schema" in {
-        val valid =
-          List(jsonContentOf("/view/aggelasticviewrefs.json"), jsonContentOf("/view/aggelasticview.json"))
-        val tpes = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView)
-        forAll(valid) { j =>
-          new ViewResource {
-            val json     = resolverFrom(j)
-            val result   = resources.create(base, schema, json).value.accepted
-            val expected = ResourceF.simpleF(resId, json, schema = schema, types = tpes)
-            result.copy(value = result.value.removeKeys("_uuid")) shouldEqual
-              expected.copy(value = result.value.removeKeys("_uuid"))
-          }
-        }
-      }
-
-      "create a new resource validated against the resolver schema without passing the id on the call (neither on the Json)" in new ResolverResource {
-        private val resolverNoId = resolver removeKeys "@id"
-        private val result       = resources.create(base, schema, resolverNoId).value.accepted
-        private val generatedId  = result.id.copy(parent = projectRef)
-        result.id.value.show should startWith(base.show)
-        result shouldEqual ResourceF.simpleF(generatedId, resolverNoId, schema = schema, types = types)
-      }
-
-      "create a new resource validated against the resolver schema passing the id on the call (the provided on the Json)" in new ResolverResource {
-        resources.create(resId, schema, resolver).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, schema = schema, types = types)
-      }
-
-      "create resources that validate against resolver schema" in {
-        val valid = List(
-          nxv.CrossProject.value -> jsonContentOf("/resolve/cross-project.json"),
-          nxv.CrossProject.value -> jsonContentOf("/resolve/cross-project2.json"),
-          nxv.InProject.value    -> jsonContentOf("/resolve/in-project.json")
-        )
-        forAll(valid) {
-          case (tpe, j) =>
-            new ResolverResource {
-              val json = resolverFrom(j)
-              resources.create(base, schema, json).value.accepted shouldEqual
-                ResourceF.simpleF(resId, json, schema = schema, types = Set(tpe, nxv.Resolver.value))
-            }
-        }
-      }
-
-      "prevent to create a resource that does not validate against the resolver schema" in new ResolverResource {
-        val invalid = List.range(1, 3).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
-        forAll(invalid) { j =>
-          val json   = resolverFrom(j)
-          val report = resources.create(base, schema, json).value.rejected[InvalidResource]
-          report shouldBe a[InvalidResource]
-        }
-      }
-
-      "prevent to create a resource with non existing schema" in new ResolverResource {
-        private val refSchema = Ref(genIri)
-        resources.create(base, refSchema, resolver).value.rejected[NotFound] shouldEqual NotFound(refSchema)
-      }
-
-      "prevent to create a resource with wrong context value" in new ResolverResource {
-        private val json = resolver deepMerge Json.obj(
-          "@context" -> Json.arr(Json.fromString(resolverCtxUri.show), Json.fromInt(3)))
-        resources
-          .create(base, schema, json)
-          .value
-          .rejected[IllegalContextValue] shouldEqual IllegalContextValue(List.empty)
-      }
-
-      "prevent to create a resource with wrong context that cannot be resolved" in new ResolverResource {
-        private val notFoundIri = genIri
-        private val json        = resolver removeKeys "@context" addContext resolverCtxUri addContext notFoundIri
-        resources.create(base, schema, json).value.rejected[NotFound] shouldEqual NotFound(Ref(notFoundIri))
-      }
-
-      "prevent creating a schema with wrong imports" in new ResolverSchema {
-        private val json = resolver deepMerge Json.obj("imports" -> Json.fromString("http://example.com/some"))
-        resources.create(resId, schema, json).value.rejected[NotFound] shouldEqual
-          NotFound(Ref(url"http://example.com/some".value))
-      }
-
-      "create a new schema passing the id on the call (the provided on the Json)" in new ResolverSchema {
-        resources.create(resId, schema, resolver).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, types = types, schema = schema)
-      }
-
-      "create a new schema without passing the id on the call (but provided on the Json)" in new ResolverSchema {
-        resources.create(base, schema, resolver).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, types = types, schema = schema)
-      }
-
-      /**
-        * Known issue when the Json doesn't contain an @id and the call to `graph.primaryNode` assigns a "wrong"
-        * primaryNode because of "@reverse" JSON-LD key present on the @context
-        */
-      "create a new schema without passing the id on the call (neither on the Json)" ignore new ResolverSchema {
-        private val resolverNoId = resolver removeKeys "@id"
-        private val result       = resources.create(base, schema, resolverNoId).value.accepted
-        private val generatedId  = result.id.copy(parent = projectRef)
-        result.id.value.show should startWith(base.show)
-        result shouldEqual ResourceF.simpleF(generatedId, resolverNoId, schema = schema, types = types)
-      }
     }
 
     "performing update operations" should {
 
-      "update a resource (resolver)" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
+      "update a resource" in new Base {
+        val json        = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
+        val jsonUpdated = Json.obj("one"      -> Json.fromString("two"))
+        resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
+
+        resources.update(resId, 1L, schemaRef, jsonUpdated).value.accepted shouldEqual
+          ResourceF.simpleF(resId, jsonUpdated, 2L, schema = schemaRef)
       }
 
-      "update a resource (resolver) when the provided schema matches the created schema" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
+      "prevent to update a resource when the provided schema does not match the created schema" in new Base {
+        val json = Json.obj("one" -> Json.fromString("two"))
+        resources.create(resId, unconstrainedRef, json).value.accepted shouldBe a[Resource]
+        val otherSchema = Ref(genIri)
+        resources.update(resId, 1L, otherSchema, json).value.rejected[NotFound] shouldEqual
+          NotFound(resId.ref, Some(1L))
       }
 
-      "prevent to update a resource (resolver) when the provided schema does not match the created schema" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(genIri)
-        resources.update(resId, 1L, schemaRef, resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
-      }
-
-      "prevent to update a resource (resolver) that does not exists" in new ResolverResource {
-        resources.update(resId, 1L, schema, resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(resId.ref,
-                                                                                                           revOpt =
-                                                                                                             Some(1L))
-      }
-
-      "update a resource (storage) when the provided schema matches the created schema" in new StorageResource {
-        resources.create(base, schema, diskStorage).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, schema, s3Storage).value.accepted shouldEqual
-          ResourceF.simpleF(resId, s3Storage, 2L, schema = schema, types = typesUpdate)
-      }
-    }
-
-    "performing tag operations" should {
-      val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(1L))
-
-      "tag a resource" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldBe a[Resource]
-        resources.tag(resId, 2L, schema, tag).value.accepted shouldEqual
-          ResourceF
-            .simpleF(resId, resolverUpdated, 3L, schema = schema, types = types)
-            .copy(tags = Map("some" -> 1L))
-      }
-
-      "prevent tagging a resource with incorrect payload" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldBe a[Resource]
-        private val invalidPayload: Json = Json.obj("a" -> Json.fromString("b"))
-        resources.tag(resId, 2L, schema, invalidPayload).value.rejected[InvalidResourceFormat]
-      }
-
-      "prevent tagging a resource when the provided schema does not match the created schema" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(genIri)
-        resources.tag(resId, 1L, schemaRef, tag).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
+      "prevent to update a resource  that does not exists" in new Base {
+        resources.update(resId, 1L, unconstrainedRef, Json.obj()).value.rejected[NotFound] shouldEqual
+          NotFound(resId.ref, Some(1L))
       }
     }
 
     "performing deprecate operations" should {
-      "deprecate a resource" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.deprecate(resId, 1L, schema).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, 2L, schema = schema, types = types, deprecated = true)
+      val json = Json.obj("one" -> Json.fromString("two"))
+
+      "deprecate a resource" in new Base {
+        resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
+        resources.deprecate(resId, 1L, schemaRef).value.accepted shouldEqual
+          ResourceF.simpleF(resId, json, 2L, schema = schemaRef, deprecated = true)
       }
 
-      "prevent deprecating a resource when the provided schema does not match the created schema" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(genIri)
-        resources.deprecate(resId, 1L, schemaRef).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
-      }
-    }
-
-    "performing write file operations" should {
-      "create a file resource" in new File {
-        resources.createFile(resId, storage, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(resId, value, schema = schema, types = types).copy(file = Some(storage -> attributes))
+      "prevent deprecating a resource when the provided schema does not match the created schema" in new Base {
+        resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
+        val otherSchema = Ref(genIri)
+        resources.deprecate(resId, 1L, otherSchema).value.rejected[NotFound] shouldEqual NotFound(resId.ref, Some(1L))
       }
     }
 
     "performing read operations" should {
+      val json        = Json.obj("one" -> Json.fromString("two"))
+      val jsonUpdated = Json.obj("one" -> Json.fromString("three"))
 
-      "return a resource" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.fetch(resId).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, schema = schema, types = types)
+      "return a resource" in new Base {
+
+        resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
+        resources.fetch(resId, schemaRef).value.accepted shouldEqual resourceV(json)
       }
 
-      "return a specific revision of the resource" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.fetch(resId).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, schema = schema, types = types)
+      "return the requested resource on a specific revision" in new Base {
+        resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
+        resources.update(resId, 1L, schemaRef, jsonUpdated).value.accepted shouldBe a[Resource]
+        resources.fetch(resId, 2L, schemaRef).value.accepted shouldEqual resourceV(jsonUpdated, 2L)
+        resources.fetch(resId, 2L, schemaRef).value.accepted shouldEqual
+          resources.fetch(resId, schemaRef).value.accepted
+        resources.fetch(resId, 1L, schemaRef).value.accepted shouldEqual resourceV(json, 1L)
       }
 
-      "return the requested resource on a specific revision" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldBe a[Resource]
-        resources.fetch(resId, 2L).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
-        resources.fetch(resId, 2L).value.accepted shouldEqual resources.fetch(resId, 2L, schema).value.accepted
-        resources.fetch(resId, 1L).value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolver, schema = schema, types = types)
-        resources.fetch(resId, 2L).value.accepted shouldEqual resources.fetch(resId).value.accepted
-      }
-
-      "return the requested resource on a specific tag" in new ResolverResource {
-        private val tag = Json.obj("tag" -> Json.fromString("some"), "rev" -> Json.fromLong(2L))
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        resources.update(resId, 1L, schema, resolverUpdated).value.accepted shouldBe a[Resource]
-        resources.tag(resId, 2L, schema, tag).value.accepted shouldBe a[Resource]
-        resources.fetch(resId, "some").value.accepted shouldEqual
-          ResourceF.simpleF(resId, resolverUpdated, 2L, schema = schema, types = types)
-        resources.fetch(resId, "some").value.accepted shouldEqual resources.fetch(resId, 2L).value.accepted
-      }
-
-      "return NotFound when the provided schema does not match the created schema" in new ResolverResource {
-        resources.create(base, schema, resolver).value.accepted shouldBe a[Resource]
-        private val schemaRef = Ref(genIri)
-        resources.fetch(resId, schemaRef).value.rejected[NotFound] shouldEqual NotFound(schemaRef)
-      }
-    }
-
-    "performing materialize operations" should {
-      "materialize a resource" in new ResolverResource {
-        private val resource     = resources.create(base, schema, resolver).value.accepted
-        private val materialized = resources.materialize(resource).value.accepted
-        materialized.value.source shouldEqual resolver
-        materialized.value.ctx shouldEqual resolverCtx.contextValue
-      }
-
-      "materialize a plain JSON resource" in new ResolverResource {
-        private val json         = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
-        private val resource     = resources.create(base, Latest(unconstrainedSchemaUri), json).value.accepted
-        private val materialized = resources.materialize(resource).value.accepted
-        materialized.value.source shouldEqual json
-        materialized.value.ctx shouldEqual Json.obj("@base"  -> Json.fromString(base.asString),
-                                                    "@vocab" -> Json.fromString(voc.asString))
-
-        private val triples = Set((Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar")))
-        materialized.value.graph.triples should contain allElementsOf triples
-      }
-
-      "materialize a resource with its metadata" in new ResolverResource {
-        private val resource     = resources.create(base, schema, resolver).value.accepted
-        private val materialized = resources.materializeWithMeta(resource).value.accepted
-        materialized.value.source shouldEqual resolver
-        materialized.value.ctx shouldEqual resolverCtx.contextValue
-        materialized.value.graph.triples should contain allElementsOf materialized.metadata()
-      }
-
-      "materialize a plain JSON resource with its metadata" in new ResolverResource {
-        private val json         = Json.obj("@id" -> Json.fromString("foobar"), "foo" -> Json.fromString("bar"))
-        private val resource     = resources.create(base, Latest(unconstrainedSchemaUri), json).value.accepted
-        private val materialized = resources.materializeWithMeta(resource).value.accepted
-        materialized.value.source shouldEqual json
-        materialized.value.ctx shouldEqual Json.obj("@base"  -> Json.fromString(base.asString),
-                                                    "@vocab" -> Json.fromString(voc.asString))
-        private val triples = materialized.metadata() ++ Set(
-          (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar")))
-        materialized.value.graph.triples should contain allElementsOf triples
+      "return NotFound when the provided schema does not match the created schema" in new Base {
+        resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
+        val otherSchema = Ref(genIri)
+        resources.fetch(resId, otherSchema).value.rejected[NotFound] shouldEqual NotFound(otherSchema)
       }
     }
   }

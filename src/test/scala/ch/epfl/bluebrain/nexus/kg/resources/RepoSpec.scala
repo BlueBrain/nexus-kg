@@ -10,7 +10,8 @@ import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Schemas, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
@@ -74,7 +75,7 @@ class RepoSpec
   //noinspection TypeAnnotation
   trait File extends Context {
     override val value  = Json.obj()
-    override val schema = Schemas.fileSchemaUri
+    override val schema = fileSchemaUri
     val types           = Set(nxv.File.value)
     val storage         = DiskStorage.default(projectRef)
 

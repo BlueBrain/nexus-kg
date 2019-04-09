@@ -3,8 +3,11 @@ package ch.epfl.bluebrain.nexus.kg.resources.file
 import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
+import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 
 object File {
+
+  val write: Permission = Permission.unsafe("files/write")
 
   /**
     * Holds some of the metadata information related to a file.

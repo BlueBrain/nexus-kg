@@ -3,13 +3,13 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.{Identity, Permission}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{LabelsNotFound, ProjectsNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, LabelsNotFound, ProjectsNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -84,54 +84,63 @@ sealed trait Resolver extends Product with Serializable {
 
 object Resolver {
 
+  val write: Permission = Permission.unsafe("resolvers/write")
+
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.resolve.Resolver]].
     *
     * @param res             a materialized resource
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
-  final def apply(res: ResourceV): Option[Resolver] = {
+  final def apply(res: ResourceV): Either[Rejection, Resolver] = {
     val c  = res.value.graph.cursor()
     val id = res.id
 
-    def inProject: Option[Resolver] =
+    def inProject: Either[Rejection, Resolver] =
       for {
-        priority <- c.downField(nxv.priority).focus.as[Int].toOption
+        priority <- c.downField(nxv.priority).focus.as[Int].toRejectionOnLeft(res.id.ref)
       } yield InProjectResolver(id.parent, id.value, res.rev, res.deprecated, priority)
 
-    def crossProject: Option[CrossProjectResolver[_]] = {
+    def crossProject: Either[Rejection, CrossProjectResolver[_]] = {
       // format: off
       val result = for {
         ids   <- identities(c.downField(nxv.identities).downArray)
-        prio  <- c.downField(nxv.priority).focus.as[Int].toOption
-        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toOption
+        prio  <- c.downField(nxv.priority).focus.as[Int].toRejectionOnLeft(res.id.ref)
+        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
       } yield CrossProjectResolver(types, Set.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
       // format: on
       result.flatMap { r =>
         val nodes = c.downField(nxv.projects).values
-        nodes.asListOf[ProjectLabel].toOption.map(labels => r.copy(projects = labels.toSet)) orElse
-          nodes.asListOf[ProjectRef].toOption.map(refs => r.copy(projects = refs.toSet))
+        nodes.asListOf[ProjectLabel].toRejectionOnLeft(res.id.ref) match {
+          case Right(projectLabels) => Right(r.copy(projects = projectLabels.toSet))
+          case Left(_) =>
+            nodes.asListOf[ProjectRef].toRejectionOnLeft(res.id.ref).map(refs => r.copy(projects = refs.toSet))
+        }
+
       }
     }
 
-    def identities(iter: Iterable[GraphCursor]): Option[List[Identity]] =
+    def identities(iter: Iterable[GraphCursor]): Either[Rejection, List[Identity]] =
       iter.toList.foldM(List.empty[Identity]) { (acc, innerCursor) =>
         identity(innerCursor).map(_ :: acc)
       }
 
-    def identity(c: GraphCursor): Option[Identity] = {
+    def identity(c: GraphCursor): Either[Rejection, Identity] = {
       lazy val anonymous =
         c.downField(rdf.tpe).focus.as[AbsoluteIri].toOption.collectFirst { case nxv.Anonymous.value => Anonymous }
       lazy val realm         = c.downField(nxv.realm).focus.as[String]
       lazy val user          = (c.downField(nxv.subject).focus.as[String], realm).mapN(User.apply).toOption
       lazy val group         = (c.downField(nxv.group).focus.as[String], realm).mapN(Group.apply).toOption
       lazy val authenticated = realm.map(Authenticated.apply).toOption
-      anonymous orElse user orElse group orElse authenticated
+      (anonymous orElse user orElse group orElse authenticated).toRight(
+        InvalidResourceFormat(
+          res.id.ref,
+          "The provided payload could not be mapped to a resolver because the identity format is wrong"))
     }
 
     if (Set(nxv.Resolver.value, nxv.CrossProject.value).subsetOf(res.types)) crossProject
     else if (Set(nxv.Resolver.value, nxv.InProject.value).subsetOf(res.types)) inProject
-    else None
+    else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the resolver types"))
   }
 
   /**

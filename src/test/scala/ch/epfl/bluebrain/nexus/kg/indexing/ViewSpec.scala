@@ -161,7 +161,7 @@ class ViewSpec
 
       "fail on ElasticSearchView when invalid payload" in {
         val wrong = List(
-          jsonContentOf("/view/elasticview-wrong.json").appendContextOf(viewCtx),
+          jsonContentOf("/view/elasticview-wrong-1.json").appendContextOf(viewCtx),
           jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx),
           jsonContentOf("/view/elasticview-wrong-3.json").appendContextOf(viewCtx)
         )
