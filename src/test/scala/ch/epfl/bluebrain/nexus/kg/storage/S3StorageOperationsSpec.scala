@@ -47,6 +47,13 @@ class S3StorageOperationsSpec
   private val readS3  = Permission.unsafe("s3/read")
   private val writeS3 = Permission.unsafe("s3/write")
 
+  private val endpoint = new EndpointConfiguration(address, region)
+  private val client = AmazonS3ClientBuilder.standard
+    .withPathStyleAccessEnabled(true)
+    .withEndpointConfiguration(endpoint)
+    .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials))
+    .build
+
   private implicit val sc: StorageConfig = StorageConfig(
     DiskStorageConfig(Paths.get("/tmp"),
                       "SHA-256",
@@ -66,12 +73,6 @@ class S3StorageOperationsSpec
     keys.foreach(System.clearProperty)
 
     s3mock.start
-    val endpoint = new EndpointConfiguration(address, region)
-    val client = AmazonS3ClientBuilder.standard
-      .withPathStyleAccessEnabled(true)
-      .withEndpointConfiguration(endpoint)
-      .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials))
-      .build
     client.createBucket(bucket)
     super.beforeAll()
   }
@@ -140,6 +141,51 @@ class S3StorageOperationsSpec
                   location = Uri(s"http://s3.amazonaws.com/$bucket/${mangle(projectRef, randomUuid)}")))
         .failed[KgError.InternalError]
       inexistent.msg shouldEqual s"Empty content fetching S3 object with key '${mangle(projectRef, randomUuid)}' in bucket 'bucket'"
+    }
+
+    "link and fetch files" in {
+      keys.foreach(System.clearProperty)
+      client.putObject(bucket, "some/key/s3.json", contentOf("/storage/s3.json"))
+
+      val base       = url"https://nexus.example.com/".value
+      val projectId  = base + "org" + "proj"
+      val projectRef = ProjectRef(UUID.randomUUID)
+      val storage =
+        S3Storage(projectRef,
+                  projectId,
+                  1L,
+                  deprecated = false,
+                  default = true,
+                  "MD5",
+                  bucket,
+                  S3Settings(None, Some(address), Some(region)),
+                  readS3,
+                  writeS3)
+
+      val verify = new S3StorageOperations.Verify[IO](storage)
+      val link   = new S3StorageOperations.Link[IO](storage)
+      val fetch  = new S3StorageOperations.Fetch[IO](storage)
+
+      verify.apply.ioValue shouldEqual Right(())
+      val count = client.listObjectsV2(bucket).getKeyCount
+
+      val resid    = Id(projectRef, base + "files" + "id")
+      val fileUuid = UUID.randomUUID
+      val desc     = FileDescription(fileUuid, "s3.json", "text/plain")
+      val location = Uri(s"http://s3.amazonaws.com/$bucket/some/key/s3.json")
+      val attr     = link(resid, desc, location).ioValue
+      attr.location shouldEqual location
+      attr.mediaType shouldEqual "text/plain"
+      attr.bytes shouldEqual 263L
+      attr.filename shouldEqual "s3.json"
+      attr.digest shouldEqual Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
+
+      val download =
+        fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
+      download shouldEqual contentOf("/storage/s3.json")
+
+      verify.apply.ioValue shouldEqual Right(())
+      client.listObjectsV2(bucket).getKeyCount shouldEqual count
     }
 
     "fail if the bucket doesn't exist" in {

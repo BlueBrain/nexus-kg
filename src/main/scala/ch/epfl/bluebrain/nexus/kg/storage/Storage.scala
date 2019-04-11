@@ -369,6 +369,20 @@ object Storage {
     def apply(id: ResId, fileDesc: FileDescription, source: In): F[FileAttributes]
   }
 
+  trait LinkFile[F[_]] {
+
+    /**
+      * Links an existing file to a storage.
+      *
+      * @param id       the id of the resource
+      * @param fileDesc the file descriptor to be stored
+      * @param location the URI of the file to be linked
+      * @return [[FileAttributes]] wrapped in the abstract ''F[_]'' type if successful,
+      *         or a [[ch.epfl.bluebrain.nexus.kg.resources.Rejection]] wrapped within ''F[_]'' otherwise
+      */
+    def apply(id: ResId, fileDesc: FileDescription, location: Uri): F[FileAttributes]
+  }
+
   trait VerifyStorage[F[_]] {
 
     /**
@@ -426,6 +440,22 @@ object Storage {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Save[F, AkkaSource] = {
         case s: DiskStorage => new DiskStorageOperations.SaveDiskFile(s)
         case s: S3Storage   => new S3StorageOperations.Save(s)
+      }
+    }
+
+    /**
+      * Provides a selected storage with [[LinkFile]] operation
+      *
+      * @tparam F   the effect type
+      */
+    trait Link[F[_]] {
+      def apply(storage: Storage): LinkFile[F]
+    }
+
+    object Link {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Link[F] = {
+        case _: DiskStorage => throw new UnsupportedOperationException
+        case s: S3Storage   => new S3StorageOperations.Link(s)
       }
     }
   }
