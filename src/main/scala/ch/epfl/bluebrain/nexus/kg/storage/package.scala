@@ -6,9 +6,10 @@ import java.security.MessageDigest
 import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
-import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.ByteString
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.Digest
 
 import scala.concurrent.Future
 
@@ -16,14 +17,17 @@ package object storage {
   type AkkaSource = Source[ByteString, Any]
 
   /**
-    * A sink that computes the digest of the ByteString
+    * A sink that computes the digest of the input ByteString
+    *
     * @param algorithm the digest algorithm. E.g.: SHA-256
     */
-  def digestSink(algorithm: String): Sink[ByteString, Future[MessageDigest]] =
-    Sink.fold(MessageDigest.getInstance(algorithm))((digest, currentBytes) => {
-      digest.update(currentBytes.asByteBuffer)
-      digest
-    })
+  def digestSink(algorithm: String): Sink[ByteString, Future[Digest]] = {
+    val digest = MessageDigest.getInstance(algorithm)
+    Flow[ByteString]
+      .map(bs => digest.update(bs.asByteBuffer))
+      .map(_ => Digest(digest.getAlgorithm, digest.digest.map("%02x".format(_)).mkString))
+      .toMat(Sink.head)(Keep.right)
+  }
 
   /**
     * Converts an Akka [[akka.http.scaladsl.model.Uri]] in the form `file://...` to a [[java.nio.file.Path]].
