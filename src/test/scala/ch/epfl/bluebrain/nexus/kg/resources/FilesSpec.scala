@@ -18,8 +18,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Save}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, LinkFile, SaveFile}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
@@ -57,12 +57,14 @@ class FilesSpec
   private implicit val repo                    = Repo[IO].ioValue
   private val saveFile: SaveFile[IO, String]   = mock[SaveFile[IO, String]]
   private val fetchFile: FetchFile[IO, String] = mock[FetchFile[IO, String]]
+  private val linkFile: LinkFile[IO]           = mock[LinkFile[IO]]
 
   private val files: Files[IO] = Files[IO]
 
   before {
     reset(saveFile)
     reset(fetchFile)
+    reset(linkFile)
   }
 
   trait Base {
@@ -85,6 +87,9 @@ class FilesSpec
     val storage    = DiskStorage.default(projectRef)
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
+
+    implicit val link: Link[IO] = (st: Storage) => if (st == storage) linkFile else throw new RuntimeException
+
     implicit val fetch: Fetch[IO, String] = (st: Storage) =>
       if (st == storage) fetchFile else throw new RuntimeException
 
@@ -92,6 +97,7 @@ class FilesSpec
 
   trait BaseMocked extends Base {
     saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+    linkFile(resId, desc, location) shouldReturn IO.pure(attributes)
     fetchFile(attributes) shouldReturn IO.pure(source)
   }
 
@@ -127,8 +133,42 @@ class FilesSpec
             .copy(file = Some(storage -> attributesUpdated))
       }
 
-      "prevent updating a file that does not exists" in new BaseMocked {
+      "prevent updating a file that does not exist" in new BaseMocked {
         files.update(resId, storage, 1L, desc, source).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
+      }
+    }
+
+    "performing linking operations" should {
+
+      "create a new link" in new BaseMocked {
+        files.createLink(resId, storage, desc, location).value.accepted shouldEqual
+          ResourceF.simpleF(resId, value, schema = fileRef, types = types).copy(file = Some(storage -> attributes))
+      }
+
+      "prevent creating a new link when save method fails" in new Base {
+        linkFile(resId, desc, location) shouldReturn IO.raiseError(new RuntimeException("Error I/O"))
+        whenReady(files.createLink(resId, storage, desc, location).value.unsafeToFuture().failed) {
+          _ shouldBe a[RuntimeException]
+        }
+      }
+
+      "update a link" in new BaseMocked {
+        val location2         = Uri("file:///tmp/other2")
+        val attributesUpdated = desc.process(StoredSummary(location2, 100L, Digest("MD5", genString())))
+        linkFile(resId, desc, location2) shouldReturn IO.pure(attributesUpdated)
+
+        files.createLink(resId, storage, desc, location).value.accepted shouldBe a[Resource]
+        files.updateLink(resId, storage, desc, location2, 1L).value.accepted shouldEqual
+          ResourceF
+            .simpleF(resId, value, 2L, schema = fileRef, types = types)
+            .copy(file = Some(storage -> attributesUpdated))
+      }
+
+      "prevent updating a link that does not exist" in new BaseMocked {
+        files
+          .updateLink(resId, storage, desc, location, 1L)
+          .value
+          .rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 

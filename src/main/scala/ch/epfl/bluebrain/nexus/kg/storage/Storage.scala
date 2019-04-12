@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescr
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Rejection, ResId, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, SaveFile, VerifyStorage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, LinkFile, SaveFile, VerifyStorage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
@@ -91,6 +91,11 @@ sealed trait Storage { self =>
     * Provides a [[FetchFile]] instance.
     */
   def fetch[F[_], Out](implicit fetch: Fetch[F, Out]): FetchFile[F, Out] = fetch(self)
+
+  /**
+    * Provides a [[LinkFile]] instance.
+    */
+  def link[F[_]](implicit link: Link[F]): LinkFile[F] = link(self)
 
   /**
     * Provides a [[VerifyStorage]] instance.
@@ -190,7 +195,6 @@ object Storage {
 
     /**
       * @param aesKey the AES key to decrypt credentials
-      *
       * @return these settings converted to an instance of [[akka.stream.alpakka.s3.S3Settings]]
       */
     def toAlpakka(aesKey: SecretKey): s3.S3Settings = {
