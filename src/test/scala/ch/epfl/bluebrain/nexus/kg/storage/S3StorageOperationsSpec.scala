@@ -21,7 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials}
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.s3.AmazonS3ClientBuilder
+import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import io.findify.s3mock.S3Mock
 import org.scalatest._
 
@@ -47,12 +47,7 @@ class S3StorageOperationsSpec
   private val readS3  = Permission.unsafe("s3/read")
   private val writeS3 = Permission.unsafe("s3/write")
 
-  private val endpoint = new EndpointConfiguration(address, region)
-  private val client = AmazonS3ClientBuilder.standard
-    .withPathStyleAccessEnabled(true)
-    .withEndpointConfiguration(endpoint)
-    .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials))
-    .build
+  private var client: AmazonS3 = _
 
   private implicit val sc: StorageConfig = StorageConfig(
     DiskStorageConfig(Paths.get("/tmp"),
@@ -71,7 +66,12 @@ class S3StorageOperationsSpec
     // saving the current system properties so that we can restore them later
     props ++= System.getProperties.asScala.toMap.filterKeys(keys.contains)
     keys.foreach(System.clearProperty)
-
+    // S3 client needs to be created after we clear the system proxy settings
+    client = AmazonS3ClientBuilder.standard
+      .withPathStyleAccessEnabled(true)
+      .withEndpointConfiguration(new EndpointConfiguration(address, region))
+      .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials))
+      .build
     s3mock.start
     client.createBucket(bucket)
     super.beforeAll()
