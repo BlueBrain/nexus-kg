@@ -135,12 +135,10 @@ class S3StorageOperationsSpec
       // bucket has one object
       verify.apply.ioValue shouldEqual Right(())
 
-      val randomUuid = UUID.randomUUID
-      val inexistent = fetch(
-        attr.copy(uuid = randomUuid,
-                  location = Uri(s"http://s3.amazonaws.com/$bucket/${mangle(projectRef, randomUuid)}")))
-        .failed[KgError.InternalError]
-      inexistent.msg shouldEqual s"Empty content fetching S3 object with key '${mangle(projectRef, randomUuid)}' in bucket 'bucket'"
+      val randomUuid    = UUID.randomUUID
+      val wrongLocation = Uri(s"http://s3.amazonaws.com/$bucket/${mangle(projectRef, randomUuid)}")
+      val nonexistent   = fetch(attr.copy(uuid = randomUuid, location = wrongLocation)).failed[KgError.RemoteFileNotFound]
+      nonexistent shouldEqual KgError.RemoteFileNotFound(wrongLocation)
     }
 
     "link and fetch files" in {

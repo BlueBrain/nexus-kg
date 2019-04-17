@@ -243,15 +243,15 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(location2, 30L, Digest("MD5", "4567")))
 
       "create link" in new File {
-        when(linkFile(id, desc, location)).thenReturn(IO.pure(attributes))
+        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
 
         repo.createLink(id, storage, desc, location).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
       }
 
       "update link" in new File {
-        when(linkFile(id, desc, location)).thenReturn(IO.pure(attributes))
-        when(linkFile(id, desc, location2)).thenReturn(IO.pure(attributes2))
+        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
+        linkFile(id, desc, location2) shouldReturn IO.pure(attributes2)
 
         repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
         repo.updateLink(id, storage, desc, location2, 1L).value.accepted shouldEqual
@@ -259,7 +259,7 @@ class RepoSpec
       }
 
       "prevent link update with an incorrect revision" in new File {
-        when(linkFile(id, desc, location)).thenReturn(IO.pure(attributes))
+        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
 
         repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
         repo.updateLink(id, storage, desc, location, 3L).value.rejected[IncorrectRev] shouldEqual
@@ -267,7 +267,7 @@ class RepoSpec
       }
 
       "prevent link update to a deprecated resource" in new File {
-        when(linkFile(id, desc, location)).thenReturn(IO.pure(attributes))
+        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
         repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
@@ -278,7 +278,7 @@ class RepoSpec
       }
 
       "prevent link creation when the store operation fails" in new File {
-        when(linkFile(id, desc, location)).thenReturn(IO.raiseError(KgError.InternalError("")))
+        linkFile(id, desc, location) shouldReturn IO.raiseError(KgError.InternalError(""))
         repo.createLink(id, storage, desc, location).value.failed[KgError.InternalError]
       }
     }

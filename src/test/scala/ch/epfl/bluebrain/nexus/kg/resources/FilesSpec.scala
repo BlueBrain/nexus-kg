@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.kg.KgError.RemoteFileNotFound
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -23,8 +24,9 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, LinkF
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
-import org.mockito.IdiomaticMockito
 import org.mockito.Mockito.reset
+import org.mockito.integrations.scalatest.IdiomaticMockitoFixture
+import org.scalactic.Equality
 import org.scalatest._
 
 import scala.concurrent.ExecutionContext
@@ -36,7 +38,7 @@ class FilesSpec
     with IOEitherValues
     with IOOptionValues
     with WordSpecLike
-    with IdiomaticMockito
+    with IdiomaticMockitoFixture
     with Matchers
     with OptionValues
     with EitherValues
@@ -85,6 +87,7 @@ class FilesSpec
     val location   = Uri("file:///tmp/other")
     val attributes = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
     val storage    = DiskStorage.default(projectRef)
+    val fileLink   = jsonContentOf("/resources/file-link.json")
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
 
@@ -93,19 +96,20 @@ class FilesSpec
     implicit val fetch: Fetch[IO, String] = (st: Storage) =>
       if (st == storage) fetchFile else throw new RuntimeException
 
-  }
-
-  trait BaseMocked extends Base {
-    saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
-    linkFile(resId, desc, location) shouldReturn IO.pure(attributes)
-    fetchFile(attributes) shouldReturn IO.pure(source)
+    implicit val ignoreUuid: Equality[FileDescription] = new Equality[FileDescription] {
+      override def areEqual(a: FileDescription, b: Any): Boolean = b match {
+        case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
+        case _                                       => false
+      }
+    }
   }
 
   "A Files bundle" when {
 
     "performing create operations" should {
 
-      "create a new File" in new BaseMocked {
+      "create a new File" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         files.create(resId, storage, desc, source).value.accepted shouldEqual
           ResourceF.simpleF(resId, value, schema = fileRef, types = types).copy(file = Some(storage -> attributes))
       }
@@ -121,9 +125,11 @@ class FilesSpec
 
     "performing update operations" should {
 
-      "update a file" in new BaseMocked {
+      "update a file" in new Base {
         val updatedSource     = genString()
         val attributesUpdated = desc.process(StoredSummary(location, 100L, Digest("MD5", genString())))
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         saveFile(resId, desc, updatedSource) shouldReturn IO.pure(attributesUpdated)
 
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
@@ -133,48 +139,55 @@ class FilesSpec
             .copy(file = Some(storage -> attributesUpdated))
       }
 
-      "prevent updating a file that does not exist" in new BaseMocked {
+      "prevent updating a file that does not exist" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         files.update(resId, storage, 1L, desc, source).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 
     "performing linking operations" should {
 
-      "create a new link" in new BaseMocked {
-        files.createLink(resId, storage, desc, location).value.accepted shouldEqual
+      "create a new link" in new Base {
+        linkFile(eqTo(resId), eqTo(desc), eqTo(location)) shouldReturn IO.pure(attributes)
+        files.createLink(resId, storage, fileLink).value.accepted shouldEqual
           ResourceF.simpleF(resId, value, schema = fileRef, types = types).copy(file = Some(storage -> attributes))
       }
 
       "prevent creating a new link when save method fails" in new Base {
-        linkFile(resId, desc, location) shouldReturn IO.raiseError(new RuntimeException("Error I/O"))
-        whenReady(files.createLink(resId, storage, desc, location).value.unsafeToFuture().failed) {
+        linkFile(eqTo(resId), eqTo(desc), eqTo(location)) shouldReturn IO.raiseError(new RuntimeException("Error I/O"))
+        whenReady(files.createLink(resId, storage, fileLink).value.unsafeToFuture().failed) {
           _ shouldBe a[RuntimeException]
         }
       }
 
-      "update a link" in new BaseMocked {
-        val location2         = Uri("file:///tmp/other2")
-        val attributesUpdated = desc.process(StoredSummary(location2, 100L, Digest("MD5", genString())))
-        linkFile(resId, desc, location2) shouldReturn IO.pure(attributesUpdated)
+      "update a link" in new Base {
+        linkFile(eqTo(resId), eqTo(desc), eqTo(location)) shouldReturn IO.pure(attributes)
+        val location2 = Uri("file:///tmp/other2")
+        val fileLink2 = fileLink.deepMerge(Json.obj("location" -> Json.fromString(location2.toString)))
 
-        files.createLink(resId, storage, desc, location).value.accepted shouldBe a[Resource]
-        files.updateLink(resId, storage, desc, location2, 1L).value.accepted shouldEqual
+        val attributesUpdated = desc.process(StoredSummary(location2, 100L, Digest("MD5", genString())))
+        linkFile(eqTo(resId), eqTo(desc), eqTo(location2)) shouldReturn IO.pure(attributesUpdated)
+
+        files.createLink(resId, storage, fileLink).value.accepted shouldBe a[Resource]
+        files.updateLink(resId, storage, 1L, fileLink2).value.accepted shouldEqual
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types)
             .copy(file = Some(storage -> attributesUpdated))
       }
 
-      "prevent updating a link that does not exist" in new BaseMocked {
+      "prevent updating a link that does not exist" in new Base {
+        linkFile(eqTo(resId), eqTo(desc), eqTo(location)) shouldReturn IO.raiseError(RemoteFileNotFound(location))
         files
-          .updateLink(resId, storage, desc, location, 1L)
+          .updateLink(resId, storage, 1L, fileLink)
           .value
-          .rejected[NotFound] shouldEqual NotFound(resId.ref)
+          .failed[RemoteFileNotFound] shouldEqual RemoteFileNotFound(location)
       }
     }
 
     "performing deprecate operations" should {
 
-      "deprecate a file" in new BaseMocked {
+      "deprecate a file" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
         files.deprecate(resId, 1L).value.accepted shouldEqual
           ResourceF
@@ -182,7 +195,8 @@ class FilesSpec
             .copy(file = Some(storage -> attributes))
       }
 
-      "prevent deprecating a file already deprecated" in new BaseMocked {
+      "prevent deprecating a file already deprecated" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
         files.deprecate(resId, 1L).value.accepted shouldBe a[Resource]
         files.deprecate(resId, 2L).value.rejected[ResourceIsDeprecated] shouldBe a[ResourceIsDeprecated]
@@ -191,14 +205,19 @@ class FilesSpec
 
     "performing read operations" should {
 
-      "return a file" in new BaseMocked {
+      "return a file" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+        fetchFile(attributes) shouldReturn IO.pure(source)
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
         files.fetch(resId).value.accepted shouldEqual ((storage, attributes, source))
       }
 
-      "return a specific revision of the file " in new BaseMocked {
+      "return a specific revision of the file " in new Base {
         val updatedSource     = genString()
         val attributesUpdated = desc.process(StoredSummary(location, 100L, Digest("MD5", genString())))
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+        fetchFile(attributes) shouldReturn IO.pure(source)
         saveFile(resId, desc, updatedSource) shouldReturn IO.pure(attributesUpdated)
         fetchFile(attributesUpdated) shouldReturn IO.pure(updatedSource)
 
@@ -208,7 +227,7 @@ class FilesSpec
         files.fetch(resId, 2L).value.accepted shouldEqual ((storage, attributesUpdated, updatedSource))
       }
 
-      "return NotFound when the provided file does not exists" in new BaseMocked {
+      "return NotFound when the provided file does not exists" in new Base {
         files.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }

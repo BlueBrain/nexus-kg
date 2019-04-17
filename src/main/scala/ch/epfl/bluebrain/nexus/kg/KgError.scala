@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg
 
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
@@ -35,10 +35,18 @@ object KgError {
     * Signals that the requested resource was not found
     */
   final case class NotFound(ref: Option[String] = None) extends KgError("The requested resource could not be found.")
+
   object NotFound {
     def apply(ref: Ref): NotFound =
       NotFound(Some(ref.show))
   }
+
+  /**
+    * Signals the impossibility to reach a remote file.
+    *
+    * @param location the remote file URI
+    */
+  final case class RemoteFileNotFound(location: Uri) extends KgError("The remote file was not found.")
 
   /**
     * Signals that the provided authentication is not valid.
@@ -95,12 +103,15 @@ object KgError {
 
   implicit val kgErrorEncoder: Encoder[KgError] = {
     implicit val config: Configuration = Configuration.default.withDiscriminator("@type")
-    val enc                            = deriveEncoder[KgError].mapJson(_ addContext errorCtxUri)
+    implicit val uriEnc: Encoder[Uri]  = Encoder.encodeString.contramap(_.toString)
+
+    val enc = deriveEncoder[KgError].mapJson(_ addContext errorCtxUri)
     Encoder.instance(r => enc(r) deepMerge Json.obj("reason" -> Json.fromString(r.msg)))
   }
 
   implicit val kgErrorStatusFrom: StatusFrom[KgError] = {
     case _: NotFound                      => StatusCodes.NotFound
+    case _: RemoteFileNotFound            => StatusCodes.BadGateway
     case AuthenticationFailed             => StatusCodes.Unauthorized
     case AuthorizationFailed              => StatusCodes.Forbidden
     case _: ProjectIsDeprecated           => StatusCodes.BadRequest

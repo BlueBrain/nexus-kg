@@ -61,10 +61,7 @@ object S3StorageOperations {
           IO.fromFuture(future)
             .flatMap {
               case Some((source, _)) => IO.pure(source: AkkaSource)
-              case None =>
-                IO.raiseError(
-                  KgError.InternalError(
-                    s"Empty content fetching S3 object with key '$key' in bucket '${storage.bucket}'"))
+              case None              => IO.raiseError(KgError.RemoteFileNotFound(fileMeta.location))
             }
             .handleErrorWith {
               case e: KgError => IO.raiseError(e)
@@ -144,10 +141,7 @@ object S3StorageOperations {
                   source.runWith(digestSink(storage.algorithm)).map { dig =>
                     FileAttributes(location, fileDesc.filename, fileDesc.mediaType, meta.contentLength, dig)
                   }
-                case None =>
-                  Future.failed(
-                    KgError.InternalError(
-                      s"Empty content fetching S3 object with key '$key' in bucket '${storage.bucket}'"))
+                case None => Future.failed(KgError.RemoteFileNotFound(location))
               }
 
           IO.fromFuture(IO(future))

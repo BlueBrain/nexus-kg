@@ -92,6 +92,9 @@ object Vocabulary {
     val accessKey = PrefixMapping.prefix("accessKey")
     val secretKey = PrefixMapping.prefix("secretKey")
 
+    // File link payload vocabulary
+    val location = PrefixMapping.prefix("location")
+
     // View default ids
     val defaultElasticSearchIndex = PrefixMapping.prefix("defaultElasticSearchIndex")
     val defaultSparqlIndex        = PrefixMapping.prefix("defaultSparqlIndex")

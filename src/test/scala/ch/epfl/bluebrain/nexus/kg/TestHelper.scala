@@ -12,10 +12,9 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
-import org.mockito.ArgumentMatchers.argThat
 import org.scalatest.EitherValues
 
-trait TestHelper extends MockitoMatchers with EitherValues {
+trait TestHelper extends EitherValues {
 
   private val clock = Clock.systemUTC()
   val read          = Permission.unsafe("resources/read")
@@ -71,11 +70,4 @@ trait TestHelper extends MockitoMatchers with EitherValues {
   def genUUID: UUID = UUID.randomUUID()
 
   def genIri: AbsoluteIri = url"http://example.com/".value + genUUID.toString
-}
-
-trait MockitoMatchers {
-
-  def matches[A](f: A => Boolean): A = {
-    argThat((argument: A) => f(argument))
-  }
 }

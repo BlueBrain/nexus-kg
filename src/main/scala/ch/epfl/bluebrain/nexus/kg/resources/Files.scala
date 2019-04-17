@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import akka.http.scaladsl.model.Uri
+import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
@@ -13,11 +13,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileDescription
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileDescription, LinkDescription}
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import io.circe.Json
 
 class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
 
@@ -74,28 +75,28 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     * @param projectRef reference for the project in which the resource is going to be created.\
     * @param base       base used to generate new ids
     * @param storage    the storage where the file is going to be saved
-    * @param fileDesc   the file description metadata
-    * @param location   the file location URI
+    * @param source     the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def createLink(projectRef: ProjectRef, base: AbsoluteIri, storage: Storage, fileDesc: FileDescription, location: Uri)(
+  def createLink(projectRef: ProjectRef, base: AbsoluteIri, storage: Storage, source: Json)(
       implicit subject: Subject,
       linkStorage: Link[F]): RejOrResource[F] =
-    createLink(Id(projectRef, generateId(base)), storage, fileDesc, location)
+    createLink(Id(projectRef, generateId(base)), storage, source)
 
   /**
     * Creates a link to an existing file.
     *
     * @param id       the id of the resource
     * @param storage  the storage where the file is going to be saved
-    * @param fileDesc the file description metadata
-    * @param location the file location URI
+    * @param source   the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def createLink(id: ResId, storage: Storage, fileDesc: FileDescription, location: Uri)(
-      implicit subject: Subject,
-      linkStorage: Link[F]): RejOrResource[F] =
-    repo.createLink(id, storage, fileDesc, location)
+  def createLink(id: ResId, storage: Storage, source: Json)(implicit subject: Subject,
+                                                            linkStorage: Link[F]): RejOrResource[F] = {
+    EitherT.fromEither[F](LinkDescription(id, source)).flatMap { link =>
+      repo.createLink(id, storage, FileDescription(link.filename, link.mediaType), link.location)
+    }
+  }
 
   /**
     * Updates a link to an existing file.
@@ -103,33 +104,29 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     * @param projectRef reference for the project in which the resource is going to be created.\
     * @param base       base used to generate new ids
     * @param storage    the storage where the file is going to be saved
-    * @param fileDesc   the file description metadata
-    * @param location   the file location URI
     * @param rev        the last known resource revision
+    * @param source   the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateLink(projectRef: ProjectRef,
-                 base: AbsoluteIri,
-                 storage: Storage,
-                 fileDesc: FileDescription,
-                 location: Uri,
-                 rev: Long)(implicit subject: Subject, linkStorage: Link[F]): RejOrResource[F] =
-    updateLink(Id(projectRef, generateId(base)), storage, fileDesc, location, rev)
+  def updateLink(projectRef: ProjectRef, base: AbsoluteIri, storage: Storage, rev: Long, source: Json)(
+      implicit subject: Subject,
+      linkStorage: Link[F]): RejOrResource[F] =
+    updateLink(Id(projectRef, generateId(base)), storage, rev, source)
 
   /**
     * Updates a link to an existing file.
     *
     * @param id       the id of the resource
     * @param storage  the storage where the file is going to be saved
-    * @param fileDesc the file description metadata
-    * @param location the file location URI
-    * @param rev        the last known resource revision
+    * @param rev      the last known resource revision
+    * @param source   the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateLink(id: ResId, storage: Storage, fileDesc: FileDescription, location: Uri, rev: Long)(
-      implicit subject: Subject,
-      linkStorage: Link[F]): RejOrResource[F] =
-    repo.updateLink(id, storage, fileDesc, location, rev)
+  def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(implicit subject: Subject,
+                                                                       linkStorage: Link[F]): RejOrResource[F] =
+    EitherT.fromEither[F](LinkDescription(id, source)).flatMap { link =>
+      repo.updateLink(id, storage, FileDescription(link.filename, link.mediaType), link.location, rev)
+    }
 
   /**
     * Deprecates an existing file.

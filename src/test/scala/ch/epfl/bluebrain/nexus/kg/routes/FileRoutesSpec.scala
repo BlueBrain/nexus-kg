@@ -18,8 +18,8 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Randomness}
@@ -36,21 +36,21 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
 import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.ArgumentMatchers.{eq => Eq}
-import org.mockito.Mockito.when
+import org.mockito.Mockito
+import org.mockito.integrations.scalatest.IdiomaticMockitoFixture
 import org.mockito.matchers.MacroBasedMatchers
-import org.mockito.{IdiomaticMockito, Mockito}
+import org.scalactic.Equality
 import org.scalatest._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 
@@ -66,7 +66,7 @@ class FileRoutesSpec
     with test.Resources
     with ScalaFutures
     with Randomness
-    with IdiomaticMockito
+    with IdiomaticMockitoFixture
     with MacroBasedMatchers
     with BeforeAndAfter
     with TestHelper
@@ -125,9 +125,9 @@ class FileRoutesSpec
     iamClient.acls(any[Path], any[Boolean], any[Boolean])(any[Option[AuthToken]]) shouldReturn Task.pure(acls)
     projectCache.getProjectLabels(Set(projectRef)) shouldReturn Task.pure(Map(projectRef -> Some(label)))
 
-    val metadataRanges: Seq[MediaRange] = List(`application/json`, `application/ld+json`)
-    val storage                         = DiskStorage.default(projectRef)
-    when(storageCache.getDefault(projectRef)).thenReturn(Task(Some(storage)))
+    val metadataRanges = Seq(`application/json`, `application/ld+json`)
+    val storage        = DiskStorage.default(projectRef)
+    storageCache.getDefault(projectRef) shouldReturn Task(Some(storage))
 
     val path    = getClass.getResource("/resources/file.txt")
     val uuid    = UUID.randomUUID
@@ -143,8 +143,14 @@ class FileRoutesSpec
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/files/$organization/$project/nxv:$genUuid")
       )
 
-    def fileDescMatches = matches[FileDescription] { argument =>
-      argument == FileDescription(argument.uuid, "myFile.txt", ContentTypes.`text/plain(UTF-8)`.value)
+    val fileLink = jsonContentOf("/resources/file-link.json")
+    val fileDesc = FileDescription("myFile.txt", ContentTypes.`text/plain(UTF-8)`.value)
+
+    implicit val ignoreUuid: Equality[FileDescription] = new Equality[FileDescription] {
+      override def areEqual(a: FileDescription, b: Any): Boolean = b match {
+        case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
+        case _                                       => false
+      }
     }
 
     val resource =
@@ -163,12 +169,11 @@ class FileRoutesSpec
   "The file routes" should {
 
     "create a file without @id" in new Context {
-
-      when(
-        files.create(Eq(projectRef), Eq(projectMeta.base), Eq(storage), fileDescMatches, any[AkkaSource])(
-          Eq(caller.subject),
-          any[Save[Task, AkkaSource]]))
-        .thenReturn(EitherT.rightT[Task, Rejection](resource))
+      files
+        .create(eqTo(projectRef), eqTo(projectMeta.base), eqTo(storage), eqTo(fileDesc), any[AkkaSource])(
+          eqTo(caller.subject),
+          any[Save[Task, AkkaSource]])
+        .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       Post(s"/v1/files/$organization/$project", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.Created
@@ -181,11 +186,10 @@ class FileRoutesSpec
     }
 
     "create a file with @id" in new Context {
-
-      when(
-        files.create(Eq(id), Eq(storage), fileDescMatches, any[AkkaSource])(Eq(caller.subject),
-                                                                            any[Save[Task, AkkaSource]]))
-        .thenReturn(EitherT.rightT[Task, Rejection](resource))
+      files
+        .create(eqTo(id), eqTo(storage), eqTo(fileDesc), any[AkkaSource])(eqTo(caller.subject),
+                                                                          any[Save[Task, AkkaSource]])
+        .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       Put(s"/v1/files/$organization/$project/$urlEncodedId", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.Created
@@ -198,11 +202,10 @@ class FileRoutesSpec
     }
 
     "update a file" in new Context {
-
-      when(
-        files.update(Eq(id), Eq(storage), Eq(1L), fileDescMatches, any[AkkaSource])(Eq(caller.subject),
-                                                                                    any[Save[Task, AkkaSource]]))
-        .thenReturn(EitherT.rightT[Task, Rejection](resource))
+      files
+        .update(eqTo(id), eqTo(storage), eqTo(1L), eqTo(fileDesc), any[AkkaSource])(eqTo(caller.subject),
+                                                                                    any[Save[Task, AkkaSource]])
+        .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       Put(s"/v1/files/$organization/$project/$urlEncodedId?rev=1", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
@@ -213,6 +216,56 @@ class FileRoutesSpec
         responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
       }
       Put(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+    }
+
+    "create a link without @id" in new Context {
+      files
+        .createLink(eqTo(projectRef), eqTo(projectMeta.base), eqTo(storage), eqTo(fileLink))(eqTo(caller.subject),
+                                                                                             any[Link[Task]])
+        .shouldReturn(EitherT.rightT[Task, Rejection](resource))
+
+      Post(s"/v1/files/$organization/$project", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.Created
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+      Post(s"/v1/resources/$organization/$project/file", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.Created
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+    }
+
+    "create a link with @id" in new Context {
+      files
+        .createLink(eqTo(id), eqTo(storage), eqTo(fileLink))(eqTo(caller.subject), any[Link[Task]])
+        .shouldReturn(EitherT.rightT[Task, Rejection](resource))
+
+      Put(s"/v1/files/$organization/$project/$urlEncodedId", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.Created
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+      Put(s"/v1/resources/$organization/$project/file/$urlEncodedId", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.Created
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+    }
+
+    "update a link" in new Context {
+      files
+        .updateLink(eqTo(id), eqTo(storage), eqTo(1L), eqTo(fileLink))(eqTo(caller.subject), any[Link[Task]])
+        .shouldReturn(EitherT.rightT[Task, Rejection](resource))
+
+      Put(s"/v1/files/$organization/$project/$urlEncodedId?rev=1", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+      Put(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+      Put(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
       }
@@ -255,8 +308,9 @@ class FileRoutesSpec
     }
 
     "fetch latest revision of a file" in new Context {
-      when(files.fetch[AkkaSource](Eq(id))(any[Fetch[Task, AkkaSource]]))
-        .thenReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
+      files
+        .fetch[AkkaSource](eqTo(id))(any[Fetch[Task, AkkaSource]])
+        .shouldReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
 
       val accepted = List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain`))
 
@@ -283,8 +337,9 @@ class FileRoutesSpec
     }
 
     "fetch specific revision of a file" in new Context {
-      when(files.fetch[AkkaSource](Eq(id), Eq(1L))(any[Fetch[Task, AkkaSource]]))
-        .thenReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
+      files
+        .fetch[AkkaSource](eqTo(id), eqTo(1L))(any[Fetch[Task, AkkaSource]])
+        .shouldReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
 
       val accepted = List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain`))
 
@@ -311,8 +366,9 @@ class FileRoutesSpec
     }
 
     "fetch specific tag of a file" in new Context {
-      when(files.fetch[AkkaSource](Eq(id), Eq("some"))(any[Fetch[Task, AkkaSource]]))
-        .thenReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
+      files
+        .fetch[AkkaSource](eqTo(id), eqTo("some"))(any[Fetch[Task, AkkaSource]])
+        .shouldReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
 
       val accepted = List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain`))
 
