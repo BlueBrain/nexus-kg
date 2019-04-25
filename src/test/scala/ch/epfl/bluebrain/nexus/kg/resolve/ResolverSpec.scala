@@ -20,10 +20,8 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import org.mockito.Mockito
-import org.mockito.Mockito.when
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
-import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.duration._
 
@@ -33,7 +31,7 @@ class ResolverSpec
     with Resources
     with EitherValues
     with OptionValues
-    with MockitoSugar
+    with IdiomaticMockito
     with BeforeAndAfter
     with TestHelper
     with TryValues
@@ -160,8 +158,8 @@ class ResolverSpec
       val uuid2 = genUUID
 
       "generate a CrossProjectResolver" in {
-        when(projectCache.getProjectRefs(Set(label1, label2)))
-          .thenReturn(Map(label1 -> Option(ProjectRef(uuid1)), label2 -> Option(ProjectRef(uuid2))))
+        projectCache.getProjectRefs(Set(label1, label2)) shouldReturn Map(label1 -> Option(ProjectRef(uuid1)),
+                                                                          label2 -> Option(ProjectRef(uuid2)))
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val exposed  = Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
         val stored   = exposed.referenced.value.right.value.asInstanceOf[CrossProjectResolver[ProjectRef]]
@@ -176,10 +174,10 @@ class ResolverSpec
       }
 
       "generate a CrossProjectLabelResolver" in {
-        when(projectCache.getProjectLabels(Set(ProjectRef(uuid1), ProjectRef(uuid2))))
-          .thenReturn(Map(ProjectRef(uuid1) -> Option(label1), ProjectRef(uuid2) -> Option(label2)))
-        when(projectCache.getProjectRefs(Set(label2, label1)))
-          .thenReturn(Map(label1 -> Option(ProjectRef(uuid1)), label2 -> Option(ProjectRef(uuid2))))
+        projectCache.getProjectLabels(Set(ProjectRef(uuid1), ProjectRef(uuid2))) shouldReturn
+          Map(ProjectRef(uuid1) -> Option(label1), ProjectRef(uuid2) -> Option(label2))
+        projectCache.getProjectRefs(Set(label2, label1)) shouldReturn
+          Map(label1 -> Option(ProjectRef(uuid1)), label2 -> Option(ProjectRef(uuid2)))
 
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val exposed  = Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]]

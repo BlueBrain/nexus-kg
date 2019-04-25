@@ -28,9 +28,7 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.Decoder
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.Mockito
-import org.mockito.Mockito._
-import org.scalatestplus.mockito.MockitoSugar
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest.{BeforeAndAfter, EitherValues, Matchers, WordSpecLike}
 
 //noinspection NameBooleanParameters
@@ -38,7 +36,7 @@ class ProjectDirectivesSpec
     extends WordSpecLike
     with Matchers
     with EitherValues
-    with MockitoSugar
+    with IdiomaticMockito
     with BeforeAndAfter
     with ScalatestRouteTest
     with TestHelper {
@@ -156,7 +154,7 @@ class ProjectDirectivesSpec
 
     "fetch the project from the cache" in {
 
-      when(projectCache.getBy(label)).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      projectCache.getBy(label) shouldReturn Task.pure(Option(projectMeta))
 
       Get("/organization/project") ~> projectRoute() ~> check {
         responseAs[Project] shouldEqual projectMetaResp
@@ -164,8 +162,9 @@ class ProjectDirectivesSpec
     }
 
     "fetch the project from admin client when not present on the cache" in {
-      when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
-      when(client.fetchProject("organization", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      projectCache.getBy(label) shouldReturn Task.pure(None)
+
+      client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
 
       Get("/organization/project") ~> projectRoute() ~> check {
         responseAs[Project] shouldEqual projectMetaResp
@@ -173,8 +172,8 @@ class ProjectDirectivesSpec
     }
 
     "fetch the project from admin client when cache throws an error" in {
-      when(projectCache.getBy(label)).thenReturn(Task.raiseError(new RuntimeException))
-      when(client.fetchProject("organization", "project")).thenReturn(Task.pure(Some(projectMeta): Option[Project]))
+      projectCache.getBy(label) shouldReturn Task.raiseError(new RuntimeException)
+      client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
 
       Get("/organization/project") ~> projectRoute() ~> check {
         responseAs[Project] shouldEqual projectMetaResp
@@ -182,8 +181,8 @@ class ProjectDirectivesSpec
     }
 
     "reject when not found neither in the cache nor doing IAM call" in {
-      when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
-      when(client.fetchProject("organization", "project")).thenReturn(Task.pure(None: Option[Project]))
+      projectCache.getBy(label) shouldReturn Task.pure(None)
+      client.fetchProject("organization", "project") shouldReturn Task.pure(None)
 
       Get("/organization/project") ~> projectRoute() ~> check {
         status shouldEqual StatusCodes.NotFound
@@ -193,8 +192,8 @@ class ProjectDirectivesSpec
 
     "reject when IAM signals forbidden" in {
       val label = ProjectLabel("organization", "project")
-      when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
-      when(client.fetchProject("organization", "project")).thenReturn(Task.raiseError(IamClientError.Forbidden("")))
+      projectCache.getBy(label) shouldReturn Task.pure(None)
+      client.fetchProject("organization", "project") shouldReturn Task.raiseError(IamClientError.Forbidden(""))
 
       Get("/organization/project") ~> projectRoute() ~> check {
         status shouldEqual StatusCodes.Forbidden
@@ -204,9 +203,9 @@ class ProjectDirectivesSpec
 
     "reject when IAM signals another error" in {
       val label = ProjectLabel("organization", "project")
-      when(projectCache.getBy(label)).thenReturn(Task.pure(None: Option[Project]))
-      when(client.fetchProject("organization", "project"))
-        .thenReturn(Task.raiseError(IamClientError.UnknownError(StatusCodes.InternalServerError, "")))
+      projectCache.getBy(label) shouldReturn Task.pure(None)
+      client.fetchProject("organization", "project") shouldReturn
+        Task.raiseError(IamClientError.UnknownError(StatusCodes.InternalServerError, ""))
 
       Get("/organization/project") ~> projectRoute() ~> check {
         status shouldEqual StatusCodes.InternalServerError

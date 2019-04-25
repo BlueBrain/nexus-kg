@@ -9,9 +9,9 @@ import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
-import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
@@ -22,10 +22,8 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, SaveFile}
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import io.circe.Json
-import org.mockito.Mockito
-import org.mockito.Mockito._
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
-import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -40,7 +38,7 @@ class RepoSpec
     with OptionValues
     with EitherValues
     with Randomness
-    with MockitoSugar
+    with IdiomaticMockito
     with BeforeAndAfter
     with TestHelper {
 
@@ -194,15 +192,15 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(location, 30L, Digest("MD5", "4567")))
 
       "create file resource" in new File {
-        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
+        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
 
         repo.createFile(id, storage, desc, source).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
       }
 
       "update the file resource" in new File {
-        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
-        when(saveFile(id, desc, source2)).thenReturn(IO.pure(attributes2))
+        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
+        saveFile(id, desc, source2) shouldReturn IO.pure(attributes2)
 
         repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
         repo.updateFile(id, storage, 1L, desc, source2).value.accepted shouldEqual
@@ -210,7 +208,7 @@ class RepoSpec
       }
 
       "prevent to update a file resource with an incorrect revision" in new File {
-        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
+        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
 
         repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
         repo.updateFile(id, storage, 3L, desc, source).value.rejected[IncorrectRev] shouldEqual
@@ -218,7 +216,7 @@ class RepoSpec
       }
 
       "prevent update a file resource to a deprecated resource" in new File {
-        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
+        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
         repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
@@ -229,7 +227,7 @@ class RepoSpec
       }
 
       "prevent to create a file resource which fails on attempting to store" in new File {
-        when(saveFile(id, desc, source)).thenReturn(IO.raiseError(KgError.InternalError("")))
+        saveFile(id, desc, source) shouldReturn IO.raiseError(KgError.InternalError(""))
         repo.createFile(id, storage, desc, source).value.failed[KgError.InternalError]
       }
     }
@@ -320,10 +318,10 @@ class RepoSpec
       val attributes2 = desc2.process(StoredSummary(location, 30L, Digest("MD5", "4567")))
 
       "get a file resource" in new File {
-        when(saveFile(id, desc, source)).thenReturn(IO.pure(attributes))
+        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
         repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
 
-        when(saveFile(id, desc2, source2)).thenReturn(IO.pure(attributes2))
+        saveFile(id, desc2, source2) shouldReturn IO.pure(attributes2)
         repo.updateFile(id, storage, 1L, desc2, source2).value.accepted shouldBe a[Resource]
 
         repo.get(id, None).value.some.file.value shouldEqual (storage -> attributes2)

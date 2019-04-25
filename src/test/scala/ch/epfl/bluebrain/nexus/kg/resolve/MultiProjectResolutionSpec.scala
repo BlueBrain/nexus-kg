@@ -23,10 +23,9 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import io.circe.Json
-import org.mockito.Mockito
 import org.mockito.Mockito._
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
-import org.scalatestplus.mockito.MockitoSugar
 
 import scala.collection.immutable.ListSet
 import scala.concurrent.duration._
@@ -35,7 +34,7 @@ class MultiProjectResolutionSpec
     extends TestKit(ActorSystem("MultiProjectResolutionSpec"))
     with WordSpecLike
     with Matchers
-    with MockitoSugar
+    with IdiomaticMockito
     with Randomness
     with BeforeAndAfter
     with EitherValues
@@ -78,21 +77,9 @@ class MultiProjectResolutionSpec
     List(proj1 -> proj1Id, proj2 -> proj2Id, proj3 -> proj3Id).foreach {
       case (proj, id) =>
         val organizationUuid = genUUID
-        val metadata = Project(genIri,
-                               proj.value,
-                               proj.organization,
-                               None,
-                               base,
-                               genIri,
-                               Map(),
-                               id,
-                               organizationUuid,
-                               0L,
-                               false,
-                               Instant.EPOCH,
-                               genIri,
-                               Instant.EPOCH,
-                               genIri)
+        // format: off
+        val metadata = Project(genIri, proj.value, proj.organization, None, base, genIri, Map(), id, organizationUuid, 0L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
+        // format: on
         projectCache.replace(metadata).ioValue
     }
   }
@@ -104,9 +91,9 @@ class MultiProjectResolutionSpec
       (Id(ProjectRef(proj1Id), resId), Id(ProjectRef(proj2Id), resId), Id(ProjectRef(proj3Id), resId))
     "look in all projects to resolve a resource" in {
       val value = simpleF(id3, genJson, types = types)
-      when(repo.get(id1, None)).thenReturn(OptionT.none[IO, Resource])
-      when(repo.get(id2, None)).thenReturn(OptionT.none[IO, Resource])
-      when(repo.get(id3, None)).thenReturn(OptionT.some[IO](value))
+      repo.get(id1, None) shouldReturn OptionT.none[IO, Resource]
+      repo.get(id2, None) shouldReturn OptionT.none[IO, Resource]
+      repo.get(id3, None) shouldReturn OptionT.some[IO](value)
 
       resolution.resolve(Latest(resId)).some shouldEqual value
       verify(repo, times(1)).get(id1, None)
@@ -118,7 +105,7 @@ class MultiProjectResolutionSpec
       val value2 = simpleF(id2, genJson, types = Set(nxv.Schema.value))
       val value3 = simpleF(id3, genJson, types = Set(nxv.Ontology.value))
       List(id1 -> value1, id2 -> value2, id3 -> value3).foreach {
-        case (id, value) => when(repo.get(id, None)).thenReturn(OptionT.some[IO](value))
+        case (id, value) => repo.get(id, None) shouldReturn OptionT.some[IO](value)
       }
 
       resolution.resolve(Latest(resId)).ioValue shouldEqual Some(value2)
@@ -127,7 +114,7 @@ class MultiProjectResolutionSpec
     "filter results according to the resolvers' identities" in {
       val List(_, value2, _) = List(id1, id2, id3).map { id =>
         val value = simpleF(id, genJson, types = types)
-        when(repo.get(id, None)).thenReturn(OptionT.some[IO](value))
+        repo.get(id, None) shouldReturn OptionT.some[IO](value)
         value
       }
       val acl =
@@ -140,8 +127,7 @@ class MultiProjectResolutionSpec
 
     "return none if the resource is not found in any project" in {
       List(proj1Id, proj2Id, proj3Id).foreach { id =>
-        when(repo.get(Id(ProjectRef(id), resId), None))
-          .thenReturn(OptionT.none[IO, Resource])
+        repo.get(Id(ProjectRef(id), resId), None) shouldReturn OptionT.none[IO, Resource]
       }
       resolution.resolve(Latest(resId)).ioValue shouldEqual None
     }
