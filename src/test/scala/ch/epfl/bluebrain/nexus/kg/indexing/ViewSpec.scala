@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
-import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
+import org.scalatest._
 
 class ViewSpec
     extends WordSpecLike
@@ -26,7 +26,9 @@ class ViewSpec
     with Resources
     with TestHelper
     with Inspectors
-    with CirceEq {
+      with BeforeAndAfter
+
+      with CirceEq {
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   "A View" when {

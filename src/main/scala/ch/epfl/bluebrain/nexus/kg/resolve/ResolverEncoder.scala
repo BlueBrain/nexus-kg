@@ -33,17 +33,19 @@ object ResolverEncoder {
                                                  node: RootNode[QueryResults[Resolver]]): DecoderResult[Json] =
     QueryResultEncoder.json(qrsResolvers, resolverCtx mergeContext resourceCtx).map(_ addContext resolverCtxUri)
 
-  implicit def resolverGraphEncoder(implicit config: IamClientConfig): GraphEncoder[Id, Resolver] = GraphEncoder {
-    case (rootNode, r: InProjectResolver) => RootedGraph(rootNode, r.mainTriples(nxv.InProject))
-    case (rootNode, r @ CrossProjectResolver(resTypes, _, identities, _, _, _, _, _)) =>
-      val projectsString = r match {
-        case CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _)   => projects.map(_.show)
-        case CrossProjectResolver(_, `Set[ProjectLabel]`(projects), _, _, _, _, _, _) => projects.map(_.show)
-      }
-      val projTriples: Set[Triple] = projectsString.map(p => (rootNode, nxv.projects, p): Triple)
-      RootedGraph(rootNode,
-                  r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes) ++ projTriples)
-  }
+  implicit def resolverGraphEncoder(implicit config: IamClientConfig): GraphEncoder[Id, Resolver] =
+    GraphEncoder {
+      case (rootNode, r: InProjectResolver) => RootedGraph(rootNode, r.mainTriples(nxv.InProject))
+      case (rootNode, r @ CrossProjectResolver(resTypes, _, identities, _, _, _, _, _)) =>
+        val projectsString = r match {
+          case CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _)   => projects.map(_.show)
+          case CrossProjectResolver(_, `Set[ProjectLabel]`(projects), _, _, _, _, _, _) => projects.map(_.show)
+        }
+        val projTriples: Set[Triple] = projectsString.map(p => (rootNode, nxv.projects, p): Triple)
+        RootedGraph(
+          rootNode,
+          r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes) ++ projTriples)
+    }
 
   implicit def resolverGraphEncoderEither(implicit config: IamClientConfig): GraphEncoder[EncoderResult, Resolver] =
     resolverGraphEncoder.toEither

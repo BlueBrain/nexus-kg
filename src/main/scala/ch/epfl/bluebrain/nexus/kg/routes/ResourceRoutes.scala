@@ -44,7 +44,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
           trace("createResource") {
-            complete(resources.create(project.base, schema, source).value.runWithStatus(Created))
+            complete(resources.create(schema, source).value.runWithStatus(Created))
           }
         }
       },

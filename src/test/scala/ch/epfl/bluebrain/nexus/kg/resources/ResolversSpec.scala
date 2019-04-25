@@ -13,12 +13,13 @@ import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq, Random
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -27,7 +28,7 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
-import org.mockito.IdiomaticMockito
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
 
 import scala.concurrent.ExecutionContext
@@ -47,6 +48,7 @@ class ResolversSpec
     with test.Resources
     with TestHelper
     with Inspectors
+    with BeforeAndAfter
     with CirceEq {
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
@@ -57,8 +59,12 @@ class ResolversSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private implicit val repo            = Repo[IO].ioValue
-  private implicit val projectCache    = mock[ProjectCache[IO]]
+  private implicit val repo          = Repo[IO].ioValue
+  private implicit val projectCache  = mock[ProjectCache[IO]]
+  private implicit val resolverCache = mock[ResolverCache[IO]]
+  private val resolution =
+    new ProjectResolution(resolverCache, projectCache, StaticResolution[IO](iriResolution), mock[AclsCache[IO]])
+  private implicit val materializer    = new Materializer[IO](repo, resolution)
   private val resolvers: Resolvers[IO] = Resolvers[IO]
 
   // format: off
@@ -72,6 +78,10 @@ class ResolversSpec
   projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO.pure(
     Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref)))
 
+  before {
+    Mockito.reset(resolverCache)
+  }
+
   trait Base {
     implicit lazy val caller =
       Caller(Anonymous, Set(Anonymous, Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero", "ldap")))
@@ -83,6 +93,8 @@ class ResolversSpec
     // format: off
     implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, caller.subject.id, Instant.EPOCH, caller.subject.id)
     // format: on
+    resolverCache.get(projectRef) shouldReturn IO(List.empty[Resolver])
+
     def updateId(json: Json) =
       json deepMerge Json.obj("@id" -> Json.fromString(id.show))
     val resolver = updateId(jsonContentOf("/resolve/cross-project.json"))
@@ -110,13 +122,13 @@ class ResolversSpec
         val invalid = List.range(1, 2).map(i => jsonContentOf(s"/resolve/cross-project-wrong-$i.json"))
         forAll(invalid) { j =>
           val json = updateId(j)
-          resolvers.create(base, json).value.rejected[InvalidResource]
+          resolvers.create(json).value.rejected[InvalidResource]
         }
       }
 
       "create a InProject resolver" in new Base {
         val json   = updateId(jsonContentOf("/resolve/in-project.json"))
-        val result = resolvers.create(base, json).value.accepted
+        val result = resolvers.create(json).value.accepted
         val expected =
           ResourceF.simpleF(resId, json, schema = resolverRef, types = Set[AbsoluteIri](nxv.Resolver, nxv.InProject))
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())

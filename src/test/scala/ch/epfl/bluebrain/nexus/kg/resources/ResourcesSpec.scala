@@ -115,13 +115,13 @@ class ResourcesSpec
         val json =
           Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
                    "@id"      -> Json.fromString(genId.show))
-        resources.create(base, schemaRef, json).value.accepted shouldEqual
+        resources.create(schemaRef, json).value.accepted shouldEqual
           ResourceF.simpleF(genRes, json, schema = schemaRef)
       }
 
       "create a new resource validated against empty schema (resource schema) with a payload only containing @context" in new Base {
         val json     = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
-        val resource = resources.create(base, schemaRef, json).value.accepted
+        val resource = resources.create(schemaRef, json).value.accepted
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
 
@@ -147,19 +147,19 @@ class ResourcesSpec
 
       "prevent to create a resource with non existing schema" in new Base {
         val refSchema = Ref(genIri)
-        resources.create(base, refSchema, Json.obj()).value.rejected[NotFound] shouldEqual NotFound(refSchema)
+        resources.create(refSchema, Json.obj()).value.rejected[NotFound] shouldEqual NotFound(refSchema)
       }
 
       "prevent to create a resource with wrong context value" in new Base {
         val json = Json.obj("@context" -> Json.arr(Json.fromString(resolverCtxUri.show), Json.fromInt(3)))
-        resources.create(base, schemaRef, json).value.rejected[IllegalContextValue] shouldEqual IllegalContextValue(
+        resources.create(schemaRef, json).value.rejected[IllegalContextValue] shouldEqual IllegalContextValue(
           List.empty)
       }
 
       "prevent to create a resource with wrong context that cannot be resolved" in new Base {
         val notFoundIri = genIri
         val json        = Json.obj() addContext resolverCtxUri addContext notFoundIri
-        resources.create(base, schemaRef, json).value.rejected[NotFound] shouldEqual NotFound(Ref(notFoundIri))
+        resources.create(schemaRef, json).value.rejected[NotFound] shouldEqual NotFound(Ref(notFoundIri))
       }
 
     }

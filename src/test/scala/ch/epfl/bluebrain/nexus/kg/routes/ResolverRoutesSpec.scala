@@ -33,6 +33,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
@@ -136,7 +137,7 @@ class ResolverRoutesSpec
   "The resolver routes" should {
 
     "create a resolver without @id" in new Context {
-      resolvers.create(projectMeta.base, resolver) shouldReturn EitherT.rightT[Task, Rejection](resource)
+      resolvers.create(resolver) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
       Post(s"/v1/resolvers/$organization/$project", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.Created
@@ -149,7 +150,7 @@ class ResolverRoutesSpec
     }
 
     "create a resolver with @id" in new Context {
-      resolvers.create(id, resolver)(caller) shouldReturn EitherT.rightT[Task, Rejection](resource)
+      resolvers.create(id, resolver) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
       Put(s"/v1/resolvers/$organization/$project/$urlEncodedId", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.Created
@@ -162,7 +163,7 @@ class ResolverRoutesSpec
     }
 
     "update a resolver" in new Context {
-      resolvers.update(id, 1L, resolver)(caller) shouldReturn EitherT.rightT[Task, Rejection](resource)
+      resolvers.update(id, 1L, resolver) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
       Put(s"/v1/resolvers/$organization/$project/$urlEncodedId?rev=1", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK

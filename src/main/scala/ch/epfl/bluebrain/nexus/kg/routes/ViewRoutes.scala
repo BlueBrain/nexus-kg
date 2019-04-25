@@ -65,7 +65,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
           trace("createView") {
-            complete(views.create(project.base, source).value.runWithStatus(Created))
+            complete(views.create(source).value.runWithStatus(Created))
           }
         }
       },

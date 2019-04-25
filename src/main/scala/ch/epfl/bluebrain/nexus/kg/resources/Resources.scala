@@ -1,6 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import cats.Applicative
 import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -18,11 +17,12 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.{blank, BNode, IriNode, IriOrBNode}
+import ch.epfl.bluebrain.nexus.rdf.Node.blank
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -46,19 +46,14 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     *   <li>if it's a bnode a new iri will be generated using the base value</li>
     * </ul>
     *
-    * @param base       base used to generate new ids.
     * @param schema     a schema reference that constrains the resource
     * @param source     the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(base: AbsoluteIri, schema: Ref, source: Json)(implicit subject: Subject,
-                                                           project: Project): RejOrResource[F] =
-    for {
-      matValue      <- materializer(source, blank)
-      assignedValue <- checkOrAssignId[F](base, matValue.copy(graph = matValue.graph.removeMetadata))
-      (id, rootedGraph) = assignedValue
-      created <- create(id, schema, source, rootedGraph)
-    } yield created
+  def create(schema: Ref, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
+    materializer(source).flatMap {
+      case (id, Value(_, _, graph)) => create(Id(project.ref, id), schema, source, graph.removeMetadata)
+    }
 
   /**
     * Creates a new resource.
@@ -69,18 +64,13 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return either a rejection or the newly created resource in the F context
     */
   def create(id: ResId, schema: Ref, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
-    for {
-      matValue    <- materializer(source, id.value)
-      rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
-      created     <- create(id, schema, source, rootedGraph)
-    } yield created
+    materializer(source, id.value).flatMap {
+      case Value(_, _, graph) => create(id, schema, source, graph.removeMetadata)
+    }
 
   private def create(id: ResId, schema: Ref, source: Json, graph: RootedGraph)(implicit subject: Subject,
                                                                                project: Project): RejOrResource[F] =
-    for {
-      _       <- validate(schema, graph)
-      created <- repo.create(id, schema, graph.types(id.value).map(_.value), source)
-    } yield created
+    validate(schema, graph).flatMap(_ => repo.create(id, schema, graph.types(id.value).map(_.value), source))
 
   /**
     * Updates an existing resource.
@@ -94,11 +84,11 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
   def update(id: ResId, rev: Long, schema: Ref, source: Json)(implicit subject: Subject,
                                                               project: Project): RejOrResource[F] =
     for {
-      _           <- repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref, Some(rev)))
-      matValue    <- materializer(source, id.value)
-      rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
-      _           <- validate(schema, rootedGraph)
-      updated     <- repo.update(id, rev, rootedGraph.types(id.value).map(_.value), source)
+      _        <- repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref, Some(rev)))
+      matValue <- materializer(source, id.value)
+      graph = matValue.graph.removeMetadata
+      _       <- validate(schema, graph)
+      updated <- repo.update(id, rev, graph.types(id.value).map(_.value), source)
     } yield updated
 
   /**
@@ -171,10 +161,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long, schema: Ref)(implicit subject: Subject): RejOrResource[F] =
-    for {
-      _          <- repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref, Some(rev)))
-      deprecated <- repo.deprecate(id, rev)
-    } yield deprecated
+    repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
 
   /**
     * Lists resources for the given project and schema
@@ -246,38 +233,8 @@ object Resources {
                                                     dataImports: Set[ResourceV],
                                                     schemaImports: Set[ResourceV])
 
-  private def replaceBNode(bnode: BNode, id: AbsoluteIri, value: ResourceF.Value): RootedGraph =
-    RootedGraph(id, value.graph.replaceNode(bnode, id))
-
-  private def rootNode(value: ResourceF.Value): Option[IriOrBNode] = {
-    val resolvedSource = value.source appendContextOf Json.obj("@context" -> value.ctx)
-    resolvedSource.id.map(IriNode.apply) orElse
-      (value.graph: Graph).rootNode orElse
-      (if (value.graph.triples.isEmpty) Some(blank) else None)
-  }
-
-  private[resources] def checkId[F[_]: Applicative](id: ResId,
-                                                    value: ResourceF.Value): EitherT[F, Rejection, RootedGraph] =
-    rootNode(value) match {
-      case Some(IriNode(iri)) if iri.value == id.value =>
-        EitherT.rightT[F, Rejection](RootedGraph(id.value, value.graph))
-      case Some(bNode: BNode) =>
-        EitherT.rightT[F, Rejection](replaceBNode(bNode, id.value, value))
-      case _ =>
-        EitherT.leftT[F, RootedGraph](IncorrectId(id.ref): Rejection)
-    }
-
-  private[resources] def checkOrAssignId[F[_]: Applicative](base: AbsoluteIri, value: ResourceF.Value)(
-      implicit project: Project): EitherT[F, Rejection, (ResId, RootedGraph)] =
-    rootNode(value) match {
-      case Some(IriNode(iri)) =>
-        EitherT.rightT[F, Rejection](Id(project.ref, iri.value) -> RootedGraph(iri, value.graph))
-      case Some(bNode: BNode) =>
-        val iri = generateId(base)
-        EitherT.rightT[F, Rejection](Id(project.ref, iri.value) -> replaceBNode(bNode, iri, value))
-      case _ =>
-        EitherT.leftT[F, (ResId, RootedGraph)](UnableToSelectResourceId: Rejection)
-    }
+  def getOrAssignId(json: Json)(implicit project: Project): AbsoluteIri =
+    json.id.getOrElse(generateId(project.base))
 
   private[resources] def generateId(base: AbsoluteIri): AbsoluteIri = url"${base.asString}${uuid()}"
 

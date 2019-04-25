@@ -18,12 +18,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.Resources._
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.blank
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -41,19 +40,13 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     *   <li>if it's a bnode a new iri will be generated using the base value</li>
     * </ul>
     *
-    * @param base       base used to generate new ids
     * @param source     the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(base: AbsoluteIri, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] = {
-    val transformedSource = transform(source)
-    for {
-      matValue      <- materializer(transformedSource, blank)
-      assignedValue <- checkOrAssignId[F](base, matValue.copy(graph = matValue.graph.removeMetadata))
-      (id, rootedGraph) = assignedValue
-      created <- create(id, transformedSource, rootedGraph)
-    } yield created
-  }
+  def create(source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
+    materializer(source.addContext(shaclCtxUri)).flatMap {
+      case (id, Value(_, _, graph)) => create(Id(project.ref, id), source.addContext(shaclCtxUri), graph.removeMetadata)
+    }
 
   /**
     * Creates a new storage.
@@ -62,14 +55,10 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @param source the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] = {
-    val transformedSource = transform(source)
-    for {
-      matValue    <- materializer(transformedSource, id.value)
-      rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
-      created     <- create(id, transformedSource, rootedGraph)
-    } yield created
-  }
+  def create(id: ResId, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
+    materializer(source.addContext(shaclCtxUri), id.value).flatMap {
+      case Value(_, _, graph) => create(id, source.addContext(shaclCtxUri), graph.removeMetadata)
+    }
 
   /**
     * Updates an existing storage.
@@ -81,14 +70,12 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     */
   def update(id: ResId, rev: Long, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
     for {
-      _ <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref, Some(rev)))
-      transformedSource = transform(source)
-      matValue    <- materializer(transformedSource, id.value)
-      rootedGraph <- checkId[F](id, matValue.copy(graph = matValue.graph.removeMetadata))
-      typedGraph = addSchemaType(id.value, rootedGraph)
+      _        <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref, Some(rev)))
+      matValue <- materializer(source.addContext(shaclCtxUri), id.value)
+      typedGraph = addSchemaType(id.value, matValue.graph.removeMetadata)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(id, typedGraph)
-      updated <- repo.update(id, rev, types, transformedSource)
+      updated <- repo.update(id, rev, types, source.addContext(shaclCtxUri))
     } yield updated
 
   /**
@@ -99,10 +86,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    for {
-      _          <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref, Some(rev)))
-      deprecated <- repo.deprecate(id, rev)
-    } yield deprecated
+    repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
 
   /**
     * Fetches the latest revision of a storage.
@@ -172,9 +156,6 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
             F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$shaclSchemaUri'")))
       }
     }
-
-  private def transform(source: Json): Json = source.addContext(shaclCtxUri)
-
 }
 
 object Schemas {
