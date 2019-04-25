@@ -47,7 +47,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
           trace("createSchema") {
-            complete(schemas.create(project.base, source).value.runWithStatus(Created))
+            complete(schemas.create(source).value.runWithStatus(Created))
           }
         }
       },

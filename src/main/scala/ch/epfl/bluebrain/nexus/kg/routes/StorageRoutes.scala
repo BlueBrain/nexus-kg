@@ -49,7 +49,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
           trace("createStorage") {
-            complete(storages.create(project.base, source).value.runWithStatus(Created))
+            complete(storages.create(source).value.runWithStatus(Created))
           }
         }
       },

@@ -33,7 +33,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{apply => _, _}
+import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -41,6 +41,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.parser.parse
@@ -163,7 +164,7 @@ class ViewRoutesSpec
   "The view routes" should {
 
     "create a view without @id" in new Context {
-      views.create(projectMeta.base, view) shouldReturn EitherT.rightT[Task, Rejection](resource)
+      views.create(view) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
       Post(s"/v1/views/$organization/$project", view) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.Created

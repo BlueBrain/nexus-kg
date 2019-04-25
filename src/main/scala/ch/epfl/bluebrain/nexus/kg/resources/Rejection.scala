@@ -17,6 +17,7 @@ import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveEncoder
 import io.circe.parser.parse
 import io.circe.{Encoder, Json}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 
 /**
   * Enumeration of resource rejection types.
@@ -129,7 +130,8 @@ object Rejection {
     *
     * @param ref a reference to the resource
     */
-  final case class IncorrectId(ref: Ref) extends Rejection(s"Expected id '${ref.show}' was not found in the payload")
+  final case class IncorrectId(ref: Ref)
+      extends Rejection(s"Expected @id value '${ref.show}' was not found in the payload")
 
   /**
     * Signals an attempt to create a resource with wrong types on it's payload.
@@ -180,12 +182,14 @@ object Rejection {
   /**
     * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.jena.JenaModel.JenaModelErr]].
     *
+    * @param id the error to be transformed
     * @param error the error to be transformed
     */
-  final def fromMarshallingErr[F[_]](error: MarshallingError)(implicit F: MonadError[F, Throwable]): F[Rejection] =
+  final def fromMarshallingErr[F[_]](id: AbsoluteIri, error: MarshallingError)(
+      implicit F: MonadError[F, Throwable]): F[Rejection] =
     error match {
       case ConversionError(message, _) => F.pure(InvalidJsonLD(message))
-      case RootNodeNotFound(_)         => F.pure(UnableToSelectResourceId)
+      case _: RootNodeNotFound         => F.pure(IncorrectId(id.ref))
       case MarshallingError.Unexpected(message) =>
         F.raiseError(KgError.InternalError(s"Unexpected MarshallingError with message '$message'"))
     }

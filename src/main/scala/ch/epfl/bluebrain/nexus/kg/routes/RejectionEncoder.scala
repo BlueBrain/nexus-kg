@@ -2,9 +2,11 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidJsonLD, UnableToSelectResourceId}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IncorrectId, InvalidJsonLD}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, Resource, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.Compacted
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError.{ConversionError, RootNodeNotFound, Unexpected}
 import io.circe.Json
@@ -29,18 +31,18 @@ object RejectionEncoder {
       implicit outputFormat: JsonLDOutputFormat = Compacted): RejectionEncoder[ResourceV] =
     new RejectionEncoder[ResourceV] {
       override def apply(value: ResourceV): Either[Rejection, Json] =
-        ResourceEncoder.json(value).left.map(marshallerErrorToRejectiton)
+        ResourceEncoder.json(value).left.map(marshallerErrorToRejectiton(value.id.value, _))
     }
 
   final implicit def rejectionEncoder(implicit config: AppConfig, project: Project): RejectionEncoder[Resource] =
     new RejectionEncoder[Resource] {
       override def apply(value: Resource): Either[Rejection, Json] =
-        ResourceEncoder.json(value).left.map(marshallerErrorToRejectiton)
+        ResourceEncoder.json(value).left.map(marshallerErrorToRejectiton(value.id.value, _))
     }
-  private def marshallerErrorToRejectiton(err: MarshallingError): Rejection = err match {
+  private def marshallerErrorToRejectiton(id: AbsoluteIri, err: MarshallingError): Rejection = err match {
     case ConversionError(message, _) => InvalidJsonLD(message)
     case Unexpected(message)         => InvalidJsonLD(message)
-    case RootNodeNotFound(_)         => UnableToSelectResourceId
+    case _: RootNodeNotFound         => IncorrectId(id.ref)
   }
 
 }

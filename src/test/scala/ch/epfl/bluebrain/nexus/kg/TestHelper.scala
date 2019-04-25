@@ -9,12 +9,11 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas.unconstrainedSchemaUri
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Ref, ResId, ResourceF}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
-import org.mockito.ArgumentMatchers.{argThat, isA => mockIsA}
+import org.mockito.ArgumentMatchers.argThat
 import org.scalatest.EitherValues
-
-import scala.reflect.ClassTag
 
 trait TestHelper extends MockitoMatchers with EitherValues {
 
@@ -75,8 +74,6 @@ trait TestHelper extends MockitoMatchers with EitherValues {
 }
 
 trait MockitoMatchers {
-  def isA[T: ClassTag]: T =
-    mockIsA(implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]])
 
   def matches[A](f: A => Boolean): A = {
     argThat((argument: A) => f(argument))

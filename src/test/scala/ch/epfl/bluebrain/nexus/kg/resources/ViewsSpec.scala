@@ -23,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
+import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -37,7 +37,7 @@ import org.mockito.ArgumentMatchers.any
 import org.scalatest._
 import org.mockito.ArgumentMatchers.{eq => mEq}
 import io.circe.parser.parse
-import org.mockito.IdiomaticMockito
+import org.mockito.{IdiomaticMockito, Mockito}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -67,12 +67,20 @@ class ViewsSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private implicit val repo         = Repo[IO].ioValue
-  private implicit val projectCache = mock[ProjectCache[IO]]
-  private implicit val viewCache    = mock[ViewCache[IO]]
-  private implicit val esClient     = mock[ElasticSearchClient[IO]]
-  private val resolverCache         = mock[ResolverCache[IO]]
-  private val aclsCache             = mock[AclsCache[IO]]
+  private implicit val repo          = Repo[IO].ioValue
+  private implicit val projectCache  = mock[ProjectCache[IO]]
+  private implicit val viewCache     = mock[ViewCache[IO]]
+  private implicit val esClient      = mock[ElasticSearchClient[IO]]
+  private val aclsCache              = mock[AclsCache[IO]]
+  private implicit val resolverCache = mock[ResolverCache[IO]]
+
+  private val resolution =
+    new ProjectResolution(resolverCache,
+                          mock[ProjectCache[IO]],
+                          StaticResolution[IO](iriResolution),
+                          mock[AclsCache[IO]])
+  private implicit val materializer = new Materializer[IO](repo, resolution)
+
   resolverCache.get(any[ProjectRef]) shouldReturn IO.pure(List.empty[Resolver])
   // format: off
   val project1 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
@@ -91,6 +99,10 @@ class ViewsSpec
 
   private val views: Views[IO] = Views[IO]
 
+  before {
+    Mockito.reset(resolverCache)
+  }
+
   trait Base {
     implicit val caller = Caller(Anonymous, Set(Anonymous, Authenticated("realm")))
     val projectRef      = ProjectRef(genUUID)
@@ -101,6 +113,7 @@ class ViewsSpec
     // format: off
     implicit val project = Project(resId.value, genString(), genString(), None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, caller.subject.id, Instant.EPOCH, caller.subject.id)
     // format: on
+    resolverCache.get(projectRef) shouldReturn IO(List.empty[Resolver])
 
     def resolverFrom(json: Json) =
       json.addContext(viewCtxUri) deepMerge Json.obj("@id" -> Json.fromString(id.show))
@@ -148,7 +161,7 @@ class ViewsSpec
         val invalid = List.range(1, 3).map(i => jsonContentOf(s"/view/aggelasticviewwrong$i.json"))
         forAll(invalid) { j =>
           val json = resolverFrom(j)
-          views.create(base, json).value.rejected[InvalidResource]
+          views.create(json).value.rejected[InvalidResource]
         }
       }
 
@@ -159,7 +172,7 @@ class ViewsSpec
         forAll(valid) { j =>
           new Base {
             val json     = resolverFrom(j)
-            val result   = views.create(base, json).value.accepted
+            val result   = views.create(json).value.accepted
             val expected = ResourceF.simpleF(resId, json, schema = viewRef, types = tpes)
             result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
           }
@@ -192,7 +205,7 @@ class ViewsSpec
         val label2 = ProjectLabel("account2", "project2")
         projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO(Map(label1 -> None, label2 -> None))
         val json = resolverFrom(jsonContentOf("/view/aggelasticview-2.json"))
-        views.create(base, json).value.rejected[ProjectsNotFound] shouldEqual ProjectsNotFound(Set(label1, label2))
+        views.create(json).value.rejected[ProjectsNotFound] shouldEqual ProjectsNotFound(Set(label1, label2))
       }
 
       "prevent creating an AggregatedElasticSearchView when view not found in the cache" in new Base {
@@ -206,7 +219,7 @@ class ViewsSpec
         viewCache.get(ref2) shouldReturn IO(Set.empty[View])
 
         val json = resolverFrom(jsonContentOf("/view/aggelasticview-2.json"))
-        views.create(base, json).value.rejected[NotFound] shouldEqual NotFound(url"http://example.com/id4".value.ref)
+        views.create(json).value.rejected[NotFound] shouldEqual NotFound(url"http://example.com/id4".value.ref)
       }
 
       "prevent creating a view with the id passed on the call not matching the @id on the payload" in new EsViewMocked {

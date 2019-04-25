@@ -195,7 +195,7 @@ object Routes {
         ResourceRoutes.write)) {
         entity(as[Json]) { source =>
           trace("createResource") {
-            complete(resources.create(project.base, unconstrainedRef, source).value.runWithStatus(Created))
+            complete(resources.create(unconstrainedRef, source).value.runWithStatus(Created))
           }
         }
       }

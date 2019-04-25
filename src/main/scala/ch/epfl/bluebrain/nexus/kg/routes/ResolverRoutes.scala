@@ -47,7 +47,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
           trace("createResolver") {
-            complete(resolvers.create(project.base, source).value.runWithStatus(Created))
+            complete(resolvers.create(source).value.runWithStatus(Created))
           }
         }
       },

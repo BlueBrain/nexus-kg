@@ -13,11 +13,13 @@ import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq, Random
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
@@ -28,7 +30,7 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
-import org.mockito.IdiomaticMockito
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
 
 import scala.concurrent.ExecutionContext
@@ -48,6 +50,7 @@ class StoragesSpec
     with test.Resources
     with TestHelper
     with Inspectors
+    with BeforeAndAfter
     with CirceEq {
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
@@ -59,12 +62,24 @@ class StoragesSpec
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
   private implicit val repo          = Repo[IO].ioValue
+  private implicit val resolverCache = mock[ResolverCache[IO]]
+
+  private val resolution =
+    new ProjectResolution(resolverCache,
+                          mock[ProjectCache[IO]],
+                          StaticResolution[IO](iriResolution),
+                          mock[AclsCache[IO]])
+  private implicit val materializer  = new Materializer[IO](repo, resolution)
   private val storages: Storages[IO] = Storages[IO]
   private val readPerms              = Permission.unsafe("resources/read")
   private val writePerms             = Permission.unsafe("files/write")
 
   private val passVerify = new VerifyStorage[IO] {
     override def apply: IO[Either[String, Unit]] = IO.pure(Right(()))
+  }
+
+  before {
+    Mockito.reset(resolverCache)
   }
 
   trait Base {
@@ -84,6 +99,7 @@ class StoragesSpec
     // format: off
     val diskStorageModel = DiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", Paths.get("/tmp"), readPerms, writePerms)
     // format: on
+    resolverCache.get(projectRef) shouldReturn IO(List.empty[Resolver])
 
     implicit val verify = new Verify[IO] {
       override def apply(storage: Storage): VerifyStorage[IO] =
@@ -122,12 +138,12 @@ class StoragesSpec
         val invalid = List.range(1, 2).map(i => jsonContentOf(s"/storage/storage-wrong-$i.json"))
         forAll(invalid) { j =>
           val json = updateId(j)
-          storages.create(base, json).value.rejected[InvalidResource]
+          storages.create(json).value.rejected[InvalidResource]
         }
       }
 
       "create a DiskStorage" in new Base {
-        val result = storages.create(base, diskStorage).value.accepted
+        val result = storages.create(diskStorage).value.accepted
         val expected =
           ResourceF.simpleF(resId, diskStorage, schema = storageRef, types = typesDisk)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())

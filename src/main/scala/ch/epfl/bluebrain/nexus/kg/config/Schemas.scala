@@ -5,6 +5,7 @@ import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
@@ -29,9 +30,12 @@ object Schemas {
   val storageSchema: Json  = jsonContentOf("/schemas/storage.json")
 
   //Schema models
-  val resolverSchemaModel: Id[Model] = resolveSchema(resolverSchema).asGraph(resolverSchemaUri).toOption.get.as[Model]()
-  val viewSchemaModel: Id[Model]     = resolveSchema(viewSchema).asGraph(viewSchemaUri).toOption.get.as[Model]()
-  val storageSchemaModel: Id[Model]  = resolveSchema(storageSchema).asGraph(storageSchemaUri).toOption.get.as[Model]()
+  val resolverSchemaModel: Id[Model] =
+    resolveSchema(resolverSchema).asGraph(resolverSchemaUri).toOption.get.as[Model]()
+  val viewSchemaModel: Id[Model] =
+    resolveSchema(viewSchema).asGraph(viewSchemaUri).toOption.get.as[Model]()
+  val storageSchemaModel: Id[Model] =
+    resolveSchema(storageSchema).asGraph(storageSchemaUri).toOption.get.as[Model]()
 
   // Schema references
   val viewRef          = viewSchemaUri.ref

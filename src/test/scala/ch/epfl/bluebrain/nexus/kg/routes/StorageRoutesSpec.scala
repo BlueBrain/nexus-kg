@@ -34,16 +34,14 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.{IdiomaticMockito, Mockito}
-import org.mockito.matchers.MacroBasedMatchers
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
-import org.mockito.Mockito.when
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import org.mockito.ArgumentMatchers.{eq => Eq}
 
 import scala.concurrent.duration._
 
@@ -58,7 +56,7 @@ class StorageRoutesSpec
     with ScalaFutures
     with Randomness
     with IdiomaticMockito
-    with MacroBasedMatchers
+    with ArgumentMatchersSugar
     with BeforeAndAfter
     with TestHelper
     with Inspectors
@@ -143,8 +141,8 @@ class StorageRoutesSpec
   "The storage routes" should {
 
     "create a storage without @id" in new Context {
-      when(storages.create(Eq(projectMeta.base), Eq(storage))(Eq(caller.subject), any[Verify[Task]], Eq(finalProject)))
-        .thenReturn(EitherT.rightT[Task, Rejection](resource))
+      storages.create(eqTo(storage))(eqTo(caller.subject), any[Verify[Task]], eqTo(finalProject)) shouldReturn
+        EitherT.rightT[Task, Rejection](resource)
 
       Post(s"/v1/storages/$organization/$project", storage) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.Created
@@ -157,8 +155,8 @@ class StorageRoutesSpec
     }
 
     "create a storage with @id" in new Context {
-      when(storages.create(Eq(id), Eq(storage))(Eq(caller.subject), any[Verify[Task]]))
-        .thenReturn(EitherT.rightT[Task, Rejection](resource))
+      storages.create(eqTo(id), eqTo(storage))(eqTo(caller.subject), any[Verify[Task]], eqTo(finalProject)) shouldReturn
+        EitherT.rightT[Task, Rejection](resource)
 
       Put(s"/v1/storages/$organization/$project/$urlEncodedId", storage) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.Created
@@ -171,8 +169,8 @@ class StorageRoutesSpec
     }
 
     "update a storage" in new Context {
-      when(storages.update(Eq(id), Eq(1L), Eq(storage))(Eq(caller.subject), any[Verify[Task]]))
-        .thenReturn(EitherT.rightT[Task, Rejection](resource))
+      storages.update(eqTo(id), eqTo(1L), eqTo(storage))(eqTo(caller.subject), any[Verify[Task]], eqTo(finalProject)) shouldReturn
+        EitherT.rightT[Task, Rejection](resource)
 
       Put(s"/v1/storages/$organization/$project/$urlEncodedId?rev=1", storage) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK

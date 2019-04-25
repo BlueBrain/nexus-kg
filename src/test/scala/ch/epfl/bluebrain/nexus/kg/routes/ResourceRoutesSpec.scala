@@ -31,6 +31,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
@@ -134,7 +135,7 @@ class ResourceRoutesSpec
   "The resources routes" should {
 
     "create a resource without @id" in new Context {
-      resources.create(projectMeta.base, unconstrainedRef, json) shouldReturn EitherT.rightT[Task, Rejection](resource)
+      resources.create(unconstrainedRef, json) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
       Post(s"/v1/resources/$organization/$project/resource", json) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.Created
