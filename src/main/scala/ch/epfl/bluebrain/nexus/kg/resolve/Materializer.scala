@@ -24,22 +24,31 @@ class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F]
 
   private val emptyJson = Json.obj()
 
-  private def flattenCtx(refs: List[Ref], contextValue: Json)(implicit project: Project): EitherT[F, Rejection, Json] =
-    (contextValue.asString, contextValue.asArray, contextValue.asObject) match {
-      case (Some(str), _, _) =>
-        val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
-        for {
-          next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
-          res   <- resolveOrNotFound(next)
-          value <- flattenCtx(next :: refs, res.value.contextValue)
-        } yield value
-      case (_, Some(arr), _) =>
-        val jsons = arr.traverse(j => flattenCtx(refs, j).value).map(_.sequence)
+  private def flattenCtx(rrefs: List[Ref], ccontextValue: Json)(
+      implicit project: Project): EitherT[F, Rejection, Json] = {
 
-        EitherT(jsons).map(_.foldLeft(Json.obj())(_ deepMerge _))
-      case (_, _, Some(_)) => EitherT.rightT[F, Rejection](contextValue)
-      case (_, _, _)       => EitherT.leftT[F, Json](IllegalContextValue(refs): Rejection)
+    def inner(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
+      (contextValue.asString, contextValue.asArray, contextValue.asObject) match {
+        case (Some(str), _, _) =>
+          val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
+          for {
+            next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
+            res   <- resolveOrNotFound(next)
+            value <- inner(next :: refs, res.value.contextValue)
+          } yield value
+        case (_, Some(arr), _) =>
+          val jsons = arr.traverse(j => inner(refs, j).value).map(_.sequence)
+
+          EitherT(jsons).map(_.foldLeft(Json.obj())(_ deepMerge _))
+        case (_, _, Some(_)) => EitherT.rightT[F, Rejection](contextValue)
+        case (_, _, _)       => EitherT.leftT[F, Json](IllegalContextValue(refs): Rejection)
+      }
+
+    inner(rrefs, ccontextValue).map {
+      case `emptyJson` => Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson)
+      case flattened   => flattened
     }
+  }
 
   private def resolveOrNotFound(ref: Ref)(implicit project: Project): RejOrResource[F] =
     EitherT.fromOptionF(resolution(project.ref)(repo).resolve(ref), notFound(ref))
@@ -54,18 +63,9 @@ class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F]
     */
   def apply(source: Json, id: AbsoluteIri)(implicit project: Project): EitherT[F, Rejection, Value] =
     flattenCtx(Nil, source.contextValue)
-      .map {
-        case `emptyJson` => Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson)
-        case flattened   => flattened
-      }
       .flatMap { ctx =>
         val resolved = source.replaceContext(Json.obj("@context" -> ctx))
-        for {
-          resolvedWithId <- EitherT.fromEither[F](addIdOrReject(resolved, id))
-          result <- EitherT
-            .fromEither[F](resolvedWithId.asGraph(id).map(Value(source, ctx, _)))
-            .leftSemiflatMap(e => Rejection.fromMarshallingErr[F](id, e))
-        } yield result
+        EitherT.fromEither[F](addIdOrReject(resolved, id)).flatMap(asGraphOrError(id, _, source, ctx))
       }
 
   /**
@@ -77,20 +77,15 @@ class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F]
     */
   def apply(source: Json)(implicit project: Project): EitherT[F, Rejection, (AbsoluteIri, Value)] =
     flattenCtx(Nil, source.contextValue)
-      .map {
-        case `emptyJson` => Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson)
-        case flattened   => flattened
-      }
       .flatMap { ctx =>
         val resolved = source.replaceContext(Json.obj("@context" -> ctx))
         val id       = getOrAssignId(resolved)
-        for {
-          resolvedWithId <- EitherT.fromEither[F](addIdOrReject(resolved, id))
-          result <- EitherT
-            .fromEither[F](resolvedWithId.asGraph(id).map(Value(source, ctx, _)))
-            .leftSemiflatMap(e => Rejection.fromMarshallingErr[F](id, e))
-        } yield id -> result
+        EitherT.fromEither[F](addIdOrReject(resolved, id)).flatMap(asGraphOrError(id, _, source, ctx)).map(id -> _)
       }
+  private def asGraphOrError(id: AbsoluteIri, resolved: Json, source: Json, ctx: Json): EitherT[F, Rejection, Value] =
+    EitherT
+      .fromEither[F](resolved.asGraph(id).map(Value(source, ctx, _)))
+      .leftSemiflatMap(e => Rejection.fromMarshallingErr[F](id, e))
 
   private def addIdOrReject(json: Json, id: AbsoluteIri): Either[Rejection, Json] = {
     json.id match {

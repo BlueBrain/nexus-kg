@@ -26,9 +26,8 @@ class ViewSpec
     with Resources
     with TestHelper
     with Inspectors
-      with BeforeAndAfter
-
-      with CirceEq {
+    with BeforeAndAfter
+    with CirceEq {
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   "A View" when {
