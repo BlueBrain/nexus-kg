@@ -128,8 +128,7 @@ class S3StorageOperationsSpec
       attr.filename shouldEqual "s3.json"
       attr.digest shouldEqual Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
 
-      val download =
-        fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
+      val download = fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
       download shouldEqual contentOf(filePath)
 
       // bucket has one object

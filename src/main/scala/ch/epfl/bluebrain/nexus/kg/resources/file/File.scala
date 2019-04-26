@@ -6,7 +6,8 @@ import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.storageCtx
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidJsonLD, InvalidResourceFormat}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidJsonLD
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId}
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
@@ -54,24 +55,9 @@ object File {
           .left
           .map(_ => InvalidJsonLD("Invalid JSON payload."))
         c = graph.cursor()
-        filename <- c
-          .downField(nxv.filename)
-          .focus
-          .as[String]
-          .left
-          .map(_ => InvalidResourceFormat(id.ref, "Invalid 'filename' field."))
-        mediaType <- c
-          .downField(nxv.mediaType)
-          .focus
-          .as[String]
-          .left
-          .map(_ => InvalidResourceFormat(id.ref, "Invalid 'mediaType' field."))
-        location <- c
-          .downField(nxv.location)
-          .focus
-          .as[Uri]
-          .left
-          .map(_ => InvalidResourceFormat(id.ref, "Invalid 'location' field."))
+        filename  <- c.downField(nxv.filename).focus.as[String].toRejectionOnLeft(id.ref)
+        mediaType <- c.downField(nxv.mediaType).focus.as[String].toRejectionOnLeft(id.ref)
+        location  <- c.downField(nxv.location).focus.as[Uri].toRejectionOnLeft(id.ref)
       } yield LinkDescription(location, filename, mediaType)
 
   }

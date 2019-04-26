@@ -5,7 +5,6 @@ import java.util.NoSuchElementException
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model.Uri.Path._
 import akka.stream.alpakka.s3.S3Attributes
 import akka.stream.alpakka.s3.scaladsl.S3
@@ -52,7 +51,7 @@ object S3StorageOperations {
     private implicit val mt: Materializer = ActorMaterializer()
 
     override def apply(fileMeta: FileAttributes): F[AkkaSource] =
-      getKey(storage.bucket, fileMeta.location.path) match {
+      getKey(storage, fileMeta.location) match {
         case Some(key) =>
           val future = IO(
             S3.download(storage.bucket, key)
@@ -130,7 +129,7 @@ object S3StorageOperations {
     private implicit val mt: Materializer     = ActorMaterializer()
 
     override def apply(id: ResId, fileDesc: FileDescription, location: Uri): F[FileAttributes] =
-      getKey(storage.bucket, location.path) match {
+      getKey(storage, location) match {
         case Some(key) =>
           val future =
             S3.download(storage.bucket, key)
@@ -159,11 +158,25 @@ object S3StorageOperations {
       }
   }
 
-  private def getKey(bucket: String, path: Path): Option[String] = path match {
-    case Slash(Segment(head, Slash(tail))) if head == bucket =>
-      Some(URLDecoder.decode(tail.toString, "UTF-8"))
-    case _ =>
-      logger.error(s"Error decoding key from S3 object URI '$path' in bucket '$bucket'")
-      None
+  private def getKey(storage: S3Storage, location: Uri): Option[String] = {
+    val path = storage.settings.endpoint match {
+      case Some(endpoint) =>
+        if (location.toString.startsWith(endpoint)) Some(location.path)
+        else if (endpoint.startsWith("http://localhost")) Some(location.path) // workaround for unit testing
+        else None
+      case None =>
+        if (location.authority.toString.endsWith("amazonaws.com")) Some(location.path)
+        else None
+    }
+    path match {
+      case Some(Slash(Segment(head, Slash(tail)))) if head == storage.bucket =>
+        Some(URLDecoder.decode(tail.toString, "UTF-8"))
+      case None =>
+        logger.error(s"S3 object URI '$location' outside given storage")
+        None
+      case _ =>
+        logger.error(s"Error decoding key from S3 object URI '$path' in bucket '${storage.bucket}'")
+        None
+    }
   }
 }
