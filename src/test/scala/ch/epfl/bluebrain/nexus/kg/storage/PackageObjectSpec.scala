@@ -35,7 +35,7 @@ class PackageObjectSpec extends FlatSpec with Matchers with ScalaFutures {
     val input    = FileIO.fromPath(path)
     val algo     = "SHA-256"
 
-    input.runWith(digestSink(algo)).futureValue shouldEqual Digest(
+    input.runWith(digestSink(algo)(as.dispatcher)).futureValue shouldEqual Digest(
       algo,
       "5602c497e51680bef1f3120b1d6f65d480555002a3290029f8178932e8f4801a")
   }

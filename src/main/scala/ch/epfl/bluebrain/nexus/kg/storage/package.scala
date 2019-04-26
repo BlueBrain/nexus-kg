@@ -6,12 +6,12 @@ import java.security.MessageDigest
 import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
-import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.stream.scaladsl.{Sink, Source}
 import akka.util.ByteString
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.Digest
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 package object storage {
   type AkkaSource = Source[ByteString, Any]
@@ -21,13 +21,13 @@ package object storage {
     *
     * @param algorithm the digest algorithm. E.g.: SHA-256
     */
-  def digestSink(algorithm: String): Sink[ByteString, Future[Digest]] = {
-    val digest = MessageDigest.getInstance(algorithm)
-    Flow[ByteString]
-      .map(bs => digest.update(bs.asByteBuffer))
-      .map(_ => Digest(digest.getAlgorithm, digest.digest.map("%02x".format(_)).mkString))
-      .toMat(Sink.head)(Keep.right)
-  }
+  def digestSink(algorithm: String)(implicit ec: ExecutionContext): Sink[ByteString, Future[Digest]] =
+    Sink
+      .fold(MessageDigest.getInstance(algorithm)) { (digest, currentBytes: ByteString) =>
+        digest.update(currentBytes.asByteBuffer)
+        digest
+      }
+      .mapMaterializedValue(_.map(dig => Digest(dig.getAlgorithm, dig.digest.map("%02x".format(_)).mkString)))
 
   /**
     * Converts an Akka [[akka.http.scaladsl.model.Uri]] in the form `file://...` to a [[java.nio.file.Path]].

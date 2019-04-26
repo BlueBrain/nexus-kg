@@ -101,21 +101,6 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
   /**
     * Updates a link to an existing file.
     *
-    * @param projectRef reference for the project in which the resource is going to be created.\
-    * @param base       base used to generate new ids
-    * @param storage    the storage where the file is going to be saved
-    * @param rev        the last known resource revision
-    * @param source   the source representation in JSON-LD
-    * @return either a rejection or the new resource representation in the F context
-    */
-  def updateLink(projectRef: ProjectRef, base: AbsoluteIri, storage: Storage, rev: Long, source: Json)(
-      implicit subject: Subject,
-      linkStorage: Link[F]): RejOrResource[F] =
-    updateLink(Id(projectRef, generateId(base)), storage, rev, source)
-
-  /**
-    * Updates a link to an existing file.
-    *
     * @param id       the id of the resource
     * @param storage  the storage where the file is going to be saved
     * @param rev      the last known resource revision
