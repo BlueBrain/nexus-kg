@@ -13,6 +13,9 @@
     "region": "nxv:region",
     "accessKey": "nxv:accessKey",
     "secretKey": "nxv:secretKey",
+    "location": "nxv:location",
+    "filename": "nxv:filename",
+    "mediaType": "nxv:mediaType",
     "_algorithm": "nxv:algorithm"
   },
   "@id": "https://bluebrain.github.io/nexus/contexts/storage.json"

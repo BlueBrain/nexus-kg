@@ -17,8 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Save
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Link, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, LinkFile, SaveFile}
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import io.circe.Json
@@ -50,8 +50,9 @@ class RepoSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private val repo                           = Repo[IO].ioValue
-  private val saveFile: SaveFile[IO, String] = mock[SaveFile[IO, String]]
+  private val repo     = Repo[IO].ioValue
+  private val saveFile = mock[SaveFile[IO, String]]
+  private val linkFile = mock[LinkFile[IO]]
 
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
   private def randomIri()  = Iri.absolute(s"http://example.com/$genUUID").right.value
@@ -78,6 +79,7 @@ class RepoSpec
     val storage         = DiskStorage.default(projectRef)
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
+    implicit val link: Link[IO]         = (st: Storage) => if (st == storage) linkFile else throw new RuntimeException
   }
 
   "A Repo" when {
@@ -229,6 +231,55 @@ class RepoSpec
       "prevent to create a file resource which fails on attempting to store" in new File {
         saveFile(id, desc, source) shouldReturn IO.raiseError(KgError.InternalError(""))
         repo.createFile(id, storage, desc, source).value.failed[KgError.InternalError]
+      }
+    }
+
+    "performing link operations" should {
+      val desc        = FileDescription("name", "text/plain")
+      val desc2       = FileDescription("name2", "text/plain")
+      val location    = Uri("file:///tmp/other")
+      val location2   = Uri("file:///tmp/other2")
+      val attributes  = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
+      val attributes2 = desc2.process(StoredSummary(location2, 30L, Digest("MD5", "4567")))
+
+      "create link" in new File {
+        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
+
+        repo.createLink(id, storage, desc, location).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
+      }
+
+      "update link" in new File {
+        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
+        linkFile(id, desc, location2) shouldReturn IO.pure(attributes2)
+
+        repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
+        repo.updateLink(id, storage, desc, location2, 1L).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes2))
+      }
+
+      "prevent link update with an incorrect revision" in new File {
+        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
+
+        repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
+        repo.updateLink(id, storage, desc, location, 3L).value.rejected[IncorrectRev] shouldEqual
+          IncorrectRev(id.ref, 3L, 1L)
+      }
+
+      "prevent link update to a deprecated resource" in new File {
+        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
+        repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
+
+        repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
+        repo
+          .updateLink(id, storage, desc, location, 2L)
+          .value
+          .rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
+      }
+
+      "prevent link creation when the store operation fails" in new File {
+        linkFile(id, desc, location) shouldReturn IO.raiseError(KgError.InternalError(""))
+        repo.createLink(id, storage, desc, location).value.failed[KgError.InternalError]
       }
     }
 

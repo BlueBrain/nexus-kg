@@ -26,6 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
 import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -52,15 +53,22 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     */
   def routes: Route =
     concat(
-      // Create file when id is not provided on the Uri (POST)
+      // Create file when id is not provided in the Uri (POST)
       (post & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
-        (hasPermission(storage.writePermission) & fileUpload("file")) {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            trace("createFile") {
-              val created = files.create(project.ref, project.base, storage, description, byteSource)
+        hasPermission(storage.writePermission).apply {
+          fileUpload("file") {
+            case (metadata, byteSource) =>
+              val description = FileDescription(metadata.fileName, metadata.contentType.value)
+              trace("createFile") {
+                val created = files.create(project.ref, project.base, storage, description, byteSource)
+                complete(created.value.runWithStatus(Created))
+              }
+          } ~ entity(as[Json]) { source =>
+            trace("createLink") {
+              val created = files.createLink(project.ref, project.base, storage, source)
               complete(created.value.runWithStatus(Created))
             }
+          }
         }
       },
       // List files
@@ -89,20 +97,33 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     concat(
       // Create or update a file (depending on rev query parameter)
       (put & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
-        (hasPermission(storage.writePermission) & fileUpload("file")) {
-          case (metadata, byteSource) =>
-            val description = FileDescription(metadata.fileName, metadata.contentType.value)
-            val resId       = Id(project.ref, id)
+        val resId = Id(project.ref, id)
+        hasPermission(storage.writePermission).apply {
+          fileUpload("file") {
+            case (metadata, byteSource) =>
+              val description = FileDescription(metadata.fileName, metadata.contentType.value)
+              parameter('rev.as[Long].?) {
+                case None =>
+                  trace("createFile") {
+                    complete(files.create(resId, storage, description, byteSource).value.runWithStatus(Created))
+                  }
+                case Some(rev) =>
+                  trace("updateFile") {
+                    complete(files.update(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
+                  }
+              }
+          } ~ entity(as[Json]) { source =>
             parameter('rev.as[Long].?) {
               case None =>
-                trace("createFile") {
-                  complete(files.create(resId, storage, description, byteSource).value.runWithStatus(Created))
+                trace("createLink") {
+                  complete(files.createLink(resId, storage, source).value.runWithStatus(Created))
                 }
               case Some(rev) =>
-                trace("updateFile") {
-                  complete(files.update(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
+                trace("updateLink") {
+                  complete(files.updateLink(resId, storage, rev, source).value.runWithStatus(OK))
                 }
             }
+          }
         }
       },
       // Deprecate file

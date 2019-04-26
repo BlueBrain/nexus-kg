@@ -68,8 +68,7 @@ object DiskStorageOperations {
             case (digFuture, ioFuture) =>
               digFuture.zipWith(ioFuture) {
                 case (dig, io) if io.wasSuccessful && fullPath.toFile.exists() =>
-                  val digest = Digest(dig.getAlgorithm, dig.digest().map("%02x".format(_)).mkString)
-                  Future(fileDesc.process(StoredSummary(s"file://$fullPath", io.count, digest)))
+                  Future.successful(fileDesc.process(StoredSummary(s"file://$fullPath", io.count, dig)))
                 case _ =>
                   Future.failed(KgError.InternalError(
                     s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"))

@@ -4,10 +4,63 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
+import ch.epfl.bluebrain.nexus.kg.config.Contexts.storageCtx
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidJsonLD
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId}
+import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder._
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import io.circe.Json
+
+import scala.util.Try
 
 object File {
 
   val write: Permission = Permission.unsafe("files/write")
+
+  /**
+    * Holds the metadata information related to a file link.
+    *
+    * @param location  the target file location
+    * @param filename  the original filename
+    * @param mediaType the media type
+    */
+  final case class LinkDescription(location: Uri, filename: String, mediaType: String)
+
+  object LinkDescription {
+
+    private implicit val uriEncoder: NodeEncoder[Uri] = node =>
+      stringEncoder(node).flatMap { uri =>
+        Try(Uri(uri)).toEither.left.map(err => IllegalConversion(s"Invalid URI '${err.getMessage}'"))
+    }
+
+    /**
+      * Attempts to transform a JSON payload into a [[LinkDescription]].
+      *
+      * @param id     the resource identifier
+      * @param source the JSON payload
+      * @return a link description if the resource is compatible or a rejection otherwise
+      */
+    final def apply(id: ResId, source: Json): Either[Rejection, LinkDescription] =
+      for {
+        graph <- source
+          .replaceContext(storageCtx)
+          .id(id.value)
+          .asGraph(id.value)
+          .left
+          .map(_ => InvalidJsonLD("Invalid JSON payload."))
+        c = graph.cursor()
+        filename  <- c.downField(nxv.filename).focus.as[String].toRejectionOnLeft(id.ref)
+        mediaType <- c.downField(nxv.mediaType).focus.as[String].toRejectionOnLeft(id.ref)
+        location  <- c.downField(nxv.location).focus.as[Uri].toRejectionOnLeft(id.ref)
+      } yield LinkDescription(location, filename, mediaType)
+
+  }
 
   /**
     * Holds some of the metadata information related to a file.
