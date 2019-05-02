@@ -94,7 +94,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
   def createLink(id: ResId, storage: Storage, source: Json)(implicit subject: Subject,
                                                             linkStorage: Link[F]): RejOrResource[F] = {
     EitherT.fromEither[F](LinkDescription(id, source)).flatMap { link =>
-      repo.createLink(id, storage, FileDescription(link.filename, link.mediaType), link.location)
+      repo.createLink(id, storage, FileDescription(link.filename, link.mediaType), link.path)
     }
   }
 
@@ -110,7 +110,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
   def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(implicit subject: Subject,
                                                                        linkStorage: Link[F]): RejOrResource[F] =
     EitherT.fromEither[F](LinkDescription(id, source)).flatMap { link =>
-      repo.updateLink(id, storage, FileDescription(link.filename, link.mediaType), link.location, rev)
+      repo.updateLink(id, storage, FileDescription(link.filename, link.mediaType), link.path, rev)
     }
 
   /**

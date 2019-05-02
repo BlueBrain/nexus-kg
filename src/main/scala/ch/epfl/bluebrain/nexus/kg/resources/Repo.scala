@@ -146,18 +146,18 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param id       the id of the resource
     * @param storage  the storage where the file is going to be linked
     * @param fileDesc the file description metadata
-    * @param location the file location URI
+    * @param path     the relative (from the storage) file location
     * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
   def createLink(id: ResId,
                  storage: Storage,
                  fileDesc: FileDescription,
-                 location: Uri,
+                 path: Uri.Path,
                  instant: Instant = clock.instant)(implicit subject: Subject,
                                                    linkStorage: Link[F]): EitherT[F, Rejection, Resource] =
     EitherT
-      .right(storage.link.apply(id, fileDesc, location))
+      .right(storage.link.apply(id, fileDesc, path))
       .flatMap(attr => evaluate(id, CreateFile(id, storage, attr, instant, subject)))
 
   /**
@@ -166,7 +166,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param id       the id of the resource
     * @param storage  the storage where the file is going to be linked
     * @param fileDesc the file description metadata
-    * @param location the file location URI
+    * @param path     the relative (from the storage) file location
     * @param rev      the last known resource revision
     * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
@@ -174,12 +174,12 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
   def updateLink(id: ResId,
                  storage: Storage,
                  fileDesc: FileDescription,
-                 location: Uri,
+                 path: Uri.Path,
                  rev: Long,
                  instant: Instant = clock.instant)(implicit subject: Subject,
                                                    linkStorage: Link[F]): EitherT[F, Rejection, Resource] =
     EitherT
-      .right(storage.link.apply(id, fileDesc, location))
+      .right(storage.link.apply(id, fileDesc, path))
       .flatMap(attr => evaluate(id, UpdateFile(id, storage, rev, attr, instant, subject)))
 
   /**

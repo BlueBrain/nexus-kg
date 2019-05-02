@@ -1,9 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
 
+import akka.http.scaladsl.model.ContentTypes._
+import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test.Resources
@@ -12,7 +13,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Credentials, S3Settings, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
@@ -124,9 +125,10 @@ class EventsSpecBase
       Id(projectRef, base + "file"),
       DiskStorage.default(projectRef),
       FileAttributes(
-        Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString).toString,
+        "/some/location/path",
+        Uri.Path("path"),
         "attachment.json",
-        "application/json",
+        `application/json`,
         47,
         Digest("SHA-256", "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda")
       ),
@@ -149,9 +151,10 @@ class EventsSpecBase
       ),
       2L,
       FileAttributes(
-        Paths.get("/", UUID.randomUUID().toString, UUID.randomUUID().toString).toString,
+        Uri("/some/location/path"),
+        Uri.Path("path"),
         "attachment.json",
-        "text/json",
+        `text/plain(UTF-8)`,
         47,
         Digest("SHA-256", "00ff4b34e3f3695c3abcdec61cba72c2238ed172ef34ae1196bfad6a4ec23dda")
       ),

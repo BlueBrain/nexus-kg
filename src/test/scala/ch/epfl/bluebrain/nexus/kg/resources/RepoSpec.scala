@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
 
+import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
@@ -185,13 +186,14 @@ class RepoSpec
     }
 
     "performing file operations" should {
-      val desc        = FileDescription("name", "text/plain")
+      val desc        = FileDescription("name", `text/plain(UTF-8)`)
       val source      = "some text"
-      val desc2       = FileDescription("name2", "text/plain")
+      val desc2       = FileDescription("name2", `text/plain(UTF-8)`)
       val source2     = "some text2"
       val location    = Uri("file:///tmp/other")
-      val attributes  = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
-      val attributes2 = desc2.process(StoredSummary(location, 30L, Digest("MD5", "4567")))
+      val path        = Uri.Path("other")
+      val attributes  = desc.process(StoredSummary(location, path, 20L, Digest("MD5", "1234")))
+      val attributes2 = desc2.process(StoredSummary(location, path, 30L, Digest("MD5", "4567")))
 
       "create file resource" in new File {
         saveFile(id, desc, source) shouldReturn IO.pure(attributes)
@@ -235,51 +237,53 @@ class RepoSpec
     }
 
     "performing link operations" should {
-      val desc        = FileDescription("name", "text/plain")
-      val desc2       = FileDescription("name2", "text/plain")
+      val desc        = FileDescription("name", `text/plain(UTF-8)`)
+      val desc2       = FileDescription("name2", `text/plain(UTF-8)`)
       val location    = Uri("file:///tmp/other")
+      val path        = Uri.Path("other")
       val location2   = Uri("file:///tmp/other2")
-      val attributes  = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
-      val attributes2 = desc2.process(StoredSummary(location2, 30L, Digest("MD5", "4567")))
+      val path2       = Uri.Path("other2")
+      val attributes  = desc.process(StoredSummary(location, path, 20L, Digest("MD5", "1234")))
+      val attributes2 = desc2.process(StoredSummary(location2, path2, 30L, Digest("MD5", "4567")))
 
       "create link" in new File {
-        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
+        linkFile(id, desc, path) shouldReturn IO.pure(attributes)
 
-        repo.createLink(id, storage, desc, location).value.accepted shouldEqual
+        repo.createLink(id, storage, desc, path).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
       }
 
       "update link" in new File {
-        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
-        linkFile(id, desc, location2) shouldReturn IO.pure(attributes2)
+        linkFile(id, desc, path) shouldReturn IO.pure(attributes)
+        linkFile(id, desc, path2) shouldReturn IO.pure(attributes2)
 
-        repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
-        repo.updateLink(id, storage, desc, location2, 1L).value.accepted shouldEqual
+        repo.createLink(id, storage, desc, path).value.accepted shouldBe a[Resource]
+        repo.updateLink(id, storage, desc, path2, 1L).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes2))
       }
 
       "prevent link update with an incorrect revision" in new File {
-        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
+        linkFile(id, desc, path) shouldReturn IO.pure(attributes)
 
-        repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
-        repo.updateLink(id, storage, desc, location, 3L).value.rejected[IncorrectRev] shouldEqual
+        repo.createLink(id, storage, desc, path).value.accepted shouldBe a[Resource]
+        repo.updateLink(id, storage, desc, path, 3L).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent link update to a deprecated resource" in new File {
-        linkFile(id, desc, location) shouldReturn IO.pure(attributes)
-        repo.createLink(id, storage, desc, location).value.accepted shouldBe a[Resource]
+        linkFile(id, desc, path) shouldReturn IO.pure(attributes)
+        repo.createLink(id, storage, desc, path).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
         repo
-          .updateLink(id, storage, desc, location, 2L)
+          .updateLink(id, storage, desc, path, 2L)
           .value
           .rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
 
       "prevent link creation when the store operation fails" in new File {
-        linkFile(id, desc, location) shouldReturn IO.raiseError(KgError.InternalError(""))
-        repo.createLink(id, storage, desc, location).value.failed[KgError.InternalError]
+        linkFile(id, desc, path) shouldReturn IO.raiseError(KgError.InternalError(""))
+        repo.createLink(id, storage, desc, path).value.failed[KgError.InternalError]
       }
     }
 
@@ -361,12 +365,13 @@ class RepoSpec
 
     "performing get file operations" should {
       val location    = Uri("file:///tmp/other")
-      val desc        = FileDescription("name", "text/plain")
+      val path        = Uri.Path("other")
+      val desc        = FileDescription("name", `text/plain(UTF-8)`)
       val source      = "some text"
-      val attributes  = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
-      val desc2       = FileDescription("name2", "text/plain")
+      val attributes  = desc.process(StoredSummary(location, path, 20L, Digest("MD5", "1234")))
+      val desc2       = FileDescription("name2", `text/plain(UTF-8)`)
       val source2     = "some text2"
-      val attributes2 = desc2.process(StoredSummary(location, 30L, Digest("MD5", "4567")))
+      val attributes2 = desc2.process(StoredSummary(location, path, 30L, Digest("MD5", "4567")))
 
       "get a file resource" in new File {
         saveFile(id, desc, source) shouldReturn IO.pure(attributes)

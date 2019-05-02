@@ -50,8 +50,8 @@ object QueryResultEncoder {
 
   implicit def qrsEncoderJson: Encoder[QueryResults[Json]] = {
     implicit def qrEncoderJson: Encoder[QueryResult[Json]] = Encoder.instance {
-      case UnscoredQueryResult(v) => v.removeKeys(nxv.originalSource.prefix)
-      case ScoredQueryResult(score, v) =>
+      case UnscoredQueryResult(v, _) => v.removeKeys(nxv.originalSource.prefix)
+      case ScoredQueryResult(score, v, _) =>
         v.removeKeys(nxv.originalSource.prefix) deepMerge Json.obj(nxv.score.prefix -> Json.fromFloatOrNull(score))
     }
     def json(total: Long, list: List[QueryResult[Json]]): Json =

@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
 
+import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
@@ -82,10 +83,11 @@ class FilesSpec
 
     val value      = Json.obj()
     val types      = Set[AbsoluteIri](nxv.File)
-    val desc       = FileDescription("name", "text/plain")
+    val desc       = FileDescription("name", `text/plain(UTF-8)`)
     val source     = "some text"
     val location   = Uri("file:///tmp/other")
-    val attributes = desc.process(StoredSummary(location, 20L, Digest("MD5", "1234")))
+    val path       = Uri.Path("other")
+    val attributes = desc.process(StoredSummary(location, path, 20L, Digest("MD5", "1234")))
     val storage    = DiskStorage.default(projectRef)
     val fileLink   = jsonContentOf("/resources/file-link.json")
 
@@ -96,11 +98,10 @@ class FilesSpec
     implicit val fetch: Fetch[IO, String] = (st: Storage) =>
       if (st == storage) fetchFile else throw new RuntimeException
 
-    implicit val ignoreUuid: Equality[FileDescription] = new Equality[FileDescription] {
-      override def areEqual(a: FileDescription, b: Any): Boolean = b match {
+    implicit val ignoreUuid: Equality[FileDescription] = (a: FileDescription, b: Any) =>
+      b match {
         case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
         case _                                       => false
-      }
     }
   }
 
@@ -127,7 +128,7 @@ class FilesSpec
 
       "update a file" in new Base {
         val updatedSource     = genString()
-        val attributesUpdated = desc.process(StoredSummary(location, 100L, Digest("MD5", genString())))
+        val attributesUpdated = desc.process(StoredSummary(location, path, 100L, Digest("MD5", genString())))
 
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         saveFile(resId, desc, updatedSource) shouldReturn IO.pure(attributesUpdated)
@@ -148,25 +149,26 @@ class FilesSpec
     "performing linking operations" should {
 
       "create a new link" in new Base {
-        linkFile(eqTo(resId), eqTo(desc), eqTo(location)) shouldReturn IO.pure(attributes)
+        linkFile(eqTo(resId), eqTo(desc), eqTo(path)) shouldReturn IO.pure(attributes)
         files.createLink(resId, storage, fileLink).value.accepted shouldEqual
           ResourceF.simpleF(resId, value, schema = fileRef, types = types).copy(file = Some(storage -> attributes))
       }
 
       "prevent creating a new link when save method fails" in new Base {
-        linkFile(eqTo(resId), eqTo(desc), eqTo(location)) shouldReturn IO.raiseError(new RuntimeException("Error I/O"))
+        linkFile(eqTo(resId), eqTo(desc), eqTo(path)) shouldReturn IO.raiseError(new RuntimeException("Error I/O"))
         whenReady(files.createLink(resId, storage, fileLink).value.unsafeToFuture().failed) {
           _ shouldBe a[RuntimeException]
         }
       }
 
       "update a link" in new Base {
-        linkFile(eqTo(resId), eqTo(desc), eqTo(location)) shouldReturn IO.pure(attributes)
+        linkFile(eqTo(resId), eqTo(desc), eqTo(path)) shouldReturn IO.pure(attributes)
         val location2 = Uri("file:///tmp/other2")
-        val fileLink2 = fileLink.deepMerge(Json.obj("location" -> Json.fromString(location2.toString)))
+        val path2     = Uri.Path("other2")
+        val fileLink2 = fileLink.deepMerge(Json.obj("path" -> Json.fromString(path2.toString)))
 
-        val attributesUpdated = desc.process(StoredSummary(location2, 100L, Digest("MD5", genString())))
-        linkFile(eqTo(resId), eqTo(desc), eqTo(location2)) shouldReturn IO.pure(attributesUpdated)
+        val attributesUpdated = desc.process(StoredSummary(location2, path2, 100L, Digest("MD5", genString())))
+        linkFile(eqTo(resId), eqTo(desc), eqTo(path2)) shouldReturn IO.pure(attributesUpdated)
 
         files.createLink(resId, storage, fileLink).value.accepted shouldBe a[Resource]
         files.updateLink(resId, storage, 1L, fileLink2).value.accepted shouldEqual
@@ -176,7 +178,7 @@ class FilesSpec
       }
 
       "prevent updating a link that does not exist" in new Base {
-        linkFile(eqTo(resId), eqTo(desc), eqTo(location)) shouldReturn IO.raiseError(RemoteFileNotFound(location))
+        linkFile(eqTo(resId), eqTo(desc), eqTo(path)) shouldReturn IO.raiseError(RemoteFileNotFound(location))
         files
           .updateLink(resId, storage, 1L, fileLink)
           .value
@@ -214,7 +216,7 @@ class FilesSpec
 
       "return a specific revision of the file " in new Base {
         val updatedSource     = genString()
-        val attributesUpdated = desc.process(StoredSummary(location, 100L, Digest("MD5", genString())))
+        val attributesUpdated = desc.process(StoredSummary(location, path, 100L, Digest("MD5", genString())))
 
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         fetchFile(attributes) shouldReturn IO.pure(source)

@@ -5,7 +5,7 @@ import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._

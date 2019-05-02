@@ -1,11 +1,9 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
-import java.net.URLDecoder
 import java.util.NoSuchElementException
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.model.Uri.Path._
 import akka.stream.alpakka.s3.S3Attributes
 import akka.stream.alpakka.s3.scaladsl.S3
 import akka.stream.scaladsl.{Keep, Sink}
@@ -16,13 +14,10 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
-import journal.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
 object S3StorageOperations {
-
-  private val logger = Logger[this.type]
 
   final class Verify[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem, config: StorageConfig)
       extends VerifyStorage[F] {
@@ -50,31 +45,26 @@ object S3StorageOperations {
 
     private implicit val mt: Materializer = ActorMaterializer()
 
-    override def apply(fileMeta: FileAttributes): F[AkkaSource] =
-      getKey(storage, fileMeta.location) match {
-        case Some(key) =>
-          val future = IO(
-            S3.download(storage.bucket, key)
-              .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
-              .runWith(Sink.head))
-          IO.fromFuture(future)
-            .flatMap {
-              case Some((source, _)) => IO.pure(source: AkkaSource)
-              case None              => IO.raiseError(KgError.RemoteFileNotFound(fileMeta.location))
-            }
-            .handleErrorWith {
-              case e: KgError => IO.raiseError(e)
-              case e: Throwable =>
-                IO.raiseError(
-                  KgError.DownstreamServiceError(
-                    s"Error fetching S3 object with key '$key' in bucket '${storage.bucket}': ${e.getMessage}"))
-            }
-            .to[F]
-        case None =>
-          F.raiseError(
-            KgError.InternalError(
-              s"Error decoding key from S3 object URI '${fileMeta.location}' in bucket '${storage.bucket}'"))
-      }
+    override def apply(fileMeta: FileAttributes): F[AkkaSource] = {
+      val future = IO(
+        S3.download(storage.bucket, fileMeta.path.toString())
+          .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
+          .runWith(Sink.head))
+      IO.fromFuture(future)
+        .flatMap {
+          case Some((source, _)) => IO.pure(source: AkkaSource)
+          case None              => IO.raiseError(KgError.RemoteFileNotFound(fileMeta.location))
+        }
+        .handleErrorWith {
+          case e: KgError => IO.raiseError(e)
+          case e: Throwable =>
+            IO.raiseError(
+              KgError.DownstreamServiceError(
+                s"Error fetching S3 object with key '${fileMeta.path}' in bucket '${storage.bucket}': ${e.getMessage}"))
+        }
+        .to[F]
+    }
+
   }
 
   final class Save[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem, config: StorageConfig)
@@ -98,7 +88,8 @@ object S3StorageOperations {
               case (dig, io) =>
                 metaDataSource.runWith(Sink.head).flatMap {
                   case Some(meta) =>
-                    Future.successful(fileDesc.process(StoredSummary(io.location, meta.contentLength, dig)))
+                    val summary = StoredSummary(io.location, Uri.Path(key), meta.contentLength, dig)
+                    Future.successful(fileDesc.process(summary))
                   case None =>
                     Future.failed(KgError.InternalError(
                       s"Empty content fetching metadata for uploaded file '${fileDesc.filename}' to location '${io.location}'"))
@@ -128,55 +119,35 @@ object S3StorageOperations {
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val mt: Materializer     = ActorMaterializer()
 
-    override def apply(id: ResId, fileDesc: FileDescription, location: Uri): F[FileAttributes] =
-      getKey(storage, location) match {
-        case Some(key) =>
-          val future =
-            S3.download(storage.bucket, key)
-              .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
-              .runWith(Sink.head)
-              .flatMap {
-                case Some((source, meta)) =>
-                  source.runWith(digestSink(storage.algorithm)).map { dig =>
-                    FileAttributes(location, fileDesc.filename, fileDesc.mediaType, meta.contentLength, dig)
-                  }
-                case None => Future.failed(KgError.RemoteFileNotFound(location))
+    override def apply(id: ResId, fileDesc: FileDescription, key: Uri.Path): F[FileAttributes] = {
+      val location: Uri = s"${storage.settings.address}/${storage.bucket}/$key"
+      val future =
+        S3.download(storage.bucket, key.toString())
+          .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
+          .runWith(Sink.head)
+          .flatMap {
+            case Some((source, meta)) =>
+              source.runWith(digestSink(storage.algorithm)).map { dig =>
+                FileAttributes(fileDesc.uuid,
+                               location,
+                               key,
+                               fileDesc.filename,
+                               fileDesc.mediaType,
+                               meta.contentLength,
+                               dig)
               }
+            case None => Future.failed(KgError.RemoteFileNotFound(location))
+          }
 
-          IO.fromFuture(IO(future))
-            .handleErrorWith {
-              case e: KgError => IO.raiseError(e)
-              case e: Throwable =>
-                IO.raiseError(
-                  KgError.DownstreamServiceError(
-                    s"Error fetching S3 object with key '$key' in bucket '${storage.bucket}': ${e.getMessage}"))
-            }
-            .to[F]
-        case None =>
-          F.raiseError(
-            KgError.InternalError(s"Error decoding key from S3 object URI '$location' in bucket '${storage.bucket}'"))
-      }
-  }
-
-  private def getKey(storage: S3Storage, location: Uri): Option[String] = {
-    val path = storage.settings.endpoint match {
-      case Some(endpoint) =>
-        if (location.toString.startsWith(endpoint)) Some(location.path)
-        else if (endpoint.startsWith("http://localhost")) Some(location.path) // workaround for unit testing
-        else None
-      case None =>
-        if (location.authority.toString.endsWith("amazonaws.com")) Some(location.path)
-        else None
-    }
-    path match {
-      case Some(Slash(Segment(head, Slash(tail)))) if head == storage.bucket =>
-        Some(URLDecoder.decode(tail.toString, "UTF-8"))
-      case None =>
-        logger.error(s"S3 object URI '$location' outside given storage")
-        None
-      case _ =>
-        logger.error(s"Error decoding key from S3 object URI '$path' in bucket '${storage.bucket}'")
-        None
+      IO.fromFuture(IO(future))
+        .handleErrorWith {
+          case e: KgError => IO.raiseError(e)
+          case e: Throwable =>
+            IO.raiseError(
+              KgError.DownstreamServiceError(
+                s"Error fetching S3 object with key '$key' in bucket '${storage.bucket}': ${e.getMessage}"))
+        }
+        .to[F]
     }
   }
 }

@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 
-import akka.http.scaladsl.model.MediaTypes.{`application/json`, `text/plain`}
+import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Multipart.FormData
 import akka.http.scaladsl.model.Multipart.FormData.BodyPart
 import akka.http.scaladsl.model._
@@ -129,9 +129,15 @@ class FileRoutesSpec
     val storage        = DiskStorage.default(projectRef)
     storageCache.getDefault(projectRef) shouldReturn Task(Some(storage))
 
-    val path    = getClass.getResource("/resources/file.txt")
-    val uuid    = UUID.randomUUID
-    val at1     = FileAttributes(uuid, Uri(path.toString), "file.txt", "text/plain", 1024, Digest("SHA-256", "digest1"))
+    val path = getClass.getResource("/resources/file.txt")
+    val uuid = UUID.randomUUID
+    val at1 = FileAttributes(uuid,
+                             Uri(path.toString),
+                             Uri.Path("file.txt"),
+                             "file.txt",
+                             `text/plain(UTF-8)`,
+                             1024,
+                             Digest("SHA-256", "digest1"))
     val content = genString()
     val source: Source[ByteString, Any] =
       Source.single(ByteString(content)).mapMaterializedValue[Any](v => v)
@@ -144,13 +150,12 @@ class FileRoutesSpec
       )
 
     val fileLink = jsonContentOf("/resources/file-link.json")
-    val fileDesc = FileDescription("myFile.txt", ContentTypes.`text/plain(UTF-8)`.value)
+    val fileDesc = FileDescription("myFile.txt", `text/plain(UTF-8)`)
 
-    implicit val ignoreUuid: Equality[FileDescription] = new Equality[FileDescription] {
-      override def areEqual(a: FileDescription, b: Any): Boolean = b match {
+    implicit val ignoreUuid: Equality[FileDescription] = (a: FileDescription, b: Any) =>
+      b match {
         case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
         case _                                       => false
-      }
     }
 
     val resource =
@@ -312,24 +317,25 @@ class FileRoutesSpec
         .fetch[AkkaSource](eqTo(id))(any[Fetch[Task, AkkaSource]])
         .shouldReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
 
-      val accepted = List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain`))
+      val accepted =
+        List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain(UTF-8)`.mediaType))
 
       forAll(accepted) { accept =>
         Get(s"/v1/files/$organization/$project/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/file/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/_/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
@@ -341,24 +347,25 @@ class FileRoutesSpec
         .fetch[AkkaSource](eqTo(id), eqTo(1L))(any[Fetch[Task, AkkaSource]])
         .shouldReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
 
-      val accepted = List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain`))
+      val accepted =
+        List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain(UTF-8)`.mediaType))
 
       forAll(accepted) { accept =>
         Get(s"/v1/files/$organization/$project/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
@@ -370,24 +377,25 @@ class FileRoutesSpec
         .fetch[AkkaSource](eqTo(id), eqTo("some"))(any[Fetch[Task, AkkaSource]])
         .shouldReturn(EitherT.rightT[Task, Rejection]((storage: Storage, at1, source)))
 
-      val accepted = List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain`))
+      val accepted =
+        List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain(UTF-8)`.mediaType))
 
       forAll(accepted) { accept =>
         Get(s"/v1/files/$organization/$project/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/file/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual "text/plain"
+          contentType.value shouldEqual `text/plain(UTF-8)`.value
           header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }

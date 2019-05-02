@@ -209,13 +209,15 @@ object Event {
         case "value"      => "_value"
         case "filename"   => "_filename"
         case "mediaType"  => "_mediaType"
+        case "location"   => "_location"
         case other        => other
       })
 
-    private implicit val refEncoder: Encoder[Ref]         = Encoder.encodeJson.contramap(_.iri.asJson)
-    private implicit val uriEncoder: Encoder[Uri]         = Encoder.encodeString.contramap(_.toString)
-    private implicit val pathEncoder: Encoder[Path]       = Encoder.encodeString.contramap(_.toString)
-    private implicit val permEncoder: Encoder[Permission] = Encoder.encodeString.contramap(_.value)
+    private implicit val refEncoder: Encoder[Ref]          = Encoder.encodeJson.contramap(_.iri.asJson)
+    private implicit val uriEncoder: Encoder[Uri]          = Encoder.encodeString.contramap(_.toString)
+    private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
+    private implicit val pathEncoder: Encoder[Path]        = Encoder.encodeString.contramap(_.toString)
+    private implicit val permEncoder: Encoder[Permission]  = Encoder.encodeString.contramap(_.value)
 
     private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
 
@@ -224,7 +226,7 @@ object Event {
 
     private implicit val fileAttributesEncoder: Encoder[FileAttributes] =
       deriveEncoder[FileAttributes]
-        .mapJsonObject(_.remove("location").remove("uuid"))
+        .mapJsonObject(_.remove("path").remove("uuid"))
 
     private implicit val idEncoder: Encoder[Id[ProjectRef]] =
       Encoder.encodeJson.contramap(_.value.asJson)

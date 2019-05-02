@@ -63,6 +63,7 @@
         "_algorithm": "SHA-256"
       },
       "_filename": "attachment.json",
+      "_location": "/some/location/path",
       "_mediaType": "application/json"
     },
     "_storage": {
@@ -88,7 +89,8 @@
         "_algorithm": "SHA-256"
       },
       "_filename": "attachment.json",
-      "_mediaType": "text/json"
+      "_location": "/some/location/path",
+      "_mediaType": "text/plain; charset=UTF-8"
     },
     "_storage": {
       "@type": "S3Storage",

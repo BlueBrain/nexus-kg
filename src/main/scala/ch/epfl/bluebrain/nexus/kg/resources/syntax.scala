@@ -4,11 +4,13 @@ import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
 import java.util.UUID
 
+import akka.http.scaladsl.model.ContentType
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
+import ch.epfl.bluebrain.nexus.kg.storage.Crypto
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Node.Literal
@@ -16,6 +18,8 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
+import io.circe.{Decoder, Encoder}
+import javax.crypto.SecretKey
 
 import scala.util.{Success, Try}
 
@@ -36,6 +40,12 @@ object syntax {
         case _             => Left(IllegalConversion("Expected a ProjectRef, but found otherwise"))
       }
   }
+
+  implicit val encMediaType: Encoder[ContentType] =
+    Encoder.encodeString.contramap(_.value)
+
+  implicit val decMediaType: Decoder[ContentType] =
+    Decoder.decodeString.emap(ContentType.parse(_).left.map(_.mkString("\n")))
 
   final implicit class ResourceSyntax(resource: ResourceF[_]) {
     def isSchema: Boolean = resource.types.contains(nxv.Schema.value)
@@ -151,5 +161,18 @@ object syntax {
           InvalidResourceFormat(
             ref,
             s"The provided payload could not be mapped to the targeted resource due to '${err.message}'"))
+  }
+
+  implicit class CryptoSyntax(private val value: String) extends AnyVal {
+
+    /**
+      * Encrypts the ''value'' using the implicitly available ''key''
+      */
+    def encrypt(implicit key: SecretKey): String = Crypto.encrypt(key, value)
+
+    /**
+      * Decrypts the ''value'' using the implicitly available ''key''
+      */
+    def decrypt(implicit key: SecretKey): String = Crypto.decrypt(key, value)
   }
 }

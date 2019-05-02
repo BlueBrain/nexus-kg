@@ -296,5 +296,6 @@ object AppConfig {
   implicit def toStore(implicit appConfig: AppConfig): StoreConfig                 = appConfig.keyValueStore
   implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig           = appConfig.keyValueStore.keyValueStoreConfig
   implicit def toStorage(implicit appConfig: AppConfig): StorageConfig             = appConfig.storage
+  implicit def toSecertKey(implicit storageConfig: StorageConfig): SecretKey       = storageConfig.derivedKey
 
 }
