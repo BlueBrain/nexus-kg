@@ -36,6 +36,7 @@ object Vocabulary {
     val self          = PrefixMapping.metadata("self")
     val project       = PrefixMapping.metadata("project")
     val total         = PrefixMapping.metadata("total")
+    val next          = PrefixMapping.metadata("next")
     val results       = PrefixMapping.metadata("results")
     val maxScore      = PrefixMapping.metadata("maxScore")
     val score         = PrefixMapping.metadata("score")

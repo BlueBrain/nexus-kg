@@ -72,10 +72,11 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         }
       },
       // List files
-      (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (pagination, params) =>
+      (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
+        (pagination, params, uri) =>
           trace("listFile") {
-            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(files.list(_, params, pagination))
+            implicit val u = uri
+            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(files.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
       },

@@ -26,6 +26,9 @@ object QueryDirectives {
 
   private val logger = Logger[this.type]
 
+  val from: String        = "from"
+  val searchAfter: String = "searchAfter"
+
   /**
     * @return the extracted storage from the request query parameters or default from the storage cache.
     */

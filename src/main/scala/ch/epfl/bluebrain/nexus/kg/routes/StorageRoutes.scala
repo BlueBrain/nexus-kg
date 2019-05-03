@@ -54,10 +54,11 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
         }
       },
       // List storages
-      (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (pagination, params) =>
+      (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
+        (pagination, params, uri) =>
           trace("listStorage") {
-            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(storages.list(_, params, pagination))
+            implicit val u = uri
+            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(storages.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
       },
