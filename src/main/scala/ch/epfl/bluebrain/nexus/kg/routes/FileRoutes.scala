@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.model.headers.{Accept, RawHeader}
-import akka.http.scaladsl.model.{ContentType, HttpEntity}
+import akka.http.scaladsl.model.HttpEntity
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -58,7 +58,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         hasPermission(storage.writePermission).apply {
           fileUpload("file") {
             case (metadata, byteSource) =>
-              val description = FileDescription(metadata.fileName, metadata.contentType.value)
+              val description = FileDescription(metadata.fileName, metadata.contentType)
               trace("createFile") {
                 val created = files.create(project.ref, project.base, storage, description, byteSource)
                 complete(created.value.runWithStatus(Created))
@@ -101,7 +101,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         hasPermission(storage.writePermission).apply {
           fileUpload("file") {
             case (metadata, byteSource) =>
-              val description = FileDescription(metadata.fileName, metadata.contentType.value)
+              val description = FileDescription(metadata.fileName, metadata.contentType)
               parameter('rev.as[Long].?) {
                 case None =>
                   trace("createFile") {
@@ -179,13 +179,12 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
           val filename = urlEncodeOrElse(info.filename)("file")
           (respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")) & encodeResponse) {
             headerValueByType[Accept](()) { accept =>
-              val contentType = ContentType.parse(info.mediaType).getOrElse(Binary.contentType)
-              if (accept.mediaRanges.exists(_.matches(contentType.mediaType)))
-                complete(HttpEntity(contentType, info.bytes, source))
+              if (accept.mediaRanges.exists(_.matches(info.mediaType.mediaType)))
+                complete(HttpEntity(info.mediaType, info.bytes, source))
               else
                 failWith(
                   UnacceptedResponseContentType(
-                    s"File Media Type '$contentType' does not match the Accept header value '${accept.mediaRanges
+                    s"File Media Type '${info.mediaType}' does not match the Accept header value '${accept.mediaRanges
                       .mkString(", ")}'"))
             }
           }

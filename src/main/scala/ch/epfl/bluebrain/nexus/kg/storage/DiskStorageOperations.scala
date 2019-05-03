@@ -4,6 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.Uri
 import akka.stream.scaladsl.{FileIO, Keep}
 import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect.{Effect, IO}
@@ -60,33 +61,34 @@ object DiskStorageOperations {
     private implicit val ec: ExecutionContext = as.dispatcher
     private implicit val mt: Materializer     = ActorMaterializer()
 
-    override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
-      getLocation(fileDesc.uuid).flatMap { fullPath =>
-        val future = source
-          .alsoToMat(digestSink(storage.algorithm))(Keep.right)
-          .toMat(FileIO.toPath(fullPath)) {
-            case (digFuture, ioFuture) =>
-              digFuture.zipWith(ioFuture) {
-                case (dig, io) if io.wasSuccessful && fullPath.toFile.exists() =>
-                  Future.successful(fileDesc.process(StoredSummary(s"file://$fullPath", io.count, dig)))
-                case _ =>
-                  Future.failed(KgError.InternalError(
-                    s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"))
-              }
-          }
-          .run()
-          .flatten
+    override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] =
+      getLocation(fileDesc.uuid).flatMap {
+        case (fullPath, relativePath) =>
+          val future = source
+            .alsoToMat(digestSink(storage.algorithm))(Keep.right)
+            .toMat(FileIO.toPath(fullPath)) {
+              case (digFuture, ioFuture) =>
+                digFuture.zipWith(ioFuture) {
+                  case (dig, io) if io.wasSuccessful && fullPath.toFile.exists() =>
+                    val summary = StoredSummary(s"file://$fullPath", Uri.Path(relativePath.toString), io.count, dig)
+                    Future.successful(fileDesc.process(summary))
+                  case _ =>
+                    Future.failed(KgError.InternalError(
+                      s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"))
+                }
+            }
+            .run()
+            .flatten
 
-        F.liftIO(IO.fromFuture(IO(future)))
+          F.liftIO(IO.fromFuture(IO(future)))
       }
-    }
 
-    private def getLocation(uuid: UUID): F[Path] =
+    private def getLocation(uuid: UUID): F[(Path, Path)] =
       F.catchNonFatal {
           val relative = Paths.get(mangle(storage.ref, uuid))
           val filePath = storage.volume.resolve(relative)
           Files.createDirectories(filePath.getParent)
-          filePath
+          (filePath, relative)
         }
         .recoverWith {
           case NonFatal(err) =>

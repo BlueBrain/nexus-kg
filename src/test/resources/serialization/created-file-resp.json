@@ -17,6 +17,7 @@
   "attributes": {
     "uuid": "b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7",
     "location": "file:///test/path",
+    "path": "path",
     "filename": "test-file.json",
     "mediaType": "application/json",
     "bytes": 128,

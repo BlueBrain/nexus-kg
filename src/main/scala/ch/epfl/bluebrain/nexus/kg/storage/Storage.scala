@@ -10,7 +10,7 @@ import akka.stream.alpakka.s3
 import akka.stream.alpakka.s3.{ApiVersion, MemoryBufferType}
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
@@ -102,6 +102,12 @@ sealed trait Storage { self =>
     */
   def isValid[F[_]](implicit verify: Verify[F]): VerifyStorage[F] = verify(self)
 
+  /**
+    *
+    * @return true shows the location field, false doesn't
+    */
+  def showLocation: Boolean
+
 }
 
 object Storage {
@@ -130,7 +136,9 @@ object Storage {
                                volume: Path,
                                readPermission: Permission,
                                writePermission: Permission)
-      extends Storage
+      extends Storage {
+    val showLocation: Boolean = false
+  }
 
   object DiskStorage {
 
@@ -177,7 +185,9 @@ object Storage {
                              settings: S3Settings,
                              readPermission: Permission,
                              writePermission: Permission)
-      extends Storage
+      extends Storage {
+    val showLocation: Boolean = true
+  }
 
   private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
     stringEncoder(node).flatMap { perm =>
@@ -192,16 +202,21 @@ object Storage {
     * @param region      optional region
     */
   final case class S3Settings(credentials: Option[S3Credentials], endpoint: Option[String], region: Option[String]) {
+    val address: Uri = endpoint match {
+      case None => "https://s3.amazonaws.com"
+      case Some(s) =>
+        if (s.startsWith("https://") || s.startsWith("http://")) s
+        else s"https://$s"
+    }
 
     /**
       * @param aesKey the AES key to decrypt credentials
       * @return these settings converted to an instance of [[akka.stream.alpakka.s3.S3Settings]]
       */
-    def toAlpakka(aesKey: SecretKey): s3.S3Settings = {
+    def toAlpakka(implicit aesKey: SecretKey): s3.S3Settings = {
       val credsProvider = credentials match {
         case Some(S3Credentials(accessKey, secretKey)) =>
-          new AWSStaticCredentialsProvider(
-            new BasicAWSCredentials(Crypto.decrypt(aesKey, accessKey), Crypto.decrypt(aesKey, secretKey)))
+          new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey.decrypt, secretKey.decrypt))
         case None => new AWSStaticCredentialsProvider(new AnonymousAWSCredentials)
       }
 
@@ -215,20 +230,15 @@ object Storage {
         }
       }
 
-      val address = endpoint match {
-        case None => "https://s3.amazonaws.com"
-        case Some(s) =>
-          if (s.startsWith("https://") || s.startsWith("http://")) s
-          else s"https://$s"
-      }
-
-      s3.S3Settings(MemoryBufferType,
-                    S3Settings.getSystemProxy(address),
-                    credsProvider,
-                    regionProvider,
-                    pathStyleAccess = true,
-                    endpoint,
-                    ApiVersion.ListBucketVersion2)
+      s3.S3Settings(
+        MemoryBufferType,
+        S3Settings.getSystemProxy(address.toString()),
+        credsProvider,
+        regionProvider,
+        pathStyleAccess = true,
+        endpoint,
+        ApiVersion.ListBucketVersion2
+      )
     }
   }
 
@@ -270,83 +280,42 @@ object Storage {
     * @param encrypt whether to encrypt the credentials during encoding
     * @return Right(storage) if the resource is compatible with a Storage, Left(rejection) otherwise
     */
-  final def apply(res: ResourceV, encrypt: Boolean)(implicit config: StorageConfig): Either[Rejection, Storage] = {
+  final def apply(res: ResourceV, encrypt: Boolean)(implicit config: StorageConfig): Either[Rejection, Storage] =
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage(res)
     else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res, encrypt)
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the storage types"))
-  }
 
   private def diskStorage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, DiskStorage] = {
     val c = res.value.graph.cursor()
+    // format: off
     for {
-      default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
-      volume  <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
-      readPerms <- c
-        .downField(nxv.readPermission)
-        .focus
-        .as[Permission]
-        .orElse(config.disk.readPermission)
-        .toRejectionOnLeft(res.id.ref)
-      writePerms <- c
-        .downField(nxv.writePermission)
-        .focus
-        .as[Permission]
-        .orElse(config.disk.writePermission)
-        .toRejectionOnLeft(res.id.ref)
-    } yield
-      DiskStorage(res.id.parent,
-                  res.id.value,
-                  res.rev,
-                  res.deprecated,
-                  default,
-                  config.disk.digestAlgorithm,
-                  volume,
-                  readPerms,
-                  writePerms)
+      default   <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+      volume    <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
+      read      <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
+      write     <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
+    } yield DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume, read, write)
+    // format: on
   }
 
   private def s3Storage(res: ResourceV, encrypt: Boolean)(
       implicit config: StorageConfig): Either[Rejection, S3Storage] = {
     val c = res.value.graph.cursor()
+    // format: off
     for {
-      default <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
-      bucket  <- c.downField(nxv.bucket).focus.as[String].toRejectionOnLeft(res.id.ref)
-      endpoint = c.downField(nxv.endpoint).focus.flatMap(_.as[String].toOption)
-      region   = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
-      readPerms <- c
-        .downField(nxv.readPermission)
-        .focus
-        .as[Permission]
-        .orElse(config.amazon.readPermission)
-        .toRejectionOnLeft(res.id.ref)
-      writePerms <- c
-        .downField(nxv.writePermission)
-        .focus
-        .as[Permission]
-        .orElse(config.amazon.writePermission)
-        .toRejectionOnLeft(res.id.ref)
+      default   <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
+      bucket    <- c.downField(nxv.bucket).focus.as[String].toRejectionOnLeft(res.id.ref)
+      endpoint   = c.downField(nxv.endpoint).focus.flatMap(_.as[String].toOption)
+      region     = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
+      read      <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.amazon.readPermission).toRejectionOnLeft(res.id.ref)
+      write     <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.amazon.writePermission).toRejectionOnLeft(res.id.ref)
       credentials = for {
         ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
         sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
       } yield
-        if (encrypt) {
-          S3Credentials(Crypto.encrypt(config.derivedKey, ak), Crypto.encrypt(config.derivedKey, sk))
-        } else {
-          S3Credentials(ak, sk)
-        }
-    } yield
-      S3Storage(
-        res.id.parent,
-        res.id.value,
-        res.rev,
-        res.deprecated,
-        default,
-        config.amazon.digestAlgorithm,
-        bucket,
-        S3Settings(credentials, endpoint, region),
-        readPerms,
-        writePerms
-      )
+        if (encrypt) S3Credentials(ak.encrypt, sk.encrypt)
+        else S3Credentials(ak, sk)
+    } yield S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, bucket, S3Settings(credentials, endpoint, region), read, write)
+    // format: on
   }
 
   trait FetchFile[F[_], Out] {
@@ -380,11 +349,11 @@ object Storage {
       *
       * @param id       the id of the resource
       * @param fileDesc the file descriptor to be stored
-      * @param location the URI of the file to be linked
+      * @param path     the relative (to the storage) path of the file to be linked
       * @return [[FileAttributes]] wrapped in the abstract ''F[_]'' type if successful,
       *         or a [[ch.epfl.bluebrain.nexus.kg.resources.Rejection]] wrapped within ''F[_]'' otherwise
       */
-    def apply(id: ResId, fileDesc: FileDescription, location: Uri): F[FileAttributes]
+    def apply(id: ResId, fileDesc: FileDescription, path: Uri.Path): F[FileAttributes]
   }
 
   trait VerifyStorage[F[_]] {

@@ -1,5 +1,5 @@
 {
-  "location": "file:///tmp/other",
+  "path": "other",
   "filename": "name",
-  "mediaType": "text/plain"
+  "mediaType": "text/plain; charset=utf-8"
 }

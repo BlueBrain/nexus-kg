@@ -81,6 +81,7 @@ object Vocabulary {
 
     //Storage payload vocabulary
     val default         = PrefixMapping.prefix("default")
+    val path            = PrefixMapping.prefix("path")
     val volume          = PrefixMapping.prefix("volume")
     val readPermission  = PrefixMapping.prefix("readPermission")
     val writePermission = PrefixMapping.prefix("writePermission")

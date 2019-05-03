@@ -6,13 +6,14 @@ import java.time.Clock
 import java.util.UUID
 import java.util.regex.Pattern.quote
 
+import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{DiskStorageConfig, S3StorageConfig, StorageConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
@@ -81,12 +82,19 @@ class EventSerializerSpec
       val fileAttr =
         FileAttributes(filedUuid,
                        Uri(Paths.get("/test/path").toUri.toString),
+                       Uri.Path("path"),
                        "test-file.json",
-                       "application/json",
+                       `application/json`,
                        128L,
                        digest)
       val s3fileAttr =
-        FileAttributes(filedUuid, Uri("s3://test/path"), "test-file.json", "application/json", 128L, digest)
+        FileAttributes(filedUuid,
+                       Uri("s3://test/path"),
+                       Uri.Path("path"),
+                       "test-file.json",
+                       `application/json`,
+                       128L,
+                       digest)
       val results = List(
         Created(key, schema, types, value, instant, Anonymous) -> jsonContentOf("/serialization/created-resp.json",
                                                                                 rep),

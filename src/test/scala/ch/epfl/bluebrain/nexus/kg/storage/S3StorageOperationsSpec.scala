@@ -22,6 +22,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials}
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
+import akka.http.scaladsl.model.ContentTypes._
 import io.findify.s3mock.S3Mock
 import org.scalatest._
 
@@ -44,16 +45,15 @@ class S3StorageOperationsSpec
   private val region  = "fake-region"
   private val bucket  = "bucket"
   private val s3mock  = S3Mock(port)
+  private val read    = Permission.unsafe("resources/read")
+  private val write   = Permission.unsafe("files/write")
   private val readS3  = Permission.unsafe("s3/read")
   private val writeS3 = Permission.unsafe("s3/write")
 
   private var client: AmazonS3 = _
 
   private implicit val sc: StorageConfig = StorageConfig(
-    DiskStorageConfig(Paths.get("/tmp"),
-                      "SHA-256",
-                      Permission.unsafe("resources/read"),
-                      Permission.unsafe("files/write")),
+    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write),
     S3StorageConfig("MD5", readS3, writeS3),
     "password",
     "salt"
@@ -117,16 +117,15 @@ class S3StorageOperationsSpec
 
       val resid    = Id(projectRef, base + "files" + "id")
       val fileUuid = UUID.randomUUID
-      val desc     = FileDescription(fileUuid, "s3.json", "text/plain")
+      val desc     = FileDescription(fileUuid, "s3.json", `text/plain(UTF-8)`)
       val filePath = "/storage/s3.json"
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
+      val uriPath  = Uri.Path(mangle(projectRef, fileUuid))
+      val location = Uri(s"http://s3.amazonaws.com/$bucket/$uriPath")
+      val digest   = Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
       // http://s3.amazonaws.com is hardcoded in S3Mock
-      attr.location shouldEqual Uri(s"http://s3.amazonaws.com/$bucket/${mangle(projectRef, fileUuid)}")
-      attr.mediaType shouldEqual "text/plain"
-      attr.bytes shouldEqual 263L
-      attr.filename shouldEqual "s3.json"
-      attr.digest shouldEqual Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
+      attr shouldEqual FileAttributes(fileUuid, location, uriPath, "s3.json", `text/plain(UTF-8)`, 263L, digest)
 
       val download = fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
       download shouldEqual contentOf(filePath)
@@ -135,8 +134,10 @@ class S3StorageOperationsSpec
       verify.apply.ioValue shouldEqual Right(())
 
       val randomUuid    = UUID.randomUUID
-      val wrongLocation = Uri(s"http://s3.amazonaws.com/$bucket/${mangle(projectRef, randomUuid)}")
-      val nonexistent   = fetch(attr.copy(uuid = randomUuid, location = wrongLocation)).failed[KgError.RemoteFileNotFound]
+      val wrongPath     = Uri.Path(mangle(projectRef, randomUuid))
+      val wrongLocation = Uri(s"http://s3.amazonaws.com/$bucket/$wrongPath")
+      val nonexistent = fetch(attr.copy(uuid = randomUuid, path = wrongPath, location = wrongLocation))
+        .failed[KgError.RemoteFileNotFound]
       nonexistent shouldEqual KgError.RemoteFileNotFound(wrongLocation)
     }
 
@@ -168,14 +169,13 @@ class S3StorageOperationsSpec
 
       val resid    = Id(projectRef, base + "files" + "id")
       val fileUuid = UUID.randomUUID
-      val desc     = FileDescription(fileUuid, "s3.json", "text/plain")
-      val location = Uri(s"http://s3.amazonaws.com/$bucket/some/key/s3.json")
-      val attr     = link(resid, desc, location).ioValue
-      attr.location shouldEqual location
-      attr.mediaType shouldEqual "text/plain"
-      attr.bytes shouldEqual 263L
-      attr.filename shouldEqual "s3.json"
-      attr.digest shouldEqual Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
+      val desc     = FileDescription(fileUuid, "s3.json", `text/plain(UTF-8)`)
+      val location = Uri(s"$address/$bucket/some/key/s3.json")
+      val path     = Uri.Path("some/key/s3.json")
+      val attr     = link(resid, desc, path).ioValue
+      val digest   = Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
+      attr shouldEqual
+        FileAttributes(fileUuid, location, path, "s3.json", `text/plain(UTF-8)`, 263L, digest)
 
       val download =
         fetch(attr).ioValue.runWith(Sink.head).futureValue.decodeString(UTF_8)
@@ -211,19 +211,15 @@ class S3StorageOperationsSpec
 
       val resid    = Id(projectRef, base + "files" + "id")
       val fileUuid = UUID.randomUUID
-      val desc     = FileDescription(fileUuid, "s3.json", "text/plain")
+      val desc     = FileDescription(fileUuid, "s3.json", `text/plain(UTF-8)`)
       val filePath = "/storage/s3.json"
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val upload   = save(resid, desc, FileIO.fromPath(path)).failed[DownstreamServiceError]
       upload.msg shouldEqual "Error uploading S3 object with filename 's3.json' in bucket 'foobar': The specified bucket does not exist"
-      val attr = new FileAttributes(
-        fileUuid,
-        Uri(s"http://s3.amazonaws.com/foobar/${mangle(projectRef, fileUuid)}"),
-        desc.filename,
-        desc.mediaType,
-        263L,
-        Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
-      )
+      val key      = Uri.Path(mangle(projectRef, fileUuid))
+      val location = Uri(s"http://s3.amazonaws.com/foobar/$key")
+      val digest   = Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
+      val attr     = FileAttributes(fileUuid, location, key, desc.filename, desc.mediaType, 263L, digest)
       val download = fetch(attr).failed[DownstreamServiceError]
       download.msg shouldEqual s"Error fetching S3 object with key '${mangle(projectRef, fileUuid)}' in bucket 'foobar': The specified bucket does not exist"
     }
@@ -282,14 +278,14 @@ class S3StorageOperationsSpec
 
       val resid    = Id(projectRef, base + "files" + "id")
       val fileUuid = UUID.randomUUID
-      val desc     = FileDescription(fileUuid, "s3.json", "text/plain")
+      val desc     = FileDescription(fileUuid, "s3.json", `text/plain(UTF-8)`)
       val filePath = "/storage/s3.json"
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
 
       attr.location shouldEqual Uri(
         s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, fileUuid)}")
-      attr.mediaType shouldEqual "text/plain"
+      attr.mediaType shouldEqual `text/plain(UTF-8)`
       attr.bytes shouldEqual 263L
       attr.filename shouldEqual "s3.json"
       attr.digest shouldEqual Digest("SHA-256", "5602c497e51680bef1f3120b1d6f65d480555002a3290029f8178932e8f4801a")

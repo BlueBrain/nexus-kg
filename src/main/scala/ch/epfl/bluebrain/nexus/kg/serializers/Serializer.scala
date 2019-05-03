@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, FileCreated}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -43,6 +44,9 @@ object Serializer {
 
   private implicit val uriEncoder: Encoder[Uri] = Encoder.encodeString.contramap(_.toString)
   private implicit val uriDecoder: Decoder[Uri] = Decoder.decodeString.emapTry(uri => Try(Uri(uri)))
+
+  private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
+  private implicit val uriPathDecoder: Decoder[Uri.Path] = Decoder.decodeString.emapTry(uri => Try(Uri.Path(uri)))
 
   private implicit val digestDecoder: Decoder[Digest] = deriveDecoder[Digest]
   private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]

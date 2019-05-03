@@ -79,16 +79,18 @@ final case class ResourceF[A](
     def triplesFor(storageAndAttributes: (Storage, FileAttributes)): Set[Triple] = {
       val blankDigest   = Node.blank
       val (storage, at) = storageAndAttributes
-      Set(
+      val triples = Set[Triple](
         (blankDigest, nxv.algorithm, at.digest.algorithm),
         (blankDigest, nxv.value, at.digest.value),
         (node, rdf.tpe, nxv.File),
         (node, nxv.bytes, at.bytes),
         (node, nxv.digest, blankDigest),
-        (node, nxv.mediaType, at.mediaType),
+        (node, nxv.mediaType, at.mediaType.value),
         (node, nxv.storageId, storage.id),
         (node, nxv.filename, at.filename)
       )
+      if (storage.showLocation) triples + ((node, nxv.location, at.location.toString()): Triple)
+      else triples
     }
     val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
     val projectUri  = config.admin.publicIri + "projects" / project.organizationLabel / project.label

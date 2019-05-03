@@ -37,6 +37,7 @@
     "_algorithm": "nxv:algorithm",
     "_value": "nxv:value",
     "_mediaType": "nxv:mediaType",
+    "_location": "nxv:location",
     "_filename": "nxv:filename",
     "_bytes": "nxv:bytes",
     "_instant": "nxv:instant",
