@@ -219,7 +219,7 @@ class S3StorageOperationsSpec
       val key      = Uri.Path(mangle(projectRef, fileUuid))
       val location = Uri(s"http://s3.amazonaws.com/foobar/$key")
       val digest   = Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
-      val attr     = new FileAttributes(fileUuid, location, key, desc.filename, desc.mediaType, 263L, digest)
+      val attr     = FileAttributes(fileUuid, location, key, desc.filename, desc.mediaType, 263L, digest)
       val download = fetch(attr).failed[DownstreamServiceError]
       download.msg shouldEqual s"Error fetching S3 object with key '${mangle(projectRef, fileUuid)}' in bucket 'foobar': The specified bucket does not exist"
     }
