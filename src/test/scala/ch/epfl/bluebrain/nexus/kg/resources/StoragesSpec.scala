@@ -4,6 +4,7 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 
 import akka.stream.ActorMaterializer
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -24,7 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Credentials, S3Settings, S3Storage, VerifyStorage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -32,6 +33,7 @@ import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
+import java.util.regex.Pattern.quote
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -97,14 +99,17 @@ class StoragesSpec
 
     val diskStorage = updateId(jsonContentOf("/storage/disk.json"))
     // format: off
+    val externalDiskStorage = updateId(jsonContentOf("/storage/externalDisk.json", Map(quote("{folder}") -> "folder", quote("{cred}") -> "cred", quote("{read}") -> "resources/read", quote("{write}") -> "files/write")))
     val diskStorageModel = DiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", Paths.get("/tmp"), readPerms, writePerms)
+    val externalDiskStorageModel = ExternalDiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", "http://example.com/some", Some("cred"), "folder", readPerms, writePerms)
+    val externalDiskStorageModelEncrypted = ExternalDiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", "http://example.com/some", Some("cred".encrypt), "folder", readPerms, writePerms)
     // format: on
     resolverCache.get(projectRef) shouldReturn IO(List.empty[Resolver])
 
     implicit val verify = new Verify[IO] {
       override def apply(storage: Storage): VerifyStorage[IO] =
-        if (storage == diskStorageModel || storage == s3StorageModelEncrypted || storage == diskStorageModel.copy(
-              default = true)) passVerify
+        if (storage == diskStorageModel || storage == s3StorageModelEncrypted || storage == externalDiskStorageModelEncrypted || storage == diskStorageModel
+              .copy(default = true)) passVerify
         else throw new RuntimeException
     }
 
@@ -114,7 +119,8 @@ class StoragesSpec
     val s3StorageModel = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"))
     val s3StorageModelEncrypted = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("ByjwlDNy8D1Gm1o0EFCXwA==", "SjMIILT+A5BTUH4LP8sJBg==")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"))
     // format: on
-    val typesS3 = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
+    val typesS3       = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
+    val typesExternal = Set[AbsoluteIri](nxv.Storage, nxv.ExternalDiskStorage)
 
     def resourceV(json: Json, rev: Long = 1L, types: Set[AbsoluteIri]): ResourceV = {
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
@@ -146,6 +152,12 @@ class StoragesSpec
         val result = storages.create(diskStorage).value.accepted
         val expected =
           ResourceF.simpleF(resId, diskStorage, schema = storageRef, types = typesDisk)
+        result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
+      }
+
+      "create an ExternalDiskStorage" in new Base {
+        val result   = storages.create(resId, externalDiskStorage).value.accepted
+        val expected = ResourceF.simpleF(resId, externalDiskStorage, schema = storageRef, types = typesExternal)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
       }
 
@@ -199,6 +211,7 @@ class StoragesSpec
       val diskAddedJson = Json.obj("_algorithm" -> Json.fromString("SHA-256"),
                                    "writePermission" -> Json.fromString("files/write"),
                                    "readPermission"  -> Json.fromString("resources/read"))
+
       val s3AddedJson = Json.obj("_algorithm" -> Json.fromString("SHA-256"))
 
       "return a storage" in new Base {
@@ -213,15 +226,22 @@ class StoragesSpec
       "return the requested storage on a specific revision" in new Base {
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         storages.update(resId, 1L, s3Storage).value.accepted shouldBe a[Resource]
+        storages.update(resId, 2L, externalDiskStorage).value.accepted shouldBe a[Resource]
 
-        val resultLatest = storages.fetch(resId, 2L).value.accepted
-        val expectedLatest =
-          resourceV(s3Storage.removeKeys("accessKey", "secretKey") deepMerge s3AddedJson, 2L, typesS3)
-        resultLatest.value.ctx shouldEqual expectedLatest.value.ctx
-        resultLatest.value.graph shouldEqual expectedLatest.value.graph
-        resultLatest shouldEqual expectedLatest.copy(value = resultLatest.value)
+        storages.fetch(resId, 3L).value.accepted shouldEqual storages.fetch(resId).value.accepted
 
-        storages.fetch(resId, 2L).value.accepted shouldEqual storages.fetch(resId).value.accepted
+        val resultExternal = storages.fetch(resId, 3L).value.accepted
+        val expectedExternal =
+          resourceV(externalDiskStorage.removeKeys("credentials") deepMerge diskAddedJson, 3L, typesExternal)
+        resultExternal.value.ctx shouldEqual expectedExternal.value.ctx
+        expectedExternal.value.graph shouldEqual expectedExternal.value.graph
+        expectedExternal shouldEqual expectedExternal.copy(value = expectedExternal.value)
+
+        val resultS3   = storages.fetch(resId, 2L).value.accepted
+        val expectedS3 = resourceV(s3Storage.removeKeys("accessKey", "secretKey") deepMerge s3AddedJson, 2L, typesS3)
+        resultS3.value.ctx shouldEqual expectedS3.value.ctx
+        resultS3.value.graph shouldEqual expectedS3.value.graph
+        resultS3 shouldEqual expectedS3.copy(value = resultS3.value)
 
         val result   = storages.fetch(resId, 1L).value.accepted
         val expected = resourceV(diskStorage deepMerge diskAddedJson, 1L, typesDisk)

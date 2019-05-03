@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Res
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.DownstreamServiceError
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{DiskStorageConfig, S3StorageConfig, StorageConfig}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3Storage}
@@ -54,6 +54,7 @@ class S3StorageOperationsSpec
 
   private implicit val sc: StorageConfig = StorageConfig(
     DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write),
+    ExternalDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
     S3StorageConfig("MD5", readS3, writeS3),
     "password",
     "salt"

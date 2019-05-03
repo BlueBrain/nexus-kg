@@ -1,0 +1,24 @@
+{
+  "@context" : [
+    "https://bluebrain.github.io/nexus/contexts/search.json",
+    "https://bluebrain.github.io/nexus/contexts/resource.json",
+    "https://bluebrain.github.io/nexus/contexts/storage.json"
+  ],
+  "_total" : 1,
+  "_results" : [
+    {
+      "@id" : "http://example.com/id",
+      "@type" : [
+        "Storage",
+        "ExternalDiskStorage"
+      ],
+      "default" : false,
+      "endpoint" : "http://example.com/some",
+      "readPermission" : "disk/read",
+      "writePermission" : "disk/write",
+      "_algorithm" : "SHA-256",
+      "_deprecated" : false,
+      "_rev" : 1
+    }
+  ]
+}

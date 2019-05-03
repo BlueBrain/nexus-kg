@@ -28,6 +28,7 @@ scalafmt: {
 val adminVersion                = "da2f66eb"
 val iamVersion                  = "8dd50ac6"
 val commonsVersion              = "0.12.2"
+val storageVersion              = "1.0.1"
 val rdfVersion                  = "0.3.6"
 val sourcingVersion             = "0.16.1"
 val akkaVersion                 = "2.5.22"
@@ -59,6 +60,7 @@ lazy val commonsTest          = "ch.epfl.bluebrain.nexus" %% "commons-test"     
 lazy val rdf                  = "ch.epfl.bluebrain.nexus" %% "rdf"                        % rdfVersion
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"              % sourcingVersion
 lazy val sourcingProjections  = "ch.epfl.bluebrain.nexus" %% "sourcing-projections"       % sourcingVersion
+lazy val storageClient        = "ch.epfl.bluebrain.nexus" %% "storage-client"             % storageVersion
 lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"               % akkaVersion
 lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"      % akkaVersion
@@ -117,6 +119,7 @@ lazy val kg = project
       sourcingCore,
       sourcingProjections,
       sparqlClient,
+      storageClient,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
       commonsTest          % Test,

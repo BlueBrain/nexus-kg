@@ -80,12 +80,16 @@ object Vocabulary {
     val viewId          = PrefixMapping.prefix("viewId")
 
     //Storage payload vocabulary
-    val default         = PrefixMapping.prefix("default")
-    val path            = PrefixMapping.prefix("path")
-    val volume          = PrefixMapping.prefix("volume")
-    val readPermission  = PrefixMapping.prefix("readPermission")
-    val writePermission = PrefixMapping.prefix("writePermission")
+    val default        = PrefixMapping.prefix("default")
+    val path           = PrefixMapping.prefix("path")
+    val volume         = PrefixMapping.prefix("volume")
+    val readPermission = PrefixMapping.prefix("readPermission")
 
+    //External disk storage payload vocabulary
+    val folder      = PrefixMapping.prefix("folder")
+    val credentials = PrefixMapping.prefix("credentials")
+
+    val writePermission = PrefixMapping.prefix("writePermission")
     // S3 storage payload vocabulary
     val bucket    = PrefixMapping.prefix("bucket")
     val endpoint  = PrefixMapping.prefix("endpoint")
@@ -115,6 +119,7 @@ object Vocabulary {
     val InProject                  = PrefixMapping.prefix("InProject")
     val CrossProject               = PrefixMapping.prefix("CrossProject")
     val Storage                    = PrefixMapping.prefix("Storage")
+    val ExternalDiskStorage        = PrefixMapping.prefix("ExternalDiskStorage")
     val DiskStorage                = PrefixMapping.prefix("DiskStorage")
     val S3Storage                  = PrefixMapping.prefix("S3Storage")
     val View                       = PrefixMapping.prefix("View")
