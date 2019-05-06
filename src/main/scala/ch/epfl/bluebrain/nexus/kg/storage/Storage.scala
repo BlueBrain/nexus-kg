@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Ref, Rejection, ResId, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Rejection, ResId, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, LinkFile, SaveFile, VerifyStorage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -341,14 +341,6 @@ object Storage {
     // format: on
   }
 
-  private val folderRegex = "^[a-zA-Z0-9_-]*$"
-
-  private def validFolder(ref: Ref, folder: String): Either[Rejection, String] =
-    if (folder.matches(folderRegex))
-      Right(folder)
-    else
-      Left(InvalidResourceFormat(ref, s"The ${nxv.folder.prefix} '$folder' must match the regex '$folderRegex'"))
-
   private def externalDiskStorage(res: ResourceV, encrypt: Boolean)(
       implicit config: StorageConfig): Either[Rejection, ExternalDiskStorage] = {
     val c = res.value.graph.cursor()
@@ -365,7 +357,7 @@ object Storage {
       endpoint      <- c.downField(nxv.endpoint).focus.as[Uri].orElse(config.externalDisk.defaultEndpoint).toRejectionOnLeft(res.id.ref)
       credentials   <- if(endpoint == config.externalDisk.defaultEndpoint) cred.map(_ orElse config.externalDisk.defaultCredentials.map(_.value)).toRejectionOnLeft(res.id.ref)
                        else cred.toRejectionOnLeft(res.id.ref)
-      folder        <- c.downField(nxv.folder).focus.as[String].toRejectionOnLeft(res.id.ref).flatMap(validFolder(res.id.ref, _))
+      folder        <- c.downField(nxv.folder).focus.as[String].toRejectionOnLeft(res.id.ref)
       read          <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.externalDisk.readPermission).toRejectionOnLeft(res.id.ref)
       write         <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.externalDisk.writePermission).toRejectionOnLeft(res.id.ref)
     } yield

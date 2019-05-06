@@ -4,6 +4,7 @@ import java.nio.file.Paths
 
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
+import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.effect.IO
@@ -35,6 +36,8 @@ class ExternalDiskStorageOperationsSpec
 
   private val endpoint = "http://nexus.example.com/v1"
 
+  private implicit val mt: Materializer = ActorMaterializer()
+
   private implicit val sc: StorageConfig = StorageConfig(
     DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write),
     ExternalDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
@@ -54,13 +57,16 @@ class ExternalDiskStorageOperationsSpec
   }
 
   private def sourceInChunks(input: String): AkkaSource =
-    Source.fromIterator(() ⇒ input.grouped(10000).map(ByteString(_)))
+    Source.fromIterator(() => input.grouped(10000).map(ByteString(_)))
 
   private val client = mock[StorageClient[IO]]
 
   before {
     Mockito.reset(client)
   }
+
+  private def consume(source: AkkaSource): String =
+    source.runFold("")(_ ++ _.utf8String).futureValue
 
   "ExternalDiskStorageOperations" should {
 
@@ -80,8 +86,9 @@ class ExternalDiskStorageOperationsSpec
     "fetch file" in new Ctx {
       val source = sourceInChunks(genString())
       client.getFile(storage.folder, path) shouldReturn IO(source)
-      val fetch = new ExternalDiskStorageOperations.Fetch[IO](storage, client)
-      fetch.apply(attributes).ioValue
+      val fetch        = new ExternalDiskStorageOperations.Fetch[IO](storage, client)
+      val resultSource = fetch.apply(attributes).ioValue
+      consume(resultSource) shouldEqual consume(source)
     }
 
     "link file" in new Ctx {
