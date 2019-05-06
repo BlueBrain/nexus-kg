@@ -14,6 +14,7 @@
       ],
       "default" : false,
       "endpoint" : "http://example.com/some",
+      "folder" : "folder",
       "readPermission" : "disk/read",
       "writePermission" : "disk/write",
       "_algorithm" : "SHA-256",

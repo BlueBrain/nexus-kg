@@ -59,8 +59,9 @@ object ExternalDiskStorageOperations {
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
       val relativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid))
       client.createFile(storage.folder, relativePath, fileDesc.filename, fileDesc.mediaType, source).map {
-        case StorageFileAttributes(location, filename, mediaType, bytes, StorageDigest(algorithm, hash)) =>
-          FileAttributes(fileDesc.uuid, location, relativePath, filename, mediaType, bytes, Digest(algorithm, hash))
+        case StorageFileAttributes(location, _, _, bytes, StorageDigest(algorithm, hash)) =>
+          val dig = Digest(algorithm, hash)
+          FileAttributes(fileDesc.uuid, location, relativePath, fileDesc.filename, fileDesc.mediaType, bytes, dig)
       }
     }
   }
@@ -78,8 +79,9 @@ object ExternalDiskStorageOperations {
     override def apply(id: ResId, fileDesc: FileDescription, path: Uri.Path): F[FileAttributes] = {
       val destRelativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid))
       client.moveFile(storage.folder, path, destRelativePath, fileDesc.filename, fileDesc.mediaType).map {
-        case StorageFileAttributes(location, filename, mediaType, bytes, StorageDigest(algorithm, hash)) =>
-          FileAttributes(fileDesc.uuid, location, destRelativePath, filename, mediaType, bytes, Digest(algorithm, hash))
+        case StorageFileAttributes(location, _, _, bytes, StorageDigest(algorithm, hash)) =>
+          val dig = Digest(algorithm, hash)
+          FileAttributes(fileDesc.uuid, location, destRelativePath, fileDesc.filename, fileDesc.mediaType, bytes, dig)
       }
     }
   }

@@ -31,7 +31,8 @@ object StorageEncoder {
       RootedGraph(rootNode, triples)
     case (rootNode, storage: ExternalDiskStorage) =>
       val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.ExternalDiskStorage),
-                                                        (storage.id, nxv.endpoint, storage.endpoint.toString()))
+                                                        (storage.id, nxv.endpoint, storage.endpoint.toString()),
+                                                        (storage.id, nxv.folder, storage.folder))
       val finalTriples =
         if (includeCredentials)
           storage.credentials.map(cred => triples + ((storage.id, nxv.credentials, cred): Triple)).getOrElse(triples)

@@ -154,7 +154,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
   private def fetch(resource: Resource, dropKeys: Boolean)(implicit project: Project): RejOrResourceV[F] =
     materializer.withMeta(resource).map { resourceV =>
       val graph      = resourceV.value.graph
-      val filter     = Set[IriNode](nxv.accessKey, nxv.secretKey)
+      val filter     = Set[IriNode](nxv.accessKey, nxv.secretKey, nxv.credentials)
       val finalGraph = if (dropKeys) graph.remove(p = filter.contains) else graph
       resourceV.map(_.copy(graph = RootedGraph(graph.rootNode, finalGraph)))
     }
