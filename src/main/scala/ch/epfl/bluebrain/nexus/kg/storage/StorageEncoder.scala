@@ -8,13 +8,13 @@ import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node._
+import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
 import io.circe.Json
 
 /**
@@ -29,15 +29,21 @@ object StorageEncoder {
       val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.DiskStorage),
                                                         (storage.id, nxv.volume, storage.volume.toString))
       RootedGraph(rootNode, triples)
+    case (rootNode, storage: ExternalDiskStorage) =>
+      val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.ExternalDiskStorage),
+                                                        (storage.id, nxv.endpoint, storage.endpoint.toString()),
+                                                        (storage.id, nxv.folder, storage.folder))
+      val finalTriples =
+        if (includeCredentials)
+          storage.credentials.map(cred => triples + ((storage.id, nxv.credentials, cred): Triple)).getOrElse(triples)
+        else triples
+      RootedGraph(rootNode, finalTriples)
     case (rootNode, storage: S3Storage) =>
       val main    = mainTriples(storage)
       val triples = Set[Triple]((storage.id, rdf.tpe, nxv.S3Storage), (storage.id, nxv.bucket, storage.bucket))
-      val region = storage.settings.region
-        .map(region => (IriNode(storage.id), IriNode(nxv.region), Node.literal(region)))
-        .toSet[Triple]
-      val endpoint = storage.settings.endpoint
-        .map(endpoint => (IriNode(storage.id), IriNode(nxv.endpoint), Node.literal(endpoint)))
-        .toSet[Triple]
+      val region  = storage.settings.region.map(region => (storage.id, nxv.region, region): Triple).toSet[Triple]
+      val endpoint =
+        storage.settings.endpoint.map(endpoint => (storage.id, nxv.endpoint, endpoint): Triple).toSet[Triple]
       if (includeCredentials) {
         val credentials = storage.settings.credentials match {
           case Some(creds) =>

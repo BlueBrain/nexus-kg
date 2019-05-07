@@ -28,16 +28,17 @@ scalafmt: {
 val adminVersion                = "da2f66eb"
 val iamVersion                  = "8dd50ac6"
 val commonsVersion              = "0.12.2"
+val storageVersion              = "1.0.1"
 val rdfVersion                  = "0.3.6"
 val sourcingVersion             = "0.16.1"
 val akkaVersion                 = "2.5.22"
 val akkaCorsVersion             = "0.4.0"
 val akkaHttpVersion             = "10.1.8"
 val akkaPersistenceInMemVersion = "2.5.1.1"
-val akkaPersistenceCassVersion  = "0.95"
+val akkaPersistenceCassVersion  = "0.96"
 val alpakkaVersion              = "1.0.0"
 val catsVersion                 = "1.6.0"
-val catsEffectVersion           = "1.2.0"
+val catsEffectVersion           = "1.3.0"
 val circeVersion                = "0.11.1"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
@@ -59,6 +60,7 @@ lazy val commonsTest          = "ch.epfl.bluebrain.nexus" %% "commons-test"     
 lazy val rdf                  = "ch.epfl.bluebrain.nexus" %% "rdf"                        % rdfVersion
 lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"              % sourcingVersion
 lazy val sourcingProjections  = "ch.epfl.bluebrain.nexus" %% "sourcing-projections"       % sourcingVersion
+lazy val storageClient        = "ch.epfl.bluebrain.nexus" %% "storage-client"             % storageVersion
 lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"               % akkaVersion
 lazy val akkaClusterSharding  = "com.typesafe.akka"       %% "akka-cluster-sharding"      % akkaVersion
 lazy val akkaDistributedData  = "com.typesafe.akka"       %% "akka-distributed-data"      % akkaVersion
@@ -117,6 +119,7 @@ lazy val kg = project
       sourcingCore,
       sourcingProjections,
       sparqlClient,
+      storageClient,
       akkaHttpTestKit      % Test,
       akkaPersistenceInMem % Test,
       commonsTest          % Test,

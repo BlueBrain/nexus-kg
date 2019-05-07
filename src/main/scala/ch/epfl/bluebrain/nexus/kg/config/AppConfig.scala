@@ -136,12 +136,17 @@ object AppConfig {
   /**
     * Storage configuration for the allowed storages
     *
-    * @param disk     the disk storage configuration
-    * @param amazon   the amazon S3 storage configuration
-    * @param password the password used to encrypt credentials at rest
-    * @param salt     the associated salt
+    * @param disk         the disk storage configuration
+    * @param externalDisk the external disk storage configuration
+    * @param amazon       the amazon S3 storage configuration
+    * @param password     the password used to encrypt credentials at rest
+    * @param salt         the associated salt
     */
-  final case class StorageConfig(disk: DiskStorageConfig, amazon: S3StorageConfig, password: String, salt: String) {
+  final case class StorageConfig(disk: DiskStorageConfig,
+                                 externalDisk: ExternalDiskStorageConfig,
+                                 amazon: S3StorageConfig,
+                                 password: String,
+                                 salt: String) {
     val derivedKey: SecretKey = Crypto.deriveKey(password, salt)
   }
 
@@ -166,6 +171,20 @@ object AppConfig {
                                      digestAlgorithm: String,
                                      readPermission: Permission,
                                      writePermission: Permission)
+
+  /**
+    * External Disk storage configuration
+    *
+    * @param defaultEndpoint    the default endpoint of the external disk storage
+    * @param defaultCredentials the default credentials for the defaultEnpoint of the external disk storage
+    * @param readPermission     the default permission required in order to download a file from a disk storage
+    * @param writePermission    the default permission required in order to upload a file to a disk storage
+    */
+  final case class ExternalDiskStorageConfig(defaultEndpoint: Uri,
+                                             defaultCredentials: Option[AuthToken],
+                                             digestAlgorithm: String,
+                                             readPermission: Permission,
+                                             writePermission: Permission)
 
   /**
     * IAM config

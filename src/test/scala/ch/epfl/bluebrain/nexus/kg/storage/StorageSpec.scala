@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
@@ -34,10 +35,13 @@ class StorageSpec
   val readS3                 = Permission.unsafe("s3/read")
   val writeS3                = Permission.unsafe("s3/write")
   private implicit val storageConfig =
-    StorageConfig(DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk),
-                  S3StorageConfig("MD5", readS3, writeS3),
-                  "password",
-                  "salt")
+    StorageConfig(
+      DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk),
+      ExternalDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
+      S3StorageConfig("MD5", readS3, writeS3),
+      "password",
+      "salt"
+    )
   "A Storage" when {
     val iri        = url"http://example.com/id".value
     val projectRef = ProjectRef(genUUID)
@@ -47,6 +51,13 @@ class StorageSpec
       val diskStorage = jsonContentOf("/storage/disk.json").appendContextOf(storageCtx)
       val diskStoragePerms =
         jsonContentOf("/storage/diskPerms.json", Map(quote("{read}") -> "myRead", quote("{write}") -> "myWrite"))
+          .appendContextOf(storageCtx)
+      val externalDiskStorage =
+        jsonContentOf("/storage/externalDisk.json",
+                      Map(quote("{read}")   -> "myRead",
+                          quote("{write}")  -> "myWrite",
+                          quote("{folder}") -> "folder",
+                          quote("{cred}")   -> "credentials"))
           .appendContextOf(storageCtx)
       val s3Storage = jsonContentOf("/storage/s3.json").appendContextOf(storageCtx)
       val s3Minimal = jsonContentOf("/storage/s3-minimal.json").appendContextOf(storageCtx)
@@ -63,6 +74,42 @@ class StorageSpec
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = false).right.value shouldEqual
           DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), expectedRead, expectedWrite)
+      }
+
+      "return a ExternalDiskStorage" in {
+        val resource      = simpleV(id, externalDiskStorage, types = Set(nxv.Storage, nxv.ExternalDiskStorage))
+        val expectedRead  = Permission.unsafe("myRead")
+        val expectedWrite = Permission.unsafe("myWrite")
+        Storage(resource, encrypt = false).right.value shouldEqual
+          ExternalDiskStorage(projectRef,
+                              iri,
+                              1L,
+                              false,
+                              false,
+                              "SHA-256",
+                              "http://example.com/some",
+                              Some("credentials"),
+                              "folder",
+                              expectedRead,
+                              expectedWrite)
+      }
+
+      "return a ExternalDiskStorage encrypted" in {
+        val resource      = simpleV(id, externalDiskStorage, types = Set(nxv.Storage, nxv.ExternalDiskStorage))
+        val expectedRead  = Permission.unsafe("myRead")
+        val expectedWrite = Permission.unsafe("myWrite")
+        Storage(resource, encrypt = true).right.value shouldEqual
+          ExternalDiskStorage(projectRef,
+                              iri,
+                              1L,
+                              false,
+                              false,
+                              "SHA-256",
+                              "http://example.com/some",
+                              Some("credentials".encrypt),
+                              "folder",
+                              expectedRead,
+                              expectedWrite)
       }
 
       "return an S3Storage" in {
@@ -97,6 +144,11 @@ class StorageSpec
         Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
       }
 
+      "fail on ExternalDiskStorage when types are wrong" in {
+        val resource = simpleV(id, externalDiskStorage, types = Set(nxv.Storage))
+        Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
+      }
+
       "fail on S3Storage when types are wrong" in {
         val resource = simpleV(id, s3Storage, types = Set(nxv.S3Storage))
         Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
@@ -121,6 +173,25 @@ class StorageSpec
           QueryResults(1L, List(UnscoredQueryResult(diskStorage)))
         StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
           jsonContentOf("/storage/disk-storages.json"))
+      }
+
+      "return the json representation for a query results list of ExternalDiskStorage" in {
+        val extDiskStorage: ExternalDiskStorage =
+          ExternalDiskStorage(projectRef,
+                              iri,
+                              1L,
+                              false,
+                              false,
+                              "SHA-256",
+                              "http://example.com/some",
+                              None,
+                              "folder",
+                              readDisk,
+                              writeDisk)
+        val storages: QueryResults[Storage] =
+          QueryResults(1L, List(UnscoredQueryResult(extDiskStorage)))
+        StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
+          jsonContentOf("/storage/ext-disk-storages.json"))
       }
 
       "return the json representation for a query results list of S3Storage" in {

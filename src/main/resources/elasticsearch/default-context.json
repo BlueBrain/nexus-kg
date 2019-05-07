@@ -24,6 +24,7 @@
     "_algorithm": "https://bluebrain.github.io/nexus/vocabulary/algorithm",
     "_value": "https://bluebrain.github.io/nexus/vocabulary/value",
     "_mediaType": "https://bluebrain.github.io/nexus/vocabulary/mediaType",
+    "_location": "https://bluebrain.github.io/nexus/vocabulary/location",
     "_filename": "https://bluebrain.github.io/nexus/vocabulary/filename",
     "_bytes": "https://bluebrain.github.io/nexus/vocabulary/bytes"
   }
