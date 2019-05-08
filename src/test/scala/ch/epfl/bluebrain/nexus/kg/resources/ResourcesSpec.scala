@@ -119,6 +119,15 @@ class ResourcesSpec
           ResourceF.simpleF(genRes, json, schema = schemaRef)
       }
 
+      "create a new resource validated against empty schema (resource schema) with a payload only containing @id" in new Base {
+        val genId  = genString()
+        val genRes = Id(projectRef, url"$base$genId".value)
+        val json =
+          Json.obj("@id" -> Json.fromString(genId))
+        resources.create(schemaRef, json).value.accepted shouldEqual
+          ResourceF.simpleF(genRes, json, schema = schemaRef)
+      }
+
       "create a new resource validated against empty schema (resource schema) with a payload only containing @context" in new Base {
         val json     = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)))
         val resource = resources.create(schemaRef, json).value.accepted

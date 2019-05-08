@@ -312,7 +312,7 @@ class ViewRoutesSpec
       val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false))
-      val pagination = Pagination(0L, 20)
+      val pagination = Pagination(0, 20)
       views.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))

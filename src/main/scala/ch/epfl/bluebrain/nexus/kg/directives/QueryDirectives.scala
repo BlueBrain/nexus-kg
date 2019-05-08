@@ -7,7 +7,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.kg.KgError.{InternalError, InvalidOutputFormat, NotFound}
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
@@ -49,9 +49,9 @@ object QueryDirectives {
   /**
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
     */
-  def paginated(implicit config: PaginationConfig): Directive1[Pagination] =
+  def paginated(implicit config: PaginationConfig): Directive1[FromPagination] =
     (parameter('from.as[Int] ? config.pagination.from) & parameter('size.as[Int] ? config.pagination.size)).tmap {
-      case (from, size) => Pagination(from.max(0), size.max(1).min(config.sizeLimit))
+      case (from, size) => FromPagination(from.max(0), size.max(1).min(config.sizeLimit))
     }
 
   /**

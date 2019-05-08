@@ -13,7 +13,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.either._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
-import ch.epfl.bluebrain.nexus.commons.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -52,7 +52,7 @@ class QueryDirectivesSpec
   }
 
   "A QueryDirectives" should {
-    implicit val config = PaginationConfig(0L, 10, 50)
+    implicit val config = PaginationConfig(0, 10, 50)
     implicit val storageConfig =
       StorageConfig(
         DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write),
@@ -101,25 +101,25 @@ class QueryDirectivesSpec
 
     "return default values when no query parameters found" in {
       Get("/") ~> route() ~> check {
-        responseAs[Pagination] shouldEqual Pagination(config.from, config.size)
+        responseAs[FromPagination] shouldEqual FromPagination(config.from, config.size)
       }
     }
 
     "return pagination from query parameters" in {
       Get("/some?from=1&size=20") ~> route() ~> check {
-        responseAs[Pagination] shouldEqual Pagination(1L, 20)
+        responseAs[FromPagination] shouldEqual FromPagination(1, 20)
       }
     }
 
     "return default parameters when the query params are under the minimum" in {
       Get("/some?from=-1&size=-1") ~> route() ~> check {
-        responseAs[Pagination] shouldEqual Pagination(config.from, 1)
+        responseAs[FromPagination] shouldEqual FromPagination(config.from, 1)
       }
     }
 
     "return default size when size is over the maximum" in {
       Get("/some?size=500") ~> route() ~> check {
-        responseAs[Pagination] shouldEqual Pagination(config.from, config.sizeLimit)
+        responseAs[FromPagination] shouldEqual FromPagination(config.from, config.sizeLimit)
       }
     }
 

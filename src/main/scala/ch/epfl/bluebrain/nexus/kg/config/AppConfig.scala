@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreConfig
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
-import ch.epfl.bluebrain.nexus.commons.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -253,8 +253,8 @@ object AppConfig {
     * @param size      the default number of results per page
     * @param sizeLimit the maximum number of results per page
     */
-  final case class PaginationConfig(from: Long, size: Int, sizeLimit: Int) {
-    val pagination: Pagination = Pagination(from, size)
+  final case class PaginationConfig(from: Int, size: Int, sizeLimit: Int) {
+    val pagination: FromPagination = FromPagination(from, size)
   }
 
   val iriResolution: Map[AbsoluteIri, Json] = Map(

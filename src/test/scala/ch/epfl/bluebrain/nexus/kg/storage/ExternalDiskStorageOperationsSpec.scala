@@ -95,11 +95,9 @@ class ExternalDiskStorageOperationsSpec
       val id               = Id(storage.ref, genIri)
       val sourcePath       = Uri.Path(s"${genString()}/${genString()}")
       val destRelativePath = Uri.Path(mangle(storage.ref, attributes.uuid))
-      client.moveFile(storage.folder, sourcePath, destRelativePath, attributes.filename, attributes.mediaType) shouldReturn
+      client.moveFile(storage.folder, sourcePath, destRelativePath) shouldReturn
         IO(
           StorageFileAttributes(attributes.location,
-                                attributes.filename,
-                                attributes.mediaType,
                                 attributes.bytes,
                                 StorageDigest(attributes.digest.algorithm, attributes.digest.value)))
       val link = new ExternalDiskStorageOperations.Link[IO](storage, client)
