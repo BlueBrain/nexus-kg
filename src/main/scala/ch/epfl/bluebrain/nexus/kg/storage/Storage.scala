@@ -499,7 +499,7 @@ object Storage {
 
     object Link {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Link[F] = {
-        case _: DiskStorage         => throw new UnsupportedOperationException
+        case _: DiskStorage         => new DiskStorageOperations.LinkDiskFile()
         case s: ExternalDiskStorage => new ExternalDiskStorageOperations.Link(s, s.client)
         case s: S3Storage           => new S3StorageOperations.Link(s)
       }
