@@ -9,7 +9,7 @@ import io.circe.{Encoder, Json}
 object QueryBuilder {
 
   private def baseQuery(filterTerms: List[Json]): Json =
-    Json.obj("sort" -> Json.arr(Json.fromString("_createdAt")),
+    Json.obj("sort" -> Json.arr(Json.fromString("_createdAt"), Json.fromString("@id")),
              "query" -> Json.obj(
                "bool" -> Json.obj(
                  "filter" -> Json.arr(filterTerms: _*)
