@@ -70,10 +70,11 @@ class ViewRoutes private[routes] (views: Views[Task],
         }
       },
       // List views
-      (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (pagination, params) =>
+      (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
+        (pagination, params, uri) =>
           trace("listView") {
-            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, pagination))
+            implicit val u = uri
+            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
       },

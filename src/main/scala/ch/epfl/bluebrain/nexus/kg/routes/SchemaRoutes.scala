@@ -52,10 +52,11 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
         }
       },
       // List schemas
-      (get & paginated & searchParams(fixedSchema = shaclSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (pagination, params) =>
+      (get & paginated & searchParams(fixedSchema = shaclSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
+        (pagination, params, uri) =>
           trace("listSchema") {
-            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(schemas.list(_, params, pagination))
+            implicit val u = uri
+            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(schemas.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
       },

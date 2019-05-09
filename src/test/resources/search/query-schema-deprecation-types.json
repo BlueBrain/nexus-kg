@@ -1,6 +1,7 @@
 {
   "sort": [
-    "_createdAt"
+    "_createdAt",
+    "@id"
   ],
   "query": {
     "bool": {

@@ -57,7 +57,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
                                                               "kg_default",
                                                               IndexingConfig(30, 300 millis, retryIndex),
                                                               retryQuery)
-      appConfig.pagination shouldEqual PaginationConfig(0, 20, 100)
+      appConfig.pagination shouldEqual PaginationConfig(20, 100, 10000)
 
       implicitly[SparqlConfig] shouldEqual SparqlConfig("http://localhost:9999/bigdata",
                                                         "kg",
@@ -72,7 +72,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
                                                                       "kg_default",
                                                                       IndexingConfig(30, 300 millis, retryIndex),
                                                                       retryQuery)
-      implicitly[PaginationConfig] shouldEqual PaginationConfig(0, 20, 100)
+      implicitly[PaginationConfig] shouldEqual PaginationConfig(20, 100, 10000)
       implicitly[PersistenceConfig] shouldEqual PersistenceConfig("cassandra-journal",
                                                                   "cassandra-snapshot-store",
                                                                   "cassandra-query-journal")

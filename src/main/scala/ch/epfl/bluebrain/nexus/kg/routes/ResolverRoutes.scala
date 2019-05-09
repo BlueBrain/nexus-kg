@@ -52,10 +52,11 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
         }
       },
       // List views
-      (get & paginated & searchParams(fixedSchema = resolverSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (pagination, params) =>
+      (get & paginated & searchParams(fixedSchema = resolverSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
+        (pagination, params, uri) =>
           trace("listResolver") {
-            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resolvers.list(_, params, pagination))
+            implicit val u = uri
+            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(resolvers.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
       },
