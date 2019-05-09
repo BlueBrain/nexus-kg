@@ -181,7 +181,7 @@ class ElasticIndexerMappingSpec
                                     rev = 2L,
                                     schema = Ref(nxv.Resource.value),
                                     types = Set(tpe1, otherTpe),
-          deprecated = true)
+                                    deprecated = true)
         resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json
