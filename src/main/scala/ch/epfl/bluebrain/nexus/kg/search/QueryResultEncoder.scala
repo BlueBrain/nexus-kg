@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.search
 
+import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.Uri.Query
 import cats.Id
 import cats.instances.either._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
@@ -7,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults.{ScoredQueryResults, 
 import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtxUri, searchCtx, searchCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node.blank
 import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
@@ -48,22 +51,35 @@ object QueryResultEncoder {
       .as[Json](searchCtx deepMerge extraCtx)
       .map(_.removeKeys("@id").replaceContext(searchCtxUri).addContext(resourceCtxUri))
 
-  implicit def qrsEncoderJson: Encoder[QueryResults[Json]] = {
+  implicit def qrsEncoderJson(implicit searchUri: Uri): Encoder[QueryResults[Json]] = {
     implicit def qrEncoderJson: Encoder[QueryResult[Json]] = Encoder.instance {
       case UnscoredQueryResult(v, _) => v.removeKeys(nxv.originalSource.prefix)
       case ScoredQueryResult(score, v, _) =>
         v.removeKeys(nxv.originalSource.prefix) deepMerge Json.obj(nxv.score.prefix -> Json.fromFloatOrNull(score))
     }
-    def json(total: Long, list: List[QueryResult[Json]]): Json =
-      Json
+    def json(total: Long, list: List[QueryResult[Json]], sort: Option[Json]): Json = {
+      val results = Json
         .obj(nxv.total.prefix -> Json.fromLong(total), nxv.results.prefix -> Json.arr(list.map(qrEncoderJson(_)): _*))
         .addContext(searchCtxUri)
         .addContext(resourceCtxUri)
+      sort match {
+        case Some(s) =>
+          val nextQuery =
+            Query(
+              searchUri
+                .query()
+                .toMap + (QueryDirectives.after -> s.noSpaces) - QueryDirectives.from)
+
+          results deepMerge Json.obj(nxv.next.prefix -> Json.fromString(searchUri.withQuery(nextQuery).toString()))
+        case None => results
+      }
+    }
     Encoder.instance {
       case UnscoredQueryResults(total, list) =>
-        json(total, list)
+        json(total, list, list.lastOption.flatMap(_.sort))
       case ScoredQueryResults(total, maxScore, list) =>
-        json(total, list) deepMerge Json.obj(nxv.maxScore.prefix -> Json.fromFloatOrNull(maxScore))
+        json(total, list, list.lastOption.flatMap(_.sort)) deepMerge Json.obj(
+          nxv.maxScore.prefix -> Json.fromFloatOrNull(maxScore))
     }
   }
 }

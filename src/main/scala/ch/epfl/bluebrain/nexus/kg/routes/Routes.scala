@@ -182,11 +182,13 @@ object Routes {
     val appInfoRoutes = AppInfoRoutes(config.description, healthStatusGroup).routes
 
     def list(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
-      (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read)) { (pagination, params) =>
-        trace("listResource") {
-          val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
-          complete(listed.runWithStatus(OK))
-        }
+      (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
+        (pagination, params, uri) =>
+          trace("listResource") {
+            implicit val u = uri
+            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
+            complete(listed.runWithStatus(OK))
+          }
       }
 
     def projectEvents(implicit project: Project, acls: AccessControlLists, caller: Caller): Route =

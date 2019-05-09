@@ -6,8 +6,9 @@ import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
+import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.search.FromPagination
+import ch.epfl.bluebrain.nexus.commons.search.Pagination
 import ch.epfl.bluebrain.nexus.kg.KgError.{InternalError, InvalidOutputFormat, NotFound}
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
@@ -16,6 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.routes.{JsonLDOutputFormat, OutputFormat, SearchParams}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import io.circe.Json
+import io.circe.parser.parse
 import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -25,6 +28,11 @@ import scala.util.{Failure, Success}
 object QueryDirectives {
 
   private val logger = Logger[this.type]
+  implicit val jsonFromStringUnmarshaller: FromStringUnmarshaller[Json] =
+    Unmarshaller.strict[String, Json](parse(_).fold(throw _, identity))
+
+  val from: String  = "from"
+  val after: String = "after"
 
   /**
     * @return the extracted storage from the request query parameters or default from the storage cache.
@@ -49,10 +57,19 @@ object QueryDirectives {
   /**
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
     */
-  def paginated(implicit config: PaginationConfig): Directive1[FromPagination] =
-    (parameter('from.as[Int] ? config.pagination.from) & parameter('size.as[Int] ? config.pagination.size)).tmap {
-      case (from, size) => FromPagination(from.max(0), size.max(1).min(config.sizeLimit))
-    }
+  def paginated(implicit config: PaginationConfig): Directive1[Pagination] =
+    (parameter(from.as[Int] ?) & parameter('size.as[Int] ? config.defaultSize) & parameter(after.as[Json] ?))
+      .tflatMap {
+        case (None, size, Some(sa)) => provide(Pagination(sa, size.max(1).min(config.sizeLimit)))
+        case (Some(f), size, None) =>
+          if (f > config.fromLimit)
+            reject(MalformedQueryParamRejection("from", s"from parameter cannot be greater than ${config.fromLimit}"))
+          else
+            provide(Pagination(f.max(0), size.max(1).min(config.sizeLimit)))
+        case (None, size, None) => provide(Pagination(0, size.max(1).min(config.sizeLimit)))
+        case (Some(_), _, Some(_)) =>
+          reject(MalformedQueryParamRejection("after,from", "after and from cannot be specified at the same time"))
+      }
 
   /**
     * @param default the default output format when the query parameter is not present

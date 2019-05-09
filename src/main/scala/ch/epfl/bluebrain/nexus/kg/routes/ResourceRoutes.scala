@@ -49,10 +49,11 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
         }
       },
       // List resources
-      (get & paginated & searchParams(fixedSchema = schema.iri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (pagination, params) =>
+      (get & paginated & searchParams(fixedSchema = schema.iri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
+        (pagination, params, uri) =>
           trace("listResource") {
-            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
+            implicit val u = uri
+            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
       },

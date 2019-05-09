@@ -10,9 +10,9 @@
       "@type": "http://example.com/Example",
       "_self": "http://nexus.com/{org}/{proj}/{schema}/http://nexus.com/result1",
       "_constrainedBy": "http://nexus.com/myschema",
-      "_createdAt": "2018-08-23T14:36:40.329Z",
+      "_createdAt": "{before}",
       "_createdBy": "http://iam.example.com/v1/realms/bbp-test/users/0745c962-a736-4616-9221-cb0b62c22cf8",
-      "_updatedAt": "2018-08-23T16:34:47.143Z",
+      "_updatedAt": "{before}",
       "_updatedBy": "http://iam.example.com/v1/realms/bbp-test/users/0745c962-a736-4616-9221-cb0b62c22cf8",
       "_rev": 1,
       "_deprecated": false
@@ -22,9 +22,9 @@
       "@type": "http://example.com/Example",
       "_self": "http://nexus.com/{org}/{proj}/{schema}/http://nexus.com/result2",
       "_constrainedBy": "http://nexus.com/myschema",
-      "_createdAt": "2018-08-23T14:36:40.329Z",
+      "_createdAt": "{before}",
       "_createdBy": "http://iam.example.com/v1/realms/bbp-test/users/0745c962-a736-4616-9221-cb0b62c22cf8",
-      "_updatedAt": "2018-08-23T16:34:47.143Z",
+      "_updatedAt": "{before}",
       "_updatedBy": "http://iam.example.com/v1/realms/bbp-test/users/0745c962-a736-4616-9221-cb0b62c22cf8",
       "_rev": 1,
       "_deprecated": false
@@ -34,12 +34,13 @@
       "@type": "http://example.com/Example",
       "_self": "http://nexus.com/{org}/{proj}/{schema}/http://nexus.com/result3",
       "_constrainedBy": "http://nexus.com/myschema",
-      "_createdAt": "2018-08-23T14:36:40.329Z",
+      "_createdAt": "{lastElementCreated}",
       "_createdBy": "http://iam.example.com/v1/realms/bbp-test/users/0745c962-a736-4616-9221-cb0b62c22cf8",
-      "_updatedAt": "2018-08-23T16:34:47.143Z",
+      "_updatedAt": "{lastElementCreated}",
       "_updatedBy": "http://iam.example.com/v1/realms/bbp-test/users/0745c962-a736-4616-9221-cb0b62c22cf8",
       "_rev": 1,
       "_deprecated": false
     }
-  ]
+  ],
+  "_next": "http://nexus.com/resources/{org}/{proj}/{schema}?type=someType&size=10&{after}"
 }

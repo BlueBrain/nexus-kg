@@ -9,12 +9,14 @@ import io.circe.{Encoder, Json}
 object QueryBuilder {
 
   private def baseQuery(filterTerms: List[Json]): Json =
-    Json.obj("sort" -> Json.arr(Json.fromString("_createdAt")),
-             "query" -> Json.obj(
-               "bool" -> Json.obj(
-                 "filter" -> Json.arr(filterTerms: _*)
-               )
-             ))
+    Json.obj(
+      "sort" -> Json.arr(Json.fromString(nxv.createdAt.prefix), Json.fromString("@id")),
+      "query" -> Json.obj(
+        "bool" -> Json.obj(
+          "filter" -> Json.arr(filterTerms: _*)
+        )
+      )
+    )
 
   private def term[A: Encoder](k: String, value: A): Json =
     Json.obj("term" -> Json.obj(k -> value.asJson))

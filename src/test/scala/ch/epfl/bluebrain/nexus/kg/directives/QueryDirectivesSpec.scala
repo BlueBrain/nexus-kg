@@ -1,19 +1,21 @@
 package ch.epfl.bluebrain.nexus.kg.directives
 
+import java.net.URLEncoder
 import java.nio.file.Paths
 import java.time.Instant
 
+import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
 import akka.http.scaladsl.model.MediaRanges._
 import akka.http.scaladsl.model.MediaTypes._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{MalformedQueryParamRejection, Route}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.either._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
-import ch.epfl.bluebrain.nexus.commons.search.FromPagination
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, SearchAfterPagination}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -52,7 +54,7 @@ class QueryDirectivesSpec
   }
 
   "A QueryDirectives" should {
-    implicit val config = PaginationConfig(0, 10, 50)
+    implicit val config = PaginationConfig(10, 50, 10000)
     implicit val storageConfig =
       StorageConfig(
         DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write),
@@ -61,6 +63,15 @@ class QueryDirectivesSpec
         "password",
         "salt"
       )
+
+    implicit def paginationMarshaller(implicit m1: ToEntityMarshaller[FromPagination],
+                                      m2: ToEntityMarshaller[SearchAfterPagination]): ToEntityMarshaller[Pagination] =
+      Marshaller { _ =>
+        {
+          case f: FromPagination        => m1(f)
+          case s: SearchAfterPagination => m2(s)
+        }
+      }
 
     def genProject = Project(
       genIri,
@@ -101,25 +112,51 @@ class QueryDirectivesSpec
 
     "return default values when no query parameters found" in {
       Get("/") ~> route() ~> check {
-        responseAs[FromPagination] shouldEqual FromPagination(config.from, config.size)
+        responseAs[FromPagination] shouldEqual Pagination(config.defaultSize)
       }
     }
 
     "return pagination from query parameters" in {
       Get("/some?from=1&size=20") ~> route() ~> check {
-        responseAs[FromPagination] shouldEqual FromPagination(1, 20)
+        responseAs[FromPagination] shouldEqual Pagination(1, 20)
       }
     }
 
     "return default parameters when the query params are under the minimum" in {
       Get("/some?from=-1&size=-1") ~> route() ~> check {
-        responseAs[FromPagination] shouldEqual FromPagination(config.from, 1)
+        responseAs[FromPagination] shouldEqual Pagination(0, 1)
       }
     }
 
-    "return default size when size is over the maximum" in {
+    "return maximum size when size is over the maximum" in {
       Get("/some?size=500") ~> route() ~> check {
-        responseAs[FromPagination] shouldEqual FromPagination(config.from, config.sizeLimit)
+        responseAs[FromPagination] shouldEqual Pagination(0, config.sizeLimit)
+      }
+    }
+
+    "throw error when after is not a valid JSON" in {
+      Get("/some?after=notJson") ~> route() ~> check {
+        rejection shouldBe a[MalformedQueryParamRejection]
+      }
+    }
+
+    "parse search after parameter" in {
+      val after = Json.arr(Json.fromString(Instant.now().toString))
+      Get(s"/some?after=${URLEncoder.encode(after.noSpaces, "UTF-8")}") ~> route() ~> check {
+        responseAs[SearchAfterPagination] shouldEqual Pagination(after, config.defaultSize)
+      }
+    }
+
+    "reject when both from and after are present" in {
+      val after = Json.arr(Json.fromString(Instant.now().toString))
+      Get(s"/some?from=10&after=${URLEncoder.encode(after.noSpaces, "UTF-8")}") ~> route() ~> check {
+        rejection shouldBe a[MalformedQueryParamRejection]
+      }
+    }
+
+    "reject when from is bigger than maximum" in {
+      Get("/some?from=10001") ~> route() ~> check {
+        rejection shouldBe a[MalformedQueryParamRejection]
       }
     }
 
