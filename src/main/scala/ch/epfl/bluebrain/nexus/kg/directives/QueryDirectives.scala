@@ -29,10 +29,7 @@ object QueryDirectives {
 
   private val logger = Logger[this.type]
   implicit val jsonFromStringUnmarshaller: FromStringUnmarshaller[Json] =
-    Unmarshaller
-      .strict[String, Json] { data =>
-        parse(data).fold(throw _, identity)
-      }
+    Unmarshaller.strict[String, Json](parse(_).fold(throw _, identity))
 
   val from: String  = "from"
   val after: String = "after"
@@ -71,8 +68,7 @@ object QueryDirectives {
             provide(Pagination(f.max(0), size.max(1).min(config.sizeLimit)))
         case (None, size, None) => provide(Pagination(0, size.max(1).min(config.sizeLimit)))
         case (Some(_), _, Some(_)) =>
-          reject(
-            MalformedQueryParamRejection("searchAfter,from`", "searchAfter and cannot be specified at the same time"))
+          reject(MalformedQueryParamRejection("after,from", "after and from cannot be specified at the same time"))
       }
 
   /**
