@@ -39,7 +39,8 @@ class ViewCacheSpec
   val ref1 = ProjectRef(genUUID)
   val ref2 = ProjectRef(genUUID)
 
-  val esView = ElasticSearchView(Json.obj(), Set.empty, None, false, true, ref1, genIri, genUUID, 1L, false)
+  val esView =
+    ElasticSearchView(Json.obj(), Set.empty, Set.empty, None, false, true, true, ref1, genIri, genUUID, 1L, false)
   val aggRefsView = AggregateElasticSearchView(
     Set(ViewRef(ProjectRef(genUUID), genIri)),
     ProjectRef(genUUID),
@@ -57,7 +58,8 @@ class ViewCacheSpec
     false
   )
 
-  val sparqlView = SparqlView(Set.empty, None, true, ref1, nxv.defaultSparqlIndex.value, genUUID, 1L, false)
+  val sparqlView =
+    SparqlView(Set.empty, Set.empty, None, true, true, ref1, nxv.defaultSparqlIndex.value, genUUID, 1L, false)
 
   val esViewsProj1: Set[ElasticSearchView] =
     List.fill(5)(esView.copy(mapping = genJson, id = genIri + "elasticSearch1", uuid = genUUID)).toSet

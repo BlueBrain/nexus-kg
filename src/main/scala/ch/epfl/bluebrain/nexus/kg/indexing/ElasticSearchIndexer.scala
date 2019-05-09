@@ -32,6 +32,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     project: Project) {
 
   private val logger = Logger[this.type]
+  private val doc    = config.elasticSearch.docType
 
   /**
     * When an event is received, the current state is obtained and if the resource matches the view criteria a [[BulkOp]] is built.
@@ -40,14 +41,19 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
     view.resourceTag.map(resources.fetch(event.id, _, false)).getOrElse(resources.fetch(event.id, false)).value.map {
-      case Right(resource) if validCandidate(resource) => transformAndIndex(resource).map(event.id -> _)
-      case _                                           => None
+      case Right(res) if validSchema(view, res) && validTypes(view, res) => deleteOrIndexTransformed(res)
+      case Right(res) if validSchema(view, res)                          => Some(delete(res))
+      case _                                                             => None
     }
 
-  private def validCandidate(resource: ResourceV): Boolean =
-    view.resourceSchemas.isEmpty || view.resourceSchemas.contains(resource.schema.iri)
+  private def deleteOrIndexTransformed(res: ResourceV): Option[Identified[ProjectRef, BulkOp]] =
+    if (res.deprecated && !view.includeDeprecated) Some(delete(res))
+    else indexTransformed(res).map(res.id -> _)
 
-  private def transformAndIndex(res: ResourceV): Option[BulkOp] = {
+  private def delete(res: ResourceV): Identified[ProjectRef, BulkOp] =
+    res.id -> BulkOp.Delete(view.index, doc, res.id.value.asString)
+
+  private def indexTransformed(res: ResourceV): Option[BulkOp] = {
     val rootNode = IriNode(res.id.value)
 
     def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
@@ -63,8 +69,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
           s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'")
         None
       case Right(value) =>
-        Some(
-          BulkOp.Index(view.index, config.elasticSearch.docType, res.id.value.asString, value.removeKeys("@context")))
+        Some(BulkOp.Index(view.index, doc, res.id.value.asString, value.removeKeys("@context")))
     }
   }
 }

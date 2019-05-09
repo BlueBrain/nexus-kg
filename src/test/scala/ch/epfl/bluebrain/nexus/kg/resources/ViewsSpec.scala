@@ -268,8 +268,9 @@ class ViewsSpec
         views.create(resId, esView).value.accepted shouldBe a[Resource]
         val result = views.fetch(resId).value.accepted
         val expected = resourceV(
-          esView deepMerge Json.obj("includeMetadata" -> Json.fromBoolean(false),
-                                    "_uuid"           -> Json.fromString(uuid(result))))
+          esView deepMerge Json.obj("includeMetadata"   -> Json.fromBoolean(false),
+                                    "includeDeprecated" -> Json.fromBoolean(true),
+                                    "_uuid"             -> Json.fromString(uuid(result))))
         result.value.source.removeKeys("@context") should equalIgnoreArrayOrder(expected.value.source)
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
@@ -277,7 +278,8 @@ class ViewsSpec
       }
 
       "return the requested view on a specific revision" in new EsViewMocked {
-        val viewUpdated = esView deepMerge Json.obj("includeMetadata" -> Json.fromBoolean(true))
+        val viewUpdated = esView deepMerge Json.obj("includeMetadata" -> Json.fromBoolean(true),
+                                                    "includeDeprecated" -> Json.fromBoolean(true))
         views.create(resId, esView).value.accepted shouldBe a[Resource]
         views.update(resId, 1L, viewUpdated).value.accepted shouldBe a[Resource]
         val resultLatest = views.fetch(resId, 2L).value.accepted
@@ -293,8 +295,9 @@ class ViewsSpec
 
         val result = views.fetch(resId, 1L).value.accepted
         val expected = resourceV(
-          esView deepMerge Json.obj("includeMetadata" -> Json.fromBoolean(false),
-                                    "_uuid"           -> Json.fromString(uuid(result))))
+          esView deepMerge Json.obj("includeMetadata"   -> Json.fromBoolean(false),
+                                    "includeDeprecated" -> Json.fromBoolean(true),
+                                    "_uuid"             -> Json.fromString(uuid(result))))
         result.value.source.removeKeys("@context") should equalIgnoreArrayOrder(expected.value.source)
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph

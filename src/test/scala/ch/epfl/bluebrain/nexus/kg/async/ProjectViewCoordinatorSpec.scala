@@ -50,11 +50,23 @@ class ProjectViewCoordinatorSpec
     val project2 = Project(genIri, "some-project2", "some-org", None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
     val project2Updated = project2.copy(vocab = genIri, rev = 2L)
     // format: on
-    val view = SparqlView(Set.empty, None, true, project.ref, genIri, genUUID, 1L, deprecated = false)
+    val view = SparqlView(Set.empty, Set.empty, None, true, true, project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2 =
-      ElasticSearchView(Json.obj(), Set(genIri), None, true, true, project.ref, genIri, genUUID, 1L, deprecated = false)
+      ElasticSearchView(Json.obj(),
+                        Set(genIri),
+                        Set.empty,
+                        None,
+                        true,
+                        true,
+                        true,
+                        project.ref,
+                        genIri,
+                        genUUID,
+                        1L,
+                        deprecated = false)
     val view2Updated = view2.copy(resourceSchemas = Set(genIri), rev = 2L)
-    val view3        = SparqlView(Set.empty, None, true, project2.ref, genIri, genUUID, 1L, deprecated = false)
+    val view3 =
+      SparqlView(Set.empty, Set.empty, None, true, true, project2.ref, genIri, genUUID, 1L, deprecated = false)
 
     val counterStart = new AtomicInteger(0)
     val counterStop  = new AtomicInteger(0)

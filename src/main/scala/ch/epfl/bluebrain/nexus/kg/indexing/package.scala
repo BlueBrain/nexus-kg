@@ -3,7 +3,8 @@ package ch.epfl.bluebrain.nexus.kg
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, ResourceV}
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 
@@ -32,4 +33,10 @@ package object indexing {
     projectCache
       .get(projectRef)
       .mapRetry({ case Some(p) => p }, KgError.NotFound(Some(projectRef.show)): Throwable)
+
+  private[indexing] def validTypes(view: SingleView, resource: ResourceV): Boolean =
+    view.resourceTypes.isEmpty || view.resourceTypes.intersect(resource.types).nonEmpty
+
+  private[indexing] def validSchema(view: SingleView, resource: ResourceV): Boolean =
+    view.resourceSchemas.isEmpty || view.resourceSchemas.contains(resource.schema.iri)
 }

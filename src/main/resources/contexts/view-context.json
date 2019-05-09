@@ -12,6 +12,11 @@
       "@type": "@id",
       "@container": "@set"
     },
+    "resourceTypes": {
+      "@id": "nxv:resourceTypes",
+      "@type": "@id",
+      "@container": "@set"
+    },
     "views": {
       "@id": "nxv:views",
       "@container": "@set"
@@ -23,6 +28,7 @@
     },
     "resourceTag": "nxv:resourceTag",
     "includeMetadata": "nxv:includeMetadata",
+    "includeDeprecated": "nxv:includeDeprecated",
     "sourceAsText": "nxv:sourceAsText",
     "mapping": "nxv:mapping"
   },
