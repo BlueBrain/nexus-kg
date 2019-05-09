@@ -67,7 +67,7 @@ trait RoutesFixtures extends Randomness with TestHelper with Resources {
   // format: off
   val projectMeta = Project(id.value, project, organization, None, url"http://example.com/", nxv.base, mappings, projectRef.id, organizationRef.id, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
 
-  val defaultEsView = ElasticSearchView(Json.obj(), Set.empty, None, false, true, projectRef, nxv.defaultElasticSearchIndex.value, genUUID, 1L, false)
+  val defaultEsView = ElasticSearchView(Json.obj(), Set.empty, Set.empty, None, false, true, true, projectRef, nxv.defaultElasticSearchIndex.value, genUUID, 1L, false)
   // format: on
 
   implicit val finalProject = projectMeta.copy(apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping)

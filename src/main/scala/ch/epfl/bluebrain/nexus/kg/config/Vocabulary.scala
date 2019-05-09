@@ -71,13 +71,14 @@ object Vocabulary {
     val group         = PrefixMapping.prefix("group")
 
     // View payload vocabulary
-    val resourceSchemas = PrefixMapping.prefix("resourceSchemas")
-    val resourceTag     = PrefixMapping.prefix("resourceTag")
-    val includeMetadata = PrefixMapping.prefix("includeMetadata")
-    val sourceAsText    = PrefixMapping.prefix("sourceAsText")
-    val mapping         = PrefixMapping.prefix("mapping")
-    val views           = PrefixMapping.prefix("views")
-    val viewId          = PrefixMapping.prefix("viewId")
+    val resourceSchemas   = PrefixMapping.prefix("resourceSchemas")
+    val resourceTag       = PrefixMapping.prefix("resourceTag")
+    val includeDeprecated = PrefixMapping.prefix("includeDeprecated")
+    val includeMetadata   = PrefixMapping.prefix("includeMetadata")
+    val sourceAsText      = PrefixMapping.prefix("sourceAsText")
+    val mapping           = PrefixMapping.prefix("mapping")
+    val views             = PrefixMapping.prefix("views")
+    val viewId            = PrefixMapping.prefix("viewId")
 
     //Storage payload vocabulary
     val default         = PrefixMapping.prefix("default")

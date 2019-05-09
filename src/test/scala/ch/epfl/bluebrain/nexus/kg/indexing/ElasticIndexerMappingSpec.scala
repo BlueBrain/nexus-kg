@@ -92,8 +92,10 @@ class ElasticIndexerMappingSpec
       val view = ElasticSearchView(
         defaultEsMapping,
         Set.empty,
+        Set.empty,
         None,
         includeMetadata = true,
+        includeDeprecated = true,
         sourceAsText = true,
         id.parent,
         nxv.defaultElasticSearchIndex.value,
@@ -136,8 +138,10 @@ class ElasticIndexerMappingSpec
       val view = ElasticSearchView(
         defaultEsMapping,
         Set(nxv.Resolver.value, nxv.Resource.value),
+        Set.empty,
         None,
         includeMetadata = true,
+        includeDeprecated = true,
         sourceAsText = true,
         id.parent,
         nxv.defaultElasticSearchIndex.value,
@@ -188,8 +192,10 @@ class ElasticIndexerMappingSpec
       val view = ElasticSearchView(
         defaultEsMapping,
         Set.empty,
+        Set.empty,
         Some("one"),
         includeMetadata = false,
+        includeDeprecated = true,
         sourceAsText = false,
         id.parent,
         nxv.defaultElasticSearchIndex.value,

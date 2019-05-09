@@ -79,6 +79,7 @@
         },
         "dynamic": false
       },
+      "includeDeprecated": true,
       "includeMetadata": false,
       "resourceSchemas": [
         "nxv:Resource",

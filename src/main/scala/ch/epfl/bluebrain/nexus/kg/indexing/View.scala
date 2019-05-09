@@ -189,11 +189,13 @@ object View {
         mappingStr    <- c.downField(nxv.mapping).focus.as[String].toRejectionOnLeft(res.id.ref)
         mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidResourceFormat(res.id.ref, "mappings cannot be parsed into Json"))
         schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
+        types         <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
         tag            = c.downField(nxv.resourceTag).focus.as[String].toOption
         includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
+        includeDep    <- c.downField(nxv.includeDeprecated).focus.as[Boolean].orElse(true).toRejectionOnLeft(res.id.ref)
         sourceAsText  <- c.downField(nxv.sourceAsText).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
       } yield
-        ElasticSearchView(mapping, schemas, tag, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
+        ElasticSearchView(mapping, schemas, types, tag, includeMeta, includeDep, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
 
     def sparql(): Either[Rejection, View] =
@@ -201,10 +203,12 @@ object View {
       for {
         uuid          <- uuidResult.toRejectionOnLeft(res.id.ref)
         schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
+        types         <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
         tag            = c.downField(nxv.resourceTag).focus.as[String].toOption
         includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
+        includeDep    <- c.downField(nxv.includeDeprecated).focus.as[Boolean].orElse(true).toRejectionOnLeft(res.id.ref)
       } yield
-        SparqlView(schemas, tag, includeMeta, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
+        SparqlView(schemas, types, tag, includeMeta,includeDep, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
     // format: on
 
     def viewRefs[A: NodeEncoder: Show](cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef[A]]] =
@@ -249,24 +253,29 @@ object View {
   /**
     * ElasticSearch specific view.
     *
-    * @param mapping         the ElasticSearch mapping for the index
-    * @param resourceSchemas set of schemas absolute iris used in the view. Indexing will be triggered only for
-    *                        resources validated against any of those schemas. When empty, all the schemas are being indexed.
-    * @param resourceTag     an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
-    * @param includeMetadata flag to include or exclude metadata on the indexed Document
-    * @param sourceAsText    flag to include or exclude the source Json as a blob
-    *                        (if true, it will be included in the field '_original_source')
-    * @param ref             a reference to the project that the view belongs to
-    * @param id              the user facing view id
-    * @param uuid            the underlying uuid generated for this view
-    * @param rev             the view revision
-    * @param deprecated      the deprecation state of the view
+    * @param mapping           the ElasticSearch mapping for the index
+    * @param resourceSchemas   set of schemas absolute iris used in the view. Indexing will be triggered only for
+    *                          resources validated against any of those schemas. When empty, all the schemas are being indexed.
+    * @param resourceTypes     set of types absolute iris used in the view. Indexing will be triggered only for
+    *                          resources with some of those types. When empty, all the types are being indexed.
+    * @param resourceTag       an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
+    * @param includeMetadata   flag to include or exclude metadata on the indexed Document
+    * @param includeDeprecated flag to include or exclude the deprecated resources on the indexed Document
+    * @param sourceAsText      flag to include or exclude the source Json as a blob
+    *                          (if true, it will be included in the field '_original_source')
+    * @param ref               a reference to the project that the view belongs to
+    * @param id                the user facing view id
+    * @param uuid              the underlying uuid generated for this view
+    * @param rev               the view revision
+    * @param deprecated        the deprecation state of the view
     */
   final case class ElasticSearchView(
       mapping: Json,
       resourceSchemas: Set[AbsoluteIri],
+      resourceTypes: Set[AbsoluteIri],
       resourceTag: Option[String],
       includeMetadata: Boolean,
+      includeDeprecated: Boolean,
       sourceAsText: Boolean,
       ref: ProjectRef,
       id: AbsoluteIri,
@@ -314,7 +323,7 @@ object View {
       val mapping =
         jsonContentOf("/elasticsearch/mapping.json", Map(Pattern.quote("{{docType}}") -> elasticSearchConfig.docType))
       // format: off
-      ElasticSearchView(mapping, Set.empty, None, includeMetadata = true, sourceAsText = true, ref, nxv.defaultElasticSearchIndex.value, defaultViewId, 1L, deprecated = false)
+      ElasticSearchView(mapping, Set.empty, Set.empty, None, includeMetadata = true, includeDeprecated = true, sourceAsText = true, ref, nxv.defaultElasticSearchIndex.value, defaultViewId, 1L, deprecated = false)
       // format: on
     }
   }
@@ -324,8 +333,11 @@ object View {
     *
     * @param resourceSchemas set of schemas absolute iris used in the view. Indexing will be triggered only for
     *                        resources validated against any of those schemas. When empty, all the schemas are being indexed.
+    * @param resourceTypes   set of types absolute iris used in the view. Indexing will be triggered only for
+    *                        resources with some of those types. When empty, all the types are being indexed.
     * @param resourceTag     an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
     * @param includeMetadata flag to include or exclude metadata on the index
+    * @param includeDeprecated flag to include or exclude the deprecated resources on the index
     * @param ref             a reference to the project that the view belongs to
     * @param id              the user facing view id
     * @param uuid            the underlying uuid generated for this view
@@ -334,8 +346,10 @@ object View {
     */
   final case class SparqlView(
       resourceSchemas: Set[AbsoluteIri],
+      resourceTypes: Set[AbsoluteIri],
       resourceTag: Option[String],
       includeMetadata: Boolean,
+      includeDeprecated: Boolean,
       ref: ProjectRef,
       id: AbsoluteIri,
       uuid: UUID,
@@ -361,7 +375,7 @@ object View {
       */
     def default(ref: ProjectRef): SparqlView =
       // format: off
-      SparqlView(Set.empty, None, includeMetadata = true, ref, nxv.defaultSparqlIndex.value, defaultViewId, 1L, deprecated = false)
+      SparqlView(Set.empty, Set.empty, None, includeMetadata = true, includeDeprecated = true, ref, nxv.defaultSparqlIndex.value, defaultViewId, 1L, deprecated = false)
       // format: on
 
   }

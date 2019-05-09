@@ -59,14 +59,15 @@ object ViewEncoder {
   }
 
   implicit val viewGraphEncoder: GraphEncoder[Id, View] = GraphEncoder {
-    case (rootNode, view @ ElasticSearchView(mapping, resSchemas, resTags, includeMeta, sourceAsText, _, _, _, _, _)) =>
-      val triples = view.mainTriples(nxv.ElasticSearchView) ++ view.triplesFor(resSchemas) ++
-        view.triplesFor(includeMeta, resTags) ++ view.triplesFor(sourceAsText, mapping)
+    case (rootNode,
+          view @ ElasticSearchView(map, schemas, types, tags, includeMeta, includeDep, sourceAsText, _, _, _, _, _)) =>
+      val triples = view.mainTriples(nxv.ElasticSearchView) ++ view.triplesFor(schemas, types) ++
+        view.triplesFor(includeMeta, includeDep, tags) ++ view.triplesFor(sourceAsText, map)
       RootedGraph(rootNode, triples)
 
-    case (rootNode, view @ SparqlView(resSchemas, resTags, includeMeta, _, _, _, _, _)) =>
-      val triples = view.mainTriples(nxv.SparqlView) ++ view.triplesFor(resSchemas) ++ view
-        .triplesFor(includeMeta, resTags)
+    case (rootNode, view @ SparqlView(schemas, types, tags, includeMeta, includeDep, _, _, _, _, _)) =>
+      val triples = view.mainTriples(nxv.SparqlView) ++ view.triplesFor(schemas, types) ++ view
+        .triplesFor(includeMeta, includeDep, tags)
       RootedGraph(rootNode, triples)
 
     case (rootNode, view: AggregateElasticSearchView[_]) =>
@@ -95,8 +96,9 @@ object ViewEncoder {
                   (s, nxv.deprecated, view.deprecated),
                   (s, nxv.rev, view.rev)) ++ tpe.map(t => (s, rdf.tpe, t): Triple).toSet
 
-    def triplesFor(resourceSchemas: Set[AbsoluteIri]): Set[Triple] =
-      resourceSchemas.map(r => (s, nxv.resourceSchemas, IriNode(r)): Triple)
+    def triplesFor(resourceSchemas: Set[AbsoluteIri], resourceTypes: Set[AbsoluteIri]): Set[Triple] =
+      resourceSchemas.map(r => (s, nxv.resourceSchemas, r): Triple) ++
+        resourceTypes.map(r => (s, nxv.resourceTypes, r): Triple)
 
     def triplesForView(views: Set[ViewRef[String]]): Set[Triple] =
       views.flatMap { viewRef =>
@@ -104,9 +106,12 @@ object ViewEncoder {
         Set[Triple]((s, nxv.views, ss), (ss, nxv.viewId, viewRef.id), (ss, nxv.project, viewRef.project))
       }
 
-    def triplesFor(includeMetadata: Boolean, resourceTagOpt: Option[String]): Set[Triple] = {
-      val triple: Triple = (s, nxv.includeMetadata, includeMetadata)
-      resourceTagOpt.map(resourceTag => Set[Triple](triple, (s, nxv.resourceTag, resourceTag))).getOrElse(Set(triple))
+    def triplesFor(includeMetadata: Boolean,
+                   includeDeprecated: Boolean,
+                   resourceTagOpt: Option[String]): Set[Triple] = {
+      val triple: Set[Triple] =
+        Set((s, nxv.includeMetadata, includeMetadata), (s, nxv.includeDeprecated, includeDeprecated))
+      resourceTagOpt.map(resourceTag => triple + ((s, nxv.resourceTag, resourceTag): Triple)).getOrElse(triple)
     }
 
     def triplesFor(sourceAsText: Boolean, mapping: Json): Set[Triple] = {

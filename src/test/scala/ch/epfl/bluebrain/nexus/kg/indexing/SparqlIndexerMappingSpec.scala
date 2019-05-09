@@ -79,7 +79,7 @@ class SparqlIndexerMappingSpec
 
     "using default view" should {
 
-      val view   = SparqlView(Set.empty, None, true, id.parent, genIri, genUUID, 1L, deprecated = false)
+      val view   = SparqlView(Set.empty, Set.empty, None, true, true, id.parent, genIri, genUUID, 1L, deprecated = false)
       val mapper = new SparqlIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
@@ -102,8 +102,10 @@ class SparqlIndexerMappingSpec
     "using a view for a specific schema and tag" should {
       val view = SparqlView(
         Set(nxv.Resolver.value, nxv.Resource.value),
+        Set.empty,
         Some("one"),
         includeMetadata = true,
+        includeDeprecated = true,
         id.parent,
         nxv.defaultElasticSearchIndex.value,
         genUUID,
