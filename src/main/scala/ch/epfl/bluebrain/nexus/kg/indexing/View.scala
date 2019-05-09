@@ -135,7 +135,18 @@ object View {
   /**
     * Enumeration of single view types.
     */
-  sealed trait SingleView extends View
+  sealed trait SingleView extends View {
+
+    /**
+      * @return set of schemas iris used in the view. Indexing will be triggered only for resources validated against any of those schemas (when empty, all resources are indexed)
+      */
+    def resourceSchemas: Set[AbsoluteIri]
+
+    /**
+      * @return set of types iris used in the view. Indexing will be triggered only for resources containing any of those types (when empty, all resources are indexed)
+      */
+    def resourceTypes: Set[AbsoluteIri]
+  }
 
   /**
     * Enumeration of multiple view types.
@@ -254,10 +265,8 @@ object View {
     * ElasticSearch specific view.
     *
     * @param mapping           the ElasticSearch mapping for the index
-    * @param resourceSchemas   set of schemas absolute iris used in the view. Indexing will be triggered only for
-    *                          resources validated against any of those schemas. When empty, all the schemas are being indexed.
-    * @param resourceTypes     set of types absolute iris used in the view. Indexing will be triggered only for
-    *                          resources with some of those types. When empty, all the types are being indexed.
+    * @param resourceSchemas   set of schemas iris used in the view. Indexing will be triggered only for resources validated against any of those schemas (when empty, all resources are indexed)
+    * @param resourceTypes     set of types iris used in the view. Indexing will be triggered only for resources containing any of those types (when empty, all resources are indexed)
     * @param resourceTag       an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
     * @param includeMetadata   flag to include or exclude metadata on the indexed Document
     * @param includeDeprecated flag to include or exclude the deprecated resources on the indexed Document
@@ -331,18 +340,16 @@ object View {
   /**
     * Sparql specific view.
     *
-    * @param resourceSchemas set of schemas absolute iris used in the view. Indexing will be triggered only for
-    *                        resources validated against any of those schemas. When empty, all the schemas are being indexed.
-    * @param resourceTypes   set of types absolute iris used in the view. Indexing will be triggered only for
-    *                        resources with some of those types. When empty, all the types are being indexed.
-    * @param resourceTag     an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
-    * @param includeMetadata flag to include or exclude metadata on the index
+    * @param resourceSchemas   set of schemas iris used in the view. Indexing will be triggered only for resources validated against any of those schemas (when empty, all resources are indexed)
+    * @param resourceTypes     set of types iris used in the view. Indexing will be triggered only for resources containing any of those types (when empty, all resources are indexed)
+    * @param resourceTag       an optional tag. When present, indexing will be triggered only by resources tagged with the specified tag
+    * @param includeMetadata   flag to include or exclude metadata on the index
     * @param includeDeprecated flag to include or exclude the deprecated resources on the index
-    * @param ref             a reference to the project that the view belongs to
-    * @param id              the user facing view id
-    * @param uuid            the underlying uuid generated for this view
-    * @param rev             the view revision
-    * @param deprecated      the deprecation state of the view
+    * @param ref               a reference to the project that the view belongs to
+    * @param id                the user facing view id
+    * @param uuid              the underlying uuid generated for this view
+    * @param rev               the view revision
+    * @param deprecated        the deprecation state of the view
     */
   final case class SparqlView(
       resourceSchemas: Set[AbsoluteIri],

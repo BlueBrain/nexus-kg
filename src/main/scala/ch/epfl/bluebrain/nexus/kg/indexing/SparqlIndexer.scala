@@ -34,15 +34,20 @@ private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
     view.resourceTag.map(resources.fetch(event.id, _, true)).getOrElse(resources.fetch(event.id, true)).value.map {
-      case Right(resource) if validCandidate(resource) => Some(buildInsertQuery(resource))
-      case _                                           => None
+      case Right(res) if validSchema(view, res) && validTypes(view, res) => Some(buildInsertOrDeleteQuery(res))
+      case Right(res) if validSchema(view, res)                          => Some(buildDeleteQuery(res))
+      case _                                                             => None
     }
 
-  private def validCandidate(resource: ResourceV): Boolean =
-    view.resourceSchemas.isEmpty || view.resourceSchemas.contains(resource.schema.iri)
+  private def buildInsertOrDeleteQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] =
+    if (res.deprecated && !view.includeDeprecated) buildDeleteQuery(res)
+    else buildInsertQuery(res)
 
   private def buildInsertQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] =
     res.id -> SparqlWriteQuery.replace(toGraphUri(res.id), res.value.graph)
+
+  private def buildDeleteQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] =
+    res.id -> SparqlWriteQuery.drop(toGraphUri(res.id))
 
   private def toGraphUri(id: ResId): Uri = (id.value + "graph").toAkkaUri
 }

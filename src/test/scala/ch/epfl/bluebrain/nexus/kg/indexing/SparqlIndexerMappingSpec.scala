@@ -62,6 +62,8 @@ class SparqlIndexerMappingSpec
       Instant.EPOCH,
       genIri
     )
+  private val tpe1 = nxv.withSuffix("MyType").value
+  private val tpe2 = nxv.withSuffix("MyType2").value
 
   before {
     Mockito.reset(resources)
@@ -99,10 +101,43 @@ class SparqlIndexerMappingSpec
       }
     }
 
-    "using a view for a specific schema and tag" should {
+    "using a view with includeDeprecated = false" should {
+
+      val view   = SparqlView(Set.empty, Set.empty, None, true, false, id.parent, genIri, genUUID, 1L, deprecated = false)
+      val mapper = new SparqlIndexerMapping(view, resources)
+
+      "return none when the event resource is not found on the resources" in {
+        when(resources.fetch(id, selfAsIri = true))
+          .thenReturn(EitherT.leftT[IO, ResourceV](NotFound(id.ref): Rejection))
+        mapper(ev).ioValue shouldEqual None
+      }
+
+      "return a SparqlWriteQuery inserting data" in {
+        val resV = ResourceF.simpleV(id,
+                                     ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+                                     2L,
+                                     schema = schema)
+        when(resources.fetch(id, selfAsIri = true)).thenReturn(EitherT.rightT[IO, Rejection](resV))
+
+        mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
+      }
+
+      "return a SparqlWriteQuery deleting data" in {
+        val resV = ResourceF.simpleV(id,
+                                     ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+                                     2L,
+                                     schema = schema,
+                                     deprecated = true)
+        when(resources.fetch(id, selfAsIri = true)).thenReturn(EitherT.rightT[IO, Rejection](resV))
+
+        mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.drop(id.value.asString + "/graph")
+      }
+    }
+
+    "using a view for a specific schema, types and tag" should {
       val view = SparqlView(
         Set(nxv.Resolver.value, nxv.Resource.value),
-        Set.empty,
+        Set(tpe1, tpe2),
         Some("one"),
         includeMetadata = true,
         includeDeprecated = true,
@@ -129,14 +164,36 @@ class SparqlIndexerMappingSpec
         mapper(ev).ioValue shouldEqual None
       }
 
-      "return a SparqlWriteQuery" in {
+      "return a SparqlWriteQuery deleting data" in {
+        val other = nxv.withSuffix("Other").value
         val resV = ResourceF
           .simpleV(id,
                    ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
                    2L,
-                   schema = Ref(nxv.Resource.value))
+                   schema = Ref(nxv.Resource.value),
+                   types = Set(other))
           .copy(tags = Map("one" -> 2L))
-        val res = ResourceF.simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value)).copy(tags = Map("one" -> 2L))
+        when(resources.fetch(id, "one", selfAsIri = true)).thenReturn(EitherT.rightT[IO, Rejection](resV))
+
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual resV.id -> SparqlWriteQuery.drop(
+          id.value.asString + "/graph")
+      }
+
+      "return a SparqlWriteQuery inserting data" in {
+        val other = nxv.withSuffix("Other").value
+        val resV = ResourceF
+          .simpleV(
+            id,
+            ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+            2L,
+            schema = Ref(nxv.Resource.value),
+            deprecated = true,
+            types = Set(tpe1, other)
+          )
+          .copy(tags = Map("one" -> 2L))
+        val res = ResourceF
+          .simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value), types = Set(tpe1, other))
+          .copy(tags = Map("one" -> 2L))
         when(resources.fetch(id, "one", selfAsIri = true)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(

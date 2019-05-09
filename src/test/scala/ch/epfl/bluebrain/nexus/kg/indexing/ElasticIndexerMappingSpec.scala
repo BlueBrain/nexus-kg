@@ -47,6 +47,8 @@ class ElasticIndexerMappingSpec
 
   private val resources                     = mock[Resources[IO]]
   private implicit val appConfig: AppConfig = Settings(system).appConfig
+  private val tpe1                          = nxv.withSuffix("MyType").value
+  private val tpe2                          = nxv.withSuffix("MyType2").value
   val label                                 = ProjectLabel("bbp", "core")
   val mappings: Map[String, Iri.AbsoluteIri] =
     Map("ex" -> url"https://bbp.epfl.ch/nexus/data/".value, "resource" -> nxv.Resource.value)
@@ -134,11 +136,11 @@ class ElasticIndexerMappingSpec
       }
     }
 
-    "using a view for a specific schema" should {
+    "using a view for a specific schema and types" should {
       val view = ElasticSearchView(
         defaultEsMapping,
         Set(nxv.Resolver.value, nxv.Resource.value),
-        Set.empty,
+        Set(tpe1, tpe2),
         None,
         includeMetadata = true,
         includeDeprecated = true,
@@ -159,21 +161,38 @@ class ElasticIndexerMappingSpec
         mapper(ev).ioValue shouldEqual None
       }
 
-      "return a ElasticSearch BulkOp" in {
+      "return a ElasticSearch BulkOp Delete" in {
         val res = ResourceF.simpleV(id,
                                     Value(json, json.contextValue, RootedGraph(blank, Graph())),
                                     rev = 2L,
                                     schema = Ref(nxv.Resource.value))
         resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> BulkOp.Delete(index,
+                                                                                                   doc,
+                                                                                                   id.value.asString)
+
+      }
+
+      "return a ElasticSearch BulkOp Index" in {
+        val otherTpe = nxv.withSuffix("Other").value
+        val res = ResourceF.simpleV(id,
+                                    Value(json, json.contextValue, RootedGraph(blank, Graph())),
+                                    rev = 2L,
+                                    schema = Ref(nxv.Resource.value),
+                                    types = Set(tpe1, otherTpe),
+          deprecated = true)
+        resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
+
         val elasticSearchJson = Json
           .obj(
             "@id"              -> Json.fromString(id.value.show),
+            "@type"            -> Json.arr(Json.fromString(tpe1.asString), Json.fromString(otherTpe.asString)),
             "_original_source" -> Json.fromString(json.noSpaces),
             "_constrainedBy"   -> Json.fromString(nxv.Resource.value.show),
             "_createdAt"       -> Json.fromString(instantString),
             "_createdBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString()),
-            "_deprecated"      -> Json.fromBoolean(false),
+            "_deprecated"      -> Json.fromBoolean(true),
             "_self"            -> Json.fromString("http://127.0.0.1:8080/v1/resources/bbp/core/resource/ex:resourceName"),
             "_project"         -> Json.fromString("http://localhost:8080/v1/projects/bbp/core"),
             "_rev"             -> Json.fromLong(2L),
@@ -188,14 +207,14 @@ class ElasticIndexerMappingSpec
       }
     }
 
-    "using a view without metadata, without sourceAsText and targeting a specific tag" should {
+    "using a view without metadata, without sourceAsText, deleting deprecated and targeting a specific tag" should {
       val view = ElasticSearchView(
         defaultEsMapping,
         Set.empty,
         Set.empty,
         Some("one"),
         includeMetadata = false,
-        includeDeprecated = true,
+        includeDeprecated = false,
         sourceAsText = false,
         id.parent,
         nxv.defaultElasticSearchIndex.value,
@@ -206,7 +225,7 @@ class ElasticIndexerMappingSpec
       val index  = s"${appConfig.elasticSearch.indexPrefix}_${view.name}"
       val mapper = new ElasticSearchIndexerMapping(view, resources)
 
-      "return a ElasticSearch BulkOp" in {
+      "return a ElasticSearch BulkOp Index" in {
         val res = ResourceF
           .simpleV(id, Value(json, json.contextValue, RootedGraph(blank, Graph())), rev = 2L, schema = schema)
           .copy(tags = Map("two" -> 1L, "one" -> 2L))
@@ -214,6 +233,19 @@ class ElasticIndexerMappingSpec
 
         val elasticSearchJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
         mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
+      }
+
+      "return a ElasticSearch BulkOp Delete" in {
+        val res = ResourceF
+          .simpleV(id,
+                   Value(json, json.contextValue, RootedGraph(blank, Graph())),
+                   rev = 2L,
+                   schema = schema,
+                   deprecated = true)
+          .copy(tags = Map("two" -> 1L, "one" -> 2L))
+        resources.fetch(id, "one", selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
+
+        mapper(ev).some shouldEqual res.id -> BulkOp.Delete(index, doc, id.value.asString)
       }
 
       "return None when it is not matching the tag defined on the view" in {
