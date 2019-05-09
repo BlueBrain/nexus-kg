@@ -32,6 +32,11 @@ object KgError {
   final case class InternalError(reason: String) extends KgError(reason)
 
   /**
+    * Signals that the operation is not supported
+    */
+  case object UnsupportedOperation extends KgError("The operation is not supported by the system.")
+
+  /**
     * Signals that the requested resource was not found
     */
   final case class NotFound(ref: Option[String] = None) extends KgError("The requested resource could not be found.")
@@ -111,13 +116,14 @@ object KgError {
 
   implicit val kgErrorStatusFrom: StatusFrom[KgError] = {
     case _: NotFound                      => StatusCodes.NotFound
+    case _: ProjectNotFound               => StatusCodes.NotFound
     case _: RemoteFileNotFound            => StatusCodes.BadGateway
     case AuthenticationFailed             => StatusCodes.Unauthorized
     case AuthorizationFailed              => StatusCodes.Forbidden
     case _: ProjectIsDeprecated           => StatusCodes.BadRequest
     case _: InvalidOutputFormat           => StatusCodes.BadRequest
+    case UnsupportedOperation             => StatusCodes.BadRequest
     case _: UnacceptedResponseContentType => StatusCodes.NotAcceptable
-    case _: ProjectNotFound               => StatusCodes.NotFound
     case _                                => StatusCodes.InternalServerError
   }
 }

@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.MediaTypes
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.model.headers.{`WWW-Authenticate`, HttpChallenges, Location}
-import akka.http.scaladsl.server.Directives.{as, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, RejectionHandler, Route}
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, PredefinedFromEntityUnmarshallers}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -86,6 +86,12 @@ object Routes {
       case err: ProjectIsDeprecated =>
         // suppress error
         complete(err: KgError)
+      case err: RemoteFileNotFound =>
+        // suppress error
+        complete(err: KgError)
+      case UnsupportedOperation =>
+        // suppress error
+        complete(UnsupportedOperation: KgError)
       case err: InvalidOutputFormat =>
         // suppress error
         complete(err: KgError)
