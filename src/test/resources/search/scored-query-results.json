@@ -46,5 +46,5 @@
       "_deprecated": false
     }
   ],
-  "_next": "http://nexus.com/resources/{org}/{proj}/{schema}?type=someType&size=10&{searchAfter}"
+  "_next": "http://nexus.com/resources/{org}/{proj}/{schema}?type=someType&size=10&{after}"
 }

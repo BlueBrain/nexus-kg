@@ -32,7 +32,6 @@ import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.generic.auto._
-import io.circe.syntax._
 import monix.eval.Task
 import org.mockito.Mockito
 import org.mockito.Mockito._
@@ -69,8 +68,8 @@ class QueryDirectivesSpec
                                       m2: ToEntityMarshaller[SearchAfterPagination]): ToEntityMarshaller[Pagination] =
       Marshaller { _ =>
         {
-          case f: FromPagination        ⇒ m1(f)
-          case s: SearchAfterPagination ⇒ m2(s)
+          case f: FromPagination        => m1(f)
+          case s: SearchAfterPagination => m2(s)
         }
       }
 
@@ -135,28 +134,22 @@ class QueryDirectivesSpec
       }
     }
 
-    "throw error when searchAfter is not a valid JSON" in {
-      Get("/some?searchAfter=notJson") ~> route() ~> check {
-        rejection shouldBe a[MalformedQueryParamRejection]
-      }
-    }
-
-    "throw error when searchAfter is not a JSON array" in {
-      Get("/some?searchAfter=%22notJsonArray%22") ~> route() ~> check {
+    "throw error when after is not a valid JSON" in {
+      Get("/some?after=notJson") ~> route() ~> check {
         rejection shouldBe a[MalformedQueryParamRejection]
       }
     }
 
     "parse search after parameter" in {
-      val searchAfter = Seq(Json.fromString(Instant.now().toString))
-      Get(s"/some?searchAfter=${URLEncoder.encode(searchAfter.asJson.noSpaces, "UTF-8")}") ~> route() ~> check {
-        responseAs[SearchAfterPagination] shouldEqual Pagination(searchAfter, config.defaultSize)
+      val after = Json.arr(Json.fromString(Instant.now().toString))
+      Get(s"/some?after=${URLEncoder.encode(after.noSpaces, "UTF-8")}") ~> route() ~> check {
+        responseAs[SearchAfterPagination] shouldEqual Pagination(after, config.defaultSize)
       }
     }
 
-    "reject when both from and searchAfter are present" in {
-      val searchAfter = Json.arr(Json.fromString(Instant.now().toString))
-      Get(s"/some?from=10&searchAfter=${URLEncoder.encode(searchAfter.noSpaces, "UTF-8")}") ~> route() ~> check {
+    "reject when both from and after are present" in {
+      val after = Json.arr(Json.fromString(Instant.now().toString))
+      Get(s"/some?from=10&after=${URLEncoder.encode(after.noSpaces, "UTF-8")}") ~> route() ~> check {
         rejection shouldBe a[MalformedQueryParamRejection]
       }
     }

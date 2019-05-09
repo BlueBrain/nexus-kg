@@ -309,7 +309,7 @@ class ViewRoutesSpec
     "list views" in new Context {
 
       val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val sort                      = Seq(Json.fromString("two"))
+      val sort                      = Json.arr(Json.fromString("two"))
       val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false))
@@ -324,7 +324,7 @@ class ViewRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/views/$organization/$project?deprecated=false&searchAfter=%5B%22two%22%5D"
+              s"http://example.com/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -332,46 +332,48 @@ class ViewRoutesSpec
       Get(s"/v1/resources/$organization/$project/view?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
         MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(Json.obj(
-          "_next" -> Json.fromString(
-            s"http://example.com/v1/resources/$organization/$project/view?deprecated=false&searchAfter=%5B%22two%22%5D"
-          )
-        ))
+        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+          Json.obj(
+            "_next" -> Json.fromString(
+              s"http://example.com/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
+            )
+          ))
       }
     }
 
-    "list views with searchAfter" in new Context {
+    "list views with after" in new Context {
 
       val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val searchAfter               = Seq(Json.fromString("one"))
-      val sort                      = Seq(Json.fromString("two"))
+      val after                     = Json.arr(Json.fromString("one"))
+      val sort                      = Json.arr(Json.fromString("two"))
       val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false))
-      val pagination = Pagination(searchAfter, 20)
+      val pagination = Pagination(after, 20)
       views.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
-      Get(s"/v1/views/$organization/$project?deprecated=false&searchAfter=%5B%22one%22%5D") ~> addCredentials(
+      Get(s"/v1/views/$organization/$project?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(oauthToken) ~> Accept(
+        MediaRanges.`*/*`) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+          Json.obj(
+            "_next" -> Json.fromString(
+              s"http://example.com/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
+            )
+          ))
+      }
+
+      Get(s"/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(
         oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/views/$organization/$project?deprecated=false&searchAfter=%5B%22two%22%5D"
+              s"http://example.com/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
-      }
-
-      Get(s"/v1/resources/$organization/$project/view?deprecated=false&searchAfter=%5B%22one%22%5D") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(Json.obj(
-          "_next" -> Json.fromString(
-            s"http://example.com/v1/resources/$organization/$project/view?deprecated=false&searchAfter=%5B%22two%22%5D"
-          )
-        ))
       }
     }
 

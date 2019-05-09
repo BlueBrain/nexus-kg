@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.directives
 import akka.http.scaladsl.common.{NameOptionReceptacle, NameReceptacle}
 import akka.http.scaladsl.model.MediaRange
 import akka.http.scaladsl.model.headers.Accept
-import akka.http.scaladsl.server.Directives.{parameter, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
 import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
@@ -28,22 +28,14 @@ import scala.util.{Failure, Success}
 object QueryDirectives {
 
   private val logger = Logger[this.type]
-  implicit val jsonFromStringUnmarshaller: FromStringUnmarshaller[Seq[Json]] =
+  implicit val jsonFromStringUnmarshaller: FromStringUnmarshaller[Json] =
     Unmarshaller
       .strict[String, Json] { data =>
         parse(data).fold(throw _, identity)
       }
-      .map { json =>
-        json.asArray match {
-          case Some(jArr) => jArr
-          case None =>
-            throw new IllegalArgumentException(
-              s"searchAfter parameter must be a JSON array, got ${json.noSpaces} instead")
-        }
-      }
 
-  val from: String        = "from"
-  val searchAfter: String = "searchAfter"
+  val from: String  = "from"
+  val after: String = "after"
 
   /**
     * @return the extracted storage from the request query parameters or default from the storage cache.
@@ -69,7 +61,7 @@ object QueryDirectives {
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
     */
   def paginated(implicit config: PaginationConfig): Directive1[Pagination] =
-    (parameter(from.as[Int] ?) & parameter('size.as[Int] ? config.defaultSize) & parameter(searchAfter.as[Seq[Json]] ?))
+    (parameter(from.as[Int] ?) & parameter('size.as[Int] ? config.defaultSize) & parameter(after.as[Json] ?))
       .tflatMap {
         case (None, size, Some(sa)) => provide(Pagination(sa, size.max(1).min(config.sizeLimit)))
         case (Some(f), size, None) =>

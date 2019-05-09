@@ -60,7 +60,7 @@ class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources w
           quote("{schema}")             -> schema,
           quote("{before}")             -> before.toString,
           quote("{lastElementCreated}") -> now.toString,
-          quote("{searchAfter}")        -> searchAfter(now)
+          quote("{after}")              -> after(now)
         )
       )
     }
@@ -82,15 +82,15 @@ class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources w
           quote("{schema}")             -> schema,
           quote("{before}")             -> before.toString,
           quote("{lastElementCreated}") -> now.toString,
-          quote("{searchAfter}")        -> searchAfter(now)
+          quote("{after}")              -> after(now)
         )
       )
 
     }
   }
 
-  private def sort(instant: Instant): Option[Seq[Json]] = Some(List(Json.fromString(instant.toString)))
-  private def searchAfter(instant: Instant): String =
-    Query("searchAfter" -> List(Json.fromString(instant.toString)).asJson.noSpaces).toString()
+  private def sort(instant: Instant): Option[Json] = Some(Json.arr(Json.fromString(instant.toString)))
+  private def after(instant: Instant): String =
+    Query("after" -> List(Json.fromString(instant.toString)).asJson.noSpaces).toString()
 
 }

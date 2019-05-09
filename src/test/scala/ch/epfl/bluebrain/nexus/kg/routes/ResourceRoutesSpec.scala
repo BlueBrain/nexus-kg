@@ -290,7 +290,7 @@ class ResourceRoutesSpec
 
     "list resources" in new Context {
       val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val sort                      = Seq(Json.fromString("two"))
+      val sort                      = Json.arr(Json.fromString("two"))
       val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(deprecated = Some(false))
@@ -305,7 +305,7 @@ class ResourceRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project?deprecated=false&searchAfter=%5B%22two%22%5D"
+              s"http://example.com/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -316,42 +316,42 @@ class ResourceRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project/_?deprecated=false&searchAfter=%5B%22two%22%5D"
+              s"http://example.com/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
     }
 
-    "list resources with searchAfter" in new Context {
+    "list resources with after" in new Context {
       val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val searchAfter               = Seq(Json.fromString("one"))
-      val sort                      = Seq(Json.fromString("two"))
+      val after                     = Json.arr(Json.fromString("one"))
+      val sort                      = Json.arr(Json.fromString("two"))
       val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(deprecated = Some(false))
-      val pagination = Pagination(searchAfter, 20)
+      val pagination = Pagination(after, 20)
       resources.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
-      Get(s"/v1/resources/$organization/$project?deprecated=false&searchAfter=%5B%22one%22%5D") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+      Get(s"/v1/resources/$organization/$project?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(oauthToken) ~> Accept(
+        MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project?deprecated=false&searchAfter=%5B%22two%22%5D"
+              s"http://example.com/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
 
-      Get(s"/v1/resources/$organization/$project/_?deprecated=false&searchAfter=%5B%22one%22%5D") ~> addCredentials(
+      Get(s"/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(
         oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project/_?deprecated=false&searchAfter=%5B%22two%22%5D"
+              s"http://example.com/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }

@@ -19,7 +19,6 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.{Encoder, Json}
-import io.circe.syntax._
 
 object QueryResultEncoder {
 
@@ -58,7 +57,7 @@ object QueryResultEncoder {
       case ScoredQueryResult(score, v, _) =>
         v.removeKeys(nxv.originalSource.prefix) deepMerge Json.obj(nxv.score.prefix -> Json.fromFloatOrNull(score))
     }
-    def json(total: Long, list: List[QueryResult[Json]], sort: Option[Seq[Json]]): Json = {
+    def json(total: Long, list: List[QueryResult[Json]], sort: Option[Json]): Json = {
       val results = Json
         .obj(nxv.total.prefix -> Json.fromLong(total), nxv.results.prefix -> Json.arr(list.map(qrEncoderJson(_)): _*))
         .addContext(searchCtxUri)
@@ -69,7 +68,7 @@ object QueryResultEncoder {
             Query(
               searchUri
                 .query()
-                .toMap + (QueryDirectives.searchAfter -> s.asJson.noSpaces) - QueryDirectives.from)
+                .toMap + (QueryDirectives.after -> s.noSpaces) - QueryDirectives.from)
 
           results deepMerge Json.obj(nxv.next.prefix -> Json.fromString(searchUri.withQuery(nextQuery).toString()))
         case None => results
