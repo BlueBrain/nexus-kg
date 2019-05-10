@@ -157,14 +157,14 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
   private def fetch(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
     materializer.withMeta(resource).flatMap(outputResource)
 
-  private def create(id: ResId, graph: RootedGraph)(implicit caller: Caller): RejOrResource[F] = {
+  private def create(id: ResId, graph: RootedGraph)(implicit caller: Caller, project: Project): RejOrResource[F] = {
     val typedGraph = addResolverType(id.value, graph)
     val types      = typedGraph.rootTypes.map(_.value)
     for {
       _        <- validateShacl(typedGraph)
       resolver <- resolverValidation(id, typedGraph, 1L, types)
       json     <- jsonForRepo(resolver)
-      resource <- repo.create(id, resolverRef, types, json)
+      resource <- repo.create(id, OrganizationRef(project.organizationUuid), resolverRef, types, json)
     } yield resource
   }
 

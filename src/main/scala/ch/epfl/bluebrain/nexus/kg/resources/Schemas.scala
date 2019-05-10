@@ -137,7 +137,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
 
     for {
       _        <- validateShacl(id, typedGraph)
-      resource <- repo.create(id, shaclRef, types, source)
+      resource <- repo.create(id, OrganizationRef(project.organizationUuid), shaclRef, types, source)
     } yield resource
   }
 

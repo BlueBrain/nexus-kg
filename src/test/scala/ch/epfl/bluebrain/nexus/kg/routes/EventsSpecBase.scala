@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Credentials, S3Settings, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -62,6 +62,7 @@ class EventsSpecBase
   val caller = Caller(subject, Set(subject))
 
   val projectUuid = UUID.fromString("7f8039a0-3141-11e9-b210-d663bd873d93")
+  val orgUuid     = UUID.fromString("17a62c6a-4dc4-4eaa-b418-42d0634695a1")
   val schemaRef   = Latest(base + "schema")
   val types       = Set(base + "type")
 
@@ -76,7 +77,7 @@ class EventsSpecBase
     base + "vocab",
     Map(),
     UUID.randomUUID(),
-    UUID.randomUUID(),
+    orgUuid,
     1L,
     deprecated = false,
     instant,
@@ -85,11 +86,14 @@ class EventsSpecBase
     base + "subject"
   )
 
+  val orgRef = OrganizationRef(project.organizationUuid)
+
   val projectRef = ProjectRef(projectUuid)
 
   val events = List(
     Created(
       Id(projectRef, base + "Created"),
+      orgRef,
       schemaRef,
       types,
       Json.obj(
@@ -99,6 +103,7 @@ class EventsSpecBase
       subject
     ),
     Updated(Id(projectRef, base + "created"),
+            orgRef,
             2L,
             types,
             Json.obj(
@@ -108,6 +113,7 @@ class EventsSpecBase
             subject),
     Deprecated(
       Id(projectRef, base + "created"),
+      orgRef,
       3L,
       types,
       instant,
@@ -115,6 +121,7 @@ class EventsSpecBase
     ),
     TagAdded(
       Id(projectRef, base + "created"),
+      orgRef,
       4L,
       2L,
       "v1.0.0",
@@ -123,6 +130,7 @@ class EventsSpecBase
     ),
     FileCreated(
       Id(projectRef, base + "file"),
+      orgRef,
       DiskStorage.default(projectRef),
       FileAttributes(
         "/some/location/path",
@@ -137,6 +145,7 @@ class EventsSpecBase
     ),
     FileUpdated(
       Id(projectRef, base + "file"),
+      orgRef,
       S3Storage(
         projectRef,
         base + "storages" + "s3",

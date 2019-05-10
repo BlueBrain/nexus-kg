@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Ref, ResId}
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Credentials, S3Settings, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
@@ -56,6 +56,8 @@ class EventSerializerSpec
     val key: ResId =
       Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
          url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+
+    val orgRef = OrganizationRef(UUID.fromString("17a62c6a-4dc4-4eaa-b418-42d0634695a1"))
 
     val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
 
@@ -99,13 +101,17 @@ class EventSerializerSpec
                        128L,
                        digest)
       val results = List(
-        Created(key, schema, types, value, instant, Anonymous) -> jsonContentOf("/serialization/created-resp.json",
-                                                                                rep),
-        Deprecated(key, 1L, types, instant, subject)       -> jsonContentOf("/serialization/deprecated-resp.json", rep),
-        TagAdded(key, 1L, 2L, "tagName", instant, subject) -> jsonContentOf("/serialization/tagged-resp.json", rep),
-        FileCreated(key, storage, fileAttr, instant, subject) -> jsonContentOf("/serialization/created-file-resp.json",
-                                                                               rep),
-        FileUpdated(key, s3storage, 2L, s3fileAttr, instant, subject) -> jsonContentOf(
+        Created(key, orgRef, schema, types, value, instant, Anonymous) -> jsonContentOf(
+          "/serialization/created-resp.json",
+          rep),
+        Deprecated(key, orgRef, 1L, types, instant, subject) -> jsonContentOf("/serialization/deprecated-resp.json",
+                                                                              rep),
+        TagAdded(key, orgRef, 1L, 2L, "tagName", instant, subject) -> jsonContentOf("/serialization/tagged-resp.json",
+                                                                                    rep),
+        FileCreated(key, orgRef, storage, fileAttr, instant, subject) -> jsonContentOf(
+          "/serialization/created-file-resp.json",
+          rep),
+        FileUpdated(key, orgRef, s3storage, 2L, s3fileAttr, instant, subject) -> jsonContentOf(
           "/serialization/updated-file-resp.json",
           rep)
       )

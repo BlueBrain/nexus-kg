@@ -25,7 +25,7 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "da2f66eb"
+val adminVersion                = "0ecf6f33"
 val iamVersion                  = "8dd50ac6"
 val commonsVersion              = "0.12.5"
 val storageVersion              = "1.0.2"
@@ -44,7 +44,7 @@ val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
 val mockitoVersion              = "1.3.1"
 val monixVersion                = "3.0.0-RC2"
-val pureconfigVersion           = "0.10.2"
+val pureconfigVersion           = "0.11.0"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.7"
 val kryoVersion                 = "0.5.2"

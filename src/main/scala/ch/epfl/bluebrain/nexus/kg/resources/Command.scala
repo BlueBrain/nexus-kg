@@ -42,15 +42,17 @@ object Command {
   /**
     * An intent for resource creation.
     *
-    * @param id      the resource identifier
-    * @param schema  the schema that is used to constrain the resource
-    * @param types   the collection of known resource types (asserted or inferred)
-    * @param source  the source representation of the resource
-    * @param instant the instant when this command was created
-    * @param subject the identity which created this command
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param schema       the schema that is used to constrain the resource
+    * @param types        the collection of known resource types (asserted or inferred)
+    * @param source       the source representation of the resource
+    * @param instant      the instant when this command was created
+    * @param subject      the identity which created this command
     */
   final case class Create(
       id: Id[ProjectRef],
+      organization: OrganizationRef,
       schema: Ref,
       types: Set[AbsoluteIri],
       source: Json,
@@ -67,12 +69,12 @@ object Command {
   /**
     * An intent for resource update.
     *
-    * @param id      the resource identifier
-    * @param rev     the last known revision of the resource when this command was created
-    * @param types   the collection of known resource types (asserted or inferred)
-    * @param source  the new source representation of the resource
-    * @param instant the instant when this command was created
-    * @param subject the identity which created this command
+    * @param id           the resource identifier
+    * @param rev          the last known revision of the resource when this command was created
+    * @param types        the collection of known resource types (asserted or inferred)
+    * @param source       the new source representation of the resource
+    * @param instant      the instant when this command was created
+    * @param subject      the identity which created this command
     */
   final case class Update(
       id: Id[ProjectRef],
@@ -86,9 +88,9 @@ object Command {
   /**
     * An intent for resource deprecation.
     *
-    * @param id       the resource identifier
-    * @param rev      the last known revision of the resource when this command was created
-    * @param instant  the instant when this command was created
+    * @param id      the resource identifier
+    * @param rev     the last known revision of the resource when this command was created
+    * @param instant the instant when this command was created
     */
   final case class Deprecate(
       id: Id[ProjectRef],
@@ -118,13 +120,15 @@ object Command {
   /**
     * An intent to create a file resource.
     *
-    * @param id      the resource identifier
-    * @param storage the storage where the file is going to be saved
-    * @param value   the file metadata
-    * @param instant the instant when this event was recorded
-    * @param subject the subject which generated this event
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param storage      the storage where the file is going to be saved
+    * @param value        the file metadata
+    * @param instant      the instant when this event was recorded
+    * @param subject      the subject which generated this event
     */
   final case class CreateFile(id: Id[ProjectRef],
+                              organization: OrganizationRef,
                               storage: Storage,
                               value: FileAttributes,
                               instant: Instant,
@@ -170,4 +174,5 @@ object Command {
       */
     val types: Set[AbsoluteIri] = Set(nxv.File.value)
   }
+
 }

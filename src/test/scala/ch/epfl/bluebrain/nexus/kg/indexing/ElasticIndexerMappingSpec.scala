@@ -69,6 +69,8 @@ class ElasticIndexerMappingSpec
             Instant.EPOCH,
             genIri)
 
+  val orgRef = OrganizationRef(projectMeta.organizationUuid)
+
   before {
     Mockito.reset(resources)
   }
@@ -84,7 +86,8 @@ class ElasticIndexerMappingSpec
                "@id"      -> Json.fromString(id.value.show),
                "key"      -> Json.fromInt(2))
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-    val ev                    = Created(id, schema, Set.empty, json, clock.instant(), Anonymous)
+    val ev =
+      Created(id, orgRef, schema, Set.empty, json, clock.instant(), Anonymous)
     val defaultEsMapping =
       jsonContentOf("/elasticsearch/mapping.json", Map(quote("{{docType}}") -> appConfig.elasticSearch.docType))
 
@@ -256,9 +259,10 @@ class ElasticIndexerMappingSpec
 
       "skip previous events from the same id" in {
         val instant = clock.instant()
-        val updated = Updated(id, 3L, Set.empty, Json.obj("key" -> Json.fromString("updated")), instant, Anonymous)
+        val updated =
+          Updated(id, orgRef, 3L, Set.empty, Json.obj("key" -> Json.fromString("updated")), instant, Anonymous)
         val ev2 =
-          Created(id.copy(parent = ProjectRef(genUUID)), schema, Set.empty, json, clock.instant(), Anonymous)
+          Created(id.copy(parent = ProjectRef(genUUID)), orgRef, schema, Set.empty, json, clock.instant(), Anonymous)
 
         val expected = List(ev2, updated)
 

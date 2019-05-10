@@ -82,7 +82,8 @@ class ResolverIndexerMappingSpec
     val json      = jsonContentOf("/resolve/cross-project.json").appendContextOf(resolverCtx)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
     val resolver  = Resolver(resourceV).right.value
-    val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
+    val ev =
+      Created(id, OrganizationRef(project.organizationUuid), schema, types, json, clock.instant(), Anonymous)
 
     "return a resolver" in {
       projectCache.get(projectRef) shouldReturn IO.pure(Some(project))

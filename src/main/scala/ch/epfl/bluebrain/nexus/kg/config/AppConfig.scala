@@ -275,6 +275,7 @@ object AppConfig {
       "message",
       "details",
       nxv.resourceId.prefix,
+      nxv.organization.prefix,
       nxv.storageId.prefix,
       nxv.total.prefix,
       nxv.maxScore.prefix,

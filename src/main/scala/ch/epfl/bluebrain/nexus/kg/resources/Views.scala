@@ -164,6 +164,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     materializer.withMeta(resource).flatMap(outputResource)
 
   private def create(id: ResId, graph: RootedGraph)(implicit acls: AccessControlLists,
+                                                    project: Project,
                                                     caller: Caller): RejOrResource[F] = {
     val typedGraph = addViewType(id.value, graph)
     val types      = typedGraph.rootTypes.map(_.value)
@@ -172,7 +173,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
       _        <- validateShacl(typedGraph)
       view     <- viewValidation(id, typedGraph, 1L, types)
       json     <- jsonForRepo(view)
-      resource <- repo.create(id, viewRef, types, json)
+      resource <- repo.create(id, OrganizationRef(project.organizationUuid), viewRef, types, json)
     } yield resource
   }
 

@@ -4,7 +4,7 @@ import akka.persistence.journal.{Tagged, WriteEventAdapter}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.persistence.TaggingAdapter.EventTag
 import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Deprecated, Updated}
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, Id, OrganizationRef, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 
 /**
@@ -14,15 +14,15 @@ class TaggingAdapter extends WriteEventAdapter {
 
   override def manifest(event: Any): String = ""
 
-  def tagsFrom(id: Id[ProjectRef], types: Set[Iri.AbsoluteIri]): Set[String] =
-    types.map(t => s"type=${t.show}") + s"project=${id.parent.id}" + EventTag
+  def tagsFrom(id: Id[ProjectRef], organization: OrganizationRef, types: Set[Iri.AbsoluteIri]): Set[String] =
+    types.map(t => s"type=${t.show}") + s"project=${id.parent.id}" + s"org=${organization.show}" + EventTag
 
   override def toJournal(event: Any): Any = event match {
-    case Created(id, _, types, _, _, _) => Tagged(event, tagsFrom(id, types))
-    case Updated(id, _, types, _, _, _) => Tagged(event, tagsFrom(id, types))
-    case Deprecated(id, _, types, _, _) => Tagged(event, tagsFrom(id, types))
-    case ev: Event                      => Tagged(ev, tagsFrom(ev.id, types = Set.empty))
-    case _                              => event
+    case Created(id, org, _, types, _, _, _) => Tagged(event, tagsFrom(id, org, types))
+    case Updated(id, org, _, types, _, _, _) => Tagged(event, tagsFrom(id, org, types))
+    case Deprecated(id, org, _, types, _, _) => Tagged(event, tagsFrom(id, org, types))
+    case ev: Event                           => Tagged(ev, tagsFrom(ev.id, ev.organization, types = Set.empty))
+    case _                                   => event
   }
 }
 

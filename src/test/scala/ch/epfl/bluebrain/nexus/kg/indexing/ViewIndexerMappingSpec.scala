@@ -81,7 +81,8 @@ class ViewIndexerMappingSpec
     val json      = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
     val resourceV = simpleV(id, json, rev = 2, schema = schema, types = types)
     val view      = View(resourceV).right.value
-    val ev        = Created(id, schema, types, json, clock.instant(), Anonymous)
+    val ev =
+      Created(id, OrganizationRef(project.organizationUuid), schema, types, json, clock.instant(), Anonymous)
 
     "return a view" in {
       views.fetchView(id) shouldReturn EitherT.rightT[IO, Rejection](view)

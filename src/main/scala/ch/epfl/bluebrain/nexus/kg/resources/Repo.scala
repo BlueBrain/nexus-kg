@@ -41,17 +41,22 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
   /**
     * Creates a new resource.
     *
-    * @param id      the id of the resource
-    * @param schema  the schema that constrains the resource
-    * @param types   the collection of known types of the resource
-    * @param source  the source representation
-    * @param subject the subject that generated the change
-    * @param instant an optionally provided operation instant
+    * @param id           the id of the resource
+    * @param organization the organization id of the resource
+    * @param schema       the schema that constrains the resource
+    * @param types        the collection of known types of the resource
+    * @param source       the source representation
+    * @param subject      the subject that generated the change
+    * @param instant      an optionally provided operation instant
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId, schema: Ref, types: Set[AbsoluteIri], source: Json, instant: Instant = clock.instant)(
-      implicit subject: Subject): EitherT[F, Rejection, Resource] =
-    evaluate(id, Create(id, schema, types, source, instant, subject))
+  def create(id: ResId,
+             organization: OrganizationRef,
+             schema: Ref,
+             types: Set[AbsoluteIri],
+             source: Json,
+             instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, Create(id, organization, schema, types, source, instant, subject))
 
   /**
     * Updates a resource.
@@ -99,15 +104,17 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
   /**
     * Creates a file resource.
     *
-    * @param id       the id of the resource
-    * @param storage  the storage where the file is going to be saved
-    * @param fileDesc the file description metadata
-    * @param source   the source of the file
-    * @param instant  an optionally provided operation instant
+    * @param id           the id of the resource
+    * @param organization the organization id of the resource
+    * @param storage      the storage where the file is going to be saved
+    * @param fileDesc     the file description metadata
+    * @param source       the source of the file
+    * @param instant      an optionally provided operation instant
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
   def createFile[In](id: ResId,
+                     organization: OrganizationRef,
                      storage: Storage,
                      fileDesc: FileDescription,
                      source: In,
@@ -115,7 +122,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
                                                        saveStorage: Save[F, In]): EitherT[F, Rejection, Resource] =
     EitherT
       .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => evaluate(id, CreateFile(id, storage, attr, instant, subject)))
+      .flatMap(attr => evaluate(id, CreateFile(id, organization, storage, attr, instant, subject)))
 
   /**
     * Replaces a file resource.
@@ -143,14 +150,16 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
   /**
     * Creates a link to an existing file.
     *
-    * @param id       the id of the resource
-    * @param storage  the storage where the file is going to be linked
-    * @param fileDesc the file description metadata
-    * @param path     the relative (from the storage) file location
-    * @param instant  an optionally provided operation instant
+    * @param id           the id of the resource
+    * @param organization the organization id of the resource
+    * @param storage      the storage where the file is going to be linked
+    * @param fileDesc     the file description metadata
+    * @param path         the relative (from the storage) file location
+    * @param instant      an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
   def createLink(id: ResId,
+                 organization: OrganizationRef,
                  storage: Storage,
                  fileDesc: FileDescription,
                  path: Uri.Path,
@@ -158,7 +167,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
                                                    linkStorage: Link[F]): EitherT[F, Rejection, Resource] =
     EitherT
       .right(storage.link.apply(id, fileDesc, path))
-      .flatMap(attr => evaluate(id, CreateFile(id, storage, attr, instant, subject)))
+      .flatMap(attr => evaluate(id, CreateFile(id, organization, storage, attr, instant, subject)))
 
   /**
     * Updates a link to an existing file.
@@ -252,21 +261,21 @@ object Repo {
   //noinspection NameBooleanParameters
   final def next(state: State, ev: Event): State =
     (state, ev) match {
-      case (Initial, e @ Created(id, schema, types, value, tm, ident)) =>
-        Current(id, e.rev, types, false, Map.empty, None, tm, tm, ident, ident, schema, value)
-      case (Initial, e @ FileCreated(id, storage, file, tm, ident)) =>
+      case (Initial, e @ Created(id, org, schema, types, value, tm, ident)) =>
+        Current(id, org, e.rev, types, false, Map.empty, None, tm, tm, ident, ident, schema, value)
+      case (Initial, e @ FileCreated(id, org, storage, file, tm, ident)) =>
         // format: off
-        Current(id, e.rev, e.types, deprecated = false, Map.empty, Some(storage -> file), tm, tm, ident, ident, e.schema, Json.obj())
+        Current(id, org, e.rev, e.types, deprecated = false, Map.empty, Some(storage -> file), tm, tm, ident, ident, e.schema, Json.obj())
       // format: on
       case (Initial, _) => Initial
-      case (c: Current, TagAdded(_, rev, targetRev, name, tm, ident)) =>
+      case (c: Current, TagAdded(_, _, rev, targetRev, name, tm, ident)) =>
         c.copy(rev = rev, tags = c.tags + (name -> targetRev), updated = tm, updatedBy = ident)
       case (c: Current, _) if c.deprecated => c
-      case (c: Current, Deprecated(_, rev, _, tm, ident)) =>
+      case (c: Current, Deprecated(_, _, rev, _, tm, ident)) =>
         c.copy(rev = rev, updated = tm, updatedBy = ident, deprecated = true)
-      case (c: Current, Updated(_, rev, types, value, tm, ident)) =>
+      case (c: Current, Updated(_, _, rev, types, value, tm, ident)) =>
         c.copy(rev = rev, types = types, source = value, updated = tm, updatedBy = ident)
-      case (c: Current, FileUpdated(_, storage, rev, file, tm, ident)) =>
+      case (c: Current, FileUpdated(_, _, storage, rev, file, tm, ident)) =>
         c.copy(rev = rev, file = Some(storage -> file), updated = tm, updatedBy = ident)
     }
 
@@ -281,13 +290,13 @@ object Repo {
     def create(c: Create): Either[Rejection, Created] =
       state match {
         case _ if c.schema == fileRef => Left(NotAFileResource(c.id.ref))
-        case Initial                  => Right(Created(c.id, c.schema, c.types, c.source, c.instant, c.subject))
+        case Initial                  => Right(Created(c.id, c.organization, c.schema, c.types, c.source, c.instant, c.subject))
         case _                        => Left(ResourceAlreadyExists(c.id.ref))
       }
 
     def createFile(c: CreateFile): Either[Rejection, FileCreated] =
       state match {
-        case Initial => Right(FileCreated(c.id, c.storage, c.value, c.instant, c.subject))
+        case Initial => Right(FileCreated(c.id, c.organization, c.storage, c.value, c.instant, c.subject))
         case _       => Left(ResourceAlreadyExists(c.id.ref))
       }
 
@@ -297,7 +306,7 @@ object Repo {
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
         case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
         case s: Current if s.file.isEmpty => Left(NotAFileResource(c.id.ref))
-        case s: Current                   => Right(FileUpdated(s.id, c.storage, s.rev + 1, c.value, c.instant, c.subject))
+        case s: Current                   => Right(FileUpdated(s.id, s.organization, c.storage, s.rev + 1, c.value, c.instant, c.subject))
       }
 
     def update(c: Update): Either[Rejection, Updated] =
@@ -306,9 +315,9 @@ object Repo {
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
         case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
         case s: Current if s.schema == viewRef =>
-          Right(
-            Updated(s.id, s.rev + 1, c.types, changeView(c.source, extractUuidFrom(s.source)), c.instant, c.subject))
-        case s: Current => Right(Updated(s.id, s.rev + 1, c.types, c.source, c.instant, c.subject))
+          val updatedJson = changeView(c.source, extractUuidFrom(s.source))
+          Right(Updated(s.id, s.organization, s.rev + 1, c.types, updatedJson, c.instant, c.subject))
+        case s: Current => Right(Updated(s.id, s.organization, s.rev + 1, c.types, c.source, c.instant, c.subject))
       }
 
     def tag(c: AddTag): Either[Rejection, TagAdded] =
@@ -317,7 +326,7 @@ object Repo {
         case s: Current if s.rev != c.rev      => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
         case s: Current if s.rev < c.targetRev => Left(IncorrectRev(c.id.ref, c.targetRev, s.rev))
         case s: Current if s.deprecated        => Left(ResourceIsDeprecated(c.id.ref))
-        case s: Current                        => Right(TagAdded(s.id, s.rev + 1, c.targetRev, c.tag, c.instant, c.subject))
+        case s: Current                        => Right(TagAdded(s.id, s.organization, s.rev + 1, c.targetRev, c.tag, c.instant, c.subject))
       }
 
     def deprecate(c: Deprecate): Either[Rejection, Deprecated] =
@@ -325,7 +334,7 @@ object Repo {
         case Initial                      => Left(NotFound(c.id.ref))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
         case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
-        case s: Current                   => Right(Deprecated(s.id, s.rev + 1, s.types, c.instant, c.subject))
+        case s: Current                   => Right(Deprecated(s.id, s.organization, s.rev + 1, s.types, c.instant, c.subject))
       }
 
     cmd match {

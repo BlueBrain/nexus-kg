@@ -60,12 +60,12 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
             case (metadata, byteSource) =>
               val description = FileDescription(metadata.fileName, metadata.contentType)
               trace("createFile") {
-                val created = files.create(project.ref, project.base, storage, description, byteSource)
+                val created = files.create(storage, description, byteSource)
                 complete(created.value.runWithStatus(Created))
               }
           } ~ entity(as[Json]) { source =>
             trace("createLink") {
-              val created = files.createLink(project.ref, project.base, storage, source)
+              val created = files.createLink(storage, source)
               complete(created.value.runWithStatus(Created))
             }
           }
