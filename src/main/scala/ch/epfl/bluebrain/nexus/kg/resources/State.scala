@@ -52,21 +52,23 @@ object State {
   /**
     * An existing resource state.
     *
-    * @param id         the resource identifier
-    * @param rev        the resource revision
-    * @param types      the collection of known resource types
-    * @param deprecated whether the resource is deprecated or not
-    * @param tags       the collection of resource tags
-    * @param file       the optional file
-    * @param created    the instant when the resource was created
-    * @param updated    the instant when the resource was last updated
-    * @param createdBy  the subject that created the resource
-    * @param updatedBy  the subject that last updated the resource
-    * @param schema     the schema reference that constrains this resource
-    * @param source     the source representation of the resource
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param rev          the resource revision
+    * @param types        the collection of known resource types
+    * @param deprecated   whether the resource is deprecated or not
+    * @param tags         the collection of resource tags
+    * @param file         the optional file
+    * @param created      the instant when the resource was created
+    * @param updated      the instant when the resource was last updated
+    * @param createdBy    the subject that created the resource
+    * @param updatedBy    the subject that last updated the resource
+    * @param schema       the schema reference that constrains this resource
+    * @param source       the source representation of the resource
     */
   final case class Current(
       id: Id[ProjectRef],
+      organization: OrganizationRef,
       rev: Long,
       types: Set[AbsoluteIri],
       deprecated: Boolean,

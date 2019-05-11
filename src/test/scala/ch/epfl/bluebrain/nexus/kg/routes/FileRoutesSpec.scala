@@ -175,9 +175,9 @@ class FileRoutesSpec
 
     "create a file without @id" in new Context {
       files
-        .create(eqTo(projectRef), eqTo(projectMeta.base), eqTo(storage), eqTo(fileDesc), any[AkkaSource])(
-          eqTo(caller.subject),
-          any[Save[Task, AkkaSource]])
+        .create(eqTo(storage), eqTo(fileDesc), any[AkkaSource])(eqTo(caller.subject),
+                                                                eqTo(finalProject),
+                                                                any[Save[Task, AkkaSource]])
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       Post(s"/v1/files/$organization/$project", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -193,6 +193,7 @@ class FileRoutesSpec
     "create a file with @id" in new Context {
       files
         .create(eqTo(id), eqTo(storage), eqTo(fileDesc), any[AkkaSource])(eqTo(caller.subject),
+                                                                          eqTo(finalProject),
                                                                           any[Save[Task, AkkaSource]])
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
@@ -228,8 +229,7 @@ class FileRoutesSpec
 
     "create a link without @id" in new Context {
       files
-        .createLink(eqTo(projectRef), eqTo(projectMeta.base), eqTo(storage), eqTo(fileLink))(eqTo(caller.subject),
-                                                                                             any[Link[Task]])
+        .createLink(eqTo(storage), eqTo(fileLink))(eqTo(caller.subject), eqTo(finalProject), any[Link[Task]])
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       Post(s"/v1/files/$organization/$project", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -244,7 +244,7 @@ class FileRoutesSpec
 
     "create a link with @id" in new Context {
       files
-        .createLink(eqTo(id), eqTo(storage), eqTo(fileLink))(eqTo(caller.subject), any[Link[Task]])
+        .createLink(eqTo(id), eqTo(storage), eqTo(fileLink))(eqTo(caller.subject), eqTo(finalProject), any[Link[Task]])
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       Put(s"/v1/files/$organization/$project/$urlEncodedId", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {

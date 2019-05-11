@@ -77,7 +77,8 @@ class SparqlIndexerMappingSpec
     val schema: Ref           = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
     val json                  = Json.obj("key" -> Json.fromInt(2))
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-    val ev                    = Created(id, schema, Set.empty, json, clock.instant(), Anonymous)
+    val ev =
+      Created(id, OrganizationRef(project.organizationUuid), schema, Set.empty, json, clock.instant(), Anonymous)
 
     "using default view" should {
 

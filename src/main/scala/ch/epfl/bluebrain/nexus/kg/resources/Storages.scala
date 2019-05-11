@@ -159,7 +159,9 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
       resourceV.map(_.copy(graph = RootedGraph(graph.rootNode, finalGraph)))
     }
 
-  private def create(id: ResId, graph: RootedGraph)(implicit subject: Subject, verify: Verify[F]): RejOrResource[F] = {
+  private def create(id: ResId, graph: RootedGraph)(implicit subject: Subject,
+                                                    project: Project,
+                                                    verify: Verify[F]): RejOrResource[F] = {
     val typedGraph = addStorageType(id.value, graph)
     val types      = typedGraph.rootTypes.map(_.value)
 
@@ -167,7 +169,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
       _        <- validateShacl(typedGraph)
       storage  <- storageValidation(id, typedGraph, 1L, types)
       json     <- jsonForRepo(storage)
-      resource <- repo.create(id, storageRef, types, json)
+      resource <- repo.create(id, OrganizationRef(project.organizationUuid), storageRef, types, json)
     } yield resource
   }
 

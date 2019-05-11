@@ -34,6 +34,11 @@ sealed trait Event extends Product with Serializable {
   def id: Id[ProjectRef]
 
   /**
+    * @return the organization resource identifier
+    */
+  def organization: OrganizationRef
+
+  /**
     * @return the revision that this event generated
     */
   def rev: Long
@@ -54,15 +59,17 @@ object Event {
   /**
     * A witness to a resource creation.
     *
-    * @param id      the resource identifier
-    * @param schema  the schema that was used to constrain the resource
-    * @param types   the collection of known resource types
-    * @param source  the source representation of the resource
-    * @param instant the instant when this event was recorded
-    * @param subject the identity which generated this event
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param schema       the schema that was used to constrain the resource
+    * @param types        the collection of known resource types
+    * @param source       the source representation of the resource
+    * @param instant      the instant when this event was recorded
+    * @param subject      the identity which generated this event
     */
   final case class Created(
       id: Id[ProjectRef],
+      organization: OrganizationRef,
       schema: Ref,
       types: Set[AbsoluteIri],
       source: Json,
@@ -79,15 +86,17 @@ object Event {
   /**
     * A witness to a resource update.
     *
-    * @param id      the resource identifier
-    * @param rev     the revision that this event generated
-    * @param types   the collection of new known resource types
-    * @param source  the source representation of the new resource value
-    * @param instant the instant when this event was recorded
-    * @param subject the identity which generated this event
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param rev          the revision that this event generated
+    * @param types        the collection of new known resource types
+    * @param source       the source representation of the new resource value
+    * @param instant      the instant when this event was recorded
+    * @param subject      the identity which generated this event
     */
   final case class Updated(
       id: Id[ProjectRef],
+      organization: OrganizationRef,
       rev: Long,
       types: Set[AbsoluteIri],
       source: Json,
@@ -98,14 +107,16 @@ object Event {
   /**
     * A witness to a resource deprecation.
     *
-    * @param id      the resource identifier
-    * @param rev     the revision that this event generated
-    * @param types   the collection of new known resource types
-    * @param instant the instant when this event was recorded
-    * @param subject the identity which generated this event
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param rev          the revision that this event generated
+    * @param types        the collection of new known resource types
+    * @param instant      the instant when this event was recorded
+    * @param subject      the identity which generated this event
     */
   final case class Deprecated(
       id: Id[ProjectRef],
+      organization: OrganizationRef,
       rev: Long,
       types: Set[AbsoluteIri],
       instant: Instant,
@@ -115,15 +126,17 @@ object Event {
   /**
     * A witness to a resource tagging. This event creates an alias for a revision.
     *
-    * @param id        the resource identifier
-    * @param rev       the revision that this event generated
-    * @param targetRev the revision that is being aliased with the provided ''tag''
-    * @param tag       the tag of the alias for the provided ''rev''
-    * @param instant   the instant when this event was recorded
-    * @param subject   the identity which generated this event
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param rev          the revision that this event generated
+    * @param targetRev    the revision that is being aliased with the provided ''tag''
+    * @param tag          the tag of the alias for the provided ''rev''
+    * @param instant      the instant when this event was recorded
+    * @param subject      the identity which generated this event
     */
   final case class TagAdded(
       id: Id[ProjectRef],
+      organization: OrganizationRef,
       rev: Long,
       targetRev: Long,
       tag: String,
@@ -134,14 +147,16 @@ object Event {
   /**
     * A witness that a file resource has been created.
     *
-    * @param id         the resource identifier
-    * @param storage    the storage used to save the file
-    * @param attributes the metadata of the file
-    * @param instant    the instant when this event was recorded
-    * @param subject    the identity which generated this event
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param storage      the storage used to save the file
+    * @param attributes   the metadata of the file
+    * @param instant      the instant when this event was recorded
+    * @param subject      the identity which generated this event
     */
   final case class FileCreated(
       id: Id[ProjectRef],
+      organization: OrganizationRef,
       storage: Storage,
       attributes: FileAttributes,
       instant: Instant,
@@ -167,15 +182,17 @@ object Event {
   /**
     * A witness that a file resource has been updated.
     *
-    * @param id         the resource identifier
-    * @param storage    the storage used to save the file
-    * @param rev        the revision that this event generated
-    * @param attributes the metadata of the file
-    * @param instant    the instant when this event was recorded
-    * @param subject    the identity which generated this event
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param storage      the storage used to save the file
+    * @param rev          the revision that this event generated
+    * @param attributes   the metadata of the file
+    * @param instant      the instant when this event was recorded
+    * @param subject      the identity which generated this event
     */
   final case class FileUpdated(
       id: Id[ProjectRef],
+      organization: OrganizationRef,
       storage: Storage,
       rev: Long,
       attributes: FileAttributes,
@@ -194,23 +211,24 @@ object Event {
     private implicit val config: Configuration = Configuration.default
       .withDiscriminator("@type")
       .copy(transformMemberNames = {
-        case "id"         => "_resourceId"
-        case "storage"    => "_storage"
-        case "rev"        => "_rev"
-        case "instant"    => "_instant"
-        case "subject"    => "_subject"
-        case "schema"     => "_constrainedBy"
-        case "attributes" => "_attributes"
-        case "source"     => "_source"
-        case "types"      => "_types"
-        case "bytes"      => "_bytes"
-        case "digest"     => "_digest"
-        case "algorithm"  => "_algorithm"
-        case "value"      => "_value"
-        case "filename"   => "_filename"
-        case "mediaType"  => "_mediaType"
-        case "location"   => "_location"
-        case other        => other
+        case "id"           => "_resourceId"
+        case "organization" => "_organization"
+        case "storage"      => "_storage"
+        case "rev"          => "_rev"
+        case "instant"      => "_instant"
+        case "subject"      => "_subject"
+        case "schema"       => "_constrainedBy"
+        case "attributes"   => "_attributes"
+        case "source"       => "_source"
+        case "types"        => "_types"
+        case "bytes"        => "_bytes"
+        case "digest"       => "_digest"
+        case "algorithm"    => "_algorithm"
+        case "value"        => "_value"
+        case "filename"     => "_filename"
+        case "mediaType"    => "_mediaType"
+        case "location"     => "_location"
+        case other          => other
       })
 
     private implicit val refEncoder: Encoder[Ref]          = Encoder.encodeJson.contramap(_.iri.asJson)

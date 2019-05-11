@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.search.Pagination
@@ -14,10 +15,10 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileDescription, LinkDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
 class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
@@ -25,18 +26,16 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
   /**
     * Creates a file resource.
     *
-    * @param projectRef reference for the project in which the resource is going to be created.\
-    * @param base       base used to generate new ids
     * @param storage    the storage where the file is going to be saved
     * @param fileDesc   the file description metadata
     * @param source     the source of the file
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def create[In](projectRef: ProjectRef, base: AbsoluteIri, storage: Storage, fileDesc: FileDescription, source: In)(
-      implicit subject: Subject,
-      saveStorage: Save[F, In]): RejOrResource[F] =
-    create(Id(projectRef, generateId(base)), storage, fileDesc, source)
+  def create[In](storage: Storage, fileDesc: FileDescription, source: In)(implicit subject: Subject,
+                                                                          project: Project,
+                                                                          saveStorage: Save[F, In]): RejOrResource[F] =
+    create(Id(project.ref, generateId(project.base)), storage, fileDesc, source)
 
   /**
     * Creates a file resource.
@@ -50,8 +49,9 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     */
   def create[In](id: ResId, storage: Storage, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
+      project: Project,
       saveStorage: Save[F, In]): RejOrResource[F] =
-    repo.createFile(id, storage, fileDesc, source)
+    repo.createFile(id, OrganizationRef(project.organizationUuid), storage, fileDesc, source)
 
   /**
     * Replaces a file resource.
@@ -72,16 +72,13 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
   /**
     * Creates a link to an existing file.
     *
-    * @param projectRef reference for the project in which the resource is going to be created.\
-    * @param base       base used to generate new ids
     * @param storage    the storage where the file is going to be saved
     * @param source     the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def createLink(projectRef: ProjectRef, base: AbsoluteIri, storage: Storage, source: Json)(
-      implicit subject: Subject,
-      linkStorage: Link[F]): RejOrResource[F] =
-    createLink(Id(projectRef, generateId(base)), storage, source)
+  def createLink(storage: Storage,
+                 source: Json)(implicit subject: Subject, project: Project, linkStorage: Link[F]): RejOrResource[F] =
+    createLink(Id(project.ref, generateId(project.base)), storage, source)
 
   /**
     * Creates a link to an existing file.
@@ -92,9 +89,11 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     * @return either a rejection or the new resource representation in the F context
     */
   def createLink(id: ResId, storage: Storage, source: Json)(implicit subject: Subject,
+                                                            project: Project,
                                                             linkStorage: Link[F]): RejOrResource[F] = {
     EitherT.fromEither[F](LinkDescription(id, source)).flatMap { link =>
-      repo.createLink(id, storage, FileDescription(link.filename, link.mediaType), link.path)
+      val organizationRef = OrganizationRef(project.organizationUuid)
+      repo.createLink(id, organizationRef, storage, FileDescription(link.filename, link.mediaType), link.path)
     }
   }
 

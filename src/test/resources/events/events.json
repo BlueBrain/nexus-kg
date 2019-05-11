@@ -3,6 +3,7 @@
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "Created",
     "_resourceId": "http://example.com/base/Created",
+    "_organization": "17a62c6a-4dc4-4eaa-b418-42d0634695a1",
     "_source": {
       "@type": "created"
     },
@@ -18,6 +19,7 @@
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "Updated",
     "_resourceId": "http://example.com/base/created",
+    "_organization": "17a62c6a-4dc4-4eaa-b418-42d0634695a1",
     "_source": {
       "@type": "Updated"
     },
@@ -33,6 +35,7 @@
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "Deprecated",
     "_resourceId": "http://example.com/base/created",
+    "_organization": "17a62c6a-4dc4-4eaa-b418-42d0634695a1",
     "_types": [
       "http://example.com/base/type"
     ],
@@ -45,6 +48,7 @@
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "TagAdded",
     "_resourceId": "http://example.com/base/created",
+    "_organization": "17a62c6a-4dc4-4eaa-b418-42d0634695a1",
     "tag": "v1.0.0",
     "targetRev": 2,
     "_projectUuid": "7f8039a0-3141-11e9-b210-d663bd873d93",
@@ -56,6 +60,7 @@
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "FileCreated",
     "_resourceId": "http://example.com/base/file",
+    "_organization": "17a62c6a-4dc4-4eaa-b418-42d0634695a1",
     "_attributes": {
       "_bytes": 47,
       "_digest": {
@@ -82,6 +87,7 @@
     "@context": "https://bluebrain.github.io/nexus/contexts/resource.json",
     "@type": "FileUpdated",
     "_resourceId": "http://example.com/base/file",
+    "_organization": "17a62c6a-4dc4-4eaa-b418-42d0634695a1",
     "_attributes": {
       "_bytes": 47,
       "_digest": {

@@ -70,7 +70,9 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
 
   private def create(id: ResId, schema: Ref, source: Json, graph: RootedGraph)(implicit subject: Subject,
                                                                                project: Project): RejOrResource[F] =
-    validate(schema, graph).flatMap(_ => repo.create(id, schema, graph.types(id.value).map(_.value), source))
+    validate(schema, graph).flatMap { _ =>
+      repo.create(id, OrganizationRef(project.organizationUuid), schema, graph.types(id.value).map(_.value), source)
+    }
 
   /**
     * Updates an existing resource.

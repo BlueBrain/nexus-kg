@@ -65,6 +65,7 @@ class RepoSpec
   //noinspection TypeAnnotation
   trait Context {
     val projectRef                = ProjectRef(genUUID)
+    val organizationRef           = OrganizationRef(genUUID)
     val iri                       = randomIri()
     val id                        = Id(projectRef, iri)
     val value                     = randomJson()
@@ -87,14 +88,14 @@ class RepoSpec
 
     "performing create operations" should {
       "create a new resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldEqual
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldEqual
           ResourceF.simpleF(id, value, schema = Latest(schema))
       }
 
       "prevent to create a new resource that already exists" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo
-          .create(id, Latest(schema), Set.empty, value)
+          .create(id, organizationRef, Latest(schema), Set.empty, value)
           .value
           .rejected[ResourceAlreadyExists] shouldEqual ResourceAlreadyExists(id.ref)
       }
@@ -102,7 +103,7 @@ class RepoSpec
 
     "performing update operations" should {
       "update a resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
         repo.update(id, 1L, types, json).value.accepted shouldEqual
@@ -114,14 +115,14 @@ class RepoSpec
       }
 
       "prevent to update a resource with an incorrect revision" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
         repo.update(id, 3L, types, json).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent to update a deprecated resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
@@ -131,7 +132,7 @@ class RepoSpec
 
     "performing deprecate operations" should {
       "deprecate a resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 2L, schema = Latest(schema), deprecated = true)
@@ -142,12 +143,12 @@ class RepoSpec
       }
 
       "prevent to deprecate a resource with an incorrect revision" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 3L).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent to deprecate a deprecated resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 2L).value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
@@ -155,7 +156,7 @@ class RepoSpec
 
     "performing tag operations" should {
       "tag a resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
         repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
@@ -167,18 +168,18 @@ class RepoSpec
       }
 
       "prevent to tag a resource with an incorrect revision" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.tag(id, 3L, 1L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent to tag a deprecated resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
         repo.tag(id, 2L, 1L, "name").value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
 
       "prevent to tag a resource with a higher tag than current revision" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
         repo.tag(id, 2L, 4L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 4L, 2L)
@@ -198,7 +199,7 @@ class RepoSpec
       "create file resource" in new File {
         saveFile(id, desc, source) shouldReturn IO.pure(attributes)
 
-        repo.createFile(id, storage, desc, source).value.accepted shouldEqual
+        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
       }
 
@@ -206,7 +207,7 @@ class RepoSpec
         saveFile(id, desc, source) shouldReturn IO.pure(attributes)
         saveFile(id, desc, source2) shouldReturn IO.pure(attributes2)
 
-        repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
+        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldBe a[Resource]
         repo.updateFile(id, storage, 1L, desc, source2).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes2))
       }
@@ -214,14 +215,14 @@ class RepoSpec
       "prevent to update a file resource with an incorrect revision" in new File {
         saveFile(id, desc, source) shouldReturn IO.pure(attributes)
 
-        repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
+        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldBe a[Resource]
         repo.updateFile(id, storage, 3L, desc, source).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent update a file resource to a deprecated resource" in new File {
         saveFile(id, desc, source) shouldReturn IO.pure(attributes)
-        repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
+        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
         repo
@@ -232,7 +233,7 @@ class RepoSpec
 
       "prevent to create a file resource which fails on attempting to store" in new File {
         saveFile(id, desc, source) shouldReturn IO.raiseError(KgError.InternalError(""))
-        repo.createFile(id, storage, desc, source).value.failed[KgError.InternalError]
+        repo.createFile(id, organizationRef, storage, desc, source).value.failed[KgError.InternalError]
       }
     }
 
@@ -249,7 +250,7 @@ class RepoSpec
       "create link" in new File {
         linkFile(id, desc, path) shouldReturn IO.pure(attributes)
 
-        repo.createLink(id, storage, desc, path).value.accepted shouldEqual
+        repo.createLink(id, organizationRef, storage, desc, path).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
       }
 
@@ -257,7 +258,7 @@ class RepoSpec
         linkFile(id, desc, path) shouldReturn IO.pure(attributes)
         linkFile(id, desc, path2) shouldReturn IO.pure(attributes2)
 
-        repo.createLink(id, storage, desc, path).value.accepted shouldBe a[Resource]
+        repo.createLink(id, organizationRef, storage, desc, path).value.accepted shouldBe a[Resource]
         repo.updateLink(id, storage, desc, path2, 1L).value.accepted shouldEqual
           ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes2))
       }
@@ -265,14 +266,14 @@ class RepoSpec
       "prevent link update with an incorrect revision" in new File {
         linkFile(id, desc, path) shouldReturn IO.pure(attributes)
 
-        repo.createLink(id, storage, desc, path).value.accepted shouldBe a[Resource]
+        repo.createLink(id, organizationRef, storage, desc, path).value.accepted shouldBe a[Resource]
         repo.updateLink(id, storage, desc, path, 3L).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent link update to a deprecated resource" in new File {
         linkFile(id, desc, path) shouldReturn IO.pure(attributes)
-        repo.createLink(id, storage, desc, path).value.accepted shouldBe a[Resource]
+        repo.createLink(id, organizationRef, storage, desc, path).value.accepted shouldBe a[Resource]
 
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
         repo
@@ -283,13 +284,13 @@ class RepoSpec
 
       "prevent link creation when the store operation fails" in new File {
         linkFile(id, desc, path) shouldReturn IO.raiseError(KgError.InternalError(""))
-        repo.createLink(id, storage, desc, path).value.failed[KgError.InternalError]
+        repo.createLink(id, organizationRef, storage, desc, path).value.failed[KgError.InternalError]
       }
     }
 
     "performing get operations" should {
       "get a resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.get(id, None).value.some shouldEqual ResourceF.simpleF(id, value, schema = Latest(schema))
       }
 
@@ -298,13 +299,13 @@ class RepoSpec
       }
 
       "return None when getting a resource from the wrong schema" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.get(id, Some(genIri.ref)).value.ioValue shouldEqual None
         repo.get(id, 1L, Some(genIri.ref)).value.ioValue shouldEqual None
       }
 
       "return a specific revision of the resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set(nxv.Resource), json).value.accepted shouldBe a[Resource]
         repo.get(id, 1L, None).value.some shouldEqual
@@ -315,7 +316,7 @@ class RepoSpec
       }
 
       "return a specific tag of the resource" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set(nxv.Resource), json).value.accepted shouldBe a[Resource]
         repo.tag(id, 2L, 1L, "name").value.accepted shouldBe a[Resource]
@@ -329,7 +330,7 @@ class RepoSpec
 
     "performing get tag operations" should {
       "get a resource tag" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
         repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
@@ -342,13 +343,13 @@ class RepoSpec
       }
 
       "return None when getting a resource from the wrong schema" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         repo.get(id, Some(genIri.ref)).value.ioValue shouldEqual None
         repo.get(id, 1L, Some(genIri.ref)).value.ioValue shouldEqual None
       }
 
       "return a specific revision of the resource tags" in new Context {
-        repo.create(id, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
         repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
         repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
@@ -375,7 +376,7 @@ class RepoSpec
 
       "get a file resource" in new File {
         saveFile(id, desc, source) shouldReturn IO.pure(attributes)
-        repo.createFile(id, storage, desc, source).value.accepted shouldBe a[Resource]
+        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldBe a[Resource]
 
         saveFile(id, desc2, source2) shouldReturn IO.pure(attributes2)
         repo.updateFile(id, storage, 1L, desc2, source2).value.accepted shouldBe a[Resource]
