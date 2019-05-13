@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.headers.{`WWW-Authenticate`, HttpChallenges, Loc
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, RejectionHandler, Route}
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, PredefinedFromEntityUnmarshallers}
-import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure._
 import ch.epfl.bluebrain.nexus.commons.http.directives.PrefixDirectives.uriPrefix
@@ -201,13 +201,6 @@ object Routes {
         }
       }
 
-    def orgEvents(implicit organization: Organization, acls: AccessControlLists, caller: Caller): Route =
-      (pathPrefix("events") & get & pathEndOrSingleSlash) {
-        trace("eventOrganizationResource") {
-          new EventRoutes(acls, caller).routes(organization)
-        }
-      }
-
     def createDefault(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(
         ResourceRoutes.write)) {
@@ -258,20 +251,20 @@ object Routes {
                 (pathPrefix(config.http.prefix / "resources" / "events") & pathEndOrSingleSlash) {
                   new GlobalEventRoutes(acls, caller).routes
                 },
-                pathPrefix(config.http.prefix / Segment) { resourceSegment =>
-                  concat(
-                    project.apply { implicit project =>
-                      resourceSegment match {
-                        case "resources" =>
-                          pathPrefix(IdSegmentOrUnderscore)(routesSelector) ~ list ~ createDefault ~ projectEvents
-                        case segment => mapToSchema(segment).map(routesSelector).getOrElse(reject())
-                      }
-                    },
-                    resourceSegment match {
-                      case "resources" => org.apply(implicit org => orgEvents)
-                      case _           => reject()
+                (pathPrefix(config.http.prefix / "resources") & org & pathPrefix("events") & get & pathEndOrSingleSlash) {
+                  implicit organization =>
+                    trace("eventOrganizationResource") {
+                      new EventRoutes(acls, caller).routes(organization)
                     }
-                  )
+                },
+                pathPrefix(config.http.prefix / Segment) { resourceSegment =>
+                  project.apply { implicit project =>
+                    resourceSegment match {
+                      case "resources" =>
+                        pathPrefix(IdSegmentOrUnderscore)(routesSelector) ~ list ~ createDefault ~ projectEvents
+                      case segment => mapToSchema(segment).map(routesSelector).getOrElse(reject())
+                    }
+                  }
                 }
               )
           }
