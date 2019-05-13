@@ -251,10 +251,12 @@ object Routes {
                 (pathPrefix(config.http.prefix / "resources" / "events") & pathEndOrSingleSlash) {
                   new GlobalEventRoutes(acls, caller).routes
                 },
-                (pathPrefix(config.http.prefix / "resources") & org & pathPrefix("events") & get & pathEndOrSingleSlash) {
-                  implicit organization =>
-                    trace("eventOrganizationResource") {
-                      new EventRoutes(acls, caller).routes(organization)
+                (pathPrefix(config.http.prefix / "resources" / Segment) & pathPrefix("events") & get & pathEndOrSingleSlash) {
+                  label =>
+                    org(label).apply { implicit organization =>
+                      trace("eventOrganizationResource") {
+                        new EventRoutes(acls, caller).routes(organization)
+                      }
                     }
                 },
                 pathPrefix(config.http.prefix / Segment) { resourceSegment =>

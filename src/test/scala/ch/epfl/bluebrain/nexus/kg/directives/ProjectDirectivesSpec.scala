@@ -118,10 +118,10 @@ class ProjectDirectivesSpec
       )
     }
 
-    def orgRoute(): Route = {
+    def orgRoute(label: String): Route = {
       import monix.execution.Scheduler.Implicits.global
       Routes.wrap(
-        (get & org) { o =>
+        (get & org(label)) { o =>
           complete(StatusCodes.OK -> o)
         }
       )
@@ -183,7 +183,7 @@ class ProjectDirectivesSpec
 
       client.fetchOrganization("organization") shouldReturn Task.pure(Option(orgMeta))
 
-      Get("/organization") ~> orgRoute() ~> check {
+      Get("/") ~> orgRoute("organization") ~> check {
         responseAs[Organization] shouldEqual orgMeta
       }
     }
@@ -191,7 +191,7 @@ class ProjectDirectivesSpec
     "reject organization when not found on the admin client" in {
       client.fetchOrganization("organization") shouldReturn Task.pure(None)
 
-      Get("/organization") ~> orgRoute() ~> check {
+      Get("/") ~> orgRoute("organization") ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[OrganizationNotFound]
       }

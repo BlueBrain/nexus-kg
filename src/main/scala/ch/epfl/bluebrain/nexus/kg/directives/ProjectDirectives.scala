@@ -58,16 +58,17 @@ object ProjectDirectives {
 
   /**
     * Fetches organization configuration from nexus admin.
+    *
+    * @param label the organization label
     */
-  def org(implicit client: AdminClient[Task], cred: Option[AuthToken], s: Scheduler): Directive1[Organization] =
-    pathPrefix(Segment).flatMap { label =>
-      val result = client.fetchOrganization(label)
-      onSuccess(result.runToFuture)
-        .flatMap {
-          case None          => failWith(OrganizationNotFound(label))
-          case Some(project) => provide(project)
-        }
-    }
+  def org(label: String)(implicit client: AdminClient[Task],
+                         cred: Option[AuthToken],
+                         s: Scheduler): Directive1[Organization] =
+    onSuccess(client.fetchOrganization(label).runToFuture)
+      .flatMap {
+        case None          => failWith(OrganizationNotFound(label))
+        case Some(project) => provide(project)
+      }
 
   private def addDefaultMappings(project: Project) =
     project.copy(apiMappings = project.apiMappings ++ defaultPrefixMapping)
