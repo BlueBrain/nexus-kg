@@ -83,6 +83,9 @@ object Routes {
       case err: ProjectNotFound =>
         // suppress error
         complete(err: KgError)
+      case err: OrganizationNotFound =>
+        // suppress error
+        complete(err: KgError)
       case err: ProjectIsDeprecated =>
         // suppress error
         complete(err: KgError)
@@ -193,8 +196,8 @@ object Routes {
 
     def projectEvents(implicit project: Project, acls: AccessControlLists, caller: Caller): Route =
       (pathPrefix("events") & get & pathEndOrSingleSlash) {
-        trace("eventResource") {
-          new EventRoutes(acls, caller).routes
+        trace("eventProjectResource") {
+          new EventRoutes(acls, caller).routes(project)
         }
       }
 
@@ -247,6 +250,14 @@ object Routes {
                 },
                 (pathPrefix(config.http.prefix / "resources" / "events") & pathEndOrSingleSlash) {
                   new GlobalEventRoutes(acls, caller).routes
+                },
+                (pathPrefix(config.http.prefix / "resources" / Segment) & pathPrefix("events") & get & pathEndOrSingleSlash) {
+                  label =>
+                    org(label).apply { implicit organization =>
+                      trace("eventOrganizationResource") {
+                        new EventRoutes(acls, caller).routes(organization)
+                      }
+                    }
                 },
                 pathPrefix(config.http.prefix / Segment) { resourceSegment =>
                   project.apply { implicit project =>

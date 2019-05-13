@@ -7,7 +7,6 @@ import akka.http.scaladsl.model.headers.`Last-Event-ID`
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.persistence.query.{EventEnvelope, NoOffset, Offset, Sequence}
 import akka.stream.scaladsl.Source
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.resources.Event
@@ -16,12 +15,12 @@ import io.circe.Encoder
 
 class EventRoutesSpec extends EventsSpecBase {
 
-  val routes = new TestableEventRoutes(events, acls, caller).routes
+  val eventRoutes = new TestableEventRoutes(events, acls, caller)
 
   "EventRoutes" should {
 
     "return all events for a project" in {
-      Get("/") ~> routes ~> check {
+      Get("/") ~> eventRoutes.routes(project) ~> check {
         val expected = jsonContentOf("/events/events.json").asArray.value
         status shouldEqual StatusCodes.OK
         responseAs[String] shouldEqual eventStreamFor(expected)
@@ -29,7 +28,23 @@ class EventRoutesSpec extends EventsSpecBase {
     }
 
     "return all events for a project from the last seen" in {
-      Get("/").addHeader(`Last-Event-ID`(0.toString)) ~> routes ~> check {
+      Get("/").addHeader(`Last-Event-ID`(0.toString)) ~> eventRoutes.routes(project) ~> check {
+        val expected = jsonContentOf("/events/events.json").asArray.value
+        status shouldEqual StatusCodes.OK
+        responseAs[String] shouldEqual eventStreamFor(expected, 1)
+      }
+    }
+
+    "return all events for an organization" in {
+      Get("/") ~> eventRoutes.routes(organization) ~> check {
+        val expected = jsonContentOf("/events/events.json").asArray.value
+        status shouldEqual StatusCodes.OK
+        responseAs[String] shouldEqual eventStreamFor(expected)
+      }
+    }
+
+    "return all events for an organization from the last seen" in {
+      Get("/").addHeader(`Last-Event-ID`(0.toString)) ~> eventRoutes.routes(organization) ~> check {
         val expected = jsonContentOf("/events/events.json").asArray.value
         status shouldEqual StatusCodes.OK
         responseAs[String] shouldEqual eventStreamFor(expected, 1)
@@ -42,7 +57,6 @@ class EventRoutesSpec extends EventsSpecBase {
 object EventRoutesSpec {
 
   class TestableEventRoutes(events: List[Event], acls: AccessControlLists, caller: Caller)(implicit as: ActorSystem,
-                                                                                           project: Project,
                                                                                            config: AppConfig)
       extends EventRoutes(acls, caller) {
 

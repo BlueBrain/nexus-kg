@@ -6,7 +6,7 @@ import java.util.UUID
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.User
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -87,6 +87,17 @@ class EventsSpecBase
   )
 
   val orgRef = OrganizationRef(project.organizationUuid)
+
+  val organization = Organization(base + "org",
+                                  "org",
+                                  None,
+                                  orgUuid,
+                                  1L,
+                                  deprecated = false,
+                                  instant,
+                                  base + "subject",
+                                  instant,
+                                  base + "subject")
 
   val projectRef = ProjectRef(projectUuid)
 
