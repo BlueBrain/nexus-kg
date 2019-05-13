@@ -93,6 +93,13 @@ object KgError {
   final case class ProjectNotFound(label: ProjectLabel) extends KgError(s"Project '${label.show}' not found.")
 
   /**
+    * Signals the impossibility to resolve the organization reference from a given label.
+    *
+    * @param label the organization label
+    */
+  final case class OrganizationNotFound(label: String) extends KgError(s"Organization '$label' not found.")
+
+  /**
     * Signals the HTTP Accept Headers are not compatible with the response Content-Type.
     *
     * @param reason a descriptive message
@@ -117,6 +124,7 @@ object KgError {
   implicit val kgErrorStatusFrom: StatusFrom[KgError] = {
     case _: NotFound                      => StatusCodes.NotFound
     case _: ProjectNotFound               => StatusCodes.NotFound
+    case _: OrganizationNotFound          => StatusCodes.NotFound
     case _: RemoteFileNotFound            => StatusCodes.BadGateway
     case AuthenticationFailed             => StatusCodes.Unauthorized
     case AuthorizationFailed              => StatusCodes.Forbidden

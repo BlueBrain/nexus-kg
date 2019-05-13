@@ -91,6 +91,20 @@ object syntax {
       }
 
     /**
+      * Checks if on the list of ACLs there are some which contains any of the provided ''identities'', ''perm'' in
+      * the root path or the organization path.
+      *
+      * @param identities the list of identities to filter from the ''acls''
+      * @param label      the organization label information to be used to generate the paths to filter
+      * @param perm       the permission to filter
+      * @return true if the conditions are met, false otherwise
+      */
+    def exists(identities: Set[Identity], label: String, perm: Permission): Boolean =
+      acls.filter(identities).value.exists {
+        case (path, v) => (path == / || path == Segment(label, /)) && v.value.permissions.contains(perm)
+      }
+
+    /**
       * Checks if on the list of ACLs there are some which contain any of the provided ''identities'', ''perm'' in
       * the root path.
       *

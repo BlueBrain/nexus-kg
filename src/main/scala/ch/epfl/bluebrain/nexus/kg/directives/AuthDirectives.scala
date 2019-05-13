@@ -40,6 +40,17 @@ object AuthDirectives {
     else failWith(AuthorizationFailed)
 
   /**
+    * Checks if the current caller has the required permission.
+    *
+    * @param perm     the permission to check on the current organization
+    * @param orgLabel the organization label
+    * @return pass if the ''perm'' is present on the current project, fail with [[AuthorizationFailed]] otherwise
+    */
+  def hasPermission(perm: Permission, orgLabel: String)(implicit acls: AccessControlLists, caller: Caller): Directive0 =
+    if (acls.exists(caller.identities, orgLabel, perm)) pass
+    else failWith(AuthorizationFailed)
+
+  /**
     * Checks if the current caller has the required permissions on `/`
     *
     * @param  perms the permissions to check on `/`

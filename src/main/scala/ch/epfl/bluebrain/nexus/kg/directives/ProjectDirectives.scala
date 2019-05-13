@@ -3,9 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.directives
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Directive1}
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
-import ch.epfl.bluebrain.nexus.kg.KgError.{ProjectIsDeprecated, ProjectNotFound}
+import ch.epfl.bluebrain.nexus.kg.KgError.{OrganizationNotFound, ProjectIsDeprecated, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -36,8 +36,7 @@ object ProjectDirectives {
   def project(implicit projectCache: ProjectCache[Task],
               client: AdminClient[Task],
               cred: Option[AuthToken],
-              s: Scheduler): Directive1[Project] = {
-
+              s: Scheduler): Directive1[Project] =
     pathPrefix(Segment / Segment).tflatMap {
       case (orgLabel, projectLabel) =>
         val label = ProjectLabel(orgLabel, projectLabel)
@@ -56,7 +55,19 @@ object ProjectDirectives {
             case Some(project) => provide(addDefaultMappings(project))
           }
     }
-  }
+
+  /**
+    * Fetches organization configuration from nexus admin.
+    */
+  def org(implicit client: AdminClient[Task], cred: Option[AuthToken], s: Scheduler): Directive1[Organization] =
+    pathPrefix(Segment).flatMap { label =>
+      val result = client.fetchOrganization(label)
+      onSuccess(result.runToFuture)
+        .flatMap {
+          case None          => failWith(OrganizationNotFound(label))
+          case Some(project) => provide(project)
+        }
+    }
 
   private def addDefaultMappings(project: Project) =
     project.copy(apiMappings = project.apiMappings ++ defaultPrefixMapping)
