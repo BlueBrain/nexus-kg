@@ -212,21 +212,21 @@ object Event {
       .withDiscriminator("@type")
       .copy(transformMemberNames = {
         case "id"           => "_resourceId"
-        case "organization" => "_organization"
+        case "organization" => nxv.organizationUuid.prefix
         case "storage"      => "_storage"
-        case "rev"          => "_rev"
-        case "instant"      => "_instant"
+        case "rev"          => nxv.rev.prefix
+        case "instant"      => nxv.instant.prefix
         case "subject"      => "_subject"
-        case "schema"       => "_constrainedBy"
+        case "schema"       => nxv.constrainedBy.prefix
         case "attributes"   => "_attributes"
         case "source"       => "_source"
         case "types"        => "_types"
-        case "bytes"        => "_bytes"
-        case "digest"       => "_digest"
-        case "algorithm"    => "_algorithm"
-        case "value"        => "_value"
-        case "filename"     => "_filename"
-        case "mediaType"    => "_mediaType"
+        case "bytes"        => nxv.bytes.prefix
+        case "digest"       => nxv.digest.prefix
+        case "algorithm"    => nxv.algorithm.prefix
+        case "value"        => nxv.value.prefix
+        case "filename"     => nxv.filename.prefix
+        case "mediaType"    => nxv.mediaType.prefix
         case "location"     => "_location"
         case other          => other
       })
