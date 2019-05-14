@@ -125,7 +125,7 @@ object KgError {
     implicit val uriEnc: Encoder[Uri]  = Encoder.encodeString.contramap(_.toString)
 
     val enc = deriveEncoder[KgError].mapJson(_ addContext errorCtxUri)
-    Encoder.instance(r => enc(r) deepMerge Json.obj("reason" -> Json.fromString(r.msg)))
+    Encoder.instance(r => enc(r).removeKeys("msg") deepMerge Json.obj("reason" -> Json.fromString(r.msg)))
   }
 
   implicit val kgErrorStatusFrom: StatusFrom[KgError] = {
