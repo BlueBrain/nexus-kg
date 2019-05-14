@@ -96,19 +96,19 @@
           "maxCount": 1
         },
         {
-          "path": "nxv:endpoint",
-          "name": "endpoint",
-          "description": "The endpoint to communicate with the external storage",
+          "path": "nxv:folder",
+          "name": "folder",
+          "description": "The external storage folder (similar concept to bucket in the S3)",
           "datatype": "xsd:string",
           "minCount": 1,
           "maxCount": 1
         },
         {
-          "path": "nxv:folder",
+          "path": "nxv:endpoint",
           "name": "endpoint",
-          "description": "The external storage folder (similar concept to bucket in the S3)",
+          "description": "The endpoint to communicate with the external storage",
           "datatype": "xsd:string",
-          "minCount": 1,
+          "minCount": 0,
           "maxCount": 1
         },
         {
