@@ -25,8 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, LinkF
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
-import org.mockito.Mockito.reset
-import org.mockito.integrations.scalatest.IdiomaticMockitoFixture
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalactic.Equality
 import org.scalatest._
 
@@ -39,7 +38,8 @@ class FilesSpec
     with IOEitherValues
     with IOOptionValues
     with WordSpecLike
-    with IdiomaticMockitoFixture
+    with IdiomaticMockito
+    with ArgumentMatchersSugar
     with Matchers
     with OptionValues
     with EitherValues
@@ -65,9 +65,9 @@ class FilesSpec
   private val files: Files[IO] = Files[IO]
 
   before {
-    reset(saveFile)
-    reset(fetchFile)
-    reset(linkFile)
+    Mockito.reset(saveFile)
+    Mockito.reset(fetchFile)
+    Mockito.reset(linkFile)
   }
 
   trait Base {

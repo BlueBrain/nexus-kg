@@ -47,8 +47,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.Mockito
-import org.mockito.integrations.scalatest.IdiomaticMockitoFixture
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.mockito.matchers.MacroBasedMatchers
 import org.scalactic.Equality
 import org.scalatest._
@@ -66,7 +65,8 @@ class FileRoutesSpec
     with test.Resources
     with ScalaFutures
     with Randomness
-    with IdiomaticMockitoFixture
+    with IdiomaticMockito
+    with ArgumentMatchersSugar
     with MacroBasedMatchers
     with BeforeAndAfter
     with TestHelper

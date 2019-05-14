@@ -33,11 +33,10 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
-import org.mockito.ArgumentMatchers.any
 import org.scalatest._
-import org.mockito.ArgumentMatchers.{eq => mEq}
 import io.circe.parser.parse
-import org.mockito.{IdiomaticMockito, Mockito}
+import org.mockito.matchers.MacroBasedMatchers
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -49,6 +48,8 @@ class ViewsSpec
     with IOOptionValues
     with WordSpecLike
     with IdiomaticMockito
+    with ArgumentMatchersSugar
+    with MacroBasedMatchers
     with Matchers
     with OptionValues
     with EitherValues
@@ -147,7 +148,7 @@ class ViewsSpec
   trait EsViewMocked extends EsView {
     val mapping = esView.hcursor.get[String]("mapping").flatMap(parse).right.value
 
-    esClient.updateMapping(any[String], mEq("doc"), mEq(mapping)) shouldReturn IO(true)
+    esClient.updateMapping(any[String], eqTo("doc"), eqTo(mapping)) shouldReturn IO(true)
     aclsCache.list shouldReturn IO.pure(acls)
     esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
 
@@ -187,7 +188,7 @@ class ViewsSpec
 
       "prevent creating a ElasticSearchView when ElasticSearch client fails while verifying mappings" in new EsView {
         esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
-        esClient.updateMapping(any[String], mEq("doc"), any[Json]) shouldReturn
+        esClient.updateMapping(any[String], eqTo("doc"), any[Json]) shouldReturn
           IO.raiseError(ElasticServerError(StatusCodes.BadRequest, "Error on mappings..."))
 
         whenReady(views.create(resId, esView).value.unsafeToFuture().failed)(_ shouldBe a[ElasticServerError])
@@ -195,7 +196,7 @@ class ViewsSpec
 
       "prevent creating a ElasticSearchView when ElasticSearch index does not exist" in new EsView {
         esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
-        esClient.updateMapping(any[String], mEq("doc"), any[Json]) shouldReturn IO(false)
+        esClient.updateMapping(any[String], eqTo("doc"), any[Json]) shouldReturn IO(false)
 
         whenReady(views.create(resId, esView).value.unsafeToFuture().failed)(_ shouldBe a[KgError.InternalError])
       }
