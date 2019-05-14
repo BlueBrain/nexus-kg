@@ -54,6 +54,13 @@ object KgError {
   final case class RemoteFileNotFound(location: Uri) extends KgError("The remote file was not found.")
 
   /**
+    * Signals an error on the downstream storage service.
+    *
+    * @param msg a human readable description of the cause
+    */
+  final case class RemoteStorageError(override val msg: String) extends KgError(msg)
+
+  /**
     * Signals that the provided authentication is not valid.
     */
   final case object AuthenticationFailed extends KgError("The supplied authentication is invalid.")

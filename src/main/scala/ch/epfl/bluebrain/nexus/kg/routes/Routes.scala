@@ -36,6 +36,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
 import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import io.circe.Json
@@ -92,6 +93,16 @@ object Routes {
       case err: RemoteFileNotFound =>
         // suppress error
         complete(err: KgError)
+      case err: StorageClientError.InvalidPath =>
+        // suppress error
+        complete(RemoteStorageError(err.reason): KgError)
+      case err: StorageClientError.NotFound =>
+        // suppress error
+        complete(RemoteStorageError(err.reason): KgError)
+      case err: StorageClientError =>
+        // suppress error
+        logger.error(s"Received unexpected response from external storage: '${err.message}'")
+        completeGeneric()
       case UnsupportedOperation =>
         // suppress error
         complete(UnsupportedOperation: KgError)
