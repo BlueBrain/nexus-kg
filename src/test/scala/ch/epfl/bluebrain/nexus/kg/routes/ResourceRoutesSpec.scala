@@ -99,12 +99,10 @@ class ResourceRoutesSpec
   abstract class Context(perms: Set[Permission] = manageResolver) extends RoutesFixtures {
 
     projectCache.getBy(label) shouldReturn Task.pure(Some(projectMeta))
-    projectCache.get(OrganizationRef(projectMeta.organizationUuid), ProjectRef(projectMeta.uuid)) shouldReturn Task
-      .pure(Some(projectMeta))
-    projectCache.get(OrganizationRef(projectMeta.organizationUuid), ProjectRef(projectMeta.uuid)) shouldReturn Task
-      .pure(Some(projectMeta))
-    projectCache.getBy(ProjectLabel(projectMeta.organizationUuid.toString, projectMeta.uuid.toString)) shouldReturn Task
-      .pure(None)
+    projectCache.get(OrganizationRef(projectMeta.organizationUuid), ProjectRef(projectMeta.uuid)) shouldReturn
+      Task(Some(projectMeta))
+    projectCache.getBy(ProjectLabel(projectMeta.organizationUuid.toString, projectMeta.uuid.toString)) shouldReturn
+      Task(None)
     projectCache.get(projectRef) shouldReturn Task.pure(Some(projectMeta))
 
     iamClient.identities shouldReturn Task.pure(Caller(user, Set(Anonymous)))
