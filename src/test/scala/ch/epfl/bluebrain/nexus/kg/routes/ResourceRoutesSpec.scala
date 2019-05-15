@@ -99,7 +99,12 @@ class ResourceRoutesSpec
   abstract class Context(perms: Set[Permission] = manageResolver) extends RoutesFixtures {
 
     projectCache.getBy(label) shouldReturn Task.pure(Some(projectMeta))
-    projectCache.getLabel(projectRef) shouldReturn Task.pure(Some(label))
+    projectCache.get(OrganizationRef(projectMeta.organizationUuid), ProjectRef(projectMeta.uuid)) shouldReturn Task
+      .pure(Some(projectMeta))
+    projectCache.get(OrganizationRef(projectMeta.organizationUuid), ProjectRef(projectMeta.uuid)) shouldReturn Task
+      .pure(Some(projectMeta))
+    projectCache.getBy(ProjectLabel(projectMeta.organizationUuid.toString, projectMeta.uuid.toString)) shouldReturn Task
+      .pure(None)
     projectCache.get(projectRef) shouldReturn Task.pure(Some(projectMeta))
 
     iamClient.identities shouldReturn Task.pure(Caller(user, Set(Anonymous)))
@@ -217,15 +222,16 @@ class ResourceRoutesSpec
           .value
           .removeKeys("@context")
 
-      Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      val endpoints = List(
+        s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId",
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 

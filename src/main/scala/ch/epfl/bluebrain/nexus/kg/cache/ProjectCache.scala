@@ -40,6 +40,15 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
   def get(ref: ProjectRef): F[Option[Project]] = super.get(ref.id)
 
   /**
+    * Attempts to fetch the project with the provided ''ref'' and ''orgRef''
+    *
+    * @param orgRef the organization unique reference
+    * @param ref    the project unique reference
+    */
+  def get(orgRef: OrganizationRef, ref: ProjectRef): F[Option[Project]] =
+    get(ref).map(_.filter(_.organizationUuid == orgRef.id))
+
+  /**
     * Attempts to fetch the project label with the provided ''ref''
     *
     * @param ref the project unique reference

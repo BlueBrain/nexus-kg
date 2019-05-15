@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
@@ -21,7 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectLabel
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.routes.Routes
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
@@ -105,34 +106,9 @@ class ProjectDirectivesSpec
                 updatedBy)
     }
 
-  "A Project directives" should {
+  "A Project directives" when {
 
     val creator = Iri.absolute("http://example.com/subject").right.value
-
-    def projectRoute(): Route = {
-      import monix.execution.Scheduler.Implicits.global
-      Routes.wrap(
-        (get & project) { project =>
-          complete(StatusCodes.OK -> project)
-        }
-      )
-    }
-
-    def orgRoute(label: String): Route = {
-      import monix.execution.Scheduler.Implicits.global
-      Routes.wrap(
-        (get & org(label)) { o =>
-          complete(StatusCodes.OK -> o)
-        }
-      )
-    }
-
-    def projectNotDepRoute(implicit proj: Project): Route =
-      Routes.wrap(
-        (get & projectNotDeprecated) {
-          complete(StatusCodes.OK)
-        }
-      )
 
     val label = ProjectLabel("organization", "project")
     val apiMappings = Map[String, AbsoluteIri](
@@ -179,95 +155,180 @@ class ProjectDirectivesSpec
     val projectMetaResp =
       projectMeta.copy(apiMappings = projectMeta.apiMappings ++ apiMappingsFinal)
 
-    "fetch the organization from admin client" in {
+    "dealing with organizations" should {
 
-      client.fetchOrganization("organization") shouldReturn Task.pure(Option(orgMeta))
+      def route(label: String): Route = {
+        import monix.execution.Scheduler.Implicits.global
+        Routes.wrap(
+          (get & org(label)) { o =>
+            complete(StatusCodes.OK -> o)
+          }
+        )
+      }
 
-      Get("/") ~> orgRoute("organization") ~> check {
-        responseAs[Organization] shouldEqual orgMeta
+      "fetch the organization by label from admin client" in {
+
+        client.fetchOrganization("organization") shouldReturn Task.pure(Option(orgMeta))
+
+        Get("/") ~> route("organization") ~> check {
+          responseAs[Organization] shouldEqual orgMeta
+        }
+      }
+
+      "fetch the organization by UUID from admin client" in {
+
+        client.fetchOrganization(orgMeta.uuid) shouldReturn Task.pure(Option(orgMeta))
+
+        Get("/") ~> route(orgMeta.uuid.toString) ~> check {
+          responseAs[Organization] shouldEqual orgMeta
+        }
+      }
+
+      "fetch the organization by label when not found from UUID on admin client" in {
+
+        client.fetchOrganization(orgMeta.uuid) shouldReturn Task.pure(None)
+        client.fetchOrganization(orgMeta.uuid.toString) shouldReturn Task.pure(Option(orgMeta))
+
+        Get("/") ~> route(orgMeta.uuid.toString) ~> check {
+          responseAs[Organization] shouldEqual orgMeta
+        }
+      }
+
+      "reject organization when not found on the admin client" in {
+        client.fetchOrganization("organization") shouldReturn Task.pure(None)
+
+        Get("/") ~> route("organization") ~> check {
+          status shouldEqual StatusCodes.NotFound
+          responseAs[Error].tpe shouldEqual classNameOf[OrganizationNotFound]
+        }
       }
     }
 
-    "reject organization when not found on the admin client" in {
-      client.fetchOrganization("organization") shouldReturn Task.pure(None)
+    "dealing with project" should {
 
-      Get("/") ~> orgRoute("organization") ~> check {
-        status shouldEqual StatusCodes.NotFound
-        responseAs[Error].tpe shouldEqual classNameOf[OrganizationNotFound]
+      def route: Route = {
+        import monix.execution.Scheduler.Implicits.global
+        Routes.wrap(
+          (get & project) { project =>
+            complete(StatusCodes.OK -> project)
+          }
+        )
       }
-    }
 
-    "fetch the project from the cache" in {
+      def notDeprecatedRoute(implicit proj: Project): Route =
+        Routes.wrap(
+          (get & projectNotDeprecated) {
+            complete(StatusCodes.OK)
+          }
+        )
 
-      projectCache.getBy(label) shouldReturn Task.pure(Option(projectMeta))
+      val orgRef     = OrganizationRef(projectMeta.organizationUuid)
+      val projectRef = ProjectRef(projectMeta.uuid)
 
-      Get("/organization/project") ~> projectRoute() ~> check {
-        responseAs[Project] shouldEqual projectMetaResp
+      "fetch the project by label from the cache" in {
+
+        projectCache.getBy(label) shouldReturn Task.pure(Option(projectMeta))
+
+        Get("/organization/project") ~> route ~> check {
+          responseAs[Project] shouldEqual projectMetaResp
+        }
       }
-    }
 
-    "fetch the project from admin client when not present on the cache" in {
-      projectCache.getBy(label) shouldReturn Task.pure(None)
+      "fetch the project by UUID from the cache" in {
 
-      client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
+        projectCache.get(orgRef, projectRef) shouldReturn Task.pure(Option(projectMeta))
+        projectCache.getBy(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(None)
 
-      Get("/organization/project") ~> projectRoute() ~> check {
-        responseAs[Project] shouldEqual projectMetaResp
+        Get(s"/${orgRef.show}/${projectRef.show}") ~> route ~> check {
+          responseAs[Project] shouldEqual projectMetaResp
+          projectCache.get(orgRef, projectRef) wasCalled once
+        }
       }
-    }
 
-    "fetch the project from admin client when cache throws an error" in {
-      projectCache.getBy(label) shouldReturn Task.raiseError(new RuntimeException)
-      client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
+      "fetch the project by label from admin client when not present on the cache" in {
+        projectCache.getBy(label) shouldReturn Task.pure(None)
 
-      Get("/organization/project") ~> projectRoute() ~> check {
-        responseAs[Project] shouldEqual projectMetaResp
+        client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
+
+        Get("/organization/project") ~> route ~> check {
+          responseAs[Project] shouldEqual projectMetaResp
+        }
       }
-    }
 
-    "reject project when not found neither in the cache nor calling the admin client" in {
-      projectCache.getBy(label) shouldReturn Task.pure(None)
-      client.fetchProject("organization", "project") shouldReturn Task.pure(None)
+      "fetch the project by UUID from admin client when not present on the cache" in {
+        projectCache.get(orgRef, projectRef) shouldReturn Task.pure(None)
+        projectCache.getBy(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(None)
 
-      Get("/organization/project") ~> projectRoute() ~> check {
-        status shouldEqual StatusCodes.NotFound
-        responseAs[Error].tpe shouldEqual classNameOf[ProjectNotFound]
+        client.fetchProject(orgRef.id, projectRef.id) shouldReturn Task.pure(Option(projectMeta))
+
+        Get(s"/${orgRef.show}/${projectRef.show}") ~> route ~> check {
+          responseAs[Project] shouldEqual projectMetaResp
+        }
       }
-    }
 
-    "reject when admin client signals forbidden" in {
-      val label = ProjectLabel("organization", "project")
-      projectCache.getBy(label) shouldReturn Task.pure(None)
-      client.fetchProject("organization", "project") shouldReturn Task.raiseError(IamClientError.Forbidden(""))
+      "fetch the project by label when UUID not found from admin client nor from the cache" in {
+        projectCache.get(orgRef, projectRef) shouldReturn Task.pure(None)
+        client.fetchProject(orgRef.id, projectRef.id) shouldReturn Task.pure(None)
+        projectCache.getBy(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(Option(projectMeta))
 
-      Get("/organization/project") ~> projectRoute() ~> check {
-        status shouldEqual StatusCodes.Forbidden
-        responseAs[Error].tpe shouldEqual "AuthorizationFailed"
+        Get(s"/${orgRef.show}/${projectRef.show}") ~> route ~> check {
+          responseAs[Project] shouldEqual projectMetaResp
+        }
       }
-    }
 
-    "reject when admin client signals another error" in {
-      val label = ProjectLabel("organization", "project")
-      projectCache.getBy(label) shouldReturn Task.pure(None)
-      client.fetchProject("organization", "project") shouldReturn
-        Task.raiseError(IamClientError.UnknownError(StatusCodes.InternalServerError, ""))
+      "fetch the project by label from admin client when cache throws an error" in {
+        projectCache.getBy(label) shouldReturn Task.raiseError(new RuntimeException)
+        client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
 
-      Get("/organization/project") ~> projectRoute() ~> check {
-        status shouldEqual StatusCodes.InternalServerError
-        responseAs[Error].tpe shouldEqual classNameOf[KgError.InternalError]
+        Get("/organization/project") ~> route ~> check {
+          responseAs[Project] shouldEqual projectMetaResp
+        }
       }
-    }
 
-    "pass when available project is not deprecated" in {
-      Get("/") ~> projectNotDepRoute(projectMeta) ~> check {
-        status shouldEqual StatusCodes.OK
+      "reject project by label when not found neither in the cache nor calling the admin client" in {
+        projectCache.getBy(label) shouldReturn Task.pure(None)
+        client.fetchProject("organization", "project") shouldReturn Task.pure(None)
+
+        Get("/organization/project") ~> route ~> check {
+          status shouldEqual StatusCodes.NotFound
+          responseAs[Error].tpe shouldEqual classNameOf[ProjectNotFound]
+        }
       }
-    }
 
-    "reject when available project is deprecated" in {
-      Get("/") ~> projectNotDepRoute(projectMeta.copy(deprecated = true)) ~> check {
-        status shouldEqual StatusCodes.BadRequest
-        responseAs[Error].tpe shouldEqual classNameOf[ProjectIsDeprecated]
+      "reject when admin client signals forbidden" in {
+        val label = ProjectLabel("organization", "project")
+        projectCache.getBy(label) shouldReturn Task.pure(None)
+        client.fetchProject("organization", "project") shouldReturn Task.raiseError(IamClientError.Forbidden(""))
+
+        Get("/organization/project") ~> route ~> check {
+          status shouldEqual StatusCodes.Forbidden
+          responseAs[Error].tpe shouldEqual "AuthorizationFailed"
+        }
+      }
+
+      "reject when admin client signals another error" in {
+        val label = ProjectLabel("organization", "project")
+        projectCache.getBy(label) shouldReturn Task.pure(None)
+        client.fetchProject("organization", "project") shouldReturn
+          Task.raiseError(IamClientError.UnknownError(StatusCodes.InternalServerError, ""))
+
+        Get("/organization/project") ~> route ~> check {
+          status shouldEqual StatusCodes.InternalServerError
+          responseAs[Error].tpe shouldEqual classNameOf[KgError.InternalError]
+        }
+      }
+
+      "pass when available project is not deprecated" in {
+        Get("/") ~> notDeprecatedRoute(projectMeta) ~> check {
+          status shouldEqual StatusCodes.OK
+        }
+      }
+
+      "reject when available project is deprecated" in {
+        Get("/") ~> notDeprecatedRoute(projectMeta.copy(deprecated = true)) ~> check {
+          status shouldEqual StatusCodes.BadRequest
+          responseAs[Error].tpe shouldEqual classNameOf[ProjectIsDeprecated]
+        }
       }
     }
   }
