@@ -10,7 +10,7 @@
       "@id" : "http://example.com/id",
       "@type" : [
         "Storage",
-        "ExternalDiskStorage"
+        "RemoteDiskStorage"
       ],
       "default" : false,
       "endpoint" : "http://example.com/some",

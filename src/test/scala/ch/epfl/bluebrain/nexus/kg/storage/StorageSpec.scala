@@ -37,7 +37,7 @@ class StorageSpec
   private implicit val storageConfig =
     StorageConfig(
       DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk),
-      ExternalDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
+      RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
       S3StorageConfig("MD5", readS3, writeS3),
       "password",
       "salt"
@@ -52,8 +52,8 @@ class StorageSpec
       val diskStoragePerms =
         jsonContentOf("/storage/diskPerms.json", Map(quote("{read}") -> "myRead", quote("{write}") -> "myWrite"))
           .appendContextOf(storageCtx)
-      val externalDiskStorage =
-        jsonContentOf("/storage/externalDisk.json",
+      val remoteDiskStorage =
+        jsonContentOf("/storage/remoteDisk.json",
                       Map(quote("{read}")   -> "myRead",
                           quote("{write}")  -> "myWrite",
                           quote("{folder}") -> "folder",
@@ -76,12 +76,12 @@ class StorageSpec
           DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), expectedRead, expectedWrite)
       }
 
-      "return a ExternalDiskStorage" in {
-        val resource      = simpleV(id, externalDiskStorage, types = Set(nxv.Storage, nxv.ExternalDiskStorage))
+      "return a RemoteDiskStorage" in {
+        val resource      = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage, nxv.RemoteDiskStorage))
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = false).right.value shouldEqual
-          ExternalDiskStorage(projectRef,
+          RemoteDiskStorage(projectRef,
                               iri,
                               1L,
                               false,
@@ -94,12 +94,12 @@ class StorageSpec
                               expectedWrite)
       }
 
-      "return a ExternalDiskStorage encrypted" in {
-        val resource      = simpleV(id, externalDiskStorage, types = Set(nxv.Storage, nxv.ExternalDiskStorage))
+      "return a RemoteDiskStorage encrypted" in {
+        val resource      = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage, nxv.RemoteDiskStorage))
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = true).right.value shouldEqual
-          ExternalDiskStorage(projectRef,
+          RemoteDiskStorage(projectRef,
                               iri,
                               1L,
                               false,
@@ -144,8 +144,8 @@ class StorageSpec
         Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
       }
 
-      "fail on ExternalDiskStorage when types are wrong" in {
-        val resource = simpleV(id, externalDiskStorage, types = Set(nxv.Storage))
+      "fail on RemoteDiskStorage when types are wrong" in {
+        val resource = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage))
         Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
       }
 
@@ -175,9 +175,9 @@ class StorageSpec
           jsonContentOf("/storage/disk-storages.json"))
       }
 
-      "return the json representation for a query results list of ExternalDiskStorage" in {
-        val extDiskStorage: ExternalDiskStorage =
-          ExternalDiskStorage(projectRef,
+      "return the json representation for a query results list of RemoteDiskStorage" in {
+        val remoteDiskStorage: RemoteDiskStorage =
+          RemoteDiskStorage(projectRef,
                               iri,
                               1L,
                               false,
@@ -189,9 +189,9 @@ class StorageSpec
                               readDisk,
                               writeDisk)
         val storages: QueryResults[Storage] =
-          QueryResults(1L, List(UnscoredQueryResult(extDiskStorage)))
+          QueryResults(1L, List(UnscoredQueryResult(remoteDiskStorage)))
         StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
-          jsonContentOf("/storage/ext-disk-storages.json"))
+          jsonContentOf("/storage/remote-disk-storages.json"))
       }
 
       "return the json representation for a query results list of S3Storage" in {

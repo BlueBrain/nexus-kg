@@ -1,6 +1,6 @@
 {
   "@id": "http://example.com/id",
-  "@type": "ExternalDiskStorage",
+  "@type": "RemoteDiskStorage",
   "endpoint": "http://example.com/some",
   "folder": "{folder}",
   "credentials": "{cred}",

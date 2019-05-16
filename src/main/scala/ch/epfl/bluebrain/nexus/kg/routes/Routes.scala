@@ -101,7 +101,7 @@ object Routes {
         complete(RemoteStorageError(err.reason): KgError)
       case err: StorageClientError =>
         // suppress error
-        logger.error(s"Received unexpected response from external storage: '${err.message}'")
+        logger.error(s"Received unexpected response from remote storage: '${err.message}'")
         completeGeneric()
       case UnsupportedOperation =>
         // suppress error

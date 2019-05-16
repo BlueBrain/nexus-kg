@@ -135,14 +135,14 @@ object AppConfig {
   /**
     * Storage configuration for the allowed storages
     *
-    * @param disk         the disk storage configuration
-    * @param externalDisk the external disk storage configuration
-    * @param amazon       the amazon S3 storage configuration
-    * @param password     the password used to encrypt credentials at rest
-    * @param salt         the associated salt
+    * @param disk       the disk storage configuration
+    * @param remoteDisk the remote disk storage configuration
+    * @param amazon     the amazon S3 storage configuration
+    * @param password   the password used to encrypt credentials at rest
+    * @param salt       the associated salt
     */
   final case class StorageConfig(disk: DiskStorageConfig,
-                                 externalDisk: ExternalDiskStorageConfig,
+                                 remoteDisk: RemoteDiskStorageConfig,
                                  amazon: S3StorageConfig,
                                  password: String,
                                  salt: String) {
@@ -172,14 +172,14 @@ object AppConfig {
                                      writePermission: Permission)
 
   /**
-    * External Disk storage configuration
+    * Remote Disk storage configuration
     *
-    * @param defaultEndpoint    the default endpoint of the external disk storage
-    * @param defaultCredentials the default credentials for the defaultEnpoint of the external disk storage
+    * @param defaultEndpoint    the default endpoint of the current storage
+    * @param defaultCredentials the default credentials for the defaultEnpoint of the current storage
     * @param readPermission     the default permission required in order to download a file from a disk storage
     * @param writePermission    the default permission required in order to upload a file to a disk storage
     */
-  final case class ExternalDiskStorageConfig(defaultEndpoint: Uri,
+  final case class RemoteDiskStorageConfig(defaultEndpoint: Uri,
                                              defaultCredentials: Option[AuthToken],
                                              digestAlgorithm: String,
                                              readPermission: Permission,

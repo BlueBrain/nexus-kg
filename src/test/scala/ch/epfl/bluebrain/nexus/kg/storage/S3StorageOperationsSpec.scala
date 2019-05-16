@@ -54,7 +54,7 @@ class S3StorageOperationsSpec
 
   private implicit val sc: StorageConfig = StorageConfig(
     DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write),
-    ExternalDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
+    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
     S3StorageConfig("MD5", readS3, writeS3),
     "password",
     "salt"

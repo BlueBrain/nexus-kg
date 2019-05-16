@@ -165,7 +165,7 @@ object Storage {
   }
 
   /**
-    * An external disk storage
+    * An remote disk storage
     *
     * @param ref             a reference to the project that the store belongs to
     * @param id              the user facing store id
@@ -173,13 +173,13 @@ object Storage {
     * @param deprecated      the deprecation state of the store
     * @param default         ''true'' if this store is the project's default backend, ''false'' otherwise
     * @param algorithm       the digest algorithm, e.g. "SHA-256"
-    * @param endpoint        the endpoint for the external storage
-    * @param credentials     the optional credentials to access the external storage service
+    * @param endpoint        the endpoint for the remote storage
+    * @param credentials     the optional credentials to access the remote storage service
     * @param folder          the rootFolder for this storage
     * @param readPermission  the permission required in order to download a file from this storage
     * @param writePermission the permission required in order to upload a file to this storage
     */
-  final case class ExternalDiskStorage(ref: ProjectRef,
+  final case class RemoteDiskStorage(ref: ProjectRef,
                                        id: AbsoluteIri,
                                        rev: Long,
                                        deprecated: Boolean,
@@ -324,8 +324,8 @@ object Storage {
     */
   final def apply(res: ResourceV, encrypt: Boolean)(implicit config: StorageConfig): Either[Rejection, Storage] =
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage(res)
-    else if (Set(nxv.Storage.value, nxv.ExternalDiskStorage.value).subsetOf(res.types))
-      externalDiskStorage(res, encrypt)
+    else if (Set(nxv.Storage.value, nxv.RemoteDiskStorage.value).subsetOf(res.types))
+      remoteDiskStorage(res, encrypt)
     else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res, encrypt)
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the storage types"))
 
@@ -341,8 +341,8 @@ object Storage {
     // format: on
   }
 
-  private def externalDiskStorage(res: ResourceV, encrypt: Boolean)(
-      implicit config: StorageConfig): Either[Rejection, ExternalDiskStorage] = {
+  private def remoteDiskStorage(res: ResourceV, encrypt: Boolean)(
+      implicit config: StorageConfig): Either[Rejection, RemoteDiskStorage] = {
     val c = res.value.graph.cursor()
 
     val cred =
@@ -354,15 +354,15 @@ object Storage {
     // format: off
     for {
       default       <- c.downField(nxv.default).focus.as[Boolean].toRejectionOnLeft(res.id.ref)
-      endpoint      <- c.downField(nxv.endpoint).focus.as[Uri].orElse(config.externalDisk.defaultEndpoint).toRejectionOnLeft(res.id.ref)
-      credentials   <- if(endpoint == config.externalDisk.defaultEndpoint) cred.map(_ orElse config.externalDisk.defaultCredentials.map(_.value)).toRejectionOnLeft(res.id.ref)
+      endpoint      <- c.downField(nxv.endpoint).focus.as[Uri].orElse(config.remoteDisk.defaultEndpoint).toRejectionOnLeft(res.id.ref)
+      credentials   <- if(endpoint == config.remoteDisk.defaultEndpoint) cred.map(_ orElse config.remoteDisk.defaultCredentials.map(_.value)).toRejectionOnLeft(res.id.ref)
                        else cred.toRejectionOnLeft(res.id.ref)
       folder        <- c.downField(nxv.folder).focus.as[String].toRejectionOnLeft(res.id.ref)
-      read          <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.externalDisk.readPermission).toRejectionOnLeft(res.id.ref)
-      write         <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.externalDisk.writePermission).toRejectionOnLeft(res.id.ref)
+      read          <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.remoteDisk.readPermission).toRejectionOnLeft(res.id.ref)
+      write         <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.remoteDisk.writePermission).toRejectionOnLeft(res.id.ref)
     } yield
-      if (encrypt) ExternalDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.externalDisk.digestAlgorithm, endpoint, credentials.map(_.encrypt), folder, read, write)
-      else ExternalDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.externalDisk.digestAlgorithm, endpoint, credentials, folder, read, write)
+      if (encrypt) RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials.map(_.encrypt), folder, read, write)
+      else RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write)
     // format: on
   }
 
@@ -447,7 +447,7 @@ object Storage {
     object Verify {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Verify[F] = {
         case s: DiskStorage         => new DiskStorageOperations.VerifyDiskStorage[F](s)
-        case s: ExternalDiskStorage => new ExternalDiskStorageOperations.Verify(s, s.client)
+        case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Verify(s, s.client)
         case s: S3Storage           => new S3StorageOperations.Verify[F](s)
       }
     }
@@ -465,7 +465,7 @@ object Storage {
     object Fetch {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Fetch[F, AkkaSource] = {
         case _: DiskStorage         => new DiskStorageOperations.FetchDiskFile[F]
-        case s: ExternalDiskStorage => new ExternalDiskStorageOperations.Fetch(s, s.client)
+        case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Fetch(s, s.client)
         case s: S3Storage           => new S3StorageOperations.Fetch(s)
       }
     }
@@ -483,7 +483,7 @@ object Storage {
     object Save {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Save[F, AkkaSource] = {
         case s: DiskStorage         => new DiskStorageOperations.SaveDiskFile(s)
-        case s: ExternalDiskStorage => new ExternalDiskStorageOperations.Save(s, s.client)
+        case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Save(s, s.client)
         case s: S3Storage           => new S3StorageOperations.Save(s)
       }
     }
@@ -500,7 +500,7 @@ object Storage {
     object Link {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Link[F] = {
         case _: DiskStorage         => new DiskStorageOperations.LinkDiskFile()
-        case s: ExternalDiskStorage => new ExternalDiskStorageOperations.Link(s, s.client)
+        case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Link(s, s.client)
         case s: S3Storage           => new S3StorageOperations.Link(s)
       }
     }

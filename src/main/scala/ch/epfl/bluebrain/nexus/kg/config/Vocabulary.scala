@@ -90,7 +90,7 @@ object Vocabulary {
     val readPermission  = PrefixMapping.prefix("readPermission")
     val writePermission = PrefixMapping.prefix("writePermission")
 
-    //External disk storage payload vocabulary
+    //Remote disk storage payload vocabulary
     val folder      = PrefixMapping.prefix("folder")
     val credentials = PrefixMapping.prefix("credentials")
 
@@ -123,7 +123,7 @@ object Vocabulary {
     val InProject                  = PrefixMapping.prefix("InProject")
     val CrossProject               = PrefixMapping.prefix("CrossProject")
     val Storage                    = PrefixMapping.prefix("Storage")
-    val ExternalDiskStorage        = PrefixMapping.prefix("ExternalDiskStorage")
+    val RemoteDiskStorage          = PrefixMapping.prefix("RemoteDiskStorage")
     val DiskStorage                = PrefixMapping.prefix("DiskStorage")
     val S3Storage                  = PrefixMapping.prefix("S3Storage")
     val View                       = PrefixMapping.prefix("View")
