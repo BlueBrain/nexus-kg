@@ -9,8 +9,8 @@ import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, StorageCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.Storages.TimedStorage
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressStorage.Volatile
 import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
@@ -29,13 +29,13 @@ private class StorageIndexerMapping[F[_]: Timer](storages: Storages[F])(implicit
     *
     * @param event event to be mapped to a storage
     */
-  def apply(event: Event): F[Option[Storage]] =
+  def apply(event: Event): F[Option[TimedStorage]] =
     fetchProject(event.id.parent).flatMap { implicit project =>
       storages.fetchStorage(event.id).value.map {
         case Left(err) =>
           log.error(s"Error on event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")
           None
-        case Right(storage) => Some(storage)
+        case Right(timedStorage) => Some(timedStorage)
       }
     }
 }
@@ -71,7 +71,7 @@ object StorageIndexer {
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)
         .mapping(mapper.apply)
-        .index(_.traverse(storageCache.put)(F) >> F.unit)
+        .index(_.traverse { case (storage, instant) => storageCache.put(storage)(instant) }(F) >> F.unit)
         .build)
   }
 
