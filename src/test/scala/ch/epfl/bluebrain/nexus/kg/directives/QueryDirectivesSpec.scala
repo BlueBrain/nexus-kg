@@ -58,7 +58,7 @@ class QueryDirectivesSpec
     implicit val storageConfig =
       StorageConfig(
         DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write),
-        ExternalDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
+        RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
         S3StorageConfig("MD5", read, write),
         "password",
         "salt"

@@ -7,20 +7,20 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{ExternalDiskStorage, FetchFile, LinkFile, SaveFile, VerifyStorage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, LinkFile, RemoteDiskStorage, SaveFile, VerifyStorage}
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 
-object ExternalDiskStorageOperations {
+object RemoteDiskStorageOperations {
 
   /**
-    * [[VerifyStorage]] implementation for [[ExternalDiskStorage]]
+    * [[VerifyStorage]] implementation for [[RemoteDiskStorage]]
     *
-    * @param storage the [[ExternalDiskStorage]]
-    * @param client  the external storage client
+    * @param storage the [[RemoteDiskStorage]]
+    * @param client  the remote storage client
     */
-  final class Verify[F[_]: Applicative](storage: ExternalDiskStorage, client: StorageClient[F])(
+  final class Verify[F[_]: Applicative](storage: RemoteDiskStorage, client: StorageClient[F])(
       implicit config: StorageConfig)
       extends VerifyStorage[F] {
     implicit val cred = storage.decryptAuthToken(config.derivedKey)
@@ -32,12 +32,12 @@ object ExternalDiskStorageOperations {
   }
 
   /**
-    * [[FetchFile]] implementation for [[ExternalDiskStorage]]
+    * [[FetchFile]] implementation for [[RemoteDiskStorage]]
     *
-    * @param storage the [[ExternalDiskStorage]]
-    * @param client  the external storage client
+    * @param storage the [[RemoteDiskStorage]]
+    * @param client  the remote storage client
     */
-  final class Fetch[F[_]](storage: ExternalDiskStorage, client: StorageClient[F])(implicit config: StorageConfig)
+  final class Fetch[F[_]](storage: RemoteDiskStorage, client: StorageClient[F])(implicit config: StorageConfig)
       extends FetchFile[F, AkkaSource] {
     implicit val cred = storage.decryptAuthToken(config.derivedKey)
 
@@ -47,12 +47,12 @@ object ExternalDiskStorageOperations {
   }
 
   /**
-    * [[SaveFile]] implementation for [[ExternalDiskStorage]]
+    * [[SaveFile]] implementation for [[RemoteDiskStorage]]
     *
-    * @param storage the [[ExternalDiskStorage]]
-    * @param client  the external storage client
+    * @param storage the [[RemoteDiskStorage]]
+    * @param client  the remote storage client
     */
-  final class Save[F[_]: Effect](storage: ExternalDiskStorage, client: StorageClient[F])(implicit config: StorageConfig)
+  final class Save[F[_]: Effect](storage: RemoteDiskStorage, client: StorageClient[F])(implicit config: StorageConfig)
       extends SaveFile[F, AkkaSource] {
     implicit val cred = storage.decryptAuthToken(config.derivedKey)
 
@@ -67,12 +67,12 @@ object ExternalDiskStorageOperations {
   }
 
   /**
-    * [[LinkFile]] implementation for [[ExternalDiskStorage]]
+    * [[LinkFile]] implementation for [[RemoteDiskStorage]]
     *
-    * @param storage the [[ExternalDiskStorage]]
-    * @param client  the external storage client
+    * @param storage the [[RemoteDiskStorage]]
+    * @param client  the remote storage client
     */
-  final class Link[F[_]: Effect](storage: ExternalDiskStorage, client: StorageClient[F])(implicit config: StorageConfig)
+  final class Link[F[_]: Effect](storage: RemoteDiskStorage, client: StorageClient[F])(implicit config: StorageConfig)
       extends LinkFile[F] {
     implicit val cred = storage.decryptAuthToken(config.derivedKey)
 
