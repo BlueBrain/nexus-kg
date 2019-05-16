@@ -10,6 +10,7 @@
     "ElasticSearchView": "nxv:ElasticSearchView",
     "Storage": "nxv:Storage",
     "DiskStorage": "nxv:DiskStorage",
+    "RemoteDiskStorage": "nxv:RemoteDiskStorage",
     "S3Storage": "nxv:S3Storage",
     "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
     "AggregateSparqlView": "nxv:AggregateSparqlView",

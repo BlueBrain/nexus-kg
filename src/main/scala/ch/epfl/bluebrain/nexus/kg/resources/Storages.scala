@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import java.time.Instant
+
 import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.{Id => CId}
@@ -20,6 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.Storages.TimedStorage
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
@@ -104,9 +107,9 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @param id the id of the resolver
     * @return Some(storage) in the F context when found and None in the F context when not found
     */
-  def fetchStorage(id: ResId)(implicit project: Project): EitherT[F, Rejection, Storage] = {
+  def fetchStorage(id: ResId)(implicit project: Project): EitherT[F, Rejection, TimedStorage] = {
     val repoOrNotFound = repo.get(id, Some(storageRef)).toRight(notFound(id.ref))
-    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(Storage(_, encrypt = false))
+    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(r => Storage(r, encrypt = false).map(_ -> r.updated))
   }
 
   /**
@@ -205,6 +208,8 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
 }
 
 object Storages {
+
+  type TimedStorage = (Storage, Instant)
 
   /**
     * @param config the implicitly available application configuration
