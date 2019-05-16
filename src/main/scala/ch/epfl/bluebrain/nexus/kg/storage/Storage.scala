@@ -180,16 +180,16 @@ object Storage {
     * @param writePermission the permission required in order to upload a file to this storage
     */
   final case class RemoteDiskStorage(ref: ProjectRef,
-                                       id: AbsoluteIri,
-                                       rev: Long,
-                                       deprecated: Boolean,
-                                       default: Boolean,
-                                       algorithm: String,
-                                       endpoint: Uri,
-                                       credentials: Option[String],
-                                       folder: String,
-                                       readPermission: Permission,
-                                       writePermission: Permission)
+                                     id: AbsoluteIri,
+                                     rev: Long,
+                                     deprecated: Boolean,
+                                     default: Boolean,
+                                     algorithm: String,
+                                     endpoint: Uri,
+                                     credentials: Option[String],
+                                     folder: String,
+                                     readPermission: Permission,
+                                     writePermission: Permission)
       extends Storage {
 
     val showLocation: Boolean = true
@@ -446,9 +446,9 @@ object Storage {
 
     object Verify {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Verify[F] = {
-        case s: DiskStorage         => new DiskStorageOperations.VerifyDiskStorage[F](s)
+        case s: DiskStorage       => new DiskStorageOperations.VerifyDiskStorage[F](s)
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Verify(s, s.client)
-        case s: S3Storage           => new S3StorageOperations.Verify[F](s)
+        case s: S3Storage         => new S3StorageOperations.Verify[F](s)
       }
     }
 
@@ -464,9 +464,9 @@ object Storage {
 
     object Fetch {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Fetch[F, AkkaSource] = {
-        case _: DiskStorage         => new DiskStorageOperations.FetchDiskFile[F]
+        case _: DiskStorage       => new DiskStorageOperations.FetchDiskFile[F]
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Fetch(s, s.client)
-        case s: S3Storage           => new S3StorageOperations.Fetch(s)
+        case s: S3Storage         => new S3StorageOperations.Fetch(s)
       }
     }
 
@@ -482,9 +482,9 @@ object Storage {
 
     object Save {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Save[F, AkkaSource] = {
-        case s: DiskStorage         => new DiskStorageOperations.SaveDiskFile(s)
+        case s: DiskStorage       => new DiskStorageOperations.SaveDiskFile(s)
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Save(s, s.client)
-        case s: S3Storage           => new S3StorageOperations.Save(s)
+        case s: S3Storage         => new S3StorageOperations.Save(s)
       }
     }
 
@@ -499,9 +499,9 @@ object Storage {
 
     object Link {
       implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Link[F] = {
-        case _: DiskStorage         => new DiskStorageOperations.LinkDiskFile()
+        case _: DiskStorage       => new DiskStorageOperations.LinkDiskFile()
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Link(s, s.client)
-        case s: S3Storage           => new S3StorageOperations.Link(s)
+        case s: S3Storage         => new S3StorageOperations.Link(s)
       }
     }
   }

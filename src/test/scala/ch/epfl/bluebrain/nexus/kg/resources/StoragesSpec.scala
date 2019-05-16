@@ -119,7 +119,7 @@ class StoragesSpec
     val s3StorageModel = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"))
     val s3StorageModelEncrypted = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("ByjwlDNy8D1Gm1o0EFCXwA==", "SjMIILT+A5BTUH4LP8sJBg==")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"))
     // format: on
-    val typesS3       = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
+    val typesS3     = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
     val typesRemote = Set[AbsoluteIri](nxv.Storage, nxv.RemoteDiskStorage)
 
     def resourceV(json: Json, rev: Long = 1L, types: Set[AbsoluteIri]): ResourceV = {

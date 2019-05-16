@@ -180,10 +180,10 @@ object AppConfig {
     * @param writePermission    the default permission required in order to upload a file to a disk storage
     */
   final case class RemoteDiskStorageConfig(defaultEndpoint: Uri,
-                                             defaultCredentials: Option[AuthToken],
-                                             digestAlgorithm: String,
-                                             readPermission: Permission,
-                                             writePermission: Permission)
+                                           defaultCredentials: Option[AuthToken],
+                                           digestAlgorithm: String,
+                                           readPermission: Permission,
+                                           writePermission: Permission)
 
   /**
     * IAM config

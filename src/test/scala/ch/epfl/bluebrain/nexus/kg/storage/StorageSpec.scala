@@ -82,16 +82,16 @@ class StorageSpec
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = false).right.value shouldEqual
           RemoteDiskStorage(projectRef,
-                              iri,
-                              1L,
-                              false,
-                              false,
-                              "SHA-256",
-                              "http://example.com/some",
-                              Some("credentials"),
-                              "folder",
-                              expectedRead,
-                              expectedWrite)
+                            iri,
+                            1L,
+                            false,
+                            false,
+                            "SHA-256",
+                            "http://example.com/some",
+                            Some("credentials"),
+                            "folder",
+                            expectedRead,
+                            expectedWrite)
       }
 
       "return a RemoteDiskStorage encrypted" in {
@@ -100,16 +100,16 @@ class StorageSpec
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = true).right.value shouldEqual
           RemoteDiskStorage(projectRef,
-                              iri,
-                              1L,
-                              false,
-                              false,
-                              "SHA-256",
-                              "http://example.com/some",
-                              Some("credentials".encrypt),
-                              "folder",
-                              expectedRead,
-                              expectedWrite)
+                            iri,
+                            1L,
+                            false,
+                            false,
+                            "SHA-256",
+                            "http://example.com/some",
+                            Some("credentials".encrypt),
+                            "folder",
+                            expectedRead,
+                            expectedWrite)
       }
 
       "return an S3Storage" in {
@@ -178,16 +178,16 @@ class StorageSpec
       "return the json representation for a query results list of RemoteDiskStorage" in {
         val remoteDiskStorage: RemoteDiskStorage =
           RemoteDiskStorage(projectRef,
-                              iri,
-                              1L,
-                              false,
-                              false,
-                              "SHA-256",
-                              "http://example.com/some",
-                              None,
-                              "folder",
-                              readDisk,
-                              writeDisk)
+                            iri,
+                            1L,
+                            false,
+                            false,
+                            "SHA-256",
+                            "http://example.com/some",
+                            None,
+                            "folder",
+                            readDisk,
+                            writeDisk)
         val storages: QueryResults[Storage] =
           QueryResults(1L, List(UnscoredQueryResult(remoteDiskStorage)))
         StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
