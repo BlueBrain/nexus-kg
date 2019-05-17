@@ -30,6 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -276,6 +277,40 @@ class ResolverRoutesSpec
         responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
       }
       Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
+        MediaRanges.`*/*`) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      }
+    }
+
+    "fetch resolved resource for a concrete resolver" in new Context {
+      val resourceId = genIri
+      resolvers.resolve(id, resourceId) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+      val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
+
+      Get(s"/v1/resolvers/$organization/$project/$urlEncodedId/${urlEncode(resourceId)}") ~> addCredentials(oauthToken) ~> Accept(
+        MediaRanges.`*/*`) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      }
+      Get(s"/v1/resources/$organization/$project/resolver/$urlEncodedId/${urlEncode(resourceId)}") ~> addCredentials(
+        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      }
+      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId/${urlEncode(resourceId)}") ~> addCredentials(
+        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      }
+    }
+
+    "fetch resolved resource" in new Context {
+      val resourceId = genIri
+      resolvers.resolve(resourceId, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+      val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
+
+      Get(s"/v1/resolvers/$organization/$project/_/${urlEncode(resourceId)}?rev=1") ~> addCredentials(oauthToken) ~> Accept(
         MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)

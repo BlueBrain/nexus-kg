@@ -51,7 +51,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
           }
         }
       },
-      // List views
+      // List resolvers
       (get & paginated & searchParams(fixedSchema = resolverSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
         (pagination, params, uri) =>
           trace("listResolver") {
@@ -60,6 +60,10 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
             complete(listed.runWithStatus(OK))
           }
       },
+      // Consume the '_' segment
+      pathPrefix("_") {
+        routesResourceResolution
+      },
       // Consume the resolver id segment
       pathPrefix(IdSegment) { id =>
         routes(id)
@@ -67,10 +71,69 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     )
 
   /**
+    * Routes for resource resolution.
+    * Those routes should get triggered after the following segments have been consumed:
+    * <ul>
+    *   <li> {prefix}/resolvers/{org}/{project}/_. E.g.: v1/resolvers/myorg/myproject/_ </li>
+    * </ul>
+    */
+  def routesResourceResolution: Route =
+    // Consume the resource id segment
+    (pathPrefix(IdSegment) & get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
+      case (_, Binary) => failWith(InvalidOutputFormat("Binary"))
+      case (id, format: NonBinaryOutputFormat) =>
+        trace("resolveResource") {
+          concat(
+            (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+              completeWithFormat(resolvers.resolve(id, rev).value.runWithStatus(OK))(format)
+            },
+            (parameter('tag) & noParameter('rev)) { tag =>
+              completeWithFormat(resolvers.resolve(id, tag).value.runWithStatus(OK))(format)
+            },
+            (noParameter('tag) & noParameter('rev)) {
+              completeWithFormat(resolvers.resolve(id).value.runWithStatus(OK))(format)
+            }
+          )
+        }
+    }
+
+  /**
+    * Routes for resource resolution using the provided resolver.
+    * Those routes should get triggered after the following segments have been consumed:
+    * <ul>
+    *   <li> {prefix}/resolvers/{org}/{project}/{id}. E.g.: v1/resolvers/myorg/myproject/myresolver </li>
+    *   <li> {prefix}/resources/{org}/{project}/{resolverSchemaUri}/{id}. E.g.: v1/resources/myorg/myproject/resolver/myresolver </li>
+    *   <li> {prefix}/resources/{org}/{project}/_/{id}. E.g.: v1/resources/myorg/myproject/_/myresolver </li>
+    * </ul>
+    */
+  def routesResourceResolution(id: AbsoluteIri): Route = {
+    val resolverId = Id(project.ref, id)
+    // Consume the resource id segment
+    (pathPrefix(IdSegment) & get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
+      case (_, Binary) => failWith(InvalidOutputFormat("Binary"))
+      case (resourceId, format: NonBinaryOutputFormat) =>
+        trace("resolveResource") {
+          concat(
+            (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+              completeWithFormat(resolvers.resolve(resolverId, resourceId, rev).value.runWithStatus(OK))(format)
+            },
+            (parameter('tag) & noParameter('rev)) { tag =>
+              completeWithFormat(resolvers.resolve(resolverId, resourceId, tag).value.runWithStatus(OK))(format)
+            },
+            (noParameter('tag) & noParameter('rev)) {
+              completeWithFormat(resolvers.resolve(resolverId, resourceId).value.runWithStatus(OK))(format)
+            }
+          )
+        }
+    }
+  }
+
+  /**
     * Routes for resolvers when the id is specified.
     * Those routes should get triggered after the following segments have been consumed:
     * <ul>
-    *   <li> {prefix}/resolvers/{org}/{project}/{id}. E.g.: v1/views/myorg/myproject/myresolver </li>
+    *   <li> {prefix}/resolvers/{org}/{project}/{id}. E.g.: v1/resolvers/myorg/myproject/myresolver </li>
+    *   <li> {prefix}/resources/{org}/{project}/_/{id}. E.g.: v1/resources/myorg/myproject/_/myresolver </li>
     *   <li> {prefix}/resources/{org}/{project}/{resolverSchemaUri}/{id}. E.g.: v1/resources/myorg/myproject/resolver/myresolver </li>
     * </ul>
     */
@@ -115,6 +178,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
             )
           }
       },
-      new TagRoutes(tags, resolverRef, write).routes(id)
+      new TagRoutes(tags, resolverRef, write).routes(id),
+      routesResourceResolution(id)
     )
 }

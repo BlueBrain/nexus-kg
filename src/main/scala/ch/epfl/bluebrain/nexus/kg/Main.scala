@@ -99,8 +99,8 @@ object Main {
     implicit val cache =
       Caches(ProjectCache[Task], ViewCache[Task], ResolverCache[Task], StorageCache[Task])
     implicit val aclCache                         = AclsCache[Task](clients.iamClient)
-    implicit val projectResolution                = ProjectResolution.task(cache.resolver, cache.project, aclCache)
-    implicit val materializer: Materializer[Task] = new Materializer[Task](repo, projectResolution)
+    implicit val projectResolution                = ProjectResolution.task(repo, cache.resolver, cache.project, aclCache)
+    implicit val materializer: Materializer[Task] = new Materializer[Task](projectResolution, cache.project)
     implicit val projectCache                     = cache.project
     implicit val viewCache                        = cache.view
     import indexers.elasticSearch

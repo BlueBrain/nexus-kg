@@ -76,11 +76,8 @@ class ViewsSpec
   private implicit val resolverCache = mock[ResolverCache[IO]]
 
   private val resolution =
-    new ProjectResolution(resolverCache,
-                          mock[ProjectCache[IO]],
-                          StaticResolution[IO](iriResolution),
-                          mock[AclsCache[IO]])
-  private implicit val materializer = new Materializer[IO](repo, resolution)
+    new ProjectResolution(repo, resolverCache, projectCache, StaticResolution[IO](iriResolution), mock[AclsCache[IO]])
+  private implicit val materializer = new Materializer[IO](resolution, projectCache)
 
   resolverCache.get(any[ProjectRef]) shouldReturn IO.pure(List.empty[Resolver])
   // format: off

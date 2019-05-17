@@ -65,13 +65,11 @@ class StoragesSpec
 
   private implicit val repo          = Repo[IO].ioValue
   private implicit val resolverCache = mock[ResolverCache[IO]]
+  private val projectCache           = mock[ProjectCache[IO]]
 
   private val resolution =
-    new ProjectResolution(resolverCache,
-                          mock[ProjectCache[IO]],
-                          StaticResolution[IO](iriResolution),
-                          mock[AclsCache[IO]])
-  private implicit val materializer  = new Materializer[IO](repo, resolution)
+    new ProjectResolution(repo, resolverCache, projectCache, StaticResolution[IO](iriResolution), mock[AclsCache[IO]])
+  private implicit val materializer  = new Materializer[IO](resolution, projectCache)
   private val storages: Storages[IO] = Storages[IO]
   private val readPerms              = Permission.unsafe("resources/read")
   private val writePerms             = Permission.unsafe("files/write")

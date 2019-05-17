@@ -103,7 +103,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * Fetches the latest revision of a resolver.
     *
     * @param id the id of the resolver
-    * @return Some(resolver) in the F context when found and None in the F context when not found
+    * @return Right(resolver) in the F context when found and Left(notFound) in the F context when not found
     */
   def fetchResolver(id: ResId)(implicit project: Project): EitherT[F, Rejection, Resolver] =
     for {
@@ -116,7 +116,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * Fetches the latest revision of a resolver.
     *
     * @param id the id of the resolver
-    * @return Some(resource) in the F context when found and None in the F context when not found
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
     repo.get(id, Some(resolverRef)).toRight(notFound(id.ref)).flatMap(fetch)
@@ -126,7 +126,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     *
     * @param id  the id of the resolver
     * @param rev the revision of the resolver
-    * @return Some(resource) in the F context when found and None in the F context when not found
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
     repo.get(id, rev, Some(resolverRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch)
@@ -136,10 +136,71 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     *
     * @param id  the id of the resolver
     * @param tag the tag of the resolver
-    * @return Some(resource) in the F context when found and None in the F context when not found
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
     repo.get(id, tag, Some(resolverRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
+
+  /**
+    * Fetches the provided resource from the resolution process.
+    *
+    * @param id  the id of the resource
+    * @param rev the revision of the resource
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
+    */
+  def resolve(id: AbsoluteIri, rev: Long)(implicit project: Project): RejOrResourceV[F] =
+    materializer(Ref.Revision(id, rev), includeMetadata = true)
+
+  /**
+    * Fetches the provided resource from the resolution process.
+    *
+    * @param id  the id of the resource
+    * @param tag the tag of the resource
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
+    */
+  def resolve(id: AbsoluteIri, tag: String)(implicit project: Project): RejOrResourceV[F] =
+    materializer(Ref.Tag(id, tag), includeMetadata = true)
+
+  /**
+    * Fetches the provided resource from the resolution process.
+    *
+    * @param id  the id of the resource
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
+    */
+  def resolve(id: AbsoluteIri)(implicit project: Project): RejOrResourceV[F] =
+    materializer(id.ref, includeMetadata = true)
+
+  /**
+    * Fetches the provided resource from the resolution process using the provided resolver.
+    *
+    * @param id         the id of the resolver
+    * @param resourceId the id of the resource
+    * @param rev        the revision of the resource
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
+    */
+  def resolve(id: ResId, resourceId: AbsoluteIri, rev: Long)(implicit project: Project): RejOrResourceV[F] =
+    fetchResolver(id).flatMap(materializer(Ref.Revision(resourceId, rev), _, includeMetadata = true))
+
+  /**
+    * Fetches the provided resource from the resolution process using the provided resolver.
+    *
+    * @param id         the id of the resolver
+    * @param resourceId the id of the resource
+    * @param tag        the tag of the resource
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
+    */
+  def resolve(id: ResId, resourceId: AbsoluteIri, tag: String)(implicit project: Project): RejOrResourceV[F] =
+    fetchResolver(id).flatMap(materializer(Ref.Tag(resourceId, tag), _, includeMetadata = true))
+
+  /**
+    * Fetches the provided resource from the resolution process using the provided resolver.
+    *
+    * @param id         the id of the resolver
+    * @param resourceId the id of the resource
+    * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
+    */
+  def resolve(id: ResId, resourceId: AbsoluteIri)(implicit project: Project): RejOrResourceV[F] =
+    fetchResolver(id).flatMap(materializer(resourceId.ref, _, includeMetadata = true))
 
   /**
     * Lists resolvers on the given project

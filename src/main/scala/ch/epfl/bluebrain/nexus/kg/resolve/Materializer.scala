@@ -4,9 +4,11 @@ import cats.data.EitherT
 import cats.effect.Effect
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalContextValue, IncorrectId}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ProjectNotFound._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalContextValue, IncorrectId}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.getOrAssignId
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -20,7 +22,8 @@ import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
 import io.circe.Json
 import io.circe.syntax._
 
-class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F])(implicit config: AppConfig) {
+class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache: ProjectCache[F])(
+    implicit config: AppConfig) {
 
   private val emptyJson = Json.obj()
 
@@ -51,7 +54,7 @@ class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F]
   }
 
   private def resolveOrNotFound(ref: Ref)(implicit project: Project): RejOrResource[F] =
-    EitherT.fromOptionF(resolution(project.ref)(repo).resolve(ref), notFound(ref))
+    EitherT.fromOptionF(resolution(project.ref).resolve(ref), notFound(ref))
 
   /**
     * Resolves the context URIs using the [[ProjectResolution]] and once resolved, it replaces the URIs for the actual payload.
@@ -98,15 +101,47 @@ class Materializer[F[_]: Effect](repo: Repo[F], resolution: ProjectResolution[F]
   /**
     * Attempts to find a resource with the provided ref using the [[ProjectResolution]]. Once found, it attempts to resolve the context URIs
     *
-    * @param ref     the reference to a resource in the platform
-    * @param project the current project
+    * @param ref             the reference to a resource in the platform
+    * @param resolver        the resolver used to perform the resolution
+    * @param includeMetadata flag to decide whether or not the metadata should be included in the resuling graph
     * @return Left(rejection) when failed and Right(value) when passed, wrapped in the effect type ''F''
     */
-  def apply(ref: Ref)(implicit project: Project): RejOrResourceV[F] =
+  def apply(ref: Ref, resolver: Resolver, includeMetadata: Boolean): RejOrResourceV[F] =
     for {
-      resource <- EitherT.fromOptionF(resolution(project.ref)(repo).resolve(ref), notFound(ref))
-      value    <- apply(resource.value, resource.id.value)
-    } yield resource.map(_ => value.copy(graph = value.graph.removeMetadata))
+      resource <- EitherT.fromOptionF(resolution(resolver).resolve(ref), notFound(ref))
+      project  <- EitherT.fromOptionF(projectCache.get(resource.id.parent), projectNotFound(resource.id.parent))
+      value    <- apply(resource.value, resource.id.value)(project)
+    } yield
+      if (includeMetadata) metadata(resource, value)(project)
+      else resource.map(_ => value.copy(graph = value.graph.removeMetadata))
+
+  def apply(ref: Ref)(implicit currentProject: Project): RejOrResourceV[F] =
+    apply(ref, includeMetadata = false)
+
+  /**
+    * Attempts to find a resource with the provided ref using the [[ProjectResolution]]. Once found, it attempts to resolve the context URIs
+    *
+    * @param ref             the reference to a resource in the platform
+    * @param includeMetadata flag to decide whether or not the metadata should be included in the resuling graph
+    * @return Left(rejection) when failed and Right(value) when passed, wrapped in the effect type ''F''
+    */
+  def apply(ref: Ref, includeMetadata: Boolean)(implicit currentProject: Project): RejOrResourceV[F] =
+    // format: off
+    for {
+      resource  <- EitherT.fromOptionF(resolution(currentProject.ref).resolve(ref), notFound(ref))
+      project   <- if (resource.id.parent == currentProject.ref) EitherT.rightT[F, Rejection](currentProject)
+                   else EitherT.fromOptionF(projectCache.get(resource.id.parent), projectNotFound(resource.id.parent))
+      value     <- apply(resource.value, resource.id.value)(project)
+    } yield
+      if (includeMetadata) metadata(resource, value)(project)
+      else resource.map(_ => value.copy(graph = value.graph.removeMetadata))
+  // format: on
+
+  private def metadata(resource: Resource, value: Value)(implicit project: Project): ResourceV =
+    resource.map { _ =>
+      val g = RootedGraph(value.graph.rootNode, value.graph.triples ++ resource.metadata()(config, project))
+      value.copy(graph = g)
+    }
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references

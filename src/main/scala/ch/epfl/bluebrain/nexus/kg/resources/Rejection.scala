@@ -92,6 +92,10 @@ object Rejection {
     */
   final case class ProjectNotFound(ref: ProjectRef) extends Rejection(s"Project '${ref.show}' not found.")
 
+  object ProjectNotFound {
+    final def projectNotFound(ref: ProjectRef): Rejection = ProjectNotFound(ref)
+  }
+
   /**
     * Signals the impossibility to resolve the project reference for project labels.
     *
