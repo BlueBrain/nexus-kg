@@ -110,10 +110,8 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
     for {
       resource <- EitherT.fromOptionF(resolution(resolver).resolve(ref), notFound(ref))
       project  <- EitherT.fromOptionF(projectCache.get(resource.id.parent), projectNotFound(resource.id.parent))
-      value    <- apply(resource.value, resource.id.value)(project)
-    } yield
-      if (includeMetadata) metadata(resource, value)(project)
-      else resource.map(_ => value.copy(graph = value.graph.removeMetadata))
+      resolved <- if (includeMetadata) withMeta(resource)(project) else withoutMeta(resource)(project)
+    } yield resolved
 
   def apply(ref: Ref)(implicit currentProject: Project): RejOrResourceV[F] =
     apply(ref, includeMetadata = false)
@@ -131,17 +129,13 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
       resource  <- EitherT.fromOptionF(resolution(currentProject.ref).resolve(ref), notFound(ref))
       project   <- if (resource.id.parent == currentProject.ref) EitherT.rightT[F, Rejection](currentProject)
                    else EitherT.fromOptionF(projectCache.get(resource.id.parent), projectNotFound(resource.id.parent))
-      value     <- apply(resource.value, resource.id.value)(project)
-    } yield
-      if (includeMetadata) metadata(resource, value)(project)
-      else resource.map(_ => value.copy(graph = value.graph.removeMetadata))
+      resolved  <- if (includeMetadata) withMeta(resource)(project) else withoutMeta(resource)(project)
+    } yield resolved
   // format: on
 
-  private def metadata(resource: Resource, value: Value)(implicit project: Project): ResourceV =
-    resource.map { _ =>
-      val g = RootedGraph(value.graph.rootNode, value.graph.triples ++ resource.metadata()(config, project))
-      value.copy(graph = g)
-    }
+  private def withoutMeta(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
+    apply(resource.value, resource.id.value)(project).map(value =>
+      resource.map(_ => value.copy(graph = value.graph.removeMetadata)))
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references
