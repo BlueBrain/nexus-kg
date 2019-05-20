@@ -63,8 +63,8 @@ class ResourcesSpec
   aclsCache.list shouldReturn IO.pure(AccessControlLists.empty)
 
   private implicit val resolution =
-    new ProjectResolution[IO](resolverCache, projectCache, StaticResolution(AppConfig.iriResolution), aclsCache)
-  private implicit val materializer    = new Materializer(repo, resolution)
+    new ProjectResolution[IO](repo, resolverCache, projectCache, StaticResolution(AppConfig.iriResolution), aclsCache)
+  private implicit val materializer    = new Materializer(resolution, projectCache)
   private val resources: Resources[IO] = Resources[IO]
 
   trait Base {

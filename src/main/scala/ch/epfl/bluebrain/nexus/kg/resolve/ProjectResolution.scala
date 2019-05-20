@@ -15,13 +15,15 @@ import monix.eval.Task
 /**
   * Resolution for a given project
   *
-  * @param resolverCache the resolver cache
-  * @param projectCache the project cache
+  * @param repo             the resources repository
+  * @param resolverCache    the resolver cache
+  * @param projectCache     the project cache
   * @param staticResolution the static resolutions
-  * @param aclCache the acl cache
+  * @param aclCache         the acl cache
   * @tparam F the monadic effect type
   */
-class ProjectResolution[F[_]](resolverCache: ResolverCache[F],
+class ProjectResolution[F[_]](repo: Repo[F],
+                              resolverCache: ResolverCache[F],
                               projectCache: ProjectCache[F],
                               staticResolution: Resolution[F],
                               aclCache: AclsCache[F])(implicit F: Monad[F]) {
@@ -33,51 +35,68 @@ class ProjectResolution[F[_]](resolverCache: ResolverCache[F],
     * and generates an aggregated [[Resolution]] out of them.
     *
     * @param ref  the project reference
-    * @param repo the resource repository
     * @return a new [[Resolution]] which is composed by all the resolutions generated from
     *         the resolvers found for the given ''projectRef''
     */
-  def apply(ref: ProjectRef)(repo: Repo[F]): Resolution[F] =
+  def apply(ref: ProjectRef): Resolution[F] =
     new Resolution[F] {
 
-      def resolverResolution(resolver: Resolver): Option[F[Resolution[F]]] =
-        resolver match {
-          case r: InProjectResolver => Some(F.pure(InProjectResolution[F](r.ref, repo)))
-          case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _) =>
-            Some(
-              aclCache.list.map(
-                MultiProjectResolution(repo, F.pure(projects), r.resourceTypes, r.identities, projectCache, _)))
-          case other =>
-            logger.error(s"A corrupted resolver was found in the cache '$other'")
-            None
-
-        }
-
-      private val resolution = resolverCache.get(ref).flatMap {
-        _.filterNot(_.deprecated)
-          .map(resolverResolution)
-          .flatten
-          .sequence
-          .map(list => CompositeResolution(staticResolution :: list))
-      }
+      private val resolution = resolverCache.get(ref).flatMap(toCompositeResolution)
 
       def resolve(ref: Ref): F[Option[Resource]] =
         resolution.flatMap(_.resolve(ref))
     }
+
+  private def toCompositeResolution(resolvers: List[Resolver]): F[CompositeResolution[F]] =
+    resolvers
+      .filterNot(_.deprecated)
+      .map(resolverResolution)
+      .flatten
+      .sequence
+      .map(list => CompositeResolution(staticResolution :: list))
+
+  private def resolverResolution(resolver: Resolver): Option[F[Resolution[F]]] =
+    resolver match {
+      case r: InProjectResolver => Some(F.pure(InProjectResolution[F](r.ref, repo)))
+      case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _) =>
+        Some(
+          aclCache.list.map(
+            MultiProjectResolution(repo, F.pure(projects), r.resourceTypes, r.identities, projectCache, _)))
+      case other =>
+        logger.error(s"A corrupted resolver was found in the cache '$other'")
+        None
+
+    }
+
+  /**
+    * Generates an aggregated [[Resolution]] out of the provided resolver.
+    *
+    * @param resolver the resolver
+    * @return a new [[Resolution]] which is composed by the resolution generated from the provided resolver
+    */
+  def apply(resolver: Resolver): Resolution[F] = new Resolution[F] {
+
+    private val resolution = toCompositeResolution(List(resolver))
+
+    def resolve(ref: Ref): F[Option[Resource]] =
+      resolution.flatMap(_.resolve(ref))
+  }
 
 }
 
 object ProjectResolution {
 
   /**
+    * @param repo          the resources repository
     * @param resolverCache the resolver cache
     * @param projectCache  the project cache
     * @param aclCache      the acl cache
     * @return a new [[ProjectResolution]] for the effect type [[Task]]
     */
-  def task(resolverCache: ResolverCache[Task],
+  def task(repo: Repo[Task],
+           resolverCache: ResolverCache[Task],
            projectCache: ProjectCache[Task],
            aclCache: AclsCache[Task]): ProjectResolution[Task] =
-    new ProjectResolution(resolverCache, projectCache, StaticResolution[Task](iriResolution), aclCache)
+    new ProjectResolution(repo, resolverCache, projectCache, StaticResolution[Task](iriResolution), aclCache)
 
 }

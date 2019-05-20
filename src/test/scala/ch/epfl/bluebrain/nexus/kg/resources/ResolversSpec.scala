@@ -19,11 +19,14 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
+import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path./
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
@@ -62,21 +65,31 @@ class ResolversSpec
   private implicit val repo          = Repo[IO].ioValue
   private implicit val projectCache  = mock[ProjectCache[IO]]
   private implicit val resolverCache = mock[ResolverCache[IO]]
+  private implicit val aclsCache     = mock[AclsCache[IO]]
   private val resolution =
-    new ProjectResolution(resolverCache, projectCache, StaticResolution[IO](iriResolution), mock[AclsCache[IO]])
-  private implicit val materializer    = new Materializer[IO](repo, resolution)
+    new ProjectResolution(repo, resolverCache, projectCache, StaticResolution[IO](iriResolution), aclsCache)
+  private implicit val materializer    = new Materializer[IO](resolution, projectCache)
   private val resolvers: Resolvers[IO] = Resolvers[IO]
+
+  private val user: Identity = User("dmontero", "ldap")
+  private val identities     = List(Group("bbp-ou-neuroinformatics", "ldap2"), user)
 
   // format: off
   val project1 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
   val project2 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
   // format: on
-  projectCache.getBy(ProjectLabel("account1", "project1")) shouldReturn IO.pure(Some(project1))
-  projectCache.getBy(ProjectLabel("account1", "project2")) shouldReturn IO.pure(Some(project2))
   val label1 = ProjectLabel("account1", "project1")
   val label2 = ProjectLabel("account1", "project2")
-  projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO.pure(
-    Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref)))
+  projectCache.get(project1.ref) shouldReturn IO.pure(Some(project1))
+  projectCache.get(project2.ref) shouldReturn IO.pure(Some(project2))
+  projectCache.getBy(ProjectLabel("account1", "project1")) shouldReturn IO.pure(Some(project1))
+  projectCache.getBy(ProjectLabel("account1", "project2")) shouldReturn IO.pure(Some(project2))
+  projectCache.getLabel(project1.ref) shouldReturn IO.pure(Some(label1))
+  projectCache.getLabel(project2.ref) shouldReturn IO.pure(Some(label2))
+  projectCache.getProjectRefs(Set(label1, label2)) shouldReturn
+    IO.pure(Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref)))
+
+  aclsCache.list shouldReturn IO(AccessControlLists(/ -> resourceAcls(AccessControlList(user -> Set(read)))))
 
   before {
     Mockito.reset(resolverCache)
@@ -92,8 +105,9 @@ class ResolversSpec
     val voc        = Iri.absolute(s"http://example.com/voc/").right.value
     // format: off
     implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, caller.subject.id, Instant.EPOCH, caller.subject.id)
+    val crossResolver = CrossProjectResolver(Set(nxv.Schema), Set(project1.ref, project2.ref), identities, projectRef, url"http://example.com/id".value, 1L, false, 20)
     // format: on
-    resolverCache.get(projectRef) shouldReturn IO(List.empty[Resolver])
+    resolverCache.get(projectRef) shouldReturn IO(List(InProjectResolver.default(projectRef), crossResolver))
 
     def updateId(json: Json) =
       json deepMerge Json.obj("@id" -> Json.fromString(id.show))
@@ -229,6 +243,36 @@ class ResolversSpec
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)
+      }
+    }
+
+    "performing resolve operations" should {
+
+      "return resolved resource" in new Base {
+        val resourceId = genIri
+        val orgRef     = OrganizationRef(project1.organizationUuid)
+        resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
+        val json = Json.obj("key" -> Json.fromString("value"))
+        repo.create(Id(project1.ref, resourceId), orgRef, shaclRef, Set(nxv.Schema), json).value.accepted
+        val resource = repo.get(Id(project1.ref, resourceId), None).value.some
+        val graph = RootedGraph(resourceId,
+                                resource.metadata()(appConfig, project1) + ((resourceId,
+                                                                             url"${project1.vocab.asString}key",
+                                                                             "value"): Triple))
+        val ctx = Json.obj("@base" -> Json.fromString(project1.base.asString),
+                           "@vocab" -> Json.fromString(project1.vocab.asString))
+        val expected = resource.map(json => Value(json, ctx, graph))
+        resolvers.resolve(resourceId).value.accepted shouldEqual expected
+        resolvers.resolve(resId, resourceId).value.accepted shouldEqual expected
+        resolvers.resolve(resourceId, 1L).value.accepted shouldEqual expected
+        resolvers.resolve(resId, resourceId, 1L).value.accepted shouldEqual expected
+        resolvers.resolve(resourceId, 2L).value.rejected[NotFound]
+        resolvers.resolve(resId, resourceId, 2L).value.rejected[NotFound]
+      }
+
+      "return not found" in new Base {
+        val resourceId = genIri
+        resolvers.resolve(resourceId).value.rejected[NotFound]
       }
     }
   }
