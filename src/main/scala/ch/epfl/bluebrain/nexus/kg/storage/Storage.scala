@@ -272,15 +272,9 @@ object Storage {
         }
       }
 
-      s3.S3Settings(
-        MemoryBufferType,
-        S3Settings.getSystemProxy(address.toString()),
-        credsProvider,
-        regionProvider,
-        pathStyleAccess = true,
-        endpoint,
-        ApiVersion.ListBucketVersion2
-      )
+      s3.S3Settings(MemoryBufferType, credsProvider, regionProvider, ApiVersion.ListBucketVersion2)
+        .withPathStyleAccess(true)
+        .withEndpointUrl(address.toString())
     }
   }
 

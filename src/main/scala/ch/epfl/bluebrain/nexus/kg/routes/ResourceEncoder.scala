@@ -30,9 +30,8 @@ object ResourceEncoder {
                                               project: Project): GraphEncoder[DecoderResult, Resource] =
     resourceGraphEnc.toEither
 
-  def json(r: Resource)(implicit config: AppConfig, project: Project): DecoderResult[Json] = {
+  def json(r: Resource)(implicit config: AppConfig, project: Project): DecoderResult[Json] =
     r.as[Json](resourceCtx).map(_.replaceContext(resourceCtxUri))
-  }
 
   def json(res: ResourceV)(implicit output: JsonLDOutputFormat): DecoderResult[Json] =
     output match {
