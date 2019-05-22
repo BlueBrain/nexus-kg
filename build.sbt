@@ -26,23 +26,22 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "d7b2fcb1"
-val iamVersion                  = "ea43c07e"
-val commonsVersion              = "0.12.5"
-val storageVersion              = "1.0.2"
-val rdfVersion                  = "0.3.7"
+val iamVersion                  = "c2c2d85d"
+val commonsVersion              = "0.12.6"
+val storageVersion              = "482bca20"
 val sourcingVersion             = "0.16.1"
-val akkaVersion                 = "2.5.22"
+val akkaVersion                 = "2.5.23"
 val akkaCorsVersion             = "0.4.0"
 val akkaHttpVersion             = "10.1.8"
 val akkaPersistenceInMemVersion = "2.5.1.1"
 val akkaPersistenceCassVersion  = "0.97"
-val alpakkaVersion              = "1.0.0"
+val alpakkaVersion              = "1.0.1"
 val catsVersion                 = "1.6.0"
 val catsEffectVersion           = "1.3.0"
 val circeVersion                = "0.11.1"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
-val mockitoVersion              = "1.4.1"
+val mockitoVersion              = "1.4.3"
 val monixVersion                = "3.0.0-RC2"
 val pureconfigVersion           = "0.11.0"
 val shapelessVersion            = "2.3.3"
@@ -57,8 +56,6 @@ lazy val elasticSearchClient  = "ch.epfl.bluebrain.nexus" %% "elasticsearch-clie
 lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
 lazy val commonsCore          = "ch.epfl.bluebrain.nexus" %% "commons-core"               % commonsVersion
 lazy val commonsTest          = "ch.epfl.bluebrain.nexus" %% "commons-test"               % commonsVersion
-lazy val rdf                  = "ch.epfl.bluebrain.nexus" %% "rdf"                        % rdfVersion
-lazy val sourcingCore         = "ch.epfl.bluebrain.nexus" %% "sourcing-core"              % sourcingVersion
 lazy val sourcingProjections  = "ch.epfl.bluebrain.nexus" %% "sourcing-projections"       % sourcingVersion
 lazy val storageClient        = "ch.epfl.bluebrain.nexus" %% "storage-client"             % storageVersion
 lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"               % akkaVersion
@@ -115,8 +112,6 @@ lazy val kg = project
       logbackClassic,
       monixEval,
       pureconfig,
-      rdf,
-      sourcingCore,
       sourcingProjections,
       sparqlClient,
       storageClient,
