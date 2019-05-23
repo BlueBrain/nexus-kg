@@ -119,10 +119,9 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       },
       // Outgoing links
       (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
-        hasPermission(query)) { (pagination, includeExtLinks) =>
+        hasPermission(query)) { (pagination, links) =>
         trace("outgoingLinksResource") {
-          val listed =
-            viewCache.getDefaultSparql(project.ref).flatMap(resources.listOutgoing(id, _, pagination, includeExtLinks))
+          val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listOutgoing(id, _, pagination, links))
           complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
         }
       },
