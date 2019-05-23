@@ -2,16 +2,23 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.UUID
 import java.util.regex.Pattern
+import java.util.regex.Pattern.quote
 
 import cats.data.EitherT
+import cats.effect.Async
 import cats.implicits._
 import cats.{Monad, MonadError, Show}
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
-import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
+import ch.epfl.bluebrain.nexus.commons.search.FromPagination
+import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
+import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.{ElasticSearchConfig, SparqlConfig}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -24,6 +31,8 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.parser._
 import shapeless.{TypeCase, Typeable}
+
+import scala.util.Try
 
 /**
   * Enumeration of view types.
@@ -363,6 +372,61 @@ object View {
       rev: Long,
       deprecated: Boolean
   ) extends SingleView {
+
+    private val incomingQuery: String                = contentOf("/blazegraph/incoming.txt")
+    private val outgoingIncludeExternalQuery: String = contentOf("/blazegraph/outgoing_include_external.txt")
+    private val outgoingScopedQuery: String          = contentOf("/blazegraph/outgoing_scoped.txt")
+
+    private def replace(query: String, id: AbsoluteIri, pagination: FromPagination): String =
+      query
+        .replaceAll(quote("{id}"), id.asString)
+        .replaceAll(quote("{offset}"), pagination.from.toString)
+        .replaceAll(quote("{size}"), pagination.size.toString)
+
+    /**
+      * Runs incoming query using the provided SparqlView index against the provided [[BlazegraphClient]] endpoint
+      *
+      * @param id         the resource id. The query will select the incomings that match this id
+      * @param pagination the pagination for the query
+      * @tparam F the effect type
+      */
+    def incoming[F[_]: Async](id: AbsoluteIri, pagination: FromPagination)(implicit client: BlazegraphClient[F],
+                                                                           config: SparqlConfig): F[LinkResults] =
+      client.copy(namespace = index).queryRaw(replace(incomingQuery, id, pagination)).map(toSparqlLinks)
+
+    /**
+      * Runs outgoing query using the provided SparqlView index against the provided [[BlazegraphClient]] endpoint
+      *
+      * @param id                   the resource id. The query will select the incomings that match this id
+      * @param pagination           the pagination for the query
+      * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
+      * @tparam F the effect type
+      */
+    def outgoing[F[_]: Async](id: AbsoluteIri, pagination: FromPagination, includeExternalLinks: Boolean)(
+        implicit client: BlazegraphClient[F],
+        config: SparqlConfig): F[LinkResults] =
+      if (includeExternalLinks)
+        client
+          .copy(namespace = index)
+          .queryRaw(replace(outgoingIncludeExternalQuery, id, pagination))
+          .map(toSparqlLinks)
+      else client.copy(namespace = index).queryRaw(replace(outgoingScopedQuery, id, pagination)).map(toSparqlLinks)
+
+    private def toSparqlLinks(sparqlResults: SparqlResults): LinkResults = {
+      val (count, results) =
+        sparqlResults.results.bindings
+          .foldLeft((0L, Map.empty[AbsoluteIri, SparqlLink])) {
+            case ((total, acc), bindings) =>
+              val newTotal = bindings.get("total").flatMap(v => Try(v.value.toLong).toOption).getOrElse(total)
+              SparqlExternalLink(bindings) match {
+                case Some(extLink) =>
+                  val prevTypes = acc.get(extLink.id).flatMap(_.asResource).map(_.types).getOrElse(Set.empty)
+                  (newTotal, acc + (extLink.id -> SparqlResourceLink(bindings, extLink, prevTypes).getOrElse(extLink)))
+                case None => (newTotal, acc)
+              }
+          }
+      UnscoredQueryResults(count, results.collect { case (_, link) => UnscoredQueryResult(link) }.toList)
+    }
 
     /**
       * Generates the sparql index

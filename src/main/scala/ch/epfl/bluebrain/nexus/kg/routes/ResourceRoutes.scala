@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.query
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -108,6 +109,22 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
               }
             )
           }
+      },
+      // Incoming links
+      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(query)) { pagination =>
+        trace("incomingLinksResource") {
+          val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listIncoming(id, _, pagination))
+          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+        }
+      },
+      // Outgoing links
+      (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
+        hasPermission(query)) { (pagination, includeExtLinks) =>
+        trace("outgoingLinksResource") {
+          val listed =
+            viewCache.getDefaultSparql(project.ref).flatMap(resources.listOutgoing(id, _, pagination, includeExtLinks))
+          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+        }
       },
       new TagRoutes(tags, schema, write).routes(id)
     )

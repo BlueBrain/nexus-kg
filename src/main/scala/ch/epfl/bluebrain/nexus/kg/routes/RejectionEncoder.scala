@@ -1,14 +1,19 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IncorrectId, InvalidJsonLD}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, Resource, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.Compacted
+import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError.{ConversionError, RootNodeNotFound, Unexpected}
+import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
+import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
 import io.circe.Json
 
 /**
@@ -32,6 +37,17 @@ object RejectionEncoder {
     new RejectionEncoder[ResourceV] {
       override def apply(value: ResourceV): Either[Rejection, Json] =
         ResourceEncoder.json(value).left.map(marshallerErrorToRejectiton(value.id.value, _))
+    }
+
+  final implicit def rejectionEncoderQueryResults[A](
+      implicit enc: GraphEncoder[EncoderResult, QueryResults[A]],
+      node: RootNode[QueryResults[A]]): RejectionEncoder[QueryResults[A]] =
+    new RejectionEncoder[QueryResults[A]] {
+      override def apply(value: QueryResults[A]): Either[Rejection, Json] =
+        QueryResultEncoder
+          .json(value, resourceCtx deepMerge searchCtx)
+          .left
+          .map(_ => InvalidJsonLD("Could not generate query results"))
     }
 
   final implicit def rejectionEncoder(implicit config: AppConfig, project: Project): RejectionEncoder[Resource] =

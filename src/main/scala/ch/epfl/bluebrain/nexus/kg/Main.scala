@@ -78,9 +78,10 @@ object Main {
       val sparql                 = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
       implicit val elasticSearch = ElasticSearchClient[Task](elasticSearchConfig.base)
 
-      implicit val adminClient = AdminClient[Task](appConfig.admin)
-      implicit val iamClient   = IamClient[Task]
-      Clients(sparql)
+      implicit val adminClient  = AdminClient[Task](appConfig.admin)
+      implicit val iamClient    = IamClient[Task]
+      implicit val sparqlClient = sparql
+      Clients()
     }
 
     val cluster = Cluster(as)

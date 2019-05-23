@@ -1,0 +1,14 @@
+{
+  "@id" : "http://example.com/id",
+  "@type" : [
+    "Storage",
+    "S3Storage"
+  ],
+  "bucket" : "bucket",
+  "default" : true,
+  "readPermission" : "s3/read",
+  "writePermission" : "s3/write",
+  "_deprecated" : false,
+  "_algorithm" : "MD5",
+  "_rev" : 1
+}
