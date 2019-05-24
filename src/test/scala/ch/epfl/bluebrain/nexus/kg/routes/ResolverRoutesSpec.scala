@@ -119,7 +119,11 @@ class ResolverRoutesSpec
     def resolverResponse(): Json =
       response(resolverRef) deepMerge Json.obj(
         "@type" -> Json.arr(Json.fromString("CrossProject"), Json.fromString("Resolver")),
-        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid")
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid"),
+        "_incoming" -> Json.fromString(
+          s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid/incoming"),
+        "_outgoing" -> Json.fromString(
+          s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid/outgoing")
       )
 
     val resource =

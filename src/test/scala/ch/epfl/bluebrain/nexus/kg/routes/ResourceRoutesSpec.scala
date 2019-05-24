@@ -124,7 +124,11 @@ class ResourceRoutesSpec
 
     def resourceResponse(): Json =
       response(unconstrainedRef) deepMerge Json.obj(
-        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid")
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid"),
+        "_incoming" -> Json.fromString(
+          s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid/incoming"),
+        "_outgoing" -> Json.fromString(
+          s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid/outgoing")
       )
 
     val resource =

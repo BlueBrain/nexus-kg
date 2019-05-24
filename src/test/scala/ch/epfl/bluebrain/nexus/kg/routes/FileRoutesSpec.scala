@@ -146,7 +146,9 @@ class FileRoutesSpec
 
     def fileResponse(): Json =
       response(fileRef) deepMerge Json.obj(
-        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/files/$organization/$project/nxv:$genUuid")
+        "_self"     -> Json.fromString(s"http://127.0.0.1:8080/v1/files/$organization/$project/nxv:$genUuid"),
+        "_incoming" -> Json.fromString(s"http://127.0.0.1:8080/v1/files/$organization/$project/nxv:$genUuid/incoming"),
+        "_outgoing" -> Json.fromString(s"http://127.0.0.1:8080/v1/files/$organization/$project/nxv:$genUuid/outgoing")
       )
 
     val fileLink = jsonContentOf("/resources/file-link.json")

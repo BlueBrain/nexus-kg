@@ -47,6 +47,8 @@ object Vocabulary {
     val organization     = PrefixMapping.metadata("organization")
     val projectUuid      = PrefixMapping.metadata("projectUuid")
     val organizationUuid = PrefixMapping.metadata("organizationUuid")
+    val incoming         = PrefixMapping.metadata("incoming")
+    val outgoing         = PrefixMapping.metadata("outgoing")
 
     // File metadata vocabulary
     val filename  = PrefixMapping.metadata("filename")

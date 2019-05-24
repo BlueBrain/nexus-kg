@@ -8,6 +8,8 @@
       "@type": "@id"
     },
     "_self": "https://bluebrain.github.io/nexus/vocabulary/self",
+    "_incoming": "https://bluebrain.github.io/nexus/vocabulary/incoming",
+    "_outgoing": "https://bluebrain.github.io/nexus/vocabulary/outgoing",
     "_updatedBy": "https://bluebrain.github.io/nexus/vocabulary/updatedBy",
     "_createdBy": "https://bluebrain.github.io/nexus/vocabulary/createdBy",
     "_storageId": {

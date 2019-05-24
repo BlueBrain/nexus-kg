@@ -71,6 +71,8 @@ class ResourceEncoderSpec
           |  "_project" : "http://localhost:8080/v1/projects/org/proj",
           |  "_rev" : 1,
           |  "_self" : "http://127.0.0.1:8080/v1/resources/org/proj/_/foobar",
+          |  "_incoming" : "http://127.0.0.1:8080/v1/resources/org/proj/_/foobar/incoming",
+          |  "_outgoing" : "http://127.0.0.1:8080/v1/resources/org/proj/_/foobar/outgoing",
           |  "_updatedAt" : "1970-01-01T01:00:00Z",
           |  "_updatedBy" : "http://localhost:8080/v1/anonymous",
           |  "@context" : "https://bluebrain.github.io/nexus/contexts/resource.json"

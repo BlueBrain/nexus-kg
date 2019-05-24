@@ -131,8 +131,10 @@ class ViewRoutesSpec
 
     def viewResponse(): Json =
       response(viewRef) deepMerge Json.obj(
-        "@type" -> Json.arr(Json.fromString("View"), Json.fromString("ElasticSearchView")),
-        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/views/$organization/$project/nxv:$genUuid")
+        "@type"     -> Json.arr(Json.fromString("View"), Json.fromString("ElasticSearchView")),
+        "_self"     -> Json.fromString(s"http://127.0.0.1:8080/v1/views/$organization/$project/nxv:$genUuid"),
+        "_incoming" -> Json.fromString(s"http://127.0.0.1:8080/v1/views/$organization/$project/nxv:$genUuid/incoming"),
+        "_outgoing" -> Json.fromString(s"http://127.0.0.1:8080/v1/views/$organization/$project/nxv:$genUuid/outgoing")
       )
 
     val resource =

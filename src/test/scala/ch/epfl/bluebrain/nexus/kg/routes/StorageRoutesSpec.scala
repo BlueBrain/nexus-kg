@@ -122,7 +122,11 @@ class StorageRoutesSpec
     def storageResponse(): Json =
       response(storageRef) deepMerge Json.obj(
         "@type" -> Json.arr(Json.fromString("S3Storage"), Json.fromString("Storage")),
-        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid")
+        "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid"),
+        "_incoming" -> Json.fromString(
+          s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid/incoming"),
+        "_outgoing" -> Json.fromString(
+          s"http://127.0.0.1:8080/v1/storages/$organization/$project/nxv:$genUuid/outgoing"),
       )
 
     val resource =
