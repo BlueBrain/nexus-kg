@@ -1,21 +1,15 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
 import cats.Id
-import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node._
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
 import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import io.circe.Json
 
 /**
   * Encoders for [[Storage]]
@@ -61,15 +55,6 @@ object StorageEncoder {
 
   implicit val storageGraphEncoderEither: GraphEncoder[EncoderResult, Storage] =
     storageGraphEncoder(includeCredentials = true).toEither
-
-  implicit val qqStorageEncoder: GraphEncoder[Id, QueryResult[Storage]] =
-    GraphEncoder { (rootNode, res) =>
-      storageGraphEncoder(includeCredentials = false)(rootNode, res.source)
-    }
-
-  def json(qrsResolvers: QueryResults[Storage])(implicit enc: GraphEncoder[EncoderResult, QueryResults[Storage]],
-                                                node: RootNode[QueryResults[Storage]]): DecoderResult[Json] =
-    QueryResultEncoder.json(qrsResolvers, storageCtx mergeContext resourceCtx).map(_ addContext storageCtxUri)
 
   private def mainTriples(storage: Storage): Set[Triple] = {
     val s = IriNode(storage.id)

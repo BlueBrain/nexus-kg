@@ -2,25 +2,19 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 
 import cats.Id
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
-import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
 import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import io.circe.Json
 
 /**
   * Encoders for [[Resolver]]
@@ -28,10 +22,6 @@ import io.circe.Json
 object ResolverEncoder {
 
   implicit val resolverRootNode: RootNode[Resolver] = r => IriNode(r.id)
-
-  def json(qrsResolvers: QueryResults[Resolver])(implicit enc: GraphEncoder[EncoderResult, QueryResults[Resolver]],
-                                                 node: RootNode[QueryResults[Resolver]]): DecoderResult[Json] =
-    QueryResultEncoder.json(qrsResolvers, resolverCtx mergeContext resourceCtx).map(_ addContext resolverCtxUri)
 
   implicit def resolverGraphEncoder(implicit config: IamClientConfig): GraphEncoder[Id, Resolver] =
     GraphEncoder {
@@ -49,11 +39,6 @@ object ResolverEncoder {
 
   implicit def resolverGraphEncoderEither(implicit config: IamClientConfig): GraphEncoder[EncoderResult, Resolver] =
     resolverGraphEncoder.toEither
-
-  implicit def qqResolverEncoder(implicit config: IamClientConfig): GraphEncoder[Id, QueryResult[Resolver]] =
-    GraphEncoder { (rootNode, res) =>
-      resolverGraphEncoder.apply(rootNode, res.source)
-    }
 
   private implicit class ResolverSyntax(resolver: Resolver) {
     private val s = IriNode(resolver.id)

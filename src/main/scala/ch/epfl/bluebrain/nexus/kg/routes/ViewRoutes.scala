@@ -78,7 +78,7 @@ class ViewRoutes private[routes] (views: Views[Task],
             complete(listed.runWithStatus(OK))
           }
       },
-      sparql,
+      sparqlRoute,
       elasticSearch,
       stats,
       // Consume the view id segment
@@ -136,6 +136,21 @@ class ViewRoutes private[routes] (views: Views[Task],
             )
           }
       },
+      // Incoming links
+      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(read)) { pagination =>
+        trace("incomingLinksView") {
+          val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listIncoming(id, _, pagination))
+          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+        }
+      },
+      // Outgoing links
+      (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
+        hasPermission(read)) { (pagination, links) =>
+        trace("outgoingLinksView") {
+          val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listOutgoing(id, _, pagination, links))
+          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+        }
+      },
       new TagRoutes(tags, viewRef, write).routes(id)
     )
 
@@ -145,7 +160,7 @@ class ViewRoutes private[routes] (views: Views[Task],
     indexers.sparql.copy(namespace = view.index).queryRaw(query).retry
   }
 
-  private def sparql: Route =
+  private def sparqlRoute: Route =
     pathPrefix(IdSegment / "sparql") { id =>
       (post & pathEndOrSingleSlash & hasPermission(query)) {
         entity(as[String]) { query =>

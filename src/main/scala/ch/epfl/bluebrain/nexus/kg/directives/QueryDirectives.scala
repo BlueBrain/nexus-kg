@@ -8,7 +8,7 @@ import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
 import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.kg.KgError.{InternalError, InvalidOutputFormat, NotFound}
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
@@ -54,22 +54,32 @@ object QueryDirectives {
         }
       }
 
+  private def fromMalformed(implicit config: PaginationConfig) =
+    MalformedQueryParamRejection("from", s"from parameter cannot be greater than ${config.fromLimit}")
+
   /**
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
     */
   def paginated(implicit config: PaginationConfig): Directive1[Pagination] =
     (parameter(from.as[Int] ?) & parameter('size.as[Int] ? config.defaultSize) & parameter(after.as[Json] ?))
       .tflatMap {
-        case (None, size, Some(sa)) => provide(Pagination(sa, size.max(1).min(config.sizeLimit)))
-        case (Some(f), size, None) =>
-          if (f > config.fromLimit)
-            reject(MalformedQueryParamRejection("from", s"from parameter cannot be greater than ${config.fromLimit}"))
-          else
-            provide(Pagination(f.max(0), size.max(1).min(config.sizeLimit)))
-        case (None, size, None) => provide(Pagination(0, size.max(1).min(config.sizeLimit)))
-        case (Some(_), _, Some(_)) =>
+        case (None, size, Some(sa))                     => provide(Pagination(sa, size.max(1).min(config.sizeLimit)))
+        case (Some(f), _, None) if f > config.fromLimit => reject(fromMalformed)
+        case (Some(f), size, None)                      => provide(Pagination(f.max(0), size.max(1).min(config.sizeLimit)))
+        case (None, size, None)                         => provide(Pagination(0, size.max(1).min(config.sizeLimit)))
+        case _ =>
           reject(MalformedQueryParamRejection("after,from", "after and from cannot be specified at the same time"))
       }
+
+  /**
+    * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
+    */
+  def fromPaginated(implicit config: PaginationConfig): Directive1[FromPagination] =
+    (parameter(from.as[Int] ?) & parameter('size.as[Int] ? config.defaultSize)).tflatMap {
+      case (Some(f), _) if f > config.fromLimit => reject(fromMalformed)
+      case (Some(f), size)                      => provide(FromPagination(f.max(0), size.max(1).min(config.sizeLimit)))
+      case (None, size)                         => provide(FromPagination(0, size.max(1).min(config.sizeLimit)))
+    }
 
   /**
     * @param default the default output format when the query parameter is not present

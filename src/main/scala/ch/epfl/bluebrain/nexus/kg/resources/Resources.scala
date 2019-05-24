@@ -6,14 +6,15 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
-import ch.epfl.bluebrain.nexus.commons.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.shacl.{ShaclEngine, ValidationReport}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -177,6 +178,33 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
       implicit tc: HttpClient[F, JsonResults],
       elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
     listResources(view, params, pagination)
+
+  /**
+    * Lists incoming resources for the provided ''id''
+    *
+    * @param id         the resource id for which to retrieve the incoming links
+    * @param view       optionally available default sparql view
+    * @param pagination pagination options
+    * @return search results in the F context
+    */
+  def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
+      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+    incoming(id, view, pagination)
+
+  /**
+    * Lists outgoing resources for the provided ''id''
+    *
+    * @param id                   the resource id for which to retrieve the outgoing links
+    * @param view                 optionally available default sparql view
+    * @param pagination           pagination options
+    * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
+    * @return search results in the F context
+    */
+  def listOutgoing(id: AbsoluteIri,
+                   view: Option[SparqlView],
+                   pagination: FromPagination,
+                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+    outgoing(id, view, pagination, includeExternalLinks)
 
   private def validate(schema: Ref, data: Graph)(implicit project: Project): EitherT[F, Rejection, Unit] = {
     def toEitherT(optReport: Option[ValidationReport]): EitherT[F, Rejection, Unit] =

@@ -109,6 +109,21 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
             )
           }
       },
+      // Incoming links
+      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(read)) { pagination =>
+        trace("incomingLinksResource") {
+          val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listIncoming(id, _, pagination))
+          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+        }
+      },
+      // Outgoing links
+      (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
+        hasPermission(read)) { (pagination, links) =>
+        trace("outgoingLinksResource") {
+          val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listOutgoing(id, _, pagination, links))
+          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+        }
+      },
       new TagRoutes(tags, schema, write).routes(id)
     )
 }

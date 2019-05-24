@@ -95,6 +95,8 @@ final case class ResourceF[A](
     val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
     val projectUri  = config.admin.publicIri + "projects" / project.organizationLabel / project.label
     val self        = AccessId(id.value, schema.iri)
+    val incoming    = self + "incoming"
+    val outgoing    = self + "outgoing"
     fileTriples + (
       (node, nxv.rev, rev),
       (node, nxv.deprecated, deprecated),
@@ -104,6 +106,8 @@ final case class ResourceF[A](
       (node, nxv.updatedBy, if (asIri) updatedBy.id else updatedBy.id.asString),
       (node, nxv.constrainedBy, schema.iri),
       (node, nxv.project, projectUri),
+      (node, nxv.incoming, if (asIri) incoming else incoming.asString),
+      (node, nxv.outgoing, if (asIri) outgoing else outgoing.asString),
       (node, nxv.self, if (asIri) self else self.asString)
     ) ++ typeTriples
   }

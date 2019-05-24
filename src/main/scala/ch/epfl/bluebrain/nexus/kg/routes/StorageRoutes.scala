@@ -117,6 +117,21 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
             )
           }
       },
+      // Incoming links
+      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(read)) { pagination =>
+        trace("incomingLinksStorage") {
+          val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listIncoming(id, _, pagination))
+          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+        }
+      },
+      // Outgoing links
+      (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
+        hasPermission(read)) { (pagination, links) =>
+        trace("outgoingLinksStorage") {
+          val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listOutgoing(id, _, pagination, links))
+          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+        }
+      },
       new TagRoutes(tags, storageRef, write).routes(id)
     )
 }

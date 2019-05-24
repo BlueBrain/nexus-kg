@@ -33,6 +33,12 @@
     "_self": {
       "type": "keyword"
     },
+    "_incoming": {
+      "type": "keyword"
+    },
+    "_outgoing": {
+      "type": "keyword"
+    },
     "_original_source": {
       "type": "text"
     },

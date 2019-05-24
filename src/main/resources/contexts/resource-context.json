@@ -23,6 +23,8 @@
       "@type": "@id"
     },
     "_self": "nxv:self",
+    "_incoming": "nxv:incoming",
+    "_outgoing": "nxv:outgoing",
     "_createdBy": "nxv:createdBy",
     "_updatedBy": "nxv:updatedBy",
     "_constrainedBy": {
