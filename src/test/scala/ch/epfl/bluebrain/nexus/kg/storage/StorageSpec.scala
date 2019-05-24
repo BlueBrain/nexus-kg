@@ -4,8 +4,7 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
-import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.search.QueryResults
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -13,12 +12,12 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
 
 class StorageSpec
@@ -47,19 +46,20 @@ class StorageSpec
     val projectRef = ProjectRef(genUUID)
     val id         = Id(projectRef, iri)
 
+    val diskStorage = jsonContentOf("/storage/disk.json").appendContextOf(storageCtx)
+    val s3Storage   = jsonContentOf("/storage/s3.json").appendContextOf(storageCtx)
+    val remoteDiskStorage =
+      jsonContentOf("/storage/remoteDisk.json",
+                    Map(quote("{read}")   -> "myRead",
+                        quote("{write}")  -> "myWrite",
+                        quote("{folder}") -> "folder",
+                        quote("{cred}")   -> "credentials"))
+        .appendContextOf(storageCtx)
+
     "constructing" should {
-      val diskStorage = jsonContentOf("/storage/disk.json").appendContextOf(storageCtx)
       val diskStoragePerms =
         jsonContentOf("/storage/diskPerms.json", Map(quote("{read}") -> "myRead", quote("{write}") -> "myWrite"))
           .appendContextOf(storageCtx)
-      val remoteDiskStorage =
-        jsonContentOf("/storage/remoteDisk.json",
-                      Map(quote("{read}")   -> "myRead",
-                          quote("{write}")  -> "myWrite",
-                          quote("{folder}") -> "folder",
-                          quote("{cred}")   -> "credentials"))
-          .appendContextOf(storageCtx)
-      val s3Storage = jsonContentOf("/storage/s3.json").appendContextOf(storageCtx)
       val s3Minimal = jsonContentOf("/storage/s3-minimal.json").appendContextOf(storageCtx)
 
       "return a DiskStorage" in {
@@ -165,42 +165,25 @@ class StorageSpec
       }
     }
 
-    "converting into json (from Graph)" should {
-      "return the json representation for a query results list of DiskStorage" in {
-        val diskStorage: DiskStorage =
-          DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), readDisk, writeDisk)
-        val storages: QueryResults[Storage] =
-          QueryResults(1L, List(UnscoredQueryResult(diskStorage)))
-        StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
-          jsonContentOf("/storage/disk-storages.json"))
-      }
+    "converting into json " should {
+      "return the json representation for storages" in {
 
-      "return the json representation for a query results list of RemoteDiskStorage" in {
-        val remoteDiskStorage: RemoteDiskStorage =
-          RemoteDiskStorage(projectRef,
-                            iri,
-                            1L,
-                            false,
-                            false,
-                            "SHA-256",
-                            "http://example.com/some",
-                            None,
-                            "folder",
-                            readDisk,
-                            writeDisk)
-        val storages: QueryResults[Storage] =
-          QueryResults(1L, List(UnscoredQueryResult(remoteDiskStorage)))
-        StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
-          jsonContentOf("/storage/remote-disk-storages.json"))
-      }
+        val expectedRead  = Permission.unsafe("myRead")
+        val expectedWrite = Permission.unsafe("myWrite")
+        // format: off
+        val disk: Storage = DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), readDisk, writeDisk)
+        val s3: Storage = S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", S3Settings(None, None, None), readS3, writeS3)
+        val remote: Storage = RemoteDiskStorage(projectRef, iri, 1L, false, false, "SHA-256", "http://example.com/some", Some("credentials"), "folder", expectedRead, expectedWrite)
+        // format: on
 
-      "return the json representation for a query results list of S3Storage" in {
-        val settings  = S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region"))
-        val s3Storage = S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, readS3, writeS3)
-        val storages: QueryResults[Storage] =
-          QueryResults(1L, List(UnscoredQueryResult(s3Storage)))
-        StorageEncoder.json(storages).right.value should equalIgnoreArrayOrder(
-          jsonContentOf("/storage/s3-storages.json"))
+        forAll(
+          List(disk   -> jsonContentOf("/storage/disk-meta.json"),
+               s3     -> jsonContentOf("/storage/s3-meta.json"),
+               remote -> jsonContentOf("/storage/remoteDisk-meta.json"))) {
+          case (storage, expectedJson) =>
+            val json = storage.as[Json](storageCtx.appendContextOf(resourceCtx)).right.value.removeKeys("@context")
+            json should equalIgnoreArrayOrder(expectedJson.removeKeys("@context"))
+        }
       }
     }
   }

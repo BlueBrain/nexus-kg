@@ -1,11 +1,16 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
+import java.util.regex.Pattern.quote
 
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults.{Binding, Bindings, Head}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
@@ -18,15 +23,20 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
+import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
+import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary.xsd
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
 import org.mockito.IdiomaticMockito
+import org.mockito.Mockito.when
 import org.scalatest._
 
 import scala.concurrent.ExecutionContext
@@ -48,6 +58,8 @@ class ResourcesSpec
     with Inspectors {
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+
+  private implicit val client: BlazegraphClient[IO] = mock[BlazegraphClient[IO]]
 
   private implicit val appConfig              = Settings(system).appConfig
   private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -237,6 +249,84 @@ class ResourcesSpec
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         val otherSchema = Ref(genIri)
         resources.fetch(resId, otherSchema).value.rejected[NotFound] shouldEqual NotFound(otherSchema)
+      }
+    }
+
+    "performing links operations" should {
+      val self       = url"http://127.0.0.1:8080/v1/resources/myorg/myproject/_/id".value
+      val projectUri = url"http://127.0.0.1:8080/v1/projects/myorg/myproject/".value
+      val author     = url"http://127.0.0.1:8080/v1/realms/myrealm/users/me".value
+      val id1        = url"http://example.com/id".value
+      val id2        = url"http://example.com/id2".value
+      val property   = url"http://example.com/friend".value
+
+      val binding1 = Map(
+        "s"              -> Binding("uri", id1.asString),
+        "property"       -> Binding("uri", property.asString),
+        "_rev"           -> Binding("literal", "1", datatype = Some(xsd.long.value.asString)),
+        "_self"          -> Binding("uri", self.asString),
+        "_project"       -> Binding("uri", projectUri.asString),
+        "type"           -> Binding("uri", nxv.Resolver.asString),
+        "_constrainedBy" -> Binding("uri", unconstrainedSchemaUri.asString),
+        "_createdBy"     -> Binding("uri", author.asString),
+        "_updatedBy"     -> Binding("uri", author.asString),
+        "_createdAy"     -> Binding("uri", author.asString),
+        "_createdAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.value.asString)),
+        "_updatedAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.value.asString)),
+        "_deprecated"    -> Binding("literal", "false", datatype = Some(xsd.boolean.value.asString))
+      )
+
+      val binding2 = Map(
+        "s"              -> Binding("uri", id1.asString),
+        "property"       -> Binding("uri", property.asString),
+        "_rev"           -> Binding("literal", "1", datatype = Some(xsd.long.value.asString)),
+        "_self"          -> Binding("uri", self.asString),
+        "_project"       -> Binding("uri", projectUri.asString),
+        "type"           -> Binding("uri", nxv.Schema.asString),
+        "_constrainedBy" -> Binding("uri", unconstrainedSchemaUri.asString),
+        "_createdBy"     -> Binding("uri", author.asString),
+        "_updatedBy"     -> Binding("uri", author.asString),
+        "_createdAy"     -> Binding("uri", author.asString),
+        "_createdAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.value.asString)),
+        "_updatedAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.value.asString)),
+        "_deprecated"    -> Binding("literal", "false", datatype = Some(xsd.boolean.value.asString))
+      )
+
+      val binding3 = Map("s" -> Binding("uri", id2.asString), "property" -> Binding("uri", property.asString))
+
+      val binding4 = Map("total" -> Binding("literal", "10", datatype = Some(xsd.long.value.asString)))
+
+      val results: List[UnscoredQueryResult[SparqlLink]] = List(
+        // format: off
+        UnscoredQueryResult(SparqlResourceLink(id1, projectUri, self, 1L, Set(nxv.Resolver, nxv.Schema), deprecated = false, clock.instant(), clock.instant(), author, author, unconstrainedRef, property)),
+        UnscoredQueryResult(SparqlExternalLink(id2, property))
+        // format: on
+      )
+
+      "return incoming links" in new Base {
+        val view = SparqlView.default(projectRef)
+        when(client.copy(namespace = view.index)).thenReturn(client)
+        val query =
+          contentOf("/blazegraph/incoming.txt",
+                    Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1"))
+        client.queryRaw(query) shouldReturn IO(
+          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3, binding4))))
+        resources.listIncoming(resId.value, Some(view), FromPagination(1, 10)).ioValue shouldEqual
+          QueryResults(10, results)
+      }
+
+      "return outgoing links" in new Base {
+        val view = SparqlView.default(projectRef)
+        when(client.copy(namespace = view.index)).thenReturn(client)
+        val query =
+          contentOf("/blazegraph/outgoing_include_external.txt",
+                    Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1"))
+        client.queryRaw(query) shouldReturn IO(
+          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3, binding4))))
+        resources
+          .listOutgoing(resId.value, Some(view), FromPagination(1, 10), includeExternalLinks = true)
+          .ioValue shouldEqual
+          QueryResults(10, results)
       }
     }
   }

@@ -14,7 +14,6 @@ import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.query
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -117,7 +116,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
           }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(query)) { pagination =>
+      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(read)) { pagination =>
         trace("incomingLinksSchema") {
           val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listIncoming(id, _, pagination))
           complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
@@ -125,7 +124,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       },
       // Outgoing links
       (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
-        hasPermission(query)) { (pagination, links) =>
+        hasPermission(read)) { (pagination, links) =>
         trace("outgoingLinksSchema") {
           val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listOutgoing(id, _, pagination, links))
           complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))

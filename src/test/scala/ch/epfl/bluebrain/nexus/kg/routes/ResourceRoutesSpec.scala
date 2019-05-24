@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Randomness}
@@ -25,13 +25,15 @@ import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
@@ -40,6 +42,9 @@ import org.mockito.IdiomaticMockito
 import org.mockito.matchers.MacroBasedMatchers
 import org.scalatest._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import java.util.regex.Pattern.quote
+
+import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
 
 import scala.concurrent.duration._
 
@@ -86,17 +91,17 @@ class ResourceRoutesSpec
   private implicit val utClient      = untyped[Task]
   private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
   private implicit val jsonClient    = withUnmarshaller[Task, Json]
-  private val sparql                 = mock[BlazegraphClient[Task]]
+  private implicit val sparql        = mock[BlazegraphClient[Task]]
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
-  private implicit val clients       = Clients(sparql)
+  private implicit val clients       = Clients()
 
-  private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
+  private val manageResources = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
   // format: off
   private val routes = Routes(resources, mock[Resolvers[Task]], mock[Views[Task]], mock[Storages[Task]], mock[Schemas[Task]], mock[Files[Task]], tagsRes, mock[ProjectViewCoordinator[Task]])
   // format: on
 
   //noinspection NameBooleanParameters
-  abstract class Context(perms: Set[Permission] = manageResolver) extends RoutesFixtures {
+  abstract class Context(perms: Set[Permission] = manageResources) extends RoutesFixtures {
 
     projectCache.getBy(label) shouldReturn Task.pure(Some(projectMeta))
     projectCache.get(OrganizationRef(projectMeta.organizationUuid), ProjectRef(projectMeta.uuid)) shouldReturn
@@ -272,6 +277,69 @@ class ResourceRoutesSpec
         MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      }
+    }
+
+    val (id2, prop2, id3, prop3) = (genIri, genIri, genIri, genIri)
+    val (proj3, self3)           = (genIri, genIri)
+    val author                   = genIri
+
+    val links: QueryResults[SparqlLink] =
+      UnscoredQueryResults(
+        2,
+        List(
+          // format: off
+          UnscoredQueryResult(SparqlExternalLink(id2, prop2)),
+          UnscoredQueryResult(SparqlResourceLink(id3, proj3, self3, 1L, Set(nxv.Resolver, nxv.Schema), deprecated = false, clock.instant(), clock.instant(), author, author, shaclRef, prop3))
+          // format: on
+        )
+      )
+
+    val linksJson =
+      jsonContentOf(
+        "/resources/links.json",
+        Map(
+          quote("{id1}")       -> id2.asString,
+          quote("{property1}") -> prop2.asString,
+          quote("{id2}")       -> id3.asString,
+          quote("{property2}") -> prop3.asString,
+          quote("{self2}")     -> self3.asString,
+          quote("{project2}")  -> proj3.asString,
+          quote("{author}")    -> author.asString
+        )
+      )
+
+    "incoming links of a resource" in new Context {
+      viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
+      resources.listIncoming(id.value, Some(defaultSparqlView), FromPagination(1, 10)) shouldReturn Task(links)
+      Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId/incoming?from=1&size=10") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(linksJson)
+      }
+    }
+
+    "outgoing links of a resource (including external links)" in new Context {
+      viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
+      resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(1, 10), includeExternalLinks = true) shouldReturn Task(
+        links)
+      Get(
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=1&size=10&includeExternalLinks=true") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(linksJson)
+      }
+    }
+
+    "outgoing links of a resource (excluding external links)" in new Context {
+      viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
+      resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(1, 10), includeExternalLinks = false) shouldReturn Task(
+        links)
+      Get(
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=1&size=10&includeExternalLinks=false") ~> addCredentials(
+        oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(linksJson)
       }
     }
 

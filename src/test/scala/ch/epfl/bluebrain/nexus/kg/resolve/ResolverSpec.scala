@@ -3,10 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
 
+import cats.implicits._
 import cats.{Id => CId}
-import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.search.QueryResults
-import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
@@ -17,9 +16,9 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
 
@@ -35,7 +34,8 @@ class ResolverSpec
     with BeforeAndAfter
     with TestHelper
     with TryValues
-    with Inspectors {
+    with Inspectors
+    with CirceEq {
 
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
@@ -128,27 +128,29 @@ class ResolverSpec
       }
     }
 
-    "converting into json (from Graph)" should {
+    "converting into json " should {
 
-      "return the list representation" in {
-        val iri2 = Iri.absolute("http://example.com/id2").right.value
+      "return the json representation" in {
 
-        val inProject: Resolver = InProjectResolver(projectRef, iri, 1L, false, 10)
+        val resolver: Resolver = CrossProjectResolver(
+          Set(nxv.Schema.value),
+          Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
+          List(Anonymous),
+          projectRef,
+          iri,
+          1L,
+          false,
+          50
+        )
 
-        val crossProject: Resolver =
-          CrossProjectResolver(
-            Set(nxv.Resolver, nxv.CrossProject),
-            Set(label1, label2),
-            List(User("dmontero", "ldap")),
-            projectRef,
-            iri2,
-            1L,
-            false,
-            11
-          )
-        val resolvers: QueryResults[Resolver] =
-          QueryResults(2L, List(UnscoredQueryResult(inProject), UnscoredQueryResult(crossProject)))
-        ResolverEncoder.json(resolvers).right.value shouldEqual jsonContentOf("/resolve/resolver-list-resp.json")
+        val metadata = Json.obj(
+          "_rev"        -> Json.fromLong(1L),
+          "_deprecated" -> Json.fromBoolean(false),
+          "identities" -> Json.arr(Json.obj("@id" -> Json.fromString("http://example.com/iam/anonymous"),
+                                            "@type" -> Json.fromString("Anonymous")))
+        )
+        val json = resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)).right.value.removeKeys("@context")
+        json should equalIgnoreArrayOrder(crossProjectAnon.removeKeys("@context") deepMerge metadata)
       }
     }
 

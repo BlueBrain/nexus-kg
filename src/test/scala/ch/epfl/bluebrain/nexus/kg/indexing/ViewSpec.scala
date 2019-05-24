@@ -2,33 +2,51 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
+import java.util.regex.Pattern.quote
 
+import akka.actor.ActorSystem
+import akka.testkit.TestKit
+import cats.effect.IO
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
+import ch.epfl.bluebrain.nexus.commons.test.io.IOValues
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
+import org.mockito.IdiomaticMockito
+import org.mockito.Mockito.when
 import org.scalatest._
 
 class ViewSpec
-    extends WordSpecLike
+    extends TestKit(ActorSystem("ViewSpec"))
+    with WordSpecLike
     with Matchers
     with OptionValues
     with Resources
     with TestHelper
     with Inspectors
     with BeforeAndAfter
-    with CirceEq {
+    with CirceEq
+    with IdiomaticMockito
+    with IOValues {
+
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+
+  private implicit val appConfig = Settings(system).appConfig
+
+  private implicit val client: BlazegraphClient[IO] = mock[BlazegraphClient[IO]]
 
   "A View" when {
     val mapping              = jsonContentOf("/elasticsearch/mapping.json")
@@ -147,6 +165,43 @@ class ViewSpec
           resource.deprecated)
       }
 
+      "run incoming method on a SparqlView" in {
+        val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
+        when(client.copy(namespace = view.index)).thenReturn(client)
+        val query =
+          contentOf("/blazegraph/incoming.txt",
+                    Map(quote("{id}") -> "http://example.com/id", quote("{size}") -> "100", quote("{offset}") -> "0"))
+        client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
+        view.incoming[IO](url"http://example.com/id".value, FromPagination(0, 100)).ioValue shouldEqual
+          UnscoredQueryResults(0, List.empty[UnscoredQueryResult[SparqlLink]])
+      }
+
+      "run outgoing method (including external links) on a SparqlView" in {
+        val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
+        when(client.copy(namespace = view.index)).thenReturn(client)
+        val query =
+          contentOf("/blazegraph/outgoing_include_external.txt",
+                    Map(quote("{id}") -> "http://example.com/id2", quote("{size}") -> "100", quote("{offset}") -> "10"))
+        client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
+        view
+          .outgoing[IO](url"http://example.com/id2".value, FromPagination(10, 100), includeExternalLinks = true)
+          .ioValue shouldEqual
+          UnscoredQueryResults(0, List.empty[UnscoredQueryResult[SparqlLink]])
+      }
+
+      "run outgoing method (excluding external links) on a SparqlView" in {
+        val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
+        when(client.copy(namespace = view.index)).thenReturn(client)
+        val query =
+          contentOf("/blazegraph/outgoing_scoped.txt",
+                    Map(quote("{id}") -> "http://example.com/id2", quote("{size}") -> "100", quote("{offset}") -> "10"))
+        client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
+        view
+          .outgoing[IO](url"http://example.com/id2".value, FromPagination(10, 100), includeExternalLinks = false)
+          .ioValue shouldEqual
+          UnscoredQueryResults(0, List.empty[UnscoredQueryResult[SparqlLink]])
+      }
+
       "fail on AggregateElasticSearchView when types are wrong" in {
         val resource = simpleV(id, aggElasticSearchView, types = Set(nxv.View))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
@@ -202,73 +257,28 @@ class ViewSpec
         ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
       )
 
-      "return the json representation for an AggregateElasticSearchView" in {
-        val agg: View = AggregateElasticSearchView(views,
-                                                   projectRef,
-                                                   UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
-                                                   iri,
-                                                   1L,
-                                                   deprecated = false)
-        agg
-          .as[Json](viewCtx.appendContextOf(resourceCtx))
-          .right
-          .value
-          .removeKeys("@context", "_rev", "_deprecated") should equalIgnoreArrayOrder(
-          aggElasticSearchView.removeKeys("@context"))
-      }
+      "return the json representation" in {
+        // format: off
+        val esAgg: View = AggregateElasticSearchView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
+        val sparqlAgg: View = AggregateSparqlView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
+        val es: View = ElasticSearchView(mapping, Set(nxv.Schema, nxv.Resource), Set.empty, Some("one"), false, true, true, projectRef, iri, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), 1L, false)
+        val sparql: View = SparqlView(Set.empty, Set.empty, None, true, true, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
+        // format: on
+        val results =
+          List(
+            esAgg     -> jsonContentOf("/view/aggelasticview-meta.json"),
+            sparqlAgg -> jsonContentOf("/view/aggsparqlview-meta.json"),
+            es        -> jsonContentOf("/view/elasticsearchview-meta.json"),
+            sparql    -> jsonContentOf("/view/sparqlview-meta.json")
+          )
 
-      "return the json representation for an AggregateSparqlView" in {
-        val agg: View = AggregateSparqlView(views,
-                                            projectRef,
-                                            UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
-                                            iri,
-                                            1L,
-                                            deprecated = false)
-        agg
-          .as[Json](viewCtx.appendContextOf(resourceCtx))
-          .right
-          .value
-          .removeKeys("@context", "_rev", "_deprecated") should equalIgnoreArrayOrder(
-          aggSparqlView.removeKeys("@context"))
-      }
+        forAll(results) {
+          case (view, expectedJson) =>
+            val json = view.as[Json](viewCtx.appendContextOf(resourceCtx)).right.value.removeKeys("@context")
+            json should equalIgnoreArrayOrder(expectedJson.removeKeys("@context"))
 
-      "return the json representation for a queryresults list with ElasticSearchView" in {
-        val elasticSearch: View = ElasticSearchView(
-          mapping,
-          Set(nxv.Schema, nxv.Resource),
-          Set.empty,
-          Some("one"),
-          false,
-          true,
-          true,
-          projectRef,
-          iri,
-          UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
-          1L,
-          false
-        )
-        val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(elasticSearch)))
-        ViewEncoder.json(views).right.value should equalIgnoreArrayOrder(
-          jsonContentOf("/view/view-list-resp-elastic.json"))
-      }
-
-      "return the json representation for a queryresults list with SparqlView" in {
-        val sparql: View =
-          SparqlView(Set.empty,
-                     Set.empty,
-                     None,
-                     true,
-                     true,
-                     projectRef,
-                     iri,
-                     UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
-                     1L,
-                     false)
-        val views: QueryResults[View] = QueryResults(1L, List(UnscoredQueryResult(sparql)))
-        ViewEncoder.json(views).right.value should equalIgnoreArrayOrder(
-          jsonContentOf("/view/view-list-resp-sparql.json"))
+        }
       }
     }
   }
-
 }

@@ -137,7 +137,7 @@ class ViewRoutes private[routes] (views: Views[Task],
           }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(query)) { pagination =>
+      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(read)) { pagination =>
         trace("incomingLinksView") {
           val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listIncoming(id, _, pagination))
           complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
@@ -145,7 +145,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       },
       // Outgoing links
       (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
-        hasPermission(query)) { (pagination, links) =>
+        hasPermission(read)) { (pagination, links) =>
         trace("outgoingLinksView") {
           val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listOutgoing(id, _, pagination, links))
           complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))

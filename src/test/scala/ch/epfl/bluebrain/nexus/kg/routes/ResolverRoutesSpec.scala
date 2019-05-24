@@ -90,9 +90,9 @@ class ResolverRoutesSpec
   private implicit val utClient      = untyped[Task]
   private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
   private implicit val jsonClient    = withUnmarshaller[Task, Json]
-  private val sparql                 = mock[BlazegraphClient[Task]]
+  private implicit val sparql        = mock[BlazegraphClient[Task]]
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
-  private implicit val clients       = Clients(sparql)
+  private implicit val clients       = Clients()
 
   private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("resolvers/write"))
   // format: off
