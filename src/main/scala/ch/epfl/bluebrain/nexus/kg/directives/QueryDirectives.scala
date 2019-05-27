@@ -32,6 +32,7 @@ object QueryDirectives {
     Unmarshaller.strict[String, Json](parse(_).fold(throw _, identity))
 
   val from: String  = "from"
+  val size: String  = "size"
   val after: String = "after"
 
   /**
@@ -61,7 +62,7 @@ object QueryDirectives {
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
     */
   def paginated(implicit config: PaginationConfig): Directive1[Pagination] =
-    (parameter(from.as[Int] ?) & parameter('size.as[Int] ? config.defaultSize) & parameter(after.as[Json] ?))
+    (parameter(from.as[Int] ?) & parameter(size.as[Int] ? config.defaultSize) & parameter(after.as[Json] ?))
       .tflatMap {
         case (None, size, Some(sa))                     => provide(Pagination(sa, size.max(1).min(config.sizeLimit)))
         case (Some(f), _, None) if f > config.fromLimit => reject(fromMalformed)
@@ -75,7 +76,7 @@ object QueryDirectives {
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
     */
   def fromPaginated(implicit config: PaginationConfig): Directive1[FromPagination] =
-    (parameter(from.as[Int] ?) & parameter('size.as[Int] ? config.defaultSize)).tflatMap {
+    (parameter(from.as[Int] ?) & parameter(size.as[Int] ? config.defaultSize)).tflatMap {
       case (Some(f), _) if f > config.fromLimit => reject(fromMalformed)
       case (Some(f), size)                      => provide(FromPagination(f.max(0), size.max(1).min(config.sizeLimit)))
       case (None, size)                         => provide(FromPagination(0, size.max(1).min(config.sizeLimit)))

@@ -57,12 +57,13 @@ trait RoutesFixtures extends Randomness with TestHelper with Resources {
   val organizationMeta = Organization(genIri, organization, Some("description"), genUUID, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
   // format: on
 
-  val organizationRef = OrganizationRef(organizationMeta.uuid)
-  val genUuid         = genUUID
-  val projectRef      = ProjectRef(genUUID)
-  val id              = Id(projectRef, nxv.withSuffix(genUuid.toString))
-  val urlEncodedId    = urlEncode(id.value)
-  val label           = ProjectLabel(organization, project)
+  val organizationRef     = OrganizationRef(organizationMeta.uuid)
+  val genUuid             = genUUID
+  val projectRef          = ProjectRef(genUUID)
+  val id                  = Id(projectRef, nxv.withSuffix(genUuid.toString))
+  val urlEncodedId        = urlEncode(id.value)
+  val urlEncodedIdNoColon = urlEncode(id.value).replace("%3A", ":")
+  val label               = ProjectLabel(organization, project)
 
   // format: off
   val projectMeta = Project(id.value, project, organization, None, url"http://example.com/", nxv.base, mappings, projectRef.id, organizationRef.id, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)

@@ -2,21 +2,16 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.time.Instant
 
-import cats.Id
-import ch.epfl.bluebrain.nexus.commons.search.QueryResult
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults.Binding
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
+import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
 import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import io.circe.syntax._
+import io.circe.{Encoder, Json}
 
 import scala.util.Try
 
@@ -131,36 +126,31 @@ object SparqlLink {
       } yield SparqlExternalLink(id, property)
   }
 
-  implicit val rootNodeLinks: RootNode[SparqlLink] = link => IriNode(link.id)
+  implicit val linkEncoder: Encoder[SparqlLink] = Encoder.encodeJson.contramap {
+    case SparqlExternalLink(id, property) =>
+      Json.obj("@id" -> id.asString.asJson, nxv.property.prefix -> property.asJson)
+    case SparqlResourceLink(id, project, self, rev, types, dep, c, u, cBy, uBy, schema, property) =>
+      Json.obj(
+        "@id"                    -> id.asString.asJson,
+        "@type"                  -> types.asJson,
+        nxv.deprecated.prefix    -> dep.asJson,
+        nxv.project.prefix       -> project.asString.asJson,
+        nxv.self.prefix          -> self.asString.asJson,
+        nxv.rev.prefix           -> rev.asJson,
+        nxv.createdAt.prefix     -> c.toString.asJson,
+        nxv.updatedAt.prefix     -> u.toString.asJson,
+        nxv.createdBy.prefix     -> cBy.asString.asJson,
+        nxv.updatedBy.prefix     -> uBy.asString.asJson,
+        nxv.constrainedBy.prefix -> schema.iri.asString.asJson,
+        nxv.property.prefix      -> property.asString.asJson
+      )
+  }
 
-  implicit val linkGraphEncoder: GraphEncoder[Id, SparqlLink] =
-    GraphEncoder {
-      case (rootNode, SparqlExternalLink(_, property)) =>
-        RootedGraph(rootNode, (rootNode, nxv.property, property): Triple)
-      case (rootNode, SparqlResourceLink(_, project, self, rev, types, dep, c, u, cBy, uBy, schema, prop)) =>
-        val triples = Set[Triple](
-          (rootNode, nxv.property, prop),
-          (rootNode, nxv.deprecated, dep),
-          (rootNode, nxv.rev, rev),
-          (rootNode, nxv.createdAt, c),
-          (rootNode, nxv.updatedAt, u),
-          (rootNode, nxv.createdBy, cBy.asString),
-          (rootNode, nxv.updatedBy, uBy.asString),
-          (rootNode, nxv.constrainedBy, schema.iri),
-          (rootNode, nxv.project, project),
-          (rootNode, nxv.self, self.asString)
-        ) ++ types.map(tpe => (rootNode, rdf.tpe, tpe): Triple)
-        RootedGraph(rootNode, triples)
+  private implicit val encoderSetIris: Encoder[Set[AbsoluteIri]] = Encoder.encodeJson.contramap {
+    _.toList match {
+      case head :: Nil => head.asString.asJson
+      case Nil         => Json.Null
+      case other       => Json.arr(other.map(_.asString.asJson): _*)
     }
-
-  implicit val linksGraphEncoderEither: GraphEncoder[EncoderResult, SparqlLink] =
-    linkGraphEncoder.toEither
-
-  implicit val qqLinksEncoder: GraphEncoder[Id, QueryResult[SparqlLink]] =
-    GraphEncoder { (rootNode, res) =>
-      linkGraphEncoder.apply(rootNode, res.source)
-    }
-
-  implicit val qqqLinksEncoder: GraphEncoder[EncoderResult, QueryResult[SparqlLink]] =
-    qqLinksEncoder.toEither
+  }
 }

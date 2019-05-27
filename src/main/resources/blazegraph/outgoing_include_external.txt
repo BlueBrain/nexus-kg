@@ -6,7 +6,7 @@ WITH {
   SELECT DISTINCT ?property ?s ?type ?_self ?_constrainedBy ?_project ?_rev ?_deprecated ?_createdAt  ?_createdBy ?_updatedAt ?_updatedBy WHERE {
     GRAPH <{id}/graph> {
       ?ss ?property ?s
-      FILTER(isIri(?s) && NOT EXISTS { ?s ?pp ?zz } && ?property NOT IN (nxv:updatedBy, nxv:createdBy, nxv:constrainedBy, nxv:project, rdf:type, nxv:self))
+      FILTER(isIri(?s) && ?property NOT IN (nxv:updatedBy, nxv:createdBy, nxv:constrainedBy, nxv:project, rdf:type, nxv:self, nxv:incoming, nxv:outgoing))
     } .
     OPTIONAL {
       GRAPH ?g2 {

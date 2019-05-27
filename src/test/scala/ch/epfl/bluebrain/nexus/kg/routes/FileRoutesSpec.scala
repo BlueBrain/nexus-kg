@@ -408,7 +408,7 @@ class FileRoutesSpec
       val resultElem = Json.obj("one" -> Json.fromString("two"))
       val sort       = Json.arr(Json.fromString("two"))
       val expectedList: JsonResults =
-        UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
+        UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(fileSchemaUri), deprecated = Some(false))
       val pagination = Pagination(20)
@@ -422,7 +422,7 @@ class FileRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/files/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/files/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -433,7 +433,7 @@ class FileRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -444,7 +444,7 @@ class FileRoutesSpec
       val after      = Json.arr(Json.fromString("one"))
       val sort       = Json.arr(Json.fromString("two"))
       val expectedList: JsonResults =
-        UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
+        UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(fileSchemaUri), deprecated = Some(false))
       val pagination = Pagination(after, 20)
@@ -458,7 +458,7 @@ class FileRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/files/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/files/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -469,7 +469,7 @@ class FileRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }

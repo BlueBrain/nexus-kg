@@ -72,12 +72,13 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         }
       },
       // List files
-      (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
-        (pagination, params, uri) =>
-          trace("listFile") {
-            implicit val u = uri
-            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(files.list(_, params, pagination))
-            complete(listed.runWithStatus(OK))
+      (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
+        (page, params) =>
+          extractUri { implicit uri =>
+            trace("listFile") {
+              val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(files.list(_, params, page))
+              complete(listed.runWithStatus(OK))
+            }
           }
       },
       // Consume the file id segment
@@ -137,6 +138,29 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       (get & outputFormat(strict = true, Binary) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary                        => getFile(id)
         case format: NonBinaryOutputFormat => getResource(id)(format)
+      },
+      // Incoming links
+      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
+        fromPaginated.apply { implicit page =>
+          extractUri { implicit uri =>
+            trace("incomingLinksFile") {
+              val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listIncoming(id, _, page))
+              complete(listed.runWithStatus(OK))
+            }
+          }
+        }
+      },
+      // Outgoing links
+      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
+        read)) { links =>
+        fromPaginated.apply { implicit page =>
+          extractUri { implicit uri =>
+            trace("outgoingLinksFile") {
+              val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listOutgoing(id, _, page, links))
+              complete(listed.runWithStatus(OK))
+            }
+          }
+        }
       },
       new TagRoutes(tags, fileRef, write).routes(id)
     )

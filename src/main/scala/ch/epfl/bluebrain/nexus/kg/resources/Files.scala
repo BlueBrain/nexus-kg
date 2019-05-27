@@ -6,11 +6,12 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.search.Pagination
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
@@ -19,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
 class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
@@ -172,6 +174,34 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
       implicit tc: HttpClient[F, JsonResults],
       elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
     listResources(view, params.copy(schema = Some(fileSchemaUri)), pagination)
+
+  /**
+    * Lists incoming resources for the provided 'file 'id''
+    *
+    * @param id         the resource id for which to retrieve the incoming links
+    * @param view       optionally available default sparql view
+    * @param pagination pagination options
+    * @return search results in the F context
+    */
+  def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
+      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+    incoming(id, view, pagination)
+
+  /**
+    * Lists outgoing resources for the provided file ''id''
+    *
+    * @param id                   the resource id for which to retrieve the outgoing links
+    * @param view                 optionally available default sparql view
+    * @param pagination           pagination options
+    * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
+    * @return search results in the F context
+    */
+  def listOutgoing(id: AbsoluteIri,
+                   view: Option[SparqlView],
+                   pagination: FromPagination,
+                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+    outgoing(id, view, pagination, includeExternalLinks)
+
 }
 
 object Files {

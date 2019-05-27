@@ -70,12 +70,13 @@ class ViewRoutes private[routes] (views: Views[Task],
         }
       },
       // List views
-      (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
-        (pagination, params, uri) =>
-          trace("listView") {
-            implicit val u = uri
-            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, pagination))
-            complete(listed.runWithStatus(OK))
+      (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
+        (page, params) =>
+          extractUri { implicit uri =>
+            trace("listView") {
+              val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, page))
+              complete(listed.runWithStatus(OK))
+            }
           }
       },
       sparqlRoute,
@@ -137,18 +138,26 @@ class ViewRoutes private[routes] (views: Views[Task],
           }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(read)) { pagination =>
-        trace("incomingLinksView") {
-          val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listIncoming(id, _, pagination))
-          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
+        fromPaginated.apply { implicit page =>
+          extractUri { implicit uri =>
+            trace("incomingLinksView") {
+              val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listIncoming(id, _, page))
+              complete(listed.runWithStatus(OK))
+            }
+          }
         }
       },
       // Outgoing links
-      (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
-        hasPermission(read)) { (pagination, links) =>
-        trace("outgoingLinksView") {
-          val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listOutgoing(id, _, pagination, links))
-          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
+        read)) { links =>
+        fromPaginated.apply { implicit page =>
+          extractUri { implicit uri =>
+            trace("outgoingLinksView") {
+              val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listOutgoing(id, _, page, links))
+              complete(listed.runWithStatus(OK))
+            }
+          }
         }
       },
       new TagRoutes(tags, viewRef, write).routes(id)

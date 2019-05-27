@@ -310,9 +310,10 @@ class ViewRoutesSpec
 
     "list views" in new Context {
 
-      val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val sort                      = Json.arr(Json.fromString("two"))
-      val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
+      val resultElem = Json.obj("one" -> Json.fromString("two"))
+      val sort       = Json.arr(Json.fromString("two"))
+      val expectedList: JsonResults =
+        UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false))
       val pagination = Pagination(20)
@@ -326,7 +327,7 @@ class ViewRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -337,7 +338,7 @@ class ViewRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -345,10 +346,11 @@ class ViewRoutesSpec
 
     "list views with after" in new Context {
 
-      val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val after                     = Json.arr(Json.fromString("one"))
-      val sort                      = Json.arr(Json.fromString("two"))
-      val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
+      val resultElem = Json.obj("one" -> Json.fromString("two"))
+      val after      = Json.arr(Json.fromString("one"))
+      val sort       = Json.arr(Json.fromString("two"))
+      val expectedList: JsonResults =
+        UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false))
       val pagination = Pagination(after, 20)
@@ -362,7 +364,7 @@ class ViewRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -373,7 +375,7 @@ class ViewRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }

@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
 import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -25,6 +26,7 @@ class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources w
   val proj                 = genString()
   val schema               = genString()
   val now                  = Instant.now()
+  implicit val http        = HttpConfig("", 0, "v1", "http://nexus.com")
   implicit val uri         = Uri(s"http://nexus.com/resources/$org/$proj/$schema?type=someType&from=10&size=10")
   val before               = now.minusSeconds(60)
 
@@ -46,10 +48,11 @@ class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources w
         3,
         0.3f,
         List(
-          ScoredQueryResult(0.3f, json(url"http://nexus.com/result1".value, before), sort(before)),
-          ScoredQueryResult(0.2f, json(url"http://nexus.com/result2".value, before), sort(before)),
-          ScoredQueryResult(0.1f, json(url"http://nexus.com/result3".value, now), sort(now))
-        )
+          ScoredQueryResult(0.3f, json(url"http://nexus.com/result1".value, before)),
+          ScoredQueryResult(0.2f, json(url"http://nexus.com/result2".value, before)),
+          ScoredQueryResult(0.1f, json(url"http://nexus.com/result3".value, now))
+        ),
+        sort(now)
       )
 
       results.asJson.sortKeys shouldEqual jsonContentOf(
@@ -68,10 +71,11 @@ class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources w
       val results: QueryResults[Json] = UnscoredQueryResults[Json](
         3,
         List(
-          UnscoredQueryResult(json(url"http://nexus.com/result1".value, before), sort(before)),
-          UnscoredQueryResult(json(url"http://nexus.com/result2".value, before), sort(before)),
-          UnscoredQueryResult(json(url"http://nexus.com/result3".value, now), sort(now))
-        )
+          UnscoredQueryResult(json(url"http://nexus.com/result1".value, before)),
+          UnscoredQueryResult(json(url"http://nexus.com/result2".value, before)),
+          UnscoredQueryResult(json(url"http://nexus.com/result3".value, now))
+        ),
+        sort(now)
       )
 
       results.asJson.sortKeys shouldEqual jsonContentOf(
@@ -89,7 +93,7 @@ class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources w
     }
   }
 
-  private def sort(instant: Instant): Option[Json] = Some(Json.arr(Json.fromString(instant.toString)))
+  private def sort(instant: Instant): Option[String] = Some(Json.arr(Json.fromString(instant.toString)).noSpaces)
   private def after(instant: Instant): String =
     Query("after" -> List(Json.fromString(instant.toString)).asJson.noSpaces).toString()
 

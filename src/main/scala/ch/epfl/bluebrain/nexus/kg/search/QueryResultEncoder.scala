@@ -2,84 +2,75 @@ package ch.epfl.bluebrain.nexus.kg.search
 
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.Uri.Query
-import cats.Id
-import cats.instances.either._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.{ScoredQueryResult, UnscoredQueryResult}
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.{ScoredQueryResults, UnscoredQueryResults}
-import ch.epfl.bluebrain.nexus.commons.search.{QueryResult, QueryResults}
-import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtxUri, searchCtx, searchCtxUri}
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, QueryResult, QueryResults}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
+import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtxUri, searchCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives
-import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
-import ch.epfl.bluebrain.nexus.rdf.Node.blank
-import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives.{after, from, size}
+import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
+import io.circe.syntax._
 import io.circe.{Encoder, Json}
 
 object QueryResultEncoder {
 
-  implicit def rootNode[A]: RootNode[QueryResults[A]] = _ => blank
-
-  implicit def rootNodeQueryResult[A](implicit rootNode: RootNode[A]): RootNode[QueryResult[A]] =
-    qr => rootNode(qr.source)
-
-  implicit def graphEncoderQrs[A: RootNode](
-      implicit enc: GraphEncoder[Id, QueryResult[A]]): GraphEncoder[Id, QueryResults[A]] = {
-    implicit val rootNodeQr = rootNodeQueryResult[A]
-    GraphEncoder {
-      case (rootNode, ScoredQueryResults(total, max, results)) =>
-        RootedGraph(
-          rootNode,
-          Graph((rootNode, nxv.total, total), (rootNode, nxv.maxScore, max)).add(rootNode, nxv.results, results))
-      case (rootNode, UnscoredQueryResults(total, results)) =>
-        RootedGraph(rootNode, Graph((rootNode, nxv.total, total): Triple).add(rootNode, nxv.results, results))
+  implicit def qrsEncoderJson(implicit searchUri: Uri, http: HttpConfig): Encoder[QueryResults[Json]] =
+    Encoder.instance { results =>
+      val nextLink = results.token.flatMap(next(searchUri, _))
+      qrsEncoderJsonLinks[Json](nextLink).apply(results)
     }
-  }
 
-  implicit def graphEncoderQrsEither[A: RootNode](
-      implicit enc: GraphEncoder[Id, QueryResult[A]]): GraphEncoder[EncoderResult, QueryResults[A]] =
-    graphEncoderQrs[A].toEither
-
-  def json[A](value: QueryResults[A], extraCtx: Json = Json.obj())(
-      implicit enc: GraphEncoder[EncoderResult, QueryResults[A]],
-      node: RootNode[QueryResults[A]]): DecoderResult[Json] =
-    value
-      .as[Json](searchCtx deepMerge extraCtx)
-      .map(_.removeKeys("@id").replaceContext(searchCtxUri).addContext(resourceCtxUri))
-
-  implicit def qrsEncoderJson(implicit searchUri: Uri): Encoder[QueryResults[Json]] = {
-    implicit def qrEncoderJson: Encoder[QueryResult[Json]] = Encoder.instance {
-      case UnscoredQueryResult(v, _) => v.removeKeys(nxv.originalSource.prefix)
-      case ScoredQueryResult(score, v, _) =>
-        v.removeKeys(nxv.originalSource.prefix) deepMerge Json.obj(nxv.score.prefix -> Json.fromFloatOrNull(score))
+  implicit def qrsEncoderJson(implicit searchUri: Uri,
+                              pagination: FromPagination,
+                              http: HttpConfig): Encoder[QueryResults[SparqlLink]] =
+    Encoder.instance { results =>
+      val nextLink = next(searchUri, results.total, pagination)
+      qrsEncoderJsonLinks[SparqlLink](nextLink).apply(results)
     }
-    def json(total: Long, list: List[QueryResult[Json]], sort: Option[Json]): Json = {
-      val results = Json
+
+  private implicit val uriEncoder: Encoder[Uri] = Encoder.encodeString.contramap(_.toString)
+
+  private def qrsEncoderJsonLinks[A: Encoder](next: Option[Uri]): Encoder[QueryResults[A]] = {
+    implicit def qrEncoderJson: Encoder[QueryResult[A]] = Encoder.instance {
+      case UnscoredQueryResult(v) => v.asJson.removeKeys(nxv.originalSource.prefix)
+      case ScoredQueryResult(score, v) =>
+        v.asJson.removeKeys(nxv.originalSource.prefix) deepMerge
+          Json.obj(nxv.score.prefix -> Json.fromFloatOrNull(score))
+    }
+    def json(total: Long, list: List[QueryResult[A]]): Json =
+      Json
         .obj(nxv.total.prefix -> Json.fromLong(total), nxv.results.prefix -> Json.arr(list.map(qrEncoderJson(_)): _*))
         .addContext(searchCtxUri)
         .addContext(resourceCtxUri)
-      sort match {
-        case Some(s) =>
-          val nextQuery =
-            Query(
-              searchUri
-                .query()
-                .toMap + (QueryDirectives.after -> s.noSpaces) - QueryDirectives.from)
 
-          results deepMerge Json.obj(nxv.next.prefix -> Json.fromString(searchUri.withQuery(nextQuery).toString()))
-        case None => results
-      }
-    }
     Encoder.instance {
-      case UnscoredQueryResults(total, list) =>
-        json(total, list, list.lastOption.flatMap(_.sort))
-      case ScoredQueryResults(total, maxScore, list) =>
-        json(total, list, list.lastOption.flatMap(_.sort)) deepMerge Json.obj(
-          nxv.maxScore.prefix -> Json.fromFloatOrNull(maxScore))
+      case UnscoredQueryResults(total, list, _) =>
+        json(total, list) deepMerge Json.obj(nxv.next.prefix -> next.asJson)
+      case ScoredQueryResults(total, maxScore, list, _) =>
+        json(total, list) deepMerge
+          Json.obj(nxv.maxScore.prefix -> maxScore.asJson, nxv.next.prefix -> next.asJson)
     }
   }
+
+  private def next(current: Uri, total: Long, pagination: FromPagination)(implicit http: HttpConfig): Option[Uri] = {
+    val nextFrom = pagination.from + pagination.size
+    if (nextFrom > total.toInt) None
+    else {
+      val params = current.query().toMap + (from -> nextFrom.toString) + (size -> pagination.size.toString)
+      Some(toPublic(current).withQuery(Query(params)))
+    }
+  }
+
+  private def next(current: Uri, afterToken: String)(implicit http: HttpConfig): Option[Uri] =
+    current.query().get(after) match {
+      case Some(`afterToken`) => None
+      case _ =>
+        val params = current.query().toMap + (after -> afterToken) - from
+        Some(toPublic(current).withQuery(Query(params)))
+    }
+
+  private def toPublic(uri: Uri)(implicit http: HttpConfig): Uri =
+    uri.copy(scheme = http.publicUri.scheme, authority = http.publicUri.authority)
 }
