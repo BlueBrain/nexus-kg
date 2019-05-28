@@ -420,8 +420,10 @@ object View {
               val newTotal = bindings.get("total").flatMap(v => Try(v.value.toLong).toOption).getOrElse(total)
               SparqlExternalLink(bindings) match {
                 case Some(extLink) =>
-                  val prevTypes = acc.get(extLink.id).flatMap(_.asResource).map(_.types).getOrElse(Set.empty)
-                  (newTotal, acc + (extLink.id -> SparqlResourceLink(bindings, extLink, prevTypes).getOrElse(extLink)))
+                  val prevTypes      = acc.get(extLink.id).map(_.types).getOrElse(Set.empty)
+                  val extLinkUpdated = extLink.copy(types = extLink.types ++ prevTypes)
+                  (newTotal,
+                   acc + (extLink.id -> SparqlResourceLink(bindings, extLink, prevTypes).getOrElse(extLinkUpdated)))
                 case None => (newTotal, acc)
               }
           }

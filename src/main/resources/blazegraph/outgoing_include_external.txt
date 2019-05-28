@@ -5,7 +5,7 @@ SELECT ?total ?s ?property ?type ?_self ?_constrainedBy ?_project ?_rev ?_deprec
 WITH {
   SELECT DISTINCT ?property ?s ?type ?_self ?_constrainedBy ?_project ?_rev ?_deprecated ?_createdAt  ?_createdBy ?_updatedAt ?_updatedBy WHERE {
     GRAPH <{id}/graph> {
-      ?ss ?property ?s
+      ?ss ?property ?s .
       FILTER(isIri(?s) && ?property NOT IN (nxv:updatedBy, nxv:createdBy, nxv:constrainedBy, nxv:project, rdf:type, nxv:self, nxv:incoming, nxv:outgoing))
     } .
     OPTIONAL {
@@ -22,6 +22,9 @@ WITH {
       ?s rdf:type ?type .
         FILTER(?g2 != <{id}/graph>)
       }
+    } .
+    OPTIONAL {
+      GRAPH <{id}/graph>  { ?s rdf:type ?type }
     }
   }
 } AS %resultSet
