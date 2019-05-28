@@ -7,8 +7,8 @@ import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults.{Binding, Bindings, Head}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.test
@@ -266,7 +266,7 @@ class ResourcesSpec
         "_rev"           -> Binding("literal", "1", datatype = Some(xsd.long.value.asString)),
         "_self"          -> Binding("uri", self.asString),
         "_project"       -> Binding("uri", projectUri.asString),
-        "type"           -> Binding("uri", nxv.Resolver.asString),
+        "types"          -> Binding("literal", s"${nxv.Resolver.asString} ${nxv.Schema.asString}"),
         "_constrainedBy" -> Binding("uri", unconstrainedSchemaUri.asString),
         "_createdBy"     -> Binding("uri", author.asString),
         "_updatedBy"     -> Binding("uri", author.asString),
@@ -276,27 +276,11 @@ class ResourcesSpec
         "_deprecated"    -> Binding("literal", "false", datatype = Some(xsd.boolean.value.asString))
       )
 
-      val binding2 = Map(
-        "s"              -> Binding("uri", id1.asString),
-        "property"       -> Binding("uri", property.asString),
-        "_rev"           -> Binding("literal", "1", datatype = Some(xsd.long.value.asString)),
-        "_self"          -> Binding("uri", self.asString),
-        "_project"       -> Binding("uri", projectUri.asString),
-        "type"           -> Binding("uri", nxv.Schema.asString),
-        "_constrainedBy" -> Binding("uri", unconstrainedSchemaUri.asString),
-        "_createdBy"     -> Binding("uri", author.asString),
-        "_updatedBy"     -> Binding("uri", author.asString),
-        "_createdAy"     -> Binding("uri", author.asString),
-        "_createdAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.value.asString)),
-        "_updatedAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.value.asString)),
-        "_deprecated"    -> Binding("literal", "false", datatype = Some(xsd.boolean.value.asString))
-      )
+      val binding2 = Map("s" -> Binding("uri", id2.asString), "property" -> Binding("uri", property.asString))
 
-      val binding3 = Map("s" -> Binding("uri", id2.asString), "property" -> Binding("uri", property.asString))
+      val binding3 = Map("total" -> Binding("literal", "10", datatype = Some(xsd.long.value.asString)))
 
-      val binding4 = Map("total" -> Binding("literal", "10", datatype = Some(xsd.long.value.asString)))
-
-      val results: List[UnscoredQueryResult[SparqlLink]] = List(
+      val expected: Set[UnscoredQueryResult[SparqlLink]] = Set(
         // format: off
         UnscoredQueryResult(SparqlResourceLink(id1, projectUri, self, 1L, Set(nxv.Resolver, nxv.Schema), deprecated = false, clock.instant(), clock.instant(), author, author, unconstrainedRef, property)),
         UnscoredQueryResult(SparqlExternalLink(id2, property))
@@ -310,9 +294,10 @@ class ResourcesSpec
           contentOf("/blazegraph/incoming.txt",
                     Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1"))
         client.queryRaw(query) shouldReturn IO(
-          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3, binding4))))
-        resources.listIncoming(resId.value, Some(view), FromPagination(1, 10)).ioValue shouldEqual
-          QueryResults(10, results)
+          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3))))
+        val results = resources.listIncoming(resId.value, Some(view), FromPagination(1, 10)).ioValue
+        results.total shouldEqual 10
+        results.results.toSet shouldEqual expected
       }
 
       "return outgoing links" in new Base {
@@ -322,11 +307,11 @@ class ResourcesSpec
           contentOf("/blazegraph/outgoing_include_external.txt",
                     Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1"))
         client.queryRaw(query) shouldReturn IO(
-          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3, binding4))))
-        resources
-          .listOutgoing(resId.value, Some(view), FromPagination(1, 10), includeExternalLinks = true)
-          .ioValue shouldEqual
-          QueryResults(10, results)
+          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3))))
+        val results =
+          resources.listOutgoing(resId.value, Some(view), FromPagination(1, 10), includeExternalLinks = true).ioValue
+        results.total shouldEqual 10
+        results.results.toSet shouldEqual expected
       }
     }
   }

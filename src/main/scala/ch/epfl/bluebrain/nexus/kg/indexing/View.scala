@@ -415,19 +415,13 @@ object View {
     private def toSparqlLinks(sparqlResults: SparqlResults): LinkResults = {
       val (count, results) =
         sparqlResults.results.bindings
-          .foldLeft((0L, Map.empty[AbsoluteIri, SparqlLink])) {
+          .foldLeft((0L, List.empty[SparqlLink])) {
             case ((total, acc), bindings) =>
               val newTotal = bindings.get("total").flatMap(v => Try(v.value.toLong).toOption).getOrElse(total)
-              SparqlExternalLink(bindings) match {
-                case Some(extLink) =>
-                  val prevTypes      = acc.get(extLink.id).map(_.types).getOrElse(Set.empty)
-                  val extLinkUpdated = extLink.copy(types = extLink.types ++ prevTypes)
-                  (newTotal,
-                   acc + (extLink.id -> SparqlResourceLink(bindings, extLink, prevTypes).getOrElse(extLinkUpdated)))
-                case None => (newTotal, acc)
-              }
+              val res      = (SparqlResourceLink(bindings) orElse SparqlExternalLink(bindings)).map(_ :: acc).getOrElse(acc)
+              (newTotal, res)
           }
-      UnscoredQueryResults(count, results.collect { case (_, link) => UnscoredQueryResult(link) }.toList)
+      UnscoredQueryResults(count, results.map(UnscoredQueryResult(_)))
     }
 
     /**

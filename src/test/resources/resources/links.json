@@ -9,8 +9,8 @@
     {
       "@id" : "{id2}",
       "@type" : [
-        "https://bluebrain.github.io/nexus/vocabulary/Schema",
-        "https://bluebrain.github.io/nexus/vocabulary/Resolver"
+        "https://bluebrain.github.io/nexus/vocabulary/Resolver",
+        "https://bluebrain.github.io/nexus/vocabulary/Schema"
       ],
       "property" : "{property2}",
       "_self" : "{self2}",

@@ -56,11 +56,10 @@ object QueryResultEncoder {
 
   private def next(current: Uri, total: Long, pagination: FromPagination)(implicit http: HttpConfig): Option[Uri] = {
     val nextFrom = pagination.from + pagination.size
-    if (nextFrom > total.toInt) None
-    else {
+    if (nextFrom < total.toInt) {
       val params = current.query().toMap + (from -> nextFrom.toString) + (size -> pagination.size.toString)
       Some(toPublic(current).withQuery(Query(params)))
-    }
+    } else None
   }
 
   private def next(current: Uri, afterToken: String)(implicit http: HttpConfig): Option[Uri] =

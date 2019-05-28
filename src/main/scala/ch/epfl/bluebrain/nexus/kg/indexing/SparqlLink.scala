@@ -68,17 +68,13 @@ object SparqlLink {
   object SparqlResourceLink {
 
     /**
-      * Attempts to create a [[SparqlResourceLink]] from the given bindings and the previous types for the same resource
+      * Attempts to create a [[SparqlResourceLink]] from the given bindings
       *
       * @param bindings      the sparql result bindings
-      * @param links         the externalLink representation for the current resource
-      * @param previousTypes the previous found types for the same resource
       */
-    def apply(bindings: Map[String, Binding],
-              links: SparqlExternalLink,
-              previousTypes: Set[AbsoluteIri]): Option[SparqlLink] = {
-      val tpe = bindings.get("type").map(_.value).flatMap(Iri.absolute(_).toOption)
+    def apply(bindings: Map[String, Binding]): Option[SparqlLink] =
       for {
+        link       <- SparqlExternalLink(bindings)
         project    <- bindings.get(nxv.project.prefix).map(_.value).flatMap(Iri.absolute(_).toOption)
         self       <- bindings.get(nxv.self.prefix).map(_.value).flatMap(Iri.absolute(_).toOption)
         rev        <- bindings.get(nxv.rev.prefix).map(_.value).flatMap(v => Try(v.toLong).toOption)
@@ -90,9 +86,9 @@ object SparqlLink {
         consBy     <- bindings.get(nxv.constrainedBy.prefix).map(_.value).flatMap(Iri.absolute(_).toOption.map(_.ref))
       } yield
       // format: off
-        SparqlResourceLink(links.id, project, self, rev, previousTypes ++ tpe, deprecated, created, updated, createdBy, updatedBy, consBy, links.property)
+        SparqlResourceLink(link.id, project, self, rev, link.types, deprecated, created, updated, createdBy, updatedBy, consBy, link.property)
       // format: on
-    }
+
   }
 
   /**
@@ -113,13 +109,16 @@ object SparqlLink {
       * @param bindings the sparql result bindings
       */
     def apply(bindings: Map[String, Binding]): Option[SparqlExternalLink] = {
-      val tpe = bindings.get("type").map(_.value).flatMap(Iri.absolute(_).toOption.map(Set(_))).getOrElse(Set.empty)
+      val types = bindings.get("types").map(binding => toTypes(binding.value)).getOrElse(Set.empty)
       for {
         id       <- bindings.get("s").map(_.value).flatMap(Iri.absolute(_).toOption)
         property <- bindings.get("property").map(_.value).flatMap(Iri.absolute(_).toOption)
-      } yield SparqlExternalLink(id, property, tpe)
+      } yield SparqlExternalLink(id, property, types)
     }
   }
+
+  private def toTypes(string: String): Set[AbsoluteIri] =
+    string.split(" ").map(Iri.absolute(_).toOption).flatten.toSet
 
   implicit val linkEncoder: Encoder[SparqlLink] = Encoder.encodeJson.contramap {
     case SparqlExternalLink(id, property, types) =>
