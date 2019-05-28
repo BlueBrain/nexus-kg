@@ -1,10 +1,9 @@
 prefix nxv: <https://bluebrain.github.io/nexus/vocabulary/>
 
-SELECT ?total ?s ?property ?type ?_self ?_constrainedBy ?_project ?_rev ?_deprecated ?_createdAt  ?_createdBy ?_updatedAt ?_updatedBy
+SELECT ?total ?s ?property ?types ?_self ?_constrainedBy ?_project ?_rev ?_deprecated ?_createdAt  ?_createdBy ?_updatedAt ?_updatedBy
 
 WITH {
-  SELECT DISTINCT ?s ?property ?type ?_self ?_constrainedBy ?_project ?_rev ?_deprecated ?_createdAt  ?_createdBy ?_updatedAt ?_updatedBy
-  WHERE {
+  SELECT DISTINCT ?s ?property ?_self ?_constrainedBy ?_project ?_rev ?_deprecated ?_createdAt  ?_createdBy ?_updatedAt ?_updatedBy (GROUP_CONCAT(?type) AS ?types) WHERE {
     GRAPH ?g1 {
       ?ref ?property <{id}> .
       ?s nxv:self ?_self .
@@ -18,7 +17,7 @@ WITH {
       ?s nxv:updatedBy ?_updatedBy .
       ?s rdf:type ?type .
     }
-  }
+  } GROUP BY ?s ?property ?_self ?_constrainedBy ?_project ?_rev ?_deprecated ?_createdAt  ?_createdBy ?_updatedAt ?_updatedBy
 } AS %resultSet
 WHERE {
   {

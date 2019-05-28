@@ -54,12 +54,13 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
         }
       },
       // List storages
-      (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
-        (pagination, params, uri) =>
-          trace("listStorage") {
-            implicit val u = uri
-            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(storages.list(_, params, pagination))
-            complete(listed.runWithStatus(OK))
+      (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
+        (page, params) =>
+          extractUri { implicit uri =>
+            trace("listStorage") {
+              val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(storages.list(_, params, page))
+              complete(listed.runWithStatus(OK))
+            }
           }
       },
       // Consume the storage id segment
@@ -118,18 +119,26 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
           }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & fromPaginated & pathEndOrSingleSlash & hasPermission(read)) { pagination =>
-        trace("incomingLinksStorage") {
-          val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listIncoming(id, _, pagination))
-          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
+        fromPaginated.apply { implicit page =>
+          extractUri { implicit uri =>
+            trace("incomingLinksStorage") {
+              val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listIncoming(id, _, page))
+              complete(listed.runWithStatus(OK))
+            }
+          }
         }
       },
       // Outgoing links
-      (pathPrefix("outgoing") & get & fromPaginated & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash &
-        hasPermission(read)) { (pagination, links) =>
-        trace("outgoingLinksStorage") {
-          val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listOutgoing(id, _, pagination, links))
-          complete(listed.map[RejOrLinkResults](Right.apply).runWithStatus(OK))
+      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
+        read)) { links =>
+        fromPaginated.apply { implicit page =>
+          extractUri { implicit uri =>
+            trace("outgoingLinksStorage") {
+              val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listOutgoing(id, _, page, links))
+              complete(listed.runWithStatus(OK))
+            }
+          }
         }
       },
       new TagRoutes(tags, storageRef, write).routes(id)

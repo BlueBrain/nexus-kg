@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
 import java.time.{Clock, Instant, ZoneId}
+import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.Accept
@@ -26,6 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -42,9 +44,6 @@ import org.mockito.IdiomaticMockito
 import org.mockito.matchers.MacroBasedMatchers
 import org.scalatest._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import java.util.regex.Pattern.quote
-
-import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
 
 import scala.concurrent.duration._
 
@@ -290,7 +289,7 @@ class ResourceRoutesSpec
 
     val links: QueryResults[SparqlLink] =
       UnscoredQueryResults(
-        2,
+        20,
         List(
           // format: off
           UnscoredQueryResult(SparqlExternalLink(id2, prop2)),
@@ -299,7 +298,7 @@ class ResourceRoutesSpec
         )
       )
 
-    val linksJson =
+    def linksJson(next: String) =
       jsonContentOf(
         "/resources/links.json",
         Map(
@@ -309,7 +308,8 @@ class ResourceRoutesSpec
           quote("{property2}") -> prop3.asString,
           quote("{self2}")     -> self3.asString,
           quote("{project2}")  -> proj3.asString,
-          quote("{author}")    -> author.asString
+          quote("{author}")    -> author.asString,
+          quote("{next}")      -> next
         )
       )
 
@@ -319,43 +319,57 @@ class ResourceRoutesSpec
       Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId/incoming?from=1&size=10") ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(linksJson)
+        val next =
+          s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/$urlEncodedIdNoColon/incoming?from=11&size=10"
+        responseAs[Json] should equalIgnoreArrayOrder(linksJson(next))
       }
     }
 
     "outgoing links of a resource (including external links)" in new Context {
       viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
-      resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(1, 10), includeExternalLinks = true) shouldReturn Task(
-        links)
+      resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(5, 10), includeExternalLinks = true) shouldReturn
+        Task(links)
       Get(
-        s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=1&size=10&includeExternalLinks=true") ~> addCredentials(
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=5&size=10&includeExternalLinks=true") ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(linksJson)
+        val next =
+          s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/$urlEncodedIdNoColon/outgoing?from=15&size=10&includeExternalLinks=true"
+        responseAs[Json] should equalIgnoreArrayOrder(linksJson(next))
       }
     }
 
     "outgoing links of a resource (excluding external links)" in new Context {
       viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
-      resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(1, 10), includeExternalLinks = false) shouldReturn Task(
-        links)
+      resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(1, 10), includeExternalLinks = false) shouldReturn
+        Task(links)
       Get(
         s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=1&size=10&includeExternalLinks=false") ~> addCredentials(
         oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(linksJson)
+        val next =
+          s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/$urlEncodedIdNoColon/outgoing?from=11&size=10&includeExternalLinks=false"
+        responseAs[Json] should equalIgnoreArrayOrder(linksJson(next))
       }
     }
 
     "list resources of a schema" in new Context {
-      val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)))
+      val resultElem = Json.obj("one" -> Json.fromString("two"))
+      val expectedList: JsonResults = UnscoredQueryResults(1L,
+                                                           List(UnscoredQueryResult(resultElem)),
+                                                           Some(Json.arr(Json.fromString("some")).noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(unconstrainedSchemaUri), deprecated = Some(false))
       val pagination = Pagination(20)
       resources.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
-      val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
+      val next =
+        s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource?deprecated=false&after=%5B%22some%22%5D"
+      val expected = Json.obj(
+        "_total"   -> Json.fromLong(1L),
+        "_next"    -> Json.fromString(next),
+        "_results" -> Json.arr(resultElem)
+      )
 
       Get(s"/v1/resources/$organization/$project/resource?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
         MediaRanges.`*/*`) ~> routes ~> check {
@@ -365,9 +379,10 @@ class ResourceRoutesSpec
     }
 
     "list resources" in new Context {
-      val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val sort                      = Json.arr(Json.fromString("two"))
-      val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
+      val resultElem = Json.obj("one" -> Json.fromString("two"))
+      val sort       = Json.arr(Json.fromString("two"))
+      val expectedList: JsonResults =
+        UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(deprecated = Some(false))
       val pagination = Pagination(20)
@@ -381,7 +396,7 @@ class ResourceRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -392,17 +407,18 @@ class ResourceRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
     }
 
     "list resources with after" in new Context {
-      val resultElem                = Json.obj("one" -> Json.fromString("two"))
-      val after                     = Json.arr(Json.fromString("one"))
-      val sort                      = Json.arr(Json.fromString("two"))
-      val expectedList: JsonResults = UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem, Some(sort))))
+      val resultElem = Json.obj("one" -> Json.fromString("two"))
+      val after      = Json.arr(Json.fromString("one"))
+      val sort       = Json.arr(Json.fromString("two"))
+      val expectedList: JsonResults =
+        UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(deprecated = Some(false))
       val pagination = Pagination(after, 20)
@@ -416,7 +432,7 @@ class ResourceRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
@@ -427,7 +443,7 @@ class ResourceRoutesSpec
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://example.com/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
             )
           ))
       }
