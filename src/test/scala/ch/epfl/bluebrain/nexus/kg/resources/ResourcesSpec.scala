@@ -259,10 +259,11 @@ class ResourcesSpec
       val id1        = url"http://example.com/id".value
       val id2        = url"http://example.com/id2".value
       val property   = url"http://example.com/friend".value
+      val paths      = List(property)
 
       val binding1 = Map(
         "s"              -> Binding("uri", id1.asString),
-        "property"       -> Binding("uri", property.asString),
+        "paths"          -> Binding("literal", property.asString),
         "_rev"           -> Binding("literal", "1", datatype = Some(xsd.long.value.asString)),
         "_self"          -> Binding("uri", self.asString),
         "_project"       -> Binding("uri", projectUri.asString),
@@ -276,14 +277,14 @@ class ResourcesSpec
         "_deprecated"    -> Binding("literal", "false", datatype = Some(xsd.boolean.value.asString))
       )
 
-      val binding2 = Map("s" -> Binding("uri", id2.asString), "property" -> Binding("uri", property.asString))
+      val binding2 = Map("s" -> Binding("uri", id2.asString), "paths" -> Binding("literal", property.asString))
 
       val binding3 = Map("total" -> Binding("literal", "10", datatype = Some(xsd.long.value.asString)))
 
       val expected: Set[UnscoredQueryResult[SparqlLink]] = Set(
         // format: off
-        UnscoredQueryResult(SparqlResourceLink(id1, projectUri, self, 1L, Set(nxv.Resolver, nxv.Schema), deprecated = false, clock.instant(), clock.instant(), author, author, unconstrainedRef, property)),
-        UnscoredQueryResult(SparqlExternalLink(id2, property))
+        UnscoredQueryResult(SparqlResourceLink(id1, projectUri, self, 1L, Set(nxv.Resolver, nxv.Schema), deprecated = false, clock.instant(), clock.instant(), author, author, unconstrainedRef, paths)),
+        UnscoredQueryResult(SparqlExternalLink(id2, paths))
         // format: on
       )
 

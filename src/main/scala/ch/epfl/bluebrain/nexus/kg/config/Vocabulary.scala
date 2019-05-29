@@ -117,7 +117,7 @@ object Vocabulary {
     val defaultStorage = PrefixMapping.prefix("diskStorageDefault")
 
     //Links property
-    val property = PrefixMapping.prefix("property")
+    val paths = PrefixMapping.prefix("paths")
 
     // @type platform ids
     val Schema                     = PrefixMapping.prefix("Schema")

@@ -17,12 +17,15 @@ class SparqlLinkSpec extends WordSpecLike with Matchers with OptionValues {
 
     val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
-    val id       = url"http://example.com/id".value
-    val property = url"http://example.com/friend".value
+    val id        = url"http://example.com/id".value
+    val property  = url"http://example.com/friend".value
+    val property2 = url"http://example.com/friend2".value
+    val paths     = List(property, property2)
 
     "build SparqlExternalLink from SPARQL response" in {
-      val bindings = Map("s" -> Binding("uri", id.asString), "property" -> Binding("uri", property.asString))
-      SparqlExternalLink(bindings).value shouldEqual SparqlExternalLink(id, property)
+      val bindings = Map("s" -> Binding("uri", id.asString),
+                         "paths" -> Binding("literal", s"${property.asString} ${property2.asString}"))
+      SparqlExternalLink(bindings).value shouldEqual SparqlExternalLink(id, paths)
     }
 
     "build SparqlResourceLink from SPARQL response" in {
@@ -31,7 +34,7 @@ class SparqlLinkSpec extends WordSpecLike with Matchers with OptionValues {
       val author  = url"http://127.0.0.1:8080/v1/realms/myrealm/users/me".value
       val bindings = Map(
         "s"              -> Binding("uri", id.asString),
-        "property"       -> Binding("uri", property.asString),
+        "paths"          -> Binding("literal", s"${property.asString} ${property2.asString}"),
         "_rev"           -> Binding("literal", "1", datatype = Some(xsd.long.value.asString)),
         "_self"          -> Binding("uri", self.asString),
         "_project"       -> Binding("uri", project.asString),
@@ -56,7 +59,7 @@ class SparqlLinkSpec extends WordSpecLike with Matchers with OptionValues {
                            author,
                            author,
                            unconstrainedRef,
-                           property)
+                           paths)
     }
   }
 
