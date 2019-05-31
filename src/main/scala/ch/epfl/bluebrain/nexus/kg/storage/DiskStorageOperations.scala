@@ -62,7 +62,7 @@ object DiskStorageOperations {
     private implicit val mt: Materializer     = ActorMaterializer()
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] =
-      getLocation(fileDesc.uuid).flatMap {
+      getLocation(fileDesc.uuid, fileDesc.filename).flatMap {
         case (fullPath, relativePath) =>
           val future = source
             .alsoToMat(digestSink(storage.algorithm))(Keep.right)
@@ -83,9 +83,9 @@ object DiskStorageOperations {
           F.liftIO(IO.fromFuture(IO(future)))
       }
 
-    private def getLocation(uuid: UUID): F[(Path, Path)] =
+    private def getLocation(uuid: UUID, filename: String): F[(Path, Path)] =
       F.catchNonFatal {
-          val relative = Paths.get(mangle(storage.ref, uuid))
+          val relative = Paths.get(mangle(storage.ref, uuid, filename))
           val filePath = storage.volume.resolve(relative)
           Files.createDirectories(filePath.getParent)
           (filePath, relative)

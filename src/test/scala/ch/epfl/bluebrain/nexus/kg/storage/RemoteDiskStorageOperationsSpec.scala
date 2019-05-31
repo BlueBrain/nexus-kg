@@ -94,7 +94,7 @@ class RemoteDiskStorageOperationsSpec
     "link file" in new Ctx {
       val id               = Id(storage.ref, genIri)
       val sourcePath       = Uri.Path(s"${genString()}/${genString()}")
-      val destRelativePath = Uri.Path(mangle(storage.ref, attributes.uuid))
+      val destRelativePath = Uri.Path(mangle(storage.ref, attributes.uuid, attributes.filename))
       client.moveFile(storage.folder, sourcePath, destRelativePath) shouldReturn
         IO(
           StorageFileAttributes(attributes.location,

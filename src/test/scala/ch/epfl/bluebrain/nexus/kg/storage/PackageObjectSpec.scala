@@ -22,8 +22,8 @@ class PackageObjectSpec extends FlatSpec with Matchers with ScalaFutures {
   "mangle" should "generate a properly mangled path given a file project and UUID" in {
     val projUuid = UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")
     val fileUuid = UUID.fromString("b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7")
-    mangle(ProjectRef(projUuid), fileUuid) shouldEqual
-      "4947db1e-33d8-462b-9754-3e8ae74fcd4e/b/1/d/7/c/d/a/2/b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7"
+    mangle(ProjectRef(projUuid), fileUuid, "myfile.jpg") shouldEqual
+      "4947db1e-33d8-462b-9754-3e8ae74fcd4e/b/1/d/7/c/d/a/2/myfile.jpg"
   }
 
   "digest" should "properly compute the hash of a given input" in {

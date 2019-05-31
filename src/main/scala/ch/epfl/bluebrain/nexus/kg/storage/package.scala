@@ -40,15 +40,17 @@ package object storage {
     else None
 
   /**
-    * Builds a relative file path that is mangled in the form
-    * {project_id}/1/2/3/4/5/6/7/8/12345678-90ab-cdef-abcd-1234567890ab.
+    * Builds a relative file path that is mangled in the form:
+    * uuid = 12345678-90ab-cdef-abcd-1234567890ab
+    * {project_id}/1/2/3/4/5/6/7/8/{filename}
     *
-    * @param ref  the parent project reference
-    * @param uuid the file UUID
+    * @param ref      the parent project reference
+    * @param uuid     the file UUID
+    * @param filename the filename
     * @return the mangled file path
     */
-  def mangle(ref: ProjectRef, uuid: UUID): String = {
+  def mangle(ref: ProjectRef, uuid: UUID, filename: String): String = {
     val lowercase = uuid.toString.toLowerCase
-    s"${ref.id}/${lowercase.takeWhile(_ != '-').mkString("/")}/$lowercase"
+    s"${ref.id}/${lowercase.takeWhile(_ != '-').mkString("/")}/$filename"
   }
 }
