@@ -122,7 +122,7 @@ class S3StorageOperationsSpec
       val filePath = "/storage/s3.json"
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
-      val uriPath  = Uri.Path(mangle(projectRef, fileUuid))
+      val uriPath  = Uri.Path(mangle(projectRef, fileUuid, "s3.json"))
       val location = Uri(s"http://s3.amazonaws.com/$bucket/$uriPath")
       val digest   = Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
       // http://s3.amazonaws.com is hardcoded in S3Mock
@@ -135,7 +135,7 @@ class S3StorageOperationsSpec
       verify.apply.ioValue shouldEqual Right(())
 
       val randomUuid    = UUID.randomUUID
-      val wrongPath     = Uri.Path(mangle(projectRef, randomUuid))
+      val wrongPath     = Uri.Path(mangle(projectRef, randomUuid, genString()))
       val wrongLocation = Uri(s"http://s3.amazonaws.com/$bucket/$wrongPath")
       val nonexistent = fetch(attr.copy(uuid = randomUuid, path = wrongPath, location = wrongLocation))
         .failed[KgError.RemoteFileNotFound]
@@ -217,12 +217,12 @@ class S3StorageOperationsSpec
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val upload   = save(resid, desc, FileIO.fromPath(path)).failed[DownstreamServiceError]
       upload.msg shouldEqual "Error uploading S3 object with filename 's3.json' in bucket 'foobar': The specified bucket does not exist"
-      val key      = Uri.Path(mangle(projectRef, fileUuid))
+      val key      = Uri.Path(mangle(projectRef, fileUuid, "s3.json"))
       val location = Uri(s"http://s3.amazonaws.com/foobar/$key")
       val digest   = Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
       val attr     = FileAttributes(fileUuid, location, key, desc.filename, desc.mediaType, 263L, digest)
       val download = fetch(attr).failed[DownstreamServiceError]
-      download.msg shouldEqual s"Error fetching S3 object with key '${mangle(projectRef, fileUuid)}' in bucket 'foobar': The specified bucket does not exist"
+      download.msg shouldEqual s"Error fetching S3 object with key '${mangle(projectRef, fileUuid, "s3.json")}' in bucket 'foobar': The specified bucket does not exist"
     }
 
     "verify storage with no region" in {
@@ -285,7 +285,7 @@ class S3StorageOperationsSpec
       val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
 
       attr.location shouldEqual Uri(
-        s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, fileUuid)}")
+        s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, fileUuid, "s3.json")}")
       attr.mediaType shouldEqual `text/plain(UTF-8)`
       attr.bytes shouldEqual 263L
       attr.filename shouldEqual "s3.json"
@@ -300,11 +300,12 @@ class S3StorageOperationsSpec
 
       val randomUuid = UUID.randomUUID
       val inexistent = fetch(
-        attr.copy(uuid = randomUuid,
-                  location =
-                    Uri(s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, randomUuid)}")))
+        attr.copy(
+          uuid = randomUuid,
+          location =
+            Uri(s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, randomUuid, "s3.json")}")))
         .failed[KgError.InternalError]
-      inexistent.msg shouldEqual s"Empty content fetching S3 object with key '${mangle(projectRef, randomUuid)}' in bucket 'nexus-storage'"
+      inexistent.msg shouldEqual s"Empty content fetching S3 object with key '${mangle(projectRef, randomUuid, "s3.json")}' in bucket 'nexus-storage'"
     }
   }
 

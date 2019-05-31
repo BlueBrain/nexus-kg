@@ -57,7 +57,7 @@ object RemoteDiskStorageOperations {
     implicit val cred = storage.decryptAuthToken(config.derivedKey)
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
-      val relativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid))
+      val relativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid, fileDesc.filename))
       client.createFile(storage.folder, relativePath, source).map {
         case StorageFileAttributes(location, bytes, StorageDigest(algorithm, hash)) =>
           val dig = Digest(algorithm, hash)
@@ -77,7 +77,7 @@ object RemoteDiskStorageOperations {
     implicit val cred = storage.decryptAuthToken(config.derivedKey)
 
     override def apply(id: ResId, fileDesc: FileDescription, path: Uri.Path): F[FileAttributes] = {
-      val destRelativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid))
+      val destRelativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid, fileDesc.filename))
       client.moveFile(storage.folder, path, destRelativePath).map {
         case StorageFileAttributes(location, bytes, StorageDigest(algorithm, hash)) =>
           val dig = Digest(algorithm, hash)

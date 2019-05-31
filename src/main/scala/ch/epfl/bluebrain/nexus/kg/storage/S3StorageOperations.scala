@@ -76,7 +76,7 @@ object S3StorageOperations {
     private val attributes = S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey))
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
-      val key            = mangle(storage.ref, fileDesc.uuid)
+      val key            = mangle(storage.ref, fileDesc.uuid, fileDesc.filename)
       val s3Sink         = S3.multipartUpload(storage.bucket, key).withAttributes(attributes)
       val metaDataSource = S3.getObjectMetadata(storage.bucket, key).withAttributes(attributes)
 
