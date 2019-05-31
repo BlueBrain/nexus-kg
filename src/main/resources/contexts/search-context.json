@@ -7,9 +7,10 @@
       "@container": "@list"
     },
     "resultId": "nxv:resultId",
-    "property": {
-      "@id": "nxv:property",
-      "@type": "@id"
+    "paths": {
+      "@id": "nxv:paths",
+      "@type": "@id",
+      "@container": "@list"
     },
     "_maxScore": "nxv:maxScore",
     "_score": "nxv:score"

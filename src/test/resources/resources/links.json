@@ -12,7 +12,7 @@
         "https://bluebrain.github.io/nexus/vocabulary/Resolver",
         "https://bluebrain.github.io/nexus/vocabulary/Schema"
       ],
-      "property" : "{property2}",
+      "paths" : "{property2}",
       "_self" : "{self2}",
       "_constrainedBy" : "https://bluebrain.github.io/nexus/schemas/shacl-20170720.ttl",
       "_project" : "{project2}",
@@ -25,7 +25,7 @@
     },
     {
       "@id" : "{id1}",
-      "property" : "{property1}"
+      "paths" : "{property1}"
     }
   ]
 }

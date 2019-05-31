@@ -292,8 +292,8 @@ class ResourceRoutesSpec
         20,
         List(
           // format: off
-          UnscoredQueryResult(SparqlExternalLink(id2, prop2)),
-          UnscoredQueryResult(SparqlResourceLink(id3, proj3, self3, 1L, Set(nxv.Resolver, nxv.Schema), deprecated = false, clock.instant(), clock.instant(), author, author, shaclRef, prop3))
+          UnscoredQueryResult(SparqlExternalLink(id2, List(prop2))),
+          UnscoredQueryResult(SparqlResourceLink(id3, proj3, self3, 1L, Set(nxv.Resolver, nxv.Schema), deprecated = false, clock.instant(), clock.instant(), author, author, shaclRef, List(prop3)))
           // format: on
         )
       )

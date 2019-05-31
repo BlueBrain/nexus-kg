@@ -8,7 +8,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 
@@ -27,9 +26,9 @@ sealed trait SparqlLink {
   def types: Set[AbsoluteIri]
 
   /**
-    * @return the predicate from where the link has been found
+    * @return the paths from where the link has been found
     */
-  def property: AbsoluteIri
+  def paths: List[AbsoluteIri]
 }
 
 object SparqlLink {
@@ -48,7 +47,7 @@ object SparqlLink {
     * @param createdBy     the identity that created this resource
     * @param updatedBy     the last identity that updated this resource
     * @param constrainedBy the schema that this resource conforms to
-    * @param property      the predicate from where the link has been found
+    * @param paths         the paths from where the link has been found
     */
   final case class SparqlResourceLink(
       id: AbsoluteIri,
@@ -62,7 +61,7 @@ object SparqlLink {
       createdBy: AbsoluteIri,
       updatedBy: AbsoluteIri,
       constrainedBy: Ref,
-      property: AbsoluteIri
+      paths: List[AbsoluteIri]
   ) extends SparqlLink
 
   object SparqlResourceLink {
@@ -86,7 +85,7 @@ object SparqlLink {
         consBy     <- bindings.get(nxv.constrainedBy.prefix).map(_.value).flatMap(Iri.absolute(_).toOption.map(_.ref))
       } yield
       // format: off
-        SparqlResourceLink(link.id, project, self, rev, link.types, deprecated, created, updated, createdBy, updatedBy, consBy, link.property)
+        SparqlResourceLink(link.id, project, self, rev, link.types, deprecated, created, updated, createdBy, updatedBy, consBy, link.paths)
       // format: on
 
   }
@@ -94,11 +93,11 @@ object SparqlLink {
   /**
     * A link that represents an external resource out of the platform.
     *
-    * @param id       the @id value of the resource
-    * @param property the predicate from where the link has been found
-    * @param types    the collection of types of this resource
+    * @param id    the @id value of the resource
+    * @param paths the predicate from where the link has been found
+    * @param types the collection of types of this resource
     */
-  final case class SparqlExternalLink(id: AbsoluteIri, property: AbsoluteIri, types: Set[AbsoluteIri] = Set.empty)
+  final case class SparqlExternalLink(id: AbsoluteIri, paths: List[AbsoluteIri], types: Set[AbsoluteIri] = Set.empty)
       extends SparqlLink
 
   object SparqlExternalLink {
@@ -109,21 +108,19 @@ object SparqlLink {
       * @param bindings the sparql result bindings
       */
     def apply(bindings: Map[String, Binding]): Option[SparqlExternalLink] = {
-      val types = bindings.get("types").map(binding => toTypes(binding.value)).getOrElse(Set.empty)
-      for {
-        id       <- bindings.get("s").map(_.value).flatMap(Iri.absolute(_).toOption)
-        property <- bindings.get("property").map(_.value).flatMap(Iri.absolute(_).toOption)
-      } yield SparqlExternalLink(id, property, types)
+      val types = bindings.get("types").map(binding => toIris(binding.value).toSet).getOrElse(Set.empty)
+      val paths = bindings.get("paths").map(binding => toIris(binding.value).toList).getOrElse(List.empty)
+      bindings.get("s").map(_.value).flatMap(Iri.absolute(_).toOption).map(SparqlExternalLink(_, paths, types))
     }
   }
 
-  private def toTypes(string: String): Set[AbsoluteIri] =
-    string.split(" ").map(Iri.absolute(_).toOption).flatten.toSet
+  private def toIris(string: String): Array[AbsoluteIri] =
+    string.split(" ").flatMap(Iri.absolute(_).toOption)
 
   implicit val linkEncoder: Encoder[SparqlLink] = Encoder.encodeJson.contramap {
-    case SparqlExternalLink(id, property, types) =>
-      Json.obj("@id" -> id.asString.asJson, "@type" -> types.asJson, nxv.property.prefix -> property.asJson)
-    case SparqlResourceLink(id, project, self, rev, types, dep, c, u, cBy, uBy, schema, property) =>
+    case SparqlExternalLink(id, paths, types) =>
+      Json.obj("@id" -> id.asString.asJson, "@type" -> types.asJson, nxv.paths.prefix -> paths.asJson)
+    case SparqlResourceLink(id, project, self, rev, types, dep, c, u, cBy, uBy, schema, paths) =>
       Json.obj(
         "@id"                    -> id.asString.asJson,
         "@type"                  -> types.asJson,
@@ -136,15 +133,16 @@ object SparqlLink {
         nxv.createdBy.prefix     -> cBy.asString.asJson,
         nxv.updatedBy.prefix     -> uBy.asString.asJson,
         nxv.constrainedBy.prefix -> schema.iri.asString.asJson,
-        nxv.property.prefix      -> property.asString.asJson
+        nxv.paths.prefix         -> paths.asJson
       )
   }
 
-  private implicit val encoderSetIris: Encoder[Set[AbsoluteIri]] = Encoder.encodeJson.contramap {
-    _.toList match {
-      case head :: Nil => head.asString.asJson
-      case Nil         => Json.Null
-      case other       => Json.arr(other.map(_.asString.asJson): _*)
-    }
+  private implicit val encoderSetIris: Encoder[Set[AbsoluteIri]]   = Encoder.instance(set => toJson(set.toList))
+  private implicit val encoderListIris: Encoder[List[AbsoluteIri]] = Encoder.instance(toJson)
+
+  private def toJson(list: List[AbsoluteIri]): Json = list match {
+    case head :: Nil => head.asString.asJson
+    case Nil         => Json.Null
+    case other       => Json.arr(other.map(_.asString.asJson): _*)
   }
 }
