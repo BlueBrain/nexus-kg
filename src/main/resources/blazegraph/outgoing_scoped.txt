@@ -39,6 +39,6 @@ WHERE {
   {
     SELECT *
     WHERE { INCLUDE %resultSet }
-    ORDER BY ?_createdBy ?s ?paths LIMIT 20 OFFSET 0
+    ORDER BY ?_createdBy ?s ?paths LIMIT {size} OFFSET {offset}
   }
 }
