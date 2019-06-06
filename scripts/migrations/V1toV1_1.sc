@@ -50,7 +50,6 @@ val alphaType = "https://bluebrain.github.io/nexus/vocabulary/Alpha"
   session.execute(s"DROP TABLE IF EXISTS $kgKeyspace.projections")
   val uuids = projectUuidOrgUuid(adminKeyspace)
   migrateMessagesTable(kgKeyspace, volume, uuids)
-  migrateTagViewsTable(kgKeyspace, volume, uuids)
 }
 
 private def projectUuidOrgUuid(keyspace: String)(implicit session: Session,
@@ -159,75 +158,6 @@ private def migrateMessagesTable(keyspace: String, volume: String, uuids: Map[St
   Await.result(done, Duration.Inf)
   log.info(s"Finished migration of '$keyspace.messages' table. Migrated ${migratedCount.get()} events.")
 
-}
-
-private def migrateTagViewsTable(keyspace: String, volume: String, uuids: Map[String, String])(implicit session: Session,
-  mat: ActorMaterializer) = {
-  log.info(s"Starting migration of '$keyspace.tag_views' table")
-  val migratedCount = new AtomicLong()
-  val stmt          = new SimpleStatement(s"SELECT * FROM $keyspace.tag_views").setFetchSize(20)
-
-  val preparedStatement =
-    session.prepare(
-      s"UPDATE $keyspace.tag_views SET event = textasblob(?) WHERE tag_name = ? AND  timebucket = ? AND timestamp = ? AND persistence_id = ? AND tag_pid_sequence_nr = ?")
-  //#prepared-statement
-
-  //#statement-binder
-  val statementBinder =
-    (parameters: (Object, Object, Object, Object, Object, String), statement: PreparedStatement) =>
-      parameters match {
-        case (tagName, timebucket, timestamp, persistenceId, tagPidSequenceNr, event) =>
-          statement.bind(event, tagName, timebucket, timestamp, persistenceId, tagPidSequenceNr)
-      }
-
-  val sink = CassandraSink[(Object, Object, Object, Object, Object, String)](parallelism = 1,
-    preparedStatement,
-    statementBinder)
-
-  val done = CassandraSource(stmt)
-    .map(
-      row =>
-        (row.getObject("tag_name"),
-          row.getObject("timebucket"),
-          row.getObject("timestamp"),
-          row.getObject("persistence_id"),
-          row.getObject("tag_pid_sequence_nr"),
-          StandardCharsets.UTF_8.decode(row.get[ByteBuffer]("event", TypeCodec.blob())).toString))
-    .flatMapConcat {
-      case (tagName, timebucket, timestamp, persistenceId, tagPidSequenceNr, eventString) =>
-        parse(eventString) match {
-          case Right(json) =>
-            getOrganization(json, uuids) match {
-              case Some(org) =>
-                val tpe = json.asObject.flatMap(_("@type")).flatMap(_.asString)
-                val withOrg = json deepMerge Json.obj("organization" -> Json.fromString(org))
-                val withOrgClean = removeAlpha(withOrg)
-                tpe match {
-                  case Some("FileCreated") | Some("FileUpdated") =>
-                    migratedCount.incrementAndGet()
-                    Source.single(
-                      (tagName,
-                        timebucket,
-                        timestamp,
-                        persistenceId,
-                        tagPidSequenceNr,
-                        transformEvent(withOrgClean, volume).noSpaces))
-                  case _ =>
-                    migratedCount.incrementAndGet()
-                    Source.single((tagName, timebucket, timestamp, persistenceId, tagPidSequenceNr, withOrgClean.noSpaces))
-                }
-              case _ => Source.empty
-            }
-          case Left(err) =>
-            log.error(
-              s"Unable to decode event for persistence_id = '$persistenceId' and sequence_nr = '$tagPidSequenceNr'", err)
-            Source.empty
-        }
-    }
-    .runWith(sink)
-
-  Await.result(done, Duration.Inf)
-  log.info(s"Finished migration of '$keyspace.tag_views' table. Migrated ${migratedCount.get()} events.")
 }
 
 private def getOrganization(v1Event: Json, uuids: Map[String, String]): Option[String] = {
