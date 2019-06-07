@@ -165,8 +165,10 @@ object QueryDirectives {
       parameter('createdBy.as[AbsoluteIri].?) &
       parameter('updatedBy.as[AbsoluteIri].?) &
       parameter('type.as[VocabAbsoluteIri].*) &
-      parameter('id.as[AbsoluteIri].?)).tmap {
-      case (deprecated, rev, schema, createdBy, updatedBy, tpe, id) =>
-        SearchParams(deprecated, rev, schema, createdBy, updatedBy, tpe.map(_.value).toList, id)
+      parameter('id.as[AbsoluteIri].?) &
+      parameter('q.as[String].?)).tmap {
+      case (deprecated, rev, schema, createdBy, updatedBy, tpe, id, q) =>
+        val qCleaned = q.filter(_.trim.nonEmpty).map(_.toLowerCase())
+        SearchParams(deprecated, rev, schema, createdBy, updatedBy, tpe.map(_.value).toList, id, qCleaned)
     }
 }

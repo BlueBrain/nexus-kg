@@ -25,23 +25,22 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "d7b2fcb1"
-val iamVersion                  = "c2c2d85d"
-val commonsVersion              = "0.12.8"
-val storageVersion              = "482bca20"
-val sourcingVersion             = "0.16.1"
+val adminVersion                = "225b1a92"
+val commonsVersion              = "0.12.10"
+val storageVersion              = "22668282"
+val sourcingVersion             = "0.16.3"
 val akkaVersion                 = "2.5.23"
 val akkaCorsVersion             = "0.4.0"
 val akkaHttpVersion             = "10.1.8"
 val akkaPersistenceInMemVersion = "2.5.1.1"
-val akkaPersistenceCassVersion  = "0.97"
-val alpakkaVersion              = "1.0.1"
-val catsVersion                 = "1.6.0"
-val catsEffectVersion           = "1.3.0"
+val akkaPersistenceCassVersion  = "0.98"
+val alpakkaVersion              = "1.0.2"
+val catsVersion                 = "1.6.1"
+val catsEffectVersion           = "1.3.1"
 val circeVersion                = "0.11.1"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
-val mockitoVersion              = "1.4.3"
+val mockitoVersion              = "1.5.6"
 val monixVersion                = "3.0.0-RC2"
 val pureconfigVersion           = "0.11.0"
 val shapelessVersion            = "2.3.3"
@@ -51,7 +50,6 @@ val s3mockVersion               = "0.2.5"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"               % adminVersion
-lazy val iamClient            = "ch.epfl.bluebrain.nexus" %% "iam-client"                 % iamVersion
 lazy val elasticSearchClient  = "ch.epfl.bluebrain.nexus" %% "elasticsearch-client"       % commonsVersion
 lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
 lazy val commonsCore          = "ch.epfl.bluebrain.nexus" %% "commons-core"               % commonsVersion
@@ -106,7 +104,6 @@ lazy val kg = project
       catsEffect,
       circeCore,
       elasticSearchClient,
-      iamClient,
       journalCore,
       kryo,
       logbackClassic,

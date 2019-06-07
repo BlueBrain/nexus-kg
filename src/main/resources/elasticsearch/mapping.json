@@ -1,72 +1,96 @@
 {
   "properties": {
     "@type": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "@id": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_rev": {
-      "type": "long"
+      "type": "long",
+      "copy_to": "_all_fields"
     },
     "_deprecated": {
-      "type": "boolean"
+      "type": "boolean",
+      "copy_to": "_all_fields"
     },
     "_createdAt": {
-      "type": "date"
+      "type": "date",
+      "copy_to": "_all_fields"
     },
     "_updatedAt": {
-      "type": "date"
+      "type": "date",
+      "copy_to": "_all_fields"
     },
     "_createdBy": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_updatedBy": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_constrainedBy": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_project": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_self": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_incoming": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_outgoing": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_original_source": {
-      "type": "text"
+      "type": "text",
+      "copy_to": "_all_fields"
     },
     "_bytes": {
-      "type": "long"
+      "type": "long",
+      "copy_to": "_all_fields"
     },
     "_mediaType": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_location": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_storageId": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_filename": {
-      "type": "keyword"
+      "type": "keyword",
+      "copy_to": "_all_fields"
     },
     "_digest": {
       "type": "nested",
       "properties": {
         "_algorithm": {
-          "type": "keyword"
+          "type": "keyword",
+          "copy_to": "_all_fields"
         },
         "_value": {
-          "type": "keyword"
+          "type": "keyword",
+          "copy_to": "_all_fields"
         }
       }
+    },
+    "_all_fields": {
+      "type": "text"
     }
   },
   "dynamic": false
