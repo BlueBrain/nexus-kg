@@ -19,17 +19,20 @@ import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, Searc
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat
+import ch.epfl.bluebrain.nexus.kg.routes.{OutputFormat, SearchParams}
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.routes.Routes.{exceptionHandler, rejectionHandler}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
@@ -53,7 +56,7 @@ class QueryDirectivesSpec
     Mockito.reset(storageCache)
   }
 
-  "A QueryDirectives" should {
+  "A query directive" when {
     implicit val config = PaginationConfig(10, 50, 10000)
     implicit val storageConfig =
       StorageConfig(
@@ -78,8 +81,8 @@ class QueryDirectivesSpec
       "project",
       "organization",
       None,
-      nxv.projects,
-      genIri,
+      url"${nxv.projects.value.asString}/".value,
+      url"${genIri}/".value,
       Map("nxv" -> nxv.base),
       genUUID,
       genUUID,
@@ -91,7 +94,7 @@ class QueryDirectivesSpec
       genIri
     )
 
-    def route(): Route =
+    def routePagination(): Route =
       (get & paginated) { page =>
         complete(StatusCodes.OK -> page)
       }
@@ -110,117 +113,158 @@ class QueryDirectivesSpec
         }
       }
 
-    "return default values when no query parameters found" in {
-      Get("/") ~> route() ~> check {
-        responseAs[FromPagination] shouldEqual Pagination(config.defaultSize)
+    def routeSearchParams(implicit project: Project): Route =
+      handleExceptions(exceptionHandler) {
+        handleRejections(rejectionHandler) {
+          (get & searchParams) { params =>
+            complete(StatusCodes.OK -> params)
+          }
+        }
+      }
+
+    "dealing with pagination" should {
+
+      "return default values when no query parameters found" in {
+        Get("/") ~> routePagination() ~> check {
+          responseAs[FromPagination] shouldEqual Pagination(config.defaultSize)
+        }
+      }
+
+      "return pagination from query parameters" in {
+        Get("/some?from=1&size=20") ~> routePagination() ~> check {
+          responseAs[FromPagination] shouldEqual Pagination(1, 20)
+        }
+      }
+
+      "return default parameters when the query params are under the minimum" in {
+        Get("/some?from=-1&size=-1") ~> routePagination() ~> check {
+          responseAs[FromPagination] shouldEqual Pagination(0, 1)
+        }
+      }
+
+      "return maximum size when size is over the maximum" in {
+        Get("/some?size=500") ~> routePagination() ~> check {
+          responseAs[FromPagination] shouldEqual Pagination(0, config.sizeLimit)
+        }
+      }
+
+      "throw error when after is not a valid JSON" in {
+        Get("/some?after=notJson") ~> routePagination() ~> check {
+          rejection shouldBe a[MalformedQueryParamRejection]
+        }
+      }
+
+      "parse search after parameter" in {
+        val after = Json.arr(Json.fromString(Instant.now().toString))
+        Get(s"/some?after=${URLEncoder.encode(after.noSpaces, "UTF-8")}") ~> routePagination() ~> check {
+          responseAs[SearchAfterPagination] shouldEqual Pagination(after, config.defaultSize)
+        }
+      }
+
+      "reject when both from and after are present" in {
+        val after = Json.arr(Json.fromString(Instant.now().toString))
+        Get(s"/some?from=10&after=${URLEncoder.encode(after.noSpaces, "UTF-8")}") ~> routePagination() ~> check {
+          rejection shouldBe a[MalformedQueryParamRejection]
+        }
+      }
+
+      "reject when from is bigger than maximum" in {
+        Get("/some?from=10001") ~> routePagination() ~> check {
+          rejection shouldBe a[MalformedQueryParamRejection]
+        }
       }
     }
 
-    "return pagination from query parameters" in {
-      Get("/some?from=1&size=20") ~> route() ~> check {
-        responseAs[FromPagination] shouldEqual Pagination(1, 20)
+    "dealing with output format" should {
+
+      "return jsonLD format from Accept header and query params. on strict mode" in {
+        Get("/some?format=compacted") ~> Accept(`application/json`) ~> routeFormat(strict = true, Compacted) ~> check {
+          responseAs[String] shouldEqual "Compacted"
+        }
+        Get("/some?format=expanded") ~> Accept(`application/json`) ~> routeFormat(strict = true, Compacted) ~> check {
+          responseAs[String] shouldEqual "Expanded"
+        }
+      }
+
+      "ignore query param. and return default format when Accept header does not match on strict mode" in {
+        Get("/some?format=expanded") ~> Accept(`application/*`) ~> routeFormat(strict = true, Binary) ~> check {
+          responseAs[String] shouldEqual "Binary"
+        }
+        Get("/some?format=compacted") ~> Accept(`application/*`, `*/*`) ~> routeFormat(strict = true, DOT) ~> check {
+          responseAs[String] shouldEqual "DOT"
+        }
+      }
+
+      "return the format from the closest Accept header match and the query param" in {
+        Get("/some?format=expanded") ~> Accept(`application/*`) ~> routeFormat(strict = false, Binary) ~> check {
+          responseAs[String] shouldEqual "Expanded"
+        }
+        Get("/some") ~> Accept(`application/n-triples`, `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
+          responseAs[String] shouldEqual "Triples"
+        }
+
+        Get("/some") ~> Accept(`text/*`, `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
+          responseAs[String] shouldEqual "DOT"
+        }
+
+        Get("/some?format=compacted") ~> Accept(`application/javascript`,
+                                                DOT.contentType.mediaType,
+                                                `application/n-triples`,
+                                                `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
+          responseAs[String] shouldEqual "DOT"
+        }
       }
     }
 
-    "return default parameters when the query params are under the minimum" in {
-      Get("/some?from=-1&size=-1") ~> route() ~> check {
-        responseAs[FromPagination] shouldEqual Pagination(0, 1)
+    "dealing with storages" should {
+
+      "return the storage when specified as a query parameter" in {
+        implicit val project = genProject
+        val storage: Storage = DiskStorage.default(project.ref)
+        when(storageCache.get(project.ref, nxv.withSuffix("mystorage").value)).thenReturn(Task(Some(storage)))
+        Get("/some?storage=nxv:mystorage") ~> routeStorage ~> check {
+          responseAs[Json] shouldEqual storage.as[Json]().right.value
+        }
+      }
+
+      "return the default storage" in {
+        implicit val project = genProject
+        val storage: Storage = DiskStorage.default(project.ref)
+        when(storageCache.getDefault(project.ref)).thenReturn(Task(Some(storage)))
+        Get("/some") ~> routeStorage ~> check {
+          responseAs[Json] shouldEqual storage.as[Json]().right.value
+        }
+      }
+
+      "return no storage when does not exists on the cache" in {
+        implicit val project = genProject
+        when(storageCache.getDefault(project.ref)).thenReturn(Task(None))
+        Get("/some") ~> routeStorage ~> check {
+          status shouldEqual StatusCodes.NotFound
+        }
       }
     }
 
-    "return maximum size when size is over the maximum" in {
-      Get("/some?size=500") ~> route() ~> check {
-        responseAs[FromPagination] shouldEqual Pagination(0, config.sizeLimit)
-      }
-    }
+    "dealing with search parameters" should {
 
-    "throw error when after is not a valid JSON" in {
-      Get("/some?after=notJson") ~> route() ~> check {
-        rejection shouldBe a[MalformedQueryParamRejection]
-      }
-    }
+      "return a SearchParams" in {
+        implicit val project    = genProject
+        val schema: AbsoluteIri = Schemas.resolverSchemaUri
+        Get(
+          s"/some?deprecated=true&rev=2&createdBy=nxv:user&updatedBy=batman&type=A&type=B&schema=${schema.asString}&q=Some%20text") ~> routeSearchParams ~> check {
+          val expected = SearchParams(
+            deprecated = Some(true),
+            rev = Some(2),
+            schema = Some(schema),
+            createdBy = Some(nxv.withSuffix("user").value),
+            updatedBy = Some(project.base + "batman"),
+            types = List(project.vocab + "A", project.vocab + "B"),
+            q = Some("some text")
+          )
+          val expected2 = expected.copy(types = List(project.vocab + "B", project.vocab + "A"))
 
-    "parse search after parameter" in {
-      val after = Json.arr(Json.fromString(Instant.now().toString))
-      Get(s"/some?after=${URLEncoder.encode(after.noSpaces, "UTF-8")}") ~> route() ~> check {
-        responseAs[SearchAfterPagination] shouldEqual Pagination(after, config.defaultSize)
-      }
-    }
-
-    "reject when both from and after are present" in {
-      val after = Json.arr(Json.fromString(Instant.now().toString))
-      Get(s"/some?from=10&after=${URLEncoder.encode(after.noSpaces, "UTF-8")}") ~> route() ~> check {
-        rejection shouldBe a[MalformedQueryParamRejection]
-      }
-    }
-
-    "reject when from is bigger than maximum" in {
-      Get("/some?from=10001") ~> route() ~> check {
-        rejection shouldBe a[MalformedQueryParamRejection]
-      }
-    }
-
-    "return jsonLD format from Accept header and query params. on strict mode" in {
-      Get("/some?format=compacted") ~> Accept(`application/json`) ~> routeFormat(strict = true, Compacted) ~> check {
-        responseAs[String] shouldEqual "Compacted"
-      }
-      Get("/some?format=expanded") ~> Accept(`application/json`) ~> routeFormat(strict = true, Compacted) ~> check {
-        responseAs[String] shouldEqual "Expanded"
-      }
-    }
-
-    "ignore query param. and return default format when Accept header does not match on strict mode" in {
-      Get("/some?format=expanded") ~> Accept(`application/*`) ~> routeFormat(strict = true, Binary) ~> check {
-        responseAs[String] shouldEqual "Binary"
-      }
-      Get("/some?format=compacted") ~> Accept(`application/*`, `*/*`) ~> routeFormat(strict = true, DOT) ~> check {
-        responseAs[String] shouldEqual "DOT"
-      }
-    }
-
-    "return the format from the closest Accept header match and the query param" in {
-      Get("/some?format=expanded") ~> Accept(`application/*`) ~> routeFormat(strict = false, Binary) ~> check {
-        responseAs[String] shouldEqual "Expanded"
-      }
-      Get("/some") ~> Accept(`application/n-triples`, `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
-        responseAs[String] shouldEqual "Triples"
-      }
-
-      Get("/some") ~> Accept(`text/*`, `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
-        responseAs[String] shouldEqual "DOT"
-      }
-
-      Get("/some?format=compacted") ~> Accept(`application/javascript`,
-                                              DOT.contentType.mediaType,
-                                              `application/n-triples`,
-                                              `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
-        responseAs[String] shouldEqual "DOT"
-      }
-    }
-
-    "return the storage when specified as a query parameter" in {
-      implicit val project = genProject
-      val storage: Storage = DiskStorage.default(project.ref)
-      when(storageCache.get(project.ref, nxv.withSuffix("mystorage").value)).thenReturn(Task(Some(storage)))
-      Get("/some?storage=nxv:mystorage") ~> routeStorage ~> check {
-        responseAs[Json] shouldEqual storage.as[Json]().right.value
-      }
-    }
-
-    "return the default storage" in {
-      implicit val project = genProject
-      val storage: Storage = DiskStorage.default(project.ref)
-      when(storageCache.getDefault(project.ref)).thenReturn(Task(Some(storage)))
-      Get("/some") ~> routeStorage ~> check {
-        responseAs[Json] shouldEqual storage.as[Json]().right.value
-      }
-    }
-
-    "return no storage when does not exists on the cache" in {
-      implicit val project = genProject
-      when(storageCache.getDefault(project.ref)).thenReturn(Task(None))
-      Get("/some") ~> routeStorage ~> check {
-        status shouldEqual StatusCodes.NotFound
+          responseAs[SearchParams] should (be(expected) or be(expected2))
+        }
       }
     }
   }

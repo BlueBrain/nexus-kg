@@ -330,6 +330,7 @@ object View {
   }
 
   object ElasticSearchView {
+    val allField              = "_all_fields"
     private val defaultViewId = UUID.fromString("684bd815-9273-46f4-ac1c-0383d4a98254")
 
     /**

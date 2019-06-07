@@ -7,6 +7,11 @@
     "bool": {
       "filter": [
         {
+          "match": {
+            "_all_fields": "some text"
+          }
+        },
+        {
           "term": {
             "_constrainedBy": "http://nexus.example.com/testSchema"
           }

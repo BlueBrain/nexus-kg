@@ -12,6 +12,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   * @param updatedBy  the optional identity id who updated the resource
   * @param types      the optional types of the resources
   * @param id         the optional id of the resources
+  * @param q          the optional full text search string
   */
 final case class SearchParams(deprecated: Option[Boolean] = None,
                               rev: Option[Long] = None,
@@ -19,4 +20,5 @@ final case class SearchParams(deprecated: Option[Boolean] = None,
                               createdBy: Option[AbsoluteIri] = None,
                               updatedBy: Option[AbsoluteIri] = None,
                               types: List[AbsoluteIri] = List.empty,
-                              id: Option[AbsoluteIri] = None)
+                              id: Option[AbsoluteIri] = None,
+                              q: Option[String] = None)
