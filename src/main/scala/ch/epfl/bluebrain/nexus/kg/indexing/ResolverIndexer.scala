@@ -84,7 +84,7 @@ object ResolverIndexer {
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)
         .mapping(mapper.apply)
-        .index(_.traverse(resolverCache.put) *> Task.unit)
+        .index(_.traverse(resolverCache.put) >> Task.unit)
         .build)
   }
   // $COVERAGE-ON$

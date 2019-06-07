@@ -75,7 +75,7 @@ class ViewCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedViews])(i
     }
 
   private def remove(view: View): F[Unit] =
-    store.computeIfPresent(view.ref.id, _.value.filterNot(_.id == view.id)) *> F.unit
+    store.computeIfPresent(view.ref.id, _.value.filterNot(_.id == view.id)) >> F.unit
 
 }
 

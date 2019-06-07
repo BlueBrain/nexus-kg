@@ -90,11 +90,11 @@ private class Indexing(
           val sparqlView: View             = SparqlView.default(project.ref)
           val resolver: Resolver           = InProjectResolver.default(project.ref)
           // format: off
-          cache.project.replace(project) *>
-            coordinator.start(project) *>
-            resources.create(Id(project.ref, elasticSearchView.id), viewRef, asJson(elasticSearchView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError) *>
-            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError) *>
-            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError) *>
+          cache.project.replace(project) >>
+            coordinator.start(project) >>
+            resources.create(Id(project.ref, elasticSearchView.id), viewRef, asJson(elasticSearchView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError) >>
+            resources.create(Id(project.ref, sparqlView.id), viewRef, asJson(sparqlView)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError) >>
+            resources.create(Id(project.ref, resolver.id), resolverRef, asJson(resolver)).value.mapRetry(createdOrExists, KgError.InternalError(s"Couldn't create default InProject resolver for project '${project.ref}'"): KgError) >>
             Task.unit
           // format: on
 
@@ -104,11 +104,11 @@ private class Indexing(
               // format: off
               val newProject = Project(config.http.projectsIri + label, label, project.organizationLabel, desc, base, vocab, am, uuid, project.organizationUuid, rev, deprecated = false, instant, subject.id, instant, subject.id)
               // format: on
-              cache.project.replace(newProject) *> coordinator.change(newProject, project)
+              cache.project.replace(newProject) >> coordinator.change(newProject, project)
             case None => Task.unit
           }
         case ProjectDeprecated(uuid, rev, _, _) =>
-          cache.project.deprecate(ProjectRef(uuid), rev) *> coordinator.stop(ProjectRef(uuid))
+          cache.project.deprecate(ProjectRef(uuid), rev) >> coordinator.stop(ProjectRef(uuid))
         case _ => Task.unit
       }
     }

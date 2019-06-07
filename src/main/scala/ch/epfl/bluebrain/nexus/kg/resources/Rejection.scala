@@ -15,7 +15,7 @@ import akka.http.scaladsl.server.{Rejection => AkkaRejection}
 import ch.epfl.bluebrain.nexus.service.http.directives.StatusFrom
 import io.circe.generic.extras.semiauto.deriveEncoder
 import io.circe.parser.parse
-import io.circe.{Encoder, Json}
+import io.circe.{Encoder, Json, KeyEncoder}
 
 /**
   * Enumeration of resource rejection types.
@@ -137,6 +137,16 @@ object Rejection {
   final case class ResourceAlreadyExists(ref: Ref) extends Rejection(s"Resource '${ref.show}' already exists.")
 
   /**
+    * Signals that a resource contains circular dependencies(contexts or schemas)
+    *
+    * @param dependencies dependency graph
+    */
+  final case class CircularDependency(dependencies: Map[Ref, Ref])
+      extends Rejection(
+        s"Resource contains circular dependencies: ${dependencies.mkString(",")}"
+      )
+
+  /**
     * Signals that a resource has an illegal (transitive) context value.
     *
     * @param refs the import value stack
@@ -180,6 +190,7 @@ object Rejection {
 
   implicit val rejectionEncoder: Encoder[Rejection] = {
     implicit val rejectionConfig: Configuration = Configuration.default.withDiscriminator("@type")
+    implicit val refKeyEncoder: KeyEncoder[Ref] = (ref: Ref) => ref.iri.show
     val enc                                     = deriveEncoder[Rejection].mapJson(_ addContext errorCtxUri)
     def reason(r: Rejection): Json =
       Json.obj("reason" -> Json.fromString(r.msg))
@@ -198,6 +209,7 @@ object Rejection {
     case _: ResourceIsDeprecated     => StatusCodes.BadRequest
     case _: IncorrectTypes           => StatusCodes.BadRequest
     case _: IllegalContextValue      => StatusCodes.BadRequest
+    case _: CircularDependency       => StatusCodes.BadRequest
     case _: UnableToSelectResourceId => StatusCodes.BadRequest
     case _: InvalidResource          => StatusCodes.BadRequest
     case _: IncorrectId              => StatusCodes.BadRequest

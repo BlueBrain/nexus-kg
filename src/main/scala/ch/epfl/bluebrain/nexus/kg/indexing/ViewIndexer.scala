@@ -81,7 +81,7 @@ object ViewIndexer {
         .batch(indexing.batch, indexing.batchTimeout)
         .offset(Volatile)
         .mapping(mapper.apply)
-        .index(_.traverse(viewCache.put) *> Task.unit)
+        .index(_.traverse(viewCache.put) >> Task.unit)
         .build)
   }
   // $COVERAGE-ON$

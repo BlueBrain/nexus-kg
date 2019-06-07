@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.{ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -339,6 +340,35 @@ class ResourcesSpec
       "prevent to update a resource (resolver) that does not exists" in new ResolverResource {
         resources.update(resId, 1L, Some(schema), resolverUpdated).value.rejected[NotFound] shouldEqual NotFound(
           resId.ref)
+      }
+
+      "prevent updating context to create circular dependency" in new Base {
+        when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List(InProjectResolver.default(projectRef))))
+
+        val id2    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val resId2 = Id(projectRef, id2)
+
+        val context1 = Json.obj(
+          "@id" -> Json.fromString(id.show)
+        )
+        val context2 = Json.obj(
+          "@context" -> Json.fromString(id.show),
+          "@id"      -> Json.fromString(id2.show)
+        )
+
+        val context1Update = Json.obj(
+          "@context" -> Json.fromString(id2.show),
+          "@id"      -> Json.fromString(id.show)
+        )
+
+        resources.create(resId, Latest(unconstrainedSchemaUri), context1).value.accepted
+        resources.create(resId2, Latest(unconstrainedSchemaUri), context2).value.accepted
+        resources
+          .update(resId, 1L, None, context1Update)
+          .value
+          .rejected[CircularDependency] shouldEqual CircularDependency(
+          Map(Latest(id) -> Latest(id2), Latest(id2) -> Latest(id)))
+
       }
     }
 

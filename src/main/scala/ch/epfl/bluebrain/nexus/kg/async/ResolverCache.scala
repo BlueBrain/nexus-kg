@@ -62,7 +62,7 @@ class ResolverCache[F[_]] private (store: KeyValueStore[F, UUID, RevisionedResol
     }
 
   private def remove(resolver: Resolver): F[Unit] =
-    store.computeIfPresent(resolver.ref.id, _.value.filterNot(_.id == resolver.id)) *> F.unit
+    store.computeIfPresent(resolver.ref.id, _.value.filterNot(_.id == resolver.id)) >> F.unit
 
 }
 

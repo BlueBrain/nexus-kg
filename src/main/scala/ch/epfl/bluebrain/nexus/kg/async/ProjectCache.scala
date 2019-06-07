@@ -85,7 +85,7 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     * @param rev the project new revision
     */
   def deprecate(ref: ProjectRef, rev: Long): F[Unit] =
-    store.computeIfPresent(ref.id, c => c.copy(rev = rev, deprecated = true)) *> F.unit
+    store.computeIfPresent(ref.id, c => c.copy(rev = rev, deprecated = true)) >> F.unit
 
 }
 

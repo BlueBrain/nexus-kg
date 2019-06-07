@@ -39,6 +39,8 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node.encoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, GraphConfiguration, Iri}
 import io.circe.Json
+import scalax.collection.edge.LkDiEdge
+import scalax.collection.immutable.{Graph => G}
 
 /**
   * Resource operations.
@@ -76,7 +78,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
       additional: AdditionalValidation[F]): RejOrResource =
     // format: off
     for {
-      rawValue       <- materialize(projectRef, schema, source)
+      rawValue       <- materialize(projectRef, schema, source, None)
       value          <- checkOrAssignId(Right((projectRef, base)), rawValue)
       (id, assigned)  = value
       resource       <- create(id, schema, assigned.copy(graph = assigned.graph.removeMetadata(id.value)))
@@ -418,28 +420,42 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
     lookup(Map.empty, importsValues(resId.value, graph).toList)
   }
 
-  private def materialize(projectRef: ProjectRef, schema: Ref, source: Json)(
+  private def materialize(projectRef: ProjectRef, schema: Ref, source: Json, sourceRef: Option[Ref])(
       implicit project: Project): EitherT[F, Rejection, ResourceF.Value] = {
 
-    def flattenCtx(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
+    def rejectionOrUnit(dependencyGraph: G[Ref, LkDiEdge]): EitherT[F, Rejection, Unit] =
+      if (dependencyGraph.isCyclic) {
+        EitherT.leftT[F, Unit](
+          CircularDependency(dependencyGraph.edges.map(e => e.from.value -> e.to.value).toMap)
+        )
+      } else { EitherT.pure[F, Rejection](()) }
+
+    def flattenCtx(contextValue: Json,
+                   currentContext: Option[Ref],
+                   dependencyGraph: G[Ref, LkDiEdge] = G.empty): EitherT[F, Rejection, Json] =
       (contextValue.asString, contextValue.asArray, contextValue.asObject) match {
         case (Some(str), _, _) =>
           val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
           for {
-            next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
-            res   <- next.resolveOr(projectRef)(NotFound(_))
-            value <- flattenCtx(next :: refs, res.value.contextValue)
+            next <- EitherT.fromOption[F](nextRef, IllegalContextValue(dependencyGraph.nodes.toList.map(_.value)))
+            res  <- next.resolveOr(projectRef)(NotFound(_))
+            updatedDependencyGraph = currentContext match {
+              case Some(c) => dependencyGraph + LkDiEdge(c, next)("@context")
+              case None    => dependencyGraph
+            }
+            _     <- rejectionOrUnit(updatedDependencyGraph)
+            value <- flattenCtx(res.value.contextValue, Some(next), updatedDependencyGraph)
           } yield value
         case (_, Some(arr), _) =>
           val jsons = arr
-            .traverse(j => flattenCtx(refs, j).value)
+            .traverse(j => flattenCtx(j, currentContext, dependencyGraph).value)
             .map(_.sequence)
           EitherT(jsons).map(_.foldLeft(Json.obj())(_ deepMerge _))
         case (_, _, Some(_)) => EitherT.rightT(contextValue)
-        case (_, _, _)       => EitherT.leftT(IllegalContextValue(refs))
+        case (_, _, _)       => EitherT.leftT(IllegalContextValue(dependencyGraph.nodes.toList.map(_.value)))
       }
 
-    flattenCtx(Nil, source.contextValue).flatMap { flattened =>
+    flattenCtx(source.contextValue, sourceRef).flatMap { flattened =>
       val value = schema match {
         case `unconstrainedRef` if flattened == Json.obj() =>
           val ctx = Json.obj(
@@ -461,7 +477,7 @@ class Resources[F[_]](implicit F: MonadError[F, Throwable],
       implicit project: Project): EitherT[F, Rejection, ResourceF.Value] =
     // format: off
     for {
-      rawValue      <- materialize(id.parent, schema, source)
+      rawValue      <- materialize(id.parent, schema, source, Some(id.ref))
       value         <- checkOrAssignId(Left(id), rawValue.copy(graph = rawValue.graph.removeMetadata(id.value)))
       (_, assigned)  = value
     } yield assigned

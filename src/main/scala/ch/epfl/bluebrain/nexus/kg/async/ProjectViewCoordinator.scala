@@ -38,7 +38,7 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(implicit F: 
     * @param orgRef the organization unique identifier
     */
   def stop(orgRef: OrganizationRef): F[Unit] =
-    cache.project.list(orgRef).flatMap(projects => projects.map(project => stop(project.ref)).sequence) *> F.unit
+    cache.project.list(orgRef).flatMap(projects => projects.map(project => stop(project.ref)).sequence) >> F.unit
 
   /**
     * Stops the coordinator children view actors and indices that belong to the provided organization.
