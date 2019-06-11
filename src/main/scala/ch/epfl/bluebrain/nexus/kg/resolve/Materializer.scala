@@ -46,8 +46,7 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
           arr.foldLeft(EitherT.rightT[F, Rejection]((Json.obj(), List.empty[Ref]))) {
             case (acc, c) =>
               acc.flatMap {
-                case (json, refs) =>
-                  inner(refs, c).map { case (resJson, resRefs) => (json deepMerge resJson, refs ++ resRefs) }
+                case (json, refs) => inner(refs, c).map { case (resJson, resRefs) => (json deepMerge resJson, resRefs) }
               }
           }
         case (_, _, Some(_)) => EitherT.rightT[F, Rejection]((contextValue, refs))
