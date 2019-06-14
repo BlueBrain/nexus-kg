@@ -179,13 +179,14 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
     */
   def imports(resId: ResId, graph: Graph)(implicit project: Project): EitherT[F, Rejection, Set[ResourceV]] = {
 
+    val currentRef = resId.value.ref
     def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
       g.objects(IriNode(id), owl.imports).unorderedFoldMap {
         case IriNode(iri) => Set(iri.ref)
         case _            => Set.empty
       }
 
-    def lookup(current: Map[Ref, ResourceV], remaining: List[Ref]): EitherT[F, Rejection, Set[ResourceV]] = {
+    def lookup(current: Map[Ref, ResourceV], remaining: Set[Ref]): EitherT[F, Rejection, Set[ResourceV]] = {
       def load(ref: Ref): EitherT[F, Rejection, (Ref, ResourceV)] =
         current
           .find(_._1 == ref)
@@ -194,20 +195,21 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
 
       if (remaining.isEmpty) EitherT.rightT[F, Rejection](current.values.toSet)
       else {
-        val batch: EitherT[F, Rejection, List[(Ref, ResourceV)]] =
-          remaining.traverse(load)
+        val batch: EitherT[F, Rejection, Set[(Ref, ResourceV)]] =
+          remaining.toList.traverse(load).map(_.toSet)
 
         batch.flatMap { list =>
-          val nextRemaining: List[Ref] = list.flatMap {
-            case (ref, res) => importsValues(ref.iri, res.value.graph).toList
-          }
+          val nextRemaining: Set[Ref] = list
+            .flatMap {
+              case (ref, res) => importsValues(ref.iri, res.value.graph).toList
+            } - currentRef
           val nextCurrent: Map[Ref, ResourceV] = current ++ list.toMap
           lookup(nextCurrent, nextRemaining)
         }
       }
     }
 
-    lookup(Map.empty, importsValues(resId.value, graph).toList)
+    lookup(Map.empty, importsValues(resId.value, graph) - currentRef)
   }
 
 }
