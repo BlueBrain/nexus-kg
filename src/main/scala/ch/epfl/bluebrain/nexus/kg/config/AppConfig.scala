@@ -296,6 +296,8 @@ object AppConfig {
       nxv.createdBy.prefix,
       nxv.updatedAt.prefix,
       nxv.updatedBy.prefix,
+      nxv.incoming.prefix,
+      nxv.outgoing.prefix,
       nxv.instant.prefix,
       nxv.eventSubject.prefix
     ))

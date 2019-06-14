@@ -26,7 +26,9 @@ import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
+import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.xsd
@@ -173,8 +175,8 @@ class ResourcesSpec
 
       "prevent to create a resource with wrong context value" in new Base {
         val json = Json.obj("@context" -> Json.arr(Json.fromString(resolverCtxUri.show), Json.fromInt(3)))
-        resources.create(schemaRef, json).value.rejected[IllegalContextValue] shouldEqual IllegalContextValue(
-          List.empty)
+        resources.create(schemaRef, json).value.rejected[IllegalContextValue] shouldEqual
+          IllegalContextValue(List(Latest(resolverCtxUri)))
       }
 
       "prevent to create a resource with wrong context that cannot be resolved" in new Base {
@@ -314,6 +316,32 @@ class ResourcesSpec
         results.total shouldEqual 10
         results.results.toSet shouldEqual expected
       }
+
+      "prevent updating context to create circular dependency" in new Base {
+        when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List(InProjectResolver.default(projectRef))))
+
+        val id2    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val resId2 = Id(projectRef, id2)
+
+        val context1 = Json.obj(
+          "@id" -> Json.fromString(id.show)
+        )
+        val context2 = Json.obj(
+          "@context" -> Json.fromString(id.show),
+          "@id"      -> Json.fromString(id2.show)
+        )
+
+        val context1Update = Json.obj(
+          "@context" -> Json.fromString(id2.show),
+          "@id"      -> Json.fromString(id.show)
+        )
+
+        resources.create(resId, unconstrainedRef, context1).value.accepted
+        resources.create(resId2, unconstrainedRef, context2).value.accepted
+        resources.update(resId, 1L, unconstrainedRef, context1Update).value.rejected[IllegalContextValue] shouldEqual
+          IllegalContextValue(List(Latest(id), Latest(id2), Latest(id)))
+      }
+
     }
   }
 }

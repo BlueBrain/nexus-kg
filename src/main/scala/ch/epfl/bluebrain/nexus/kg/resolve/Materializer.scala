@@ -29,27 +29,34 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
 
   private def flattenCtx(rrefs: List[Ref], ccontextValue: Json)(
       implicit project: Project): EitherT[F, Rejection, Json] = {
-
-    def inner(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, Json] =
+    type JsonRefs = (Json, List[Ref])
+    def inner(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, JsonRefs] =
       (contextValue.asString, contextValue.asArray, contextValue.asObject) match {
         case (Some(str), _, _) =>
           val nextRef = Iri.absolute(str).toOption.map(Ref.apply)
+          // format: off
           for {
             next  <- EitherT.fromOption[F](nextRef, IllegalContextValue(refs))
+            _     <- if (refs.contains(next)) EitherT.leftT[F, Unit](IllegalContextValue(next :: refs)) else EitherT.rightT[F, Rejection](())
             res   <- resolveOrNotFound(next)
             value <- inner(next :: refs, res.value.contextValue)
           } yield value
+        // format: on
         case (_, Some(arr), _) =>
-          val jsons = arr.traverse(j => inner(refs, j).value).map(_.sequence)
-
-          EitherT(jsons).map(_.foldLeft(Json.obj())(_ deepMerge _))
-        case (_, _, Some(_)) => EitherT.rightT[F, Rejection](contextValue)
-        case (_, _, _)       => EitherT.leftT[F, Json](IllegalContextValue(refs): Rejection)
+          arr.foldLeft(EitherT.rightT[F, Rejection]((Json.obj(), List.empty[Ref]))) {
+            case (acc, c) =>
+              acc.flatMap {
+                case (json, refs) => inner(refs, c).map { case (resJson, resRefs) => (json deepMerge resJson, resRefs) }
+              }
+          }
+        case (_, _, Some(_)) => EitherT.rightT[F, Rejection]((contextValue, refs))
+        case (_, _, _)       => EitherT.leftT[F, JsonRefs](IllegalContextValue(refs): Rejection)
       }
 
     inner(rrefs, ccontextValue).map {
-      case `emptyJson` => Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson)
-      case flattened   => flattened
+      case (`emptyJson`, _) =>
+        Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson)
+      case (flattened, _) => flattened
     }
   }
 
@@ -65,7 +72,7 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
     * @return Left(rejection) when failed and Right(value) when passed, wrapped in the effect type ''F''
     */
   def apply(source: Json, id: AbsoluteIri)(implicit project: Project): EitherT[F, Rejection, Value] =
-    flattenCtx(Nil, source.contextValue)
+    flattenCtx(List(id.ref), source.contextValue)
       .flatMap { ctx =>
         val resolved = source.replaceContext(Json.obj("@context" -> ctx))
         EitherT.fromEither[F](addIdOrReject(resolved, id)).flatMap(asGraphOrError(id, _, source, ctx))
