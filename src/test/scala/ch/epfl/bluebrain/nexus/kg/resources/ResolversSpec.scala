@@ -9,7 +9,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -47,7 +47,6 @@ class ResolversSpec
     with Matchers
     with OptionValues
     with EitherValues
-    with Randomness
     with test.Resources
     with TestHelper
     with Inspectors

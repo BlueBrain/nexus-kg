@@ -8,7 +8,6 @@ import akka.util.Timeout
 import cats.data.OptionT
 import cats.effect.{IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.commons.test.io.IOOptionValues
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Group, User}
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -35,7 +34,6 @@ class MultiProjectResolutionSpec
     with WordSpecLike
     with Matchers
     with IdiomaticMockito
-    with Randomness
     with BeforeAndAfter
     with EitherValues
     with TestHelper

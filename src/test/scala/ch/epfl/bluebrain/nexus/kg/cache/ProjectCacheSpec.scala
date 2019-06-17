@@ -4,7 +4,7 @@ import java.time.Instant
 
 import akka.testkit._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -19,7 +19,6 @@ import scala.concurrent.duration._
 
 class ProjectCacheSpec
     extends ActorSystemFixture("ProjectCacheSpec", true)
-    with Randomness
     with Matchers
     with Inspectors
     with ScalaFutures

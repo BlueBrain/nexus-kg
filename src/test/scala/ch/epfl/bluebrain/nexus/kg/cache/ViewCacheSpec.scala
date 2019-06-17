@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.cache
 import akka.actor.ExtendedActorSystem
 import akka.serialization.Serialization
 import akka.testkit._
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -22,7 +22,6 @@ import scala.concurrent.duration._
 //noinspection NameBooleanParameters
 class ViewCacheSpec
     extends ActorSystemFixture("ViewCacheSpec", true)
-    with Randomness
     with Matchers
     with Inspectors
     with ScalaFutures

@@ -3,22 +3,26 @@ package ch.epfl.bluebrain.nexus.kg
 import java.time.Clock
 import java.util.UUID
 
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
+import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, Permission, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.unconstrainedSchemaUri
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Ref, ResId, ResourceF}
+import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.scalatest.EitherValues
 
-trait TestHelper extends EitherValues {
+trait TestHelper extends EitherValues with Randomness {
 
-  private val clock = Clock.systemUTC()
-  val read          = Permission.unsafe("resources/read")
-  val write         = Permission.unsafe("files/write")
+  private val clock     = Clock.systemUTC()
+  val read: Permission  = Permission.unsafe("resources/read")
+  val write: Permission = Permission.unsafe("files/write")
 
   def resourceAcls(acl: AccessControlList): ResourceAccessControlList =
     ResourceAccessControlList(url"http://example.com/id".value,
@@ -52,6 +56,7 @@ trait TestHelper extends EitherValues {
       schema,
       Value(value, value.contextValue, value.asGraph(id.value).right.value)
     )
+
   def simpleV(res: ResourceF[Json])(implicit clock: Clock) = ResourceF(
     res.id,
     res.rev,
@@ -70,4 +75,10 @@ trait TestHelper extends EitherValues {
   def genUUID: UUID = UUID.randomUUID()
 
   def genIri: AbsoluteIri = url"http://example.com/".value + genUUID.toString
+
+  private def sourceInChunks(input: String): AkkaSource =
+    Source.fromIterator(() => input.grouped(10000).map(ByteString(_)))
+
+  def genSource: AkkaSource = sourceInChunks(genString())
+
 }

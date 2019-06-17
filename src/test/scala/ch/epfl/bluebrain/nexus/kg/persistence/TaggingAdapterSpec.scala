@@ -4,7 +4,6 @@ import java.time.{Clock, Instant, ZoneId}
 
 import akka.persistence.journal.Tagged
 import cats.syntax.show._
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -15,7 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef, Re
 import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
-class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors with Randomness with TestHelper {
+class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors with TestHelper {
 
   "A TaggingAdapter" should {
     val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())

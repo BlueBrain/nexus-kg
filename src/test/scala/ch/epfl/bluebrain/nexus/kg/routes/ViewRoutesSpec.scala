@@ -20,7 +20,7 @@ import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.CirceEq
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -67,7 +67,6 @@ class ViewRoutesSpec
     with ScalatestRouteTest
     with test.Resources
     with ScalaFutures
-    with Randomness
     with IdiomaticMockito
     with MacroBasedMatchers
     with TestHelper

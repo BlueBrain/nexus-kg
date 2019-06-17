@@ -70,7 +70,7 @@ object DiskStorageOperations {
               case (digFuture, ioFuture) =>
                 digFuture.zipWith(ioFuture) {
                   case (dig, io) if io.wasSuccessful && fullPath.toFile.exists() =>
-                    val summary = StoredSummary(s"file://$fullPath", Uri.Path(relativePath.toString), io.count, dig)
+                    val summary = StoredSummary(pathToUri(fullPath), relativePath, io.count, dig)
                     Future.successful(fileDesc.process(summary))
                   case _ =>
                     Future.failed(KgError.InternalError(
@@ -83,12 +83,12 @@ object DiskStorageOperations {
           F.liftIO(IO.fromFuture(IO(future)))
       }
 
-    private def getLocation(uuid: UUID, filename: String): F[(Path, Path)] =
+    private def getLocation(uuid: UUID, filename: String): F[(Path, Uri.Path)] =
       F.catchNonFatal {
           val relative = Paths.get(mangle(storage.ref, uuid, filename))
           val filePath = storage.volume.resolve(relative)
           Files.createDirectories(filePath.getParent)
-          (filePath, relative)
+          (filePath, Uri.Path(relative.toString))
         }
         .recoverWith {
           case NonFatal(err) =>

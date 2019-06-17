@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults.{Binding, Bin
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -54,7 +54,6 @@ class ResourcesSpec
     with Matchers
     with OptionValues
     with EitherValues
-    with Randomness
     with test.Resources
     with TestHelper
     with Inspectors {

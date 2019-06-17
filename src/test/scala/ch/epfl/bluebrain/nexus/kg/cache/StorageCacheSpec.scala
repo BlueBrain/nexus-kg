@@ -4,7 +4,7 @@ import java.nio.file.Paths
 import java.time.Clock
 
 import akka.testkit._
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
@@ -21,7 +21,6 @@ import scala.concurrent.duration._
 //noinspection NameBooleanParameters
 class StorageCacheSpec
     extends ActorSystemFixture("StorageCacheSpec", true)
-    with Randomness
     with Matchers
     with Inspectors
     with ScalaFutures

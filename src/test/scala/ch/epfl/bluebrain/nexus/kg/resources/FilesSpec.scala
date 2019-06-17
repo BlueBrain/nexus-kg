@@ -9,7 +9,7 @@ import cats.effect.{ContextShift, IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.KgError.RemoteFileNotFound
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -43,7 +43,6 @@ class FilesSpec
     with Matchers
     with OptionValues
     with EitherValues
-    with Randomness
     with BeforeAndAfter
     with test.Resources
     with TestHelper

@@ -22,7 +22,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.CirceEq
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -64,7 +64,6 @@ class FileRoutesSpec
     with ScalatestRouteTest
     with test.Resources
     with ScalaFutures
-    with Randomness
     with IdiomaticMockito
     with ArgumentMatchersSugar
     with MacroBasedMatchers
@@ -142,7 +141,7 @@ class FileRoutesSpec
     val source: Source[ByteString, Any] =
       Source.single(ByteString(content)).mapMaterializedValue[Any](v => v)
     val entity: HttpEntity.Strict = HttpEntity(ContentTypes.`text/plain(UTF-8)`, content)
-    val multipartForm             = FormData(BodyPart.Strict("file", entity, Map("filename" -> "myFile.txt"))).toEntity()
+    val multipartForm             = FormData(BodyPart.Strict("file", entity, Map("filename" -> "my file.txt"))).toEntity()
 
     def fileResponse(): Json =
       response(fileRef) deepMerge Json.obj(
@@ -152,7 +151,7 @@ class FileRoutesSpec
       )
 
     val fileLink = jsonContentOf("/resources/file-link.json")
-    val fileDesc = FileDescription("myFile.txt", `text/plain(UTF-8)`)
+    val fileDesc = FileDescription("my file.txt", `text/plain(UTF-8)`)
 
     implicit val ignoreUuid: Equality[FileDescription] = (a: FileDescription, b: Any) =>
       b match {

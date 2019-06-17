@@ -5,23 +5,21 @@ import java.nio.file.Paths
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.stream.{ActorMaterializer, Materializer}
-import akka.stream.scaladsl.Source
-import akka.util.ByteString
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.test.io.IOEitherValues
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Resources}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.RemoteDiskStorage
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
-import org.mockito.{IdiomaticMockito, Mockito}
-import org.scalatest._
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
+import org.mockito.{IdiomaticMockito, Mockito}
+import org.scalatest._
 
 class RemoteDiskStorageOperationsSpec
     extends ActorSystemFixture("RemoteDiskStorageOperationsSpec")
@@ -30,7 +28,6 @@ class RemoteDiskStorageOperationsSpec
     with BeforeAndAfter
     with IdiomaticMockito
     with IOEitherValues
-    with Randomness
     with Resources
     with TestHelper {
 
@@ -55,9 +52,6 @@ class RemoteDiskStorageOperationsSpec
     val attributes = FileAttributes(s"$endpoint/${storage.folder}/$path", path, s"${genString()}.json", `application/json`, 12L, Digest("SHA-256", genString()))
     // format: on
   }
-
-  private def sourceInChunks(input: String): AkkaSource =
-    Source.fromIterator(() => input.grouped(10000).map(ByteString(_)))
 
   private val client = mock[StorageClient[IO]]
 
@@ -84,7 +78,7 @@ class RemoteDiskStorageOperationsSpec
     }
 
     "fetch file" in new Ctx {
-      val source = sourceInChunks(genString())
+      val source = genSource
       client.getFile(storage.folder, path) shouldReturn IO(source)
       val fetch        = new RemoteDiskStorageOperations.Fetch[IO](storage, client)
       val resultSource = fetch.apply(attributes).ioValue
