@@ -49,7 +49,7 @@ object S3StorageOperations {
 
     override def apply(fileMeta: FileAttributes): F[AkkaSource] = {
       val future = IO(
-        S3.download(storage.bucket, URLDecoder.decode(fileMeta.path.toString, UTF_8))
+        S3.download(storage.bucket, URLDecoder.decode(fileMeta.path.toString, UTF_8.toString))
           .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
           .runWith(Sink.head))
       IO.fromFuture(future)
@@ -124,7 +124,7 @@ object S3StorageOperations {
     override def apply(id: ResId, fileDesc: FileDescription, key: Uri.Path): F[FileAttributes] = {
       val location: Uri = s"${storage.settings.address}/${storage.bucket}/$key"
       val future =
-        S3.download(storage.bucket, URLDecoder.decode(key.toString, UTF_8))
+        S3.download(storage.bucket, URLDecoder.decode(key.toString, UTF_8.toString))
           .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
           .runWith(Sink.head)
           .flatMap {
