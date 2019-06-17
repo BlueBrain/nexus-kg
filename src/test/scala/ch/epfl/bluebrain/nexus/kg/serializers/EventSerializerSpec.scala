@@ -10,7 +10,7 @@ import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
-import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
+import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -32,7 +32,6 @@ class EventSerializerSpec
     with EitherValues
     with ScalatestRouteTest
     with OptionValues
-    with Randomness
     with Resources
     with TestHelper {
 

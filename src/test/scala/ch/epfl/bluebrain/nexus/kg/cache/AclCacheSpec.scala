@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.cache
 
 import akka.testkit._
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists, Permission}
@@ -20,7 +20,6 @@ import scala.concurrent.duration._
 
 class AclCacheSpec
     extends ActorSystemFixture("AclCacheSpec", true)
-    with Randomness
     with Matchers
     with Inspectors
     with ScalaFutures

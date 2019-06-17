@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.CirceEq
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -56,7 +56,6 @@ class ResolverRoutesSpec
     with ScalatestRouteTest
     with test.Resources
     with ScalaFutures
-    with Randomness
     with IdiomaticMockito
     with MacroBasedMatchers
     with TestHelper

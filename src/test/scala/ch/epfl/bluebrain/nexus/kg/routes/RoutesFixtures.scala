@@ -5,7 +5,7 @@ import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
-import ch.epfl.bluebrain.nexus.commons.test.{Randomness, Resources}
+import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Caller}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -22,7 +22,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.syntax._
 
-trait RoutesFixtures extends Randomness with TestHelper with Resources {
+trait RoutesFixtures extends TestHelper with Resources {
 
   val user                              = User("dmontero", "realm")
   implicit val caller: Caller           = Caller(user, Set(Anonymous))

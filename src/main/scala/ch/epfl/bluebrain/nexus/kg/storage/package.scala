@@ -40,6 +40,14 @@ package object storage {
     else None
 
   /**
+    * Converts a [[java.nio.file.Path]] to an Akka [[akka.http.scaladsl.model.Uri]].
+    *
+    * @param path the Path to convert
+    * @return an Uri of the form file://$path
+    */
+  def pathToUri(path: Path): Uri = Uri(path.toUri.toString)
+
+  /**
     * Builds a relative file path that is mangled in the form:
     * uuid = 12345678-90ab-cdef-abcd-1234567890ab
     * {project_id}/1/2/3/4/5/6/7/8/{filename}
