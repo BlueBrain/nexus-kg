@@ -153,6 +153,9 @@ class FileRoutesSpec
     val fileLink = jsonContentOf("/resources/file-link.json")
     val fileDesc = FileDescription("my file.txt", `text/plain(UTF-8)`)
 
+    // base 64 of file.txt
+    val encodedFilename = "ZmlsZS50eHQ="
+
     implicit val ignoreUuid: Equality[FileDescription] = (a: FileDescription, b: Any) =>
       b match {
         case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
@@ -325,19 +328,22 @@ class FileRoutesSpec
         Get(s"/v1/files/$organization/$project/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/file/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/_/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
       }
@@ -355,19 +361,22 @@ class FileRoutesSpec
         Get(s"/v1/files/$organization/$project/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
       }
@@ -385,19 +394,22 @@ class FileRoutesSpec
         Get(s"/v1/files/$organization/$project/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/file/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
         Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value.value() shouldEqual """attachment; filename*=UTF-8''file.txt"""
+          header("Content-Disposition").value
+            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
           responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
         }
       }
