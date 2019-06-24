@@ -24,8 +24,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
-import ch.epfl.bluebrain.nexus.kg.urlEncodeOrElse
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import com.google.common.base.Charsets
+import com.google.common.io.BaseEncoding
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -197,12 +198,18 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       )
     }
 
+  // From the RFC 2047: "=?" charset "?" encoding "?" encoded-text "?="
+  private def attachmentString(filename: String): String = {
+    val encodedFilename = BaseEncoding.base64().encode(filename.getBytes(Charsets.UTF_8))
+    s"=?UTF-8?B?$encodedFilename?="
+  }
+
   private def completeFile(f: Future[Either[Rejection, (Storage, FileAttributes, AkkaSource)]]): Route =
     onSuccess(f) {
       case Right((storage, info, source)) =>
         hasPermission(storage.readPermission).apply {
-          val filename = urlEncodeOrElse(info.filename)("file")
-          (respondWithHeaders(RawHeader("Content-Disposition", s"attachment; filename*=UTF-8''$filename")) & encodeResponse) {
+          val encodedFilename = attachmentString(info.filename)
+          (respondWithHeaders(RawHeader("Content-Disposition", s"""attachment; filename="$encodedFilename"""")) & encodeResponse) {
             headerValueByType[Accept](()) { accept =>
               if (accept.mediaRanges.exists(_.matches(info.mediaType.mediaType)))
                 complete(HttpEntity(info.mediaType, info.bytes, source))
