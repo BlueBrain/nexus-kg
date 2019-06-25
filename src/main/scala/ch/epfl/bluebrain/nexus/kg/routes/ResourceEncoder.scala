@@ -39,15 +39,19 @@ object ResourceEncoder {
       case Expanded  => jsonExpanded(res)
     }
 
+  private val resourceKeys: List[String] = resourceCtx.contextValue.asObject.map(_.keys.toList).getOrElse(List.empty)
+
   private def jsonCompacted(res: ResourceV): DecoderResult[Json] = {
     val flattenedContext = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
     res.as[Json](flattenedContext).map { fieldsJson =>
-      val contextJson = Json.obj("@context" -> res.contextValueForJsonLd).addContext(resourceCtxUri)
-      val json        = fieldsJson deepMerge contextJson
+      val contextJson =
+        Json.obj("@context" -> res.contextValueForJsonLd.removeKeys(resourceKeys: _*)).addContext(resourceCtxUri)
+      val json = fieldsJson deepMerge contextJson
       if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.prefix)
       else json
     }
   }
+
   private def jsonExpanded(r: ResourceV): DecoderResult[Json] =
     r.as[Json]().map { json =>
       if (r.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.value.asString)
