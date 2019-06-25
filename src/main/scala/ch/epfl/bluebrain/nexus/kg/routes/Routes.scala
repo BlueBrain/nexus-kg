@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.MediaTypes
+import akka.http.scaladsl.model.{MediaTypes, StatusCodes}
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.model.headers.{`WWW-Authenticate`, HttpChallenges, Location}
 import akka.http.scaladsl.server.Directives._
@@ -95,10 +95,10 @@ object Routes {
         complete(err: KgError)
       case err: StorageClientError.InvalidPath =>
         // suppress error
-        complete(RemoteStorageError(err.reason): KgError)
+        complete(StatusCodes.BadRequest -> (RemoteStorageError(err.reason): KgError))
       case err: StorageClientError.NotFound =>
         // suppress error
-        complete(RemoteStorageError(err.reason): KgError)
+        complete(StatusCodes.NotFound -> (RemoteStorageError(err.reason): KgError))
       case err: StorageClientError =>
         // suppress error
         logger.error(s"Received unexpected response from remote storage: '${err.message}'")
