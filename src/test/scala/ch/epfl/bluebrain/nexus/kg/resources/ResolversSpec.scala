@@ -259,7 +259,7 @@ class ResolversSpec
                                                                              url"${project1.vocab.asString}key",
                                                                              "value"): Triple))
         val ctx = Json.obj("@base" -> Json.fromString(project1.base.asString),
-                           "@vocab" -> Json.fromString(project1.vocab.asString))
+                           "@vocab" -> Json.fromString(project1.vocab.asString)) deepMerge resourceCtx.contextValue
         val expected = resource.map(json => Value(json, ctx, graph))
         resolvers.resolve(resourceId).value.accepted shouldEqual expected
         resolvers.resolve(resId, resourceId).value.accepted shouldEqual expected

@@ -6,6 +6,7 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ProjectNotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalContextValue, IncorrectId}
@@ -55,8 +56,8 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
 
     inner(rrefs, ccontextValue).map {
       case (`emptyJson`, _) =>
-        Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson)
-      case (flattened, _) => flattened
+        Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson) deepMerge resourceCtx.contextValue
+      case (flattened, _) => flattened deepMerge resourceCtx.contextValue
     }
   }
 

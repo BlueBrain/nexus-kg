@@ -105,8 +105,9 @@ class ResourcesSpec
     val schemaRef = Ref(unconstrainedSchemaUri)
 
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
-      val defaultCtxValue = Json.obj("@base" -> Json.fromString("http://example.com/base/"),
-                                     "@vocab" -> Json.fromString("http://example.com/voc/"))
+      val defaultCtxValue = Json.obj(
+        "@base"  -> Json.fromString("http://example.com/base/"),
+        "@vocab" -> Json.fromString("http://example.com/voc/")) deepMerge resourceCtx.contextValue
       val graph = (json deepMerge Json.obj("@context" -> defaultCtxValue, "@id" -> Json.fromString(id.asString)))
         .asGraph(resId.value)
         .right

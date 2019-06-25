@@ -120,14 +120,15 @@ class StoragesSpec
     val typesRemote = Set[AbsoluteIri](nxv.Storage, nxv.RemoteDiskStorage)
 
     def resourceV(json: Json, rev: Long = 1L, types: Set[AbsoluteIri]): ResourceV = {
+      val ctx = Json.obj("@context" -> (storageCtx.contextValue deepMerge resourceCtx.contextValue))
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
-        .replaceContext(storageCtx)
+        .replaceContext(ctx)
         .asGraph(resId.value)
         .right
         .value
 
       val resourceV =
-        ResourceF.simpleV(resId, Value(json, storageCtx.contextValue, graph), rev, schema = storageRef, types = types)
+        ResourceF.simpleV(resId, Value(json, ctx.contextValue, graph), rev, schema = storageRef, types = types)
       resourceV.copy(
         value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata())))
     }
