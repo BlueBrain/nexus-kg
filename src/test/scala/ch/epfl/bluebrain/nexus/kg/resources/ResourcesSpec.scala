@@ -176,7 +176,7 @@ class ResourcesSpec
       "prevent to create a resource with wrong context value" in new Base {
         val json = Json.obj("@context" -> Json.arr(Json.fromString(resolverCtxUri.show), Json.fromInt(3)))
         resources.create(schemaRef, json).value.rejected[IllegalContextValue] shouldEqual
-          IllegalContextValue(List(Latest(resolverCtxUri)))
+          IllegalContextValue(List())
       }
 
       "prevent to create a resource with wrong context that cannot be resolved" in new Base {
@@ -340,6 +340,39 @@ class ResourcesSpec
         resources.create(resId2, unconstrainedRef, context2).value.accepted
         resources.update(resId, 1L, unconstrainedRef, context1Update).value.rejected[IllegalContextValue] shouldEqual
           IllegalContextValue(List(Latest(id), Latest(id2), Latest(id)))
+      }
+
+      "allow context resolution when referenced from several places" in new Base {
+        when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List(InProjectResolver.default(projectRef))))
+
+        val id2    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val resId2 = Id(projectRef, id2)
+        val id3    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val resId3 = Id(projectRef, id3)
+        val id4    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val resId4 = Id(projectRef, id4)
+
+        val context1 = Json.obj(
+          "@id" -> Json.fromString(id.show)
+        )
+        val context2 = Json.obj(
+          "@context" -> Json.fromString(id.show),
+          "@id"      -> Json.fromString(id2.show)
+        )
+        val context3 = Json.obj(
+          "@context" -> Json.fromString(id.show),
+          "@id"      -> Json.fromString(id3.show)
+        )
+
+        val context4 = Json.obj(
+          "@context" -> Json.arr(Json.fromString(id2.show), Json.fromString(id3.show)),
+          "@id"      -> Json.fromString(id4.show)
+        )
+
+        resources.create(resId, unconstrainedRef, context1).value.accepted
+        resources.create(resId2, unconstrainedRef, context2).value.accepted
+        resources.create(resId3, unconstrainedRef, context3).value.accepted
+        resources.create(resId4, unconstrainedRef, context4).value.accepted
       }
 
     }

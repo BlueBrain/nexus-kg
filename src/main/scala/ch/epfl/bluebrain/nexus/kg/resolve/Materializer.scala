@@ -44,12 +44,14 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
           } yield value
         // format: on
         case (_, Some(arr), _) =>
-          arr.foldLeft(EitherT.rightT[F, Rejection]((Json.obj(), List.empty[Ref]))) {
-            case (acc, c) =>
-              acc.flatMap {
-                case (json, refs) => inner(refs, c).map { case (resJson, resRefs) => (json deepMerge resJson, resRefs) }
-              }
-          }
+          EitherT(arr.traverse(j => inner(refs, j).value).map {
+            _.foldLeft[Either[Rejection, JsonRefs]](Right((Json.obj(), List.empty[Ref]))) {
+              case (Right((accJ, accV)), Right((json, visited))) => Right((accJ deepMerge json, accV ++ visited))
+              case (Left(rej), _)                                => Left(rej)
+              case (_, Left(rej))                                => Left(rej)
+            }
+          })
+
         case (_, _, Some(_)) => EitherT.rightT[F, Rejection]((contextValue, refs))
         case (_, _, _)       => EitherT.leftT[F, JsonRefs](IllegalContextValue(refs): Rejection)
       }
