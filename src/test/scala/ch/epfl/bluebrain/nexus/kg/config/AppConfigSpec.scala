@@ -53,7 +53,6 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
         .value shouldEqual BasicHttpCredentials("user", "pass")
       appConfig.elasticSearch shouldEqual ElasticSearchConfig("http://localhost:9200",
                                                               "kg",
-                                                              "doc",
                                                               "kg_default",
                                                               IndexingConfig(30, 300 millis, retryIndex),
                                                               retryQuery)
@@ -68,7 +67,6 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
                                                         retryQuery)
       implicitly[ElasticSearchConfig] shouldEqual ElasticSearchConfig("http://localhost:9200",
                                                                       "kg",
-                                                                      "doc",
                                                                       "kg_default",
                                                                       IndexingConfig(30, 300 millis, retryIndex),
                                                                       retryQuery)

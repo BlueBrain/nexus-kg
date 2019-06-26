@@ -32,7 +32,6 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     project: Project) {
 
   private val logger = Logger[this.type]
-  private val doc    = config.elasticSearch.docType
 
   /**
     * When an event is received, the current state is obtained and if the resource matches the view criteria a [[BulkOp]] is built.
@@ -51,7 +50,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     else indexTransformed(res).map(res.id -> _)
 
   private def delete(res: ResourceV): Identified[ProjectRef, BulkOp] =
-    res.id -> BulkOp.Delete(view.index, doc, res.id.value.asString)
+    res.id -> BulkOp.Delete(view.index, res.id.value.asString)
 
   private def indexTransformed(res: ResourceV): Option[BulkOp] = {
     val rootNode = IriNode(res.id.value)
@@ -69,7 +68,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
           s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'")
         None
       case Right(value) =>
-        Some(BulkOp.Index(view.index, doc, res.id.value.asString, value.removeKeys("@context")))
+        Some(BulkOp.Index(view.index, res.id.value.asString, value.removeKeys("@context")))
     }
   }
 }

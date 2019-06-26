@@ -233,14 +233,12 @@ object AppConfig {
     *
     * @param base         the application base uri for operating on resources
     * @param indexPrefix  the prefix of the index
-    * @param docType      the name of the `type`
     * @param defaultIndex the default index
     * @param indexing     the indexing configuration
     * @param query        the query retry strategy configuration
     */
   final case class ElasticSearchConfig(base: Uri,
                                        indexPrefix: String,
-                                       docType: String,
                                        defaultIndex: String,
                                        indexing: IndexingConfig,
                                        query: RetryStrategyConfig)
