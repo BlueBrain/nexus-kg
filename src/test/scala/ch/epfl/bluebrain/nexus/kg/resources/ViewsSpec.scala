@@ -144,7 +144,7 @@ class ViewsSpec
   trait EsViewMocked extends EsView {
     val mapping = esView.hcursor.get[String]("mapping").flatMap(parse).right.value
 
-    esClient.updateMapping(any[String], eqTo("doc"), eqTo(mapping)) shouldReturn IO(true)
+    esClient.updateMapping(any[String], eqTo(mapping)) shouldReturn IO(true)
     aclsCache.list shouldReturn IO.pure(acls)
     esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
 
@@ -184,7 +184,7 @@ class ViewsSpec
 
       "prevent creating a ElasticSearchView when ElasticSearch client fails while verifying mappings" in new EsView {
         esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
-        esClient.updateMapping(any[String], eqTo("doc"), any[Json]) shouldReturn
+        esClient.updateMapping(any[String], any[Json]) shouldReturn
           IO.raiseError(ElasticServerError(StatusCodes.BadRequest, "Error on mappings..."))
 
         whenReady(views.create(resId, esView).value.unsafeToFuture().failed)(_ shouldBe a[ElasticServerError])
@@ -192,7 +192,7 @@ class ViewsSpec
 
       "prevent creating a ElasticSearchView when ElasticSearch index does not exist" in new EsView {
         esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
-        esClient.updateMapping(any[String], eqTo("doc"), any[Json]) shouldReturn IO(false)
+        esClient.updateMapping(any[String], any[Json]) shouldReturn IO(false)
 
         whenReady(views.create(resId, esView).value.unsafeToFuture().failed)(_ shouldBe a[KgError.InternalError])
       }

@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import java.time.format.DateTimeFormatter
 import java.time.{Clock, Instant, ZoneId, ZoneOffset}
 import java.util.UUID
-import java.util.regex.Pattern.quote
 
 import cats.data.EitherT
 import cats.effect.IO
@@ -32,8 +31,8 @@ import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}
 import scala.concurrent.duration._
 
 //noinspection NameBooleanParameters
-class ElasticIndexerMappingSpec
-    extends ActorSystemFixture("ElasticIndexerMappingSpec")
+class ElasticSearchIndexerMappingSpec
+    extends ActorSystemFixture("ElasticSearchIndexerMappingSpec")
     with WordSpecLike
     with Matchers
     with IOEitherValues
@@ -77,7 +76,6 @@ class ElasticIndexerMappingSpec
 
   "An ElasticSearch event mapping function" when {
 
-    val doc = appConfig.elasticSearch.docType
     val id: ResId = Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
                        url"https://bbp.epfl.ch/nexus/data/resourceName".value)
     val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
@@ -88,8 +86,7 @@ class ElasticIndexerMappingSpec
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
     val ev =
       Created(id, orgRef, schema, Set.empty, json, clock.instant(), Anonymous)
-    val defaultEsMapping =
-      jsonContentOf("/elasticsearch/mapping.json", Map(quote("{{docType}}") -> appConfig.elasticSearch.docType))
+    val defaultEsMapping = jsonContentOf("/elasticsearch/mapping.json")
 
     val instantString = clock.instant().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT)
 
@@ -139,7 +136,7 @@ class ElasticIndexerMappingSpec
             "_updatedAt" -> Json.fromString(instantString),
             "_updatedBy" -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
           )
-        mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
+        mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, id.value.asString, elasticSearchJson)
       }
     }
 
@@ -175,9 +172,8 @@ class ElasticIndexerMappingSpec
                                     schema = Ref(nxv.Resource.value))
         resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
-        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> BulkOp.Delete(index,
-                                                                                                   doc,
-                                                                                                   id.value.asString)
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual
+          res.id -> BulkOp.Delete(index, id.value.asString)
 
       }
 
@@ -210,10 +206,8 @@ class ElasticIndexerMappingSpec
             "_updatedAt" -> Json.fromString(instantString),
             "_updatedBy" -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
           )
-        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> BulkOp.Index(index,
-                                                                                                  doc,
-                                                                                                  id.value.asString,
-                                                                                                  elasticSearchJson)
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual
+          res.id -> BulkOp.Index(index, id.value.asString, elasticSearchJson)
 
       }
     }
@@ -243,7 +237,7 @@ class ElasticIndexerMappingSpec
         resources.fetch(id, "one", selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
-        mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, doc, id.value.asString, elasticSearchJson)
+        mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, id.value.asString, elasticSearchJson)
       }
 
       "return a ElasticSearch BulkOp Delete" in {
@@ -256,7 +250,7 @@ class ElasticIndexerMappingSpec
           .copy(tags = Map("two" -> 1L, "one" -> 2L))
         resources.fetch(id, "one", selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
-        mapper(ev).some shouldEqual res.id -> BulkOp.Delete(index, doc, id.value.asString)
+        mapper(ev).some shouldEqual res.id -> BulkOp.Delete(index, id.value.asString)
       }
 
       "return None when it is not matching the tag defined on the view" in {

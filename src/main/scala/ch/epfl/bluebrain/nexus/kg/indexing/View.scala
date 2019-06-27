@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.UUID
-import java.util.regex.Pattern
 import java.util.regex.Pattern.quote
 
 import cats.data.EitherT
@@ -322,7 +321,7 @@ object View {
                           F: MonadError[F, Throwable]): F[Unit] =
       elasticSearch
         .createIndex(index)
-        .flatMap(_ => elasticSearch.updateMapping(index, config.docType, mapping))
+        .flatMap(_ => elasticSearch.updateMapping(index, mapping))
         .flatMap {
           case true  => F.unit
           case false => F.raiseError(KgError.InternalError("View mapping validation could not be performed"))
@@ -338,9 +337,8 @@ object View {
       *
       * @param ref the project unique identifier
       */
-    def default(ref: ProjectRef)(implicit elasticSearchConfig: ElasticSearchConfig): ElasticSearchView = {
-      val mapping =
-        jsonContentOf("/elasticsearch/mapping.json", Map(Pattern.quote("{{docType}}") -> elasticSearchConfig.docType))
+    def default(ref: ProjectRef): ElasticSearchView = {
+      val mapping = jsonContentOf("/elasticsearch/mapping.json")
       // format: off
       ElasticSearchView(mapping, Set.empty, Set.empty, None, includeMetadata = true, includeDeprecated = true, sourceAsText = true, ref, nxv.defaultElasticSearchIndex.value, defaultViewId, 1L, deprecated = false)
       // format: on
