@@ -39,11 +39,16 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     * @param event event to be mapped to a Elastic Search insert query
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
-    view.resourceTag.map(resources.fetch(event.id, _, false)).getOrElse(resources.fetch(event.id, false)).value.map {
-      case Right(res) if validSchema(view, res) && validTypes(view, res) => deleteOrIndexTransformed(res)
-      case Right(res) if validSchema(view, res)                          => Some(delete(res))
-      case _                                                             => None
-    }
+    view.resourceTag
+      .filter(_.trim.nonEmpty)
+      .map(resources.fetch(event.id, _, false))
+      .getOrElse(resources.fetch(event.id, false))
+      .value
+      .map {
+        case Right(res) if validSchema(view, res) && validTypes(view, res) => deleteOrIndexTransformed(res)
+        case Right(res) if validSchema(view, res)                          => Some(delete(res))
+        case _                                                             => None
+      }
 
   private def deleteOrIndexTransformed(res: ResourceV): Option[Identified[ProjectRef, BulkOp]] =
     if (res.deprecated && !view.includeDeprecated) Some(delete(res))

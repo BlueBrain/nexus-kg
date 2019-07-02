@@ -33,11 +33,16 @@ private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[
     * @param event event to be mapped to a Sparql insert query
     */
   final def apply(event: Event): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
-    view.resourceTag.map(resources.fetch(event.id, _, true)).getOrElse(resources.fetch(event.id, true)).value.map {
-      case Right(res) if validSchema(view, res) && validTypes(view, res) => Some(buildInsertOrDeleteQuery(res))
-      case Right(res) if validSchema(view, res)                          => Some(buildDeleteQuery(res))
-      case _                                                             => None
-    }
+    view.resourceTag
+      .filter(_.trim.nonEmpty)
+      .map(resources.fetch(event.id, _, true))
+      .getOrElse(resources.fetch(event.id, true))
+      .value
+      .map {
+        case Right(res) if validSchema(view, res) && validTypes(view, res) => Some(buildInsertOrDeleteQuery(res))
+        case Right(res) if validSchema(view, res)                          => Some(buildDeleteQuery(res))
+        case _                                                             => None
+      }
 
   private def buildInsertOrDeleteQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] =
     if (res.deprecated && !view.includeDeprecated) buildDeleteQuery(res)
