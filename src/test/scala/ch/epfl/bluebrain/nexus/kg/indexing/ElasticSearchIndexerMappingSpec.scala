@@ -114,10 +114,13 @@ class ElasticSearchIndexerMappingSpec
       }
 
       "return a ElasticSearch BulkOp" in {
+        val jsonWithMeta = json deepMerge Json.obj(nxv.deprecated.prefix -> Json.fromBoolean(true))
         val res =
-          ResourceF.simpleV(id, Value(json, json.contextValue, RootedGraph(blank, Graph())), rev = 2L, schema = schema)
+          ResourceF.simpleV(id,
+                            Value(jsonWithMeta, jsonWithMeta.contextValue, RootedGraph(blank, Graph())),
+                            rev = 2L,
+                            schema = schema)
         resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
-
         val elasticSearchJson = Json
           .obj(
             "@id"              -> Json.fromString(id.value.show),
@@ -231,8 +234,12 @@ class ElasticSearchIndexerMappingSpec
       val mapper = new ElasticSearchIndexerMapping(view, resources)
 
       "return a ElasticSearch BulkOp Index" in {
+        val jsonWithMeta = json deepMerge Json.obj(nxv.deprecated.prefix -> Json.fromBoolean(true))
         val res = ResourceF
-          .simpleV(id, Value(json, json.contextValue, RootedGraph(blank, Graph())), rev = 2L, schema = schema)
+          .simpleV(id,
+                   Value(jsonWithMeta, jsonWithMeta.contextValue, RootedGraph(blank, Graph())),
+                   rev = 2L,
+                   schema = schema)
           .copy(tags = Map("two" -> 1L, "one" -> 2L))
         resources.fetch(id, "one", selfAsIri = false) shouldReturn EitherT.rightT[IO, Rejection](res)
 
