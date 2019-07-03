@@ -18,8 +18,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.Json
 import org.mockito.Mockito._
@@ -196,6 +198,42 @@ class SparqlIndexerMappingSpec
           .simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value), types = Set(tpe1, other))
           .copy(tags = Map("one" -> 2L))
         when(resources.fetch(id, "one", selfAsIri = true)).thenReturn(EitherT.rightT[IO, Rejection](resV))
+
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
+          id.value.asString + "/graph",
+          Graph())
+      }
+    }
+
+    "using a view with includeMetadata = false" should {
+      val view = SparqlView(
+        Set.empty,
+        Set.empty,
+        None,
+        includeMetadata = false,
+        includeDeprecated = true,
+        id.parent,
+        nxv.defaultElasticSearchIndex.value,
+        genUUID,
+        1L,
+        deprecated = false
+      )
+      val mapper = new SparqlIndexerMapping(view, resources)
+
+      "return a SparqlWriteQuery inserting data" in {
+        val s = IriNode(id.value)
+        val resV = ResourceF.simpleV(
+          id,
+          ResourceF.Value(json, json.contextValue, RootedGraph(s, Graph() + ((s, nxv.deprecated, false): Triple))),
+          2L,
+          schema = Ref(nxv.Resource.value),
+          deprecated = true,
+          types = Set(tpe1)
+        )
+
+        val res = ResourceF.simpleF(id, json, schema = Ref(nxv.Resource.value), types = Set(tpe1))
+
+        when(resources.fetch(id, selfAsIri = true)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
           id.value.asString + "/graph",
