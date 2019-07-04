@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, PrefixMapping}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
@@ -128,15 +128,24 @@ final case class ResourceF[A](
 }
 
 object ResourceF {
-  private val metaPredicates = Set[IriNode](nxv.rev,
-                                            nxv.deprecated,
-                                            nxv.createdAt,
-                                            nxv.updatedAt,
-                                            nxv.createdBy,
-                                            nxv.updatedBy,
-                                            nxv.constrainedBy,
-                                            nxv.project,
-                                            nxv.self)
+  val metaPredicates = Set[PrefixMapping](
+    nxv.rev,
+    nxv.deprecated,
+    nxv.createdAt,
+    nxv.updatedAt,
+    nxv.createdBy,
+    nxv.updatedBy,
+    nxv.constrainedBy,
+    nxv.self,
+    nxv.project,
+    nxv.organization,
+    nxv.organizationUuid,
+    nxv.projectUuid,
+    nxv.incoming,
+    nxv.outgoing
+  )
+
+  private val metaIris: Set[IriNode] = metaPredicates.map(p => IriNode(p.value))
 
   /**
     * Removes the metadata triples from the rooted graph
@@ -144,7 +153,7 @@ object ResourceF {
     * @return a new [[RootedGraph]] without the metadata triples
     */
   def removeMetadata(rootedGraph: RootedGraph): RootedGraph =
-    RootedGraph(rootedGraph.rootNode, rootedGraph.remove(rootedGraph.rootNode, metaPredicates.contains))
+    RootedGraph(rootedGraph.rootNode, rootedGraph.remove(rootedGraph.rootNode, metaIris.contains))
 
   /**
     * A default resource value type.

@@ -180,10 +180,10 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
       case ViewsAddedOrModified(_, restartOffset, views) =>
         views.foreach {
           case view if !children.keySet.exists(_.id == view.id) => startView(view, restartOffset)
-          case view: ElasticSearchView =>
+          case view: SingleView =>
             children
               .collectFirst {
-                case (v: ElasticSearchView, ref) if v.id == view.id && v.ref == view.ref && v.rev != view.rev =>
+                case (v: SingleView, ref) if v.id == view.id && v.ref == view.ref && v.rev != view.rev =>
                   v -> ref
               }
               .foreach {

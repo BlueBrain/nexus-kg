@@ -48,8 +48,10 @@ private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[
     if (res.deprecated && !view.includeDeprecated) buildDeleteQuery(res)
     else buildInsertQuery(res)
 
-  private def buildInsertQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] =
-    res.id -> SparqlWriteQuery.replace(toGraphUri(res.id), res.value.graph)
+  private def buildInsertQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] = {
+    val graph = if (view.includeMetadata) res.value.graph else res.value.graph.removeMetadata
+    res.id -> SparqlWriteQuery.replace(toGraphUri(res.id), graph)
+  }
 
   private def buildDeleteQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] =
     res.id -> SparqlWriteQuery.drop(toGraphUri(res.id))

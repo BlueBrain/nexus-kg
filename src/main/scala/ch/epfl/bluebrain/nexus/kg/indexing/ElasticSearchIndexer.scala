@@ -26,12 +26,14 @@ import io.circe.Json
 import journal.Logger
 import kamon.Kamon
 import monix.execution.atomic.AtomicLong
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
 
 private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView, resources: Resources[F])(
     implicit config: AppConfig,
     project: Project) {
 
-  private val logger = Logger[this.type]
+  private val logger   = Logger[this.type]
+  private val metaKeys = metaPredicates.map(_.prefix).toSeq
 
   /**
     * When an event is received, the current state is obtained and if the resource matches the view criteria a [[BulkOp]] is built.
@@ -63,9 +65,12 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
 
     val transformed: DecoderResult[Json] = {
-      val metaGraph = if (view.includeMetadata) Graph(res.metadata()) else Graph()
-      if (view.sourceAsText) asJson(metaGraph.add(rootNode, nxv.originalSource, res.value.source.noSpaces))
-      else asJson(metaGraph).map(metaJson => res.value.source deepMerge metaJson)
+      val metaGraph    = if (view.includeMetadata) Graph(res.metadata()) else Graph()
+      val keysToRemove = if (view.includeMetadata) Seq.empty[String] else metaKeys
+      if (view.sourceAsText)
+        asJson(metaGraph.add(rootNode, nxv.originalSource, res.value.source.removeKeys(metaKeys: _*).noSpaces))
+      else
+        asJson(metaGraph).map(metaJson => res.value.source.removeKeys(keysToRemove: _*) deepMerge metaJson)
     }
     transformed match {
       case Left(err) =>
