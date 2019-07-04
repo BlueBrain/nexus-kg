@@ -62,7 +62,7 @@ pipeline {
                 sh "oc wait pods/kg-0 --for=delete --namespace=bbp-nexus-dev --timeout=3m"
                 sh "oc scale statefulset kg --replicas=1 --namespace=bbp-nexus-dev"
                 sh "oc wait pods/kg-0 --for condition=ready --namespace=bbp-nexus-dev --timeout=4m"
-                build job: 'nexus/nexus-tests/master', parameters: [booleanParam(name: 'run', value: true)], wait: true
+                build job: 'BlueBrainNexus/nexus-tests/master', parameters: [booleanParam(name: 'run', value: true)], wait: true
             }
         }
         stage("Tag Images") {

@@ -25,6 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.blank
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
+import ch.epfl.bluebrain.nexus.rdf.circe.JsonLd.IdRetrievalError
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
@@ -263,8 +264,14 @@ object Resources {
                                                     dataImports: Set[ResourceV],
                                                     schemaImports: Set[ResourceV])
 
-  def getOrAssignId(json: Json)(implicit project: Project): AbsoluteIri =
-    json.id.getOrElse(generateId(project.base))
+  def getOrAssignId(json: Json)(implicit project: Project): Either[Rejection, AbsoluteIri] =
+    json.id match {
+      case Right(id)                         => Right(id)
+      case Left(IdRetrievalError.IdNotFound) => Right(generateId(project.base))
+      case Left(IdRetrievalError.InvalidId(id)) =>
+        Left(InvalidJsonLD(s"The provided @id value '$id' is not a valid Iri"))
+      case Left(IdRetrievalError.Unexpected(msg)) => Left(InvalidJsonLD(msg))
+    }
 
   private[resources] def generateId(base: AbsoluteIri): AbsoluteIri = url"${base.asString}${uuid()}"
 
