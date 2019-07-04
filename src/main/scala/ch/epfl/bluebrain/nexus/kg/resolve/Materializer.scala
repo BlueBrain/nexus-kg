@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ProjectNotFound._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalContextValue, IncorrectId}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{IllegalContextValue, IncorrectId, InvalidJsonLD}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.getOrAssignId
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
+import ch.epfl.bluebrain.nexus.rdf.circe.JsonLd.IdRetrievalError
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
@@ -92,21 +93,27 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
     flattenCtx(Nil, source.contextValue)
       .flatMap { ctx =>
         val resolved = source.replaceContext(Json.obj("@context" -> ctx))
-        val id       = getOrAssignId(resolved)
-        EitherT.fromEither[F](addIdOrReject(resolved, id)).flatMap(asGraphOrError(id, _, source, ctx)).map(id -> _)
+        val idJsonEither = for {
+          id   <- getOrAssignId(resolved)
+          json <- addIdOrReject(resolved, id)
+        } yield (id, json)
+        EitherT.fromEither[F](idJsonEither).flatMap {
+          case (id, json) => asGraphOrError(id, json, source, ctx).map(id -> _)
+        }
       }
   private def asGraphOrError(id: AbsoluteIri, resolved: Json, source: Json, ctx: Json): EitherT[F, Rejection, Value] =
     EitherT
       .fromEither[F](resolved.asGraph(id).map(Value(source, ctx, _)))
       .leftSemiflatMap(e => Rejection.fromMarshallingErr[F](id, e))
 
-  private def addIdOrReject(json: Json, id: AbsoluteIri): Either[Rejection, Json] = {
+  private def addIdOrReject(json: Json, id: AbsoluteIri): Either[Rejection, Json] =
     json.id match {
-      case Some(`id`) => Right(json)
-      case Some(_)    => Left(IncorrectId(id.ref))
-      case None       => Right(json.id(id))
+      case Right(`id`)                            => Right(json)
+      case Left(IdRetrievalError.IdNotFound)      => Right(json.id(id))
+      case Right(_)                               => Left(IncorrectId(id.ref))
+      case Left(IdRetrievalError.InvalidId(_))    => Left(IncorrectId(id.ref))
+      case Left(IdRetrievalError.Unexpected(msg)) => Left(InvalidJsonLD(msg))
     }
-  }
 
   /**
     * Attempts to find a resource with the provided ref using the [[ProjectResolution]]. Once found, it attempts to resolve the context URIs

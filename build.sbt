@@ -26,6 +26,7 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "225b1a92"
+val rdfVersion                  = "0.3.10"
 val commonsVersion              = "0.13.0"
 val storageVersion              = "97544e65"
 val sourcingVersion             = "0.16.3"
@@ -54,6 +55,7 @@ lazy val elasticSearchClient  = "ch.epfl.bluebrain.nexus" %% "elasticsearch-clie
 lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
 lazy val commonsCore          = "ch.epfl.bluebrain.nexus" %% "commons-core"               % commonsVersion
 lazy val commonsTest          = "ch.epfl.bluebrain.nexus" %% "commons-test"               % commonsVersion
+lazy val rdf                  = "ch.epfl.bluebrain.nexus" %% "rdf"                        % rdfVersion
 lazy val sourcingProjections  = "ch.epfl.bluebrain.nexus" %% "sourcing-projections"       % sourcingVersion
 lazy val storageClient        = "ch.epfl.bluebrain.nexus" %% "storage-client"             % storageVersion
 lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"               % akkaVersion
@@ -109,6 +111,7 @@ lazy val kg = project
       logbackClassic,
       monixEval,
       pureconfig,
+      rdf,
       sourcingProjections,
       sparqlClient,
       storageClient,

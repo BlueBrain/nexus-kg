@@ -168,6 +168,14 @@ class ResourcesSpec
         resources.create(resId, schemaRef, json).value.rejected[IncorrectId] shouldEqual IncorrectId(resId.ref)
       }
 
+      "prevent to create a new resource validated against empty schema (resource schema) with an id on the payload that isn't a valid Iri" in new Base {
+        val genId = genString()
+        val json =
+          Json.obj("@id" -> Json.fromString(genId), "@context" -> Json.obj("key" -> Json.fromString(genIri.asString)))
+        resources.create(schemaRef, json).value.rejected[InvalidJsonLD] shouldEqual InvalidJsonLD(
+          s"The provided @id value '$genId' is not a valid Iri")
+      }
+
       "prevent to create a resource with non existing schema" in new Base {
         val refSchema = Ref(genIri)
         resources.create(refSchema, Json.obj()).value.rejected[NotFound] shouldEqual NotFound(refSchema)
