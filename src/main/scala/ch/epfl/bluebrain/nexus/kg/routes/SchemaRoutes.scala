@@ -8,7 +8,6 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -22,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.SchemaRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -46,7 +46,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       // Create schema when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createSchema") {
+          operationName("createSchema") {
             complete(schemas.create(source).value.runWithStatus(Created))
           }
         }
@@ -55,7 +55,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       (get & paginated & searchParams(fixedSchema = shaclSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (page, params) =>
           extractUri { implicit uri =>
-            trace("listSchema") {
+            operationName("listSchema") {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(schemas.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
@@ -82,11 +82,11 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
         entity(as[Json]) { source =>
           parameter('rev.as[Long].?) {
             case None =>
-              trace("createSchema") {
+              operationName("createSchema") {
                 complete(schemas.create(Id(project.ref, id), source).value.runWithStatus(Created))
               }
             case Some(rev) =>
-              trace("updateSchema") {
+              operationName("updateSchema") {
                 complete(schemas.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
               }
           }
@@ -94,7 +94,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       },
       // Deprecate schema
       (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        trace("deprecateSchema") {
+        operationName("deprecateSchema") {
           complete(schemas.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
         }
       },
@@ -102,7 +102,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace("getSchema") {
+          operationName("getSchema") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(schemas.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
@@ -120,7 +120,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
       (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("incomingLinksSchema") {
+            operationName("incomingLinksSchema") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listIncoming(id, _, page))
               complete(listed.runWithStatus(OK))
             }
@@ -132,7 +132,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
         read)) { links =>
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("outgoingLinksSchema") {
+            operationName("outgoingLinksSchema") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listOutgoing(id, _, page, links))
               complete(listed.runWithStatus(OK))
             }

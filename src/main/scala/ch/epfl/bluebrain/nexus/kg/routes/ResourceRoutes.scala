@@ -8,7 +8,6 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
@@ -21,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -43,7 +43,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       // Create resource when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createResource") {
+          operationName("createResource") {
             complete(resources.create(schema, source).value.runWithStatus(Created))
           }
         }
@@ -52,7 +52,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       (get & paginated & searchParams(fixedSchema = schema.iri) & pathEndOrSingleSlash & hasPermission(read)) {
         (page, params) =>
           extractUri { implicit uri =>
-            trace("listResource") {
+            operationName("listResource") {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
@@ -76,11 +76,11 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
         entity(as[Json]) { source =>
           parameter('rev.as[Long].?) {
             case None =>
-              trace("createResource") {
+              operationName("createResource") {
                 complete(resources.create(Id(project.ref, id), schema, source).value.runWithStatus(Created))
               }
             case Some(rev) =>
-              trace("updateResource") {
+              operationName("updateResource") {
                 complete(resources.update(Id(project.ref, id), rev, schema, source).value.runWithStatus(OK))
               }
           }
@@ -88,7 +88,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       },
       // Deprecate resource
       (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        trace("deprecateResource") {
+        operationName("deprecateResource") {
           complete(resources.deprecate(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
         }
       },
@@ -96,7 +96,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace("getResource") {
+          operationName("getResource") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(resources.fetch(Id(project.ref, id), rev, schema).value.runWithStatus(OK))(format)
@@ -114,7 +114,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("incomingLinksResource") {
+            operationName("incomingLinksResource") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listIncoming(id, _, page))
               complete(listed.runWithStatus(OK))
             }
@@ -126,7 +126,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
         read)) { links =>
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("outgoingLinksResource") {
+            operationName("outgoingLinksResource") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listOutgoing(id, _, page, links))
               complete(listed.runWithStatus(OK))
             }

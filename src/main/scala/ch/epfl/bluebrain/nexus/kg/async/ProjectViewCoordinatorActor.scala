@@ -97,18 +97,14 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     implicit val sourcingConfig: SourcingConfig = config.sourcing
     val g = Kamon
       .gauge("kg_indexer_gauge")
-      .refine(
-        "type"         -> "eventCount",
-        "project"      -> project.projectLabel.show,
-        "organization" -> project.organizationLabel
-      )
+      .withTag("type", "eventCount")
+      .withTag("project", project.projectLabel.show)
+      .withTag("organization", project.organizationLabel)
     val c = Kamon
       .counter("kg_indexer_counter")
-      .refine(
-        "type"         -> "eventCount",
-        "project"      -> project.projectLabel.show,
-        "organization" -> project.organizationLabel
-      )
+      .withTag("type", "eventCount")
+      .withTag("project", project.projectLabel.show)
+      .withTag("organization", project.organizationLabel)
     val count = AtomicLong(0L)
     TagProjection.start(
       ProjectionConfig
@@ -124,12 +120,12 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
         .index(_ => Task.unit)
         .mapInitialProgress { p =>
           count.set(p.processedCount)
-          g.set(p.processedCount)
+          g.update(p.processedCount.toDouble)
           Task.unit
         }
         .mapProgress { p =>
           val previousCount = count.get()
-          g.set(p.processedCount)
+          g.update(p.processedCount.toDouble)
           c.increment(p.processedCount - previousCount)
           count.set(p.processedCount)
           Task.unit

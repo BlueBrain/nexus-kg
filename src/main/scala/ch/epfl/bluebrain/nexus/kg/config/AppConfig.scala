@@ -7,7 +7,6 @@ import akka.http.scaladsl.model.headers.BasicHttpCredentials
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreConfig
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
-import ch.epfl.bluebrain.nexus.commons.kamon.directives.TracingDirectives
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -299,8 +298,6 @@ object AppConfig {
       nxv.instant.prefix,
       nxv.eventSubject.prefix
     ))
-
-  val tracing = new TracingDirectives()
 
   implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig               = appConfig.sparql
   implicit def toElasticSearch(implicit appConfig: AppConfig): ElasticSearchConfig = appConfig.elasticSearch

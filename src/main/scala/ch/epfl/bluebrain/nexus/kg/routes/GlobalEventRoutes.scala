@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.persistence.TaggingAdapter
 import ch.epfl.bluebrain.nexus.kg.resources.Event.JsonLd._
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 
 class GlobalEventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: ActorSystem, config: AppConfig)
     extends EventCommonRoutes {
@@ -21,6 +22,8 @@ class GlobalEventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: A
 
   def routes: Route =
     (lastEventId & hasPermissionOnRoot(read)) { offset =>
-      complete(source(TaggingAdapter.EventTag, offset))
+      operationName(s"/${config.http.prefix}/events") {
+        complete(source(TaggingAdapter.EventTag, offset))
+      }
     }
 }

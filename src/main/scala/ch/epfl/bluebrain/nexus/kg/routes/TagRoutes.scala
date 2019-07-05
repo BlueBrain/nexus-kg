@@ -6,7 +6,6 @@ import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.tagCtxUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
@@ -18,6 +17,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -41,7 +41,7 @@ class TagRoutes private[routes] (tags: Tags[Task], schema: Ref, write: Permissio
         // Create tag
         (post & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
           entity(as[Json]) { source =>
-            trace("addTag") {
+            operationName("addTag") {
               complete(tags.create(Id(project.ref, id), rev, source, schema).value.runWithStatus(Created))
             }
           }

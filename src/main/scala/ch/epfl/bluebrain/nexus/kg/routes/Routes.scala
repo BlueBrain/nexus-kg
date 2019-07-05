@@ -24,7 +24,6 @@ import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -42,6 +41,7 @@ import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import io.circe.Json
 import io.circe.parser.parse
 import journal.Logger
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -198,7 +198,7 @@ object Routes {
     def list(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
       (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
         (pagination, params, uri) =>
-          trace("listResource") {
+          operationName("listResource") {
             implicit val u = uri
             val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
@@ -207,7 +207,7 @@ object Routes {
 
     def projectEvents(implicit project: Project, acls: AccessControlLists, caller: Caller): Route =
       (pathPrefix("events") & get & pathEndOrSingleSlash) {
-        trace("eventProjectResource") {
+        operationName("eventProjectResource") {
           new EventRoutes(acls, caller).routes(project)
         }
       }
@@ -216,7 +216,7 @@ object Routes {
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(
         ResourceRoutes.write)) {
         entity(as[Json]) { source =>
-          trace("createResource") {
+          operationName("createResource") {
             complete(resources.create(unconstrainedRef, source).value.runWithStatus(Created))
           }
         }
@@ -265,7 +265,7 @@ object Routes {
                 (pathPrefix(config.http.prefix / "resources" / Segment) & pathPrefix("events") & get & pathEndOrSingleSlash) {
                   label =>
                     org(label).apply { implicit organization =>
-                      trace("eventOrganizationResource") {
+                      operationName("eventOrganizationResource") {
                         new EventRoutes(acls, caller).routes(organization)
                       }
                     }
