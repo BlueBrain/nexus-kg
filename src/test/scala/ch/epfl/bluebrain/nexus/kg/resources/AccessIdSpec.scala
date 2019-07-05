@@ -32,7 +32,7 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
                                    "core",
                                    "bbp",
                                    None,
-                                   url"http://unused.com",
+                                   url"http://unused.com/",
                                    genIri,
                                    mappings,
                                    uuid,
@@ -44,7 +44,7 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
                                    Instant.EPOCH,
                                    genIri)
 
-    "generate the access id" in {
+    "generate short access id" in {
       val list = List(
         (url"http://example.com/a".value,
          shaclSchemaUri,
@@ -63,10 +63,45 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
          s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:b"),
         (url"https://bluebrain.github.io/nexus/schemas/some/other".value,
          url"http://example.com/a".value,
-         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:some%2Fother")
+         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:some%2Fother"),
+        (url"http://unused.com/something/uuid".value,
+         unconstrainedSchemaUri,
+         s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("something/uuid")}")
       )
       forAll(list) {
-        case (id, schemaId, result) => AccessId(id, schemaId).asString shouldEqual result
+        case (id, schemaId, result) =>
+          AccessId(id, schemaId).asString shouldEqual result
+      }
+    }
+
+    "generate long access id" in {
+      val list = List(
+        (url"http://example.com/a".value,
+         shaclSchemaUri,
+         s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"),
+        (url"http://example.com/a".value,
+         fileSchemaUri,
+         s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"),
+        (url"http://example.com/a".value,
+         storageSchemaUri,
+         s"http://resources.nexus.com/v1/storages/bbp/core/${urlEncode("http://example.com/a")}"),
+        (url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
+         unconstrainedSchemaUri,
+         s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://schemas.nexus.example.com/test/v0.1.0/a")}"),
+        (url"${base.asString}b".value,
+         url"http://example.com/a".value,
+         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/${urlEncode(
+           s"${base.asString}b")}"),
+        (url"https://bluebrain.github.io/nexus/schemas/some/other".value,
+         url"http://example.com/a".value,
+         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/${urlEncode("https://bluebrain.github.io/nexus/schemas/some/other")}"),
+        (url"http://unused.com/something/uuid".value,
+         unconstrainedSchemaUri,
+         s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://unused.com/something/uuid")}")
+      )
+      forAll(list) {
+        case (id, schemaId, result) =>
+          AccessId(id, schemaId, expanded = true).asString shouldEqual result
       }
     }
   }

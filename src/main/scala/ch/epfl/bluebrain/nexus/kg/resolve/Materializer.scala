@@ -173,10 +173,12 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
     *
     * @param resource the resource to materialize
     */
-  def withMeta(resource: Resource, selfAsIri: Boolean = false)(implicit project: Project): RejOrResourceV[F] =
+  def withMeta(resource: Resource, metadataOptions: MetadataOptions = MetadataOptions())(
+      implicit project: Project): RejOrResourceV[F] =
     apply(resource).map { resourceV =>
       val graph =
-        RootedGraph(resourceV.value.graph.rootNode, resourceV.value.graph.triples ++ resourceV.metadata(selfAsIri))
+        RootedGraph(resourceV.value.graph.rootNode,
+                    resourceV.value.graph.triples ++ resourceV.metadata(metadataOptions))
       resourceV.map(_.copy(graph = graph))
     }
 

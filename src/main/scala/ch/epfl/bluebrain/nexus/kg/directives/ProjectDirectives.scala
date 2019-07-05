@@ -20,7 +20,7 @@ import monix.execution.Scheduler
 import scala.util.{Success, Try}
 
 object ProjectDirectives {
-  private val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
+  val defaultPrefixMapping: Map[String, AbsoluteIri] = Map(
     "resource"        -> Schemas.unconstrainedSchemaUri,
     "schema"          -> Schemas.shaclSchemaUri,
     "view"            -> Schemas.viewSchemaUri,

@@ -91,7 +91,7 @@ class ResourceFSpec
       val resource = ResourceF
         .simpleF(resId, json, 2L, schema = schema, types = Set(nxv.Schema))
         .copy(createdBy = identity, updatedBy = Anonymous)
-      resource.metadata(asIri = true) should contain allElementsOf Set[Triple](
+      resource.metadata(MetadataOptions(true, false)) should contain allElementsOf Set[Triple](
         (IriNode(id), nxv.rev, 2L),
         (IriNode(id), nxv.deprecated, false),
         (IriNode(id), nxv.updatedAt, clock.instant()),

@@ -146,7 +146,7 @@ class ViewRoutesSpec
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = viewRef, types = types)
 
-    resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    resources.fetch(id, MetadataOptions()) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
 
     def mappingToJson(json: Json): Json = {
       val mapping = json.hcursor.get[String]("mapping").right.value
