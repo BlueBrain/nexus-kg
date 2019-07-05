@@ -15,7 +15,6 @@ import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -33,6 +32,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -64,7 +64,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       // Create view when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createView") {
+          operationName("createView") {
             complete(views.create(source).value.runWithStatus(Created))
           }
         }
@@ -73,7 +73,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (page, params) =>
           extractUri { implicit uri =>
-            trace("listView") {
+            operationName("listView") {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
@@ -103,11 +103,11 @@ class ViewRoutes private[routes] (views: Views[Task],
         entity(as[Json]) { source =>
           parameter('rev.as[Long].?) {
             case None =>
-              trace("createView") {
+              operationName("createView") {
                 complete(views.create(Id(project.ref, id), source).value.runWithStatus(Created))
               }
             case Some(rev) =>
-              trace("updateView") {
+              operationName("updateView") {
                 complete(views.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
               }
           }
@@ -115,7 +115,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       },
       // Deprecate view
       (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        trace("deprecateView") {
+        operationName("deprecateView") {
           complete(views.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
         }
       },
@@ -123,7 +123,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace("getView") {
+          operationName("getView") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(views.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
@@ -141,7 +141,7 @@ class ViewRoutes private[routes] (views: Views[Task],
       (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("incomingLinksView") {
+            operationName("incomingLinksView") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listIncoming(id, _, page))
               complete(listed.runWithStatus(OK))
             }
@@ -153,7 +153,7 @@ class ViewRoutes private[routes] (views: Views[Task],
         read)) { links =>
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("outgoingLinksView") {
+            operationName("outgoingLinksView") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listOutgoing(id, _, page, links))
               complete(listed.runWithStatus(OK))
             }
@@ -182,7 +182,7 @@ class ViewRoutes private[routes] (views: Views[Task],
               resultListF.map(list => Right(list.foldLeft(SparqlResults.empty)(_ ++ _)))
             case _ => Task.pure(Left(NotFound(id.ref)))
           }
-          trace("searchSparql") {
+          operationName("searchSparql") {
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
@@ -207,7 +207,7 @@ class ViewRoutes private[routes] (views: Views[Task],
               }
             case _ => Task.pure(Left(NotFound(id.ref)))
           }
-          trace("searchElasticSearch")(complete(result.runWithStatus(StatusCodes.OK)))
+          operationName("searchElasticSearch")(complete(result.runWithStatus(StatusCodes.OK)))
         }
       }
     }

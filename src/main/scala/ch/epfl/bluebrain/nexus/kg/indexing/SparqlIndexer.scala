@@ -100,20 +100,16 @@ object SparqlIndexer {
 
     val processedEventsGauge = Kamon
       .gauge("kg_indexer_gauge")
-      .refine(
-        "type"         -> "sparql",
-        "project"      -> project.projectLabel.show,
-        "organization" -> project.organizationLabel,
-        "viewId"       -> view.id.show
-      )
+      .withTag("type", "sparql")
+      .withTag("project", project.projectLabel.show)
+      .withTag("organization", project.organizationLabel)
+      .withTag("viewId", view.id.show)
     val processedEventsCounter = Kamon
       .counter("kg_indexer_counter")
-      .refine(
-        "type"         -> "sparql",
-        "project"      -> project.projectLabel.show,
-        "organization" -> project.organizationLabel,
-        "viewId"       -> view.id.show
-      )
+      .withTag("type", "sparql")
+      .withTag("project", project.projectLabel.show)
+      .withTag("organization", project.organizationLabel)
+      .withTag("viewId", view.id.show)
     val processedEventsCount = AtomicLong(0L)
 
     TagProjection.start(
@@ -130,12 +126,12 @@ object SparqlIndexer {
         .index(inserts => client.bulk(inserts.removeDupIds: _*))
         .mapInitialProgress { p =>
           processedEventsCount.set(p.processedCount)
-          processedEventsGauge.set(p.processedCount)
+          processedEventsGauge.update(p.processedCount.toDouble)
           F.unit
         }
         .mapProgress { p =>
           val previousCount = processedEventsCount.get()
-          processedEventsGauge.set(p.processedCount)
+          processedEventsGauge.update(p.processedCount.toDouble)
           processedEventsCounter.increment(p.processedCount - previousCount)
           processedEventsCount.set(p.processedCount)
           F.unit

@@ -11,7 +11,6 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.UnacceptedResponseContentType
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -28,6 +27,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import com.google.common.base.Charsets
 import com.google.common.io.BaseEncoding
 import io.circe.Json
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -60,12 +60,12 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
           fileUpload("file") {
             case (metadata, byteSource) =>
               val description = FileDescription(metadata.fileName, metadata.contentType)
-              trace("createFile") {
+              operationName("createFile") {
                 val created = files.create(storage, description, byteSource)
                 complete(created.value.runWithStatus(Created))
               }
           } ~ entity(as[Json]) { source =>
-            trace("createLink") {
+            operationName("createLink") {
               val created = files.createLink(storage, source)
               complete(created.value.runWithStatus(Created))
             }
@@ -76,7 +76,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (page, params) =>
           extractUri { implicit uri =>
-            trace("listFile") {
+            operationName("listFile") {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(files.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
@@ -107,22 +107,22 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
               val description = FileDescription(metadata.fileName, metadata.contentType)
               parameter('rev.as[Long].?) {
                 case None =>
-                  trace("createFile") {
+                  operationName("createFile") {
                     complete(files.create(resId, storage, description, byteSource).value.runWithStatus(Created))
                   }
                 case Some(rev) =>
-                  trace("updateFile") {
+                  operationName("updateFile") {
                     complete(files.update(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
                   }
               }
           } ~ entity(as[Json]) { source =>
             parameter('rev.as[Long].?) {
               case None =>
-                trace("createLink") {
+                operationName("createLink") {
                   complete(files.createLink(resId, storage, source).value.runWithStatus(Created))
                 }
               case Some(rev) =>
-                trace("updateLink") {
+                operationName("updateLink") {
                   complete(files.updateLink(resId, storage, rev, source).value.runWithStatus(OK))
                 }
             }
@@ -131,7 +131,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       },
       // Deprecate file
       (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        trace("deprecateFile") {
+        operationName("deprecateFile") {
           complete(files.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
         }
       },
@@ -144,7 +144,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("incomingLinksFile") {
+            operationName("incomingLinksFile") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listIncoming(id, _, page))
               complete(listed.runWithStatus(OK))
             }
@@ -156,7 +156,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         read)) { links =>
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("outgoingLinksFile") {
+            operationName("outgoingLinksFile") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listOutgoing(id, _, page, links))
               complete(listed.runWithStatus(OK))
             }
@@ -168,7 +168,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
 
   private def getResource(id: AbsoluteIri)(implicit format: NonBinaryOutputFormat) =
     hasPermission(read).apply {
-      trace("getFileMetadata") {
+      operationName("getFileMetadata") {
         concat(
           (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
             completeWithFormat(resources.fetch(Id(project.ref, id), rev, fileRef).value.runWithStatus(OK))
@@ -184,7 +184,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    trace("getFile") {
+    operationName("getFile") {
       concat(
         (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
           completeFile(files.fetch(Id(project.ref, id), rev).value.runToFuture)

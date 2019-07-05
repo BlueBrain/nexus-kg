@@ -15,7 +15,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticSearchIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -118,20 +117,16 @@ object ElasticSearchIndexer {
 
     val processedEventsGauge = Kamon
       .gauge("kg_indexer_gauge")
-      .refine(
-        "type"         -> "elasticsearch",
-        "project"      -> project.projectLabel.show,
-        "organization" -> project.organizationLabel,
-        "viewId"       -> view.id.show
-      )
+      .withTag("type", "elasticsearch")
+      .withTag("project", "project.projectLabel.show")
+      .withTag("organization", "project.organizationLabel")
+      .withTag("viewId", "view.id.show")
     val processedEventsCounter = Kamon
       .counter("kg_indexer_counter")
-      .refine(
-        "type"         -> "elasticsearch",
-        "project"      -> project.projectLabel.show,
-        "organization" -> project.organizationLabel,
-        "viewId"       -> view.id.show
-      )
+      .withTag("type", "elasticsearch")
+      .withTag("project", "project.projectLabel.show")
+      .withTag("organization", "project.organizationLabel")
+      .withTag("viewId", "view.id.show")
     val processedEventsCount = AtomicLong(0L)
 
     TagProjection.start(
@@ -148,12 +143,12 @@ object ElasticSearchIndexer {
         .index(inserts => client.bulk(inserts.removeDupIds))
         .mapInitialProgress { p =>
           processedEventsCount.set(p.processedCount)
-          processedEventsGauge.set(p.processedCount)
+          processedEventsGauge.update(p.processedCount.toDouble)
           F.unit
         }
         .mapProgress { p =>
           val previousCount = processedEventsCount.get()
-          processedEventsGauge.set(p.processedCount)
+          processedEventsGauge.update(p.processedCount.toDouble)
           processedEventsCounter.increment(p.processedCount - previousCount)
           processedEventsCount.set(p.processedCount)
           F.unit

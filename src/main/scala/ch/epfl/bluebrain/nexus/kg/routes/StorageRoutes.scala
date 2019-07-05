@@ -9,7 +9,6 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -23,6 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -48,7 +48,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       // Create storage when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createStorage") {
+          operationName("createStorage") {
             complete(storages.create(source).value.runWithStatus(Created))
           }
         }
@@ -57,7 +57,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (page, params) =>
           extractUri { implicit uri =>
-            trace("listStorage") {
+            operationName("listStorage") {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(storages.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
@@ -84,11 +84,11 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
         entity(as[Json]) { source =>
           parameter('rev.as[Long].?) {
             case None =>
-              trace("createStorage") {
+              operationName("createStorage") {
                 complete(storages.create(Id(project.ref, id), source).value.runWithStatus(Created))
               }
             case Some(rev) =>
-              trace("updateStorage") {
+              operationName("updateStorage") {
                 complete(storages.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
               }
           }
@@ -96,7 +96,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       },
       // Deprecate storage
       (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        trace("deprecateStorage") {
+        operationName("deprecateStorage") {
           complete(storages.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
         }
       },
@@ -104,7 +104,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace("getStorage") {
+          operationName("getStorage") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(storages.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
@@ -122,7 +122,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("incomingLinksStorage") {
+            operationName("incomingLinksStorage") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listIncoming(id, _, page))
               complete(listed.runWithStatus(OK))
             }
@@ -134,7 +134,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
         read)) { links =>
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("outgoingLinksStorage") {
+            operationName("outgoingLinksStorage") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listOutgoing(id, _, page, links))
               complete(listed.runWithStatus(OK))
             }

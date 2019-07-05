@@ -8,7 +8,6 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.tracing._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
@@ -22,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -46,7 +46,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       // Create resolver when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
         entity(as[Json]) { source =>
-          trace("createResolver") {
+          operationName("createResolver") {
             complete(resolvers.create(source).value.runWithStatus(Created))
           }
         }
@@ -55,7 +55,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       (get & paginated & searchParams(fixedSchema = resolverSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
         (page, params) =>
           extractUri { implicit uri =>
-            trace("listResolver") {
+            operationName("listResolver") {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resolvers.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
@@ -83,7 +83,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     (pathPrefix(IdSegment) & get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
       case (_, Binary) => failWith(InvalidOutputFormat("Binary"))
       case (id, format: NonBinaryOutputFormat) =>
-        trace("resolveResource") {
+        operationName("resolveResource") {
           concat(
             (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
               completeWithFormat(resolvers.resolve(id, rev).value.runWithStatus(OK))(format)
@@ -113,7 +113,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     (pathPrefix(IdSegment) & get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
       case (_, Binary) => failWith(InvalidOutputFormat("Binary"))
       case (resourceId, format: NonBinaryOutputFormat) =>
-        trace("resolveResource") {
+        operationName("resolveResource") {
           concat(
             (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
               completeWithFormat(resolvers.resolve(resolverId, resourceId, rev).value.runWithStatus(OK))(format)
@@ -145,11 +145,11 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
         entity(as[Json]) { source =>
           parameter('rev.as[Long].?) {
             case None =>
-              trace("createResolver") {
+              operationName("createResolver") {
                 complete(resolvers.create(Id(project.ref, id), source).value.runWithStatus(Created))
               }
             case Some(rev) =>
-              trace("updateResolver") {
+              operationName("updateResolver") {
                 complete(resolvers.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
               }
           }
@@ -157,7 +157,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       },
       // Deprecate resolver
       (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        trace("deprecateResolver") {
+        operationName("deprecateResolver") {
           complete(resolvers.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
         }
       },
@@ -165,7 +165,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
         case Binary => failWith(InvalidOutputFormat("Binary"))
         case format: NonBinaryOutputFormat =>
-          trace("getResolver") {
+          operationName("getResolver") {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                 completeWithFormat(resolvers.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
@@ -183,7 +183,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("incomingLinksResolver") {
+            operationName("incomingLinksResolver") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(resolvers.listIncoming(id, _, page))
               complete(listed.runWithStatus(OK))
             }
@@ -195,7 +195,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
         read)) { links =>
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            trace("outgoingLinksResolver") {
+            operationName("outgoingLinksResolver") {
               val listed = viewCache.getDefaultSparql(project.ref).flatMap(resolvers.listOutgoing(id, _, page, links))
               complete(listed.runWithStatus(OK))
             }

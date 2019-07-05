@@ -25,15 +25,15 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "225b1a92"
+val adminVersion                = "ba5c778e"
+val commonsVersion              = "0.16.0"
 val rdfVersion                  = "0.3.10"
-val commonsVersion              = "0.13.0"
 val storageVersion              = "97544e65"
 val sourcingVersion             = "0.16.3"
 val akkaVersion                 = "2.5.23"
 val akkaCorsVersion             = "0.4.1"
 val akkaHttpVersion             = "10.1.8"
-val akkaPersistenceInMemVersion = "2.5.1.1"
+val akkaPersistenceInMemVersion = "2.5.15.2"
 val akkaPersistenceCassVersion  = "0.98"
 val alpakkaVersion              = "1.0.2"
 val catsVersion                 = "1.6.1"
@@ -42,7 +42,7 @@ val circeVersion                = "0.11.1"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
 val mockitoVersion              = "1.5.11"
-val monixVersion                = "3.0.0-RC2"
+val monixVersion                = "3.0.0-RC3"
 val pureconfigVersion           = "0.11.1"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.8"
@@ -54,6 +54,7 @@ lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"     
 lazy val elasticSearchClient  = "ch.epfl.bluebrain.nexus" %% "elasticsearch-client"       % commonsVersion
 lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"              % commonsVersion
 lazy val commonsCore          = "ch.epfl.bluebrain.nexus" %% "commons-core"               % commonsVersion
+lazy val commonsKamon         = "ch.epfl.bluebrain.nexus" %% "commons-kamon"              % commonsVersion
 lazy val commonsTest          = "ch.epfl.bluebrain.nexus" %% "commons-test"               % commonsVersion
 lazy val rdf                  = "ch.epfl.bluebrain.nexus" %% "rdf"                        % rdfVersion
 lazy val sourcingProjections  = "ch.epfl.bluebrain.nexus" %% "sourcing-projections"       % sourcingVersion
@@ -105,6 +106,7 @@ lazy val kg = project
       catsCore,
       catsEffect,
       circeCore,
+      commonsKamon,
       elasticSearchClient,
       journalCore,
       kryo,
@@ -122,7 +124,8 @@ lazy val kg = project
       s3mock               % Test,
       scalaTest            % Test
     ),
-    cleanFiles ++= (baseDirectory.value * "ddata*").get
+    cleanFiles ++= (baseDirectory.value * "ddata*").get,
+    resolvers  += "bogdanromanx" at "http://dl.bintray.com/bogdanromanx/maven"
   )
 
 lazy val testSettings = Seq(

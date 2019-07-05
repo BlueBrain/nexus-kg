@@ -29,7 +29,7 @@ import com.github.jsonldjava.core.DocumentLoader
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import kamon.Kamon
-import kamon.system.SystemMetrics
+import kamon.bundle.Bundle
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock
@@ -51,9 +51,9 @@ object Main {
   }
 
   def setupMonitoring(config: Config): Unit = {
+    Bundle.attach()
     Kamon.reconfigure(config)
-    SystemMetrics.startCollecting()
-    Kamon.loadReportersFromConfig()
+    Kamon.loadModules()
   }
 
   @SuppressWarnings(Array("UnusedMethodParameter"))
@@ -144,8 +144,7 @@ object Main {
 
     as.registerOnTermination {
       cluster.leave(cluster.selfAddress)
-      Kamon.stopAllReporters()
-      SystemMetrics.stopCollecting()
+      Await.result(Kamon.stopModules(), 10 seconds)
     }
     // attempt to leave the cluster before shutting down
     val _ = sys.addShutdownHook {
