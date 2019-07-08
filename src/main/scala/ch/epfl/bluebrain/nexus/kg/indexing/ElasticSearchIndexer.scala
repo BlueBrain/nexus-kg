@@ -31,8 +31,9 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     implicit config: AppConfig,
     project: Project) {
 
-  private val logger   = Logger[this.type]
-  private val metaKeys = metaPredicates.map(_.prefix).toSeq
+  private val logger          = Logger[this.type]
+  private val metaKeys        = metaPredicates.map(_.prefix).toSeq
+  private val metadataOptions = MetadataOptions(linksAsIri = false, expandedLinks = true)
 
   /**
     * When an event is received, the current state is obtained and if the resource matches the view criteria a [[BulkOp]] is built.
@@ -42,8 +43,8 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
   final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
     view.resourceTag
       .filter(_.trim.nonEmpty)
-      .map(resources.fetch(event.id, _, false))
-      .getOrElse(resources.fetch(event.id, false))
+      .map(resources.fetch(event.id, _, metadataOptions))
+      .getOrElse(resources.fetch(event.id, metadataOptions))
       .value
       .map {
         case Right(res) if validSchema(view, res) && validTypes(view, res) => deleteOrIndexTransformed(res)
@@ -64,7 +65,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
 
     val transformed: DecoderResult[Json] = {
-      val metaGraph    = if (view.includeMetadata) Graph(res.metadata()) else Graph()
+      val metaGraph    = if (view.includeMetadata) Graph(res.metadata(metadataOptions)) else Graph()
       val keysToRemove = if (view.includeMetadata) Seq.empty[String] else metaKeys
       if (view.sourceAsText)
         asJson(metaGraph.add(rootNode, nxv.originalSource, res.value.source.removeKeys(metaKeys: _*).noSpaces))
@@ -105,7 +106,7 @@ object ElasticSearchIndexer {
     F: Effect[F]): StreamSupervisor[F, ProjectionProgress] = {
 
     val elasticErrorMonadError            = ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
-    implicit val p: Project               = project.copy(apiMappings = Map.empty)
+    implicit val p: Project               = project
     implicit val indexing: IndexingConfig = config.elasticSearch.indexing
 
     val mapper = new ElasticSearchIndexerMapping(view, resources)

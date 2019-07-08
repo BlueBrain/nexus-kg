@@ -26,6 +26,7 @@ import scala.collection.JavaConverters._
 
 private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[F])(implicit F: Monad[F],
                                                                                     project: Project) {
+  private val metadataOptions = MetadataOptions(linksAsIri = true, expandedLinks = true)
 
   /**
     * When an event is received, the current state is obtained and a [[SparqlWriteQuery]] is built.
@@ -35,8 +36,8 @@ private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[
   final def apply(event: Event): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
     view.resourceTag
       .filter(_.trim.nonEmpty)
-      .map(resources.fetch(event.id, _, true))
-      .getOrElse(resources.fetch(event.id, true))
+      .map(resources.fetch(event.id, _, metadataOptions))
+      .getOrElse(resources.fetch(event.id, metadataOptions))
       .value
       .map {
         case Right(res) if validSchema(view, res) && validTypes(view, res) => Some(buildInsertOrDeleteQuery(res))

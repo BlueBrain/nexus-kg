@@ -139,7 +139,7 @@ class ResourceRoutesSpec
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = unconstrainedRef)
 
-    resources.fetch(id, selfAsIri = false) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    resources.fetch(id, MetadataOptions()) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
   }
 
   "The resources routes" should {

@@ -6,8 +6,12 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
+import ch.epfl.bluebrain.nexus.commons.test.Randomness._
 
 object AccessId {
+
+  private val randBase: AbsoluteIri = url"http://notused.com/${genString()}".value
 
   /**
     * Build an access id (the Uri from where to fetch the resource from the API)
@@ -17,9 +21,11 @@ object AccessId {
     *
     * @param resourceId the resource identifier
     * @param schemaId   the schema identifier
+    * @param expanded   flag to decide whether or not we return the expanded version of the id
     */
-  def apply(resourceId: AbsoluteIri, schemaId: AbsoluteIri)(implicit project: Project,
-                                                            http: HttpConfig): AbsoluteIri = {
+  def apply(resourceId: AbsoluteIri, schemaId: AbsoluteIri, expanded: Boolean = false)(
+      implicit project: Project,
+      http: HttpConfig): AbsoluteIri = {
 
     def prefix(resource: String): AbsoluteIri =
       url"${http.publicUri}".value + http.prefix + resource + project.organizationLabel + project.label
@@ -28,7 +34,7 @@ object AccessId {
       if (iri.asString.startsWith(project.base.asString)) Some(iri.asString.stripPrefix(project.base.asString))
       else None
 
-    def aliasOrCurieFor(iri: AbsoluteIri): String = {
+    def inner(iri: AbsoluteIri): String = {
       lazy val aliases = project.apiMappings.collectFirst {
         case (p, `iri`) => p
       }
@@ -37,20 +43,22 @@ object AccessId {
           s"$p:${urlEncode(iri.asString.stripPrefix(ns.asString))}"
       }
       lazy val base = removeBase(iri)
-
-      aliases orElse curies orElse base getOrElse urlEncode(iri.asString)
+      aliases orElse curies orElse base.map(urlEncode) getOrElse urlEncode(iri.asString)
     }
 
-    val shortResourceId = aliasOrCurieFor(resourceId)
-    schemaId match {
-      case `fileSchemaUri`          => prefix("files") + shortResourceId
-      case `viewSchemaUri`          => prefix("views") + shortResourceId
-      case `resolverSchemaUri`      => prefix("resolvers") + shortResourceId
-      case `shaclSchemaUri`         => prefix("schemas") + shortResourceId
-      case `storageSchemaUri`       => prefix("storages") + shortResourceId
-      case `unconstrainedSchemaUri` => prefix("resources") + "_" + shortResourceId
-      case _                        => prefix("resources") + aliasOrCurieFor(schemaId) + shortResourceId
+    if (expanded)
+      apply(resourceId, schemaId, false)(project.copy(apiMappings = defaultPrefixMapping, base = randBase), http)
+    else {
+      val resolvedResourceId = inner(resourceId)
+      schemaId match {
+        case `fileSchemaUri`          => prefix("files") + resolvedResourceId
+        case `viewSchemaUri`          => prefix("views") + resolvedResourceId
+        case `resolverSchemaUri`      => prefix("resolvers") + resolvedResourceId
+        case `shaclSchemaUri`         => prefix("schemas") + resolvedResourceId
+        case `storageSchemaUri`       => prefix("storages") + resolvedResourceId
+        case `unconstrainedSchemaUri` => prefix("resources") + "_" + resolvedResourceId
+        case _                        => prefix("resources") + inner(schemaId) + resolvedResourceId
+      }
     }
   }
-
 }

@@ -74,7 +74,8 @@ final case class ResourceF[A](
   /**
     * Computes the metadata triples for this resource.
     */
-  def metadata(asIri: Boolean = false)(implicit config: AppConfig, project: Project): Set[Triple] = {
+  def metadata(options: MetadataOptions = MetadataOptions())(implicit config: AppConfig,
+                                                             project: Project): Set[Triple] = {
 
     def triplesFor(storageAndAttributes: (Storage, FileAttributes)): Set[Triple] = {
       val blankDigest   = Node.blank
@@ -94,7 +95,7 @@ final case class ResourceF[A](
     }
     val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
     val projectUri  = config.admin.publicIri + "projects" / project.organizationLabel / project.label
-    val self        = AccessId(id.value, schema.iri)
+    val self        = AccessId(id.value, schema.iri, expanded = options.expandedLinks)
     val incoming    = self + "incoming"
     val outgoing    = self + "outgoing"
     fileTriples + (
@@ -102,13 +103,13 @@ final case class ResourceF[A](
       (node, nxv.deprecated, deprecated),
       (node, nxv.createdAt, created),
       (node, nxv.updatedAt, updated),
-      (node, nxv.createdBy, if (asIri) createdBy.id else createdBy.id.asString),
-      (node, nxv.updatedBy, if (asIri) updatedBy.id else updatedBy.id.asString),
+      (node, nxv.createdBy, if (options.linksAsIri) createdBy.id else createdBy.id.asString),
+      (node, nxv.updatedBy, if (options.linksAsIri) updatedBy.id else updatedBy.id.asString),
       (node, nxv.constrainedBy, schema.iri),
       (node, nxv.project, projectUri),
-      (node, nxv.incoming, if (asIri) incoming else incoming.asString),
-      (node, nxv.outgoing, if (asIri) outgoing else outgoing.asString),
-      (node, nxv.self, if (asIri) self else self.asString)
+      (node, nxv.incoming, if (options.linksAsIri) incoming else incoming.asString),
+      (node, nxv.outgoing, if (options.linksAsIri) outgoing else outgoing.asString),
+      (node, nxv.self, if (options.linksAsIri) self else self.asString)
     ) ++ typeTriples
   }
 
@@ -238,3 +239,11 @@ object ResourceF {
               schema,
               value)
 }
+
+/**
+  * Metadata output options
+  *
+  * @param linksAsIri    flag to decide whether or not the links are represented as Iri or string
+  * @param expandedLinks flag to decide whether or not the links are expanded using the project prefix mappings and base or not
+  */
+final case class MetadataOptions(linksAsIri: Boolean = false, expandedLinks: Boolean = false)
