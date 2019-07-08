@@ -31,6 +31,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
+import io.circe.syntax._
 
 /**
   * Resource operations.
@@ -39,6 +40,8 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
                              val repo: Repo[F],
                              materializer: Materializer[F],
                              config: AppConfig) {
+
+  private val emptyJson = Json.obj()
 
   /**
     * Creates a new resource attempting to extract the id from the source. If a primary node of the resulting graph
@@ -52,10 +55,12 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @param source     the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(schema: Ref, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
-    materializer(source).flatMap {
-      case (id, Value(_, _, graph)) => create(Id(project.ref, id), schema, source, graph.removeMetadata)
+  def create(schema: Ref, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] = {
+    val sourceWithCtx = addContextIfEmpty(source)
+    materializer(sourceWithCtx).flatMap {
+      case (id, Value(_, _, graph)) => create(Id(project.ref, id), schema, sourceWithCtx, graph.removeMetadata)
     }
+  }
 
   /**
     * Creates a new resource.
@@ -65,10 +70,12 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @param source the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId, schema: Ref, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
-    materializer(source, id.value).flatMap {
-      case Value(_, _, graph) => create(id, schema, source, graph.removeMetadata)
+  def create(id: ResId, schema: Ref, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] = {
+    val sourceWithCtx = addContextIfEmpty(source)
+    materializer(sourceWithCtx, id.value).flatMap {
+      case Value(_, _, graph) => create(id, schema, sourceWithCtx, graph.removeMetadata)
     }
+  }
 
   private def create(id: ResId, schema: Ref, source: Json, graph: RootedGraph)(implicit subject: Subject,
                                                                                project: Project): RejOrResource[F] =
@@ -86,14 +93,16 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return either a rejection or the updated resource in the F context
     */
   def update(id: ResId, rev: Long, schema: Ref, source: Json)(implicit subject: Subject,
-                                                              project: Project): RejOrResource[F] =
+                                                              project: Project): RejOrResource[F] = {
+    val sourceWithCtx = addContextIfEmpty(source)
     for {
       _        <- repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref, Some(rev)))
-      matValue <- materializer(source, id.value)
+      matValue <- materializer(sourceWithCtx, id.value)
       graph = matValue.graph.removeMetadata
       _       <- validate(schema, graph)
-      updated <- repo.update(id, rev, graph.types(id.value).map(_.value), source)
+      updated <- repo.update(id, rev, graph.types(id.value).map(_.value), sourceWithCtx)
     } yield updated
+  }
 
   /**
     * Fetches the latest revision of a resource
@@ -246,6 +255,14 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
         }
     }
   }
+
+  private def addContextIfEmpty(source: Json)(implicit project: Project): Json =
+    source.contextValue match {
+      case `emptyJson` =>
+        source deepMerge Json.obj(
+          "@context" -> Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson))
+      case _ => source
+    }
 
   private final implicit class ResourceSchemaSyntax(private val resourceV: RejOrResourceV[F]) {
     def check(schema: Ref): RejOrResourceV[F] =

@@ -248,18 +248,20 @@ class ResolversSpec
     "performing resolve operations" should {
 
       "return resolved resource" in new Base {
+        val defaultCtx = Json.obj(
+          "@context" -> Json.obj("@base" -> Json.fromString(project1.base.asString),
+                                 "@vocab" -> Json.fromString(project1.vocab.asString)))
         val resourceId = genIri
         val orgRef     = OrganizationRef(project1.organizationUuid)
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
-        val json = Json.obj("key" -> Json.fromString("value"))
+        val json = Json.obj("key" -> Json.fromString("value")) deepMerge defaultCtx
         repo.create(Id(project1.ref, resourceId), orgRef, shaclRef, Set(nxv.Schema), json).value.accepted
         val resource = repo.get(Id(project1.ref, resourceId), None).value.some
         val graph = RootedGraph(resourceId,
                                 resource.metadata()(appConfig, project1) + ((resourceId,
                                                                              url"${project1.vocab.asString}key",
                                                                              "value"): Triple))
-        val ctx = Json.obj("@base" -> Json.fromString(project1.base.asString),
-                           "@vocab" -> Json.fromString(project1.vocab.asString)) deepMerge resourceCtx.contextValue
+        val ctx      = defaultCtx.contextValue deepMerge resourceCtx.contextValue
         val expected = resource.map(json => Value(json, ctx, graph))
         resolvers.resolve(resourceId).value.accepted shouldEqual expected
         resolvers.resolve(resId, resourceId).value.accepted shouldEqual expected

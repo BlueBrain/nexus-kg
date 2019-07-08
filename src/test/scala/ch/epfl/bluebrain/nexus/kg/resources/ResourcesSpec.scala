@@ -104,10 +104,12 @@ class ResourcesSpec
                                    subject.id)
     val schemaRef = Ref(unconstrainedSchemaUri)
 
+    val defaultCtx = Json.obj(
+      "@context" -> Json.obj("@base" -> Json.fromString(project.base.asString),
+                             "@vocab" -> Json.fromString(project.vocab.asString)))
+
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
-      val defaultCtxValue = Json.obj(
-        "@base"  -> Json.fromString("http://example.com/base/"),
-        "@vocab" -> Json.fromString("http://example.com/voc/")) deepMerge resourceCtx.contextValue
+      val defaultCtxValue = defaultCtx.contextValue deepMerge resourceCtx.contextValue
       val graph = (json deepMerge Json.obj("@context" -> defaultCtxValue, "@id" -> Json.fromString(id.asString)))
         .asGraph(resId.value)
         .right
@@ -138,8 +140,9 @@ class ResourcesSpec
         val genRes = Id(projectRef, url"$base$genId".value)
         val json =
           Json.obj("@id" -> Json.fromString(genId))
+        val expected = json deepMerge defaultCtx
         resources.create(schemaRef, json).value.accepted shouldEqual
-          ResourceF.simpleF(genRes, json, schema = schemaRef)
+          ResourceF.simpleF(genRes, expected, schema = schemaRef)
       }
 
       "create a new resource validated against empty schema (resource schema) with a payload only containing @context" in new Base {
@@ -202,8 +205,9 @@ class ResourcesSpec
         val jsonUpdated = Json.obj("one"      -> Json.fromString("two"))
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
 
+        val expected = jsonUpdated deepMerge defaultCtx
         resources.update(resId, 1L, schemaRef, jsonUpdated).value.accepted shouldEqual
-          ResourceF.simpleF(resId, jsonUpdated, 2L, schema = schemaRef)
+          ResourceF.simpleF(resId, expected, 2L, schema = schemaRef)
       }
 
       "prevent to update a resource when the provided schema does not match the created schema" in new Base {
@@ -224,9 +228,10 @@ class ResourcesSpec
       val json = Json.obj("one" -> Json.fromString("two"))
 
       "deprecate a resource" in new Base {
+        val expected = json deepMerge defaultCtx
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         resources.deprecate(resId, 1L, schemaRef).value.accepted shouldEqual
-          ResourceF.simpleF(resId, json, 2L, schema = schemaRef, deprecated = true)
+          ResourceF.simpleF(resId, expected, 2L, schema = schemaRef, deprecated = true)
       }
 
       "prevent deprecating a resource when the provided schema does not match the created schema" in new Base {
@@ -241,18 +246,22 @@ class ResourcesSpec
       val jsonUpdated = Json.obj("one" -> Json.fromString("three"))
 
       "return a resource" in new Base {
+        val expected = json deepMerge defaultCtx
 
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
-        resources.fetch(resId, schemaRef).value.accepted shouldEqual resourceV(json)
+        resources.fetch(resId, schemaRef).value.accepted shouldEqual resourceV(expected)
       }
 
       "return the requested resource on a specific revision" in new Base {
+        val expected        = json deepMerge defaultCtx
+        val expectedUpdated = jsonUpdated deepMerge defaultCtx
+
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, schemaRef, jsonUpdated).value.accepted shouldBe a[Resource]
-        resources.fetch(resId, 2L, schemaRef).value.accepted shouldEqual resourceV(jsonUpdated, 2L)
+        resources.fetch(resId, 2L, schemaRef).value.accepted shouldEqual resourceV(expectedUpdated, 2L)
         resources.fetch(resId, 2L, schemaRef).value.accepted shouldEqual
           resources.fetch(resId, schemaRef).value.accepted
-        resources.fetch(resId, 1L, schemaRef).value.accepted shouldEqual resourceV(json, 1L)
+        resources.fetch(resId, 1L, schemaRef).value.accepted shouldEqual resourceV(expected, 1L)
       }
 
       "return NotFound when the provided schema does not match the created schema" in new Base {

@@ -43,7 +43,7 @@ class SchemasSpec
     with TestHelper
     with Inspectors {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(5 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 15 milliseconds)
 
   private implicit val appConfig              = Settings(system).appConfig
   private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())

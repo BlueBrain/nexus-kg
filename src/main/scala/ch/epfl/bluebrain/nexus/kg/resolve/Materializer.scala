@@ -22,12 +22,9 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
 import io.circe.Json
-import io.circe.syntax._
 
 class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache: ProjectCache[F])(
     implicit config: AppConfig) {
-
-  private val emptyJson = Json.obj()
 
   private def flattenCtx(rrefs: List[Ref], ccontextValue: Json)(
       implicit project: Project): EitherT[F, Rejection, Json] = {
@@ -58,8 +55,6 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
       }
 
     inner(rrefs, ccontextValue).map {
-      case (`emptyJson`, _) =>
-        Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson) deepMerge resourceCtx.contextValue
       case (flattened, _) => flattened deepMerge resourceCtx.contextValue
     }
   }

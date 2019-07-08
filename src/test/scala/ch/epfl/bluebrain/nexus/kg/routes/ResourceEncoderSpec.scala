@@ -88,13 +88,7 @@ class ResourceEncoderSpec
       val expected =
         """
           |{
-          |  "@context" : [
-          |    {
-          |      "@base" : "http://example.com/",
-          |      "@vocab" : "http://example.com/voc/"
-          |    },
-          |    "https://bluebrain.github.io/nexus/contexts/resource.json"
-          |  ],
+          |  "@context" : "https://bluebrain.github.io/nexus/contexts/resource.json",
           |  "@id" : "foobar",
           |  "foo" : "bar"
           |}
