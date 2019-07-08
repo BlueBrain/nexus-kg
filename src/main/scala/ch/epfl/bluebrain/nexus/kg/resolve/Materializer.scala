@@ -205,12 +205,12 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
         val batch: EitherT[F, Rejection, Set[(Ref, ResourceV)]] =
           remaining.toList.traverse(load).map(_.toSet)
 
-        batch.flatMap { list =>
-          val nextRemaining: Set[Ref] = list
+        batch.flatMap { set =>
+          val nextRemaining: Set[Ref] = set
             .flatMap {
               case (ref, res) => importsValues(ref.iri, res.value.graph).toList
             } - currentRef
-          val nextCurrent: Map[Ref, ResourceV] = current ++ list.toMap
+          val nextCurrent: Map[Ref, ResourceV] = current ++ set.toMap
           lookup(nextCurrent, nextRemaining)
         }
       }

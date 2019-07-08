@@ -29,7 +29,9 @@ object Caches {
                         storage: StorageCache[F]): Caches[F] =
     new Caches(project, view, resolver, storage)
 
+  // $COVERAGE-OFF$
   final implicit def viewCache[F[_]](implicit caches: Caches[F]): ViewCache[F]       = caches.view
   final implicit def storageCache[F[_]](implicit caches: Caches[F]): StorageCache[F] = caches.storage
   final implicit def projectCache[F[_]](implicit caches: Caches[F]): ProjectCache[F] = caches.project
+  // $COVERAGE-ON$
 }
