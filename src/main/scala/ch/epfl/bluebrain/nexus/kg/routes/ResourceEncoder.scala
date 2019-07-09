@@ -45,7 +45,7 @@ object ResourceEncoder {
     val flattenedContext = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
     res.as[Json](flattenedContext).map { fieldsJson =>
       val contextJson =
-        Json.obj("@context" -> res.contextValueForJsonLd.removeKeys(resourceKeys: _*)).addContext(resourceCtxUri)
+        Json.obj("@context" -> res.value.source.contextValue.removeKeys(resourceKeys: _*)).addContext(resourceCtxUri)
       val json = fieldsJson deepMerge contextJson
       if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.prefix)
       else json

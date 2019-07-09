@@ -25,9 +25,8 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "ba5c778e"
+val adminVersion                = "32fb6345"
 val commonsVersion              = "0.16.0"
-val rdfVersion                  = "0.3.10"
 val storageVersion              = "97544e65"
 val sourcingVersion             = "0.16.3"
 val akkaVersion                 = "2.5.23"
@@ -35,7 +34,7 @@ val akkaCorsVersion             = "0.4.1"
 val akkaHttpVersion             = "10.1.8"
 val akkaPersistenceInMemVersion = "2.5.15.2"
 val akkaPersistenceCassVersion  = "0.98"
-val alpakkaVersion              = "1.0.2"
+val alpakkaVersion              = "1.1.0"
 val catsVersion                 = "1.6.1"
 val catsEffectVersion           = "1.3.1"
 val circeVersion                = "0.11.1"
@@ -56,7 +55,7 @@ lazy val sparqlClient         = "ch.epfl.bluebrain.nexus" %% "sparql-client"    
 lazy val commonsCore          = "ch.epfl.bluebrain.nexus" %% "commons-core"               % commonsVersion
 lazy val commonsKamon         = "ch.epfl.bluebrain.nexus" %% "commons-kamon"              % commonsVersion
 lazy val commonsTest          = "ch.epfl.bluebrain.nexus" %% "commons-test"               % commonsVersion
-lazy val rdf                  = "ch.epfl.bluebrain.nexus" %% "rdf"                        % rdfVersion
+lazy val akkaDowning          = "ch.epfl.bluebrain.nexus" %% "akka-downing"               % commonsVersion
 lazy val sourcingProjections  = "ch.epfl.bluebrain.nexus" %% "sourcing-projections"       % sourcingVersion
 lazy val storageClient        = "ch.epfl.bluebrain.nexus" %% "storage-client"             % storageVersion
 lazy val akkaCluster          = "com.typesafe.akka"       %% "akka-cluster"               % akkaVersion
@@ -91,10 +90,9 @@ lazy val kg = project
   .settings(
     name       := "kg",
     moduleName := "kg",
-    // Remove the 76 minimum coverage once we reach back > 80% coverage
-    coverageMinimum := 76,
     libraryDependencies ++= Seq(
       adminClient,
+      akkaDowning,
       akkaDistributedData,
       akkaHttp,
       akkaHttpCors,
@@ -113,7 +111,6 @@ lazy val kg = project
       logbackClassic,
       monixEval,
       pureconfig,
-      rdf,
       sourcingProjections,
       sparqlClient,
       storageClient,

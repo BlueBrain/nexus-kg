@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveEncoder
 import io.circe.{Encoder, Json}
-
+// $COVERAGE-OFF$
 /**
   * Enumeration of runtime errors.
   *
@@ -142,3 +142,4 @@ object KgError {
     case _                                => StatusCodes.InternalServerError
   }
 }
+// $COVERAGE-ON$

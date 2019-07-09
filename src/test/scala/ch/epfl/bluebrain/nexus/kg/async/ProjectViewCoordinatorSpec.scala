@@ -15,17 +15,18 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.projections.{ProjectionProgress, Projections, StreamSupervisor}
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import org.mockito.Mockito.verify
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{Matchers, WordSpecLike}
-import org.scalatestplus.mockito.MockitoSugar
+
+import scala.concurrent.duration._
 
 class ProjectViewCoordinatorSpec
     extends ActorSystemFixture("ProjectViewCoordinatorSpec", true)
@@ -35,7 +36,10 @@ class ProjectViewCoordinatorSpec
     with Matchers
     with Eventually
     with ScalaFutures
-    with MockitoSugar {
+    with IdiomaticMockito
+    with ArgumentMatchersSugar {
+
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(15 second, 150 milliseconds)
 
   private implicit val appConfig = Settings(system).appConfig
   private val projectCache       = ProjectCache[Task]
@@ -48,7 +52,7 @@ class ProjectViewCoordinatorSpec
     // format: off
     val project = Project(genIri, "some-project", "some-org", None, genIri, genIri, Map.empty, genUUID, orgUuid, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
     val project2 = Project(genIri, "some-project2", "some-org", None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
-    val project2Updated = project2.copy(vocab = genIri, rev = 2L)
+    val project2Updated = project2.copy(label = genString(), rev = 2L)
     // format: on
     val view = SparqlView(Set.empty, Set.empty, None, true, true, project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2 =
@@ -88,7 +92,8 @@ class ProjectViewCoordinatorSpec
           else if (v == view2 && proj == project) coordinator2
           else if (v == view2Updated && proj == project) coordinator2Updated
           else if (v == view3 && proj == project2) coordinator3
-          else if (v == view3 && proj == project2Updated && restartOffset) coordinator3Updated
+          else if (v == view3.copy(rev = 2L) && proj == project2) coordinator3
+          else if (v == view3.copy(rev = 2L) && proj == project2Updated && restartOffset) coordinator3Updated
           else throw new RuntimeException()
         }
 
@@ -107,6 +112,8 @@ class ProjectViewCoordinatorSpec
       new ProjectViewCoordinator[Task](
         Caches(projectCache, viewCache, mock[ResolverCache[Task]], mock[StorageCache[Task]]),
         coordinatorRef)
+
+    projections.progress(any[String]) shouldReturn Task.pure(ProjectionProgress.NoProgress)
 
     "initialize projects" in {
       projectCache.replace(project).runToFuture.futureValue
@@ -130,47 +137,48 @@ class ProjectViewCoordinatorSpec
       eventually(counterStart.get shouldEqual 3)
     }
 
-    "stop view when view is removed (deprecated) from the cache" ignore {
+    "stop view when view is removed (deprecated) from the cache" in {
       viewCache.put(view.copy(deprecated = true)).runToFuture.futureValue
       eventually(counterStop.get shouldEqual 1)
       eventually(counterStart.get shouldEqual 3)
-      eventually(verify(coordinator1).stop())
+      eventually(coordinator1.stop() wasCalled once)
     }
 
-    "stop old view start new view when current view updated" ignore {
+    "stop old elasticsearch view start new view when current view updated" in {
       viewCache.put(view2Updated).runToFuture.futureValue
       eventually(counterStop.get shouldEqual 2)
       eventually(counterStart.get shouldEqual 4)
-      eventually(verify(coordinator2).stop())
+      eventually(coordinator2.stop() wasCalled once)
     }
 
-    "do nothing when a view that should not re-trigger indexing gets updated" ignore {
+    "stop old sparql view start new view when current view updated" in {
       viewCache.put(view3.copy(rev = 2L)).runToFuture.futureValue
-      eventually(counterStop.get shouldEqual 2)
-      eventually(counterStart.get shouldEqual 4)
+      eventually(counterStop.get shouldEqual 3)
+      eventually(counterStart.get shouldEqual 5)
+      eventually(coordinator3.stop() wasCalled once)
     }
 
-    "stop all related views when organization is deprecated" ignore {
+    "stop all related views when organization is deprecated" in {
       coordinator.stop(OrganizationRef(orgUuid)).runToFuture.futureValue
-      eventually(counterStop.get shouldEqual 2)
-      eventually(counterStart.get shouldEqual 4)
-      eventually(verify(coordinator2Updated).stop())
+      eventually(counterStop.get shouldEqual 3)
+      eventually(counterStart.get shouldEqual 5)
+      eventually(coordinator2Updated.stop() wasCalled once)
     }
 
-    "restart all related views when project changes" ignore {
+    "restart all related views when project changes" in {
       projectCache.replace(project2Updated).runToFuture.futureValue
       coordinator.change(project2Updated, project2).runToFuture.futureValue
-      eventually(counterStop.get shouldEqual 3)
-      eventually(counterStart.get shouldEqual 5)
-      eventually(verify(coordinator3).stop())
+      eventually(counterStop.get shouldEqual 4)
+      eventually(counterStart.get shouldEqual 6)
+      eventually(coordinator3.stop() wasCalled twice)
     }
 
-    "stop related views when project is deprecated" ignore {
+    "stop related views when project is deprecated" in {
       projectCache.replace(project2Updated.copy(deprecated = true)).runToFuture.futureValue
       coordinator.stop(project2Updated.ref).runToFuture.futureValue
-      eventually(counterStop.get shouldEqual 3)
-      eventually(counterStart.get shouldEqual 5)
-      eventually(verify(coordinator3Updated).stop())
+      eventually(counterStop.get shouldEqual 4)
+      eventually(counterStart.get shouldEqual 6)
+      eventually(coordinator3Updated.stop() wasCalled once)
     }
   }
 
