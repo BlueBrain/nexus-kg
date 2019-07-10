@@ -154,8 +154,12 @@ object AppConfig {
     * @param digestAlgorithm algorithm for checksum calculation
     * @param readPermission  the default permission required in order to download a file from a s3 storage
     * @param writePermission the default permission required in order to upload a file to a s3 storage
+    * @param showLocation    flag to decide whether or not to show the absolute location of the files in the metadata response
     */
-  final case class S3StorageConfig(digestAlgorithm: String, readPermission: Permission, writePermission: Permission)
+  final case class S3StorageConfig(digestAlgorithm: String,
+                                   readPermission: Permission,
+                                   writePermission: Permission,
+                                   showLocation: Boolean)
 
   /**
     * Disk storage configuration
@@ -164,11 +168,13 @@ object AppConfig {
     * @param digestAlgorithm algorithm for checksum calculation
     * @param readPermission  the default permission required in order to download a file from a disk storage
     * @param writePermission the default permission required in order to upload a file to a disk storage
+    * @param showLocation    flag to decide whether or not to show the absolute location of the files in the metadata response
     */
   final case class DiskStorageConfig(volume: Path,
                                      digestAlgorithm: String,
                                      readPermission: Permission,
-                                     writePermission: Permission)
+                                     writePermission: Permission,
+                                     showLocation: Boolean)
 
   /**
     * Remote Disk storage configuration
@@ -177,12 +183,14 @@ object AppConfig {
     * @param defaultCredentials the default credentials for the defaultEnpoint of the current storage
     * @param readPermission     the default permission required in order to download a file from a disk storage
     * @param writePermission    the default permission required in order to upload a file to a disk storage
+    * @param showLocation       flag to decide whether or not to show the absolute location of the files in the metadata response
     */
   final case class RemoteDiskStorageConfig(defaultEndpoint: Uri,
                                            defaultCredentials: Option[AuthToken],
                                            digestAlgorithm: String,
                                            readPermission: Permission,
-                                           writePermission: Permission)
+                                           writePermission: Permission,
+                                           showLocation: Boolean)
 
   /**
     * IAM config
@@ -273,7 +281,6 @@ object AppConfig {
       "details",
       nxv.resourceId.prefix,
       nxv.organization.prefix,
-      nxv.storageId.prefix,
       nxv.total.prefix,
       nxv.maxScore.prefix,
       nxv.results.prefix,

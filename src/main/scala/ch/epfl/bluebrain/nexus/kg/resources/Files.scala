@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
@@ -23,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
-class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
+class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig) {
 
   /**
     * Creates a file resource.
@@ -53,7 +54,9 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
       implicit subject: Subject,
       project: Project,
       saveStorage: Save[F, In]): RejOrResource[F] =
-    repo.createFile(id, OrganizationRef(project.organizationUuid), storage, fileDesc, source)
+    EitherT
+      .right(storage.save.apply(id, fileDesc, source))
+      .flatMap(attr => repo.createFile(id, OrganizationRef(project.organizationUuid), storage.reference, attr))
 
   /**
     * Replaces a file resource.
@@ -69,7 +72,9 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
   def update[In](id: ResId, storage: Storage, rev: Long, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
       saveStorage: Save[F, In]): RejOrResource[F] =
-    repo.updateFile(id, storage, rev, fileDesc, source)
+    EitherT
+      .right(storage.save.apply(id, fileDesc, source))
+      .flatMap(attr => repo.updateFile(id, storage.reference, rev, attr))
 
   /**
     * Creates a link to an existing file.
@@ -92,12 +97,12 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     */
   def createLink(id: ResId, storage: Storage, source: Json)(implicit subject: Subject,
                                                             project: Project,
-                                                            linkStorage: Link[F]): RejOrResource[F] = {
-    EitherT.fromEither[F](LinkDescription(id, source)).flatMap { link =>
-      val organizationRef = OrganizationRef(project.organizationUuid)
-      repo.createLink(id, organizationRef, storage, FileDescription(link.filename, link.mediaType), link.path)
-    }
-  }
+                                                            linkStorage: Link[F]): RejOrResource[F] =
+    for {
+      link    <- EitherT.fromEither[F](LinkDescription(id, source))
+      attr    <- EitherT.right(storage.link.apply(id, FileDescription(link.filename, link.mediaType), link.path))
+      created <- repo.createLink(id, OrganizationRef(project.organizationUuid), storage.reference, attr)
+    } yield created
 
   /**
     * Updates a link to an existing file.
@@ -110,9 +115,11 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     */
   def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(implicit subject: Subject,
                                                                        linkStorage: Link[F]): RejOrResource[F] =
-    EitherT.fromEither[F](LinkDescription(id, source)).flatMap { link =>
-      repo.updateLink(id, storage, FileDescription(link.filename, link.mediaType), link.path, rev)
-    }
+    for {
+      link    <- EitherT.fromEither[F](LinkDescription(id, source))
+      attr    <- EitherT.right(storage.link.apply(id, FileDescription(link.filename, link.mediaType), link.path))
+      created <- repo.updateLink(id, storage.reference, attr, rev)
+    } yield created
 
   /**
     * Deprecates an existing file.
@@ -158,9 +165,21 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit config: AppConfig) {
     fetch(repo.get(id, tag, Some(fileRef)).toRight(notFound(id.ref, tagOpt = Some(tag))))
 
   private def fetch[Out](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    rejOrResource.subflatMap(resource => resource.file.toRight(NotFound(resource.id.ref))).flatMapF {
-      case (storage, attr) => storage.fetch.apply(attr).map(out => Right((storage, attr, out)))
-    }
+    rejOrResource
+      .subflatMap(
+        resource =>
+          resource.file
+            .map { case (ref, fileAttr) => (resource.id.parent, ref, fileAttr) }
+            .toRight(notFound(resource.id.ref)))
+      .flatMapF {
+        case (project, storageRef, fileAttr) =>
+          storageCache
+            .get(project, storageRef.id)
+            .map(storageOpt => storageOpt.map(_ -> fileAttr).toRight(notFound(storageRef.id.ref)))
+      }
+      .flatMapF {
+        case (storage, fileAttr) => storage.fetch.apply(fileAttr).map(out => Right((storage, fileAttr, out)))
+      }
 
   /**
     * Lists files on the given project
@@ -211,6 +230,8 @@ object Files {
     * @tparam F the monadic effect type
     * @return a new [[Files]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect](implicit config: AppConfig, repo: Repo[F]): Files[F] =
+  final def apply[F[_]: Timer: Effect](implicit config: AppConfig,
+                                       repo: Repo[F],
+                                       storageCache: StorageCache[F]): Files[F] =
     new Files[F](repo)
 }
