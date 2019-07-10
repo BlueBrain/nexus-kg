@@ -47,6 +47,9 @@ object Serializer {
   private implicit val fileAttributesEncoder: Encoder[FileAttributes] = deriveEncoder[FileAttributes]
   private implicit val fileAttributesDecoder: Decoder[FileAttributes] = deriveDecoder[FileAttributes]
 
+  private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveEncoder[StorageReference]
+  private implicit val storageReferenceDecoder: Decoder[StorageReference] = deriveDecoder[StorageReference]
+
   private implicit val encodeResId: Encoder[ResId] =
     Encoder.forProduct2("project", "id")(r => (r.parent.id, r.value.show))
 

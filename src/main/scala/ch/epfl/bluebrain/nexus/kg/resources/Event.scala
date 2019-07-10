@@ -231,6 +231,8 @@ object Event {
     private implicit val uriEncoder: Encoder[Uri]          = Encoder.encodeString.contramap(_.toString)
     private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
 
+    private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveEncoder[StorageReference]
+
     private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
 
     private implicit val fileAttributesEncoder: Encoder[FileAttributes] =
