@@ -35,7 +35,7 @@ object Migrations {
 
     private val alpha = "https://bluebrain.github.io/nexus/vocabulary/Alpha"
 
-    private case class Project(uuid: UUID, orgUuid: UUID, base: AbsoluteIri, vocab: AbsoluteIri)
+    private final case class Project(uuid: UUID, orgUuid: UUID, base: AbsoluteIri, vocab: AbsoluteIri)
 
     def migrate(c: AppConfig)(implicit as: ActorSystem, mt: ActorMaterializer, s: Scheduler, permit: CanBlock): Unit = {
       val log = Logger("V1 ====> V1.1")
@@ -45,15 +45,35 @@ object Migrations {
       val admin   = sys.env.getOrElse("ADMIN_KEYSPACE", "admin")
       val kg      = journal.config.keyspace
 
-      def truncateTables(): Unit = {
-        val tables =
-          Set("projections", "tag_views", "tag_scanning", "tag_write_progress", "projections_failures", "metadata")
-        tables.foreach { tableName =>
+      def truncateAndDropTables(): Unit = {
+        val truncateTables = Set(
+          "metadata",
+          "tag_views",
+          "tag_scanning",
+          "tag_write_progress",
+        )
+        val dropTables = Set(
+          "projections_progress",
+          "projections_failures",
+          "projections",
+          "index_failures",
+        )
+        truncateTables.foreach { tableName =>
           log.info(s"Truncating table $kg.$tableName")
           try {
             session.executeWrite(s"TRUNCATE TABLE $kg.$tableName").runSyncDiscard()
           } catch {
             case _: InvalidQueryException => // ignore
+              log.debug("Table truncation failed... the table may not exist yet.")
+          }
+        }
+        dropTables.foreach { tableName =>
+          log.info(s"Dropping table $kg.$tableName")
+          try {
+            session.executeWrite(s"DROP TABLE $kg.$tableName").runSyncDiscard()
+          } catch {
+            case _: InvalidQueryException => // ignore
+              log.debug("Table drop failed... the table may not exist.")
           }
         }
       }
@@ -201,16 +221,18 @@ object Migrations {
             } yield newAttributesNoPath.deepMerge(newFields)
             val storage = Json.obj(
               "storage" -> Json.obj(
-                "id"  -> Json.fromString("https://bluebrain.github.io/nexus/vocabulary/diskStorageDefault"),
-                "rev" -> Json.fromLong(1L)
+                "id"    -> Json.fromString("https://bluebrain.github.io/nexus/vocabulary/diskStorageDefault"),
+                "rev"   -> Json.fromLong(1L),
+                "@type" -> Json.fromString("DiskStorageReference")
               ))
             newAttributes match {
               case Left(err) =>
                 log.error("Unable to transform file event", err)
                 event
               case Right(value) =>
-                val noAttributesEvent = event.hcursor.downField("attributes").delete.top.getOrElse(event)
-                addOrg(noAttributesEvent deepMerge value deepMerge storage, projects)
+                val noAttributesEvent   = event.hcursor.downField("attributes").delete.top.getOrElse(event)
+                val justAttributesEvent = Json.obj("attributes" -> value)
+                addOrg(noAttributesEvent deepMerge justAttributesEvent deepMerge storage, projects)
             }
         }
       }
@@ -285,7 +307,7 @@ object Migrations {
       }
 
       log.info("Migrating messages table.")
-      truncateTables()
+      truncateAndDropTables()
       val projects = loadProjects()
       migrateMessagesTable(c.storage.disk.volume.toAbsolutePath.toString, projects)
       log.info("Migration complete.")
