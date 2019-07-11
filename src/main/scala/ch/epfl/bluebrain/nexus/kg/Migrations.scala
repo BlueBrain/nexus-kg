@@ -13,18 +13,19 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances.{absoluteIriDecoder, absoluteIriEncoder}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.datastax.driver.core.TypeCodec
-import com.datastax.driver.core.exceptions.InvalidQueryException
 import io.circe.Json
 import io.circe.parser.parse
 import io.circe.syntax._
 import cats.implicits._
 import journal.Logger
 import java.util.{Arrays => JArrays, HashSet => JHashSet, Set => JSet}
+
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock
 
 import scala.concurrent.Future
+import scala.util.control.NonFatal
 
 /**
   * Migrate messages table in between minor Nexus revisions.
@@ -63,7 +64,7 @@ object Migrations {
           try {
             session.executeWrite(s"TRUNCATE TABLE $kg.$tableName").runSyncDiscard()
           } catch {
-            case _: InvalidQueryException => // ignore
+            case NonFatal(_) => // ignore
               log.debug("Table truncation failed... the table may not exist yet.")
           }
         }
@@ -72,7 +73,7 @@ object Migrations {
           try {
             session.executeWrite(s"DROP TABLE $kg.$tableName").runSyncDiscard()
           } catch {
-            case _: InvalidQueryException => // ignore
+            case NonFatal(_) => // ignore
               log.debug("Table drop failed... the table may not exist.")
           }
         }
