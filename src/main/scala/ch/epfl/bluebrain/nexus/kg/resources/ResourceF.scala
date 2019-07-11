@@ -10,9 +10,9 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, PrefixMapping}
+import ch.epfl.bluebrain.nexus.kg.resources.StorageReference._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
@@ -32,7 +32,7 @@ import io.circe.Json
   * @param types      the collection of known types of this resource
   * @param deprecated whether the resource is deprecated of not
   * @param tags       the collection of tag names to revisions of the resource
-  * @param file       the optional file metadata with the storage where the file was saved
+  * @param file       the optional file metadata with the storage reference where the file was saved
   * @param created    the instant when this resource was created
   * @param updated    the last instant when this resource was updated
   * @param createdBy  the identity that created this resource
@@ -47,7 +47,7 @@ final case class ResourceF[A](
     types: Set[AbsoluteIri],
     deprecated: Boolean,
     tags: Map[String, Long],
-    file: Option[(Storage, FileAttributes)],
+    file: Option[(StorageReference, FileAttributes)],
     created: Instant,
     updated: Instant,
     createdBy: Identity,
@@ -77,22 +77,31 @@ final case class ResourceF[A](
   def metadata(options: MetadataOptions = MetadataOptions())(implicit config: AppConfig,
                                                              project: Project): Set[Triple] = {
 
-    def triplesFor(storageAndAttributes: (Storage, FileAttributes)): Set[Triple] = {
-      val blankDigest   = Node.blank
-      val (storage, at) = storageAndAttributes
+    def showLocation(storageRef: StorageReference): Boolean =
+      storageRef match {
+        case _: DiskStorageReference       => config.storage.disk.showLocation
+        case _: RemoteDiskStorageReference => config.storage.remoteDisk.showLocation
+        case _: S3StorageReference         => config.storage.amazon.showLocation
+      }
+
+    def triplesFor(storageAndAttributes: (StorageReference, FileAttributes)): Set[Triple] = {
+      val blankDigest      = Node.blank
+      val (storageRef, at) = storageAndAttributes
       val triples = Set[Triple](
         (blankDigest, nxv.algorithm, at.digest.algorithm),
         (blankDigest, nxv.value, at.digest.value),
+        (storageRef.id, nxv.rev, storageRef.rev),
+        (node, nxv.storage, storageRef.id),
         (node, rdf.tpe, nxv.File),
         (node, nxv.bytes, at.bytes),
         (node, nxv.digest, blankDigest),
         (node, nxv.mediaType, at.mediaType.value),
-        (node, nxv.storageId, storage.id),
         (node, nxv.filename, at.filename)
       )
-      if (storage.showLocation) triples + ((node, nxv.location, at.location.toString()): Triple)
+      if (showLocation(storageRef)) triples + ((node, nxv.location, at.location.toString()): Triple)
       else triples
     }
+
     val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
     val projectUri  = config.admin.publicIri + "projects" / project.organizationLabel / project.label
     val self        = AccessId(id.value, schema.iri, expanded = options.expandedLinks)

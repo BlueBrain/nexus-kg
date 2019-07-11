@@ -14,9 +14,10 @@ import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
+import ch.epfl.bluebrain.nexus.kg.resources.StorageReference._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Rejection, ResId, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Rejection, ResId, ResourceV, StorageReference}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, LinkFile, SaveFile, VerifyStorage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -106,10 +107,9 @@ sealed trait Storage { self =>
   def isValid[F[_]](implicit verify: Verify[F]): VerifyStorage[F] = verify(self)
 
   /**
-    *
-    * @return true shows the location field, false doesn't
+    * A storage reference
     */
-  def showLocation: Boolean
+  def reference: StorageReference
 
 }
 
@@ -140,7 +140,8 @@ object Storage {
                                readPermission: Permission,
                                writePermission: Permission)
       extends Storage {
-    val showLocation: Boolean = false
+
+    def reference: StorageReference = DiskStorageReference(id, rev)
   }
 
   object DiskStorage {
@@ -192,7 +193,7 @@ object Storage {
                                      writePermission: Permission)
       extends Storage {
 
-    val showLocation: Boolean = true
+    def reference: StorageReference = RemoteDiskStorageReference(id, rev)
 
     def decryptAuthToken(implicit aesKey: SecretKey): Option[AuthToken] =
       credentials.map(cred => AuthToken(cred.decrypt))
@@ -228,7 +229,7 @@ object Storage {
                              readPermission: Permission,
                              writePermission: Permission)
       extends Storage {
-    val showLocation: Boolean = true
+    def reference: StorageReference = S3StorageReference(id, rev)
   }
 
   private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
@@ -427,6 +428,7 @@ object Storage {
     def apply: F[Either[String, Unit]]
   }
 
+  // $COVERAGE-OFF$
   object StorageOperations {
 
     /**
@@ -499,4 +501,5 @@ object Storage {
       }
     }
   }
+  // $COVERAGE-ON$
 }

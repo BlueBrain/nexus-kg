@@ -4,24 +4,9 @@
   "project": "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
   "organization": "17a62c6a-4dc4-4eaa-b418-42d0634695a1",
   "storage": {
-    "@type": "S3Storage",
+    "@type": "S3StorageReference",
     "id": "https://bbp.epfl.ch/nexus/storages/org/proj/s3",
-    "ref": "4947db1e-33d8-462b-9754-3e8ae74fcd4e",
-    "rev": 2,
-    "deprecated": false,
-    "default": false,
-    "algorithm": "MD5",
-    "bucket": "bucket",
-    "readPermission" : "resources/read",
-    "writePermission" : "files/write",
-    "settings": {
-      "credentials": {
-        "accessKey": "ak",
-        "secretKey": "sk"
-      },
-      "endpoint": "http://endpoint",
-      "region": "region"
-    }
+    "rev": 2
   },
   "attributes": {
     "uuid": "b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7",

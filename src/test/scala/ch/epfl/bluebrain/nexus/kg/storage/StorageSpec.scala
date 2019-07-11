@@ -35,9 +35,9 @@ class StorageSpec
   val writeS3                = Permission.unsafe("s3/write")
   private implicit val storageConfig =
     StorageConfig(
-      DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk),
-      RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
-      S3StorageConfig("MD5", readS3, writeS3),
+      DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk, false),
+      RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true),
+      S3StorageConfig("MD5", readS3, writeS3, true),
       "password",
       "salt"
     )

@@ -60,9 +60,9 @@ class QueryDirectivesSpec
     implicit val config = PaginationConfig(10, 50, 10000)
     implicit val storageConfig =
       StorageConfig(
-        DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write),
-        RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
-        S3StorageConfig("MD5", read, write),
+        DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write, false),
+        RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true),
+        S3StorageConfig("MD5", read, write, true),
         "password",
         "salt"
       )

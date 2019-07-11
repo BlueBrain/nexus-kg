@@ -1,20 +1,16 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.nio.file.Path
 import java.time.Instant
 
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
-import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -149,7 +145,7 @@ object Event {
     *
     * @param id           the resource identifier
     * @param organization the organization resource identifier
-    * @param storage      the storage used to save the file
+    * @param storage      the reference to the storage used to save the file
     * @param attributes   the metadata of the file
     * @param instant      the instant when this event was recorded
     * @param subject      the identity which generated this event
@@ -157,7 +153,7 @@ object Event {
   final case class FileCreated(
       id: Id[ProjectRef],
       organization: OrganizationRef,
-      storage: Storage,
+      storage: StorageReference,
       attributes: FileAttributes,
       instant: Instant,
       subject: Subject
@@ -184,7 +180,7 @@ object Event {
     *
     * @param id           the resource identifier
     * @param organization the organization resource identifier
-    * @param storage      the storage used to save the file
+    * @param storage      the reference to the storage used to save the file
     * @param rev          the revision that this event generated
     * @param attributes   the metadata of the file
     * @param instant      the instant when this event was recorded
@@ -193,7 +189,7 @@ object Event {
   final case class FileUpdated(
       id: Id[ProjectRef],
       organization: OrganizationRef,
-      storage: Storage,
+      storage: StorageReference,
       rev: Long,
       attributes: FileAttributes,
       instant: Instant,
@@ -234,13 +230,10 @@ object Event {
     private implicit val refEncoder: Encoder[Ref]          = Encoder.encodeJson.contramap(_.iri.asJson)
     private implicit val uriEncoder: Encoder[Uri]          = Encoder.encodeString.contramap(_.toString)
     private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
-    private implicit val pathEncoder: Encoder[Path]        = Encoder.encodeString.contramap(_.toString)
-    private implicit val permEncoder: Encoder[Permission]  = Encoder.encodeString.contramap(_.value)
+
+    private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveEncoder[StorageReference]
 
     private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
-
-    private implicit val s3SettingsEncoder: Encoder[S3Settings] =
-      Encoder.forProduct2("endpoint", "region")(settings => (settings.endpoint, settings.region))
 
     private implicit val fileAttributesEncoder: Encoder[FileAttributes] =
       deriveEncoder[FileAttributes]
@@ -251,13 +244,6 @@ object Event {
 
     private implicit def subjectIdEncoder(implicit ic: IamClientConfig): Encoder[Subject] =
       Encoder.encodeJson.contramap(_.id.asJson)
-
-    private implicit val storageEncoder: Encoder[Storage] = Encoder.instance { storage =>
-      val enc = deriveEncoder[Storage]
-      enc(storage)
-        .removeKeys("ref", "_resourceId", "_algorithm", "deprecated", "_rev")
-        .deepMerge(Json.obj(nxv.storageId.prefix -> storage.id.asJson))
-    }
 
     implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] = {
       val enc = deriveEncoder[Event]

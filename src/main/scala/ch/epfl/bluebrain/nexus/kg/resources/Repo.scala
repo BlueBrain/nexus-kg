@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.{Clock, Instant}
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.Monad
 import cats.data.{EitherT, OptionT}
@@ -18,9 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileDescription
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Link, Save}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
@@ -106,90 +103,70 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     *
     * @param id           the id of the resource
     * @param organization the organization id of the resource
-    * @param storage      the storage where the file is going to be saved
-    * @param fileDesc     the file description metadata
-    * @param source       the source of the file
+    * @param storage      the storage reference where the file was saved
+    * @param fileAttr     the file attributes
     * @param instant      an optionally provided operation instant
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
   def createFile[In](id: ResId,
                      organization: OrganizationRef,
-                     storage: Storage,
-                     fileDesc: FileDescription,
-                     source: In,
-                     instant: Instant = clock.instant)(implicit subject: Subject,
-                                                       saveStorage: Save[F, In]): EitherT[F, Rejection, Resource] =
-    EitherT
-      .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => evaluate(id, CreateFile(id, organization, storage, attr, instant, subject)))
+                     storage: StorageReference,
+                     fileAttr: FileAttributes,
+                     instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
   /**
     * Replaces a file resource.
     *
     * @param id       the id of the resource
-    * @param storage  the storage where the file is going to be saved
+    * @param storage  the storage reference where the file was saved
     * @param rev      the optional last known revision of the resource
-    * @param fileDesc the file description metadata
-    * @param source   the source of the file
+    * @param fileAttr the file attributes
     * @param instant  an optionally provided operation instant
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
   def updateFile[In](id: ResId,
-                     storage: Storage,
+                     storage: StorageReference,
                      rev: Long,
-                     fileDesc: FileDescription,
-                     source: In,
-                     instant: Instant = clock.instant)(implicit subject: Subject,
-                                                       saveStorage: Save[F, In]): EitherT[F, Rejection, Resource] =
-    EitherT
-      .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => evaluate(id, UpdateFile(id, storage, rev, attr, instant, subject)))
+                     fileAttr: FileAttributes,
+                     instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
   /**
     * Creates a link to an existing file.
     *
     * @param id           the id of the resource
     * @param organization the organization id of the resource
-    * @param storage      the storage where the file is going to be linked
-    * @param fileDesc     the file description metadata
-    * @param path         the relative (from the storage) file location
+    * @param storage      the reference to the storage where the file was linked
+    * @param fileAttr     the file attributes
     * @param instant      an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
   def createLink(id: ResId,
                  organization: OrganizationRef,
-                 storage: Storage,
-                 fileDesc: FileDescription,
-                 path: Uri.Path,
-                 instant: Instant = clock.instant)(implicit subject: Subject,
-                                                   linkStorage: Link[F]): EitherT[F, Rejection, Resource] =
-    EitherT
-      .right(storage.link.apply(id, fileDesc, path))
-      .flatMap(attr => evaluate(id, CreateFile(id, organization, storage, attr, instant, subject)))
+                 storage: StorageReference,
+                 fileAttr: FileAttributes,
+                 instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
   /**
     * Updates a link to an existing file.
     *
     * @param id       the id of the resource
-    * @param storage  the storage where the file is going to be linked
-    * @param fileDesc the file description metadata
-    * @param path     the relative (from the storage) file location
+    * @param storage      the reference to the storage where the file was linked
+    * @param fileAttr     the file attributes
     * @param rev      the last known resource revision
     * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
   def updateLink(id: ResId,
-                 storage: Storage,
-                 fileDesc: FileDescription,
-                 path: Uri.Path,
+                 storage: StorageReference,
+                 fileAttr: FileAttributes,
                  rev: Long,
-                 instant: Instant = clock.instant)(implicit subject: Subject,
-                                                   linkStorage: Link[F]): EitherT[F, Rejection, Resource] =
-    EitherT
-      .right(storage.link.apply(id, fileDesc, path))
-      .flatMap(attr => evaluate(id, UpdateFile(id, storage, rev, attr, instant, subject)))
+                 instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
   /**
     * Attempts to read the resource identified by the argument id.

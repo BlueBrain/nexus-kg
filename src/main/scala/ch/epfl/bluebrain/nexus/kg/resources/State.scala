@@ -6,7 +6,6 @@ import cats.Applicative
 import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -58,7 +57,7 @@ object State {
     * @param types        the collection of known resource types
     * @param deprecated   whether the resource is deprecated or not
     * @param tags         the collection of resource tags
-    * @param file         the optional file
+    * @param file         the optional file attributes with the storage reference
     * @param created      the instant when the resource was created
     * @param updated      the instant when the resource was last updated
     * @param createdBy    the subject that created the resource
@@ -73,7 +72,7 @@ object State {
       types: Set[AbsoluteIri],
       deprecated: Boolean,
       tags: Map[String, Long],
-      file: Option[(Storage, FileAttributes)],
+      file: Option[(StorageReference, FileAttributes)],
       created: Instant,
       updated: Instant,
       createdBy: Subject,
