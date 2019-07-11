@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg
 
 import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -57,7 +56,7 @@ object RepairFromMessages {
         case regex(stringUuid, stringId) =>
           for {
             uuid <- Try(UUID.fromString(stringUuid)).toOption
-            iri  <- Iri.absolute(URLDecoder.decode(stringId, StandardCharsets.UTF_8)).toOption
+            iri  <- Iri.absolute(URLDecoder.decode(stringId, "UTF-8")).toOption
           } yield Id(ProjectRef(uuid), iri)
         case _ => None
       }
