@@ -104,6 +104,7 @@ object Main {
     implicit val materializer: Materializer[Task] = new Materializer[Task](projectResolution, cache.project)
     implicit val projectCache                     = cache.project
     implicit val viewCache                        = cache.view
+    implicit val storageCache                     = cache.storage
     import indexers.elasticSearch
 
     val resources: Resources[Task] = Resources[Task]

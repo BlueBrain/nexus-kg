@@ -15,10 +15,11 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
+import ch.epfl.bluebrain.nexus.kg.resources.StorageReference.S3StorageReference
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Credentials, S3Settings, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import io.circe.Json
 import io.circe.parser._
@@ -39,9 +40,9 @@ class EventSerializerSpec
   private final val serialization = SerializationExtension(system)
   private implicit val storageConfig =
     StorageConfig(
-      DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write),
-      RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
-      S3StorageConfig("MD5", read, write),
+      DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write, false),
+      RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true),
+      S3StorageConfig("MD5", read, write, true),
       "password",
       "salt"
     )
@@ -67,20 +68,8 @@ class EventSerializerSpec
     val rep = Map(quote("{timestamp}") -> instant.toString)
 
     "using EventSerializer" should {
-      val value   = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
-      val storage = DiskStorage.default(key.parent)
-      val s3storage = S3Storage(
-        key.parent,
-        url"https://bbp.epfl.ch/nexus/storages/org/proj/s3".value,
-        2L,
-        false,
-        false,
-        "MD5",
-        "bucket",
-        S3Settings(Some(S3Credentials("ak", "sk")), Some("http://endpoint"), Some("region")),
-        read,
-        write
-      )
+      val value     = Json.obj("key" -> Json.obj("value" -> Json.fromString("seodhkxtudwlpnwb")))
+      val storage   = DiskStorage.default(key.parent)
       val digest    = Digest("MD5", "1234")
       val filedUuid = UUID.fromString("b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7")
       val fileAttr =
@@ -107,12 +96,16 @@ class EventSerializerSpec
                                                                               rep),
         TagAdded(key, orgRef, 1L, 2L, "tagName", instant, subject) -> jsonContentOf("/serialization/tagged-resp.json",
                                                                                     rep),
-        FileCreated(key, orgRef, storage, fileAttr, instant, subject) -> jsonContentOf(
+        FileCreated(key, orgRef, storage.reference, fileAttr, instant, subject) -> jsonContentOf(
           "/serialization/created-file-resp.json",
           rep),
-        FileUpdated(key, orgRef, s3storage, 2L, s3fileAttr, instant, subject) -> jsonContentOf(
-          "/serialization/updated-file-resp.json",
-          rep)
+        FileUpdated(key,
+                    orgRef,
+                    S3StorageReference(url"https://bbp.epfl.ch/nexus/storages/org/proj/s3".value, 2L),
+                    2L,
+                    s3fileAttr,
+                    instant,
+                    subject) -> jsonContentOf("/serialization/updated-file-resp.json", rep)
       )
 
       "encode known events to UTF-8" in {

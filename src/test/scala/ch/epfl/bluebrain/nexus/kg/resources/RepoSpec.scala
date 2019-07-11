@@ -6,21 +6,20 @@ import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
-import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.StorageReference.DiskStorageReference
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Link, Save}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, LinkFile, SaveFile}
-import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{LinkFile, SaveFile}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
@@ -77,10 +76,7 @@ class RepoSpec
     override val value  = Json.obj()
     override val schema = fileSchemaUri
     val types           = Set(nxv.File.value)
-    val storage         = DiskStorage.default(projectRef)
-
-    implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
-    implicit val link: Link[IO]         = (st: Storage) => if (st == storage) linkFile else throw new RuntimeException
+    val storageRef      = DiskStorageReference(genIri, 1L)
   }
 
   "A Repo" when {
@@ -187,52 +183,34 @@ class RepoSpec
 
     "performing file operations" should {
       val desc        = FileDescription("name", `text/plain(UTF-8)`)
-      val source      = "some text"
       val desc2       = FileDescription("name2", `text/plain(UTF-8)`)
-      val source2     = "some text2"
       val location    = Uri("file:///tmp/other")
       val path        = Uri.Path("other")
       val attributes  = desc.process(StoredSummary(location, path, 20L, Digest("MD5", "1234")))
       val attributes2 = desc2.process(StoredSummary(location, path, 30L, Digest("MD5", "4567")))
 
       "create file resource" in new File {
-        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
-
-        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
+        repo.createFile(id, organizationRef, storageRef, attributes).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storageRef -> attributes))
       }
 
       "update the file resource" in new File {
-        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
-        saveFile(id, desc, source2) shouldReturn IO.pure(attributes2)
-
-        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldBe a[Resource]
-        repo.updateFile(id, storage, 1L, desc, source2).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes2))
+        repo.createFile(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
+        repo.updateFile(id, storageRef, 1L, attributes2).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storageRef -> attributes2))
       }
 
       "prevent to update a file resource with an incorrect revision" in new File {
-        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
-
-        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldBe a[Resource]
-        repo.updateFile(id, storage, 3L, desc, source).value.rejected[IncorrectRev] shouldEqual
+        repo.createFile(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
+        repo.updateFile(id, storageRef, 3L, attributes).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent update a file resource to a deprecated resource" in new File {
-        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
-        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldBe a[Resource]
-
+        repo.createFile(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo
-          .updateFile(id, storage, 2L, desc, source)
-          .value
-          .rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
-      }
-
-      "prevent to create a file resource which fails on attempting to store" in new File {
-        saveFile(id, desc, source) shouldReturn IO.raiseError(KgError.InternalError(""))
-        repo.createFile(id, organizationRef, storage, desc, source).value.failed[KgError.InternalError]
+        repo.updateFile(id, storageRef, 2L, attributes).value.rejected[ResourceIsDeprecated] shouldEqual
+          ResourceIsDeprecated(id.ref)
       }
     }
 
@@ -249,41 +227,27 @@ class RepoSpec
       "create link" in new File {
         linkFile(id, desc, path) shouldReturn IO.pure(attributes)
 
-        repo.createLink(id, organizationRef, storage, desc, path).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes))
+        repo.createLink(id, organizationRef, storageRef, attributes).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storageRef -> attributes))
       }
 
       "update link" in new File {
-        linkFile(id, desc, path) shouldReturn IO.pure(attributes)
-        linkFile(id, desc, path2) shouldReturn IO.pure(attributes2)
-
-        repo.createLink(id, organizationRef, storage, desc, path).value.accepted shouldBe a[Resource]
-        repo.updateLink(id, storage, desc, path2, 1L).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storage -> attributes2))
+        repo.createLink(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
+        repo.updateLink(id, storageRef, attributes2, 1L).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storageRef -> attributes2))
       }
 
       "prevent link update with an incorrect revision" in new File {
-        linkFile(id, desc, path) shouldReturn IO.pure(attributes)
-
-        repo.createLink(id, organizationRef, storage, desc, path).value.accepted shouldBe a[Resource]
-        repo.updateLink(id, storage, desc, path, 3L).value.rejected[IncorrectRev] shouldEqual
+        repo.createLink(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
+        repo.updateLink(id, storageRef, attributes, 3L).value.rejected[IncorrectRev] shouldEqual
           IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent link update to a deprecated resource" in new File {
-        linkFile(id, desc, path) shouldReturn IO.pure(attributes)
-        repo.createLink(id, organizationRef, storage, desc, path).value.accepted shouldBe a[Resource]
-
+        repo.createLink(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
         repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo
-          .updateLink(id, storage, desc, path, 2L)
-          .value
-          .rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
-      }
-
-      "prevent link creation when the store operation fails" in new File {
-        linkFile(id, desc, path) shouldReturn IO.raiseError(KgError.InternalError(""))
-        repo.createLink(id, organizationRef, storage, desc, path).value.failed[KgError.InternalError]
+        repo.updateLink(id, storageRef, attributes, 2L).value.rejected[ResourceIsDeprecated] shouldEqual
+          ResourceIsDeprecated(id.ref)
       }
     }
 
@@ -367,31 +331,27 @@ class RepoSpec
       val location    = Uri("file:///tmp/other")
       val path        = Uri.Path("other")
       val desc        = FileDescription("name", `text/plain(UTF-8)`)
-      val source      = "some text"
       val attributes  = desc.process(StoredSummary(location, path, 20L, Digest("MD5", "1234")))
       val desc2       = FileDescription("name2", `text/plain(UTF-8)`)
-      val source2     = "some text2"
       val attributes2 = desc2.process(StoredSummary(location, path, 30L, Digest("MD5", "4567")))
 
       "get a file resource" in new File {
-        saveFile(id, desc, source) shouldReturn IO.pure(attributes)
-        repo.createFile(id, organizationRef, storage, desc, source).value.accepted shouldBe a[Resource]
+        repo.createFile(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
 
-        saveFile(id, desc2, source2) shouldReturn IO.pure(attributes2)
-        repo.updateFile(id, storage, 1L, desc2, source2).value.accepted shouldBe a[Resource]
+        repo.updateFile(id, storageRef, 1L, attributes2).value.accepted shouldBe a[Resource]
 
-        repo.get(id, None).value.some.file.value shouldEqual (storage -> attributes2)
+        repo.get(id, None).value.some.file.value shouldEqual (storageRef -> attributes2)
 
         //by rev
-        repo.get(id, 2L, None).value.some.file.value shouldEqual (storage -> attributes2)
+        repo.get(id, 2L, None).value.some.file.value shouldEqual (storageRef -> attributes2)
 
-        repo.get(id, 1L, None).value.some.file.value shouldEqual (storage -> attributes)
+        repo.get(id, 1L, None).value.some.file.value shouldEqual (storageRef -> attributes)
 
         //by tag
         repo.tag(id, 2L, 1L, "one").value.accepted shouldBe a[Resource]
         repo.tag(id, 3L, 2L, "two").value.accepted shouldBe a[Resource]
-        repo.get(id, "one", None).value.some.file.value shouldEqual (storage -> attributes)
-        repo.get(id, "two", None).value.some.file.value shouldEqual (storage -> attributes2)
+        repo.get(id, "one", None).value.some.file.value shouldEqual (storageRef -> attributes)
+        repo.get(id, "two", None).value.some.file.value shouldEqual (storageRef -> attributes2)
 
       }
 
