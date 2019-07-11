@@ -115,16 +115,25 @@ object Main {
     val schemas: Schemas[Task]     = Schemas[Task]
     val tags: Tags[Task]           = Tags[Task]
 
-    implicit val projections: Projections[Task, Event] = {
-      import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
-      Projections[Task, Event].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
-    }
-
     val logger = Logging(as, getClass)
     System.setProperty(DocumentLoader.DISALLOW_REMOTE_CONTEXT_LOADING, "true")
 
     cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
+
+      if (sys.env.getOrElse("MIGRATE_V10_TO_V11", "false").toBoolean) {
+        Migrations.V1ToV11.migrate(appConfig)(as, mt, Scheduler.global, CanBlock.permit)
+        RepairFromMessages.repair(repo)(as, mt, Scheduler.global, CanBlock.permit)
+      }
+
+      if (sys.env.getOrElse("REPAIR_FROM_MESSAGES", "false").toBoolean) {
+        RepairFromMessages.repair(repo)(as, mt, Scheduler.global, CanBlock.permit)
+      }
+
+      implicit val projections: Projections[Task, Event] = {
+        import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
+        Projections[Task, Event].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
+      }
 
       val projectCoordinator = Indexing.start(resources, storages, views, resolvers, indexers.adminClient)
       val routes: Route      = Routes(resources, resolvers, views, storages, schemas, files, tags, projectCoordinator)
