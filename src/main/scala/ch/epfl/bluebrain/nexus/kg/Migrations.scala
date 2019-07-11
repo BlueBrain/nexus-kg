@@ -30,7 +30,7 @@ import scala.concurrent.Future
   * Migrate messages table in between minor Nexus revisions.
   */
 object Migrations {
-
+  // $COVERAGE-OFF$
   object V1ToV11 {
 
     private val alpha = "https://bluebrain.github.io/nexus/vocabulary/Alpha"
@@ -319,4 +319,5 @@ object Migrations {
     def runSyncDiscard()(implicit s: Scheduler, permit: CanBlock): Unit =
       Task.fromFuture(future).map(_ => ()).runSyncUnsafe()
   }
+  // $COVERAGE-ON$
 }

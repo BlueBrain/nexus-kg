@@ -22,6 +22,7 @@ import scala.util.Try
   * Repair tool to rebuild the dependent tables in case tag_views is out of sync with the messages tables.
   */
 object RepairFromMessages {
+  // $COVERAGE-OFF$
 
   private val log = Logger[RepairFromMessages.type]
 
@@ -61,4 +62,5 @@ object RepairFromMessages {
         case _ => None
       }
   }
+  // $COVERAGE-ON$
 }
