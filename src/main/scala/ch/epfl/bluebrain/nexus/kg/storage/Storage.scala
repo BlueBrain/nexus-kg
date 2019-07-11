@@ -428,6 +428,7 @@ object Storage {
     def apply: F[Either[String, Unit]]
   }
 
+  // $COVERAGE-OFF$
   object StorageOperations {
 
     /**
@@ -500,4 +501,5 @@ object Storage {
       }
     }
   }
+  // $COVERAGE-ON$
 }

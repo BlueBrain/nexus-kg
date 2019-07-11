@@ -13,9 +13,10 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
+import ch.epfl.bluebrain.nexus.kg.resources.StorageReference.S3StorageReference
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, S3Credentials, S3Settings, S3Storage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import com.typesafe.config.{Config, ConfigFactory}
@@ -142,7 +143,7 @@ class EventsSpecBase
     FileCreated(
       Id(projectRef, base + "file"),
       orgRef,
-      DiskStorage.default(projectRef),
+      DiskStorage.default(projectRef).reference,
       FileAttributes(
         "/some/location/path",
         Uri.Path("path"),
@@ -157,18 +158,7 @@ class EventsSpecBase
     FileUpdated(
       Id(projectRef, base + "file"),
       orgRef,
-      S3Storage(
-        projectRef,
-        base + "storages" + "s3",
-        1L,
-        deprecated = false,
-        default = false,
-        "MD5",
-        "bucket",
-        S3Settings(Some(S3Credentials("ak", "sk")), Some("endpoint"), Some("region")),
-        Permission.unsafe("resources/read"),
-        Permission.unsafe("files/write")
-      ),
+      S3StorageReference(base + "storages" + "s3", 1L),
       2L,
       FileAttributes(
         Uri("/some/location/path"),

@@ -16,7 +16,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileDescription, LinkDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription, LinkDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
@@ -164,22 +165,20 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
   def fetch[Out](id: ResId, tag: String)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
     fetch(repo.get(id, tag, Some(fileRef)).toRight(notFound(id.ref, tagOpt = Some(tag))))
 
-  private def fetch[Out](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
+  private def fetch[Out](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] = {
+    def fileOrRejection(resource: Resource): Either[Rejection, (ProjectRef, StorageReference, File.FileAttributes)] =
+      resource.file.map { case (ref, attr) => (resource.id.parent, ref, attr) }.toRight(notFound(resource.id.ref))
+
+    def storageOrRejection(project: ProjectRef, ref: StorageReference, attr: FileAttributes) =
+      storageCache.get(project, ref.id).map(_.map(_ -> attr).toRight(notFound(ref.id.ref)))
+
     rejOrResource
-      .subflatMap(
-        resource =>
-          resource.file
-            .map { case (ref, fileAttr) => (resource.id.parent, ref, fileAttr) }
-            .toRight(notFound(resource.id.ref)))
-      .flatMapF {
-        case (project, storageRef, fileAttr) =>
-          storageCache
-            .get(project, storageRef.id)
-            .map(storageOpt => storageOpt.map(_ -> fileAttr).toRight(notFound(storageRef.id.ref)))
-      }
+      .subflatMap(fileOrRejection)
+      .flatMapF { case (project, ref, attr) => storageOrRejection(project, ref, attr) }
       .flatMapF {
         case (storage, fileAttr) => storage.fetch.apply(fileAttr).map(out => Right((storage, fileAttr, out)))
       }
+  }
 
   /**
     * Lists files on the given project

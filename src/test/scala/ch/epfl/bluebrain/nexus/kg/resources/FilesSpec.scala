@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.KgError.RemoteFileNotFound
 import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -56,14 +57,16 @@ class FilesSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private implicit val repo                    = Repo[IO].ioValue
-  private val saveFile: SaveFile[IO, String]   = mock[SaveFile[IO, String]]
-  private val fetchFile: FetchFile[IO, String] = mock[FetchFile[IO, String]]
-  private val linkFile: LinkFile[IO]           = mock[LinkFile[IO]]
+  private implicit val repo                           = Repo[IO].ioValue
+  private val saveFile: SaveFile[IO, String]          = mock[SaveFile[IO, String]]
+  private val fetchFile: FetchFile[IO, String]        = mock[FetchFile[IO, String]]
+  private val linkFile: LinkFile[IO]                  = mock[LinkFile[IO]]
+  private implicit val storageCache: StorageCache[IO] = mock[StorageCache[IO]]
 
   private val files: Files[IO] = Files[IO]
 
   before {
+    Mockito.reset(storageCache)
     Mockito.reset(saveFile)
     Mockito.reset(fetchFile)
     Mockito.reset(linkFile)
@@ -90,6 +93,8 @@ class FilesSpec
     val storage    = DiskStorage.default(projectRef)
     val fileLink   = jsonContentOf("/resources/file-link.json")
 
+    storageCache.get(projectRef, storage.id) shouldReturn IO(Some(storage))
+
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
 
     implicit val link: Link[IO] = (st: Storage) => if (st == storage) linkFile else throw new RuntimeException
@@ -111,7 +116,18 @@ class FilesSpec
       "create a new File" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         files.create(resId, storage, desc, source).value.accepted shouldEqual
-          ResourceF.simpleF(resId, value, schema = fileRef, types = types).copy(file = Some(storage -> attributes))
+          ResourceF
+            .simpleF(resId, value, schema = fileRef, types = types)
+            .copy(file = Some(storage.reference -> attributes))
+      }
+
+      "create a new File without id" in new Base {
+        saveFile(any[ResId], desc, source) shouldReturn IO.pure(attributes)
+        val resp = files.create(storage, desc, source).value.accepted
+        val expected = ResourceF
+          .simpleF(resp.id, value, schema = fileRef, types = types)
+          .copy(file = Some(storage.reference -> attributes))
+        resp shouldEqual expected
       }
 
       "prevent creating a new File when save method fails" in new Base {
@@ -136,7 +152,7 @@ class FilesSpec
         files.update(resId, storage, 1L, desc, updatedSource).value.accepted shouldEqual
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types)
-            .copy(file = Some(storage -> attributesUpdated))
+            .copy(file = Some(storage.reference -> attributesUpdated))
       }
 
       "prevent updating a file that does not exist" in new Base {
@@ -150,7 +166,19 @@ class FilesSpec
       "create a new link" in new Base {
         linkFile(eqTo(resId), eqTo(desc), eqTo(path)) shouldReturn IO.pure(attributes)
         files.createLink(resId, storage, fileLink).value.accepted shouldEqual
-          ResourceF.simpleF(resId, value, schema = fileRef, types = types).copy(file = Some(storage -> attributes))
+          ResourceF
+            .simpleF(resId, value, schema = fileRef, types = types)
+            .copy(file = Some(storage.reference -> attributes))
+      }
+
+      "create a new link without id" in new Base {
+        linkFile(any[ResId], eqTo(desc), eqTo(path)) shouldReturn IO.pure(attributes)
+        val resp = files.createLink(storage, fileLink).value.accepted
+
+        resp shouldEqual
+          ResourceF
+            .simpleF(resp.id, value, schema = fileRef, types = types)
+            .copy(file = Some(storage.reference -> attributes))
       }
 
       "prevent creating a new link when save method fails" in new Base {
@@ -173,7 +201,7 @@ class FilesSpec
         files.updateLink(resId, storage, 1L, fileLink2).value.accepted shouldEqual
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types)
-            .copy(file = Some(storage -> attributesUpdated))
+            .copy(file = Some(storage.reference -> attributesUpdated))
       }
 
       "prevent updating a link that does not exist" in new Base {
@@ -193,7 +221,7 @@ class FilesSpec
         files.deprecate(resId, 1L).value.accepted shouldEqual
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types, deprecated = true)
-            .copy(file = Some(storage -> attributes))
+            .copy(file = Some(storage.reference -> attributes))
       }
 
       "prevent deprecating a file already deprecated" in new Base {
@@ -205,7 +233,6 @@ class FilesSpec
     }
 
     "performing read operations" should {
-
       "return a file" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
         fetchFile(attributes) shouldReturn IO.pure(source)

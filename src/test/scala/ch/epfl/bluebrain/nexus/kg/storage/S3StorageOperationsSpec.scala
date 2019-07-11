@@ -53,9 +53,9 @@ class S3StorageOperationsSpec
   private var client: AmazonS3 = _
 
   private implicit val sc: StorageConfig = StorageConfig(
-    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write),
-    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write),
-    S3StorageConfig("MD5", readS3, writeS3),
+    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false),
+    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true),
+    S3StorageConfig("MD5", readS3, writeS3, true),
     "password",
     "salt"
   )
