@@ -21,9 +21,11 @@ class GlobalEventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: A
   private implicit val iamConf: IamClientConfig = config.iam.iamClient
 
   def routes: Route =
-    (lastEventId & hasPermissionOnRoot(read)) { offset =>
+    lastEventId { offset =>
       operationName(s"/${config.http.prefix}/events") {
-        complete(source(TaggingAdapter.EventTag, offset))
+        hasPermissionOnRoot(read).apply {
+          complete(source(TaggingAdapter.EventTag, offset))
+        }
       }
     }
 }

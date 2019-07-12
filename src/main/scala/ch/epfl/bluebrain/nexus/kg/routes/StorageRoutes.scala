@@ -22,6 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import kamon.Kamon
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -46,22 +47,26 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
   def routes: Route =
     concat(
       // Create storage when id is not provided on the Uri (POST)
-      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          operationName("createStorage") {
-            complete(storages.create(source).value.runWithStatus(Created))
+      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/storages/{}/{}") {
+          Kamon.currentSpan().tag("resource.operation", "create")
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              complete(storages.create(source).value.runWithStatus(Created))
+            }
           }
         }
       },
       // List storages
-      (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (page, params) =>
+      (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
+        operationName(s"/${config.http.prefix}/storages/{}/{}") {
           extractUri { implicit uri =>
-            operationName("listStorage") {
+            hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(storages.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
           }
+        }
       },
       // Consume the storage id segment
       pathPrefix(IdSegment) { id =>
@@ -80,67 +85,80 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
   def routes(id: AbsoluteIri): Route =
     concat(
       // Create or update a storage (depending on rev query parameter)
-      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          parameter('rev.as[Long].?) {
-            case None =>
-              operationName("createStorage") {
-                complete(storages.create(Id(project.ref, id), source).value.runWithStatus(Created))
+      (put & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/storages/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              parameter('rev.as[Long].?) {
+                case None =>
+                  Kamon.currentSpan().tag("resource.operation", "create")
+                  complete(storages.create(Id(project.ref, id), source).value.runWithStatus(Created))
+                case Some(rev) =>
+                  Kamon.currentSpan().tag("resource.operation", "update")
+                  complete(storages.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
               }
-            case Some(rev) =>
-              operationName("updateStorage") {
-                complete(storages.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
-              }
+            }
           }
         }
       },
       // Deprecate storage
-      (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        operationName("deprecateStorage") {
-          complete(storages.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+        operationName(s"/${config.http.prefix}/storages/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            complete(storages.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+          }
         }
       },
       // Fetch storage
-      (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
-        case Binary => failWith(InvalidOutputFormat("Binary"))
-        case format: NonBinaryOutputFormat =>
-          operationName("getStorage") {
-            concat(
-              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-                completeWithFormat(storages.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
-              },
-              (parameter('tag) & noParameter('rev)) { tag =>
-                completeWithFormat(storages.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
-              },
-              (noParameter('tag) & noParameter('rev)) {
-                completeWithFormat(storages.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+      (get & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/storages/{}/{}/{}") {
+          outputFormat(strict = false, Compacted) {
+            case Binary => failWith(InvalidOutputFormat("Binary"))
+            case format: NonBinaryOutputFormat =>
+              hasPermission(read).apply {
+                concat(
+                  (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                    completeWithFormat(storages.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
+                  },
+                  (parameter('tag) & noParameter('rev)) { tag =>
+                    completeWithFormat(storages.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
+                  },
+                  (noParameter('tag) & noParameter('rev)) {
+                    completeWithFormat(storages.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+                  }
+                )
               }
-            )
           }
+        }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("incomingLinksStorage") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listIncoming(id, _, page))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/storages/{}/{}/{}/incoming") {
+          fromPaginated.apply { implicit page =>
+            extractUri { implicit uri =>
+              hasPermission(read).apply {
+                val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listIncoming(id, _, page))
+                complete(listed.runWithStatus(OK))
+              }
             }
           }
         }
       },
       // Outgoing links
-      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
-        read)) { links =>
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("outgoingLinksStorage") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(storages.listOutgoing(id, _, page, links))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+        links =>
+          operationName(s"/${config.http.prefix}/storages/{}/{}/{}/outgoing") {
+            fromPaginated.apply { implicit page =>
+              extractUri { implicit uri =>
+                hasPermission(read).apply {
+                  val listed =
+                    viewCache.getDefaultSparql(project.ref).flatMap(storages.listOutgoing(id, _, page, links))
+                  complete(listed.runWithStatus(OK))
+                }
+              }
             }
           }
-        }
       },
-      new TagRoutes(tags, storageRef, write).routes(id)
+      new TagRoutes("storages", tags, storageRef, write).routes(id)
     )
 }

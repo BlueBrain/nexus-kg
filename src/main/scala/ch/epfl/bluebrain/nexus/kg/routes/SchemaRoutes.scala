@@ -21,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.SchemaRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import kamon.Kamon
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -44,22 +45,26 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
   def routes: Route =
     concat(
       // Create schema when id is not provided on the Uri (POST)
-      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          operationName("createSchema") {
-            complete(schemas.create(source).value.runWithStatus(Created))
+      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/schemas/{}/{}") {
+          Kamon.currentSpan().tag("resource.operation", "create")
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              complete(schemas.create(source).value.runWithStatus(Created))
+            }
           }
         }
       },
       // List schemas
-      (get & paginated & searchParams(fixedSchema = shaclSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (page, params) =>
+      (get & paginated & searchParams(fixedSchema = shaclSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
+        operationName(s"/${config.http.prefix}/schemas/{}/{}") {
           extractUri { implicit uri =>
-            operationName("listSchema") {
+            hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(schemas.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
           }
+        }
       },
       // Consume the schema id segment
       pathPrefix(IdSegment) { id =>
@@ -78,68 +83,80 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
   def routes(id: AbsoluteIri): Route =
     concat(
       // Create or update a schema (depending on rev query parameter)
-      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          parameter('rev.as[Long].?) {
-            case None =>
-              operationName("createSchema") {
-                complete(schemas.create(Id(project.ref, id), source).value.runWithStatus(Created))
+      (put & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              parameter('rev.as[Long].?) {
+                case None =>
+                  Kamon.currentSpan().tag("resource.operation", "create")
+                  complete(schemas.create(Id(project.ref, id), source).value.runWithStatus(Created))
+                case Some(rev) =>
+                  Kamon.currentSpan().tag("resource.operation", "update")
+                  complete(schemas.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
               }
-            case Some(rev) =>
-              operationName("updateSchema") {
-                complete(schemas.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
-              }
+            }
           }
         }
       },
       // Deprecate schema
-      (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        operationName("deprecateSchema") {
-          complete(schemas.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            complete(schemas.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+          }
         }
       },
       // Fetch schema
-      (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
-        case Binary => failWith(InvalidOutputFormat("Binary"))
-        case format: NonBinaryOutputFormat =>
-          operationName("getSchema") {
-            concat(
-              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-                completeWithFormat(schemas.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
-              },
-              (parameter('tag) & noParameter('rev)) { tag =>
-                completeWithFormat(schemas.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
-              },
-              (noParameter('tag) & noParameter('rev)) {
-                completeWithFormat(schemas.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+      (get & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}") {
+          outputFormat(strict = false, Compacted) {
+            case Binary => failWith(InvalidOutputFormat("Binary"))
+            case format: NonBinaryOutputFormat =>
+              hasPermission(read).apply {
+                concat(
+                  (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                    completeWithFormat(schemas.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
+                  },
+                  (parameter('tag) & noParameter('rev)) { tag =>
+                    completeWithFormat(schemas.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
+                  },
+                  (noParameter('tag) & noParameter('rev)) {
+                    completeWithFormat(schemas.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+                  }
+                )
               }
-            )
           }
+        }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("incomingLinksSchema") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listIncoming(id, _, page))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}/incoming") {
+          fromPaginated.apply { implicit page =>
+            extractUri { implicit uri =>
+              hasPermission(read).apply {
+                val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listIncoming(id, _, page))
+                complete(listed.runWithStatus(OK))
+              }
             }
           }
         }
       },
       // Outgoing links
-      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
-        read)) { links =>
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("outgoingLinksSchema") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listOutgoing(id, _, page, links))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+        links =>
+          operationName(s"/${config.http.prefix}/schemas/{}/{}/{}/outgoing") {
+            fromPaginated.apply { implicit page =>
+              extractUri { implicit uri =>
+                hasPermission(read).apply {
+                  val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listOutgoing(id, _, page, links))
+                  complete(listed.runWithStatus(OK))
+                }
+              }
             }
           }
-        }
       },
-      new TagRoutes(tags, shaclRef, write).routes(id)
+      new TagRoutes("schemas", tags, shaclRef, write).routes(id)
     )
 }
 

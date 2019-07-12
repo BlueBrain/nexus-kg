@@ -196,28 +196,27 @@ object Routes {
     val appInfoRoutes = AppInfoRoutes(config.description, healthStatusGroup).routes
 
     def list(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
-      (get & paginated & searchParams & pathEndOrSingleSlash & hasPermission(read) & extractUri) {
-        (pagination, params, uri) =>
-          operationName("listResource") {
-            implicit val u = uri
-            val listed     = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
+      (get & paginated & searchParams & pathEndOrSingleSlash) { (pagination, params) =>
+        operationName(s"/${config.http.prefix}/resources/{}/{}") {
+          (hasPermission(read) & extractUri) { implicit uri =>
+            val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
           }
-      }
-
-    def projectEvents(implicit project: Project, acls: AccessControlLists, caller: Caller): Route =
-      (pathPrefix("events") & get & pathEndOrSingleSlash) {
-        operationName("eventProjectResource") {
-          new EventRoutes(acls, caller).routes(project)
         }
       }
 
+    def projectEvents(implicit project: Project, acls: AccessControlLists, caller: Caller): Route =
+      (get & pathPrefix("events") & pathEndOrSingleSlash) {
+        new EventRoutes(acls, caller).routes(project)
+      }
+
     def createDefault(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
-      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(
-        ResourceRoutes.write)) {
-        entity(as[Json]) { source =>
-          operationName("createResource") {
-            complete(resources.create(unconstrainedRef, source).value.runWithStatus(Created))
+      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resources/{}/{}") {
+          (hasPermission(ResourceRoutes.write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              complete(resources.create(unconstrainedRef, source).value.runWithStatus(Created))
+            }
           }
         }
       }
@@ -256,18 +255,16 @@ object Routes {
           extractCaller.apply {
             implicit caller =>
               concat(
-                (pathPrefix(config.http.prefix / "events") & pathEndOrSingleSlash) {
+                (get & pathPrefix(config.http.prefix / "events") & pathEndOrSingleSlash) {
                   new GlobalEventRoutes(acls, caller).routes
                 },
-                (pathPrefix(config.http.prefix / "resources" / "events") & pathEndOrSingleSlash) {
+                (get & pathPrefix(config.http.prefix / "resources" / "events") & pathEndOrSingleSlash) {
                   new GlobalEventRoutes(acls, caller).routes
                 },
-                (pathPrefix(config.http.prefix / "resources" / Segment) & pathPrefix("events") & get & pathEndOrSingleSlash) {
+                (get & pathPrefix(config.http.prefix / "resources" / Segment / "events") & pathEndOrSingleSlash) {
                   label =>
                     org(label).apply { implicit organization =>
-                      operationName("eventOrganizationResource") {
-                        new EventRoutes(acls, caller).routes(organization)
-                      }
+                      new EventRoutes(acls, caller).routes(organization)
                     }
                 },
                 pathPrefix(config.http.prefix / Segment) { resourceSegment =>

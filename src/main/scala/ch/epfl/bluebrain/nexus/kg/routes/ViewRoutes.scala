@@ -32,6 +32,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
+import kamon.Kamon
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -62,22 +63,26 @@ class ViewRoutes private[routes] (views: Views[Task],
   def routes: Route =
     concat(
       // Create view when id is not provided on the Uri (POST)
-      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          operationName("createView") {
-            complete(views.create(source).value.runWithStatus(Created))
+      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}") {
+          Kamon.currentSpan().tag("resource.operation", "create")
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              complete(views.create(source).value.runWithStatus(Created))
+            }
           }
         }
       },
       // List views
-      (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (page, params) =>
+      (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
+        operationName(s"/${config.http.prefix}/views/{}/{}") {
           extractUri { implicit uri =>
-            operationName("listView") {
+            hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
           }
+        }
       },
       sparqlRoute,
       elasticSearch,
@@ -99,68 +104,80 @@ class ViewRoutes private[routes] (views: Views[Task],
   def routes(id: AbsoluteIri): Route =
     concat(
       // Create or update a view (depending on rev query parameter)
-      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          parameter('rev.as[Long].?) {
-            case None =>
-              operationName("createView") {
-                complete(views.create(Id(project.ref, id), source).value.runWithStatus(Created))
+      (put & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              parameter('rev.as[Long].?) {
+                case None =>
+                  Kamon.currentSpan().tag("resource.operation", "create")
+                  complete(views.create(Id(project.ref, id), source).value.runWithStatus(Created))
+                case Some(rev) =>
+                  Kamon.currentSpan().tag("resource.operation", "update")
+                  complete(views.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
               }
-            case Some(rev) =>
-              operationName("updateView") {
-                complete(views.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
-              }
+            }
           }
         }
       },
       // Deprecate view
-      (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        operationName("deprecateView") {
-          complete(views.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            complete(views.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+          }
         }
       },
       // Fetch view
-      (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
-        case Binary => failWith(InvalidOutputFormat("Binary"))
-        case format: NonBinaryOutputFormat =>
-          operationName("getView") {
-            concat(
-              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-                completeWithFormat(views.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
-              },
-              (parameter('tag) & noParameter('rev)) { tag =>
-                completeWithFormat(views.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
-              },
-              (noParameter('tag) & noParameter('rev)) {
-                completeWithFormat(views.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+      (get & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}") {
+          outputFormat(strict = false, Compacted) {
+            case Binary => failWith(InvalidOutputFormat("Binary"))
+            case format: NonBinaryOutputFormat =>
+              hasPermission(read).apply {
+                concat(
+                  (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                    completeWithFormat(views.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
+                  },
+                  (parameter('tag) & noParameter('rev)) { tag =>
+                    completeWithFormat(views.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
+                  },
+                  (noParameter('tag) & noParameter('rev)) {
+                    completeWithFormat(views.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+                  }
+                )
               }
-            )
           }
+        }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("incomingLinksView") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listIncoming(id, _, page))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/incoming") {
+          fromPaginated.apply { implicit page =>
+            extractUri { implicit uri =>
+              hasPermission(read).apply {
+                val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listIncoming(id, _, page))
+                complete(listed.runWithStatus(OK))
+              }
             }
           }
         }
       },
       // Outgoing links
-      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
-        read)) { links =>
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("outgoingLinksView") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listOutgoing(id, _, page, links))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+        links =>
+          operationName(s"/${config.http.prefix}/views/{}/{}/{}/outgoing") {
+            fromPaginated.apply { implicit page =>
+              extractUri { implicit uri =>
+                hasPermission(read).apply {
+                  val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listOutgoing(id, _, page, links))
+                  complete(listed.runWithStatus(OK))
+                }
+              }
             }
           }
-        }
       },
-      new TagRoutes(tags, viewRef, write).routes(id)
+      new TagRoutes("views", tags, viewRef, write).routes(id)
     )
 
   private def sparqlQuery(view: SparqlView, query: String): Task[SparqlResults] = {
@@ -170,19 +187,19 @@ class ViewRoutes private[routes] (views: Views[Task],
   }
 
   private def sparqlRoute: Route =
-    pathPrefix(IdSegment / "sparql") { id =>
-      (post & pathEndOrSingleSlash & hasPermission(query)) {
-        entity(as[String]) { query =>
-          val result: Task[Either[Rejection, SparqlResults]] = viewCache.getBy[View](project.ref, id).flatMap {
-            case Some(v: SparqlView) => sparqlQuery(v, query).map(Right.apply)
-            case Some(agg: AggregateSparqlView[_]) =>
-              val resultListF = agg.queryableViews.flatMap { views =>
-                Task.gatherUnordered(views.map(sparqlQuery(_, query)))
-              }
-              resultListF.map(list => Right(list.foldLeft(SparqlResults.empty)(_ ++ _)))
-            case _ => Task.pure(Left(NotFound(id.ref)))
-          }
-          operationName("searchSparql") {
+    (post & pathPrefix(IdSegment / "sparql") & pathEndOrSingleSlash) { id =>
+      operationName(s"/${config.http.prefix}/views/{}/{}/{}/sparql") {
+        hasPermission(query).apply {
+          entity(as[String]) { query =>
+            val result: Task[Either[Rejection, SparqlResults]] = viewCache.getBy[View](project.ref, id).flatMap {
+              case Some(v: SparqlView) => sparqlQuery(v, query).map(Right.apply)
+              case Some(agg: AggregateSparqlView[_]) =>
+                val resultListF = agg.queryableViews.flatMap { views =>
+                  Task.gatherUnordered(views.map(sparqlQuery(_, query)))
+                }
+                resultListF.map(list => Right(list.foldLeft(SparqlResults.empty)(_ ++ _)))
+              case _ => Task.pure(Left(NotFound(id.ref)))
+            }
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
@@ -190,37 +207,41 @@ class ViewRoutes private[routes] (views: Views[Task],
     }
 
   private def elasticSearch: Route =
-    pathPrefix(IdSegment / "_search") { id =>
-      (post & extract(_.request.uri.query()) & pathEndOrSingleSlash & hasPermission(query)) { params =>
-        entity(as[Json]) { query =>
-          import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
-          implicit val retryer: Retry[Task, ElasticSearchServerOrUnexpectedFailure] =
-            Retry(config.elasticSearch.query.retryStrategy)
+    (post & pathPrefix(IdSegment / "_search") & pathEndOrSingleSlash) { id =>
+      operationName(s"/${config.http.prefix}/views/{}/{}/{}/_search") {
+        (hasPermission(query) & extract(_.request.uri.query())) { params =>
+          entity(as[Json]) { query =>
+            import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
+            implicit val retryer: Retry[Task, ElasticSearchServerOrUnexpectedFailure] =
+              Retry(config.elasticSearch.query.retryStrategy)
 
-          val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
-            case Some(v: ElasticSearchView) =>
-              indexers.elasticSearch.searchRaw(query, Set(v.index), params).map(Right.apply).retry
-            case Some(agg: AggregateElasticSearchView[_]) =>
-              agg.queryableIndices.flatMap {
-                case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
-                case indices                    => indexers.elasticSearch.searchRaw(query, indices, params).map(Right.apply).retry
-              }
-            case _ => Task.pure(Left(NotFound(id.ref)))
+            val result: Task[Either[Rejection, Json]] = viewCache.getBy[View](project.ref, id).flatMap {
+              case Some(v: ElasticSearchView) =>
+                indexers.elasticSearch.searchRaw(query, Set(v.index), params).map(Right.apply).retry
+              case Some(agg: AggregateElasticSearchView[_]) =>
+                agg.queryableIndices.flatMap {
+                  case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
+                  case indices                    => indexers.elasticSearch.searchRaw(query, indices, params).map(Right.apply).retry
+                }
+              case _ => Task.pure(Left(NotFound(id.ref)))
+            }
+            complete(result.runWithStatus(StatusCodes.OK))
           }
-          operationName("searchElasticSearch")(complete(result.runWithStatus(StatusCodes.OK)))
         }
       }
     }
 
   private def stats: Route =
-    pathPrefix(IdSegment / "statistics") { id =>
-      (get & hasPermission(read)) {
-        val result: Task[Either[Rejection, ViewStatistics]] = viewCache.getBy[View](project.ref, id).flatMap {
-          case Some(view: SingleView) => projectViewCoordinator.viewStatistics(project, view).map(Right(_))
-          case Some(_)                => Task.pure(Left(NoStatsForAggregateView))
-          case None                   => Task.pure(Left(NotFound(id.ref)))
+    (get & pathPrefix(IdSegment / "statistics") & pathEndOrSingleSlash) { id =>
+      operationName(s"/${config.http.prefix}/views/{}/{}/{}/statistics") {
+        hasPermission(read).apply {
+          val result: Task[Either[Rejection, ViewStatistics]] = viewCache.getBy[View](project.ref, id).flatMap {
+            case Some(view: SingleView) => projectViewCoordinator.viewStatistics(project, view).map(Right(_))
+            case Some(_)                => Task.pure(Left(NoStatsForAggregateView))
+            case None                   => Task.pure(Left(NotFound(id.ref)))
+          }
+          complete(result.runWithStatus(StatusCodes.OK))
         }
-        complete(result.runWithStatus(StatusCodes.OK))
       }
     }
 }
