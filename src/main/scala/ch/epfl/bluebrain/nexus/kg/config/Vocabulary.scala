@@ -91,6 +91,7 @@ object Vocabulary {
     val volume          = PrefixMapping.prefix("volume")
     val readPermission  = PrefixMapping.prefix("readPermission")
     val writePermission = PrefixMapping.prefix("writePermission")
+    val maxFileSize     = PrefixMapping.prefix("maxFileSize")
 
     //Remote disk storage payload vocabulary
     val folder      = PrefixMapping.prefix("folder")

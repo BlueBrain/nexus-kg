@@ -9,6 +9,10 @@
     "volume": "nxv:volume",
     "readPermission": "nxv:readPermission",
     "writePermission": "nxv:writePermission",
+    "maxFileSize": {
+      "@id": "nxv:maxFileSize",
+      "@type": "http://www.w3.org/2001/XMLSchema#long"
+    },
     "bucket": "nxv:bucket",
     "credentials": "nxv:credentials",
     "folder": "nxv:folder",

@@ -155,11 +155,13 @@ object AppConfig {
     * @param readPermission  the default permission required in order to download a file from a s3 storage
     * @param writePermission the default permission required in order to upload a file to a s3 storage
     * @param showLocation    flag to decide whether or not to show the absolute location of the files in the metadata response
+    * @param maxFileSize     the default maximum allowed file size (in bytes) for uploaded files
     */
   final case class S3StorageConfig(digestAlgorithm: String,
                                    readPermission: Permission,
                                    writePermission: Permission,
-                                   showLocation: Boolean)
+                                   showLocation: Boolean,
+                                   maxFileSize: Long)
 
   /**
     * Disk storage configuration
@@ -169,12 +171,14 @@ object AppConfig {
     * @param readPermission  the default permission required in order to download a file from a disk storage
     * @param writePermission the default permission required in order to upload a file to a disk storage
     * @param showLocation    flag to decide whether or not to show the absolute location of the files in the metadata response
+    * @param maxFileSize     the default maximum allowed file size (in bytes) for uploaded files
     */
   final case class DiskStorageConfig(volume: Path,
                                      digestAlgorithm: String,
                                      readPermission: Permission,
                                      writePermission: Permission,
-                                     showLocation: Boolean)
+                                     showLocation: Boolean,
+                                     maxFileSize: Long)
 
   /**
     * Remote Disk storage configuration
@@ -184,13 +188,15 @@ object AppConfig {
     * @param readPermission     the default permission required in order to download a file from a disk storage
     * @param writePermission    the default permission required in order to upload a file to a disk storage
     * @param showLocation       flag to decide whether or not to show the absolute location of the files in the metadata response
+    * @param maxFileSize        the default maximum allowed file size (in bytes) for uploaded files
     */
   final case class RemoteDiskStorageConfig(defaultEndpoint: Uri,
                                            defaultCredentials: Option[AuthToken],
                                            digestAlgorithm: String,
                                            readPermission: Permission,
                                            writePermission: Permission,
-                                           showLocation: Boolean)
+                                           showLocation: Boolean,
+                                           maxFileSize: Long)
 
   /**
     * IAM config

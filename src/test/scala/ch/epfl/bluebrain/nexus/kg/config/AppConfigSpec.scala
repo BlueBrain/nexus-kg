@@ -28,9 +28,9 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
                                                           "cassandra-snapshot-store",
                                                           "cassandra-query-journal")
       appConfig.storage shouldEqual StorageConfig(
-        DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write, false),
-        RemoteDiskStorageConfig("http://localhost:8084/v1", None, "SHA-256", read, write, true),
-        S3StorageConfig("SHA-256", read, write, true),
+        DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write, false, 10737418240L),
+        RemoteDiskStorageConfig("http://localhost:8084/v1", None, "SHA-256", read, write, true, 10737418240L),
+        S3StorageConfig("SHA-256", read, write, true, 10737418240L),
         "changeme",
         "salt"
       )

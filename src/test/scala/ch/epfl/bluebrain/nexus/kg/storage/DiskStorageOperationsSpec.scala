@@ -25,9 +25,9 @@ class DiskStorageOperationsSpec
     with TestHelper {
 
   private implicit val sc: StorageConfig = StorageConfig(
-    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false),
-    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true),
-    S3StorageConfig("MD5", read, write, true),
+    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false, 1024L),
+    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
+    S3StorageConfig("MD5", read, write, true, 1024L),
     "password",
     "salt"
   )

@@ -111,6 +111,11 @@ sealed trait Storage { self =>
     */
   def reference: StorageReference
 
+  /**
+    * the maximum allowed file size (in bytes) for uploaded files
+    */
+  def maxFileSize: Long
+
 }
 
 object Storage {
@@ -129,6 +134,7 @@ object Storage {
     * @param volume          the volume this storage is going to use to save files
     * @param readPermission  the permission required in order to download a file from this storage
     * @param writePermission the permission required in order to upload a file to this storage
+    * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
   final case class DiskStorage(ref: ProjectRef,
                                id: AbsoluteIri,
@@ -138,7 +144,8 @@ object Storage {
                                algorithm: String,
                                volume: Path,
                                readPermission: Permission,
-                               writePermission: Permission)
+                               writePermission: Permission,
+                               maxFileSize: Long)
       extends Storage {
 
     def reference: StorageReference = DiskStorageReference(id, rev)
@@ -161,7 +168,8 @@ object Storage {
         config.disk.digestAlgorithm,
         config.disk.volume,
         config.disk.readPermission,
-        config.disk.writePermission
+        config.disk.writePermission,
+        config.disk.maxFileSize
       )
   }
 
@@ -179,6 +187,7 @@ object Storage {
     * @param folder          the rootFolder for this storage
     * @param readPermission  the permission required in order to download a file from this storage
     * @param writePermission the permission required in order to upload a file to this storage
+    * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
   final case class RemoteDiskStorage(ref: ProjectRef,
                                      id: AbsoluteIri,
@@ -190,7 +199,8 @@ object Storage {
                                      credentials: Option[String],
                                      folder: String,
                                      readPermission: Permission,
-                                     writePermission: Permission)
+                                     writePermission: Permission,
+                                     maxFileSize: Long)
       extends Storage {
 
     def reference: StorageReference = RemoteDiskStorageReference(id, rev)
@@ -217,6 +227,7 @@ object Storage {
     * @param settings        an instance of [[S3Settings]] with proper credentials to access the bucket
     * @param readPermission  the permission required in order to download a file from this storage
     * @param writePermission the permission required in order to upload a file to this storage
+    * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
   final case class S3Storage(ref: ProjectRef,
                              id: AbsoluteIri,
@@ -227,7 +238,8 @@ object Storage {
                              bucket: String,
                              settings: S3Settings,
                              readPermission: Permission,
-                             writePermission: Permission)
+                             writePermission: Permission,
+                             maxFileSize: Long)
       extends Storage {
     def reference: StorageReference = S3StorageReference(id, rev)
   }
@@ -332,7 +344,8 @@ object Storage {
       volume    <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).toRejectionOnLeft(res.id.ref)
       read      <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).toRejectionOnLeft(res.id.ref)
       write     <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).toRejectionOnLeft(res.id.ref)
-    } yield DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume, read, write)
+      fileSize  <- c.downField(nxv.maxFileSize).focus.as[Long].orElse(config.disk.maxFileSize).toRejectionOnLeft(res.id.ref)
+    } yield DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume, read, write, fileSize)
     // format: on
   }
 
@@ -355,9 +368,10 @@ object Storage {
       folder        <- c.downField(nxv.folder).focus.as[String].toRejectionOnLeft(res.id.ref)
       read          <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.remoteDisk.readPermission).toRejectionOnLeft(res.id.ref)
       write         <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.remoteDisk.writePermission).toRejectionOnLeft(res.id.ref)
+      fileSize      <- c.downField(nxv.maxFileSize).focus.as[Long].orElse(config.remoteDisk.maxFileSize).toRejectionOnLeft(res.id.ref)
     } yield
-      if (encrypt) RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials.map(_.encrypt), folder, read, write)
-      else RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write)
+      if (encrypt) RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials.map(_.encrypt), folder, read, write, fileSize)
+      else RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write, fileSize)
     // format: on
   }
 
@@ -372,13 +386,14 @@ object Storage {
       region     = c.downField(nxv.region).focus.flatMap(_.as[String].toOption)
       read      <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.amazon.readPermission).toRejectionOnLeft(res.id.ref)
       write     <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.amazon.writePermission).toRejectionOnLeft(res.id.ref)
+      fileSize  <- c.downField(nxv.maxFileSize).focus.as[Long].orElse(config.amazon.maxFileSize).toRejectionOnLeft(res.id.ref)
       credentials = for {
         ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
         sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
       } yield
         if (encrypt) S3Credentials(ak.encrypt, sk.encrypt)
         else S3Credentials(ak, sk)
-    } yield S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, bucket, S3Settings(credentials, endpoint, region), read, write)
+    } yield S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, bucket, S3Settings(credentials, endpoint, region), read, write, fileSize)
     // format: on
   }
 
