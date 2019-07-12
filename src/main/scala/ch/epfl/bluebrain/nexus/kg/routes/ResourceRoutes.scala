@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.ResourceRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import kamon.Kamon
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -41,22 +42,26 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
   def routes: Route =
     concat(
       // Create resource when id is not provided on the Uri (POST)
-      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          operationName("createResource") {
-            complete(resources.create(schema, source).value.runWithStatus(Created))
+      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resources/{}/{}/{}") {
+          Kamon.currentSpan().tag("resource.operation", "create")
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              complete(resources.create(schema, source).value.runWithStatus(Created))
+            }
           }
         }
       },
       // List resources
-      (get & paginated & searchParams(fixedSchema = schema.iri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (page, params) =>
-          extractUri { implicit uri =>
-            operationName("listResource") {
+      (get & paginated & searchParams(fixedSchema = schema.iri) & pathEndOrSingleSlash) { (page, params) =>
+        extractUri { implicit uri =>
+          operationName(s"/${config.http.prefix}/resources/{}/{}/{}") {
+            hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
           }
+        }
       },
       // Consume the resource id segment
       pathPrefix(IdSegment) { id =>
@@ -73,67 +78,82 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
     concat(
       // Create or update a resource (depending on rev query parameter)
       (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          parameter('rev.as[Long].?) {
-            case None =>
-              operationName("createResource") {
-                complete(resources.create(Id(project.ref, id), schema, source).value.runWithStatus(Created))
+        operationName(s"/${config.http.prefix}/resources/{}/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              parameter('rev.as[Long].?) {
+                case None =>
+                  Kamon.currentSpan().tag("resource.operation", "create")
+                  complete(resources.create(Id(project.ref, id), schema, source).value.runWithStatus(Created))
+                case Some(rev) =>
+                  Kamon.currentSpan().tag("resource.operation", "update")
+                  complete(resources.update(Id(project.ref, id), rev, schema, source).value.runWithStatus(OK))
               }
-            case Some(rev) =>
-              operationName("updateResource") {
-                complete(resources.update(Id(project.ref, id), rev, schema, source).value.runWithStatus(OK))
-              }
+            }
           }
         }
       },
       // Deprecate resource
-      (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        operationName("deprecateResource") {
-          complete(resources.deprecate(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
+      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+        operationName(s"/${config.http.prefix}/resources/{}/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            complete(resources.deprecate(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
+          }
         }
       },
       // Fetch resource
-      (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
-        case Binary => failWith(InvalidOutputFormat("Binary"))
-        case format: NonBinaryOutputFormat =>
-          operationName("getResource") {
-            concat(
-              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-                completeWithFormat(resources.fetch(Id(project.ref, id), rev, schema).value.runWithStatus(OK))(format)
-              },
-              (parameter('tag) & noParameter('rev)) { tag =>
-                completeWithFormat(resources.fetch(Id(project.ref, id), tag, schema).value.runWithStatus(OK))(format)
-              },
-              (noParameter('tag) & noParameter('rev)) {
-                completeWithFormat(resources.fetch(Id(project.ref, id), schema).value.runWithStatus(OK))(format)
+      (get & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resources/{}/{}/{}/{}") {
+          outputFormat(strict = false, Compacted) {
+            case Binary => failWith(InvalidOutputFormat("Binary"))
+            case format: NonBinaryOutputFormat =>
+              hasPermission(read).apply {
+                concat(
+                  (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                    completeWithFormat(resources.fetch(Id(project.ref, id), rev, schema).value.runWithStatus(OK))(
+                      format)
+                  },
+                  (parameter('tag) & noParameter('rev)) { tag =>
+                    completeWithFormat(resources.fetch(Id(project.ref, id), tag, schema).value.runWithStatus(OK))(
+                      format)
+                  },
+                  (noParameter('tag) & noParameter('rev)) {
+                    completeWithFormat(resources.fetch(Id(project.ref, id), schema).value.runWithStatus(OK))(format)
+                  }
+                )
               }
-            )
           }
+        }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("incomingLinksResource") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listIncoming(id, _, page))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resources/{}/{}/{}/{}/incoming") {
+          fromPaginated.apply { implicit page =>
+            extractUri { implicit uri =>
+              hasPermission(read).apply {
+                val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listIncoming(id, _, page))
+                complete(listed.runWithStatus(OK))
+              }
             }
           }
         }
       },
       // Outgoing links
-      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
-        read)) { links =>
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("outgoingLinksResource") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(resources.listOutgoing(id, _, page, links))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+        links =>
+          operationName(s"/${config.http.prefix}/resources/{}/{}/{}/{}/outgoing") {
+            fromPaginated.apply { implicit page =>
+              extractUri { implicit uri =>
+                hasPermission(read).apply {
+                  val listed =
+                    viewCache.getDefaultSparql(project.ref).flatMap(resources.listOutgoing(id, _, page, links))
+                  complete(listed.runWithStatus(OK))
+                }
+              }
             }
           }
-        }
       },
-      new TagRoutes(tags, schema, write).routes(id)
+      new TagRoutes("resources", tags, schema, write).routes(id)
     )
 }
 

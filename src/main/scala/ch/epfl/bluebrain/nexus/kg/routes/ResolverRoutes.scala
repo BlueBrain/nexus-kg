@@ -21,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
+import kamon.Kamon
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -44,22 +45,26 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
   def routes: Route =
     concat(
       // Create resolver when id is not provided on the Uri (POST)
-      (post & noParameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          operationName("createResolver") {
-            complete(resolvers.create(source).value.runWithStatus(Created))
+      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resolvers/{}/{}") {
+          Kamon.currentSpan().tag("resource.operation", "create")
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              complete(resolvers.create(source).value.runWithStatus(Created))
+            }
           }
         }
       },
       // List resolvers
-      (get & paginated & searchParams(fixedSchema = resolverSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (page, params) =>
-          extractUri { implicit uri =>
-            operationName("listResolver") {
+      (get & paginated & searchParams(fixedSchema = resolverSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
+        extractUri { implicit uri =>
+          operationName(s"/${config.http.prefix}/resolvers/{}/{}") {
+            hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resolvers.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
           }
+        }
       },
       // Consume the '_' segment
       pathPrefix("_") {
@@ -80,22 +85,26 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     */
   def routesResourceResolution: Route =
     // Consume the resource id segment
-    (pathPrefix(IdSegment) & get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
-      case (_, Binary) => failWith(InvalidOutputFormat("Binary"))
-      case (id, format: NonBinaryOutputFormat) =>
-        operationName("resolveResource") {
-          concat(
-            (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-              completeWithFormat(resolvers.resolve(id, rev).value.runWithStatus(OK))(format)
-            },
-            (parameter('tag) & noParameter('rev)) { tag =>
-              completeWithFormat(resolvers.resolve(id, tag).value.runWithStatus(OK))(format)
-            },
-            (noParameter('tag) & noParameter('rev)) {
-              completeWithFormat(resolvers.resolve(id).value.runWithStatus(OK))(format)
+    (get & pathPrefix(IdSegment) & pathEndOrSingleSlash) { id =>
+      operationName(s"/${config.http.prefix}/resolvers/{}/{}/_/{}") {
+        outputFormat(strict = false, Compacted) {
+          case Binary => failWith(InvalidOutputFormat("Binary"))
+          case format: NonBinaryOutputFormat =>
+            hasPermission(read).apply {
+              concat(
+                (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                  completeWithFormat(resolvers.resolve(id, rev).value.runWithStatus(OK))(format)
+                },
+                (parameter('tag) & noParameter('rev)) { tag =>
+                  completeWithFormat(resolvers.resolve(id, tag).value.runWithStatus(OK))(format)
+                },
+                (noParameter('tag) & noParameter('rev)) {
+                  completeWithFormat(resolvers.resolve(id).value.runWithStatus(OK))(format)
+                }
+              )
             }
-          )
         }
+      }
     }
 
   /**
@@ -110,22 +119,26 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
   def routesResourceResolution(id: AbsoluteIri): Route = {
     val resolverId = Id(project.ref, id)
     // Consume the resource id segment
-    (pathPrefix(IdSegment) & get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
-      case (_, Binary) => failWith(InvalidOutputFormat("Binary"))
-      case (resourceId, format: NonBinaryOutputFormat) =>
-        operationName("resolveResource") {
-          concat(
-            (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-              completeWithFormat(resolvers.resolve(resolverId, resourceId, rev).value.runWithStatus(OK))(format)
-            },
-            (parameter('tag) & noParameter('rev)) { tag =>
-              completeWithFormat(resolvers.resolve(resolverId, resourceId, tag).value.runWithStatus(OK))(format)
-            },
-            (noParameter('tag) & noParameter('rev)) {
-              completeWithFormat(resolvers.resolve(resolverId, resourceId).value.runWithStatus(OK))(format)
+    (get & pathPrefix(IdSegment) & pathEndOrSingleSlash) { resourceId =>
+      operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}/{}") {
+        outputFormat(strict = false, Compacted) {
+          case Binary => failWith(InvalidOutputFormat("Binary"))
+          case format: NonBinaryOutputFormat =>
+            hasPermission(read).apply {
+              concat(
+                (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                  completeWithFormat(resolvers.resolve(resolverId, resourceId, rev).value.runWithStatus(OK))(format)
+                },
+                (parameter('tag) & noParameter('rev)) { tag =>
+                  completeWithFormat(resolvers.resolve(resolverId, resourceId, tag).value.runWithStatus(OK))(format)
+                },
+                (noParameter('tag) & noParameter('rev)) {
+                  completeWithFormat(resolvers.resolve(resolverId, resourceId).value.runWithStatus(OK))(format)
+                }
+              )
             }
-          )
         }
+      }
     }
   }
 
@@ -141,68 +154,81 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
   def routes(id: AbsoluteIri): Route =
     concat(
       // Create or update a resolver (depending on rev query parameter)
-      (put & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) {
-        entity(as[Json]) { source =>
-          parameter('rev.as[Long].?) {
-            case None =>
-              operationName("createResolver") {
-                complete(resolvers.create(Id(project.ref, id), source).value.runWithStatus(Created))
+      (put & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              parameter('rev.as[Long].?) {
+                case None =>
+                  Kamon.currentSpan().tag("resource.operation", "create")
+                  complete(resolvers.create(Id(project.ref, id), source).value.runWithStatus(Created))
+                case Some(rev) =>
+                  Kamon.currentSpan().tag("resource.operation", "update")
+                  complete(resolvers.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
               }
-            case Some(rev) =>
-              operationName("updateResolver") {
-                complete(resolvers.update(Id(project.ref, id), rev, source).value.runWithStatus(OK))
-              }
+            }
           }
         }
       },
       // Deprecate resolver
-      (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        operationName("deprecateResolver") {
-          complete(resolvers.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+        operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            complete(resolvers.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+          }
         }
       },
       // Fetch resolver
-      (get & outputFormat(strict = false, Compacted) & hasPermission(read) & pathEndOrSingleSlash) {
-        case Binary => failWith(InvalidOutputFormat("Binary"))
-        case format: NonBinaryOutputFormat =>
-          operationName("getResolver") {
-            concat(
-              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
-                completeWithFormat(resolvers.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
-              },
-              (parameter('tag) & noParameter('rev)) { tag =>
-                completeWithFormat(resolvers.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
-              },
-              (noParameter('tag) & noParameter('rev)) {
-                completeWithFormat(resolvers.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+      (get & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}") {
+          outputFormat(strict = false, Compacted) {
+            case Binary => failWith(InvalidOutputFormat("Binary"))
+            case format: NonBinaryOutputFormat =>
+              hasPermission(read).apply {
+                concat(
+                  (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                    completeWithFormat(resolvers.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
+                  },
+                  (parameter('tag) & noParameter('rev)) { tag =>
+                    completeWithFormat(resolvers.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
+                  },
+                  (noParameter('tag) & noParameter('rev)) {
+                    completeWithFormat(resolvers.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
+                  }
+                )
               }
-            )
           }
+        }
       },
       // Incoming links
-      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("incomingLinksResolver") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(resolvers.listIncoming(id, _, page))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}/incoming") {
+          fromPaginated.apply { implicit page =>
+            extractUri { implicit uri =>
+              hasPermission(read).apply {
+                val listed = viewCache.getDefaultSparql(project.ref).flatMap(resolvers.listIncoming(id, _, page))
+                complete(listed.runWithStatus(OK))
+              }
             }
           }
         }
       },
       // Outgoing links
-      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
-        read)) { links =>
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("outgoingLinksResolver") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(resolvers.listOutgoing(id, _, page, links))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+        links =>
+          operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}/outgoing") {
+            fromPaginated.apply { implicit page =>
+              extractUri { implicit uri =>
+                hasPermission(read).apply {
+                  val listed =
+                    viewCache.getDefaultSparql(project.ref).flatMap(resolvers.listOutgoing(id, _, page, links))
+                  complete(listed.runWithStatus(OK))
+                }
+              }
             }
           }
-        }
       },
-      new TagRoutes(tags, resolverRef, write).routes(id),
+      new TagRoutes("resolvers", tags, resolverRef, write).routes(id),
       routesResourceResolution(id)
     )
 }

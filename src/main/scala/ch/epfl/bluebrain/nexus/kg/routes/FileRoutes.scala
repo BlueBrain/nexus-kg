@@ -27,6 +27,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import com.google.common.base.Charsets
 import com.google.common.io.BaseEncoding
 import io.circe.Json
+import kamon.Kamon
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -56,31 +57,39 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     concat(
       // Create file when id is not provided in the Uri (POST)
       (post & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
-        hasPermission(storage.writePermission).apply {
+        concat(
           fileUpload("file") {
             case (metadata, byteSource) =>
-              val description = FileDescription(metadata.fileName, metadata.contentType)
-              operationName("createFile") {
-                val created = files.create(storage, description, byteSource)
+              operationName(s"/${config.http.prefix}/files/{}/{}") {
+                Kamon.currentSpan().tag("file.operation", "upload").tag("resource.operation", "create")
+                hasPermission(storage.writePermission).apply {
+                  val description = FileDescription(metadata.fileName, metadata.contentType)
+                  val created     = files.create(storage, description, byteSource)
+                  complete(created.value.runWithStatus(Created))
+                }
+              }
+          },
+          entity(as[Json]) { source =>
+            operationName(s"/${config.http.prefix}/files/{}/{}") {
+              Kamon.currentSpan().tag("file.operation", "link").tag("resource.operation", "create")
+              hasPermission(storage.writePermission).apply {
+                val created = files.createLink(storage, source)
                 complete(created.value.runWithStatus(Created))
               }
-          } ~ entity(as[Json]) { source =>
-            operationName("createLink") {
-              val created = files.createLink(storage, source)
-              complete(created.value.runWithStatus(Created))
             }
           }
-        }
+        )
       },
       // List files
-      (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash & hasPermission(read)) {
-        (page, params) =>
-          extractUri { implicit uri =>
-            operationName("listFile") {
+      (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
+        extractUri { implicit uri =>
+          operationName(s"/${config.http.prefix}/files/{}/{}") {
+            hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(files.list(_, params, page))
               complete(listed.runWithStatus(OK))
             }
           }
+        }
       },
       // Consume the file id segment
       pathPrefix(IdSegment) { id =>
@@ -99,76 +108,85 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
   def routes(id: AbsoluteIri): Route =
     concat(
       // Create or update a file (depending on rev query parameter)
-      (put & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
-        val resId = Id(project.ref, id)
-        hasPermission(storage.writePermission).apply {
-          fileUpload("file") {
-            case (metadata, byteSource) =>
-              val description = FileDescription(metadata.fileName, metadata.contentType)
-              parameter('rev.as[Long].?) {
-                case None =>
-                  operationName("createFile") {
-                    complete(files.create(resId, storage, description, byteSource).value.runWithStatus(Created))
+      (put & pathEndOrSingleSlash & storage) { storage =>
+        operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+          val resId = Id(project.ref, id)
+          (hasPermission(storage.writePermission) & projectNotDeprecated) {
+            concat(
+              fileUpload("file") {
+                case (metadata, byteSource) =>
+                  val description = FileDescription(metadata.fileName, metadata.contentType)
+                  parameter('rev.as[Long].?) {
+                    case None =>
+                      Kamon.currentSpan().tag("file.operation", "upload").tag("resource.operation", "create")
+                      complete(files.create(resId, storage, description, byteSource).value.runWithStatus(Created))
+                    case Some(rev) =>
+                      Kamon.currentSpan().tag("file.operation", "upload").tag("resource.operation", "update")
+                      complete(files.update(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
                   }
-                case Some(rev) =>
-                  operationName("updateFile") {
-                    complete(files.update(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
+              },
+              entity(as[Json]) {
+                source =>
+                  parameter('rev.as[Long].?) {
+                    case None =>
+                      Kamon.currentSpan().tag("file.operation", "link").tag("resource.operation", "create")
+                      complete(files.createLink(resId, storage, source).value.runWithStatus(Created))
+                    case Some(rev) =>
+                      Kamon.currentSpan().tag("file.operation", "link").tag("resource.operation", "update")
+                      complete(files.updateLink(resId, storage, rev, source).value.runWithStatus(OK))
                   }
               }
-          } ~ entity(as[Json]) { source =>
-            parameter('rev.as[Long].?) {
-              case None =>
-                operationName("createLink") {
-                  complete(files.createLink(resId, storage, source).value.runWithStatus(Created))
-                }
-              case Some(rev) =>
-                operationName("updateLink") {
-                  complete(files.updateLink(resId, storage, rev, source).value.runWithStatus(OK))
-                }
-            }
+            )
           }
         }
       },
       // Deprecate file
-      (delete & parameter('rev.as[Long]) & projectNotDeprecated & pathEndOrSingleSlash & hasPermission(write)) { rev =>
-        operationName("deprecateFile") {
-          complete(files.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+        operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+          (hasPermission(write) & projectNotDeprecated) {
+            complete(files.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
+          }
         }
       },
       // Fetch file
-      (get & outputFormat(strict = true, Binary) & hasPermission(read) & pathEndOrSingleSlash) {
+      (get & outputFormat(strict = true, Binary) & pathEndOrSingleSlash) {
         case Binary                        => getFile(id)
         case format: NonBinaryOutputFormat => getResource(id)(format)
       },
       // Incoming links
-      (pathPrefix("incoming") & get & pathEndOrSingleSlash & hasPermission(read)) {
+      (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            operationName("incomingLinksFile") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listIncoming(id, _, page))
-              complete(listed.runWithStatus(OK))
+            operationName(s"/${config.http.prefix}/files/{}/{}/{}/incoming") {
+              hasPermission(read).apply {
+                val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listIncoming(id, _, page))
+                complete(listed.runWithStatus(OK))
+              }
             }
           }
         }
       },
       // Outgoing links
-      (pathPrefix("outgoing") & get & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash & hasPermission(
-        read)) { links =>
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName("outgoingLinksFile") {
-              val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listOutgoing(id, _, page, links))
-              complete(listed.runWithStatus(OK))
+      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+        links =>
+          fromPaginated.apply { implicit page =>
+            extractUri { implicit uri =>
+              operationName(s"/${config.http.prefix}/files/{}/{}/{}/outgoing") {
+                hasPermission(read).apply {
+                  val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listOutgoing(id, _, page, links))
+                  complete(listed.runWithStatus(OK))
+                }
+              }
             }
           }
-        }
       },
-      new TagRoutes(tags, fileRef, write).routes(id)
+      new TagRoutes("files", tags, fileRef, write).routes(id)
     )
 
   private def getResource(id: AbsoluteIri)(implicit format: NonBinaryOutputFormat) =
-    hasPermission(read).apply {
-      operationName("getFileMetadata") {
+    operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+      Kamon.currentSpan().tag("file.operation", "read")
+      hasPermission(read).apply {
         concat(
           (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
             completeWithFormat(resources.fetch(Id(project.ref, id), rev, fileRef).value.runWithStatus(OK))
@@ -184,7 +202,9 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    operationName("getFile") {
+    operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+      Kamon.currentSpan().tag("file.operation", "download")
+      // permission checks are in completeFile
       concat(
         (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
           completeFile(files.fetch(Id(project.ref, id), rev).value.runToFuture)

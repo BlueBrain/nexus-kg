@@ -21,18 +21,22 @@ class EventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: ActorSy
   private implicit val iamConf: IamClientConfig = config.iam.iamClient
 
   def routes(project: Project): Route = {
-    implicit val p: Project = project
-    (lastEventId & hasPermission(read)) { offset =>
-      operationName(s"/${config.http.prefix}/projects/{}/{}/events") {
-        complete(source(s"project=${project.uuid}", offset))
+    lastEventId { offset =>
+      operationName(s"/${config.http.prefix}/resources/{}/{}/events") {
+        implicit val p: Project = project
+        hasPermission(read).apply {
+          complete(source(s"project=${project.uuid}", offset))
+        }
       }
     }
   }
 
   def routes(org: Organization): Route =
-    (lastEventId & hasPermission(read, org.label)) { offset =>
-      operationName(s"/${config.http.prefix}/orgs/{}/events") {
-        complete(source(s"org=${org.uuid}", offset))
+    lastEventId { offset =>
+      operationName(s"/${config.http.prefix}/resources/{}/events") {
+        hasPermission(read, org.label).apply {
+          complete(source(s"org=${org.uuid}", offset))
+        }
       }
     }
 }
