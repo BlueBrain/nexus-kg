@@ -31,10 +31,6 @@
       "@id": "nxv:constrainedBy",
       "@type": "@id"
     },
-    "_storageId": {
-      "@id": "nxv:storageId",
-      "@type": "@id"
-    },
     "_rev": "nxv:rev",
     "_digest": "nxv:digest",
     "_algorithm": "nxv:algorithm",
