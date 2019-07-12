@@ -4,5 +4,6 @@
   "volume": "/tmp",
   "default": false,
   "readPermission": "{read}",
-  "writePermission": "{write}"
+  "writePermission": "{write}",
+  "maxFileSize": 30000
 }

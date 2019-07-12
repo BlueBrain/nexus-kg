@@ -58,7 +58,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       // Create file when id is not provided in the Uri (POST)
       (post & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
         concat(
-          fileUpload("file") {
+          (withSizeLimit(storage.maxFileSize) & fileUpload("file")) {
             case (metadata, byteSource) =>
               operationName(s"/${config.http.prefix}/files/{}/{}") {
                 Kamon.currentSpan().tag("file.operation", "upload").tag("resource.operation", "create")
@@ -113,7 +113,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
           val resId = Id(project.ref, id)
           (hasPermission(storage.writePermission) & projectNotDeprecated) {
             concat(
-              fileUpload("file") {
+              (withSizeLimit(storage.maxFileSize) & fileUpload("file")) {
                 case (metadata, byteSource) =>
                   val description = FileDescription(metadata.fileName, metadata.contentType)
                   parameter('rev.as[Long].?) {

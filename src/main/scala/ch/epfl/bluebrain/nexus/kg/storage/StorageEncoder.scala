@@ -61,6 +61,7 @@ object StorageEncoder {
     Set(
       (s, rdf.tpe, nxv.Storage),
       (s, nxv.deprecated, storage.deprecated),
+      (s, nxv.maxFileSize, storage.maxFileSize),
       (s, nxv.rev, storage.rev),
       (s, nxv.default, storage.default),
       (s, nxv.algorithm, storage.algorithm),

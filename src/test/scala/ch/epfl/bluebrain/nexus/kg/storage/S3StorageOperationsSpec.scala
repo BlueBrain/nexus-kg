@@ -53,9 +53,9 @@ class S3StorageOperationsSpec
   private var client: AmazonS3 = _
 
   private implicit val sc: StorageConfig = StorageConfig(
-    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false),
-    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true),
-    S3StorageConfig("MD5", readS3, writeS3, true),
+    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false, 1024L),
+    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
+    S3StorageConfig("MD5", readS3, writeS3, true, 1024L),
     "password",
     "salt"
   )
@@ -107,7 +107,8 @@ class S3StorageOperationsSpec
                   bucket,
                   S3Settings(None, Some(address), Some(region)),
                   readS3,
-                  writeS3)
+                  writeS3,
+                  1024L)
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       val save   = new S3StorageOperations.Save[IO](storage)
@@ -159,7 +160,8 @@ class S3StorageOperationsSpec
                   bucket,
                   S3Settings(None, Some(address), Some(region)),
                   readS3,
-                  writeS3)
+                  writeS3,
+                  1024L)
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       val link   = new S3StorageOperations.Link[IO](storage)
@@ -202,7 +204,8 @@ class S3StorageOperationsSpec
                   "foobar",
                   S3Settings(None, Some(address), Some(region)),
                   readS3,
-                  writeS3)
+                  writeS3,
+                  1024L)
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       val save   = new S3StorageOperations.Save[IO](storage)
@@ -242,7 +245,8 @@ class S3StorageOperationsSpec
                   bucket,
                   S3Settings(None, Some(address), None),
                   readS3,
-                  writeS3)
+                  writeS3,
+                  1024L)
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       verify.apply.ioValue shouldEqual Right(())
@@ -268,7 +272,8 @@ class S3StorageOperationsSpec
           "nexus-storage",
           S3Settings(Some(S3Credentials(ak, sk)), Some("http://minio.dev.nexus.ocp.bbp.epfl.ch"), None),
           readS3,
-          writeS3
+          writeS3,
+          1024L
         )
 
       val verify = new S3StorageOperations.Verify[IO](storage)

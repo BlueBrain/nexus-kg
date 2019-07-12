@@ -3,9 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.{MediaTypes, StatusCodes}
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.model.headers.{`WWW-Authenticate`, HttpChallenges, Location}
+import akka.http.scaladsl.model.{EntityStreamSizeException, MediaTypes, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, RejectionHandler, Route}
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, PredefinedFromEntityUnmarshallers}
@@ -59,6 +59,9 @@ object Routes {
       complete(InternalError("The system experienced an unexpected error, please try again later."): KgError)
 
     ExceptionHandler {
+      // suppress errors from withSizeLimit directive
+      case EntityStreamSizeException(limit, actual) =>
+        complete(FileSizeExceed(limit, actual): KgError)
       case _: IamClientError.Unauthorized =>
         // suppress errors for authentication failures
         val status = KgError.kgErrorStatusFrom(AuthenticationFailed)

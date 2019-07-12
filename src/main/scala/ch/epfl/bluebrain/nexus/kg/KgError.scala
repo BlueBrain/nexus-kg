@@ -32,6 +32,12 @@ object KgError {
   final case class InternalError(reason: String) extends KgError(reason)
 
   /**
+    * Signals that the file being uploaded is bigger than the allowed size limit
+    */
+  final case class FileSizeExceed(limit: Long, actual: Option[Long])
+      extends KgError(s"File maximum size exceed. Limit '$limit'")
+
+  /**
     * Signals that the operation is not supported
     */
   case object UnsupportedOperation extends KgError("The operation is not supported by the system.")
@@ -129,6 +135,7 @@ object KgError {
   }
 
   implicit val kgErrorStatusFrom: StatusFrom[KgError] = {
+    case _: FileSizeExceed                => StatusCodes.RequestEntityTooLarge
     case _: NotFound                      => StatusCodes.NotFound
     case _: ProjectNotFound               => StatusCodes.NotFound
     case _: OrganizationNotFound          => StatusCodes.NotFound

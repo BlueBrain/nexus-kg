@@ -97,24 +97,24 @@ class StoragesSpec
     val diskStorage = updateId(jsonContentOf("/storage/disk.json"))
     // format: off
     val remoteDiskStorage = updateId(jsonContentOf("/storage/remoteDisk.json", Map(quote("{folder}") -> "folder", quote("{cred}") -> "cred", quote("{read}") -> "resources/read", quote("{write}") -> "files/write")))
-    val diskStorageModel = DiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", Paths.get("/tmp"), readPerms, writePerms)
-    val remoteDiskStorageModel = RemoteDiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", "http://example.com/some", Some("cred"), "folder", readPerms, writePerms)
-    val remoteDiskStorageModelEncrypted = RemoteDiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", "http://example.com/some", Some("cred".encrypt), "folder", readPerms, writePerms)
+    val diskStorageModel = DiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", Paths.get("/tmp"), readPerms, writePerms, 10737418240L)
+    val remoteDiskStorageModel = RemoteDiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", "http://example.com/some", Some("cred"), "folder", readPerms, writePerms, 10737418240L)
+    val remoteDiskStorageModelEncrypted = RemoteDiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", "http://example.com/some", Some("cred".encrypt), "folder", readPerms, writePerms, 10737418240L)
     // format: on
     resolverCache.get(projectRef) shouldReturn IO(List.empty[Resolver])
 
     implicit val verify = new Verify[IO] {
       override def apply(storage: Storage): VerifyStorage[IO] =
         if (storage == diskStorageModel || storage == s3StorageModelEncrypted || storage == remoteDiskStorageModelEncrypted || storage == diskStorageModel
-              .copy(default = true)) passVerify
+              .copy(default = true, maxFileSize = 200L)) passVerify
         else throw new RuntimeException
     }
 
     val typesDisk = Set[AbsoluteIri](nxv.Storage, nxv.DiskStorage)
     val s3Storage = updateId(jsonContentOf("/storage/s3.json"))
     // format: off
-    val s3StorageModel = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"))
-    val s3StorageModelEncrypted = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("ByjwlDNy8D1Gm1o0EFCXwA==", "SjMIILT+A5BTUH4LP8sJBg==")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"))
+    val s3StorageModel = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"), 10737418240L)
+    val s3StorageModelEncrypted = S3Storage(projectRef, id, 1L, deprecated = false, default = true, "SHA-256", "bucket", S3Settings(Some(S3Credentials("ByjwlDNy8D1Gm1o0EFCXwA==", "SjMIILT+A5BTUH4LP8sJBg==")), Some("endpoint"), Some("region")), Permission.unsafe("my/read"), Permission.unsafe("my/write"), 10737418240L)
     // format: on
     val typesS3     = Set[AbsoluteIri](nxv.Storage, nxv.S3Storage)
     val typesRemote = Set[AbsoluteIri](nxv.Storage, nxv.RemoteDiskStorage)
@@ -175,7 +175,8 @@ class StoragesSpec
     "performing update operations" should {
 
       "update a storage" in new Base {
-        val storageUpdated = diskStorage deepMerge Json.obj("default" -> Json.fromBoolean(true))
+        val storageUpdated = diskStorage deepMerge Json.obj("default" -> Json.fromBoolean(true),
+                                                            "maxFileSize" -> Json.fromLong(200L))
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         val result   = storages.update(resId, 1L, storageUpdated).value.accepted
         val expected = ResourceF.simpleF(resId, storageUpdated, 2L, schema = storageRef, types = typesDisk)
@@ -206,11 +207,15 @@ class StoragesSpec
     }
 
     "performing read operations" should {
-      val diskAddedJson = Json.obj("_algorithm" -> Json.fromString("SHA-256"),
-                                   "writePermission" -> Json.fromString("files/write"),
-                                   "readPermission"  -> Json.fromString("resources/read"))
+      val diskAddedJson = Json.obj(
+        "_algorithm"      -> Json.fromString("SHA-256"),
+        "writePermission" -> Json.fromString("files/write"),
+        "readPermission"  -> Json.fromString("resources/read"),
+        "maxFileSize"     -> Json.fromLong(appConfig.storage.disk.maxFileSize)
+      )
 
-      val s3AddedJson = Json.obj("_algorithm" -> Json.fromString("SHA-256"))
+      val s3AddedJson = Json.obj("_algorithm" -> Json.fromString("SHA-256"),
+                                 "maxFileSize" -> Json.fromLong(appConfig.storage.amazon.maxFileSize))
 
       "return a storage" in new Base {
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]

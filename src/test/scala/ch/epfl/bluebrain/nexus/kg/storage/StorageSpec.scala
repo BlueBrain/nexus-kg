@@ -35,9 +35,9 @@ class StorageSpec
   val writeS3                = Permission.unsafe("s3/write")
   private implicit val storageConfig =
     StorageConfig(
-      DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk, false),
-      RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true),
-      S3StorageConfig("MD5", readS3, writeS3, true),
+      DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk, false, 1000L),
+      RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 2000L),
+      S3StorageConfig("MD5", readS3, writeS3, true, 3000L),
       "password",
       "salt"
     )
@@ -65,7 +65,7 @@ class StorageSpec
       "return a DiskStorage" in {
         val resource = simpleV(id, diskStorage, types = Set(nxv.Storage, nxv.DiskStorage))
         Storage(resource, encrypt = false).right.value shouldEqual
-          DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), readDisk, writeDisk)
+          DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), readDisk, writeDisk, 1000L)
       }
 
       "return a DiskStorage with custom readPermission and writePermission" in {
@@ -73,7 +73,16 @@ class StorageSpec
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = false).right.value shouldEqual
-          DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), expectedRead, expectedWrite)
+          DiskStorage(projectRef,
+                      iri,
+                      1L,
+                      false,
+                      false,
+                      "SHA-256",
+                      Paths.get("/tmp"),
+                      expectedRead,
+                      expectedWrite,
+                      30000L)
       }
 
       "return a RemoteDiskStorage" in {
@@ -91,7 +100,8 @@ class StorageSpec
                             Some("credentials"),
                             "folder",
                             expectedRead,
-                            expectedWrite)
+                            expectedWrite,
+                            2000L)
       }
 
       "return a RemoteDiskStorage encrypted" in {
@@ -109,14 +119,25 @@ class StorageSpec
                             Some("credentials".encrypt),
                             "folder",
                             expectedRead,
-                            expectedWrite)
+                            expectedWrite,
+                            2000L)
       }
 
       "return an S3Storage" in {
         val resource = simpleV(id, s3Minimal, types = Set(nxv.Storage, nxv.S3Storage))
 
         Storage(resource, encrypt = false).right.value shouldEqual
-          S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", S3Settings(None, None, None), readS3, writeS3)
+          S3Storage(projectRef,
+                    iri,
+                    1L,
+                    false,
+                    true,
+                    "MD5",
+                    "bucket",
+                    S3Settings(None, None, None),
+                    readS3,
+                    writeS3,
+                    3000L)
       }
 
       "return an S3Storage with credentials and region" in {
@@ -125,7 +146,7 @@ class StorageSpec
         val expectedRead  = Permission.unsafe("my/read")
         val expectedWrite = Permission.unsafe("my/write")
         Storage(resource, encrypt = false).right.value shouldEqual
-          S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, expectedRead, expectedWrite)
+          S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, expectedRead, expectedWrite, 3000L)
       }
 
       "return an S3Storage with encrypted credentials" in {
@@ -136,7 +157,7 @@ class StorageSpec
         val expectedRead  = Permission.unsafe("my/read")
         val expectedWrite = Permission.unsafe("my/write")
         Storage(resource, encrypt = true).right.value shouldEqual
-          S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, expectedRead, expectedWrite)
+          S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, expectedRead, expectedWrite, 3000L)
       }
 
       "fail on DiskStorage when types are wrong" in {
@@ -171,9 +192,9 @@ class StorageSpec
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
         // format: off
-        val disk: Storage = DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), readDisk, writeDisk)
-        val s3: Storage = S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", S3Settings(None, None, None), readS3, writeS3)
-        val remote: Storage = RemoteDiskStorage(projectRef, iri, 1L, false, false, "SHA-256", "http://example.com/some", Some("credentials"), "folder", expectedRead, expectedWrite)
+        val disk: Storage = DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), readDisk, writeDisk, 1000L)
+        val s3: Storage = S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", S3Settings(None, None, None), readS3, writeS3, 3000L)
+        val remote: Storage = RemoteDiskStorage(projectRef, iri, 1L, false, false, "SHA-256", "http://example.com/some", Some("credentials"), "folder", expectedRead, expectedWrite, 2000L)
         // format: on
 
         forAll(

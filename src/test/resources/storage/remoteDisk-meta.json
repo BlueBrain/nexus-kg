@@ -10,6 +10,7 @@
   "folder" : "folder",
   "readPermission" : "myRead",
   "writePermission" : "myWrite",
+  "maxFileSize" : 2000,
   "_deprecated" : false,
   "_rev" : 1,
   "_algorithm" : "SHA-256"
