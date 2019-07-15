@@ -20,6 +20,7 @@ import cats.implicits._
 import journal.Logger
 import java.util.{Arrays => JArrays, HashSet => JHashSet, Set => JSet}
 
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock
@@ -208,6 +209,28 @@ object Migrations {
         } else event
       }
 
+      def transformStorageEvent(event: Json, types: Set[String]): Json = {
+
+        def transformSource(source: Json): Json = event deepMerge Json.obj("source" -> source)
+
+        event.hcursor.downField("source").focus.flatMap(_.asObject) match {
+          case Some(source) if types.contains(nxv.DiskStorage.prefix) && !source.contains(nxv.maxFileSize.prefix) =>
+            transformSource(source.add(nxv.maxFileSize.prefix, c.storage.disk.maxFileSize.asJson).asJson)
+          case Some(source)
+              if types.contains(nxv.RemoteDiskStorage.prefix) && !source.contains(nxv.maxFileSize.prefix) =>
+            transformSource(source.add(nxv.maxFileSize.prefix, c.storage.remoteDisk.maxFileSize.asJson).asJson)
+          case Some(source) if types.contains(nxv.S3Storage.prefix) && !source.contains(nxv.maxFileSize.prefix) =>
+            transformSource(source.add(nxv.maxFileSize.prefix, c.storage.amazon.maxFileSize.asJson).asJson)
+          case Some(source) if source.contains(nxv.maxFileSize.prefix) => event
+          case Some(_) =>
+            log.error(s"Unable to extract any storage type from the event '$event'. Found types: '$types'")
+            event
+          case _ =>
+            log.error(s"Unable to extract the 'source' from the event '$event'")
+            event
+        }
+      }
+
       def transformFileEvent(event: Json, volume: String, projects: Map[UUID, Project]): Json = {
         event.hcursor.get[Json]("storage").toOption match {
           case Some(_) => event // event already migrated, skip
@@ -276,7 +299,14 @@ object Migrations {
                       val migrated = transformNonFileEvent(event, projects)
                       orgOf(migrated) match {
                         case Some(org) =>
-                          Source.single((pid, partitionNr, seqNr, timestamp, timebucket, org, migrated.noSpaces))
+                          event.hcursor.downField("source").get[Set[String]]("@type").toOption match {
+                            case Some(types) if types.contains("Storage") =>
+                              val migratedStorage = transformStorageEvent(migrated, types)
+                              Source.single(
+                                (pid, partitionNr, seqNr, timestamp, timebucket, org, migratedStorage.noSpaces))
+                            case _ =>
+                              Source.single((pid, partitionNr, seqNr, timestamp, timebucket, org, migrated.noSpaces))
+                          }
                         case None =>
                           log.error(s"Unable to extract org uuid for migrated event '$migrated'")
                           Source.empty

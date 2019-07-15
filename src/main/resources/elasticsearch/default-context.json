@@ -12,8 +12,8 @@
     "_outgoing": "https://bluebrain.github.io/nexus/vocabulary/outgoing",
     "_updatedBy": "https://bluebrain.github.io/nexus/vocabulary/updatedBy",
     "_createdBy": "https://bluebrain.github.io/nexus/vocabulary/createdBy",
-    "_storageId": {
-      "@id": "https://bluebrain.github.io/nexus/vocabulary/storageId",
+    "_storage": {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/storage",
       "@type": "@id"
     },
     "_constrainedBy": {
