@@ -68,10 +68,6 @@
       "type": "keyword",
       "copy_to": "_all_fields"
     },
-    "_storageId": {
-      "type": "keyword",
-      "copy_to": "_all_fields"
-    },
     "_filename": {
       "type": "keyword",
       "copy_to": "_all_fields"
@@ -84,6 +80,19 @@
           "copy_to": "_all_fields"
         },
         "_value": {
+          "type": "keyword",
+          "copy_to": "_all_fields"
+        }
+      }
+    },
+    "_storage": {
+      "type": "nested",
+      "properties": {
+        "_rev": {
+          "type": "long",
+          "copy_to": "_all_fields"
+        },
+        "@id": {
           "type": "keyword",
           "copy_to": "_all_fields"
         }
