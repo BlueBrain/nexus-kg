@@ -3,8 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.{Encoder, Json}
@@ -35,9 +33,6 @@ object Tag {
       tag     <- cursor.downField(nxv.tag).focus.as[String].flatMap(nonEmpty).left.map(_ => InvalidResourceFormat(resId.ref, "'tag' field does not have the right format."))
     } yield Tag(rev, tag)
   // format: on
-
-  private def nonEmpty(s: String): EncoderResult[String] =
-    if (s.trim.isEmpty) Left(IllegalConversion("Field cannot be empty")) else Right(s)
 
   implicit val tagEncoder: Encoder[Tag] = Encoder.instance {
     case Tag(rev, tag) => Json.obj(nxv.tag.prefix -> Json.fromString(tag), "rev" -> Json.fromLong(rev))

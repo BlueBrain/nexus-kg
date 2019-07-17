@@ -19,6 +19,8 @@ import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder.queryFor
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
@@ -128,5 +130,8 @@ package object resources {
       .getOrElse(F.pure[LinkResults](UnscoredQueryResults(0L, List.empty)))
       .retry
   }
+
+  private[resources] def nonEmpty(s: String): EncoderResult[String] =
+    if (s.trim.isEmpty) Left(IllegalConversion("Field cannot be empty")) else Right(s)
 
 }
