@@ -11,8 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidJsonLD
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{nonEmpty, Rejection, ResId}
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder._
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.{stringEncoder, EncoderResult}
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
@@ -44,15 +43,12 @@ object File {
       for {
         graph     <- source.replaceContext(storageCtx).id(id.value).asGraph(id.value).left.map(_ => InvalidJsonLD("Invalid JSON payload."))
         c          = graph.cursor()
-        filename  <- c.downField(nxv.filename).focus.as[String].flatMap(nonEmpty).toRejectionOnLeft(id.ref)
+        filename  <- c.downField(nxv.filename).focus.as[String].flatMap(nonEmpty(_, nxv.filename.prefix)).toRejectionOnLeft(id.ref)
         mediaType <- c.downField(nxv.mediaType).focus.as[ContentType].toRejectionOnLeft(id.ref)
-        path      <- c.downField(nxv.path).focus.as[Uri.Path].flatMap(nonEmptyPath).toRejectionOnLeft(id.ref)
+        path      <- c.downField(nxv.path).focus.as[Uri.Path].toRejectionOnLeft(id.ref)
       } yield LinkDescription(path, filename, mediaType)
     // format: on
   }
-
-  private def nonEmptyPath(p: Uri.Path): EncoderResult[Uri.Path] =
-    if (p.isEmpty) Left(IllegalConversion("Field cannot be empty")) else Right(p)
 
   /**
     * Holds some of the metadata information related to a file.

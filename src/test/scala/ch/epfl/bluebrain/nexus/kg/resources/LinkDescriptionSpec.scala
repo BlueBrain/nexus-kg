@@ -49,9 +49,5 @@ class LinkDescriptionSpec extends WordSpec with Matchers with TestHelper with Ra
     "reject when path does not exist" in new Ctx {
       LinkDescription(id, jsonLink().removeKeys("path")).left.value shouldBe a[InvalidResourceFormat]
     }
-
-    "reject when path is empty" in new Ctx {
-      LinkDescription(id, jsonLink(path = "")).left.value shouldBe a[InvalidResourceFormat]
-    }
   }
 }
