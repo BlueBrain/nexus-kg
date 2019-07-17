@@ -26,11 +26,10 @@ object Tag {
   final def apply(resId: ResId, json: Json): Either[Rejection, Tag] =
     // format: off
     for {
-      graph   <- (json deepMerge tagCtx).id(resId.value).asGraph(resId.value)
-                    .left.map(_ => InvalidResourceFormat(resId.ref, "Empty or wrong Json-LD. Both 'tag' and 'rev' fields must be present."))
+      graph   <- (json deepMerge tagCtx).id(resId.value).asGraph(resId.value).left.map(_ => InvalidResourceFormat(resId.ref, "Empty or wrong Json-LD. Both 'tag' and 'rev' fields must be present."))
       cursor   = graph.cursor()
       rev     <- cursor.downField(nxv.rev).focus.as[Long].left.map(_ => InvalidResourceFormat(resId.ref, "'rev' field does not have the right format."))
-      tag     <- cursor.downField(nxv.tag).focus.as[String].flatMap(nonEmpty).left.map(_ => InvalidResourceFormat(resId.ref, "'tag' field does not have the right format."))
+      tag     <- cursor.downField(nxv.tag).focus.as[String].flatMap(nonEmpty(_, nxv.tag.prefix)).left.map(_ => InvalidResourceFormat(resId.ref, "'tag' field does not have the right format."))
     } yield Tag(rev, tag)
   // format: on
 
