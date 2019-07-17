@@ -29,6 +29,7 @@ import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock
 
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
 /**
@@ -316,13 +317,27 @@ object Migrations {
           s"UPDATE $kg.messages SET event = textasblob(?), tags = tags + ?, tags = tags - {'type=$alpha'} WHERE persistence_id = ? AND  partition_nr = ? AND sequence_nr = ? AND timestamp = ? AND timebucket = ?"
         val source = session.prepare(allEvents).map(prepared => session.select(prepared.bind())).runSync()
         source
-          .map { row =>
-            (row.getObject("persistence_id"),
-             row.getObject("partition_nr"),
-             row.getObject("sequence_nr"),
-             row.getObject("timestamp"),
-             row.getObject("timebucket"),
-             StandardCharsets.UTF_8.decode(row.get[ByteBuffer]("event", TypeCodec.blob())).toString)
+          .flatMapConcat { row =>
+            Try {
+
+              (row.getObject("persistence_id"),
+               row.getObject("partition_nr"),
+               row.getObject("sequence_nr"),
+               row.getObject("timestamp"),
+               row.getObject("timebucket"),
+               StandardCharsets.UTF_8.decode(row.get[ByteBuffer]("event", TypeCodec.blob())).toString)
+            } match {
+              case Success(value) => Source.single(value)
+              case Failure(NonFatal(th)) =>
+                try {
+                  log.error(
+                    s"Failed to read event for pid '${row.getObject("persistence_id")}', seq '${row.getObject("sequence_nr")}'",
+                    th)
+                } catch {
+                  case NonFatal(_) => log.error("Failed to read unknown row in messages table.")
+                }
+                Source.empty
+            }
           }
           .flatMapConcat {
             case (pid, partitionNr, seqNr, timestamp, timebucket, eventString) =>
