@@ -2,25 +2,28 @@ package ch.epfl.bluebrain.nexus.kg
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
-import java.util.UUID
+import java.util.{UUID, Arrays => JArrays, HashSet => JHashSet, Set => JSet}
 
 import akka.actor.{ActorSystem, ExtendedActorSystem}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.indexing.View
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.instances.{absoluteIriDecoder, absoluteIriEncoder}
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.datastax.driver.core.TypeCodec
 import io.circe.Json
 import io.circe.parser.parse
 import io.circe.syntax._
-import cats.implicits._
 import journal.Logger
-import java.util.{Arrays => JArrays, HashSet => JHashSet, Set => JSet}
-
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock
@@ -79,6 +82,9 @@ object Migrations {
           }
         }
       }
+
+      def getProject(event: Json): Option[UUID] =
+        event.hcursor.get[UUID]("project").toOption
 
       def loadProjects(): Map[UUID, Project] = {
         log.info("Loading project information.")
@@ -170,7 +176,7 @@ object Migrations {
           case Some(_) => event // event already migrated, skip
           case None =>
             val orgJson = for {
-              projectUuid <- event.hcursor.get[UUID]("project").toOption
+              projectUuid <- getProject(event)
               orgUuid     <- projects.get(projectUuid).map(_.orgUuid)
             } yield Json.obj("organization" -> Json.fromString(orgUuid.toString))
             orgJson match {
@@ -182,6 +188,27 @@ object Migrations {
         }
       }
 
+      def replaceDefaultView(event: Json, genView: ProjectRef => View): Json =
+        getProject(event) match {
+          case Some(projectUuid) =>
+            val view: View = genView(ProjectRef(projectUuid))
+            view.as[Json](viewCtx.appendContextOf(resourceCtx)).toOption match {
+              case Some(json) =>
+                val source = json.removeKeys(nxv.rev.prefix, nxv.deprecated.prefix).replaceContext(viewCtxUri)
+                event deepMerge Json.obj("source" -> source)
+              case _ =>
+                log.error(s"Unable to create default view for project '$projectUuid'")
+                event
+            }
+          case None =>
+            log.error(s"Unable to find the project uuid form the event '${event.noSpaces}'")
+            event
+        }
+
+      def replaceDefaultEsView(event: Json): Json = replaceDefaultView(event, ElasticSearchView.default)
+
+      def replaceDefaultSparqlView(event: Json): Json = replaceDefaultView(event, SparqlView.default)
+
       def orgOf(event: Json): Option[UUID] = {
         event.hcursor.get[UUID]("organization").toOption
       }
@@ -191,7 +218,7 @@ object Migrations {
         if (hasSource) {
           val extracted = for {
             ctxValue    <- event.hcursor.get[Json]("source").map(_.contextValue).toOption
-            projectUuid <- event.hcursor.get[UUID]("project").toOption
+            projectUuid <- getProject(event)
             project     <- projects.get(projectUuid)
             base  = project.base.asJson
             vocab = project.vocab.asJson
@@ -262,9 +289,25 @@ object Migrations {
       }
 
       def transformNonFileEvent(event: Json, projects: Map[UUID, Project]): Json = {
-        val nonAlpha = removeAlpha(event)
-        val withOrg  = addOrg(nonAlpha, projects)
-        addCtxIfEmpty(withOrg, projects)
+        val nonAlpha      = removeAlpha(event)
+        val withOrg       = addOrg(nonAlpha, projects)
+        val withOrgAndCtx = addCtxIfEmpty(withOrg, projects)
+
+        val optId    = event.hcursor.get[String]("id").toOption
+        val optTypes = event.hcursor.downField("source").get[Set[String]]("@type").toOption
+
+        optId -> optTypes match {
+          case (_, Some(types)) if types.contains(nxv.Storage.prefix) =>
+            transformStorageEvent(withOrgAndCtx, types)
+          case (Some(id), Some(types))
+              if types.contains(nxv.ElasticSearchView.prefix) && id == nxv.defaultElasticSearchIndex.value.asString =>
+            replaceDefaultEsView(withOrgAndCtx)
+          case (Some(id), Some(types))
+              if types.contains(nxv.SparqlView.prefix) && id == nxv.defaultSparqlIndex.value.asString =>
+            replaceDefaultSparqlView(withOrgAndCtx)
+          case _ =>
+            withOrgAndCtx
+        }
       }
 
       def migrateMessagesTable(volume: String, projects: Map[UUID, Project]): Unit = {
@@ -299,14 +342,7 @@ object Migrations {
                       val migrated = transformNonFileEvent(event, projects)
                       orgOf(migrated) match {
                         case Some(org) =>
-                          event.hcursor.downField("source").get[Set[String]]("@type").toOption match {
-                            case Some(types) if types.contains("Storage") =>
-                              val migratedStorage = transformStorageEvent(migrated, types)
-                              Source.single(
-                                (pid, partitionNr, seqNr, timestamp, timebucket, org, migratedStorage.noSpaces))
-                            case _ =>
-                              Source.single((pid, partitionNr, seqNr, timestamp, timebucket, org, migrated.noSpaces))
-                          }
+                          Source.single((pid, partitionNr, seqNr, timestamp, timebucket, org, migrated.noSpaces))
                         case None =>
                           log.error(s"Unable to extract org uuid for migrated event '$migrated'")
                           Source.empty
