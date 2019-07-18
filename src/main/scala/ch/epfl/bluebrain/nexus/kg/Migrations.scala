@@ -289,9 +289,25 @@ object Migrations {
       }
 
       def transformNonFileEvent(event: Json, projects: Map[UUID, Project]): Json = {
-        val nonAlpha = removeAlpha(event)
-        val withOrg  = addOrg(nonAlpha, projects)
-        addCtxIfEmpty(withOrg, projects)
+        val nonAlpha      = removeAlpha(event)
+        val withOrg       = addOrg(nonAlpha, projects)
+        val withOrgAndCtx = addCtxIfEmpty(withOrg, projects)
+
+        val optId    = event.hcursor.get[String]("id").toOption
+        val optTypes = event.hcursor.downField("source").get[Set[String]]("@type").toOption
+
+        optId -> optTypes match {
+          case (_, Some(types)) if types.contains(nxv.Storage.prefix) =>
+            transformStorageEvent(withOrgAndCtx, types)
+          case (Some(id), Some(types))
+              if types.contains(nxv.ElasticSearchView.prefix) && id == nxv.defaultElasticSearchIndex.value.asString =>
+            replaceDefaultEsView(withOrgAndCtx)
+          case (Some(id), Some(types))
+              if types.contains(nxv.SparqlView.prefix) && id == nxv.defaultSparqlIndex.value.asString =>
+            replaceDefaultSparqlView(withOrgAndCtx)
+          case _ =>
+            withOrgAndCtx
+        }
       }
 
       def migrateMessagesTable(volume: String, projects: Map[UUID, Project]): Unit = {
@@ -326,26 +342,7 @@ object Migrations {
                       val migrated = transformNonFileEvent(event, projects)
                       orgOf(migrated) match {
                         case Some(org) =>
-                          val optId    = event.hcursor.get[String]("id").toOption
-                          val optTypes = event.hcursor.downField("source").get[Set[String]]("@type").toOption
-                          optId -> optTypes match {
-                            case (_, Some(types)) if types.contains(nxv.Storage.prefix) =>
-                              val migratedStorage = transformStorageEvent(migrated, types)
-                              Source.single(
-                                (pid, partitionNr, seqNr, timestamp, timebucket, org, migratedStorage.noSpaces))
-                            case (Some(id), Some(types))
-                                if types.contains(nxv.ElasticSearchView.prefix) && id == nxv.defaultElasticSearchIndex.value.asString =>
-                              val migratedEsView = replaceDefaultEsView(migrated)
-                              Source.single(
-                                (pid, partitionNr, seqNr, timestamp, timebucket, org, migratedEsView.noSpaces))
-                            case (Some(id), Some(types))
-                                if types.contains(nxv.SparqlView.prefix) && id == nxv.defaultSparqlIndex.value.asString =>
-                              val migratedSparqlView = replaceDefaultSparqlView(migrated)
-                              Source.single(
-                                (pid, partitionNr, seqNr, timestamp, timebucket, org, migratedSparqlView.noSpaces))
-                            case _ =>
-                              Source.single((pid, partitionNr, seqNr, timestamp, timebucket, org, migrated.noSpaces))
-                          }
+                          Source.single((pid, partitionNr, seqNr, timestamp, timebucket, org, migrated.noSpaces))
                         case None =>
                           log.error(s"Unable to extract org uuid for migrated event '$migrated'")
                           Source.empty
