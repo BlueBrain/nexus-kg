@@ -26,21 +26,21 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "1.1.0"
-val commonsVersion              = "0.16.1"
+val commonsVersion              = "0.17.0"
 val storageVersion              = "1.1.0"
 val sourcingVersion             = "0.16.3"
 val akkaVersion                 = "2.5.23"
 val akkaCorsVersion             = "0.4.1"
-val akkaHttpVersion             = "10.1.8"
+val akkaHttpVersion             = "10.1.9"
 val akkaPersistenceInMemVersion = "2.5.15.2"
-val akkaPersistenceCassVersion  = "0.98"
+val akkaPersistenceCassVersion  = "0.99"
 val alpakkaVersion              = "1.1.0"
 val catsVersion                 = "1.6.1"
 val catsEffectVersion           = "1.3.1"
 val circeVersion                = "0.11.1"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
-val mockitoVersion              = "1.5.11"
+val mockitoVersion              = "1.5.12"
 val monixVersion                = "3.0.0-RC3"
 val pureconfigVersion           = "0.11.1"
 val shapelessVersion            = "2.3.3"
@@ -122,7 +122,15 @@ lazy val kg = project
       scalaTest            % Test
     ),
     cleanFiles ++= (baseDirectory.value * "ddata*").get,
-    resolvers  += "bogdanromanx" at "http://dl.bintray.com/bogdanromanx/maven"
+    mappings in Universal := {
+      val universalMappings = (mappings in Universal).value
+      universalMappings.foldLeft(Vector.empty[(File, String)]) {
+        case (acc, (file, filename)) if filename.contains("kanela-agent") =>
+          acc :+ (file, "lib/instrumentation-agent.jar")
+        case (acc, other) =>
+          acc :+ other
+      }
+    }
   )
 
 lazy val testSettings = Seq(
