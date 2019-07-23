@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticSearchIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -119,15 +120,15 @@ object ElasticSearchIndexer {
     val processedEventsGauge = Kamon
       .gauge("kg_indexer_gauge")
       .withTag("type", "elasticsearch")
-      .withTag("project", "project.projectLabel.show")
-      .withTag("organization", "project.organizationLabel")
-      .withTag("viewId", "view.id.show")
+      .withTag("project", project.projectLabel.show)
+      .withTag("organization", project.organizationLabel)
+      .withTag("viewId", view.id.show)
     val processedEventsCounter = Kamon
       .counter("kg_indexer_counter")
       .withTag("type", "elasticsearch")
-      .withTag("project", "project.projectLabel.show")
-      .withTag("organization", "project.organizationLabel")
-      .withTag("viewId", "view.id.show")
+      .withTag("project", project.projectLabel.show)
+      .withTag("organization", project.organizationLabel)
+      .withTag("viewId", view.id.show)
     val processedEventsCount = AtomicLong(0L)
 
     TagProjection.start(
