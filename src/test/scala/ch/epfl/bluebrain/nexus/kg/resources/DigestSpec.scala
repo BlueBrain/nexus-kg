@@ -66,7 +66,7 @@ class DigestSpec extends WordSpec with Matchers with TestHelper with Randomness 
     }
     "reject when @type is invalid" in new Ctx {
       val digest = Digest(genString(), genString())
-      Digest(id, jsonDigest(digest, tpe = genString())).left.value shouldEqual
+      Digest(id, jsonDigest(digest, tpe = genIri.asString)).left.value shouldEqual
         InvalidResourceFormat(id.ref, "'@type' field does not have the right format.")
     }
   }
