@@ -185,8 +185,7 @@ class ResolversSpec
       }
 
       "prevent to update a resolver that does not exists" in new Base {
-        resolvers.update(resId, 1L, resolver).value.rejected[NotFound] shouldEqual
-          NotFound(resId.ref, Some(1L))
+        resolvers.update(resId, 1L, resolver).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 

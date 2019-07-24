@@ -236,8 +236,7 @@ class ViewsSpec
       }
 
       "prevent to update a view that does not exists" in new EsViewMocked {
-        views.update(resId, 1L, esView).value.rejected[NotFound] shouldEqual
-          NotFound(resId.ref, Some(1L))
+        views.update(resId, 1L, esView).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 

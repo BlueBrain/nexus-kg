@@ -162,10 +162,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    for {
-      _          <- repo.get(id, rev, Some(fileRef)).toRight(NotFound(id.ref, Some(rev)))
-      deprecated <- repo.deprecate(id, rev)
-    } yield deprecated
+    repo.deprecate(id, fileRef, rev)
 
   /**
     * Attempts to stream the file resource for the latest revision.

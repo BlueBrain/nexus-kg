@@ -69,6 +69,7 @@ object Command {
     * An intent for resource update.
     *
     * @param id           the resource identifier
+    * @param schema       the schema that is used to constrain the resource
     * @param rev          the last known revision of the resource when this command was created
     * @param types        the collection of known resource types (asserted or inferred)
     * @param source       the new source representation of the resource
@@ -77,6 +78,7 @@ object Command {
     */
   final case class Update(
       id: Id[ProjectRef],
+      schema: Ref,
       rev: Long,
       types: Set[AbsoluteIri],
       source: Json,
@@ -88,11 +90,13 @@ object Command {
     * An intent for resource deprecation.
     *
     * @param id      the resource identifier
+    * @param schema  the schema that is used to constrain the resource
     * @param rev     the last known revision of the resource when this command was created
     * @param instant the instant when this command was created
     */
   final case class Deprecate(
       id: Id[ProjectRef],
+      schema: Ref,
       rev: Long,
       instant: Instant,
       subject: Subject
@@ -102,6 +106,7 @@ object Command {
     * An intent to add a tag to a resource (revision aliasing).
     *
     * @param id        the resource identifier
+    * @param schema    the schema that is used to constrain the resource
     * @param rev       the last known revision of the resource when this command was created
     * @param targetRev the revision to be tagged with the provided ''tag''
     * @param tag       the tag's name
@@ -109,6 +114,7 @@ object Command {
     */
   final case class AddTag(
       id: Id[ProjectRef],
+      schema: Ref,
       rev: Long,
       targetRev: Long,
       tag: String,

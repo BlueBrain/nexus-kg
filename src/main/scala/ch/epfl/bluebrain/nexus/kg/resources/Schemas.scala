@@ -71,12 +71,11 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     */
   def update(id: ResId, rev: Long, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
     for {
-      _        <- repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref, Some(rev)))
       matValue <- materializer(source.addContext(shaclCtxUri), id.value)
       typedGraph = addSchemaType(id.value, matValue.graph.removeMetadata)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(id, typedGraph)
-      updated <- repo.update(id, rev, types, source.addContext(shaclCtxUri))
+      updated <- repo.update(id, shaclRef, rev, types, source.addContext(shaclCtxUri))
     } yield updated
 
   /**
@@ -87,7 +86,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    repo.get(id, rev, Some(shaclRef)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
+    repo.deprecate(id, shaclRef, rev)
 
   /**
     * Fetches the latest revision of a storage.

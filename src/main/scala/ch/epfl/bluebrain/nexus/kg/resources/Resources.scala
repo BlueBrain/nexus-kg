@@ -96,11 +96,10 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
                                                               project: Project): RejOrResource[F] = {
     val sourceWithCtx = addContextIfEmpty(source)
     for {
-      _        <- repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref, Some(rev)))
       matValue <- materializer(sourceWithCtx, id.value)
       graph = matValue.graph.removeMetadata
       _       <- validate(schema, graph)
-      updated <- repo.update(id, rev, graph.types(id.value).map(_.value), sourceWithCtx)
+      updated <- repo.update(id, schema, rev, graph.types(id.value).map(_.value), sourceWithCtx)
     } yield updated
   }
 
@@ -180,7 +179,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long, schema: Ref)(implicit subject: Subject): RejOrResource[F] =
-    repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
+    repo.deprecate(id, schema, rev)
 
   /**
     * Lists resources for the given project and schema

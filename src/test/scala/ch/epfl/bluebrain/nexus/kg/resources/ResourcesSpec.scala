@@ -210,17 +210,9 @@ class ResourcesSpec
           ResourceF.simpleF(resId, expected, 2L, schema = schemaRef)
       }
 
-      "prevent to update a resource when the provided schema does not match the created schema" in new Base {
-        val json = Json.obj("one" -> Json.fromString("two"))
-        resources.create(resId, unconstrainedRef, json).value.accepted shouldBe a[Resource]
-        val otherSchema = Ref(genIri)
-        resources.update(resId, 1L, otherSchema, json).value.rejected[NotFound] shouldEqual
-          NotFound(resId.ref, Some(1L))
-      }
-
       "prevent to update a resource  that does not exists" in new Base {
         resources.update(resId, 1L, unconstrainedRef, Json.obj()).value.rejected[NotFound] shouldEqual
-          NotFound(resId.ref, Some(1L))
+          NotFound(resId.ref)
       }
     }
 
@@ -237,7 +229,8 @@ class ResourcesSpec
       "prevent deprecating a resource when the provided schema does not match the created schema" in new Base {
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         val otherSchema = Ref(genIri)
-        resources.deprecate(resId, 1L, otherSchema).value.rejected[NotFound] shouldEqual NotFound(resId.ref, Some(1L))
+        resources.deprecate(resId, 1L, otherSchema).value.rejected[NotFound] shouldEqual
+          NotFound(resId.ref, schemaOpt = Some(otherSchema))
       }
     }
 

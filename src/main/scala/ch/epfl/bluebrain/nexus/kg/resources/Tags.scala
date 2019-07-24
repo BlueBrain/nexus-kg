@@ -5,7 +5,6 @@ import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 
@@ -21,11 +20,9 @@ class Tags[F[_]: Effect](repo: Repo[F]) {
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def create(id: ResId, rev: Long, source: Json, schema: Ref)(implicit subject: Subject): RejOrResource[F] =
-    for {
-      _      <- repo.get(id, rev, Some(schema)).toRight(NotFound(id.ref))
-      tag    <- EitherT.fromEither[F](Tag(id, source.addContext(tagCtxUri)))
-      tagged <- repo.tag(id, rev, tag.rev, tag.value)
-    } yield tagged
+    EitherT.fromEither[F](Tag(id, source.addContext(tagCtxUri))).flatMap { tag =>
+      repo.tag(id, schema, rev, tag.rev, tag.value)
+    }
 
   /**
     * Fetches the latest revision of a view tags.
@@ -35,10 +32,7 @@ class Tags[F[_]: Effect](repo: Repo[F]) {
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, schema: Ref): RejOrTags[F] =
-    repo
-      .get(id, Some(schema))
-      .toRight(notFound(id.ref))
-      .map(_.tags.map { case (tag, tagRev) => Tag(tagRev, tag) }.toSet)
+    repo.get(id, Some(schema)).toRight(notFound(id.ref)).map(toTags)
 
   /**
     * Fetches the provided revision of a view tags.
@@ -49,10 +43,7 @@ class Tags[F[_]: Effect](repo: Repo[F]) {
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long, schema: Ref): RejOrTags[F] =
-    repo
-      .get(id, rev, Some(schema))
-      .toRight(notFound(id.ref, Some(rev)))
-      .map(_.tags.map { case (tag, tagRev) => Tag(tagRev, tag) }.toSet)
+    repo.get(id, rev, Some(schema)).toRight(notFound(id.ref, Some(rev))).map(toTags)
 
   /**
     * Fetches the provided tag of a view tags.
@@ -63,10 +54,10 @@ class Tags[F[_]: Effect](repo: Repo[F]) {
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String, schema: Ref): RejOrTags[F] =
-    repo
-      .get(id, tag, Some(schema))
-      .toRight(notFound(id.ref, tagOpt = Some(tag)))
-      .map(_.tags.map { case (value, tagRev) => Tag(tagRev, value) }.toSet)
+    repo.get(id, tag, Some(schema)).toRight(notFound(id.ref, tagOpt = Some(tag))).map(toTags)
+
+  private def toTags(resource: Resource): TagSet =
+    resource.tags.map { case (value, tagRev) => Tag(tagRev, value) }.toSet
 
 }
 

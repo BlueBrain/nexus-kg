@@ -82,14 +82,13 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
                                                  verify: Verify[F],
                                                  project: Project): RejOrResource[F] =
     for {
-      _        <- repo.get(id, rev, Some(storageRef)).toRight(NotFound(id.ref, Some(rev)))
       matValue <- materializer(source.addContext(storageCtxUri), id.value)
       typedGraph = addStorageType(id.value, matValue.graph)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
       storage <- storageValidation(id, typedGraph, 1L, types)
       json    <- jsonForRepo(storage)
-      updated <- repo.update(id, rev, types, json)
+      updated <- repo.update(id, storageRef, rev, types, json)
     } yield updated
 
   /**
@@ -100,7 +99,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    repo.get(id, rev, Some(storageRef)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
+    repo.deprecate(id, storageRef, rev)
 
   /**
     * Fetches the latest revision of a storage.

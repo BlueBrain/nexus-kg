@@ -59,6 +59,7 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * Updates a resource.
     *
     * @param id      the id of the resource
+    * @param schema  the schema that constrains the resource
     * @param rev     the last known revision of the resource
     * @param types   the new collection of known resource types
     * @param source  the source representation
@@ -66,27 +67,33 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def update(id: ResId, rev: Long, types: Set[AbsoluteIri], source: Json, instant: Instant = clock.instant)(
-      implicit subject: Subject): EitherT[F, Rejection, Resource] =
-    evaluate(id, Update(id, rev, types, source, instant, subject))
+  def update(id: ResId,
+             schema: Ref,
+             rev: Long,
+             types: Set[AbsoluteIri],
+             source: Json,
+             instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, Update(id, schema, rev, types, source, instant, subject))
 
   /**
     * Deprecates a resource.
     *
     * @param id      the id of the resource
+    * @param schema  the schema that constrains the resource
     * @param rev     the last known revision of the resource
     * @param subject the subject that generated the change
     * @param instant an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def deprecate(id: ResId, rev: Long, instant: Instant = clock.instant)(
+  def deprecate(id: ResId, schema: Ref, rev: Long, instant: Instant = clock.instant)(
       implicit subject: Subject): EitherT[F, Rejection, Resource] =
-    evaluate(id, Deprecate(id, rev, instant, subject))
+    evaluate(id, Deprecate(id, schema, rev, instant, subject))
 
   /**
     * Tags a resource. This operation aliases the provided ''targetRev'' with the  provided ''tag''.
     *
     * @param id        the id of the resource
+    * @param schema    the schema that constrains the resource
     * @param rev       the last known revision of the resource
     * @param targetRev the revision that is being aliased with the provided ''tag''
     * @param tag       the tag of the alias for the provided ''rev''
@@ -94,9 +101,9 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant   an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def tag(id: ResId, rev: Long, targetRev: Long, tag: String, instant: Instant = clock.instant)(
+  def tag(id: ResId, schema: Ref, rev: Long, targetRev: Long, tag: String, instant: Instant = clock.instant)(
       implicit subject: Subject): EitherT[F, Rejection, Resource] =
-    evaluate(id, AddTag(id, rev, targetRev, tag, instant, subject))
+    evaluate(id, AddTag(id, schema, rev, targetRev, tag, instant, subject))
 
   /**
     * Creates a file resource.
@@ -319,9 +326,10 @@ object Repo {
 
     def update(c: Update): Either[Rejection, Updated] =
       state match {
-        case Initial                      => Left(NotFound(c.id.ref))
-        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
-        case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
+        case Initial                            => Left(NotFound(c.id.ref))
+        case s: Current if s.schema != c.schema => Left(NotFound(c.id.ref, schemaOpt = Some(c.schema)))
+        case s: Current if s.rev != c.rev       => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.deprecated         => Left(ResourceIsDeprecated(c.id.ref))
         case s: Current if s.schema == viewRef =>
           val updatedJson = changeView(c.source, extractUuidFrom(s.source))
           Right(Updated(s.id, s.organization, s.rev + 1, c.types, updatedJson, c.instant, c.subject))
@@ -330,19 +338,21 @@ object Repo {
 
     def tag(c: AddTag): Either[Rejection, TagAdded] =
       state match {
-        case Initial                           => Left(NotFound(c.id.ref))
-        case s: Current if s.rev != c.rev      => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
-        case s: Current if s.rev < c.targetRev => Left(IncorrectRev(c.id.ref, c.targetRev, s.rev))
-        case s: Current if s.deprecated        => Left(ResourceIsDeprecated(c.id.ref))
-        case s: Current                        => Right(TagAdded(s.id, s.organization, s.rev + 1, c.targetRev, c.tag, c.instant, c.subject))
+        case Initial                            => Left(NotFound(c.id.ref))
+        case s: Current if s.schema != c.schema => Left(NotFound(c.id.ref, schemaOpt = Some(c.schema)))
+        case s: Current if s.rev != c.rev       => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.rev < c.targetRev  => Left(IncorrectRev(c.id.ref, c.targetRev, s.rev))
+        case s: Current if s.deprecated         => Left(ResourceIsDeprecated(c.id.ref))
+        case s: Current                         => Right(TagAdded(s.id, s.organization, s.rev + 1, c.targetRev, c.tag, c.instant, c.subject))
       }
 
     def deprecate(c: Deprecate): Either[Rejection, Deprecated] =
       state match {
-        case Initial                      => Left(NotFound(c.id.ref))
-        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
-        case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
-        case s: Current                   => Right(Deprecated(s.id, s.organization, s.rev + 1, s.types, c.instant, c.subject))
+        case Initial                            => Left(NotFound(c.id.ref))
+        case s: Current if s.schema != c.schema => Left(NotFound(c.id.ref, schemaOpt = Some(c.schema)))
+        case s: Current if s.rev != c.rev       => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.deprecated         => Left(ResourceIsDeprecated(c.id.ref))
+        case s: Current                         => Right(Deprecated(s.id, s.organization, s.rev + 1, s.types, c.instant, c.subject))
       }
 
     cmd match {
