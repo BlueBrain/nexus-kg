@@ -152,4 +152,14 @@ object S3StorageOperations {
         .to[F]
     }
   }
+
+  /**
+    * [[FetchFileDigest]] implementation for [[S3Storage]] that always throws an error since this operation is not supported.
+    * This is the case because linkFile is already always computing the digest.
+    * We might want to change this behaviour in the future, but we don't have a use case for it no.
+    */
+  final class FetchDigest[F[_]]()(implicit F: Effect[F]) extends FetchFileDigest[F] {
+    override def apply(path: Uri.Path): F[Digest] =
+      F.raiseError(KgError.UnsupportedOperation)
+  }
 }

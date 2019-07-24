@@ -33,6 +33,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
@@ -40,6 +41,8 @@ import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfter, EitherValues, Matchers, WordSpecLike}
+
+import scala.concurrent.duration._
 
 class QueryDirectivesSpec
     extends WordSpecLike
@@ -64,7 +67,8 @@ class QueryDirectivesSpec
         RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
         S3StorageConfig("MD5", read, write, true, 1024L),
         "password",
-        "salt"
+        "salt",
+        RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
       )
 
     implicit def paginationMarshaller(implicit m1: ToEntityMarshaller[FromPagination],

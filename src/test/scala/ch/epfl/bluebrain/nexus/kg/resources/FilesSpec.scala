@@ -21,8 +21,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, LinkFile, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchDigest, Link, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, FetchFileDigest, LinkFile, SaveFile}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
@@ -59,6 +59,7 @@ class FilesSpec
 
   private implicit val repo                           = Repo[IO].ioValue
   private val saveFile: SaveFile[IO, String]          = mock[SaveFile[IO, String]]
+  private val fetchDigest: FetchFileDigest[IO]        = mock[FetchFileDigest[IO]]
   private val fetchFile: FetchFile[IO, String]        = mock[FetchFile[IO, String]]
   private val linkFile: LinkFile[IO]                  = mock[LinkFile[IO]]
   private implicit val storageCache: StorageCache[IO] = mock[StorageCache[IO]]
@@ -70,6 +71,7 @@ class FilesSpec
     Mockito.reset(saveFile)
     Mockito.reset(fetchFile)
     Mockito.reset(linkFile)
+    Mockito.reset(fetchDigest)
   }
 
   trait Base {
@@ -96,6 +98,9 @@ class FilesSpec
     storageCache.get(projectRef, storage.id) shouldReturn IO(Some(storage))
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
+
+    implicit val fetchD: FetchDigest[IO] = (st: Storage) =>
+      if (st == storage) fetchDigest else throw new RuntimeException
 
     implicit val link: Link[IO] = (st: Storage) => if (st == storage) linkFile else throw new RuntimeException
 
@@ -139,6 +144,76 @@ class FilesSpec
 
     }
 
+    "performing digest update operations computed from the storage" should {
+
+      "update a file digest" in new Base {
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        fetchDigest(path) shouldReturn IO.pure(attributes.digest)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.updateDigestIfEmpty(resId).value.accepted shouldEqual
+          ResourceF
+            .simpleF(resId, value, 2L, schema = fileRef, types = types)
+            .copy(file = Some(storage.reference -> attributes))
+      }
+
+      "prevent updating a file digest when returned digest is not computed" in new Base {
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        fetchDigest(path) shouldReturn IO.pure(Digest.empty)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.updateDigestIfEmpty(resId).value.rejected[FileDigestNotComputed]
+      }
+
+      "prevent updating a file digest when the digest is already computed" in new Base {
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.updateDigestIfEmpty(resId).value.rejected[ResourceAlreadyExists]
+      }
+
+      "prevent updating a file digest when file does not exist" in new Base {
+        files.updateDigestIfEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
+      }
+    }
+
+    "performing digest update operations passed by the client" should {
+
+      def digestJson(digest: Digest): Json =
+        Json.obj("value"     -> Json.fromString(digest.value),
+                 "algorithm" -> Json.fromString(digest.algorithm),
+                 "@type"     -> Json.fromString(nxv.UpdateDigest.prefix))
+
+      "update a file digest" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+
+        files.updateDigest(resId, storage, 1L, digestJson(attributes.digest)).value.accepted shouldEqual
+          ResourceF
+            .simpleF(resId, value, 2L, schema = fileRef, types = types)
+            .copy(file = Some(storage.reference -> attributes))
+      }
+
+      "prevent updating a file digest when the revision is wrong" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files
+          .updateDigest(resId, storage, 3L, digestJson(attributes.digest))
+          .value
+          .rejected[IncorrectRev] shouldEqual IncorrectRev(resId.ref, 3L, 1L)
+      }
+
+      "prevent updating a file digest when file does not exist" in new Base {
+        files
+          .updateDigest(resId, storage, 1L, digestJson(attributes.digest))
+          .value
+          .rejected[NotFound] shouldEqual NotFound(resId.ref)
+      }
+    }
+
     "performing update operations" should {
 
       "update a file" in new Base {
@@ -153,6 +228,17 @@ class FilesSpec
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types)
             .copy(file = Some(storage.reference -> attributesUpdated))
+      }
+
+      "prevent updating a file which digest hasn't been computed yet" in new Base {
+        val updatedSource     = genString()
+        val attributesUpdated = desc.process(StoredSummary(location, path, 100L, Digest.empty))
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        saveFile(resId, desc, updatedSource) shouldReturn IO.pure(attributesUpdated)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.update(resId, storage, 1L, desc, updatedSource).value.rejected[FileDigestNotComputed]
       }
 
       "prevent updating a file that does not exist" in new Base {

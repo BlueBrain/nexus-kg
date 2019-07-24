@@ -21,10 +21,13 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef, Re
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import io.circe.Json
 import io.circe.parser._
 import org.scalatest._
 import shapeless.Typeable
+
+import scala.concurrent.duration._
 
 class EventSerializerSpec
     extends WordSpecLike
@@ -44,7 +47,8 @@ class EventSerializerSpec
       RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
       S3StorageConfig("MD5", read, write, true, 1024L),
       "password",
-      "salt"
+      "salt",
+      RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
     )
   private case class Other(str: String)
 

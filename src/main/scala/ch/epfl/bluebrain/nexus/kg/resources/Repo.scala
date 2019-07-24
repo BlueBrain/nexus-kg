@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
@@ -106,15 +106,31 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param storage      the storage reference where the file was saved
     * @param fileAttr     the file attributes
     * @param instant      an optionally provided operation instant
-    * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def createFile[In](id: ResId,
-                     organization: OrganizationRef,
-                     storage: StorageReference,
-                     fileAttr: FileAttributes,
-                     instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def createFile(id: ResId,
+                 organization: OrganizationRef,
+                 storage: StorageReference,
+                 fileAttr: FileAttributes,
+                 instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
+
+  /**
+    * Updates the digest of a file resource.
+    *
+    * @param id       the id of the resource
+    * @param storage  the storage reference where the file was saved
+    * @param rev      the optional last known revision of the resource
+    * @param digest the file digest
+    * @param instant  an optionally provided operation instant
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def updateFileDigest(id: ResId,
+                       storage: StorageReference,
+                       rev: Long,
+                       digest: Digest,
+                       instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    evaluate(id, UpdateFileDigest(id, storage, rev, digest, instant, subject))
 
   /**
     * Replaces a file resource.
@@ -124,14 +140,13 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param rev      the optional last known revision of the resource
     * @param fileAttr the file attributes
     * @param instant  an optionally provided operation instant
-    * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateFile[In](id: ResId,
-                     storage: StorageReference,
-                     rev: Long,
-                     fileAttr: FileAttributes,
-                     instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def updateFile(id: ResId,
+                 storage: StorageReference,
+                 rev: Long,
+                 fileAttr: FileAttributes,
+                 instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
   /**
@@ -252,6 +267,11 @@ object Repo {
         c.copy(rev = rev, updated = tm, updatedBy = ident, deprecated = true)
       case (c: Current, Updated(_, _, rev, types, value, tm, ident)) =>
         c.copy(rev = rev, types = types, source = value, updated = tm, updatedBy = ident)
+      // format: off
+      case (c @ Current(_, _, _, _, _, _, Some((_, attr)), _, _, _, _, _, _), FileDigestUpdated(_, _, storage, rev, digest, tm, ident)) =>
+        c.copy(rev = rev, file = Some(storage -> attr.copy(digest = digest)), updated = tm, updatedBy = ident)
+      // format: on
+      case (c: Current, _: FileDigestUpdated) => c //that never happens
       case (c: Current, FileUpdated(_, _, storage, rev, file, tm, ident)) =>
         c.copy(rev = rev, file = Some(storage -> file), updated = tm, updatedBy = ident)
     }
@@ -277,14 +297,28 @@ object Repo {
         case _       => Left(ResourceAlreadyExists(c.id.ref))
       }
 
-    def updateFile(c: UpdateFile): Either[Rejection, FileUpdated] =
+    def updateFileDigest(c: UpdateFileDigest): Either[Rejection, FileDigestUpdated] =
       state match {
         case Initial                      => Left(NotFound(c.id.ref))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
         case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
         case s: Current if s.file.isEmpty => Left(NotAFileResource(c.id.ref))
-        case s: Current                   => Right(FileUpdated(s.id, s.organization, c.storage, s.rev + 1, c.value, c.instant, c.subject))
+        case s: Current =>
+          Right(FileDigestUpdated(s.id, s.organization, c.storage, s.rev + 1, c.value, c.instant, c.subject))
       }
+
+    def updateFile(c: UpdateFile): Either[Rejection, FileUpdated] =
+      state match {
+        case Initial                        => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev   => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.deprecated     => Left(ResourceIsDeprecated(c.id.ref))
+        case s: Current if s.file.isEmpty   => Left(NotAFileResource(c.id.ref))
+        case s: Current if digestIsEmpty(s) => Left(FileDigestNotComputed(c.id.ref))
+        case s: Current                     => Right(FileUpdated(s.id, s.organization, c.storage, s.rev + 1, c.value, c.instant, c.subject))
+      }
+
+    def digestIsEmpty(s: Current): Boolean =
+      s.file.exists { case (_, attr) => attr.digest == Digest.empty }
 
     def update(c: Update): Either[Rejection, Updated] =
       state match {
@@ -315,12 +349,13 @@ object Repo {
       }
 
     cmd match {
-      case cmd: Create     => create(cmd)
-      case cmd: CreateFile => createFile(cmd)
-      case cmd: UpdateFile => updateFile(cmd)
-      case cmd: Update     => update(cmd)
-      case cmd: Deprecate  => deprecate(cmd)
-      case cmd: AddTag     => tag(cmd)
+      case cmd: Create           => create(cmd)
+      case cmd: CreateFile       => createFile(cmd)
+      case cmd: UpdateFileDigest => updateFileDigest(cmd)
+      case cmd: UpdateFile       => updateFile(cmd)
+      case cmd: Update           => update(cmd)
+      case cmd: Deprecate        => deprecate(cmd)
+      case cmd: AddTag           => tag(cmd)
     }
   }
 

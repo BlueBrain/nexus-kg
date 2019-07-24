@@ -32,7 +32,8 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
         RemoteDiskStorageConfig("http://localhost:8084/v1", None, "SHA-256", read, write, true, 10737418240L),
         S3StorageConfig("SHA-256", read, write, true, 10737418240L),
         "changeme",
-        "salt"
+        "salt",
+        RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
       )
       appConfig.iam shouldEqual IamConfig(url"http://localhost:8080/v1".value,
                                           url"http://localhost:8080/v1".value,

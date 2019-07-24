@@ -58,6 +58,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       // Create file when id is not provided in the Uri (POST)
       (post & projectNotDeprecated & pathEndOrSingleSlash & storage) { storage =>
         concat(
+          // Uploading a file from the client
           (withSizeLimit(storage.maxFileSize) & fileUpload("file")) {
             case (metadata, byteSource) =>
               operationName(s"/${config.http.prefix}/files/{}/{}") {
@@ -69,6 +70,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
                 }
               }
           },
+          // Linking a file from the storage service
           entity(as[Json]) { source =>
             operationName(s"/${config.http.prefix}/files/{}/{}") {
               Kamon.currentSpan().tag("file.operation", "link").tag("resource.operation", "create")
@@ -112,6 +114,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
           val resId = Id(project.ref, id)
           (hasPermission(storage.writePermission) & projectNotDeprecated) {
+            // Uploading a file from the client
             concat(
               (withSizeLimit(storage.maxFileSize) & fileUpload("file")) {
                 case (metadata, byteSource) =>
@@ -125,6 +128,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
                       complete(files.update(resId, storage, rev, description, byteSource).value.runWithStatus(OK))
                   }
               },
+              // Linking a file from the storage service
               entity(as[Json]) {
                 source =>
                   parameter('rev.as[Long].?) {
@@ -137,6 +141,16 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
                   }
               }
             )
+          }
+        }
+      },
+      // Updating file digest
+      (patch & pathEndOrSingleSlash & storage & parameter('rev.as[Long])) { (storage, rev) =>
+        operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+          (hasPermission(storage.writePermission) & projectNotDeprecated) {
+            entity(as[Json]) { source =>
+              complete(files.updateDigest(Id(project.ref, id), storage, rev, source).value.runWithStatus(OK))
+            }
           }
         }
       },
@@ -232,7 +246,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
           (respondWithHeaders(RawHeader("Content-Disposition", s"""attachment; filename="$encodedFilename"""")) & encodeResponse) {
             headerValueByType[Accept](()) { accept =>
               if (accept.mediaRanges.exists(_.matches(info.mediaType.mediaType)))
-                complete(HttpEntity(info.mediaType, info.bytes, source))
+                complete(HttpEntity(info.mediaType, source))
               else
                 failWith(
                   UnacceptedResponseContentType(

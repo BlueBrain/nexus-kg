@@ -32,7 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.Event
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.{FileDigestProjection, Storage}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -45,12 +45,15 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 // $COVERAGE-OFF$
-private class Indexing(
-    storages: Storages[Task],
-    views: Views[Task],
-    resolvers: Resolvers[Task],
-    adminClient: AdminClient[Task],
-    coordinator: ProjectViewCoordinator[Task])(implicit cache: Caches[Task], config: AppConfig, as: ActorSystem) {
+private class Indexing(storages: Storages[Task],
+                       views: Views[Task],
+                       resolvers: Resolvers[Task],
+                       files: Files[Task],
+                       adminClient: AdminClient[Task],
+                       coordinator: ProjectViewCoordinator[Task])(implicit cache: Caches[Task],
+                                                                  config: AppConfig,
+                                                                  as: ActorSystem,
+                                                                  P: Projections[Task, Event]) {
 
   private val logger = Logger[this.type]
   private implicit val retry: Retry[Task, KgError] =
@@ -146,6 +149,7 @@ private class Indexing(
           implicit val project: Project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
           implicit val caller: Caller = Caller(subject, Set(subject))
+          val _                       = startDigestStream(project)
           for {
             _ <- cache.project.replace(project)
             _ <- coordinator.start(project)
@@ -179,6 +183,11 @@ private class Indexing(
     ()
   }
 
+  def startDigestStream(project: Project): Unit = {
+    FileDigestProjection.start(files, project, restartOffset = false)
+    ()
+  }
+
   def startStorageStream(): Unit = {
     StorageIndexer.start(storages, cache.storage)
     ()
@@ -200,12 +209,14 @@ object Indexing {
     * @param storages  the storages operations
     * @param views     the views operations
     * @param resolvers the resolvers operations
+    * @param files     the files operations
     * @param cache     the distributed cache
     */
   def start(resources: Resources[Task],
             storages: Storages[Task],
             views: Views[Task],
             resolvers: Resolvers[Task],
+            files: Files[Task],
             adminClient: AdminClient[Task])(implicit cache: Caches[Task],
                                             config: AppConfig,
                                             as: ActorSystem,
@@ -218,7 +229,7 @@ object Indexing {
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     val coordinator    = new ProjectViewCoordinator[Task](cache, coordinatorRef)
 
-    val indexing = new Indexing(storages, views, resolvers, adminClient, coordinator)
+    val indexing = new Indexing(storages, views, resolvers, files, adminClient, coordinator)
     indexing.startAdminStream()
     indexing.startResolverStream()
     indexing.startViewStream()
