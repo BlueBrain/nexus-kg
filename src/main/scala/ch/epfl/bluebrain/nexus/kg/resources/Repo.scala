@@ -125,11 +125,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateFileDigest(id: ResId,
-                       storage: StorageReference,
-                       rev: Long,
-                       digest: Digest,
-                       instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def updateDigest(id: ResId, storage: StorageReference, rev: Long, digest: Digest, instant: Instant = clock.instant)(
+      implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, UpdateFileDigest(id, storage, rev, digest, instant, subject))
 
   /**
@@ -297,7 +294,7 @@ object Repo {
         case _       => Left(ResourceAlreadyExists(c.id.ref))
       }
 
-    def updateFileDigest(c: UpdateFileDigest): Either[Rejection, FileDigestUpdated] =
+    def updateDigest(c: UpdateFileDigest): Either[Rejection, FileDigestUpdated] =
       state match {
         case Initial                      => Left(NotFound(c.id.ref))
         case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
@@ -351,7 +348,7 @@ object Repo {
     cmd match {
       case cmd: Create           => create(cmd)
       case cmd: CreateFile       => createFile(cmd)
-      case cmd: UpdateFileDigest => updateFileDigest(cmd)
+      case cmd: UpdateFileDigest => updateDigest(cmd)
       case cmd: UpdateFile       => updateFile(cmd)
       case cmd: Update           => update(cmd)
       case cmd: Deprecate        => deprecate(cmd)

@@ -172,7 +172,7 @@ class FilesSpec
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
 
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-        files.updateDigestIfEmpty(resId).value.rejected[ResourceAlreadyExists]
+        files.updateDigestIfEmpty(resId).value.rejected[FileDigestAlreadyExists]
       }
 
       "prevent updating a file digest when file does not exist" in new Base {

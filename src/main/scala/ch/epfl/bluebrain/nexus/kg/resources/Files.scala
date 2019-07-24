@@ -73,9 +73,9 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
       currFile          <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref)))
       (storageRef, attr) = currFile
       storage           <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
-      digest            <- if(attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path)) else EitherT.leftT[F, Digest](ResourceAlreadyExists(id.ref): Rejection)
+      digest            <- if(attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
       _                 <- if(digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
-      updated           <- repo.updateFileDigest(id, storage.reference, curr.rev, digest)
+      updated           <- repo.updateDigest(id, storage.reference, curr.rev, digest)
     } yield updated
   // format: on
 
@@ -89,7 +89,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @return either a rejection or the new resource representation in the F context
     */
   def updateDigest(id: ResId, storage: Storage, rev: Long, digest: Json)(implicit subject: Subject): RejOrResource[F] =
-    EitherT.fromEither[F](Digest(id, digest)).flatMap(repo.updateFileDigest(id, storage.reference, rev, _))
+    EitherT.fromEither[F](Digest(id, digest)).flatMap(repo.updateDigest(id, storage.reference, rev, _))
 
   /**
     * Replaces a file resource.

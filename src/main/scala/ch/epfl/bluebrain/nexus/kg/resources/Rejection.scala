@@ -58,6 +58,13 @@ object Rejection {
       extends Rejection(s"Resource '${ref.show}' does not have a computed digest.")
 
   /**
+    * Signals an attempt to compute the digest for a file where the digest already exists.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class FileDigestAlreadyExists(ref: Ref) extends Rejection(s"File '${ref.show}' digest already exists.")
+
+  /**
     * Signals an attempt to perform a request with an invalid payload.
     *
     * @param ref a reference to the resource
@@ -241,6 +248,7 @@ object Rejection {
     case _: ProjectsNotFound         => StatusCodes.NotFound
     case _: IncorrectRev             => StatusCodes.Conflict
     case _: ResourceAlreadyExists    => StatusCodes.Conflict
+    case _: FileDigestAlreadyExists  => StatusCodes.Conflict
     case _: InvalidIdentity          => StatusCodes.Unauthorized
   }
 }

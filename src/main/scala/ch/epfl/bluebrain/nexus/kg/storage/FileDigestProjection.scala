@@ -12,10 +12,11 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchDigest
 import ch.epfl.bluebrain.nexus.sourcing.projections._
-
-import scala.concurrent.duration._
+import kamon.Kamon
+import monix.execution.atomic.AtomicLong
 
 private class FileDigestProjectionMapping[F[_]: FetchDigest](files: Files[F])(implicit F: MonadError[F, KgError]) {
 
@@ -62,6 +63,18 @@ object FileDigestProjection {
 
     val ignoreIndex: List[Resource] => F[Unit] = _ => F.unit
 
+    val processedEventsGauge = Kamon
+      .gauge("digest_computation_gauge")
+      .withTag("type", "digest")
+      .withTag("project", project.projectLabel.show)
+      .withTag("organization", project.organizationLabel)
+    val processedEventsCounter = Kamon
+      .counter("digest_computation_counter")
+      .withTag("type", "digest")
+      .withTag("project", project.projectLabel.show)
+      .withTag("organization", project.organizationLabel)
+    val processedEventsCount = AtomicLong(0L)
+
     TagProjection.start(
       ProjectionConfig
         .builder[F]
@@ -69,10 +82,21 @@ object FileDigestProjection {
         .tag(s"project=${project.uuid}")
         .plugin(config.persistence.queryJournalPlugin)
         .retry[KgError](config.storage.digestRetry.retryStrategy)(kgErrorMonadError)
-        .batch(1, 1 millis)
         .restart(restartOffset)
         .mapping(mapper.apply)
         .index(ignoreIndex)
+        .mapInitialProgress { p =>
+          processedEventsCount.set(p.processedCount)
+          processedEventsGauge.update(p.processedCount.toDouble)
+          F.unit
+        }
+        .mapProgress { p =>
+          val previousCount = processedEventsCount.get()
+          processedEventsGauge.update(p.processedCount.toDouble)
+          processedEventsCounter.increment(p.processedCount - previousCount)
+          processedEventsCount.set(p.processedCount)
+          F.unit
+        }
         .build)
   }
 }
