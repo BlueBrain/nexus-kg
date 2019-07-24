@@ -135,6 +135,14 @@ class FilesSpec
         resp shouldEqual expected
       }
 
+      "prevent creating a file that already exists" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+        files.create(resId, storage, desc, source).value.accepted
+
+        val desc2 = desc.copy(filename = genString())
+        files.create(resId, storage, desc2, source).value.rejected[ResourceAlreadyExists]
+      }
+
       "prevent creating a new File when save method fails" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.raiseError(new RuntimeException("Error I/O"))
         whenReady(files.create(resId, storage, desc, source).value.unsafeToFuture().failed) {
@@ -291,11 +299,14 @@ class FilesSpec
       }
 
       "prevent updating a link that does not exist" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+
         linkFile(eqTo(resId), eqTo(desc), eqTo(path)) shouldReturn IO.raiseError(RemoteFileNotFound(location))
-        files
-          .updateLink(resId, storage, 1L, fileLink)
-          .value
-          .failed[RemoteFileNotFound] shouldEqual RemoteFileNotFound(location)
+
+        files.updateLink(resId, storage, 1L, fileLink).value.failed[RemoteFileNotFound] shouldEqual
+          RemoteFileNotFound(location)
       }
     }
 

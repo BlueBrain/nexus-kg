@@ -122,6 +122,14 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
                  instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
+  private[resources] def createFileTest(
+      id: ResId,
+      organization: OrganizationRef,
+      storage: StorageReference,
+      fileAttr: FileAttributes,
+      instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    test(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
+
   /**
     * Updates the digest of a file resource.
     *
@@ -153,6 +161,14 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
                  instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
+  private[resources] def updateFileTest(
+      id: ResId,
+      storage: StorageReference,
+      rev: Long,
+      fileAttr: FileAttributes,
+      instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    test(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
+
   /**
     * Creates a link to an existing file.
     *
@@ -170,6 +186,14 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
                  instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
+  private[resources] def createLinkTest(
+      id: ResId,
+      organization: OrganizationRef,
+      storage: StorageReference,
+      fileAttr: FileAttributes,
+      instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    test(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
+
   /**
     * Updates a link to an existing file.
     *
@@ -186,6 +210,14 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
                  rev: Long,
                  instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
+
+  private[resources] def updateLinkTest(
+      id: ResId,
+      storage: StorageReference,
+      fileAttr: FileAttributes,
+      rev: Long,
+      instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+    test(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
   /**
     * Attempts to read the resource identified by the argument id.
@@ -240,6 +272,13 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     for {
       result   <- EitherT(agg.evaluateS(toIdentifier(id), cmd))
       resource <- result.resourceT(UnexpectedState(id.ref))
+    } yield resource
+
+  private def test(id: ResId, cmd: Command): EitherT[F, Rejection, Resource] =
+    for {
+      result <- EitherT(agg.test(toIdentifier(id), cmd))
+      (state, _) = result
+      resource <- state.resourceT(UnexpectedState(id.ref))
     } yield resource
 }
 

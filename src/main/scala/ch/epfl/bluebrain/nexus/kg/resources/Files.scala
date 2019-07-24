@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription, LinkDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
@@ -54,10 +54,14 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
   def create[In](id: ResId, storage: Storage, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
       project: Project,
-      saveStorage: Save[F, In]): RejOrResource[F] =
-    EitherT
-      .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => repo.createFile(id, OrganizationRef(project.organizationUuid), storage.reference, attr))
+      saveStorage: Save[F, In]): RejOrResource[F] = {
+    val orgRef = OrganizationRef(project.organizationUuid)
+    for {
+      _       <- repo.createFileTest(id, orgRef, storage.reference, fileDesc.process(StoredSummary.empty))
+      attr    <- EitherT.right(storage.save.apply(id, fileDesc, source))
+      created <- repo.createFile(id, orgRef, storage.reference, attr)
+    } yield created
+  }
 
   /**
     * Updates the digest of a file resource if it is not already present.
@@ -105,9 +109,11 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
   def update[In](id: ResId, storage: Storage, rev: Long, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
       saveStorage: Save[F, In]): RejOrResource[F] =
-    EitherT
-      .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => repo.updateFile(id, storage.reference, rev, attr))
+    for {
+      _       <- repo.updateFileTest(id, storage.reference, rev, fileDesc.process(StoredSummary.empty))
+      attr    <- EitherT.right(storage.save.apply(id, fileDesc, source))
+      created <- repo.updateFile(id, storage.reference, rev, attr)
+    } yield created
 
   /**
     * Creates a link to an existing file.
@@ -130,12 +136,18 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     */
   def createLink(id: ResId, storage: Storage, source: Json)(implicit subject: Subject,
                                                             project: Project,
-                                                            linkStorage: Link[F]): RejOrResource[F] =
+                                                            linkStorage: Link[F]): RejOrResource[F] = {
+    val orgRef = OrganizationRef(project.organizationUuid)
+    // format: off
     for {
-      link    <- EitherT.fromEither[F](LinkDescription(id, source))
-      attr    <- EitherT.right(storage.link.apply(id, FileDescription(link.filename, link.mediaType), link.path))
-      created <- repo.createLink(id, OrganizationRef(project.organizationUuid), storage.reference, attr)
+      link      <- EitherT.fromEither[F](LinkDescription(id, source))
+      fileDesc   = FileDescription(link.filename, link.mediaType)
+      _         <- repo.createLinkTest(id, orgRef, storage.reference, fileDesc.process(StoredSummary.empty))
+      attr      <- EitherT.right(storage.link.apply(id, fileDesc, link.path))
+      created   <- repo.createLink(id, orgRef, storage.reference, attr)
     } yield created
+    // format: on
+  }
 
   /**
     * Updates a link to an existing file.
@@ -148,11 +160,15 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     */
   def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(implicit subject: Subject,
                                                                        linkStorage: Link[F]): RejOrResource[F] =
+    // format: off
     for {
-      link    <- EitherT.fromEither[F](LinkDescription(id, source))
-      attr    <- EitherT.right(storage.link.apply(id, FileDescription(link.filename, link.mediaType), link.path))
-      created <- repo.updateLink(id, storage.reference, attr, rev)
+      link      <- EitherT.fromEither[F](LinkDescription(id, source))
+      fileDesc   = FileDescription(link.filename, link.mediaType)
+      _         <- repo.updateLinkTest(id, storage.reference, fileDesc.process(StoredSummary.empty), rev)
+      attr      <- EitherT.right(storage.link.apply(id, fileDesc, link.path))
+      created   <- repo.updateLink(id, storage.reference, attr, rev)
     } yield created
+  // format: on
 
   /**
     * Deprecates an existing file.
@@ -223,7 +239,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     listResources(view, params.copy(schema = Some(fileSchemaUri)), pagination)
 
   /**
-    * Lists incoming resources for the provided 'file 'id''
+    * Lists incoming resources for the provided file ''id''
     *
     * @param id         the resource id for which to retrieve the incoming links
     * @param view       optionally available default sparql view
