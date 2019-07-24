@@ -7,10 +7,11 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, LinkFile, RemoteDiskStorage, SaveFile, VerifyStorage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
+import com.github.ghik.silencer.silent
 
 object RemoteDiskStorageOperations {
 
@@ -84,6 +85,24 @@ object RemoteDiskStorageOperations {
           FileAttributes(fileDesc.uuid, location, destRelativePath, fileDesc.filename, fileDesc.mediaType, bytes, dig)
       }
     }
+  }
+
+  /**
+    * [[FetchFileDigest]] implementation for [[RemoteDiskStorage]]
+    *
+    * @param storage the [[RemoteDiskStorage]]
+    * @param client  the remote storage client
+    */
+  @silent
+  final class FetchDigest[F[_]: Effect](storage: RemoteDiskStorage, client: StorageClient[F])(
+      implicit config: StorageConfig)
+      extends FetchFileDigest[F] {
+    implicit val cred = storage.decryptAuthToken(config.derivedKey)
+
+    override def apply(relativePath: Uri.Path): F[Digest] =
+      client.getDigest(storage.folder, relativePath).map {
+        case StorageDigest(algorithm, value) => Digest(algorithm, value)
+      }
   }
 
 }

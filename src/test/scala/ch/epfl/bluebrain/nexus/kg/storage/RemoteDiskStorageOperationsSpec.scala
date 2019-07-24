@@ -15,11 +15,14 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, F
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.RemoteDiskStorage
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
+
+import scala.concurrent.duration._
 
 class RemoteDiskStorageOperationsSpec
     extends ActorSystemFixture("RemoteDiskStorageOperationsSpec")
@@ -40,7 +43,8 @@ class RemoteDiskStorageOperationsSpec
     RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
     S3StorageConfig("MD5", read, write, true, 1024L),
     "password",
-    "salt"
+    "salt",
+    RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
   )
 
   sealed trait Ctx {

@@ -31,6 +31,7 @@ import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -150,6 +151,11 @@ class FileRoutesSpec
         "_outgoing" -> Json.fromString(s"http://127.0.0.1:8080/v1/files/$organization/$project/nxv:$genUuid/outgoing")
       )
 
+    def digestJson(digest: Digest): Json =
+      Json.obj("value"     -> Json.fromString(digest.value),
+               "algorithm" -> Json.fromString(digest.algorithm),
+               "@type"     -> Json.fromString(nxv.UpdateDigest.prefix))
+
     val fileLink = jsonContentOf("/resources/file-link.json")
     val fileDesc = FileDescription("my file.txt", `text/plain(UTF-8)`)
 
@@ -226,6 +232,26 @@ class FileRoutesSpec
         responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
       }
       Put(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+    }
+
+    "update a file digest" in new Context {
+      val digest = Digest("SHA-256", genString())
+      val json   = digestJson(digest)
+
+      files.updateDigest(id, storage, 1L, json) shouldReturn EitherT.rightT[Task, Rejection](resource)
+
+      Patch(s"/v1/files/$organization/$project/$urlEncodedId?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+      Patch(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+      Patch(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
       }

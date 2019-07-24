@@ -176,6 +176,33 @@ object Event {
   }
 
   /**
+    * A witness that a file digest has been updated.
+    *
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param storage      the reference to the storage used to fetch the digest of the file
+    * @param rev          the revision that this event generated
+    * @param digest       the updated digest
+    * @param instant      the instant when this event was recorded
+    * @param subject      the identity which generated this event
+    */
+  final case class FileDigestUpdated(
+      id: Id[ProjectRef],
+      organization: OrganizationRef,
+      storage: StorageReference,
+      rev: Long,
+      digest: Digest,
+      instant: Instant,
+      subject: Subject
+  ) extends Event {
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
+  }
+
+  /**
     * A witness that a file resource has been updated.
     *
     * @param id           the resource identifier

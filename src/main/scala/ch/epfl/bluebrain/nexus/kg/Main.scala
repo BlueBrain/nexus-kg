@@ -140,7 +140,7 @@ object Main {
         Projections[Task, Event].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
       }
 
-      val projectCoordinator = Indexing.start(resources, storages, views, resolvers, indexers.adminClient)
+      val projectCoordinator = Indexing.start(resources, storages, views, resolvers, files, indexers.adminClient)
       val routes: Route      = Routes(resources, resolvers, views, storages, schemas, files, tags, projectCoordinator)
 
       val httpBinding = {

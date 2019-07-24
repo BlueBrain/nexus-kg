@@ -32,13 +32,14 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
         RemoteDiskStorageConfig("http://localhost:8084/v1", None, "SHA-256", read, write, true, 10737418240L),
         S3StorageConfig("SHA-256", read, write, true, 10737418240L),
         "changeme",
-        "salt"
+        "salt",
+        RetryStrategyConfig("linear", 300 millis, 10 seconds, 10000, 0.2, 1 second)
       )
       appConfig.iam shouldEqual IamConfig(url"http://localhost:8080/v1".value,
                                           url"http://localhost:8080/v1".value,
                                           None,
                                           1 second)
-      val retryIndex = RetryStrategyConfig("exponential", 100 millis, 10 minutes, 7, 0.2, 500 millis)
+      val retryIndex = RetryStrategyConfig("exponential", 100 millis, 3 minutes, 30, 0.2, 500 millis)
       val retryQuery = RetryStrategyConfig("exponential", 100 millis, 1 minute, 4, 0.2, 500 millis)
       appConfig.sparql shouldEqual SparqlConfig("http://localhost:9999/bigdata",
                                                 "kg",

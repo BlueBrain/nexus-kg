@@ -12,7 +12,7 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, LinkFile, SaveFile, VerifyStorage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import journal.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -102,6 +102,15 @@ object DiskStorageOperations {
     */
   final class LinkDiskFile[F[_]]()(implicit F: Effect[F]) extends LinkFile[F] {
     override def apply(id: ResId, fileDesc: FileDescription, path: Uri.Path): F[FileAttributes] =
+      F.raiseError(KgError.UnsupportedOperation)
+  }
+
+  /**
+    * [[FetchFileDigest]] implementation for [[DiskStorage]] that always throws an error since this operation is not supported.
+    * This is the case because linkFile is also not supported. Use a ''RemoteDiskStorage'' if you want to have this functionality.
+    */
+  final class FetchDigest[F[_]]()(implicit F: Effect[F]) extends FetchFileDigest[F] {
+    override def apply(path: Uri.Path): F[Digest] =
       F.raiseError(KgError.UnsupportedOperation)
   }
 }

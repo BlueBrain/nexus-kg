@@ -4,10 +4,11 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
 import java.util.UUID
 
+import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.stream.alpakka.s3
-import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.{FileIO, Sink}
+import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.test.io.IOValues
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Resources}
@@ -19,15 +20,16 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, F
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials}
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
-import akka.http.scaladsl.model.ContentTypes._
 import io.findify.s3mock.S3Mock
 import org.scalatest._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.concurrent.duration._
 
 class S3StorageOperationsSpec
     extends ActorSystemFixture("S3StorageOperationsSpec")
@@ -57,7 +59,8 @@ class S3StorageOperationsSpec
     RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
     S3StorageConfig("MD5", readS3, writeS3, true, 1024L),
     "password",
-    "salt"
+    "salt",
+    RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
   )
 
   private val keys  = Set("http.proxyHost", "http.proxyPort", "https.proxyHost", "https.proxyPort", "http.nonProxyHosts")

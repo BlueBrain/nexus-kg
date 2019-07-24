@@ -50,6 +50,21 @@ object Rejection {
   final case class NotAFileResource(ref: Ref) extends Rejection(s"Resource '${ref.show}' is not a file resource.")
 
   /**
+    * Signals the missing digest computed for a file resource
+    *
+    * @param ref a reference to the resource
+    */
+  final case class FileDigestNotComputed(ref: Ref)
+      extends Rejection(s"Resource '${ref.show}' does not have a computed digest.")
+
+  /**
+    * Signals an attempt to compute the digest for a file where the digest already exists.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class FileDigestAlreadyExists(ref: Ref) extends Rejection(s"File '${ref.show}' digest already exists.")
+
+  /**
     * Signals an attempt to perform a request with an invalid payload.
     *
     * @param ref a reference to the resource
@@ -215,6 +230,7 @@ object Rejection {
   }
 
   implicit def statusCodeFrom: StatusFrom[Rejection] = StatusFrom {
+    case _: FileDigestNotComputed    => StatusCodes.BadRequest
     case _: ResourceIsDeprecated     => StatusCodes.BadRequest
     case _: IncorrectTypes           => StatusCodes.BadRequest
     case _: IllegalContextValue      => StatusCodes.BadRequest
@@ -232,6 +248,7 @@ object Rejection {
     case _: ProjectsNotFound         => StatusCodes.NotFound
     case _: IncorrectRev             => StatusCodes.Conflict
     case _: ResourceAlreadyExists    => StatusCodes.Conflict
+    case _: FileDigestAlreadyExists  => StatusCodes.Conflict
     case _: InvalidIdentity          => StatusCodes.Unauthorized
   }
 }

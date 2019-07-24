@@ -17,11 +17,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription, LinkDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription, LinkDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchDigest, Link, Save}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 
@@ -58,6 +58,38 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     EitherT
       .right(storage.save.apply(id, fileDesc, source))
       .flatMap(attr => repo.createFile(id, OrganizationRef(project.organizationUuid), storage.reference, attr))
+
+  /**
+    * Updates the digest of a file resource if it is not already present.
+    * The digest is fetched from the storage implementation and saved in the primary store
+    *
+    * @param id      the id of the resource
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def updateDigestIfEmpty(id: ResId)(implicit subject: Subject, fetchDigest: FetchDigest[F]): RejOrResource[F] =
+    // format: off
+    for {
+      curr              <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref))
+      currFile          <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref)))
+      (storageRef, attr) = currFile
+      storage           <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
+      digest            <- if(attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
+      _                 <- if(digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
+      updated           <- repo.updateDigest(id, storage.reference, curr.rev, digest)
+    } yield updated
+  // format: on
+
+  /**
+    * Updates the digest of a file resource.
+    *
+    * @param id      the id of the resource
+    * @param storage the storage reference
+    * @param rev     the last known revision of the resource
+    * @param digest  the digest of the file in a json format
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def updateDigest(id: ResId, storage: Storage, rev: Long, digest: Json)(implicit subject: Subject): RejOrResource[F] =
+    EitherT.fromEither[F](Digest(id, digest)).flatMap(repo.updateDigest(id, storage.reference, rev, _))
 
   /**
     * Replaces a file resource.

@@ -17,8 +17,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import io.circe.Json
 import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
+
+import scala.concurrent.duration._
 
 class StorageSpec
     extends WordSpecLike
@@ -39,7 +42,8 @@ class StorageSpec
       RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 2000L),
       S3StorageConfig("MD5", readS3, writeS3, true, 3000L),
       "password",
-      "salt"
+      "salt",
+      RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
     )
   "A Storage" when {
     val iri        = url"http://example.com/id".value
