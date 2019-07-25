@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -23,9 +24,10 @@ import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchDigest, Link, Save}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
 import io.circe.Json
 
-class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig) {
+class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig, F: Effect[F]) {
 
   /**
     * Creates a file resource.
@@ -70,18 +72,26 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @param id      the id of the resource
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateDigestIfEmpty(id: ResId)(implicit subject: Subject, fetchDigest: FetchDigest[F]): RejOrResource[F] =
+  def updateDigestIfEmpty(id: ResId)(implicit subject: Subject, fetchDigest: FetchDigest[F]): RejOrResource[F] = {
+    def storageServerErrToKgError: PartialFunction[Throwable, F[Digest]] = {
+      case err: StorageClientError.UnknownError =>
+        F.raiseError(InternalError(s"Storage error for resource '${id.ref.show}'. Error: '${err.entityAsString}'"))
+      case err =>
+        F.raiseError(err)
+    }
+
     // format: off
     for {
-      curr              <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref))
-      currFile          <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref)))
-      (storageRef, attr) = currFile
-      storage           <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
-      digest            <- if(attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
-      _                 <- if(digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
-      updated           <- repo.updateDigest(id, storage.reference, curr.rev, digest)
+      curr                <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref))
+      currFile            <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref)))
+      (storageRef, attr)   = currFile
+      storage             <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
+      digest              <- if (attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path).recoverWith(storageServerErrToKgError)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
+      _                   <- if (digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
+      updated             <- repo.updateDigest(id, storage.reference, curr.rev, digest)
     } yield updated
-  // format: on
+    // format: on
+  }
 
   /**
     * Updates the digest of a file resource.

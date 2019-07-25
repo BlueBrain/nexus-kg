@@ -105,7 +105,9 @@ object Routes {
       case err: StorageClientError =>
         // suppress error
         logger.error(s"Received unexpected response from remote storage: '${err.message}'")
-        completeGeneric()
+        complete(
+          StatusCodes.BadGateway -> (RemoteStorageError(
+            "The downstream storage service experienced an unexpected error, please try again later."): KgError))
       case UnsupportedOperation =>
         // suppress error
         complete(UnsupportedOperation: KgError)
