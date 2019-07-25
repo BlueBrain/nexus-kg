@@ -178,7 +178,7 @@ class FileRoutesSpec
                         updated = user,
                         schema = fileRef)
 
-    resources.fetch(id, MetadataOptions()) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    resources.fetch(id, MetadataOptions(), None) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
   }
 
   "The file routes" should {

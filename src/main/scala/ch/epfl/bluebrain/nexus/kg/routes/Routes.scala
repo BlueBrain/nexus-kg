@@ -241,7 +241,7 @@ object Routes {
     def routeSelectorUndescore(implicit acls: AccessControlLists, caller: Caller, project: Project) =
       pathPrefix(IdSegment) { id =>
         // format: off
-        onSuccess(resources.fetch(Id(project.ref, id), MetadataOptions()).value.runToFuture) {
+        onSuccess(resources.fetch(Id(project.ref, id), MetadataOptions(), None).value.runToFuture) {
           case Right(resource) if resource.schema == resolverRef => new ResolverRoutes(resolvers, tags).routes(id)
           case Right(resource) if resource.schema == viewRef     => new ViewRoutes(views, tags, coordinator).routes(id)
           case Right(resource) if resource.schema == shaclRef    => new SchemaRoutes(schemas, tags).routes(id)

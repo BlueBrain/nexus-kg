@@ -228,8 +228,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def get(id: ResId, schema: Option[Ref]): OptionT[F, Resource] =
     OptionT(agg.currentState(toIdentifier(id)).map {
-      case state: Current if schema.getOrElse(state.schema) == state.schema => state.asResource
-      case _                                                                => None
+      case state: Current if schema.forall(_ == state.schema) => state.asResource
+      case _                                                  => None
     })
 
   /**
@@ -242,8 +242,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     */
   def get(id: ResId, rev: Long, schema: Option[Ref]): OptionT[F, Resource] =
     OptionT(getState(id, rev).map {
-      case state: Current if schema.getOrElse(state.schema) == state.schema && rev == state.rev => state.asResource
-      case _                                                                                    => None
+      case state: Current if schema.forall(_ == state.schema) && rev == state.rev => state.asResource
+      case _                                                                      => None
     })
 
   private def getState(id: ResId, rev: Long): F[State] =

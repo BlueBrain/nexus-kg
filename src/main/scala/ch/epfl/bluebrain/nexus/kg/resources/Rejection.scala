@@ -93,12 +93,11 @@ object Rejection {
                             tagOpt: Option[String] = None,
                             schemaOpt: Option[Ref] = None)
       extends Rejection(
-        (revOpt, tagOpt, schemaOpt) match {
-          case (Some(rev), None, _)       => s"Resource '${ref.show}' not found at revision $rev."
-          case (None, Some(tag), _)       => s"Resource '${ref.show}' not found at tag '$tag'."
-          case (None, None, Some(schema)) => s"Resource '${ref.show}' not found for schema '${schema.show}'."
-          case _                          => s"Resource '${ref.show}' not found."
-        }
+        ((revOpt, tagOpt) match {
+          case (Some(rev), None) => s"Resource '${ref.show}' not found at revision $rev"
+          case (None, Some(tag)) => s"Resource '${ref.show}' not found at tag '$tag'"
+          case _                 => s"Resource '${ref.show}' not found"
+        }) + schemaOpt.map(schema => s" for schema '${schema.show}'.").getOrElse(".")
       )
   object NotFound {
     def notFound(ref: Ref,

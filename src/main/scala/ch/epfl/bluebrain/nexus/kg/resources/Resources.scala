@@ -111,7 +111,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetch(id: ResId, schema: Ref)(implicit project: Project): RejOrResourceV[F] =
-    fetch(id, MetadataOptions()).check(schema)
+    fetch(id, MetadataOptions(), Some(schema))
 
   /**
     * Fetches the provided revision of a resource
@@ -122,7 +122,10 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetch(id: ResId, rev: Long, schema: Ref)(implicit project: Project): RejOrResourceV[F] =
-    fetch(id, rev, MetadataOptions()).check(schema)
+    repo
+      .get(id, rev, Some(schema))
+      .toRight(notFound(id.ref, revOpt = Some(rev), schemaOpt = Some(schema)))
+      .flatMap(materializer.withMeta(_, MetadataOptions()))
 
   /**
     * Fetches the provided tag of a resource
@@ -133,7 +136,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String, schema: Ref)(implicit project: Project): RejOrResourceV[F] =
-    fetch(id, tag, MetadataOptions()).check(schema)
+    fetch(id, tag, MetadataOptions(), Some(schema))
 
   /**
     * Fetches the latest revision of a resource
@@ -141,20 +144,11 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @param id     the id of the resource
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
-  def fetch(id: ResId, metadataOptions: MetadataOptions)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, None).toRight(notFound(id.ref)).flatMap(materializer.withMeta(_, metadataOptions))
-
-  /**
-    * Fetches the provided revision of a resource
-    *
-    * @param id     the id of the resource
-    * @param rev    the rev of the resource
-    * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
-    */
-  def fetch(id: ResId, rev: Long, metadataOptions: MetadataOptions)(implicit project: Project): RejOrResourceV[F] =
+  def fetch(id: ResId, metadataOptions: MetadataOptions, schemaOpt: Option[Ref])(
+      implicit project: Project): RejOrResourceV[F] =
     repo
-      .get(id, rev, None)
-      .toRight(notFound(id.ref, Some(rev)))
+      .get(id, schemaOpt)
+      .toRight(notFound(id.ref, schemaOpt = schemaOpt))
       .flatMap(materializer.withMeta(_, metadataOptions))
 
   /**
@@ -164,10 +158,11 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @param tag    the tag of the resource
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
-  def fetch(id: ResId, tag: String, metadataOptions: MetadataOptions)(implicit project: Project): RejOrResourceV[F] =
+  def fetch(id: ResId, tag: String, metadataOptions: MetadataOptions, schemaOpt: Option[Ref])(
+      implicit project: Project): RejOrResourceV[F] =
     repo
-      .get(id, tag, None)
-      .toRight(notFound(id.ref, tagOpt = Some(tag)))
+      .get(id, tag, schemaOpt)
+      .toRight(notFound(id.ref, tagOpt = Some(tag), schemaOpt = schemaOpt))
       .flatMap(materializer.withMeta(_, metadataOptions))
 
   /**
@@ -262,14 +257,6 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
           "@context" -> Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson))
       case _ => source
     }
-
-  private final implicit class ResourceSchemaSyntax(private val resourceV: RejOrResourceV[F]) {
-    def check(schema: Ref): RejOrResourceV[F] =
-      resourceV.subflatMap {
-        case resource if resource.schema == schema => Right(resource)
-        case _                                     => Left(NotFound(schema))
-      }
-  }
 }
 
 object Resources {

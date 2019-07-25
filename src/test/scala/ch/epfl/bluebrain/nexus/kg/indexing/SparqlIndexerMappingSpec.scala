@@ -88,7 +88,7 @@ class SparqlIndexerMappingSpec
       val mapper = new SparqlIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
-        when(resources.fetch(id, MetadataOptions(true, true)))
+        when(resources.fetch(id, MetadataOptions(true, true), None))
           .thenReturn(EitherT.leftT[IO, ResourceV](NotFound(id.ref): Rejection))
         mapper(ev).ioValue shouldEqual None
       }
@@ -98,7 +98,7 @@ class SparqlIndexerMappingSpec
                                      ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
                                      2L,
                                      schema = schema)
-        when(resources.fetch(id, MetadataOptions(true, true)))
+        when(resources.fetch(id, MetadataOptions(true, true), None))
           .thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
@@ -111,7 +111,7 @@ class SparqlIndexerMappingSpec
       val mapper = new SparqlIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
-        when(resources.fetch(id, MetadataOptions(true, true)))
+        when(resources.fetch(id, MetadataOptions(true, true), None))
           .thenReturn(EitherT.leftT[IO, ResourceV](NotFound(id.ref): Rejection))
         mapper(ev).ioValue shouldEqual None
       }
@@ -121,7 +121,7 @@ class SparqlIndexerMappingSpec
                                      ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
                                      2L,
                                      schema = schema)
-        when(resources.fetch(id, MetadataOptions(true, true))).thenReturn(EitherT.rightT[IO, Rejection](resV))
+        when(resources.fetch(id, MetadataOptions(true, true), None)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
       }
@@ -132,7 +132,7 @@ class SparqlIndexerMappingSpec
                                      2L,
                                      schema = schema,
                                      deprecated = true)
-        when(resources.fetch(id, MetadataOptions(true, true))).thenReturn(EitherT.rightT[IO, Rejection](resV))
+        when(resources.fetch(id, MetadataOptions(true, true), None)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.drop(id.value.asString + "/graph")
       }
@@ -154,7 +154,7 @@ class SparqlIndexerMappingSpec
       val mapper = new SparqlIndexerMapping(view, resources)
 
       "return none when the resource does not have the valid tag" in {
-        resources.fetch(id, "one", MetadataOptions(true, true)) shouldReturn EitherT.leftT[IO, ResourceV](
+        resources.fetch(id, "one", MetadataOptions(true, true), None) shouldReturn EitherT.leftT[IO, ResourceV](
           NotFound(Ref(genIri)): Rejection)
         mapper(ev).ioValue shouldEqual None
       }
@@ -164,7 +164,7 @@ class SparqlIndexerMappingSpec
                                      ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
                                      2L,
                                      schema = schema)
-        resources.fetch(id, "one", MetadataOptions(true, true)) shouldReturn EitherT.rightT[IO, Rejection](resV)
+        resources.fetch(id, "one", MetadataOptions(true, true), None) shouldReturn EitherT.rightT[IO, Rejection](resV)
         mapper(ev).ioValue shouldEqual None
       }
 
@@ -177,7 +177,7 @@ class SparqlIndexerMappingSpec
                    schema = Ref(nxv.Resource.value),
                    types = Set(other))
           .copy(tags = Map("one" -> 2L))
-        when(resources.fetch(id, "one", MetadataOptions(true, true)))
+        when(resources.fetch(id, "one", MetadataOptions(true, true), None))
           .thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual resV.id -> SparqlWriteQuery.drop(
@@ -199,7 +199,7 @@ class SparqlIndexerMappingSpec
         val res = ResourceF
           .simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value), types = Set(tpe1, other))
           .copy(tags = Map("one" -> 2L))
-        when(resources.fetch(id, "one", MetadataOptions(true, true)))
+        when(resources.fetch(id, "one", MetadataOptions(true, true), None))
           .thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
@@ -236,7 +236,7 @@ class SparqlIndexerMappingSpec
 
         val res = ResourceF.simpleF(id, json, schema = Ref(nxv.Resource.value), types = Set(tpe1))
 
-        when(resources.fetch(id, MetadataOptions(true, true))).thenReturn(EitherT.rightT[IO, Rejection](resV))
+        when(resources.fetch(id, MetadataOptions(true, true), None)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
           id.value.asString + "/graph",

@@ -30,6 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.xsd
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -260,7 +261,8 @@ class ResourcesSpec
       "return NotFound when the provided schema does not match the created schema" in new Base {
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         val otherSchema = Ref(genIri)
-        resources.fetch(resId, otherSchema).value.rejected[NotFound] shouldEqual NotFound(otherSchema)
+        resources.fetch(resId, otherSchema).value.rejected[NotFound] shouldEqual
+          NotFound(resId.value.ref, schemaOpt = Some(otherSchema))
       }
     }
 

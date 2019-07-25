@@ -44,8 +44,8 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
   final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
     view.resourceTag
       .filter(_.trim.nonEmpty)
-      .map(resources.fetch(event.id, _, metadataOptions))
-      .getOrElse(resources.fetch(event.id, metadataOptions))
+      .map(resources.fetch(event.id, _, metadataOptions, None))
+      .getOrElse(resources.fetch(event.id, metadataOptions, None))
       .value
       .map {
         case Right(res) if validSchema(view, res) && validTypes(view, res) => deleteOrIndexTransformed(res)
