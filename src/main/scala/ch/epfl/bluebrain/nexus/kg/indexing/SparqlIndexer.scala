@@ -36,8 +36,8 @@ private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[
   final def apply(event: Event): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
     view.resourceTag
       .filter(_.trim.nonEmpty)
-      .map(resources.fetch(event.id, _, metadataOptions))
-      .getOrElse(resources.fetch(event.id, metadataOptions))
+      .map(resources.fetch(event.id, _, metadataOptions, None))
+      .getOrElse(resources.fetch(event.id, metadataOptions, None))
       .value
       .map {
         case Right(res) if validSchema(view, res) && validTypes(view, res) => Some(buildInsertOrDeleteQuery(res))

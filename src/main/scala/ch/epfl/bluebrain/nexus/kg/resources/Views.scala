@@ -87,14 +87,13 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
                                                  caller: Caller,
                                                  project: Project): RejOrResource[F] =
     for {
-      _        <- repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref, Some(rev)))
       matValue <- materializer(transform(source, extractUuidFrom(source)), id.value)
       typedGraph = addViewType(id.value, matValue.graph)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
       view    <- viewValidation(id, typedGraph, 1L, types)
       json    <- jsonForRepo(view)
-      updated <- repo.update(id, rev, types, json)
+      updated <- repo.update(id, viewRef, rev, types, json)
     } yield updated
 
   /**
@@ -105,7 +104,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
+    repo.deprecate(id, viewRef, rev)
 
   /**
     * Fetches the latest revision of a view.

@@ -184,8 +184,7 @@ class StoragesSpec
       }
 
       "prevent to update a resolver that does not exists" in new Base {
-        storages.update(resId, 1L, diskStorage).value.rejected[NotFound] shouldEqual
-          NotFound(resId.ref, Some(1L))
+        storages.update(resId, 1L, diskStorage).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 

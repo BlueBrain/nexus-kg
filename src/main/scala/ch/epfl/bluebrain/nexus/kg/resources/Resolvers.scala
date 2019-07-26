@@ -80,14 +80,13 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     */
   def update(id: ResId, rev: Long, source: Json)(implicit caller: Caller, project: Project): RejOrResource[F] =
     for {
-      _        <- repo.get(id, rev, Some(resolverRef)).toRight(NotFound(id.ref, Some(rev)))
       matValue <- materializer(source.addContext(resolverCtxUri), id.value)
       typedGraph = addResolverType(id.value, matValue.graph)
       types      = typedGraph.rootTypes.map(_.value)
       _        <- validateShacl(typedGraph)
       resolver <- resolverValidation(id, typedGraph, 1L, types)
       json     <- jsonForRepo(resolver)
-      updated  <- repo.update(id, rev, types, json)
+      updated  <- repo.update(id, resolverRef, rev, types, json)
     } yield updated
 
   /**
@@ -98,7 +97,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    repo.get(id, rev, Some(resolverRef)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
+    repo.deprecate(id, resolverRef, rev)
 
   /**
     * Fetches the latest revision of a resolver.

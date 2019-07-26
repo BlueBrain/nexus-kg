@@ -150,4 +150,8 @@ object File {
     */
   final case class StoredSummary(location: Uri, path: Uri.Path, bytes: Long, digest: Digest)
 
+  object StoredSummary {
+    val empty: StoredSummary = StoredSummary(Uri.Empty, Uri.Path.Empty, 0L, Digest.empty)
+  }
+
 }

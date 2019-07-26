@@ -83,21 +83,28 @@ object Rejection {
   /**
     * Signals an attempt to interact with a resource that doesn't exist.
     *
-    * @param ref    a reference to the resource
-    * @param revOpt an optional revision of the resource
-    * @param tagOpt an optional tag of the resource
+    * @param ref       a reference to the resource
+    * @param revOpt    an optional revision of the resource
+    * @param tagOpt    an optional tag of the resource
+    * @param schemaOpt an optional schema of the resource
     */
-  final case class NotFound(ref: Ref, revOpt: Option[Long] = None, tagOpt: Option[String] = None)
+  final case class NotFound(ref: Ref,
+                            revOpt: Option[Long] = None,
+                            tagOpt: Option[String] = None,
+                            schemaOpt: Option[Ref] = None)
       extends Rejection(
-        (revOpt, tagOpt) match {
-          case (Some(rev), None) => s"Resource '${ref.show}' not found at revision $rev."
-          case (None, Some(tag)) => s"Resource '${ref.show}' not found at tag '$tag'."
-          case _                 => s"Resource '${ref.show}' not found."
-        }
+        ((revOpt, tagOpt) match {
+          case (Some(rev), None) => s"Resource '${ref.show}' not found at revision $rev"
+          case (None, Some(tag)) => s"Resource '${ref.show}' not found at tag '$tag'"
+          case _                 => s"Resource '${ref.show}' not found"
+        }) + schemaOpt.map(schema => s" for schema '${schema.show}'.").getOrElse(".")
       )
   object NotFound {
-    def notFound(ref: Ref, revOpt: Option[Long] = None, tagOpt: Option[String] = None): Rejection =
-      NotFound(ref, revOpt, tagOpt)
+    def notFound(ref: Ref,
+                 revOpt: Option[Long] = None,
+                 tagOpt: Option[String] = None,
+                 schemaOpt: Option[Ref] = None): Rejection =
+      NotFound(ref, revOpt, tagOpt, schemaOpt)
   }
 
   /**

@@ -43,7 +43,7 @@ class SchemasSpec
     with TestHelper
     with Inspectors {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(7 seconds, 15 milliseconds)
 
   private implicit val appConfig              = Settings(system).appConfig
   private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -147,7 +147,7 @@ class SchemasSpec
       }
 
       "prevent to update a schema that does not exists" in new Base {
-        schemas.update(resId, 1L, schema).value.rejected[NotFound] shouldEqual NotFound(resId.ref, Some(1L))
+        schemas.update(resId, 1L, schema).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 

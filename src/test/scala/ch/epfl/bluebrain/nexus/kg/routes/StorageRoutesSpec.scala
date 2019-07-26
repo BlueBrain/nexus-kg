@@ -138,7 +138,7 @@ class StorageRoutesSpec
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = storageRef, types = types)
 
-    resources.fetch(id, MetadataOptions()) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    resources.fetch(id, MetadataOptions(), None) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
   }
 
   "The storage routes" should {

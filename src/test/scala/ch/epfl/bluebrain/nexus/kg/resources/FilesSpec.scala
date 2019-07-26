@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
-import ch.epfl.bluebrain.nexus.kg.KgError.RemoteFileNotFound
+import ch.epfl.bluebrain.nexus.kg.KgError.{InternalError, RemoteFileNotFound}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -25,10 +25,12 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Fetc
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, FetchFileDigest, LinkFile, SaveFile}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalactic.Equality
 import org.scalatest._
+import akka.http.scaladsl.model.StatusCodes.InternalServerError
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -135,6 +137,14 @@ class FilesSpec
         resp shouldEqual expected
       }
 
+      "prevent creating a file that already exists" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+        files.create(resId, storage, desc, source).value.accepted
+
+        val desc2 = desc.copy(filename = genString())
+        files.create(resId, storage, desc2, source).value.rejected[ResourceAlreadyExists]
+      }
+
       "prevent creating a new File when save method fails" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.raiseError(new RuntimeException("Error I/O"))
         whenReady(files.create(resId, storage, desc, source).value.unsafeToFuture().failed) {
@@ -177,6 +187,15 @@ class FilesSpec
 
       "prevent updating a file digest when file does not exist" in new Base {
         files.updateDigestIfEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
+      }
+
+      "prevent updating a file digest when digest fetch traises a StorageClientError" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        fetchDigest(path) shouldReturn IO.raiseError(StorageClientError.UnknownError(InternalServerError, ""))
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.updateDigestIfEmpty(resId).value.failed[InternalError]
+
       }
     }
 
@@ -291,11 +310,14 @@ class FilesSpec
       }
 
       "prevent updating a link that does not exist" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+
         linkFile(eqTo(resId), eqTo(desc), eqTo(path)) shouldReturn IO.raiseError(RemoteFileNotFound(location))
-        files
-          .updateLink(resId, storage, 1L, fileLink)
-          .value
-          .failed[RemoteFileNotFound] shouldEqual RemoteFileNotFound(location)
+
+        files.updateLink(resId, storage, 1L, fileLink).value.failed[RemoteFileNotFound] shouldEqual
+          RemoteFileNotFound(location)
       }
     }
 

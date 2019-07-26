@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -17,15 +18,16 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription, LinkDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchDigest, Link, Save}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
 import io.circe.Json
 
-class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig) {
+class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig, F: Effect[F]) {
 
   /**
     * Creates a file resource.
@@ -54,10 +56,14 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
   def create[In](id: ResId, storage: Storage, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
       project: Project,
-      saveStorage: Save[F, In]): RejOrResource[F] =
-    EitherT
-      .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => repo.createFile(id, OrganizationRef(project.organizationUuid), storage.reference, attr))
+      saveStorage: Save[F, In]): RejOrResource[F] = {
+    val orgRef = OrganizationRef(project.organizationUuid)
+    for {
+      _       <- repo.createFileTest(id, orgRef, storage.reference, fileDesc.process(StoredSummary.empty))
+      attr    <- EitherT.right(storage.save.apply(id, fileDesc, source))
+      created <- repo.createFile(id, orgRef, storage.reference, attr)
+    } yield created
+  }
 
   /**
     * Updates the digest of a file resource if it is not already present.
@@ -66,18 +72,26 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @param id      the id of the resource
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateDigestIfEmpty(id: ResId)(implicit subject: Subject, fetchDigest: FetchDigest[F]): RejOrResource[F] =
+  def updateDigestIfEmpty(id: ResId)(implicit subject: Subject, fetchDigest: FetchDigest[F]): RejOrResource[F] = {
+    def storageServerErrToKgError: PartialFunction[Throwable, F[Digest]] = {
+      case err: StorageClientError.UnknownError =>
+        F.raiseError(InternalError(s"Storage error for resource '${id.ref.show}'. Error: '${err.entityAsString}'"))
+      case err =>
+        F.raiseError(err)
+    }
+
     // format: off
     for {
-      curr              <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref))
-      currFile          <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref)))
-      (storageRef, attr) = currFile
-      storage           <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
-      digest            <- if(attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
-      _                 <- if(digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
-      updated           <- repo.updateDigest(id, storage.reference, curr.rev, digest)
+      curr                <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref))
+      currFile            <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref)))
+      (storageRef, attr)   = currFile
+      storage             <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
+      digest              <- if (attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path).recoverWith(storageServerErrToKgError)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
+      _                   <- if (digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
+      updated             <- repo.updateDigest(id, storage.reference, curr.rev, digest)
     } yield updated
-  // format: on
+    // format: on
+  }
 
   /**
     * Updates the digest of a file resource.
@@ -105,9 +119,11 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
   def update[In](id: ResId, storage: Storage, rev: Long, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
       saveStorage: Save[F, In]): RejOrResource[F] =
-    EitherT
-      .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => repo.updateFile(id, storage.reference, rev, attr))
+    for {
+      _       <- repo.updateFileTest(id, storage.reference, rev, fileDesc.process(StoredSummary.empty))
+      attr    <- EitherT.right(storage.save.apply(id, fileDesc, source))
+      created <- repo.updateFile(id, storage.reference, rev, attr)
+    } yield created
 
   /**
     * Creates a link to an existing file.
@@ -130,12 +146,18 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     */
   def createLink(id: ResId, storage: Storage, source: Json)(implicit subject: Subject,
                                                             project: Project,
-                                                            linkStorage: Link[F]): RejOrResource[F] =
+                                                            linkStorage: Link[F]): RejOrResource[F] = {
+    val orgRef = OrganizationRef(project.organizationUuid)
+    // format: off
     for {
-      link    <- EitherT.fromEither[F](LinkDescription(id, source))
-      attr    <- EitherT.right(storage.link.apply(id, FileDescription(link.filename, link.mediaType), link.path))
-      created <- repo.createLink(id, OrganizationRef(project.organizationUuid), storage.reference, attr)
+      link      <- EitherT.fromEither[F](LinkDescription(id, source))
+      fileDesc   = FileDescription(link.filename, link.mediaType)
+      _         <- repo.createLinkTest(id, orgRef, storage.reference, fileDesc.process(StoredSummary.empty))
+      attr      <- EitherT.right(storage.link.apply(id, fileDesc, link.path))
+      created   <- repo.createLink(id, orgRef, storage.reference, attr)
     } yield created
+    // format: on
+  }
 
   /**
     * Updates a link to an existing file.
@@ -148,11 +170,15 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     */
   def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(implicit subject: Subject,
                                                                        linkStorage: Link[F]): RejOrResource[F] =
+    // format: off
     for {
-      link    <- EitherT.fromEither[F](LinkDescription(id, source))
-      attr    <- EitherT.right(storage.link.apply(id, FileDescription(link.filename, link.mediaType), link.path))
-      created <- repo.updateLink(id, storage.reference, attr, rev)
+      link      <- EitherT.fromEither[F](LinkDescription(id, source))
+      fileDesc   = FileDescription(link.filename, link.mediaType)
+      _         <- repo.updateLinkTest(id, storage.reference, fileDesc.process(StoredSummary.empty), rev)
+      attr      <- EitherT.right(storage.link.apply(id, fileDesc, link.path))
+      created   <- repo.updateLink(id, storage.reference, attr, rev)
     } yield created
+  // format: on
 
   /**
     * Deprecates an existing file.
@@ -162,10 +188,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    for {
-      _          <- repo.get(id, rev, Some(fileRef)).toRight(NotFound(id.ref, Some(rev)))
-      deprecated <- repo.deprecate(id, rev)
-    } yield deprecated
+    repo.deprecate(id, fileRef, rev)
 
   /**
     * Attempts to stream the file resource for the latest revision.
@@ -226,7 +249,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     listResources(view, params.copy(schema = Some(fileSchemaUri)), pagination)
 
   /**
-    * Lists incoming resources for the provided 'file 'id''
+    * Lists incoming resources for the provided file ''id''
     *
     * @param id         the resource id for which to retrieve the incoming links
     * @param view       optionally available default sparql view

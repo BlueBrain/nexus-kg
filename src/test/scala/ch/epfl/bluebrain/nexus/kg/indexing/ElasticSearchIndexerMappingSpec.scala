@@ -112,7 +112,7 @@ class ElasticSearchIndexerMappingSpec
       val mapper = new ElasticSearchIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
-        resources.fetch(id, MetadataOptions(false, true)) shouldReturn EitherT.leftT[IO, ResourceV](
+        resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.leftT[IO, ResourceV](
           NotFound(id.ref): Rejection)
         mapper(ev).ioValue shouldEqual None
       }
@@ -124,7 +124,7 @@ class ElasticSearchIndexerMappingSpec
                             Value(jsonWithMeta, jsonWithMeta.contextValue, RootedGraph(blank, Graph())),
                             rev = 2L,
                             schema = schema)
-        resources.fetch(id, MetadataOptions(false, true)) shouldReturn EitherT.rightT[IO, Rejection](res)
+        resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
         val elasticSearchJson = Json
           .obj(
             "@id"              -> Json.fromString(id.value.show),
@@ -168,7 +168,7 @@ class ElasticSearchIndexerMappingSpec
       "return none when the schema is not on the view" in {
         val res =
           ResourceF.simpleV(id, Value(json, json.contextValue, RootedGraph(blank, Graph())), rev = 2L, schema = schema)
-        resources.fetch(id, MetadataOptions(false, true)) shouldReturn EitherT.rightT[IO, Rejection](res)
+        resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
         mapper(ev).ioValue shouldEqual None
       }
 
@@ -177,7 +177,7 @@ class ElasticSearchIndexerMappingSpec
                                     Value(json, json.contextValue, RootedGraph(blank, Graph())),
                                     rev = 2L,
                                     schema = Ref(nxv.Resource.value))
-        resources.fetch(id, MetadataOptions(false, true)) shouldReturn EitherT.rightT[IO, Rejection](res)
+        resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual
           res.id -> BulkOp.Delete(index, id.value.asString)
@@ -192,7 +192,7 @@ class ElasticSearchIndexerMappingSpec
                                     schema = Ref(nxv.Resource.value),
                                     types = Set(tpe1, otherTpe),
                                     deprecated = true)
-        resources.fetch(id, MetadataOptions(false, true)) shouldReturn EitherT.rightT[IO, Rejection](res)
+        resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json
           .obj(
@@ -245,7 +245,7 @@ class ElasticSearchIndexerMappingSpec
                    rev = 2L,
                    schema = schema)
           .copy(tags = Map("two" -> 1L, "one" -> 2L))
-        resources.fetch(id, "one", MetadataOptions(false, true)) shouldReturn EitherT.rightT[IO, Rejection](res)
+        resources.fetch(id, "one", MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json.obj("@id" -> Json.fromString(id.value.show), "key" -> Json.fromInt(2))
         mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, id.value.asString, elasticSearchJson)
@@ -259,13 +259,13 @@ class ElasticSearchIndexerMappingSpec
                    schema = schema,
                    deprecated = true)
           .copy(tags = Map("two" -> 1L, "one" -> 2L))
-        resources.fetch(id, "one", MetadataOptions(false, true)) shouldReturn EitherT.rightT[IO, Rejection](res)
+        resources.fetch(id, "one", MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         mapper(ev).some shouldEqual res.id -> BulkOp.Delete(index, id.value.asString)
       }
 
       "return None when it is not matching the tag defined on the view" in {
-        resources.fetch(id, "one", MetadataOptions(false, true)) shouldReturn EitherT.leftT[IO, ResourceV](
+        resources.fetch(id, "one", MetadataOptions(false, true), None) shouldReturn EitherT.leftT[IO, ResourceV](
           NotFound(id.ref, tagOpt = Some("one")): Rejection)
         mapper(ev).ioValue shouldEqual None
       }
