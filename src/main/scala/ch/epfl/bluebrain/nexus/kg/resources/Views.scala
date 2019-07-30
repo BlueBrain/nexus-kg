@@ -65,15 +65,19 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
   /**
     * Creates a new view.
     *
-    * @param id     the id of the view
-    * @param source the source representation in json-ld format
+    * @param id          the id of the view
+    * @param source      the source representation in json-ld format
+    * @param extractUuid flag to decide whether to extract the uuid from the payload or to generate one
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId,
-             source: Json)(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] =
-    materializer(transform(source), id.value).flatMap {
+  def create(id: ResId, source: Json, extractUuid: Boolean = false)(implicit acls: AccessControlLists,
+                                                                    caller: Caller,
+                                                                    project: Project): RejOrResource[F] = {
+    val sourceUuid = if (extractUuid) extractUuidFrom(source) else uuid()
+    materializer(transform(source, sourceUuid), id.value).flatMap {
       case Value(_, _, graph) => create(id, graph)
     }
+  }
 
   /**
     * Updates an existing view.
@@ -87,7 +91,8 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
                                                  caller: Caller,
                                                  project: Project): RejOrResource[F] =
     for {
-      matValue <- materializer(transform(source, extractUuidFrom(source)), id.value)
+      curr     <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref))
+      matValue <- materializer(transform(source, extractUuidFrom(curr.value)), id.value)
       typedGraph = addViewType(id.value, matValue.graph)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
