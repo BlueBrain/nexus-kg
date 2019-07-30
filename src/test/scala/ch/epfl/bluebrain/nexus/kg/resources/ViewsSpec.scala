@@ -5,7 +5,7 @@ import java.time.{Clock, Instant, ZoneId}
 import akka.http.scaladsl.model.StatusCodes
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
-import cats.syntax.show._
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticServerError
@@ -14,7 +14,6 @@ import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -23,20 +22,22 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
+import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
-import org.scalatest._
 import io.circe.parser.parse
 import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
+import org.scalatest._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -112,7 +113,7 @@ class ViewsSpec
     // format: on
     resolverCache.get(projectRef) shouldReturn IO(List.empty[Resolver])
 
-    def resolverFrom(json: Json) =
+    def viewFrom(json: Json) =
       json.addContext(viewCtxUri) deepMerge Json.obj("@id" -> Json.fromString(id.show))
 
     implicit val acls =
@@ -157,7 +158,7 @@ class ViewsSpec
       "prevent to create a view that does not validate against the view schema" in new Base {
         val invalid = List.range(1, 3).map(i => jsonContentOf(s"/view/aggelasticviewwrong$i.json"))
         forAll(invalid) { j =>
-          val json = resolverFrom(j)
+          val json = viewFrom(j)
           views.create(json).value.rejected[InvalidResource]
         }
       }
@@ -168,12 +169,31 @@ class ViewsSpec
         val tpes = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView)
         forAll(valid) { j =>
           new Base {
-            val json     = resolverFrom(j)
+            val json     = viewFrom(j)
             val result   = views.create(json).value.accepted
             val expected = ResourceF.simpleF(resId, json, schema = viewRef, types = tpes)
             result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
           }
         }
+      }
+
+      "create default Elasticsearch view using payloads' uuid" in new EsView {
+        val view: View = ElasticSearchView.default(projectRef)
+        val defaultId  = Id(projectRef, nxv.defaultElasticSearchIndex)
+        val json = view
+          .as[Json](viewCtx.appendContextOf(resourceCtx))
+          .right
+          .value
+          .removeKeys(nxv.rev.prefix, nxv.deprecated.prefix)
+          .replaceContext(viewCtxUri)
+        val mapping = json.hcursor.get[String]("mapping").flatMap(parse).right.value
+
+        esClient.updateMapping(any[String], eqTo(mapping)) shouldReturn IO(true)
+        aclsCache.list shouldReturn IO.pure(acls)
+        esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
+
+        views.create(defaultId, json, extractUuid = true).value.accepted shouldEqual
+          ResourceF.simpleF(defaultId, json, schema = viewRef, types = types)
       }
 
       "prevent creating a ElasticSearchView when ElasticSearch client throws" in new EsView {
@@ -201,7 +221,7 @@ class ViewsSpec
         val label1 = ProjectLabel("account2", "project1")
         val label2 = ProjectLabel("account2", "project2")
         projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO(Map(label1 -> None, label2 -> None))
-        val json = resolverFrom(jsonContentOf("/view/aggelasticview-2.json"))
+        val json = viewFrom(jsonContentOf("/view/aggelasticview-2.json"))
         views.create(json).value.rejected[ProjectsNotFound] shouldEqual ProjectsNotFound(Set(label1, label2))
       }
 
@@ -215,7 +235,7 @@ class ViewsSpec
         viewCache.get(ref1) shouldReturn IO(Set.empty[View])
         viewCache.get(ref2) shouldReturn IO(Set.empty[View])
 
-        val json = resolverFrom(jsonContentOf("/view/aggelasticview-2.json"))
+        val json = viewFrom(jsonContentOf("/view/aggelasticview-2.json"))
         views.create(json).value.rejected[NotFound] shouldEqual NotFound(url"http://example.com/id4".value.ref)
       }
 
