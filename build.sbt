@@ -47,6 +47,7 @@ val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.8"
 val kryoVersion                 = "0.5.2"
 val s3mockVersion               = "0.2.5"
+val apacheCommonsVersion        = "3.9"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"               % adminVersion
@@ -75,6 +76,7 @@ lazy val catsEffect           = "org.typelevel"           %% "cats-effect"      
 lazy val circeCore            = "io.circe"                %% "circe-core"                 % circeVersion
 lazy val journalCore          = "io.verizon.journal"      %% "core"                       % journalVersion
 lazy val mockito              = "org.mockito"             %% "mockito-scala"              % mockitoVersion
+lazy val apacheCommons        = "org.apache.commons"      % "commons-lang3"               % apacheCommonsVersion
 lazy val logbackClassic       = "ch.qos.logback"          % "logback-classic"             % logbackVersion
 lazy val monixEval            = "io.monix"                %% "monix-eval"                 % monixVersion
 lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"                 % pureconfigVersion
@@ -101,6 +103,7 @@ lazy val kg = project
       akkaSlf4j,
       akkaCluster,
       alpakkaS3,
+      apacheCommons,
       catsCore,
       catsEffect,
       circeCore,
