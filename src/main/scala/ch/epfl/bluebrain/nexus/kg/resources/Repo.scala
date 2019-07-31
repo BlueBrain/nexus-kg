@@ -11,14 +11,13 @@ import cats.syntax.functor._
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources
 import ch.epfl.bluebrain.nexus.kg.resources.Command._
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Repo.Agg
 import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
-import ch.epfl.bluebrain.nexus.kg.{resources, uuid}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
@@ -320,13 +319,6 @@ object Repo {
     }
 
   final def eval(state: State, cmd: Command): Either[Rejection, Event] = {
-
-    def extractUuidFrom(source: Json): String =
-      source.hcursor.get[String](nxv.uuid.prefix).getOrElse(uuid())
-
-    def changeView(source: Json, uuid: String): Json =
-      source deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuid))
-
     def create(c: Create): Either[Rejection, Created] =
       state match {
         case _ if c.schema == fileRef => Left(NotAFileResource(c.id.ref))
@@ -369,10 +361,7 @@ object Repo {
         case s: Current if s.schema != c.schema => Left(NotFound(c.id.ref, schemaOpt = Some(c.schema)))
         case s: Current if s.rev != c.rev       => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
         case s: Current if s.deprecated         => Left(ResourceIsDeprecated(c.id.ref))
-        case s: Current if s.schema == viewRef =>
-          val updatedJson = changeView(c.source, extractUuidFrom(s.source))
-          Right(Updated(s.id, s.organization, s.rev + 1, c.types, updatedJson, c.instant, c.subject))
-        case s: Current => Right(Updated(s.id, s.organization, s.rev + 1, c.types, c.source, c.instant, c.subject))
+        case s: Current                         => Right(Updated(s.id, s.organization, s.rev + 1, c.types, c.source, c.instant, c.subject))
       }
 
     def tag(c: AddTag): Either[Rejection, TagAdded] =

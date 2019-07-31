@@ -98,7 +98,7 @@ private class Indexing(storages: Storages[Task],
     implicit val acls: AccessControlLists = AccessControlLists.empty
     val view: View                        = ElasticSearchView.default(project.ref)
     asJson(view).flatMap { json =>
-      val created = views.create(Id(project.ref, view.id), json).value
+      val created = views.create(Id(project.ref, view.id), json, extractUuid = true).value
       created.mapRetry(
         createdOrExists,
         InternalError(s"Couldn't create default ElasticSearch view for project '${project.ref}'"): KgError)
@@ -109,7 +109,7 @@ private class Indexing(storages: Storages[Task],
     implicit val acls: AccessControlLists = AccessControlLists.empty
     val view: View                        = SparqlView.default(project.ref)
     asJson(view).flatMap { json =>
-      val created = views.create(Id(project.ref, view.id), json).value
+      val created = views.create(Id(project.ref, view.id), json, extractUuid = true).value
       created.mapRetry(createdOrExists,
                        InternalError(s"Couldn't create default Sparql view for project '${project.ref}'"): KgError)
     }
