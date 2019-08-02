@@ -108,9 +108,44 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(storage) in the F context when found and None in the F context when not found
     */
   def fetchStorage(id: ResId)(implicit project: Project): EitherT[F, Rejection, TimedStorage] = {
-    val repoOrNotFound = repo.get(id, Some(storageRef)).toRight(notFound(id.ref))
+    val repoOrNotFound = repo.get(id, Some(storageRef)).toRight(notFound(id.ref, schema = Some(storageRef)))
     repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(r => Storage(r, encrypt = false).map(_ -> r.updated))
   }
+
+  /**
+    * Fetches the latest revision of the storage source
+    *
+    * @param id the id of the storage
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId): RejOrSource[F] =
+    repo.get(id, Some(storageRef)).map(_.value).toRight(notFound(id.ref, schema = Some(storageRef)))
+
+  /**
+    * Fetches the provided revision of the storage source
+    *
+    * @param id     the id of the storage
+    * @param rev    the revision of the storage
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, rev: Long): RejOrSource[F] =
+    repo
+      .get(id, rev, Some(storageRef))
+      .map(_.value)
+      .toRight(notFound(id.ref, rev = Some(rev), schema = Some(storageRef)))
+
+  /**
+    * Fetches the provided tag of the storage source
+    *
+    * @param id     the id of the storage
+    * @param tag    the tag of the storage
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, tag: String): RejOrSource[F] =
+    repo
+      .get(id, tag, Some(storageRef))
+      .map(_.value)
+      .toRight(notFound(id.ref, tag = Some(tag), schema = Some(storageRef)))
 
   /**
     * Fetches the latest revision of a storage.
@@ -119,7 +154,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, Some(storageRef)).toRight(notFound(id.ref)).flatMap(fetch(_, dropKeys = true))
+    repo
+      .get(id, Some(storageRef))
+      .toRight(notFound(id.ref, schema = Some(storageRef)))
+      .flatMap(fetch(_, dropKeys = true))
 
   /**
     * Fetches the provided revision of a storage
@@ -129,7 +167,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, rev, Some(storageRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch(_, dropKeys = true))
+    repo
+      .get(id, rev, Some(storageRef))
+      .toRight(notFound(id.ref, Some(rev), schema = Some(storageRef)))
+      .flatMap(fetch(_, dropKeys = true))
 
   /**
     * Fetches the provided tag of a storage.
@@ -139,7 +180,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, tag, Some(storageRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch(_, dropKeys = true))
+    repo
+      .get(id, tag, Some(storageRef))
+      .toRight(notFound(id.ref, tag = Some(tag), schema = Some(storageRef)))
+      .flatMap(fetch(_, dropKeys = true))
 
   /**
     * Lists storages on the given project

@@ -125,6 +125,24 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
           }
         }
       },
+      // Fetch resource source
+      (get & pathPrefix("source") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/resources/{}/{}/{}/{}/source") {
+          hasPermission(read).apply {
+            concat(
+              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                complete(resources.fetchSource(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
+              },
+              (parameter('tag) & noParameter('rev)) { tag =>
+                complete(resources.fetchSource(Id(project.ref, id), tag, schema).value.runWithStatus(OK))
+              },
+              (noParameter('tag) & noParameter('rev)) {
+                complete(resources.fetchSource(Id(project.ref, id), schema).value.runWithStatus(OK))
+              }
+            )
+          }
+        }
+      },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/resources/{}/{}/{}/{}/incoming") {

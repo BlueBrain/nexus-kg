@@ -94,7 +94,8 @@ class StoragesSpec
     def updateId(json: Json) =
       json deepMerge Json.obj("@id" -> Json.fromString(id.show))
 
-    val diskStorage = updateId(jsonContentOf("/storage/disk.json"))
+    val diskStorage       = updateId(jsonContentOf("/storage/disk.json"))
+    val diskStorageSource = updateId(jsonContentOf("/storage/disk-source.json"))
     // format: off
     val remoteDiskStorage = updateId(jsonContentOf("/storage/remoteDisk.json", Map(quote("{folder}") -> "folder", quote("{cred}") -> "cred", quote("{read}") -> "resources/read", quote("{write}") -> "files/write")))
     val diskStorageModel = DiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", Paths.get("/tmp"), readPerms, writePerms, 10737418240L)
@@ -223,6 +224,7 @@ class StoragesSpec
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)
+        storages.fetchSource(resId).value.accepted should equalIgnoreArrayOrder(diskStorageSource)
       }
 
       "return the requested storage on a specific revision" in new Base {
@@ -231,6 +233,7 @@ class StoragesSpec
         storages.update(resId, 2L, remoteDiskStorage).value.accepted shouldBe a[Resource]
 
         storages.fetch(resId, 3L).value.accepted shouldEqual storages.fetch(resId).value.accepted
+        storages.fetchSource(resId, 1L).value.accepted should equalIgnoreArrayOrder(diskStorageSource)
 
         val resultRemote = storages.fetch(resId, 3L).value.accepted
         val expectedRemote =
@@ -250,6 +253,12 @@ class StoragesSpec
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)
+      }
+
+      "return NotFound when the provided storage does not exists" in new Base {
+        storages.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref, schemaOpt = Some(storageRef))
+        storages.fetchSource(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref,
+                                                                                  schemaOpt = Some(storageRef))
       }
     }
   }

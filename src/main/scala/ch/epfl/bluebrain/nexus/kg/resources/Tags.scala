@@ -54,7 +54,7 @@ class Tags[F[_]: Effect](repo: Repo[F]) {
     * @return Some(tags) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String, schema: Ref): RejOrTags[F] =
-    repo.get(id, tag, Some(schema)).toRight(notFound(id.ref, tagOpt = Some(tag))).map(toTags)
+    repo.get(id, tag, Some(schema)).toRight(notFound(id.ref, tag = Some(tag))).map(toTags)
 
   private def toTags(resource: Resource): TagSet =
     resource.tags.map { case (value, tagRev) => Tag(tagRev, value) }.toSet

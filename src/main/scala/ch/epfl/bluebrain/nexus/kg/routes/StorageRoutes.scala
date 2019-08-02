@@ -131,6 +131,24 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
           }
         }
       },
+      // Fetch storage source
+      (get & pathPrefix("source") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/storages/{}/{}/{}/source") {
+          hasPermission(read).apply {
+            concat(
+              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                complete(storages.fetchSource(Id(project.ref, id), rev).value.runWithStatus(OK))
+              },
+              (parameter('tag) & noParameter('rev)) { tag =>
+                complete(storages.fetchSource(Id(project.ref, id), tag).value.runWithStatus(OK))
+              },
+              (noParameter('tag) & noParameter('rev)) {
+                complete(storages.fetchSource(Id(project.ref, id)).value.runWithStatus(OK))
+              }
+            )
+          }
+        }
+      },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/storages/{}/{}/{}/incoming") {

@@ -129,6 +129,24 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(im
           }
         }
       },
+      // Fetch schema source
+      (get & pathPrefix("source") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}/source") {
+          hasPermission(read).apply {
+            concat(
+              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                complete(schemas.fetchSource(Id(project.ref, id), rev).value.runWithStatus(OK))
+              },
+              (parameter('tag) & noParameter('rev)) { tag =>
+                complete(schemas.fetchSource(Id(project.ref, id), tag).value.runWithStatus(OK))
+              },
+              (noParameter('tag) & noParameter('rev)) {
+                complete(schemas.fetchSource(Id(project.ref, id)).value.runWithStatus(OK))
+              }
+            )
+          }
+        }
+      },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/schemas/{}/{}/{}/incoming") {

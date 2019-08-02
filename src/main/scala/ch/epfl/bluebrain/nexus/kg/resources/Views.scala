@@ -91,7 +91,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
                                                  caller: Caller,
                                                  project: Project): RejOrResource[F] =
     for {
-      curr     <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref))
+      curr     <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef)))
       matValue <- materializer(transform(source, extractUuidFrom(curr.value)), id.value)
       typedGraph = addViewType(id.value, matValue.graph)
       types      = typedGraph.rootTypes.map(_.value)
@@ -119,10 +119,39 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     */
   def fetchView(id: ResId)(implicit project: Project): EitherT[F, Rejection, View] =
     for {
-      resource  <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref))
+      resource  <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef)))
       resourceV <- materializer.withMeta(resource)
       view      <- EitherT.fromEither[F](View(resourceV))
     } yield view
+
+  /**
+    * Fetches the latest revision of the view source
+    *
+    * @param id the id of the view
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId): RejOrSource[F] =
+    repo.get(id, Some(viewRef)).map(_.value).toRight(notFound(id.ref, schema = Some(viewRef)))
+
+  /**
+    * Fetches the provided revision of the view source
+    *
+    * @param id     the id of the view
+    * @param rev    the revision of the view
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, rev: Long): RejOrSource[F] =
+    repo.get(id, rev, Some(viewRef)).map(_.value).toRight(notFound(id.ref, rev = Some(rev), schema = Some(viewRef)))
+
+  /**
+    * Fetches the provided tag of the view source
+    *
+    * @param id     the id of the view
+    * @param tag    the tag of the view
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, tag: String): RejOrSource[F] =
+    repo.get(id, tag, Some(viewRef)).map(_.value).toRight(notFound(id.ref, tag = Some(tag), schema = Some(viewRef)))
 
   /**
     * Fetches the latest revision of a view.
@@ -131,7 +160,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, Some(viewRef)).toRight(notFound(id.ref)).flatMap(fetch)
+    repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef))).flatMap(fetch)
 
   /**
     * Fetches the provided revision of a view
@@ -141,7 +170,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, rev, Some(viewRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch)
+    repo.get(id, rev, Some(viewRef)).toRight(notFound(id.ref, Some(rev), schema = Some(viewRef))).flatMap(fetch)
 
   /**
     * Fetches the provided tag of a view.
@@ -151,7 +180,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, tag, Some(viewRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
+    repo.get(id, tag, Some(viewRef)).toRight(notFound(id.ref, tag = Some(tag), schema = Some(viewRef))).flatMap(fetch)
 
   /**
     * Lists views on the given project

@@ -82,8 +82,8 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
 
     // format: off
     for {
-      curr                <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref))
-      currFile            <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref)))
+      curr                <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref, schema = Some(fileRef)))
+      currFile            <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref, schema = Some(fileRef))))
       (storageRef, attr)   = currFile
       storage             <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
       digest              <- if (attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path).recoverWith(storageServerErrToKgError)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
@@ -197,7 +197,7 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(repo.get(id, Some(fileRef)).toRight(notFound(id.ref)))
+    fetch(repo.get(id, Some(fileRef)).toRight(notFound(id.ref, schema = Some(fileRef))))
 
   /**
     * Attempts to stream the file resource with specific revision.
@@ -207,7 +207,7 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId, rev: Long)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(repo.get(id, rev, Some(fileRef)).toRight(notFound(id.ref, Some(rev))))
+    fetch(repo.get(id, rev, Some(fileRef)).toRight(notFound(id.ref, Some(rev), schema = Some(fileRef))))
 
   /**
     * Attempts to stream the file resource with specific tag. The
@@ -218,11 +218,13 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId, tag: String)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(repo.get(id, tag, Some(fileRef)).toRight(notFound(id.ref, tagOpt = Some(tag))))
+    fetch(repo.get(id, tag, Some(fileRef)).toRight(notFound(id.ref, tag = Some(tag), schema = Some(fileRef))))
 
   private def fetch[Out](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] = {
     def fileOrRejection(resource: Resource): Either[Rejection, (ProjectRef, StorageReference, File.FileAttributes)] =
-      resource.file.map { case (ref, attr) => (resource.id.parent, ref, attr) }.toRight(notFound(resource.id.ref))
+      resource.file
+        .map { case (ref, attr) => (resource.id.parent, ref, attr) }
+        .toRight(notFound(resource.id.ref, schema = Some(fileRef)))
 
     def storageOrRejection(project: ProjectRef, ref: StorageReference, attr: FileAttributes) =
       storageCache.get(project, ref.id).map(_.map(_ -> attr).toRight(notFound(ref.id.ref)))

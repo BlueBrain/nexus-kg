@@ -101,10 +101,10 @@ object Rejection {
       )
   object NotFound {
     def notFound(ref: Ref,
-                 revOpt: Option[Long] = None,
-                 tagOpt: Option[String] = None,
-                 schemaOpt: Option[Ref] = None): Rejection =
-      NotFound(ref, revOpt, tagOpt, schemaOpt)
+                 rev: Option[Long] = None,
+                 tag: Option[String] = None,
+                 schema: Option[Ref] = None): Rejection =
+      NotFound(ref, rev, tag, schema)
   }
 
   /**

@@ -53,6 +53,16 @@ package object resources {
   type RejOrResourceV[F[_]] = EitherT[F, Rejection, ResourceV]
 
   /**
+    * Rejection or schema reference wrapped in F[_]
+    */
+  type RejOrSchema[F[_]] = EitherT[F, Rejection, Ref]
+
+  /**
+    * Rejection or json wrapped in F[_]
+    */
+  type RejOrSource[F[_]] = EitherT[F, Rejection, Json]
+
+  /**
     * Rejection or resource representation with a "source" wrapped in F[_]
     */
   type RejOrResource[F[_]] = EitherT[F, Rejection, Resource]

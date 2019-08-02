@@ -33,7 +33,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
@@ -41,9 +40,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link
 import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
@@ -171,14 +168,20 @@ class FileRoutesSpec
     val resource =
       ResourceF.simpleF(id, Json.obj(), created = user, updated = user, schema = fileRef)
 
-    val resourceV =
-      ResourceF.simpleV(id,
-                        Value(Json.obj(), Json.obj(), RootedGraph(IriNode(id.value), Graph())),
-                        created = user,
-                        updated = user,
-                        schema = fileRef)
+    resources.fetchSchema(id) shouldReturn EitherT.rightT[Task, Rejection](fileRef)
 
-    resources.fetch(id, MetadataOptions(), None) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    def endpoints(rev: Option[Long] = None, tag: Option[String] = None): List[String] = {
+      val queryParam = (rev, tag) match {
+        case (Some(r), _) => s"?rev=$r"
+        case (_, Some(t)) => s"?tag=$t"
+        case _            => ""
+      }
+      List(
+        s"/v1/files/$organization/$project/$urlEncodedId$queryParam",
+        s"/v1/resources/$organization/$project/file/$urlEncodedId$queryParam",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId$queryParam"
+      )
+    }
   }
 
   "The file routes" should {
@@ -223,37 +226,24 @@ class FileRoutesSpec
                                                                                     any[Save[Task, AkkaSource]])
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
-      Put(s"/v1/files/$organization/$project/$urlEncodedId?rev=1", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Put(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Put(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Put(endpoint, multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+        }
       }
     }
 
     "update a file digest" in new Context {
       val digest = Digest("SHA-256", genString())
       val json   = digestJson(digest)
-
       files.updateDigest(id, storage, 1L, json) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
-      Patch(s"/v1/files/$organization/$project/$urlEncodedId?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Patch(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Patch(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Patch(endpoint, json) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+        }
       }
     }
 
@@ -291,54 +281,32 @@ class FileRoutesSpec
       files
         .updateLink(eqTo(id), eqTo(storage), eqTo(1L), eqTo(fileLink))(eqTo(caller.subject), any[Link[Task]])
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
-
-      Put(s"/v1/files/$organization/$project/$urlEncodedId?rev=1", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Put(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Put(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Put(endpoint, fileLink) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+        }
       }
     }
 
     "deprecate a file" in new Context {
       files.deprecate(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resource)
-
-      Delete(s"/v1/files/$organization/$project/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Delete(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Delete(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Delete(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+        }
       }
     }
 
     "tag a file" in new Context {
       val json = tag(2L, "one")
-
       tagsRes.create(id, 1L, json, fileRef) shouldReturn EitherT.rightT[Task, Rejection](resource)
-
-      Post(s"/v1/files/$organization/$project/$urlEncodedId/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Post(s"/v1/resources/$organization/$project/file/$urlEncodedId/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
-      }
-      Post(s"/v1/resources/$organization/$project/_/$urlEncodedId/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      forAll(endpoints()) { endpoint =>
+        Post(s"$endpoint/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+        }
       }
     }
 
@@ -351,26 +319,14 @@ class FileRoutesSpec
         List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain(UTF-8)`.mediaType))
 
       forAll(accepted) { accept =>
-        Get(s"/v1/files/$organization/$project/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
-        }
-        Get(s"/v1/resources/$organization/$project/file/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
-        }
-        Get(s"/v1/resources/$organization/$project/_/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+        forAll(endpoints()) { endpoint =>
+          Get(endpoint) ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType.value shouldEqual `text/plain(UTF-8)`.value
+            header("Content-Disposition").value
+              .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
+            responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+          }
         }
       }
     }
@@ -384,26 +340,14 @@ class FileRoutesSpec
         List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain(UTF-8)`.mediaType))
 
       forAll(accepted) { accept =>
-        Get(s"/v1/files/$organization/$project/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
-        }
-        Get(s"/v1/resources/$organization/$project/file/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
-        }
-        Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+        forAll(endpoints(rev = Some(1L))) { endpoint =>
+          Get(endpoint) ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType.value shouldEqual `text/plain(UTF-8)`.value
+            header("Content-Disposition").value
+              .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
+            responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+          }
         }
       }
     }
@@ -417,26 +361,47 @@ class FileRoutesSpec
         List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`text/*`), Accept(`text/plain(UTF-8)`.mediaType))
 
       forAll(accepted) { accept =>
-        Get(s"/v1/files/$organization/$project/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
-          status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+        forAll(endpoints(tag = Some("some"))) { endpoint =>
+          Get(endpoint) ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+            status shouldEqual StatusCodes.OK
+            contentType.value shouldEqual `text/plain(UTF-8)`.value
+            header("Content-Disposition").value
+              .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
+            responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+          }
         }
-        Get(s"/v1/resources/$organization/$project/file/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+      }
+    }
+
+    "fetch latest revision of a files' source" in new Context {
+      val expected = Json.obj(genString() -> Json.fromString(genString()))
+      resources.fetchSource(id, fileRef) shouldReturn EitherT.rightT[Task, Rejection](expected)
+      forAll(endpoints()) { endpoint =>
+        Get(s"$endpoint/source") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+          responseAs[Json] should equalIgnoreArrayOrder(expected)
         }
-        Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+      }
+    }
+
+    "fetch specific revision of a files' source" in new Context {
+      val expected = Json.obj(genString() -> Json.fromString(genString()))
+      resources.fetchSource(id, 1L, fileRef) shouldReturn EitherT.rightT[Task, Rejection](expected)
+      forAll(endpoints()) { endpoint =>
+        Get(s"$endpoint/source?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          contentType.value shouldEqual `text/plain(UTF-8)`.value
-          header("Content-Disposition").value
-            .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-          responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+          responseAs[Json] should equalIgnoreArrayOrder(expected)
+        }
+      }
+    }
+
+    "fetch specific tag of a files' source" in new Context {
+      val expected = Json.obj(genString() -> Json.fromString(genString()))
+      resources.fetchSource(id, "some", fileRef) shouldReturn EitherT.rightT[Task, Rejection](expected)
+      forAll(endpoints()) { endpoint =>
+        Get(s"$endpoint/source?tag=some") ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(expected)
         }
       }
     }
