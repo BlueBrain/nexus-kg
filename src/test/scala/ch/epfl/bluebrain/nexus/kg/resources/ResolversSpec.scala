@@ -111,7 +111,18 @@ class ResolversSpec
     def updateId(json: Json) =
       json deepMerge Json.obj("@id" -> Json.fromString(id.show))
     val resolver = updateId(jsonContentOf("/resolve/cross-project.json"))
-    val types    = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
+    def resolverSource(priority: Int = 50) =
+      updateId(
+        jsonContentOf(
+          "/resolve/cross-project-source.json",
+          Map(
+            quote("{uuid1}")    -> project1.uuid.toString,
+            quote("{uuid2}")    -> project2.uuid.toString,
+            quote("{priority}") -> priority.toString,
+            quote("{base}")     -> "http://localhost:8080"
+          )
+        ))
+    val types = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
 
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
@@ -215,7 +226,8 @@ class ResolversSpec
 
       "return a resolver" in new Base {
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
-        val result   = resolvers.fetch(resId).value.accepted
+        val result = resolvers.fetch(resId).value.accepted
+        resolvers.fetchSource(resId).value.accepted should equalIgnoreArrayOrder(resolverSource())
         val expected = resourceV(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
@@ -235,12 +247,19 @@ class ResolversSpec
         resultLatest shouldEqual expectedLatest.copy(value = resultLatest.value)
 
         resolvers.fetch(resId, 2L).value.accepted shouldEqual resolvers.fetch(resId).value.accepted
+        resolvers.fetchSource(resId, 2L).value.accepted should equalIgnoreArrayOrder(resolverSource(34))
 
         val result   = resolvers.fetch(resId, 1L).value.accepted
         val expected = resourceV(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)
+      }
+
+      "return NotFound when the provided resolver does not exists" in new Base {
+        resolvers.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref, schemaOpt = Some(resolverRef))
+        resolvers.fetchSource(resId).value.rejected[NotFound] shouldEqual
+          NotFound(resId.ref, schemaOpt = Some(resolverRef))
       }
     }
 

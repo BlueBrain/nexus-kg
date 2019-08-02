@@ -167,6 +167,24 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         case Binary                        => getFile(id)
         case format: NonBinaryOutputFormat => getResource(id)(format)
       },
+      // Fetch file source
+      (get & pathPrefix("source") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/files/{}/{}/{}/source") {
+          hasPermission(read).apply {
+            concat(
+              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                complete(resources.fetchSource(Id(project.ref, id), rev, fileRef).value.runWithStatus(OK))
+              },
+              (parameter('tag) & noParameter('rev)) { tag =>
+                complete(resources.fetchSource(Id(project.ref, id), tag, fileRef).value.runWithStatus(OK))
+              },
+              (noParameter('tag) & noParameter('rev)) {
+                complete(resources.fetchSource(Id(project.ref, id), fileRef).value.runWithStatus(OK))
+              }
+            )
+          }
+        }
+      },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
         fromPaginated.apply { implicit page =>

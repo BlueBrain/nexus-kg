@@ -200,6 +200,24 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
           }
         }
       },
+      // Fetch resolver source
+      (get & pathPrefix("source") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/source") {
+          hasPermission(read).apply {
+            concat(
+              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                complete(resolvers.fetchSource(Id(project.ref, id), rev).value.runWithStatus(OK))
+              },
+              (parameter('tag) & noParameter('rev)) { tag =>
+                complete(resolvers.fetchSource(Id(project.ref, id), tag).value.runWithStatus(OK))
+              },
+              (noParameter('tag) & noParameter('rev)) {
+                complete(resolvers.fetchSource(Id(project.ref, id)).value.runWithStatus(OK))
+              }
+            )
+          }
+        }
+      },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}/incoming") {

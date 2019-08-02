@@ -244,6 +244,7 @@ class ResourcesSpec
 
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         resources.fetch(resId, schemaRef).value.accepted shouldEqual resourceV(expected)
+        resources.fetchSource(resId, schemaRef).value.accepted shouldEqual expected
       }
 
       "return the requested resource on a specific revision" in new Base {
@@ -253,6 +254,8 @@ class ResourcesSpec
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         resources.update(resId, 1L, schemaRef, jsonUpdated).value.accepted shouldBe a[Resource]
         resources.fetch(resId, 2L, schemaRef).value.accepted shouldEqual resourceV(expectedUpdated, 2L)
+        resources.fetchSource(resId, 1L, schemaRef).value.accepted shouldEqual expected
+        resources.fetchSource(resId, 2L, schemaRef).value.accepted shouldEqual expectedUpdated
         resources.fetch(resId, 2L, schemaRef).value.accepted shouldEqual
           resources.fetch(resId, schemaRef).value.accepted
         resources.fetch(resId, 1L, schemaRef).value.accepted shouldEqual resourceV(expected, 1L)
@@ -262,6 +265,8 @@ class ResourcesSpec
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         val otherSchema = Ref(genIri)
         resources.fetch(resId, otherSchema).value.rejected[NotFound] shouldEqual
+          NotFound(resId.value.ref, schemaOpt = Some(otherSchema))
+        resources.fetchSource(resId, otherSchema).value.rejected[NotFound] shouldEqual
           NotFound(resId.value.ref, schemaOpt = Some(otherSchema))
       }
     }

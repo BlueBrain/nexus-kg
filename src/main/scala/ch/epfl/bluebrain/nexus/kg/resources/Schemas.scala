@@ -89,6 +89,35 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     repo.deprecate(id, shaclRef, rev)
 
   /**
+    * Fetches the latest revision of the schema source
+    *
+    * @param id the id of the schema
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId): RejOrSource[F] =
+    repo.get(id, Some(shaclRef)).map(_.value).toRight(notFound(id.ref, schema = Some(shaclRef)))
+
+  /**
+    * Fetches the provided revision of the schema source
+    *
+    * @param id     the id of the schema
+    * @param rev    the revision of the schema
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, rev: Long): RejOrSource[F] =
+    repo.get(id, rev, Some(shaclRef)).map(_.value).toRight(notFound(id.ref, rev = Some(rev), schema = Some(shaclRef)))
+
+  /**
+    * Fetches the provided tag of the schema source
+    *
+    * @param id     the id of the schema
+    * @param tag    the tag of the schema
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, tag: String): RejOrSource[F] =
+    repo.get(id, tag, Some(shaclRef)).map(_.value).toRight(notFound(id.ref, tag = Some(tag), schema = Some(shaclRef)))
+
+  /**
     * Fetches the latest revision of a storage.
     *
     * @param id the id of the storage
@@ -115,7 +144,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, tag, Some(shaclRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(materializer.withMeta(_))
+    repo.get(id, tag, Some(shaclRef)).toRight(notFound(id.ref, tag = Some(tag))).flatMap(materializer.withMeta(_))
 
   /**
     * Lists schemas on the given project

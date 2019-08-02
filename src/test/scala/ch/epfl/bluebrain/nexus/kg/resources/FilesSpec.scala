@@ -186,7 +186,8 @@ class FilesSpec
       }
 
       "prevent updating a file digest when file does not exist" in new Base {
-        files.updateDigestIfEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
+        files.updateDigestIfEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref,
+                                                                                       schemaOpt = Some(fileRef))
       }
 
       "prevent updating a file digest when digest fetch traises a StorageClientError" in new Base {
@@ -364,7 +365,7 @@ class FilesSpec
       }
 
       "return NotFound when the provided file does not exists" in new Base {
-        files.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
+        files.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref, schemaOpt = Some(fileRef))
       }
     }
   }

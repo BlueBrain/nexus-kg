@@ -104,6 +104,38 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
   }
 
   /**
+    * Fetches the latest revision of the resources' source
+    *
+    * @param id     the id of the resource
+    * @param schema the schema reference that constrains the resource
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, schema: Ref): RejOrSource[F] =
+    repo.get(id, Some(schema)).map(_.value).toRight(notFound(id.ref, schema = Some(schema)))
+
+  /**
+    * Fetches the provided revision of the resources' source
+    *
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @param schema the schema reference that constrains the resource
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, rev: Long, schema: Ref): RejOrSource[F] =
+    repo.get(id, rev, Some(schema)).map(_.value).toRight(notFound(id.ref, rev = Some(rev), schema = Some(schema)))
+
+  /**
+    * Fetches the provided tag of the resources' source
+    *
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @param schema theschema reference that constrains the resource
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, tag: String, schema: Ref): RejOrSource[F] =
+    repo.get(id, tag, Some(schema)).map(_.value).toRight(notFound(id.ref, tag = Some(tag), schema = Some(schema)))
+
+  /**
     * Fetches the latest revision of a resource
     *
     * @param id     the id of the resource
@@ -124,7 +156,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
   def fetch(id: ResId, rev: Long, schema: Ref)(implicit project: Project): RejOrResourceV[F] =
     repo
       .get(id, rev, Some(schema))
-      .toRight(notFound(id.ref, revOpt = Some(rev), schemaOpt = Some(schema)))
+      .toRight(notFound(id.ref, rev = Some(rev), schema = Some(schema)))
       .flatMap(materializer.withMeta(_, MetadataOptions()))
 
   /**
@@ -139,6 +171,15 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     fetch(id, tag, MetadataOptions(), Some(schema))
 
   /**
+    * Fetches the latest revision of a resource schema
+    *
+    * @param id the id of the resource
+    * @return Right(schema) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSchema(id: ResId): RejOrSchema[F] =
+    repo.get(id, None).map(_.schema).toRight(notFound(id.ref))
+
+  /**
     * Fetches the latest revision of a resource
     *
     * @param id     the id of the resource
@@ -148,7 +189,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
       implicit project: Project): RejOrResourceV[F] =
     repo
       .get(id, schemaOpt)
-      .toRight(notFound(id.ref, schemaOpt = schemaOpt))
+      .toRight(notFound(id.ref, schema = schemaOpt))
       .flatMap(materializer.withMeta(_, metadataOptions))
 
   /**
@@ -162,7 +203,7 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
       implicit project: Project): RejOrResourceV[F] =
     repo
       .get(id, tag, schemaOpt)
-      .toRight(notFound(id.ref, tagOpt = Some(tag), schemaOpt = schemaOpt))
+      .toRight(notFound(id.ref, tag = Some(tag), schema = schemaOpt))
       .flatMap(materializer.withMeta(_, metadataOptions))
 
   /**

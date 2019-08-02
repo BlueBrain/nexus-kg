@@ -39,6 +39,7 @@ import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
 
+import java.util.regex.Pattern.quote
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -125,6 +126,10 @@ class ViewsSpec
 
     val esView = jsonContentOf("/view/elasticview.json").removeKeys("_uuid") deepMerge Json.obj(
       "@id" -> Json.fromString(id.show))
+    def esViewSource(uuid: String, includeMeta: Boolean = false) =
+      jsonContentOf("/view/elasticview-source.json",
+                    Map(quote("{uuid}") -> uuid, quote("{includeMetadata}") -> includeMeta.toString)) deepMerge Json
+        .obj("@id" -> Json.fromString(id.show))
     val types = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView)
 
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
@@ -256,7 +261,8 @@ class ViewsSpec
       }
 
       "prevent to update a view that does not exists" in new EsViewMocked {
-        views.update(resId, 1L, esView).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
+        views.update(resId, 1L, esView).value.rejected[NotFound] shouldEqual
+          NotFound(resId.ref, schemaOpt = Some(viewRef))
       }
     }
 
@@ -291,6 +297,7 @@ class ViewsSpec
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)
+        views.fetchSource(resId).value.accepted should equalIgnoreArrayOrder(esViewSource(uuid(result)))
       }
 
       "return the requested view on a specific revision" in new EsViewMocked {
@@ -310,6 +317,8 @@ class ViewsSpec
           views.fetch(resId).value.accepted
 
         val result = views.fetch(resId, 1L).value.accepted
+        views.fetchSource(resId).value.accepted should
+          equalIgnoreArrayOrder(esViewSource(uuid(result), includeMeta = true))
         val expected = resourceV(
           esView deepMerge Json.obj("includeMetadata"   -> Json.fromBoolean(false),
                                     "includeDeprecated" -> Json.fromBoolean(true),
@@ -318,6 +327,11 @@ class ViewsSpec
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)
+      }
+
+      "return NotFound when the provided view does not exists" in new Base {
+        views.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref, schemaOpt = Some(viewRef))
+        views.fetchSource(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref, schemaOpt = Some(viewRef))
       }
     }
   }

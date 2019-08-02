@@ -107,10 +107,45 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     */
   def fetchResolver(id: ResId)(implicit project: Project): EitherT[F, Rejection, Resolver] =
     for {
-      resource  <- repo.get(id, Some(resolverRef)).toRight(notFound(id.ref))
+      resource  <- repo.get(id, Some(resolverRef)).toRight(notFound(id.ref, schema = Some(resolverRef)))
       resourceV <- materializer.withMeta(resource)
       resolver  <- EitherT.fromEither[F](Resolver(resourceV))
     } yield resolver
+
+  /**
+    * Fetches the latest revision of the resolver source
+    *
+    * @param id the id of the resolver
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId): RejOrSource[F] =
+    repo.get(id, Some(resolverRef)).map(_.value).toRight(notFound(id.ref, schema = Some(resolverRef)))
+
+  /**
+    * Fetches the provided revision of the resolver source
+    *
+    * @param id     the id of the resolver
+    * @param rev    the revision of the resolver
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, rev: Long): RejOrSource[F] =
+    repo
+      .get(id, rev, Some(resolverRef))
+      .map(_.value)
+      .toRight(notFound(id.ref, rev = Some(rev), schema = Some(resolverRef)))
+
+  /**
+    * Fetches the provided tag of the resolver source
+    *
+    * @param id     the id of the resolver
+    * @param tag    the tag of the resolver
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, tag: String): RejOrSource[F] =
+    repo
+      .get(id, tag, Some(resolverRef))
+      .map(_.value)
+      .toRight(notFound(id.ref, tag = Some(tag), schema = Some(resolverRef)))
 
   /**
     * Fetches the latest revision of a resolver.
@@ -119,7 +154,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, Some(resolverRef)).toRight(notFound(id.ref)).flatMap(fetch)
+    repo.get(id, Some(resolverRef)).toRight(notFound(id.ref, schema = Some(resolverRef))).flatMap(fetch)
 
   /**
     * Fetches the provided revision of a resolver
@@ -129,7 +164,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, rev, Some(resolverRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch)
+    repo.get(id, rev, Some(resolverRef)).toRight(notFound(id.ref, Some(rev), schema = Some(resolverRef))).flatMap(fetch)
 
   /**
     * Fetches the provided tag of a resolver.
@@ -139,7 +174,10 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(notFound) in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, tag, Some(resolverRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
+    repo
+      .get(id, tag, Some(resolverRef))
+      .toRight(notFound(id.ref, tag = Some(tag), schema = Some(resolverRef)))
+      .flatMap(fetch)
 
   /**
     * Fetches the provided resource from the resolution process.

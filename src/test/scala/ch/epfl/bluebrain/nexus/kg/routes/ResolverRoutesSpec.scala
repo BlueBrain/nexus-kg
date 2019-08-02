@@ -135,7 +135,20 @@ class ResolverRoutesSpec
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = resolverRef, types = types)
 
-    resources.fetch(id, MetadataOptions(), None) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    resources.fetchSchema(id) shouldReturn EitherT.rightT[Task, Rejection](resolverRef)
+
+    def endpoints(rev: Option[Long] = None, tag: Option[String] = None): List[String] = {
+      val queryParam = (rev, tag) match {
+        case (Some(r), _) => s"?rev=$r"
+        case (_, Some(t)) => s"?tag=$t"
+        case _            => ""
+      }
+      List(
+        s"/v1/resolvers/$organization/$project/$urlEncodedId$queryParam",
+        s"/v1/resources/$organization/$project/resolver/$urlEncodedId$queryParam",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId$queryParam"
+      )
+    }
   }
 
   "The resolver routes" should {
@@ -168,121 +181,98 @@ class ResolverRoutesSpec
 
     "update a resolver" in new Context {
       resolvers.update(id, 1L, resolver) shouldReturn EitherT.rightT[Task, Rejection](resource)
-
-      Put(s"/v1/resolvers/$organization/$project/$urlEncodedId?rev=1", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
-      }
-      Put(s"/v1/resources/$organization/$project/resolver/$urlEncodedId?rev=1", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
-      }
-      Put(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Put(endpoint, resolver) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+        }
       }
     }
 
     "deprecate a resolver" in new Context {
       resolvers.deprecate(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resource)
-
-      Delete(s"/v1/resolvers/$organization/$project/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
-      }
-      Delete(s"/v1/resources/$organization/$project/resolver/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
-      }
-      Delete(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Delete(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+        }
       }
     }
 
     "tag a resolver" in new Context {
       val json = tag(2L, "one")
-
       tagsRes.create(id, 1L, json, resolverRef) shouldReturn EitherT.rightT[Task, Rejection](resource)
-
-      Post(s"/v1/resolvers/$organization/$project/$urlEncodedId/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
-      }
-      Post(s"/v1/resources/$organization/$project/resolver/$urlEncodedId/tags?rev=1", json) ~> addCredentials(
-        oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
-      }
-      Post(s"/v1/resources/$organization/$project/_/$urlEncodedId/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+      forAll(endpoints()) { endpoint =>
+        Post(s"$endpoint/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(resolverResponse())
+        }
       }
     }
 
     "fetch latest revision of a resolver" in new Context {
       resolvers.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
-
-      Get(s"/v1/resolvers/$organization/$project/$urlEncodedId") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/resolver/$urlEncodedId") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      forAll(endpoints()) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 
     "fetch specific revision of a resolver" in new Context {
       resolvers.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
-
-      Get(s"/v1/resolvers/$organization/$project/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
-      Get(s"/v1/resources/$organization/$project/resolver/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-
     }
 
     "fetch specific tag of a resolver" in new Context {
       resolvers.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-
       val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
-
-      Get(s"/v1/resolvers/$organization/$project/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      forAll(endpoints(tag = Some("some"))) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
+    }
 
-      Get(s"/v1/resources/$organization/$project/resolver/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+    "fetch latest revision of a resolvers' source" in new Context {
+      val expected = resourceV.value.source
+      resolvers.fetchSource(id) shouldReturn EitherT.rightT[Task, Rejection](expected)
+      forAll(endpoints()) { endpoint =>
+        Get(s"$endpoint/source") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(expected)
+        }
       }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+    }
+
+    "fetch specific revision of a resolvers' source" in new Context {
+      val expected = resourceV.value.source
+      resolvers.fetchSource(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](expected)
+      forAll(endpoints()) { endpoint =>
+        Get(s"$endpoint/source?rev=1") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(expected)
+        }
+      }
+    }
+
+    "fetch specific tag of a resolvers' source" in new Context {
+      val expected = resourceV.value.source
+      resolvers.fetchSource(id, "some") shouldReturn EitherT.rightT[Task, Rejection](expected)
+      forAll(endpoints()) { endpoint =>
+        Get(s"$endpoint/source?tag=some") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 
@@ -290,21 +280,11 @@ class ResolverRoutesSpec
       val resourceId = genIri
       resolvers.resolve(id, resourceId) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
-
-      Get(s"/v1/resolvers/$organization/$project/$urlEncodedId/${urlEncode(resourceId)}") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/resolver/$urlEncodedId/${urlEncode(resourceId)}") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId/${urlEncode(resourceId)}") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      forAll(endpoints()) { endpoint =>
+        Get(s"$endpoint/${urlEncode(resourceId)}") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 

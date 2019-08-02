@@ -135,11 +135,10 @@ class ResourceRoutesSpec
     // format: off
     val resourceValue = Value(jsonWithCtx, defaultCtxValue, jsonWithCtx.deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).right.value)
     // format: on
-
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = unconstrainedRef)
 
-    resources.fetch(id, MetadataOptions(), None) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    resources.fetchSchema(id) shouldReturn EitherT.rightT[Task, Rejection](unconstrainedRef)
   }
 
   "The resources routes" should {
@@ -240,6 +239,23 @@ class ResourceRoutesSpec
       }
     }
 
+    "fetch latest revision of a resources' source" in new Context {
+      val source = resourceV.value.source
+      resources.fetchSource(id, unconstrainedRef) shouldReturn EitherT.rightT[Task, Rejection](source)
+
+      val endpoints = List(
+        s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId/source",
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId/source",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId/source"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(source)
+        }
+      }
+    }
+
     "fetch specific revision of a resource" in new Context {
       resources.fetch(id, 1L, unconstrainedRef) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected =
@@ -249,15 +265,33 @@ class ResourceRoutesSpec
           .value
           .removeKeys("@context")
 
-      Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      val endpoints = List(
+        s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId?rev=1",
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId?rev=1",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+    }
+
+    "fetch specific revision of a resources' source" in new Context {
+      val source = resourceV.value.source
+      resources.fetchSource(id, 1L, unconstrainedRef) shouldReturn EitherT.rightT[Task, Rejection](source)
+
+      val endpoints = List(
+        s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId/source?rev=1",
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId/source?rev=1",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId/source?rev=1"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(source)
+        }
       }
     }
 
@@ -270,15 +304,33 @@ class ResourceRoutesSpec
           .value
           .removeKeys("@context")
 
-      Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      val endpoints = List(
+        s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId?tag=some",
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId?tag=some",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+    }
+
+    "fetch specific tag of a resources' source" in new Context {
+      val source = resourceV.value.source
+      resources.fetchSource(id, "some", unconstrainedRef) shouldReturn EitherT.rightT[Task, Rejection](source)
+
+      val endpoints = List(
+        s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId/source?tag=some",
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId/source?tag=some",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId/source?tag=some"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(source)
+        }
       }
     }
 
