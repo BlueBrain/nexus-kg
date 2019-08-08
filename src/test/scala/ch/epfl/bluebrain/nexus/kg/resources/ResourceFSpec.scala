@@ -54,21 +54,23 @@ class ResourceFSpec
       "elasticsearch" -> nxv.defaultElasticSearchIndex,
       "graph"         -> nxv.defaultSparqlIndex
     )
-    implicit val projectMeta: Project = Project(id,
-                                                "core",
-                                                "bbp",
-                                                None,
-                                                nxv.projects,
-                                                genIri,
-                                                apiMappings,
-                                                projectRef.id,
-                                                genUUID,
-                                                1L,
-                                                false,
-                                                Instant.EPOCH,
-                                                userIri,
-                                                Instant.EPOCH,
-                                                anonIri)
+    implicit val projectMeta: Project = Project(
+      id,
+      "core",
+      "bbp",
+      None,
+      nxv.projects,
+      genIri,
+      apiMappings,
+      projectRef.id,
+      genUUID,
+      1L,
+      false,
+      Instant.EPOCH,
+      userIri,
+      Instant.EPOCH,
+      anonIri
+    )
 
     "compute the metadata graph for a resource" in {
       val resource = ResourceF
@@ -106,7 +108,8 @@ class ResourceFSpec
 
     "remove the metadata from a resource" in {
       val jsonMeta = json deepMerge Json.obj("@id" -> Json.fromString(id.value.asString)) deepMerge Json.obj(
-        nxv.rev.value.asString -> Json.fromLong(10L))
+        nxv.rev.value.asString -> Json.fromLong(10L)
+      )
       simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).value.graph.removeMetadata.triples shouldEqual Set
         .empty[Triple]
     }

@@ -46,12 +46,14 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant      an optionally provided operation instant
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId,
-             organization: OrganizationRef,
-             schema: Ref,
-             types: Set[AbsoluteIri],
-             source: Json,
-             instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def create(
+      id: ResId,
+      organization: OrganizationRef,
+      schema: Ref,
+      types: Set[AbsoluteIri],
+      source: Json,
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, Create(id, organization, schema, types, source, instant, subject))
 
   /**
@@ -66,12 +68,14 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def update(id: ResId,
-             schema: Ref,
-             rev: Long,
-             types: Set[AbsoluteIri],
-             source: Json,
-             instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def update(
+      id: ResId,
+      schema: Ref,
+      rev: Long,
+      types: Set[AbsoluteIri],
+      source: Json,
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, Update(id, schema, rev, types, source, instant, subject))
 
   /**
@@ -85,7 +89,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return either a rejection or the new resource representation in the F context
     */
   def deprecate(id: ResId, schema: Ref, rev: Long, instant: Instant = clock.instant)(
-      implicit subject: Subject): EitherT[F, Rejection, Resource] =
+      implicit subject: Subject
+  ): EitherT[F, Rejection, Resource] =
     evaluate(id, Deprecate(id, schema, rev, instant, subject))
 
   /**
@@ -101,7 +106,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return either a rejection or the new resource representation in the F context
     */
   def tag(id: ResId, schema: Ref, rev: Long, targetRev: Long, tag: String, instant: Instant = clock.instant)(
-      implicit subject: Subject): EitherT[F, Rejection, Resource] =
+      implicit subject: Subject
+  ): EitherT[F, Rejection, Resource] =
     evaluate(id, AddTag(id, schema, rev, targetRev, tag, instant, subject))
 
   /**
@@ -114,11 +120,13 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant      an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def createFile(id: ResId,
-                 organization: OrganizationRef,
-                 storage: StorageReference,
-                 fileAttr: FileAttributes,
-                 instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def createFile(
+      id: ResId,
+      organization: OrganizationRef,
+      storage: StorageReference,
+      fileAttr: FileAttributes,
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
   private[resources] def createFileTest(
@@ -126,7 +134,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
       organization: OrganizationRef,
       storage: StorageReference,
       fileAttr: FileAttributes,
-      instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     test(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
   /**
@@ -140,7 +149,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @return either a rejection or the new resource representation in the F context
     */
   def updateDigest(id: ResId, storage: StorageReference, rev: Long, digest: Digest, instant: Instant = clock.instant)(
-      implicit subject: Subject): EitherT[F, Rejection, Resource] =
+      implicit subject: Subject
+  ): EitherT[F, Rejection, Resource] =
     evaluate(id, UpdateFileDigest(id, storage, rev, digest, instant, subject))
 
   /**
@@ -153,11 +163,13 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateFile(id: ResId,
-                 storage: StorageReference,
-                 rev: Long,
-                 fileAttr: FileAttributes,
-                 instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def updateFile(
+      id: ResId,
+      storage: StorageReference,
+      rev: Long,
+      fileAttr: FileAttributes,
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
   private[resources] def updateFileTest(
@@ -165,7 +177,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
       storage: StorageReference,
       rev: Long,
       fileAttr: FileAttributes,
-      instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     test(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
   /**
@@ -178,11 +191,13 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant      an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def createLink(id: ResId,
-                 organization: OrganizationRef,
-                 storage: StorageReference,
-                 fileAttr: FileAttributes,
-                 instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def createLink(
+      id: ResId,
+      organization: OrganizationRef,
+      storage: StorageReference,
+      fileAttr: FileAttributes,
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
   private[resources] def createLinkTest(
@@ -190,7 +205,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
       organization: OrganizationRef,
       storage: StorageReference,
       fileAttr: FileAttributes,
-      instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     test(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
   /**
@@ -203,11 +219,13 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     * @param instant  an optionally provided operation instant
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateLink(id: ResId,
-                 storage: StorageReference,
-                 fileAttr: FileAttributes,
-                 rev: Long,
-                 instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+  def updateLink(
+      id: ResId,
+      storage: StorageReference,
+      fileAttr: FileAttributes,
+      rev: Long,
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     evaluate(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
   private[resources] def updateLinkTest(
@@ -215,7 +233,8 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
       storage: StorageReference,
       fileAttr: FileAttributes,
       rev: Long,
-      instant: Instant = clock.instant)(implicit subject: Subject): EitherT[F, Rejection, Resource] =
+      instant: Instant = clock.instant
+  )(implicit subject: Subject): EitherT[F, Rejection, Resource] =
     test(id, UpdateFile(id, storage, rev, fileAttr, instant, subject))
 
   /**
@@ -394,10 +413,12 @@ object Repo {
     }
   }
 
-  private def aggregate[F[_]: Effect: Timer](implicit as: ActorSystem,
-                                             mt: ActorMaterializer,
-                                             sourcing: SourcingConfig,
-                                             F: Monad[F]): F[Agg[F]] =
+  private def aggregate[F[_]: Effect: Timer](
+      implicit as: ActorSystem,
+      mt: ActorMaterializer,
+      sourcing: SourcingConfig,
+      F: Monad[F]
+  ): F[Agg[F]] =
     AkkaAggregate.sharded[F](
       "resources",
       initial,

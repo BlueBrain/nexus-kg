@@ -28,8 +28,9 @@ object StaticResolution {
     *
     * @param resources mapping between the URI of the resource and the JSON content
     */
-  final def apply[F[_]: Monad](resources: Map[AbsoluteIri, Json])(
-      implicit clock: Clock = Clock.systemUTC): StaticResolution[F] =
+  final def apply[F[_]: Monad](
+      resources: Map[AbsoluteIri, Json]
+  )(implicit clock: Clock = Clock.systemUTC): StaticResolution[F] =
     new StaticResolution[F](resources.map {
       case (iri, json) => (iri, ResourceF.simpleF(Id(ProjectRef(uuid), iri), json))
     })

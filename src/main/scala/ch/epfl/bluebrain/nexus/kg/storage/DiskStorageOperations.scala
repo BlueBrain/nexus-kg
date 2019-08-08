@@ -73,8 +73,11 @@ object DiskStorageOperations {
                     val summary = StoredSummary(pathToUri(fullPath), relativePath, io.count, dig)
                     Future.successful(fileDesc.process(summary))
                   case _ =>
-                    Future.failed(KgError.InternalError(
-                      s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"))
+                    Future.failed(
+                      KgError.InternalError(
+                        s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"
+                      )
+                    )
                 }
             }
             .run()

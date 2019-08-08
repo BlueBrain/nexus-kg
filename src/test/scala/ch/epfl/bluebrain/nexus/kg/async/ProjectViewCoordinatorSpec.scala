@@ -56,18 +56,20 @@ class ProjectViewCoordinatorSpec
     // format: on
     val view = SparqlView(Set.empty, Set.empty, None, true, true, project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2 =
-      ElasticSearchView(Json.obj(),
-                        Set(genIri),
-                        Set.empty,
-                        None,
-                        true,
-                        true,
-                        true,
-                        project.ref,
-                        genIri,
-                        genUUID,
-                        1L,
-                        deprecated = false)
+      ElasticSearchView(
+        Json.obj(),
+        Set(genIri),
+        Set.empty,
+        None,
+        true,
+        true,
+        true,
+        project.ref,
+        genIri,
+        genUUID,
+        1L,
+        deprecated = false
+      )
     val view2Updated = view2.copy(resourceSchemas = Set(genIri), rev = 2L)
     val view3 =
       SparqlView(Set.empty, Set.empty, None, true, true, project2.ref, genIri, genUUID, 1L, deprecated = false)
@@ -84,9 +86,11 @@ class ProjectViewCoordinatorSpec
 
     val coordinatorProps = Props(
       new ProjectViewCoordinatorActor(viewCache) {
-        override def startCoordinator(v: View.SingleView,
-                                      proj: Project,
-                                      restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress] = {
+        override def startCoordinator(
+            v: View.SingleView,
+            proj: Project,
+            restartOffset: Boolean
+        ): StreamSupervisor[Task, ProjectionProgress] = {
           counterStart.incrementAndGet()
           if (v == view && proj == project) coordinator1
           else if (v == view2 && proj == project) coordinator2
@@ -111,7 +115,8 @@ class ProjectViewCoordinatorSpec
     val coordinator =
       new ProjectViewCoordinator[Task](
         Caches(projectCache, viewCache, mock[ResolverCache[Task]], mock[StorageCache[Task]]),
-        coordinatorRef)
+        coordinatorRef
+      )
 
     projections.progress(any[String]) shouldReturn Task.pure(ProjectionProgress.NoProgress)
 

@@ -131,7 +131,8 @@ class StoragesSpec
       val resourceV =
         ResourceF.simpleV(resId, Value(json, ctx.contextValue, graph), rev, schema = storageRef, types = types)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata())))
+        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+      )
     }
   }
 
@@ -176,8 +177,10 @@ class StoragesSpec
     "performing update operations" should {
 
       "update a storage" in new Base {
-        val storageUpdated = diskStorage deepMerge Json.obj("default" -> Json.fromBoolean(true),
-                                                            "maxFileSize" -> Json.fromLong(200L))
+        val storageUpdated = diskStorage deepMerge Json.obj(
+          "default"     -> Json.fromBoolean(true),
+          "maxFileSize" -> Json.fromLong(200L)
+        )
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         val result   = storages.update(resId, 1L, storageUpdated).value.accepted
         val expected = ResourceF.simpleF(resId, storageUpdated, 2L, schema = storageRef, types = typesDisk)
@@ -214,8 +217,10 @@ class StoragesSpec
         "maxFileSize"     -> Json.fromLong(appConfig.storage.disk.maxFileSize)
       )
 
-      val s3AddedJson = Json.obj("_algorithm" -> Json.fromString("SHA-256"),
-                                 "maxFileSize" -> Json.fromLong(appConfig.storage.amazon.maxFileSize))
+      val s3AddedJson = Json.obj(
+        "_algorithm"  -> Json.fromString("SHA-256"),
+        "maxFileSize" -> Json.fromLong(appConfig.storage.amazon.maxFileSize)
+      )
 
       "return a storage" in new Base {
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
@@ -257,8 +262,10 @@ class StoragesSpec
 
       "return NotFound when the provided storage does not exists" in new Base {
         storages.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref, schemaOpt = Some(storageRef))
-        storages.fetchSource(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref,
-                                                                                  schemaOpt = Some(storageRef))
+        storages.fetchSource(resId).value.rejected[NotFound] shouldEqual NotFound(
+          resId.ref,
+          schemaOpt = Some(storageRef)
+        )
       }
     }
   }

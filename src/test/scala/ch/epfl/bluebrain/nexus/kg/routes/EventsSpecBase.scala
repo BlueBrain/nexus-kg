@@ -59,7 +59,8 @@ class EventsSpecBase
       instant,
       subject,
       AccessControlList(subject -> Set(Permission.unsafe("resources/read"), Permission.unsafe("events/read")))
-    ))
+    )
+  )
   val caller = Caller(subject, Set(subject))
 
   val projectUuid = UUID.fromString("7f8039a0-3141-11e9-b210-d663bd873d93")
@@ -89,16 +90,18 @@ class EventsSpecBase
 
   val orgRef = OrganizationRef(project.organizationUuid)
 
-  val organization = Organization(base + "org",
-                                  "org",
-                                  None,
-                                  orgUuid,
-                                  1L,
-                                  deprecated = false,
-                                  instant,
-                                  base + "subject",
-                                  instant,
-                                  base + "subject")
+  val organization = Organization(
+    base + "org",
+    "org",
+    None,
+    orgUuid,
+    1L,
+    deprecated = false,
+    instant,
+    base + "subject",
+    instant,
+    base + "subject"
+  )
 
   val projectRef = ProjectRef(projectUuid)
 
@@ -114,15 +117,17 @@ class EventsSpecBase
       instant,
       subject
     ),
-    Updated(Id(projectRef, base + "created"),
-            orgRef,
-            2L,
-            types,
-            Json.obj(
-              "@type" -> Json.fromString("Updated")
-            ),
-            instant,
-            subject),
+    Updated(
+      Id(projectRef, base + "created"),
+      orgRef,
+      2L,
+      types,
+      Json.obj(
+        "@type" -> Json.fromString("Updated")
+      ),
+      instant,
+      subject
+    ),
     Deprecated(
       Id(projectRef, base + "created"),
       orgRef,

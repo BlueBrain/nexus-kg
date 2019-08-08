@@ -22,8 +22,8 @@ object RemoteDiskStorageOperations {
     * @param client  the remote storage client
     */
   final class Verify[F[_]: Applicative](storage: RemoteDiskStorage, client: StorageClient[F])(
-      implicit config: StorageConfig)
-      extends VerifyStorage[F] {
+      implicit config: StorageConfig
+  ) extends VerifyStorage[F] {
     implicit val cred = storage.decryptAuthToken(config.derivedKey)
 
     override def apply: F[Either[String, Unit]] = client.exists(storage.folder).map {
@@ -95,8 +95,8 @@ object RemoteDiskStorageOperations {
     */
   @silent
   final class FetchDigest[F[_]: Effect](storage: RemoteDiskStorage, client: StorageClient[F])(
-      implicit config: StorageConfig)
-      extends FetchFileDigest[F] {
+      implicit config: StorageConfig
+  ) extends FetchFileDigest[F] {
     implicit val cred = storage.decryptAuthToken(config.derivedKey)
 
     override def apply(relativePath: Uri.Path): F[Digest] =

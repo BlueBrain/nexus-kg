@@ -20,13 +20,17 @@ object StorageEncoder {
 
   private def storageGraphEncoder(includeCredentials: Boolean): GraphEncoder[Id, Storage] = GraphEncoder {
     case (rootNode, storage: DiskStorage) =>
-      val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.DiskStorage),
-                                                        (storage.id, nxv.volume, storage.volume.toString))
+      val triples = mainTriples(storage) ++ Set[Triple](
+        (storage.id, rdf.tpe, nxv.DiskStorage),
+        (storage.id, nxv.volume, storage.volume.toString)
+      )
       RootedGraph(rootNode, triples)
     case (rootNode, storage: RemoteDiskStorage) =>
-      val triples = mainTriples(storage) ++ Set[Triple]((storage.id, rdf.tpe, nxv.RemoteDiskStorage),
-                                                        (storage.id, nxv.endpoint, storage.endpoint.toString()),
-                                                        (storage.id, nxv.folder, storage.folder))
+      val triples = mainTriples(storage) ++ Set[Triple](
+        (storage.id, rdf.tpe, nxv.RemoteDiskStorage),
+        (storage.id, nxv.endpoint, storage.endpoint.toString()),
+        (storage.id, nxv.folder, storage.folder)
+      )
       val finalTriples =
         if (includeCredentials)
           storage.credentials.map(cred => triples + ((storage.id, nxv.credentials, cred): Triple)).getOrElse(triples)

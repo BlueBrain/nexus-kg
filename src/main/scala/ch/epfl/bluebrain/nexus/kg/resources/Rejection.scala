@@ -88,11 +88,12 @@ object Rejection {
     * @param tagOpt    an optional tag of the resource
     * @param schemaOpt an optional schema of the resource
     */
-  final case class NotFound(ref: Ref,
-                            revOpt: Option[Long] = None,
-                            tagOpt: Option[String] = None,
-                            schemaOpt: Option[Ref] = None)
-      extends Rejection(
+  final case class NotFound(
+      ref: Ref,
+      revOpt: Option[Long] = None,
+      tagOpt: Option[String] = None,
+      schemaOpt: Option[Ref] = None
+  ) extends Rejection(
         ((revOpt, tagOpt) match {
           case (Some(rev), None) => s"Resource '${ref.show}' not found at revision $rev"
           case (None, Some(tag)) => s"Resource '${ref.show}' not found at tag '$tag'"
@@ -100,10 +101,12 @@ object Rejection {
         }) + schemaOpt.map(schema => s" for schema '${schema.show}'.").getOrElse(".")
       )
   object NotFound {
-    def notFound(ref: Ref,
-                 rev: Option[Long] = None,
-                 tag: Option[String] = None,
-                 schema: Option[Ref] = None): Rejection =
+    def notFound(
+        ref: Ref,
+        rev: Option[Long] = None,
+        tag: Option[String] = None,
+        schema: Option[Ref] = None
+    ): Rejection =
       NotFound(ref, rev, tag, schema)
   }
 
@@ -143,7 +146,8 @@ object Rejection {
     */
   final case class IncorrectRev(ref: Ref, provided: Long, expected: Long)
       extends Rejection(
-        s"Incorrect revision '$provided' provided, expected '$expected', the resource '${ref.show}' may have been updated since last seen.")
+        s"Incorrect revision '$provided' provided, expected '$expected', the resource '${ref.show}' may have been updated since last seen."
+      )
 
   /**
     * Signal an attempt to fetch view statistics for AggregateView.
@@ -212,7 +216,8 @@ object Rejection {
     * @param error the error to be transformed
     */
   final def fromMarshallingErr[F[_]](id: AbsoluteIri, error: MarshallingError)(
-      implicit F: MonadError[F, Throwable]): F[Rejection] =
+      implicit F: MonadError[F, Throwable]
+  ): F[Rejection] =
     error match {
       case ConversionError(message, _) => F.pure(InvalidJsonLD(message))
       case _: RootNodeNotFound         => F.pure(IncorrectId(id.ref))

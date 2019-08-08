@@ -113,7 +113,7 @@ class FilesSpec
       b match {
         case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
         case _                                       => false
-    }
+      }
   }
 
   "A Files bundle" when {
@@ -186,8 +186,10 @@ class FilesSpec
       }
 
       "prevent updating a file digest when file does not exist" in new Base {
-        files.updateDigestIfEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref,
-                                                                                       schemaOpt = Some(fileRef))
+        files.updateDigestIfEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(
+          resId.ref,
+          schemaOpt = Some(fileRef)
+        )
       }
 
       "prevent updating a file digest when digest fetch traises a StorageClientError" in new Base {
@@ -203,9 +205,11 @@ class FilesSpec
     "performing digest update operations passed by the client" should {
 
       def digestJson(digest: Digest): Json =
-        Json.obj("value"     -> Json.fromString(digest.value),
-                 "algorithm" -> Json.fromString(digest.algorithm),
-                 "@type"     -> Json.fromString(nxv.UpdateDigest.prefix))
+        Json.obj(
+          "value"     -> Json.fromString(digest.value),
+          "algorithm" -> Json.fromString(digest.algorithm),
+          "@type"     -> Json.fromString(nxv.UpdateDigest.prefix)
+        )
 
       "update a file digest" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))

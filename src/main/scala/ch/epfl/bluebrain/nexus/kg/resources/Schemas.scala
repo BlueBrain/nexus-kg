@@ -156,7 +156,8 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]
+  ): F[JsonResults] =
     listResources[F](view, params.copy(schema = Some(shaclSchemaUri)), pagination)
 
   /**
@@ -168,7 +169,8 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @return search results in the F context
     */
   def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+      implicit sparql: BlazegraphClient[F]
+  ): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -180,14 +182,18 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
-  def listOutgoing(id: AbsoluteIri,
-                   view: Option[SparqlView],
-                   pagination: FromPagination,
-                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  def listOutgoing(
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
-  private def create(id: ResId, source: Json, graph: RootedGraph)(implicit subject: Subject,
-                                                                  project: Project): RejOrResource[F] = {
+  private def create(id: ResId, source: Json, graph: RootedGraph)(
+      implicit subject: Subject,
+      project: Project
+  ): RejOrResource[F] = {
     val typedGraph = addSchemaType(id.value, graph)
     val types      = typedGraph.rootTypes.map(_.value)
 
@@ -209,7 +215,8 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
         case Some(r)                => EitherT.leftT[F, Unit](InvalidResource(shaclRef, r))
         case _ =>
           EitherT(
-            F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$shaclSchemaUri'")))
+            F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$shaclSchemaUri'"))
+          )
       }
     }
 }

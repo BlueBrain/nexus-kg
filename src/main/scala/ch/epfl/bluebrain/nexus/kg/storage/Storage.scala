@@ -142,17 +142,18 @@ object Storage {
     * @param writePermission the permission required in order to upload a file to this storage
     * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
-  final case class DiskStorage(ref: ProjectRef,
-                               id: AbsoluteIri,
-                               rev: Long,
-                               deprecated: Boolean,
-                               default: Boolean,
-                               algorithm: String,
-                               volume: Path,
-                               readPermission: Permission,
-                               writePermission: Permission,
-                               maxFileSize: Long)
-      extends Storage {
+  final case class DiskStorage(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      default: Boolean,
+      algorithm: String,
+      volume: Path,
+      readPermission: Permission,
+      writePermission: Permission,
+      maxFileSize: Long
+  ) extends Storage {
 
     def reference: StorageReference = DiskStorageReference(id, rev)
   }
@@ -195,19 +196,20 @@ object Storage {
     * @param writePermission the permission required in order to upload a file to this storage
     * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
-  final case class RemoteDiskStorage(ref: ProjectRef,
-                                     id: AbsoluteIri,
-                                     rev: Long,
-                                     deprecated: Boolean,
-                                     default: Boolean,
-                                     algorithm: String,
-                                     endpoint: Uri,
-                                     credentials: Option[String],
-                                     folder: String,
-                                     readPermission: Permission,
-                                     writePermission: Permission,
-                                     maxFileSize: Long)
-      extends Storage {
+  final case class RemoteDiskStorage(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      default: Boolean,
+      algorithm: String,
+      endpoint: Uri,
+      credentials: Option[String],
+      folder: String,
+      readPermission: Permission,
+      writePermission: Permission,
+      maxFileSize: Long
+  ) extends Storage {
 
     def reference: StorageReference = RemoteDiskStorageReference(id, rev)
 
@@ -235,25 +237,26 @@ object Storage {
     * @param writePermission the permission required in order to upload a file to this storage
     * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
-  final case class S3Storage(ref: ProjectRef,
-                             id: AbsoluteIri,
-                             rev: Long,
-                             deprecated: Boolean,
-                             default: Boolean,
-                             algorithm: String,
-                             bucket: String,
-                             settings: S3Settings,
-                             readPermission: Permission,
-                             writePermission: Permission,
-                             maxFileSize: Long)
-      extends Storage {
+  final case class S3Storage(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      default: Boolean,
+      algorithm: String,
+      bucket: String,
+      settings: S3Settings,
+      readPermission: Permission,
+      writePermission: Permission,
+      maxFileSize: Long
+  ) extends Storage {
     def reference: StorageReference = S3StorageReference(id, rev)
   }
 
   private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
     stringEncoder(node).flatMap { perm =>
       Permission(perm).toRight(IllegalConversion(s"Invalid Permission '$perm'"))
-  }
+    }
 
   /**
     * S3 connection settings with reasonable defaults.
@@ -356,7 +359,8 @@ object Storage {
   }
 
   private def remoteDiskStorage(res: ResourceV, encrypt: Boolean)(
-      implicit config: StorageConfig): Either[Rejection, RemoteDiskStorage] = {
+      implicit config: StorageConfig
+  ): Either[Rejection, RemoteDiskStorage] = {
     val c = res.value.graph.cursor()
 
     val cred =
@@ -382,7 +386,8 @@ object Storage {
   }
 
   private def s3Storage(res: ResourceV, encrypt: Boolean)(
-      implicit config: StorageConfig): Either[Rejection, S3Storage] = {
+      implicit config: StorageConfig
+  ): Either[Rejection, S3Storage] = {
     val c = res.value.graph.cursor()
     // format: off
     for {

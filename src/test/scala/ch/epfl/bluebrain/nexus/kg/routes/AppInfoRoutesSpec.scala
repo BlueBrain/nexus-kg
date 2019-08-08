@@ -52,8 +52,10 @@ class AppInfoRoutesSpec
     "return the service description" in {
       Get("/") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[ServiceDescription] shouldEqual ServiceDescription(appConfig.description.name,
-                                                                      appConfig.description.version)
+        responseAs[ServiceDescription] shouldEqual ServiceDescription(
+          appConfig.description.name,
+          appConfig.description.version
+        )
       }
     }
 

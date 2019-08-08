@@ -73,8 +73,10 @@ class SparqlIndexerMappingSpec
 
   "An Sparql event mapping function" when {
 
-    val id: ResId = Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
-                       url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+    val id: ResId = Id(
+      ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
+      url"https://bbp.epfl.ch/nexus/data/resourceName".value
+    )
 
     val schema: Ref           = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
     val json                  = Json.obj("key" -> Json.fromInt(2))
@@ -94,10 +96,12 @@ class SparqlIndexerMappingSpec
       }
 
       "return a SparqlWriteQuery" in {
-        val resV = ResourceF.simpleV(id,
-                                     ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
-                                     2L,
-                                     schema = schema)
+        val resV = ResourceF.simpleV(
+          id,
+          ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+          2L,
+          schema = schema
+        )
         when(resources.fetch(id, MetadataOptions(true, true), None))
           .thenReturn(EitherT.rightT[IO, Rejection](resV))
 
@@ -117,21 +121,25 @@ class SparqlIndexerMappingSpec
       }
 
       "return a SparqlWriteQuery inserting data" in {
-        val resV = ResourceF.simpleV(id,
-                                     ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
-                                     2L,
-                                     schema = schema)
+        val resV = ResourceF.simpleV(
+          id,
+          ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+          2L,
+          schema = schema
+        )
         when(resources.fetch(id, MetadataOptions(true, true), None)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
       }
 
       "return a SparqlWriteQuery deleting data" in {
-        val resV = ResourceF.simpleV(id,
-                                     ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
-                                     2L,
-                                     schema = schema,
-                                     deprecated = true)
+        val resV = ResourceF.simpleV(
+          id,
+          ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+          2L,
+          schema = schema,
+          deprecated = true
+        )
         when(resources.fetch(id, MetadataOptions(true, true), None)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.drop(id.value.asString + "/graph")
@@ -155,15 +163,18 @@ class SparqlIndexerMappingSpec
 
       "return none when the resource does not have the valid tag" in {
         resources.fetch(id, "one", MetadataOptions(true, true), None) shouldReturn EitherT.leftT[IO, ResourceV](
-          NotFound(Ref(genIri)): Rejection)
+          NotFound(Ref(genIri)): Rejection
+        )
         mapper(ev).ioValue shouldEqual None
       }
 
       "return none when the schema is not on the view" in {
-        val resV = ResourceF.simpleV(id,
-                                     ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
-                                     2L,
-                                     schema = schema)
+        val resV = ResourceF.simpleV(
+          id,
+          ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+          2L,
+          schema = schema
+        )
         resources.fetch(id, "one", MetadataOptions(true, true), None) shouldReturn EitherT.rightT[IO, Rejection](resV)
         mapper(ev).ioValue shouldEqual None
       }
@@ -171,17 +182,20 @@ class SparqlIndexerMappingSpec
       "return a SparqlWriteQuery deleting data" in {
         val other = nxv.withSuffix("Other").value
         val resV = ResourceF
-          .simpleV(id,
-                   ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
-                   2L,
-                   schema = Ref(nxv.Resource.value),
-                   types = Set(other))
+          .simpleV(
+            id,
+            ResourceF.Value(json, json.contextValue, RootedGraph(IriNode(id.value), Graph())),
+            2L,
+            schema = Ref(nxv.Resource.value),
+            types = Set(other)
+          )
           .copy(tags = Map("one" -> 2L))
         when(resources.fetch(id, "one", MetadataOptions(true, true), None))
           .thenReturn(EitherT.rightT[IO, Rejection](resV))
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual resV.id -> SparqlWriteQuery.drop(
-          id.value.asString + "/graph")
+          id.value.asString + "/graph"
+        )
       }
 
       "return a SparqlWriteQuery inserting data" in {
@@ -204,7 +218,8 @@ class SparqlIndexerMappingSpec
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
           id.value.asString + "/graph",
-          Graph())
+          Graph()
+        )
       }
     }
 
@@ -240,7 +255,8 @@ class SparqlIndexerMappingSpec
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
           id.value.asString + "/graph",
-          Graph())
+          Graph()
+        )
       }
     }
   }

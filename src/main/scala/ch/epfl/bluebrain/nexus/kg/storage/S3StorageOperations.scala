@@ -30,7 +30,8 @@ object S3StorageOperations {
       val future = IO(
         S3.listBucket(storage.bucket, None)
           .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
-          .runWith(Sink.head))
+          .runWith(Sink.head)
+      )
       IO.fromFuture(future)
         .attempt
         .map {
@@ -51,7 +52,8 @@ object S3StorageOperations {
       val future = IO(
         S3.download(storage.bucket, URLDecoder.decode(fileMeta.path.toString, UTF_8.toString))
           .withAttributes(S3Attributes.settings(storage.settings.toAlpakka(config.derivedKey)))
-          .runWith(Sink.head))
+          .runWith(Sink.head)
+      )
       IO.fromFuture(future)
         .flatMap {
           case Some((source, _)) => IO.pure(source: AkkaSource)
@@ -62,7 +64,9 @@ object S3StorageOperations {
           case e: Throwable =>
             IO.raiseError(
               KgError.DownstreamServiceError(
-                s"Error fetching S3 object with key '${fileMeta.path}' in bucket '${storage.bucket}': ${e.getMessage}"))
+                s"Error fetching S3 object with key '${fileMeta.path}' in bucket '${storage.bucket}': ${e.getMessage}"
+              )
+            )
         }
         .to[F]
     }
@@ -93,12 +97,18 @@ object S3StorageOperations {
                     val summary = StoredSummary(io.location, Uri.Path(key), meta.contentLength, dig)
                     Future.successful(fileDesc.process(summary))
                   case None =>
-                    Future.failed(KgError.InternalError(
-                      s"Empty content fetching metadata for uploaded file '${fileDesc.filename}' to location '${io.location}'"))
+                    Future.failed(
+                      KgError.InternalError(
+                        s"Empty content fetching metadata for uploaded file '${fileDesc.filename}' to location '${io.location}'"
+                      )
+                    )
                 }
               case _ =>
-                Future.failed(KgError.InternalError(
-                  s"I/O error uploading file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"))
+                Future.failed(
+                  KgError.InternalError(
+                    s"I/O error uploading file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"
+                  )
+                )
             }
         }
         .run()
@@ -108,8 +118,11 @@ object S3StorageOperations {
         .handleErrorWith {
           case e: KgError => IO.raiseError(e)
           case e: Throwable =>
-            IO.raiseError(KgError.DownstreamServiceError(
-              s"Error uploading S3 object with filename '${fileDesc.filename}' in bucket '${storage.bucket}': ${e.getMessage}"))
+            IO.raiseError(
+              KgError.DownstreamServiceError(
+                s"Error uploading S3 object with filename '${fileDesc.filename}' in bucket '${storage.bucket}': ${e.getMessage}"
+              )
+            )
         }
         .to[F]
     }
@@ -130,13 +143,15 @@ object S3StorageOperations {
           .flatMap {
             case Some((source, meta)) =>
               source.runWith(digestSink(storage.algorithm)).map { dig =>
-                FileAttributes(fileDesc.uuid,
-                               location,
-                               key,
-                               fileDesc.filename,
-                               fileDesc.mediaType,
-                               meta.contentLength,
-                               dig)
+                FileAttributes(
+                  fileDesc.uuid,
+                  location,
+                  key,
+                  fileDesc.filename,
+                  fileDesc.mediaType,
+                  meta.contentLength,
+                  dig
+                )
               }
             case None => Future.failed(KgError.RemoteFileNotFound(location))
           }
@@ -147,7 +162,9 @@ object S3StorageOperations {
           case e: Throwable =>
             IO.raiseError(
               KgError.DownstreamServiceError(
-                s"Error fetching S3 object with key '$key' in bucket '${storage.bucket}': ${e.getMessage}"))
+                s"Error fetching S3 object with key '$key' in bucket '${storage.bucket}': ${e.getMessage}"
+              )
+            )
         }
         .to[F]
     }

@@ -88,22 +88,23 @@ class ProjectDirectivesSpec
         createdAt        <- hc.get[Instant]("createdAt")
         updatedBy        <- hc.get[AbsoluteIri]("updatedBy")
         updatedAt        <- hc.get[Instant]("updatedAt")
-      } yield
-        Project(id,
-                label,
-                organization,
-                description,
-                base,
-                vocab,
-                apiMap,
-                uuid,
-                organizationUuid,
-                rev,
-                deprecated,
-                createdAt,
-                createdBy,
-                updatedAt,
-                updatedBy)
+      } yield Project(
+        id,
+        label,
+        organization,
+        description,
+        base,
+        vocab,
+        apiMap,
+        uuid,
+        organizationUuid,
+        rev,
+        deprecated,
+        createdAt,
+        createdBy,
+        updatedAt,
+        updatedBy
+      )
     }
 
   "A Project directives" when {

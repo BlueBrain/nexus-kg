@@ -112,9 +112,11 @@ class RepoSpec
         repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
-        repo.update(id, schema.ref, 3L, types, json).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref,
-                                                                                                           3L,
-                                                                                                           1L)
+        repo.update(id, schema.ref, 3L, types, json).value.rejected[IncorrectRev] shouldEqual IncorrectRev(
+          id.ref,
+          3L,
+          1L
+        )
       }
 
       "prevent to update a deprecated resource" in new Context {
@@ -175,7 +177,8 @@ class RepoSpec
         repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         repo.deprecate(id, schema.ref, 1L).value.accepted shouldBe a[Resource]
         repo.tag(id, schema.ref, 2L, 1L, "name").value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(
-          id.ref)
+          id.ref
+        )
       }
 
       "prevent to tag a resource with a higher tag than current revision" in new Context {

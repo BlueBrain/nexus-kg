@@ -317,25 +317,29 @@ class ViewRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/views/$organization/$project?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/view?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
     }
 
@@ -354,25 +358,29 @@ class ViewRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/views/$organization/$project?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        oauthToken
+      ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
     }
 
@@ -384,10 +392,12 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
-        elasticSearch.searchRaw(Eq(query),
-                                Eq(Set(s"kg_${defaultEsView.name}")),
-                                Eq(Uri.Query(Map("other" -> "value"))))(any[HttpClient[Task, Json]]))
-        .thenReturn(Task.pure(esResponse))
+        elasticSearch.searchRaw(
+          Eq(query),
+          Eq(Set(s"kg_${defaultEsView.name}")),
+          Eq(Uri.Query(Map("other" -> "value")))
+        )(any[HttpClient[Task, Json]])
+      ).thenReturn(Task.pure(esResponse))
 
       Post(s"/v1/views/$organization/$project/documents/_search?other=value", query) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
@@ -395,7 +405,8 @@ class ViewRoutesSpec
       }
 
       Post(s"/v1/resources/$organization/$project/view/documents/_search?other=value", query) ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        oauthToken
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual esResponse
       }
@@ -410,19 +421,23 @@ class ViewRoutesSpec
 
       when(
         viewCache.getBy[ElasticSearchView](Eq(projectRef), Eq(nxv.withSuffix("otherEs").value))(
-          any[Typeable[ElasticSearchView]]))
-        .thenReturn(Task.pure(Some(otherEsView)))
+          any[Typeable[ElasticSearchView]]
+        )
+      ).thenReturn(Task.pure(Some(otherEsView)))
 
       when(
         viewCache.getBy[ElasticSearchView](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(
-          any[Typeable[ElasticSearchView]]))
-        .thenReturn(Task.pure(Some(defaultEsView)))
+          any[Typeable[ElasticSearchView]]
+        )
+      ).thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
-        elasticSearch.searchRaw(Eq(query),
-                                Eq(Set(s"kg_${defaultEsView.name}", s"kg_${otherEsView.name}")),
-                                Eq(Query()))(any[HttpClient[Task, Json]]))
-        .thenReturn(Task.pure(esResponse))
+        elasticSearch.searchRaw(
+          Eq(query),
+          Eq(Set(s"kg_${defaultEsView.name}", s"kg_${otherEsView.name}")),
+          Eq(Query())
+        )(any[HttpClient[Task, Json]])
+      ).thenReturn(Task.pure(esResponse))
 
       Post(s"/v1/views/$organization/$project/nxv:agg/_search", query) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
@@ -444,8 +459,8 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
-        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]]))
-        .thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
+        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]])
+      ).thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
 
       Post(s"/v1/views/$organization/$project/documents/_search?other=value", query) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
@@ -453,7 +468,8 @@ class ViewRoutesSpec
       }
 
       Post(s"/v1/resources/$organization/$project/view/documents/_search?other=value", query) ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        oauthToken
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[Json] shouldEqual esResponse
       }
@@ -468,8 +484,8 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
-        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]]))
-        .thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse)))
+        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]])
+      ).thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse)))
 
       Post(s"/v1/views/$organization/$project/documents/_search?other=value", query) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
@@ -477,7 +493,8 @@ class ViewRoutesSpec
       }
 
       Post(s"/v1/resources/$organization/$project/view/documents/_search?other=value", query) ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        oauthToken
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.BadRequest
         responseAs[String] shouldEqual esResponse
       }
@@ -492,8 +509,8 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
-        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]]))
-        .thenReturn(Task.raiseError(ElasticUnexpectedError(StatusCodes.ImATeapot, esResponse)))
+        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]])
+      ).thenReturn(Task.raiseError(ElasticUnexpectedError(StatusCodes.ImATeapot, esResponse)))
 
       Post(s"/v1/views/$organization/$project/documents/_search?other=value", query) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.InternalServerError
@@ -563,8 +580,8 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(Some(aggSparqlView)))
 
       when(
-        viewCache.getBy[SparqlView](Eq(projectRef), Eq(nxv.withSuffix("otherSparql").value))(any[Typeable[SparqlView]]))
-        .thenReturn(Task.pure(Some(otherSQLView)))
+        viewCache.getBy[SparqlView](Eq(projectRef), Eq(nxv.withSuffix("otherSparql").value))(any[Typeable[SparqlView]])
+      ).thenReturn(Task.pure(Some(otherSQLView)))
 
       when(viewCache.getBy[SparqlView](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[SparqlView]]))
         .thenReturn(Task.pure(Some(defaultSQLView)))
@@ -598,13 +615,15 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(None))
 
       Post(s"/v1/views/$organization/$project/nxv:some/_search?size=23&other=value", Json.obj()) ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        oauthToken
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }
 
       Post(s"/v1/resources/$organization/$project/view/nxv:some/_search?size=23&other=value", Json.obj()) ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        oauthToken
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
         responseAs[Error].tpe shouldEqual classNameOf[NotFound]
       }

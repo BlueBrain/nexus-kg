@@ -36,10 +36,12 @@ import io.circe.syntax._
 /**
   * Resource operations.
   */
-class Resources[F[_]: Timer](implicit F: Effect[F],
-                             val repo: Repo[F],
-                             materializer: Materializer[F],
-                             config: AppConfig) {
+class Resources[F[_]: Timer](
+    implicit F: Effect[F],
+    val repo: Repo[F],
+    materializer: Materializer[F],
+    config: AppConfig
+) {
 
   private val emptyJson = Json.obj()
 
@@ -77,8 +79,10 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     }
   }
 
-  private def create(id: ResId, schema: Ref, source: Json, graph: RootedGraph)(implicit subject: Subject,
-                                                                               project: Project): RejOrResource[F] =
+  private def create(id: ResId, schema: Ref, source: Json, graph: RootedGraph)(
+      implicit subject: Subject,
+      project: Project
+  ): RejOrResource[F] =
     validate(schema, graph).flatMap { _ =>
       repo.create(id, OrganizationRef(project.organizationUuid), schema, graph.types(id.value).map(_.value), source)
     }
@@ -92,8 +96,10 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @param source the new source representation in json-ld format
     * @return either a rejection or the updated resource in the F context
     */
-  def update(id: ResId, rev: Long, schema: Ref, source: Json)(implicit subject: Subject,
-                                                              project: Project): RejOrResource[F] = {
+  def update(id: ResId, rev: Long, schema: Ref, source: Json)(
+      implicit subject: Subject,
+      project: Project
+  ): RejOrResource[F] = {
     val sourceWithCtx = addContextIfEmpty(source)
     for {
       matValue <- materializer(sourceWithCtx, id.value)
@@ -186,7 +192,8 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetch(id: ResId, metadataOptions: MetadataOptions, schemaOpt: Option[Ref])(
-      implicit project: Project): RejOrResourceV[F] =
+      implicit project: Project
+  ): RejOrResourceV[F] =
     repo
       .get(id, schemaOpt)
       .toRight(notFound(id.ref, schema = schemaOpt))
@@ -200,7 +207,8 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetch(id: ResId, tag: String, metadataOptions: MetadataOptions, schemaOpt: Option[Ref])(
-      implicit project: Project): RejOrResourceV[F] =
+      implicit project: Project
+  ): RejOrResourceV[F] =
     repo
       .get(id, tag, schemaOpt)
       .toRight(notFound(id.ref, tag = Some(tag), schema = schemaOpt))
@@ -227,7 +235,8 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]
+  ): F[JsonResults] =
     listResources(view, params, pagination)
 
   /**
@@ -239,7 +248,8 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @return search results in the F context
     */
   def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+      implicit sparql: BlazegraphClient[F]
+  ): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -251,10 +261,12 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
-  def listOutgoing(id: AbsoluteIri,
-                   view: Option[SparqlView],
-                   pagination: FromPagination,
-                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  def listOutgoing(
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
   private def validate(schema: Ref, data: Graph)(implicit project: Project): EitherT[F, Rejection, Unit] = {
@@ -295,7 +307,8 @@ class Resources[F[_]: Timer](implicit F: Effect[F],
     source.contextValue match {
       case `emptyJson` =>
         source deepMerge Json.obj(
-          "@context" -> Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson))
+          "@context" -> Json.obj("@base" -> project.base.asString.asJson, "@vocab" -> project.vocab.asString.asJson)
+        )
       case _ => source
     }
 }
@@ -310,9 +323,11 @@ object Resources {
   final def apply[F[_]: Timer: Repo: Effect: Materializer](implicit config: AppConfig): Resources[F] =
     new Resources[F]()
 
-  private[resources] final case class SchemaContext(schema: ResourceV,
-                                                    dataImports: Set[ResourceV],
-                                                    schemaImports: Set[ResourceV])
+  private[resources] final case class SchemaContext(
+      schema: ResourceV,
+      dataImports: Set[ResourceV],
+      schemaImports: Set[ResourceV]
+  )
 
   def getOrAssignId(json: Json)(implicit project: Project): Either[Rejection, AbsoluteIri] =
     json.id match {

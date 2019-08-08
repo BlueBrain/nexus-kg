@@ -31,7 +31,8 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
     project: Project,
     viewCache: ViewCache[Task],
     indexers: Clients[Task],
-    config: AppConfig) {
+    config: AppConfig
+) {
 
   import indexers._
 
@@ -111,11 +112,13 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
                 concat(
                   (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
                     completeWithFormat(resources.fetch(Id(project.ref, id), rev, schema).value.runWithStatus(OK))(
-                      format)
+                      format
+                    )
                   },
                   (parameter('tag) & noParameter('rev)) { tag =>
                     completeWithFormat(resources.fetch(Id(project.ref, id), tag, schema).value.runWithStatus(OK))(
-                      format)
+                      format
+                    )
                   },
                   (noParameter('tag) & noParameter('rev)) {
                     completeWithFormat(resources.fetch(Id(project.ref, id), schema).value.runWithStatus(OK))(format)

@@ -95,9 +95,12 @@ class RemoteDiskStorageOperationsSpec
       val destRelativePath = Uri.Path(mangle(storage.ref, attributes.uuid, attributes.filename))
       client.moveFile(storage.folder, sourcePath, destRelativePath) shouldReturn
         IO(
-          StorageFileAttributes(attributes.location,
-                                attributes.bytes,
-                                StorageDigest(attributes.digest.algorithm, attributes.digest.value)))
+          StorageFileAttributes(
+            attributes.location,
+            attributes.bytes,
+            StorageDigest(attributes.digest.algorithm, attributes.digest.value)
+          )
+        )
       val link = new RemoteDiskStorageOperations.Link[IO](storage, client)
       link
         .apply(id, FileDescription(attributes.uuid, attributes.filename, attributes.mediaType), sourcePath)

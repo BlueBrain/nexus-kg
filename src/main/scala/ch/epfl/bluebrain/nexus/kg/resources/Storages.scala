@@ -64,8 +64,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @param source the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId,
-             source: Json)(implicit subject: Subject, verify: Verify[F], project: Project): RejOrResource[F] =
+  def create(
+      id: ResId,
+      source: Json
+  )(implicit subject: Subject, verify: Verify[F], project: Project): RejOrResource[F] =
     materializer(source.addContext(storageCtxUri), id.value).flatMap {
       case Value(_, _, graph) => create(id, graph)
     }
@@ -78,9 +80,11 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @param source    the new source representation in json-ld format
     * @return either a rejection or the updated resource in the F context
     */
-  def update(id: ResId, rev: Long, source: Json)(implicit subject: Subject,
-                                                 verify: Verify[F],
-                                                 project: Project): RejOrResource[F] =
+  def update(
+      id: ResId,
+      rev: Long,
+      source: Json
+  )(implicit subject: Subject, verify: Verify[F], project: Project): RejOrResource[F] =
     for {
       matValue <- materializer(source.addContext(storageCtxUri), id.value)
       typedGraph = addStorageType(id.value, matValue.graph)
@@ -195,7 +199,8 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]
+  ): F[JsonResults] =
     listResources(view, params.copy(schema = Some(storageSchemaUri)), pagination)
 
   /**
@@ -207,7 +212,8 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return search results in the F context
     */
   def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+      implicit sparql: BlazegraphClient[F]
+  ): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -219,10 +225,12 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
-  def listOutgoing(id: AbsoluteIri,
-                   view: Option[SparqlView],
-                   pagination: FromPagination,
-                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  def listOutgoing(
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
   private def fetch(resource: Resource, dropKeys: Boolean)(implicit project: Project): RejOrResourceV[F] =
@@ -233,9 +241,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
       resourceV.map(_.copy(graph = RootedGraph(graph.rootNode, finalGraph)))
     }
 
-  private def create(id: ResId, graph: RootedGraph)(implicit subject: Subject,
-                                                    project: Project,
-                                                    verify: Verify[F]): RejOrResource[F] = {
+  private def create(
+      id: ResId,
+      graph: RootedGraph
+  )(implicit subject: Subject, project: Project, verify: Verify[F]): RejOrResource[F] = {
     val typedGraph = addStorageType(id.value, graph)
     val types      = typedGraph.rootTypes.map(_.value)
 
@@ -257,12 +266,14 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
       case Some(r)                => EitherT.leftT(InvalidResource(storageRef, r))
       case _ =>
         EitherT(
-          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$storageSchemaUri'")))
+          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$storageSchemaUri'"))
+        )
     }
   }
 
   private def storageValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
-      implicit verify: Verify[F]): EitherT[F, Rejection, Storage] = {
+      implicit verify: Verify[F]
+  ): EitherT[F, Rejection, Storage] = {
     val resource =
       ResourceF.simpleV(resId, Value(Json.obj(), Json.obj(), graph), rev = rev, types = types, schema = storageRef)
 

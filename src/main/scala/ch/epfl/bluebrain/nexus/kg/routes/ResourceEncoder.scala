@@ -26,8 +26,10 @@ object ResourceEncoder {
 
   private implicit def resourceGraphEnc(implicit config: AppConfig, project: Project): GraphEncoder[Id, Resource] =
     GraphEncoder((rootNode, res) => RootedGraph(rootNode, res.metadata()))
-  private implicit def resourceGraphEncEither(implicit config: AppConfig,
-                                              project: Project): GraphEncoder[DecoderResult, Resource] =
+  private implicit def resourceGraphEncEither(
+      implicit config: AppConfig,
+      project: Project
+  ): GraphEncoder[DecoderResult, Resource] =
     resourceGraphEnc.toEither
 
   def json(r: Resource)(implicit config: AppConfig, project: Project): DecoderResult[Json] =

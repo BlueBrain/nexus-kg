@@ -37,10 +37,12 @@ object ProjectDirectives {
   /**
     * Fetches project configuration from the cache if possible, from nexus admin otherwise.
     */
-  def project(implicit projectCache: ProjectCache[Task],
-              client: AdminClient[Task],
-              cred: Option[AuthToken],
-              s: Scheduler): Directive1[Project] = {
+  def project(
+      implicit projectCache: ProjectCache[Task],
+      client: AdminClient[Task],
+      cred: Option[AuthToken],
+      s: Scheduler
+  ): Directive1[Project] = {
 
     def projectByLabel(orgLabel: String, projectLabel: String): Directive1[Project] = {
       val label = ProjectLabel(orgLabel, projectLabel)
@@ -91,9 +93,9 @@ object ProjectDirectives {
     *
     * @param label the organization label
     */
-  def org(label: String)(implicit client: AdminClient[Task],
-                         cred: Option[AuthToken],
-                         s: Scheduler): Directive1[Organization] = {
+  def org(
+      label: String
+  )(implicit client: AdminClient[Task], cred: Option[AuthToken], s: Scheduler): Directive1[Organization] = {
     def orgByLabel: Directive1[Organization] =
       onSuccess(client.fetchOrganization(label).runToFuture)
         .flatMap {

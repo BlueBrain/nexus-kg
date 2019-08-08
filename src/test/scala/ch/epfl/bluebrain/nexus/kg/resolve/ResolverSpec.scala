@@ -64,11 +64,13 @@ class ResolverSpec
 
       "return an InProjectResolver" in {
         val resource = simpleV(id, inProject, types = Set(nxv.Resolver, nxv.InProject, nxv.Resource))
-        Resolver(resource).right.value shouldEqual InProjectResolver(projectRef,
-                                                                     iri,
-                                                                     resource.rev,
-                                                                     resource.deprecated,
-                                                                     10)
+        Resolver(resource).right.value shouldEqual InProjectResolver(
+          projectRef,
+          iri,
+          resource.rev,
+          resource.deprecated,
+          10
+        )
       }
 
       "return a CrossProjectResolver" in {
@@ -146,8 +148,12 @@ class ResolverSpec
         val metadata = Json.obj(
           "_rev"        -> Json.fromLong(1L),
           "_deprecated" -> Json.fromBoolean(false),
-          "identities" -> Json.arr(Json.obj("@id" -> Json.fromString("http://example.com/iam/anonymous"),
-                                            "@type" -> Json.fromString("Anonymous")))
+          "identities" -> Json.arr(
+            Json.obj(
+              "@id"   -> Json.fromString("http://example.com/iam/anonymous"),
+              "@type" -> Json.fromString("Anonymous")
+            )
+          )
         )
         val json = resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)).right.value.removeKeys("@context")
         json should equalIgnoreArrayOrder(crossProjectAnon.removeKeys("@context") deepMerge metadata)
@@ -160,8 +166,10 @@ class ResolverSpec
       val uuid2 = genUUID
 
       "generate a CrossProjectResolver" in {
-        projectCache.getProjectRefs(Set(label1, label2)) shouldReturn Map(label1 -> Option(ProjectRef(uuid1)),
-                                                                          label2 -> Option(ProjectRef(uuid2)))
+        projectCache.getProjectRefs(Set(label1, label2)) shouldReturn Map(
+          label1 -> Option(ProjectRef(uuid1)),
+          label2 -> Option(ProjectRef(uuid2))
+        )
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
         val exposed  = Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
         val stored   = exposed.referenced.value.right.value.asInstanceOf[CrossProjectResolver[ProjectRef]]

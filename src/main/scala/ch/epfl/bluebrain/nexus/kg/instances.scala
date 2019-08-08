@@ -45,7 +45,8 @@ object instances {
     * @tparam F the effect type
     */
   implicit def elasticErrorMonadError[F[_]](
-      implicit F: Async[F]): MonadError[F, ElasticSearchServerOrUnexpectedFailure] =
+      implicit F: Async[F]
+  ): MonadError[F, ElasticSearchServerOrUnexpectedFailure] =
     new MonadError[F, ElasticSearchServerOrUnexpectedFailure] {
       override def handleErrorWith[A](fa: F[A])(f: ElasticSearchServerOrUnexpectedFailure => F[A]): F[A] =
         F.recoverWith(fa) {

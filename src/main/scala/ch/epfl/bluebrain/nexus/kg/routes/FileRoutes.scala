@@ -42,7 +42,8 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     viewCache: ViewCache[Task],
     storageCache: StorageCache[Task],
     indexers: Clients[Task],
-    config: AppConfig) {
+    config: AppConfig
+) {
 
   import indexers._
 
@@ -269,7 +270,9 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
                 failWith(
                   UnacceptedResponseContentType(
                     s"File Media Type '${info.mediaType}' does not match the Accept header value '${accept.mediaRanges
-                      .mkString(", ")}'"))
+                      .mkString(", ")}'"
+                  )
+                )
             }
           }
         }

@@ -25,22 +25,28 @@ class CompositeResolutionSpec extends WordSpecLike with Resources with Matchers 
     val resource2Uri: AbsoluteIri = url"http://nexus.example.com/resources/static/${UUID.randomUUID().toString}"
     val staticResolution1 = StaticResolution[Try](
       Map(
-        resource1Uri -> jsonContentOf("/resolve/simple-resource.json",
-                                      Map(quote("{id}")     -> resource1Uri.show,
-                                          quote("{random}") -> UUID.randomUUID().toString))
-      ))
+        resource1Uri -> jsonContentOf(
+          "/resolve/simple-resource.json",
+          Map(quote("{id}") -> resource1Uri.show, quote("{random}") -> UUID.randomUUID().toString)
+        )
+      )
+    )
     val staticResolution2 = StaticResolution[Try](
       Map(
-        resource2Uri -> jsonContentOf("/resolve/simple-resource.json",
-                                      Map(quote("{id}")     -> resource2Uri.show,
-                                          quote("{random}") -> UUID.randomUUID().toString))
-      ))
+        resource2Uri -> jsonContentOf(
+          "/resolve/simple-resource.json",
+          Map(quote("{id}") -> resource2Uri.show, quote("{random}") -> UUID.randomUUID().toString)
+        )
+      )
+    )
     val staticResolution3 = StaticResolution[Try](
       Map(
-        resource1Uri -> jsonContentOf("/resolve/simple-resource.json",
-                                      Map(quote("{id}")     -> resource1Uri.show,
-                                          quote("{random}") -> UUID.randomUUID().toString))
-      ))
+        resource1Uri -> jsonContentOf(
+          "/resolve/simple-resource.json",
+          Map(quote("{id}") -> resource1Uri.show, quote("{random}") -> UUID.randomUUID().toString)
+        )
+      )
+    )
 
     val compositeResolution = CompositeResolution[Try](List(staticResolution1, staticResolution2, staticResolution3))
 

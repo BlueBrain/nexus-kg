@@ -9,10 +9,12 @@ package ch.epfl.bluebrain.nexus.kg.cache
   * @param storage  the storage cache
   * @tparam F the effect type
   */
-final class Caches[F[_]](val project: ProjectCache[F],
-                         val view: ViewCache[F],
-                         val resolver: ResolverCache[F],
-                         val storage: StorageCache[F])
+final class Caches[F[_]](
+    val project: ProjectCache[F],
+    val view: ViewCache[F],
+    val resolver: ResolverCache[F],
+    val storage: StorageCache[F]
+)
 object Caches {
 
   /**
@@ -23,10 +25,12 @@ object Caches {
     * @param resolver the resolver cache
     * @tparam F the effect type
     */
-  final def apply[F[_]](project: ProjectCache[F],
-                        view: ViewCache[F],
-                        resolver: ResolverCache[F],
-                        storage: StorageCache[F]): Caches[F] =
+  final def apply[F[_]](
+      project: ProjectCache[F],
+      view: ViewCache[F],
+      resolver: ResolverCache[F],
+      storage: StorageCache[F]
+  ): Caches[F] =
     new Caches(project, view, resolver, storage)
 
   // $COVERAGE-OFF$

@@ -23,8 +23,10 @@ class SparqlLinkSpec extends WordSpecLike with Matchers with OptionValues {
     val paths     = List(property, property2)
 
     "build SparqlExternalLink from SPARQL response" in {
-      val bindings = Map("s" -> Binding("uri", id.asString),
-                         "paths" -> Binding("literal", s"${property.asString} ${property2.asString}"))
+      val bindings = Map(
+        "s"     -> Binding("uri", id.asString),
+        "paths" -> Binding("literal", s"${property.asString} ${property2.asString}")
+      )
       SparqlExternalLink(bindings).value shouldEqual SparqlExternalLink(id, paths)
     }
 
@@ -48,18 +50,20 @@ class SparqlLinkSpec extends WordSpecLike with Matchers with OptionValues {
         "_deprecated"    -> Binding("literal", "false", datatype = Some(xsd.boolean.value.asString))
       )
       SparqlResourceLink(bindings).value shouldEqual
-        SparqlResourceLink(id,
-                           project,
-                           self,
-                           1L,
-                           Set[AbsoluteIri](nxv.Schema, nxv.Resolver),
-                           false,
-                           clock.instant(),
-                           clock.instant(),
-                           author,
-                           author,
-                           unconstrainedRef,
-                           paths)
+        SparqlResourceLink(
+          id,
+          project,
+          self,
+          1L,
+          Set[AbsoluteIri](nxv.Schema, nxv.Resolver),
+          false,
+          clock.instant(),
+          clock.instant(),
+          author,
+          author,
+          unconstrainedRef,
+          paths
+        )
     }
   }
 

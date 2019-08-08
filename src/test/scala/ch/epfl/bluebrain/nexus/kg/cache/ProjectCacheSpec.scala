@@ -33,38 +33,46 @@ class ProjectCacheSpec
   private val org2      = genUUID
   private val org2Label = genString()
 
-  private val project = Project(genIri,
-                                "some-project",
-                                "some-org",
-                                None,
-                                genIri,
-                                genIri,
-                                Map.empty,
-                                genUUID,
-                                org1,
-                                1L,
-                                deprecated = false,
-                                Instant.EPOCH,
-                                genIri,
-                                Instant.EPOCH,
-                                genIri)
+  private val project = Project(
+    genIri,
+    "some-project",
+    "some-org",
+    None,
+    genIri,
+    genIri,
+    Map.empty,
+    genUUID,
+    org1,
+    1L,
+    deprecated = false,
+    Instant.EPOCH,
+    genIri,
+    Instant.EPOCH,
+    genIri
+  )
 
   val projectsOrg1 = List.fill(10)(
     project
-      .copy(id = genIri,
-            label = genString(),
-            organizationLabel = org1Label,
-            organizationUuid = org1,
-            base = genIri,
-            uuid = genUUID))
+      .copy(
+        id = genIri,
+        label = genString(),
+        organizationLabel = org1Label,
+        organizationUuid = org1,
+        base = genIri,
+        uuid = genUUID
+      )
+  )
   val projectsOrg2 = List.fill(10)(
     project
-      .copy(id = genIri,
-            label = genString(),
-            organizationLabel = org2Label,
-            organizationUuid = org2,
-            base = genIri,
-            uuid = genUUID))
+      .copy(
+        id = genIri,
+        label = genString(),
+        organizationLabel = org2Label,
+        organizationUuid = org2,
+        base = genIri,
+        uuid = genUUID
+      )
+  )
 
   private val cache = ProjectCache[Task]
 

@@ -38,9 +38,11 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def create[In](storage: Storage, fileDesc: FileDescription, source: In)(implicit subject: Subject,
-                                                                          project: Project,
-                                                                          saveStorage: Save[F, In]): RejOrResource[F] =
+  def create[In](
+      storage: Storage,
+      fileDesc: FileDescription,
+      source: In
+  )(implicit subject: Subject, project: Project, saveStorage: Save[F, In]): RejOrResource[F] =
     create(Id(project.ref, generateId(project.base)), storage, fileDesc, source)
 
   /**
@@ -56,7 +58,8 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
   def create[In](id: ResId, storage: Storage, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
       project: Project,
-      saveStorage: Save[F, In]): RejOrResource[F] = {
+      saveStorage: Save[F, In]
+  ): RejOrResource[F] = {
     val orgRef = OrganizationRef(project.organizationUuid)
     for {
       _       <- repo.createFileTest(id, orgRef, storage.reference, fileDesc.process(StoredSummary.empty))
@@ -118,7 +121,8 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     */
   def update[In](id: ResId, storage: Storage, rev: Long, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
-      saveStorage: Save[F, In]): RejOrResource[F] =
+      saveStorage: Save[F, In]
+  ): RejOrResource[F] =
     for {
       _       <- repo.updateFileTest(id, storage.reference, rev, fileDesc.process(StoredSummary.empty))
       attr    <- EitherT.right(storage.save.apply(id, fileDesc, source))
@@ -132,8 +136,10 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @param source     the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def createLink(storage: Storage,
-                 source: Json)(implicit subject: Subject, project: Project, linkStorage: Link[F]): RejOrResource[F] =
+  def createLink(
+      storage: Storage,
+      source: Json
+  )(implicit subject: Subject, project: Project, linkStorage: Link[F]): RejOrResource[F] =
     createLink(Id(project.ref, generateId(project.base)), storage, source)
 
   /**
@@ -144,9 +150,11 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @param source   the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def createLink(id: ResId, storage: Storage, source: Json)(implicit subject: Subject,
-                                                            project: Project,
-                                                            linkStorage: Link[F]): RejOrResource[F] = {
+  def createLink(
+      id: ResId,
+      storage: Storage,
+      source: Json
+  )(implicit subject: Subject, project: Project, linkStorage: Link[F]): RejOrResource[F] = {
     val orgRef = OrganizationRef(project.organizationUuid)
     // format: off
     for {
@@ -168,8 +176,10 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @param source   the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(implicit subject: Subject,
-                                                                       linkStorage: Link[F]): RejOrResource[F] =
+  def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(
+      implicit subject: Subject,
+      linkStorage: Link[F]
+  ): RejOrResource[F] =
     // format: off
     for {
       link      <- EitherT.fromEither[F](LinkDescription(id, source))
@@ -247,7 +257,8 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]
+  ): F[JsonResults] =
     listResources(view, params.copy(schema = Some(fileSchemaUri)), pagination)
 
   /**
@@ -259,7 +270,8 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @return search results in the F context
     */
   def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+      implicit sparql: BlazegraphClient[F]
+  ): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -271,10 +283,12 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
-  def listOutgoing(id: AbsoluteIri,
-                   view: Option[SparqlView],
-                   pagination: FromPagination,
-                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  def listOutgoing(
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
 }
@@ -286,8 +300,10 @@ object Files {
     * @tparam F the monadic effect type
     * @return a new [[Files]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect](implicit config: AppConfig,
-                                       repo: Repo[F],
-                                       storageCache: StorageCache[F]): Files[F] =
+  final def apply[F[_]: Timer: Effect](
+      implicit config: AppConfig,
+      repo: Repo[F],
+      storageCache: StorageCache[F]
+  ): Files[F] =
     new Files[F](repo)
 }

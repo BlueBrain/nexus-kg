@@ -56,8 +56,10 @@ class AclCacheSpec
       cache.replace("some" / "path", aclResSegment).runToFuture.futureValue
       cache.get("some" / "path").runToFuture.futureValue shouldEqual Some(aclResSegment)
       cache.get(/).runToFuture.futureValue shouldEqual Some(aclResSlash)
-      cache.list.runToFuture.futureValue shouldEqual AccessControlLists(/               -> aclResSlash,
-                                                                        "some" / "path" -> aclResSegment)
+      cache.list.runToFuture.futureValue shouldEqual AccessControlLists(
+        /               -> aclResSlash,
+        "some" / "path" -> aclResSegment
+      )
     }
 
     "append acls" in {
@@ -69,9 +71,12 @@ class AclCacheSpec
       cache.append(path, append).runToFuture.futureValue
       cache.get(path).runToFuture.futureValue shouldEqual
         Some(
-          append.copy(value = AccessControlList(user -> Set(read), group -> Set(read, write)),
-                      createdBy = initial.createdBy,
-                      createdAt = initial.createdAt))
+          append.copy(
+            value = AccessControlList(user -> Set(read), group -> Set(read, write)),
+            createdBy = initial.createdBy,
+            createdAt = initial.createdAt
+          )
+        )
     }
 
     "subtract acls" in {
@@ -83,15 +88,19 @@ class AclCacheSpec
       cache.subtract(path, subtract).runToFuture.futureValue
       cache.get(path).runToFuture.futureValue shouldEqual
         Some(
-          subtract.copy(value = AccessControlList(group -> Set(write)),
-                        createdBy = initial.createdBy,
-                        createdAt = initial.createdAt))
+          subtract.copy(
+            value = AccessControlList(group -> Set(write)),
+            createdBy = initial.createdBy,
+            createdAt = initial.createdAt
+          )
+        )
 
       val subtract2 = resourceAcls(AccessControlList(group -> Set(write))).copy(rev = 3L)
       cache.subtract(path, subtract2).runToFuture.futureValue
       cache.get(path).runToFuture.futureValue shouldEqual
         Some(
-          subtract2.copy(value = AccessControlList.empty, createdBy = initial.createdBy, createdAt = initial.createdAt))
+          subtract2.copy(value = AccessControlList.empty, createdBy = initial.createdBy, createdAt = initial.createdAt)
+        )
     }
 
     "delete acls" in {
