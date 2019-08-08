@@ -128,13 +128,15 @@ class FileRoutesSpec
 
     val path = getClass.getResource("/resources/file.txt")
     val uuid = UUID.randomUUID
-    val at1 = FileAttributes(uuid,
-                             Uri(path.toString),
-                             Uri.Path("file.txt"),
-                             "file.txt",
-                             `text/plain(UTF-8)`,
-                             1024,
-                             Digest("SHA-256", "digest1"))
+    val at1 = FileAttributes(
+      uuid,
+      Uri(path.toString),
+      Uri.Path("file.txt"),
+      "file.txt",
+      `text/plain(UTF-8)`,
+      1024,
+      Digest("SHA-256", "digest1")
+    )
     val content = genString()
     val source: Source[ByteString, Any] =
       Source.single(ByteString(content)).mapMaterializedValue[Any](v => v)
@@ -149,9 +151,11 @@ class FileRoutesSpec
       )
 
     def digestJson(digest: Digest): Json =
-      Json.obj("value"     -> Json.fromString(digest.value),
-               "algorithm" -> Json.fromString(digest.algorithm),
-               "@type"     -> Json.fromString(nxv.UpdateDigest.prefix))
+      Json.obj(
+        "value"     -> Json.fromString(digest.value),
+        "algorithm" -> Json.fromString(digest.algorithm),
+        "@type"     -> Json.fromString(nxv.UpdateDigest.prefix)
+      )
 
     val fileLink = jsonContentOf("/resources/file-link.json")
     val fileDesc = FileDescription("my file.txt", `text/plain(UTF-8)`)
@@ -163,7 +167,7 @@ class FileRoutesSpec
       b match {
         case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
         case _                                       => false
-    }
+      }
 
     val resource =
       ResourceF.simpleF(id, Json.obj(), created = user, updated = user, schema = fileRef)
@@ -188,9 +192,11 @@ class FileRoutesSpec
 
     "create a file without @id" in new Context {
       files
-        .create(eqTo(storage), eqTo(fileDesc), any[AkkaSource])(eqTo(caller.subject),
-                                                                eqTo(finalProject),
-                                                                any[Save[Task, AkkaSource]])
+        .create(eqTo(storage), eqTo(fileDesc), any[AkkaSource])(
+          eqTo(caller.subject),
+          eqTo(finalProject),
+          any[Save[Task, AkkaSource]]
+        )
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       Post(s"/v1/files/$organization/$project", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -205,9 +211,11 @@ class FileRoutesSpec
 
     "create a file with @id" in new Context {
       files
-        .create(eqTo(id), eqTo(storage), eqTo(fileDesc), any[AkkaSource])(eqTo(caller.subject),
-                                                                          eqTo(finalProject),
-                                                                          any[Save[Task, AkkaSource]])
+        .create(eqTo(id), eqTo(storage), eqTo(fileDesc), any[AkkaSource])(
+          eqTo(caller.subject),
+          eqTo(finalProject),
+          any[Save[Task, AkkaSource]]
+        )
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       Put(s"/v1/files/$organization/$project/$urlEncodedId", multipartForm) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -222,8 +230,10 @@ class FileRoutesSpec
 
     "update a file" in new Context {
       files
-        .update(eqTo(id), eqTo(storage), eqTo(1L), eqTo(fileDesc), any[AkkaSource])(eqTo(caller.subject),
-                                                                                    any[Save[Task, AkkaSource]])
+        .update(eqTo(id), eqTo(storage), eqTo(1L), eqTo(fileDesc), any[AkkaSource])(
+          eqTo(caller.subject),
+          any[Save[Task, AkkaSource]]
+        )
         .shouldReturn(EitherT.rightT[Task, Rejection](resource))
 
       forAll(endpoints(rev = Some(1L))) { endpoint =>
@@ -419,25 +429,29 @@ class FileRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/files/$organization/$project?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/files/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/file?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
     }
 
@@ -455,25 +469,29 @@ class FileRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/files/$organization/$project?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/files/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        oauthToken
+      ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
     }
   }

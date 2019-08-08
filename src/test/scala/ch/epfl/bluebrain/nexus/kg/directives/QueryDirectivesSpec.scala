@@ -71,8 +71,10 @@ class QueryDirectivesSpec
         RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
       )
 
-    implicit def paginationMarshaller(implicit m1: ToEntityMarshaller[FromPagination],
-                                      m2: ToEntityMarshaller[SearchAfterPagination]): ToEntityMarshaller[Pagination] =
+    implicit def paginationMarshaller(
+        implicit m1: ToEntityMarshaller[FromPagination],
+        m2: ToEntityMarshaller[SearchAfterPagination]
+    ): ToEntityMarshaller[Pagination] =
       Marshaller { _ =>
         {
           case f: FromPagination        => m1(f)
@@ -211,10 +213,12 @@ class QueryDirectivesSpec
           responseAs[String] shouldEqual "DOT"
         }
 
-        Get("/some?format=compacted") ~> Accept(`application/javascript`,
-                                                DOT.contentType.mediaType,
-                                                `application/n-triples`,
-                                                `*/*`) ~> routeFormat(strict = false, Binary) ~> check {
+        Get("/some?format=compacted") ~> Accept(
+          `application/javascript`,
+          DOT.contentType.mediaType,
+          `application/n-triples`,
+          `*/*`
+        ) ~> routeFormat(strict = false, Binary) ~> check {
           responseAs[String] shouldEqual "DOT"
         }
       }
@@ -255,7 +259,8 @@ class QueryDirectivesSpec
         implicit val project    = genProject
         val schema: AbsoluteIri = Schemas.resolverSchemaUri
         Get(
-          s"/some?deprecated=true&rev=2&createdBy=nxv:user&updatedBy=batman&type=A&type=B&schema=${schema.asString}&q=Some%20text") ~> routeSearchParams ~> check {
+          s"/some?deprecated=true&rev=2&createdBy=nxv:user&updatedBy=batman&type=A&type=B&schema=${schema.asString}&q=Some%20text"
+        ) ~> routeSearchParams ~> check {
           val expected = SearchParams(
             deprecated = Some(true),
             rev = Some(2),

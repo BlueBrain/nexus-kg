@@ -22,12 +22,14 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
   * @param acls         the ACLs for all identities in all projects
   * @tparam F the resolution effect type
   */
-class MultiProjectResolution[F[_]](repo: Repo[F],
-                                   projects: F[Set[ProjectRef]],
-                                   types: Set[Iri.AbsoluteIri],
-                                   identities: List[Identity],
-                                   projectCache: ProjectCache[F],
-                                   acls: AccessControlLists)(implicit F: Monad[F])
+class MultiProjectResolution[F[_]](
+    repo: Repo[F],
+    projects: F[Set[ProjectRef]],
+    types: Set[Iri.AbsoluteIri],
+    identities: List[Identity],
+    projectCache: ProjectCache[F],
+    acls: AccessControlLists
+)(implicit F: Monad[F])
     extends Resolution[F] {
 
   private val read = Permission.unsafe("resources/read")
@@ -62,11 +64,13 @@ object MultiProjectResolution {
   /**
     * Builds a [[MultiProjectResolution]] instance.
     */
-  def apply[F[_]: Monad](repo: Repo[F],
-                         projects: F[Set[ProjectRef]],
-                         types: Set[Iri.AbsoluteIri],
-                         identities: List[Identity],
-                         projectCache: ProjectCache[F],
-                         acls: AccessControlLists): MultiProjectResolution[F] =
+  def apply[F[_]: Monad](
+      repo: Repo[F],
+      projects: F[Set[ProjectRef]],
+      types: Set[Iri.AbsoluteIri],
+      identities: List[Identity],
+      projectCache: ProjectCache[F],
+      acls: AccessControlLists
+  ): MultiProjectResolution[F] =
     new MultiProjectResolution(repo, projects, types, identities, projectCache, acls)
 }

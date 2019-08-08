@@ -53,7 +53,8 @@ class AclsCache[F[_]] private (store: KeyValueStore[F, Path, ResourceAccessContr
       case Some(curr) =>
         replace(
           path,
-          acl.copy(value = subtract(acl.value, curr.value), createdBy = curr.createdBy, createdAt = curr.createdAt))
+          acl.copy(value = subtract(acl.value, curr.value), createdBy = curr.createdBy, createdAt = curr.createdAt)
+        )
       case _ =>
         F.unit
     }
@@ -79,21 +80,25 @@ class AclsCache[F[_]] private (store: KeyValueStore[F, Path, ResourceAccessContr
 object AclsCache {
 
   private def toResourceAcl(event: AclEvent, acl: AccessControlList)(
-      implicit iamConfig: IamConfig): ResourceAccessControlList =
-    ResourceAccessControlList(iamConfig.iamClient.aclsIri + event.path,
-                              event.rev,
-                              Set(nxv.AccessControlList.value),
-                              event.instant,
-                              event.subject,
-                              event.instant,
-                              event.subject,
-                              acl)
+      implicit iamConfig: IamConfig
+  ): ResourceAccessControlList =
+    ResourceAccessControlList(
+      iamConfig.iamClient.aclsIri + event.path,
+      event.rev,
+      Set(nxv.AccessControlList.value),
+      event.instant,
+      event.subject,
+      event.instant,
+      event.subject,
+      acl
+    )
 
   /**
     * Creates a new acl index.
     */
   def apply[F[_]: Timer](
-      iamClient: IamClient[F])(implicit as: ActorSystem, config: AppConfig, F: Async[F]): AclsCache[F] = {
+      iamClient: IamClient[F]
+  )(implicit as: ActorSystem, config: AppConfig, F: Async[F]): AclsCache[F] = {
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     val cache = new AclsCache(KeyValueStore.distributed("acls", (_, acls) => acls.rev, mapError))(F)
     val handle: AclEvent => F[Unit] = {

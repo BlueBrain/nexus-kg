@@ -20,7 +20,8 @@ class StorageCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID,
     implicit as: ActorSystem,
     F: Async[F],
     config: KeyValueStoreConfig,
-    clock: Clock) {
+    clock: Clock
+) {
 
   /**
     * Fetches storages for the provided project.
@@ -65,8 +66,8 @@ class StorageCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID,
   * @param store the underlying Distributed Data LWWMap store.
   */
 private class StorageProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIri, RevisionedStorage])(
-    implicit F: Monad[F])
-    extends Cache[F, AbsoluteIri, RevisionedStorage](store) {
+    implicit F: Monad[F]
+) extends Cache[F, AbsoluteIri, RevisionedStorage](store) {
 
   private implicit val ordering: Ordering[RevisionedStorage] = Ordering.by((s: RevisionedStorage) => s.rev).reverse
 
@@ -91,12 +92,13 @@ private object StorageProjectCache {
 
   type RevisionedStorage = RevisionedValue[Storage]
 
-  def apply[F[_]: Timer](project: ProjectRef)(implicit as: ActorSystem,
-                                              config: KeyValueStoreConfig,
-                                              F: Async[F]): StorageProjectCache[F] = {
+  def apply[F[_]: Timer](
+      project: ProjectRef
+  )(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): StorageProjectCache[F] = {
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     new StorageProjectCache(
-      KeyValueStore.distributed(s"storage-${project.id}", (_, storage) => storage.value.rev, mapError))(F)
+      KeyValueStore.distributed(s"storage-${project.id}", (_, storage) => storage.value.rev, mapError)
+    )(F)
   }
 
 }

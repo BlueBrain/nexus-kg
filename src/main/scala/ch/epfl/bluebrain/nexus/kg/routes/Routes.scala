@@ -107,7 +107,9 @@ object Routes {
         logger.error(s"Received unexpected response from remote storage: '${err.message}'")
         complete(
           StatusCodes.BadGateway -> (RemoteStorageError(
-            "The downstream storage service experienced an unexpected error, please try again later."): KgError))
+            "The downstream storage service experienced an unexpected error, please try again later."
+          ): KgError)
+        )
       case UnsupportedOperation =>
         // suppress error
         complete(UnsupportedOperation: KgError)
@@ -169,18 +171,20 @@ object Routes {
     * @param resources the resources operations
     */
   @SuppressWarnings(Array("MaxParameters"))
-  def apply(resources: Resources[Task],
-            resolvers: Resolvers[Task],
-            views: Views[Task],
-            storages: Storages[Task],
-            schemas: Schemas[Task],
-            files: Files[Task],
-            tags: Tags[Task],
-            coordinator: ProjectViewCoordinator[Task])(
+  def apply(
+      resources: Resources[Task],
+      resolvers: Resolvers[Task],
+      views: Views[Task],
+      storages: Storages[Task],
+      schemas: Schemas[Task],
+      files: Files[Task],
+      tags: Tags[Task],
+      coordinator: ProjectViewCoordinator[Task]
+  )(
       implicit system: ActorSystem,
       clients: Clients[Task],
       cache: Caches[Task],
-      config: AppConfig,
+      config: AppConfig
   ): Route = {
     import clients._
     implicit val um: FromEntityUnmarshaller[String] =

@@ -25,7 +25,8 @@ object AccessId {
     */
   def apply(resourceId: AbsoluteIri, schemaId: AbsoluteIri, expanded: Boolean = false)(
       implicit project: Project,
-      http: HttpConfig): AbsoluteIri = {
+      http: HttpConfig
+  ): AbsoluteIri = {
 
     def prefix(resource: String): AbsoluteIri =
       url"${http.publicUri}".value + http.prefix + resource + project.organizationLabel + project.label

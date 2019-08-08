@@ -38,21 +38,23 @@ class AuthDirectivesSpec
   private implicit val hc: HttpConfig = Settings(system).appConfig.http
 
   private implicit val iamClient: IamClient[Task] = mock[IamClient[Task]]
-  private implicit val project: Project = Project(genIri,
-                                                  "projectLabel",
-                                                  "organizationLabel",
-                                                  None,
-                                                  genIri,
-                                                  genIri,
-                                                  Map.empty,
-                                                  genUUID,
-                                                  genUUID,
-                                                  1L,
-                                                  false,
-                                                  Instant.EPOCH,
-                                                  genIri,
-                                                  Instant.EPOCH,
-                                                  genIri)
+  private implicit val project: Project = Project(
+    genIri,
+    "projectLabel",
+    "organizationLabel",
+    None,
+    genIri,
+    genIri,
+    Map.empty,
+    genUUID,
+    genUUID,
+    1L,
+    false,
+    Instant.EPOCH,
+    genIri,
+    Instant.EPOCH,
+    genIri
+  )
   private val readWrite = Set(Permission.unsafe("read"), Permission.unsafe("write"))
   override val read     = Permission.unsafe("read")
   override val write    = Permission.unsafe("write")
@@ -114,7 +116,8 @@ class AuthDirectivesSpec
       "the client throws an error for caller acls" in {
         implicit val token: Option[AuthToken] = None
         iamClient.acls(any[Iri.Path], true, true)(any[Option[AuthToken]]) shouldReturn Task.raiseError(
-          IamClientError.UnknownError(StatusCodes.InternalServerError, ""))
+          IamClientError.UnknownError(StatusCodes.InternalServerError, "")
+        )
         val route = Routes.wrap(extractCallerAcls.apply(_ => complete("")))
         Get("/") ~> route ~> check {
           status shouldEqual StatusCodes.InternalServerError
@@ -123,7 +126,8 @@ class AuthDirectivesSpec
       "the client returns Unauthorized for caller acls" in {
         implicit val token: Option[AuthToken] = None
         iamClient.acls(any[Iri.Path], true, true)(any[Option[AuthToken]]) shouldReturn Task.raiseError(
-          IamClientError.Unauthorized(""))
+          IamClientError.Unauthorized("")
+        )
         val route = Routes.wrap(extractCallerAcls.apply(_ => complete("")))
         Get("/") ~> route ~> check {
           status shouldEqual StatusCodes.Unauthorized
@@ -132,7 +136,8 @@ class AuthDirectivesSpec
       "the client returns Forbidden for caller acls" in {
         implicit val token: Option[AuthToken] = None
         iamClient.acls(any[Iri.Path], true, true)(any[Option[AuthToken]]) shouldReturn Task.raiseError(
-          IamClientError.Forbidden(""))
+          IamClientError.Forbidden("")
+        )
         val route = Routes.wrap(extractCallerAcls.apply(_ => complete("")))
         Get("/") ~> route ~> check {
           status shouldEqual StatusCodes.Forbidden
@@ -142,7 +147,8 @@ class AuthDirectivesSpec
       "the client throws an error for caller" in {
         implicit val token: Option[AuthToken] = None
         iamClient.identities(any[Option[AuthToken]]) shouldReturn Task.raiseError(
-          IamClientError.UnknownError(StatusCodes.InternalServerError, ""))
+          IamClientError.UnknownError(StatusCodes.InternalServerError, "")
+        )
         val route = Routes.wrap(extractCaller.apply(_ => complete("")))
         Get("/") ~> route ~> check {
           status shouldEqual StatusCodes.InternalServerError

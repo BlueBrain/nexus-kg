@@ -52,21 +52,23 @@ class ElasticSearchIndexerMappingSpec
   val mappings: Map[String, Iri.AbsoluteIri] =
     Map("ex" -> url"https://bbp.epfl.ch/nexus/data/".value, "resource" -> nxv.Resource.value)
   implicit val projectMeta: Project =
-    Project(genIri,
-            label.value,
-            label.organization,
-            None,
-            nxv.projects.value,
-            genIri,
-            mappings,
-            genUUID,
-            genUUID,
-            1L,
-            false,
-            Instant.EPOCH,
-            genIri,
-            Instant.EPOCH,
-            genIri)
+    Project(
+      genIri,
+      label.value,
+      label.organization,
+      None,
+      nxv.projects.value,
+      genIri,
+      mappings,
+      genUUID,
+      genUUID,
+      1L,
+      false,
+      Instant.EPOCH,
+      genIri,
+      Instant.EPOCH,
+      genIri
+    )
 
   val orgRef = OrganizationRef(projectMeta.organizationUuid)
 
@@ -79,13 +81,17 @@ class ElasticSearchIndexerMappingSpec
 
   "An ElasticSearch event mapping function" when {
 
-    val id: ResId = Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
-                       url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+    val id: ResId = Id(
+      ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
+      url"https://bbp.epfl.ch/nexus/data/resourceName".value
+    )
     val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
     val json =
-      Json.obj("@context" -> Json.obj("key" -> Json.fromString(s"${nxv.base.show}key")),
-               "@id"      -> Json.fromString(id.value.show),
-               "key"      -> Json.fromInt(2))
+      Json.obj(
+        "@context" -> Json.obj("key" -> Json.fromString(s"${nxv.base.show}key")),
+        "@id"      -> Json.fromString(id.value.show),
+        "key"      -> Json.fromInt(2)
+      )
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
     val ev =
       Created(id, orgRef, schema, Set.empty, json, clock.instant(), Anonymous)
@@ -113,17 +119,20 @@ class ElasticSearchIndexerMappingSpec
 
       "return none when the event resource is not found on the resources" in {
         resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.leftT[IO, ResourceV](
-          NotFound(id.ref): Rejection)
+          NotFound(id.ref): Rejection
+        )
         mapper(ev).ioValue shouldEqual None
       }
 
       "return a ElasticSearch BulkOp" in {
         val jsonWithMeta = json deepMerge Json.obj(nxv.deprecated.prefix -> Json.fromBoolean(true))
         val res =
-          ResourceF.simpleV(id,
-                            Value(jsonWithMeta, jsonWithMeta.contextValue, RootedGraph(blank, Graph())),
-                            rev = 2L,
-                            schema = schema)
+          ResourceF.simpleV(
+            id,
+            Value(jsonWithMeta, jsonWithMeta.contextValue, RootedGraph(blank, Graph())),
+            rev = 2L,
+            schema = schema
+          )
         resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
         val elasticSearchJson = Json
           .obj(
@@ -136,9 +145,11 @@ class ElasticSearchIndexerMappingSpec
             "_rev"             -> Json.fromLong(2L),
             "_self"            -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/bbp/core/$exSchema/$exResource"),
             "_incoming" -> Json.fromString(
-              s"http://127.0.0.1:8080/v1/resources/bbp/core/$exSchema/$exResource/incoming"),
+              s"http://127.0.0.1:8080/v1/resources/bbp/core/$exSchema/$exResource/incoming"
+            ),
             "_outgoing" -> Json.fromString(
-              s"http://127.0.0.1:8080/v1/resources/bbp/core/$exSchema/$exResource/outgoing"),
+              s"http://127.0.0.1:8080/v1/resources/bbp/core/$exSchema/$exResource/outgoing"
+            ),
             "_project"   -> Json.fromString("http://localhost:8080/v1/projects/bbp/core"),
             "_updatedAt" -> Json.fromString(instantString),
             "_updatedBy" -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
@@ -173,10 +184,12 @@ class ElasticSearchIndexerMappingSpec
       }
 
       "return a ElasticSearch BulkOp Delete" in {
-        val res = ResourceF.simpleV(id,
-                                    Value(json, json.contextValue, RootedGraph(blank, Graph())),
-                                    rev = 2L,
-                                    schema = Ref(nxv.Resource.value))
+        val res = ResourceF.simpleV(
+          id,
+          Value(json, json.contextValue, RootedGraph(blank, Graph())),
+          rev = 2L,
+          schema = Ref(nxv.Resource.value)
+        )
         resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual
@@ -186,12 +199,14 @@ class ElasticSearchIndexerMappingSpec
 
       "return a ElasticSearch BulkOp Index" in {
         val otherTpe = nxv.withSuffix("Other").value
-        val res = ResourceF.simpleV(id,
-                                    Value(json, json.contextValue, RootedGraph(blank, Graph())),
-                                    rev = 2L,
-                                    schema = Ref(nxv.Resource.value),
-                                    types = Set(tpe1, otherTpe),
-                                    deprecated = true)
+        val res = ResourceF.simpleV(
+          id,
+          Value(json, json.contextValue, RootedGraph(blank, Graph())),
+          rev = 2L,
+          schema = Ref(nxv.Resource.value),
+          types = Set(tpe1, otherTpe),
+          deprecated = true
+        )
         resources.fetch(id, MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
 
         val elasticSearchJson = Json
@@ -205,9 +220,11 @@ class ElasticSearchIndexerMappingSpec
             "_deprecated"      -> Json.fromBoolean(true),
             "_self"            -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/bbp/core/nxv:Resource/$exResource"),
             "_incoming" -> Json.fromString(
-              s"http://127.0.0.1:8080/v1/resources/bbp/core/nxv:Resource/$exResource/incoming"),
+              s"http://127.0.0.1:8080/v1/resources/bbp/core/nxv:Resource/$exResource/incoming"
+            ),
             "_outgoing" -> Json.fromString(
-              s"http://127.0.0.1:8080/v1/resources/bbp/core/nxv:Resource/$exResource/outgoing"),
+              s"http://127.0.0.1:8080/v1/resources/bbp/core/nxv:Resource/$exResource/outgoing"
+            ),
             "_project"   -> Json.fromString("http://localhost:8080/v1/projects/bbp/core"),
             "_rev"       -> Json.fromLong(2L),
             "_updatedAt" -> Json.fromString(instantString),
@@ -240,10 +257,12 @@ class ElasticSearchIndexerMappingSpec
       "return a ElasticSearch BulkOp Index" in {
         val jsonWithMeta = json deepMerge Json.obj(nxv.deprecated.prefix -> Json.fromBoolean(true))
         val res = ResourceF
-          .simpleV(id,
-                   Value(jsonWithMeta, jsonWithMeta.contextValue, RootedGraph(blank, Graph())),
-                   rev = 2L,
-                   schema = schema)
+          .simpleV(
+            id,
+            Value(jsonWithMeta, jsonWithMeta.contextValue, RootedGraph(blank, Graph())),
+            rev = 2L,
+            schema = schema
+          )
           .copy(tags = Map("two" -> 1L, "one" -> 2L))
         resources.fetch(id, "one", MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
 
@@ -253,11 +272,13 @@ class ElasticSearchIndexerMappingSpec
 
       "return a ElasticSearch BulkOp Delete" in {
         val res = ResourceF
-          .simpleV(id,
-                   Value(json, json.contextValue, RootedGraph(blank, Graph())),
-                   rev = 2L,
-                   schema = schema,
-                   deprecated = true)
+          .simpleV(
+            id,
+            Value(json, json.contextValue, RootedGraph(blank, Graph())),
+            rev = 2L,
+            schema = schema,
+            deprecated = true
+          )
           .copy(tags = Map("two" -> 1L, "one" -> 2L))
         resources.fetch(id, "one", MetadataOptions(false, true), None) shouldReturn EitherT.rightT[IO, Rejection](res)
 
@@ -266,7 +287,8 @@ class ElasticSearchIndexerMappingSpec
 
       "return None when it is not matching the tag defined on the view" in {
         resources.fetch(id, "one", MetadataOptions(false, true), None) shouldReturn EitherT.leftT[IO, ResourceV](
-          NotFound(id.ref, tagOpt = Some("one")): Rejection)
+          NotFound(id.ref, tagOpt = Some("one")): Rejection
+        )
         mapper(ev).ioValue shouldEqual None
       }
 

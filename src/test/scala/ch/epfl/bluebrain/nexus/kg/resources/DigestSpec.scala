@@ -15,10 +15,12 @@ class DigestSpec extends WordSpec with Matchers with TestHelper with Randomness 
   private abstract class Ctx {
     val id = Id(ProjectRef(genUUID), genIri)
     def jsonDigest(digest: Digest, tpe: String = nxv.UpdateDigest.prefix): Json =
-      Json.obj("@id"       -> id.value.asString.asJson,
-               "@type"     -> tpe.asJson,
-               "value"     -> digest.value.asJson,
-               "algorithm" -> digest.algorithm.asJson)
+      Json.obj(
+        "@id"       -> id.value.asString.asJson,
+        "@type"     -> tpe.asJson,
+        "value"     -> digest.value.asJson,
+        "algorithm" -> digest.algorithm.asJson
+      )
 
   }
 

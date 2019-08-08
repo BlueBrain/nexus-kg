@@ -42,10 +42,12 @@ class QueryBuilderSpec extends WordSpecLike with Matchers with Resources {
     "build query with schema, rev, createdBy and full text search" in {
       val expected = jsonContentOf("/search/query-schema-rev-createdBy-q.json")
       val params =
-        SearchParams(schema = Some(schema),
-                     rev = Some(1),
-                     createdBy = Some(url"http://nexus.example.com/user".value),
-                     q = Some("some text"))
+        SearchParams(
+          schema = Some(schema),
+          rev = Some(1),
+          createdBy = Some(url"http://nexus.example.com/user".value),
+          q = Some("some text")
+        )
       QueryBuilder.queryFor(params) shouldEqual expected
     }
   }

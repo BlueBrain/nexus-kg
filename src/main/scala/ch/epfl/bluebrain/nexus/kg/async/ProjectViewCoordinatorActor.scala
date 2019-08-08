@@ -47,10 +47,11 @@ import scala.concurrent.Future
   * Coordinator backed by akka actor which runs the views' streams inside the provided project
   */
 //noinspection ActorMutableStateInspection
-private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(implicit val config: AppConfig,
-                                                                               as: ActorSystem,
-                                                                               projections: Projections[Task, Event])
-    extends Actor
+private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
+    implicit val config: AppConfig,
+    as: ActorSystem,
+    projections: Projections[Task, Event]
+) extends Actor
     with Stash
     with ActorLogging {
 
@@ -78,14 +79,13 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     for {
       vp <- viewProgress
       pp <- projectProgress
-    } yield
-      ViewProgress(
-        vp.processedCount,
-        vp.discardedCount,
-        pp.processedCount,
-        vp.offset.asInstant,
-        pp.offset.asInstant
-      )
+    } yield ViewProgress(
+      vp.processedCount,
+      vp.discardedCount,
+      pp.processedCount,
+      vp.offset.asInstant,
+      pp.offset.asInstant
+    )
   }
 
   private def projectionProgress(coordinator: StreamSupervisor[Task, ProjectionProgress]): Task[ProjectionProgress] =
@@ -130,7 +130,8 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
           count.set(p.processedCount)
           Task.unit
         }
-        .build)
+        .build
+    )
   }
 
   /**
@@ -141,9 +142,11 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
     * @param restartOffset a flag to decide whether to restart from the beginning or to resume from the previous offset
     * @return the actor reference
     */
-  def startCoordinator(view: SingleView,
-                       project: Project,
-                       restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress]
+  def startCoordinator(
+      view: SingleView,
+      project: Project,
+      restartOffset: Boolean
+  ): StreamSupervisor[Task, ProjectionProgress]
 
   /**
     * Triggered once an indexer actor has been stopped to clean up the indices
@@ -159,9 +162,11 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(i
   def onChange: OnKeyValueStoreChange[AbsoluteIri, View]
 
   def initialized(project: Project): Receive = {
-    def stopView(v: SingleView,
-                 coordinator: StreamSupervisor[Task, ProjectionProgress],
-                 deleteIndices: Boolean = true) = {
+    def stopView(
+        v: SingleView,
+        coordinator: StreamSupervisor[Task, ProjectionProgress],
+        deleteIndices: Boolean = true
+    ) = {
       coordinator.stop()
       children -= v
       if (deleteIndices) deleteViewIndices(v, project).runToFuture else Future.unit
@@ -228,11 +233,13 @@ object ProjectViewCoordinatorActor {
     final case class ProjectChanges(uuid: UUID, project: Project)                                     extends Msg
     final case class FetchProgress(uuid: UUID, view: View)                                            extends Msg
 
-    final case class ViewProgress(processedEvents: Long,
-                                  discardedEvents: Long,
-                                  totalEvents: Long,
-                                  lastProcessedEvent: Option[Instant],
-                                  lastEvent: Option[Instant])
+    final case class ViewProgress(
+        processedEvents: Long,
+        discardedEvents: Long,
+        totalEvents: Long,
+        lastProcessedEvent: Option[Instant],
+        lastEvent: Option[Instant]
+    )
   }
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
@@ -252,15 +259,19 @@ object ProjectViewCoordinatorActor {
     * @param shardingSettings the sharding settings
     * @param shards           the number of shards to use
     */
-  final def start(resources: Resources[Task],
-                  viewCache: ViewCache[Task],
-                  shardingSettings: Option[ClusterShardingSettings],
-                  shards: Int)(implicit esClient: ElasticSearchClient[Task],
-                               config: AppConfig,
-                               ul: UntypedHttpClient[Task],
-                               ucl: HttpClient[Task, SparqlResults],
-                               as: ActorSystem,
-                               projections: Projections[Task, Event]): ActorRef = {
+  final def start(
+      resources: Resources[Task],
+      viewCache: ViewCache[Task],
+      shardingSettings: Option[ClusterShardingSettings],
+      shards: Int
+  )(
+      implicit esClient: ElasticSearchClient[Task],
+      config: AppConfig,
+      ul: UntypedHttpClient[Task],
+      ucl: HttpClient[Task, SparqlResults],
+      as: ActorSystem,
+      projections: Projections[Task, Event]
+  ): ActorRef = {
 
     val props = Props(
       new ProjectViewCoordinatorActor(viewCache) {
@@ -268,9 +279,11 @@ object ProjectViewCoordinatorActor {
 
         private val sparql = config.sparql
 
-        override def startCoordinator(view: SingleView,
-                                      project: Project,
-                                      restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress] =
+        override def startCoordinator(
+            view: SingleView,
+            project: Project,
+            restartOffset: Boolean
+        ): StreamSupervisor[Task, ProjectionProgress] =
           view match {
             case v: ElasticSearchView => ElasticSearchIndexer.start(v, resources, project, restartOffset)
             case v: SparqlView        => SparqlIndexer.start(v, resources, project, restartOffset)
@@ -281,14 +294,17 @@ object ProjectViewCoordinatorActor {
             log.info("ElasticSearchView index '{}' is removed from project '{}'", v.index, project.projectLabel.show)
             esClient
               .deleteIndex(v.index)
-              .mapRetry({ case true => () },
-                        KgError.InternalError(s"Could not delete ElasticSearch index '${v.index}'"): Throwable)
+              .mapRetry(
+                { case true => () },
+                KgError.InternalError(s"Could not delete ElasticSearch index '${v.index}'"): Throwable
+              )
           case v: SparqlView =>
             log.info("Blazegraph keyspace '{}' is removed from project '{}'", v.index, project.projectLabel.show)
             val client = BlazegraphClient[Task](sparql.base, v.index, sparql.akkaCredentials)
             client.deleteNamespace.mapRetry(
               { case true => () },
-              KgError.InternalError(s"Could not delete Sparql keyspace '${v.name}'"): Throwable)
+              KgError.InternalError(s"Could not delete Sparql keyspace '${v.name}'"): Throwable
+            )
         }
 
         override def onChange: OnKeyValueStoreChange[AbsoluteIri, View] =
@@ -301,7 +317,8 @@ object ProjectViewCoordinatorActor {
   }
 
   private[async] final def start(props: Props, shardingSettings: Option[ClusterShardingSettings], shards: Int)(
-      implicit as: ActorSystem): ActorRef = {
+      implicit as: ActorSystem
+  ): ActorRef = {
 
     val settings = shardingSettings.getOrElse(ClusterShardingSettings(as)).withRememberEntities(true)
     ClusterSharding(as).start("project-view-coordinator", props, settings, entityExtractor, shardExtractor(shards))
@@ -327,7 +344,7 @@ object ProjectViewCoordinatorActor {
 
   private[async] implicit class OffsetSyntax(offset: Offset) {
 
-    val NUM_100NS_INTERVALS_SINCE_UUID_EPOCH = 0x01b21dd213814000L
+    val NUM_100NS_INTERVALS_SINCE_UUID_EPOCH = 0X01B21DD213814000L
 
     def asInstant: Option[Instant] = offset match {
       case NoOffset | Sequence(_) => None

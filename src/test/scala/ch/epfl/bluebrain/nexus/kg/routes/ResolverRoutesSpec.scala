@@ -120,9 +120,11 @@ class ResolverRoutesSpec
         "@type" -> Json.arr(Json.fromString("CrossProject"), Json.fromString("Resolver")),
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid"),
         "_incoming" -> Json.fromString(
-          s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid/incoming"),
+          s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid/incoming"
+        ),
         "_outgoing" -> Json.fromString(
-          s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid/outgoing")
+          s"http://127.0.0.1:8080/v1/resolvers/$organization/$project/nxv:$genUuid/outgoing"
+        )
       )
 
     val resource =
@@ -294,7 +296,8 @@ class ResolverRoutesSpec
       val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
 
       Get(s"/v1/resolvers/$organization/$project/_/${urlEncode(resourceId)}?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
       }
@@ -313,24 +316,29 @@ class ResolverRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/resolvers/$organization/$project?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resolvers/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/resolver?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(Json.obj(
-          "_next" -> Json.fromString(
-            s"http://127.0.0.1:8080/v1/resources/$organization/$project/resolver?deprecated=false&after=%5B%22two%22%5D"
+        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+          Json.obj(
+            "_next" -> Json.fromString(
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/resolver?deprecated=false&after=%5B%22two%22%5D"
+            )
           )
-        ))
+        )
       }
     }
 
@@ -348,24 +356,29 @@ class ResolverRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/resolvers/$organization/$project?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resolvers/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/resolver?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        oauthToken
+      ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(Json.obj(
-          "_next" -> Json.fromString(
-            s"http://127.0.0.1:8080/v1/resources/$organization/$project/resolver?deprecated=false&after=%5B%22two%22%5D"
+        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+          Json.obj(
+            "_next" -> Json.fromString(
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/resolver?deprecated=false&after=%5B%22two%22%5D"
+            )
           )
-        ))
+        )
       }
     }
   }

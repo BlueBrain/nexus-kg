@@ -121,7 +121,8 @@ class ResolversSpec
             quote("{priority}") -> priority.toString,
             quote("{base}")     -> "http://localhost:8080"
           )
-        ))
+        )
+      )
     val types = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)
 
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
@@ -134,7 +135,8 @@ class ResolversSpec
       val resourceV =
         ResourceF.simpleV(resId, Value(json, resolverCtx.contextValue, graph), rev, schema = resolverRef, types = types)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata())))
+        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+      )
     }
   }
 
@@ -169,7 +171,8 @@ class ResolversSpec
         val label2 = ProjectLabel("account2", "project2")
         projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO(Map(label1 -> None, label2 -> None))
         val json = resolver.removeKeys("projects") deepMerge Json.obj(
-          "projects" -> Json.arr(Json.fromString("account2/project1"), Json.fromString("account2/project2")))
+          "projects" -> Json.arr(Json.fromString("account2/project1"), Json.fromString("account2/project2"))
+        )
         resolvers.create(resId, json).value.rejected[ProjectsNotFound] shouldEqual ProjectsNotFound(Set(label1, label2))
       }
 
@@ -222,7 +225,8 @@ class ResolversSpec
         jsonContentOf("/resolve/cross-project-to-graph.json", Map(quote("{id}") -> id.asString))
 
       projectCache.getProjectLabels(Set(project1.ref, project2.ref)) shouldReturn IO(
-        Map(project1.ref -> Some(label1), project2.ref -> Some(label2)))
+        Map(project1.ref -> Some(label1), project2.ref -> Some(label2))
+      )
 
       "return a resolver" in new Base {
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
@@ -267,18 +271,21 @@ class ResolversSpec
 
       "return resolved resource" in new Base {
         val defaultCtx = Json.obj(
-          "@context" -> Json.obj("@base" -> Json.fromString(project1.base.asString),
-                                 "@vocab" -> Json.fromString(project1.vocab.asString)))
+          "@context" -> Json.obj(
+            "@base"  -> Json.fromString(project1.base.asString),
+            "@vocab" -> Json.fromString(project1.vocab.asString)
+          )
+        )
         val resourceId = genIri
         val orgRef     = OrganizationRef(project1.organizationUuid)
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
         val json = Json.obj("key" -> Json.fromString("value")) deepMerge defaultCtx
         repo.create(Id(project1.ref, resourceId), orgRef, shaclRef, Set(nxv.Schema), json).value.accepted
         val resource = repo.get(Id(project1.ref, resourceId), None).value.some
-        val graph = RootedGraph(resourceId,
-                                resource.metadata()(appConfig, project1) + ((resourceId,
-                                                                             url"${project1.vocab.asString}key",
-                                                                             "value"): Triple))
+        val graph = RootedGraph(
+          resourceId,
+          resource.metadata()(appConfig, project1) + ((resourceId, url"${project1.vocab.asString}key", "value"): Triple)
+        )
         val ctx      = defaultCtx.contextValue deepMerge resourceCtx.contextValue
         val expected = resource.map(json => Value(json, ctx, graph))
         resolvers.resolve(resourceId).value.accepted shouldEqual expected

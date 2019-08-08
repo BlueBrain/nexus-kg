@@ -30,7 +30,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
 
 private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView, resources: Resources[F])(
     implicit config: AppConfig,
-    project: Project) {
+    project: Project
+) {
 
   private val logger          = Logger[this.type]
   private val metaKeys        = metaPredicates.map(_.prefix).toSeq
@@ -76,7 +77,8 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     transformed match {
       case Left(err) =>
         logger.error(
-          s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'")
+          s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'"
+        )
         None
       case Right(value) =>
         Some(BulkOp.Index(view.index, res.id.value.asString, value.removeKeys("@context")))
@@ -100,11 +102,13 @@ object ElasticSearchIndexer {
       resources: Resources[F],
       project: Project,
       restartOffset: Boolean
-  )(implicit client: ElasticSearchClient[F],
-    as: ActorSystem,
-    config: AppConfig,
-    P: Projections[F, Event],
-    F: Effect[F]): StreamSupervisor[F, ProjectionProgress] = {
+  )(
+      implicit client: ElasticSearchClient[F],
+      as: ActorSystem,
+      config: AppConfig,
+      P: Projections[F, Event],
+      F: Effect[F]
+  ): StreamSupervisor[F, ProjectionProgress] = {
 
     val elasticErrorMonadError            = ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
     implicit val p: Project               = project
@@ -155,7 +159,8 @@ object ElasticSearchIndexer {
           processedEventsCount.set(p.processedCount)
           F.unit
         }
-        .build)
+        .build
+    )
   }
 
   /**
@@ -171,10 +176,12 @@ object ElasticSearchIndexer {
       resources: Resources[F],
       project: Project,
       restartOffset: Boolean
-  )(implicit client: ElasticSearchClient[F],
-    as: ActorSystem,
-    config: AppConfig,
-    P: Projections[F, Event]): F[StreamSupervisor[F, ProjectionProgress]] =
+  )(
+      implicit client: ElasticSearchClient[F],
+      as: ActorSystem,
+      config: AppConfig,
+      P: Projections[F, Event]
+  ): F[StreamSupervisor[F, ProjectionProgress]] =
     Effect[F].delay(start(view, resources, project, restartOffset))
 
   // $COVERAGE-ON$

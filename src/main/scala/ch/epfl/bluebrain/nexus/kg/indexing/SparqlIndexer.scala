@@ -24,8 +24,10 @@ import monix.execution.atomic.AtomicLong
 
 import scala.collection.JavaConverters._
 
-private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[F])(implicit F: Monad[F],
-                                                                                    project: Project) {
+private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[F])(
+    implicit F: Monad[F],
+    project: Project
+) {
   private val metadataOptions = MetadataOptions(linksAsIri = true, expandedLinks = true)
 
   /**
@@ -78,7 +80,8 @@ object SparqlIndexer {
       P: Projections[F, Event],
       F: Effect[F],
       uclRs: HttpClient[F, SparqlResults],
-      config: AppConfig): StreamSupervisor[F, ProjectionProgress] = {
+      config: AppConfig
+  ): StreamSupervisor[F, ProjectionProgress] = {
 
     val sparqlErrorMonadError             = ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
     implicit val indexing: IndexingConfig = config.sparql.indexing
@@ -137,7 +140,8 @@ object SparqlIndexer {
           processedEventsCount.set(p.processedCount)
           F.unit
         }
-        .build)
+        .build
+    )
   }
 
   /**
@@ -153,11 +157,12 @@ object SparqlIndexer {
       resources: Resources[F],
       project: Project,
       restartOffset: Boolean
-  )(implicit as: ActorSystem,
-    ul: UntypedHttpClient[F],
-    uclRs: HttpClient[F, SparqlResults],
-    config: AppConfig,
-    P: Projections[F, Event],
+  )(
+      implicit as: ActorSystem,
+      ul: UntypedHttpClient[F],
+      uclRs: HttpClient[F, SparqlResults],
+      config: AppConfig,
+      P: Projections[F, Event]
   ): F[StreamSupervisor[F, ProjectionProgress]] =
     Effect[F].delay(start(view, resources, project, restartOffset))
 

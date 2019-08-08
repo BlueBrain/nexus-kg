@@ -37,10 +37,12 @@ import org.apache.jena.rdf.model.Model
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 
-class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
-                                            materializer: Materializer[F],
-                                            config: AppConfig,
-                                            projectCache: ProjectCache[F]) {
+class Resolvers[F[_]: Timer](repo: Repo[F])(
+    implicit F: Effect[F],
+    materializer: Materializer[F],
+    config: AppConfig,
+    projectCache: ProjectCache[F]
+) {
 
   /**
     * Creates a new resolver attempting to extract the id from the source. If a primary node of the resulting graph
@@ -250,7 +252,8 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]
+  ): F[JsonResults] =
     listResources(view, params.copy(schema = Some(resolverSchemaUri)), pagination)
 
   /**
@@ -262,7 +265,8 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return search results in the F context
     */
   def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+      implicit sparql: BlazegraphClient[F]
+  ): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -274,10 +278,12 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
-  def listOutgoing(id: AbsoluteIri,
-                   view: Option[SparqlView],
-                   pagination: FromPagination,
-                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  def listOutgoing(
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
   private def fetch(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
@@ -304,12 +310,14 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
       case Some(r)                => EitherT.leftT(InvalidResource(resolverRef, r))
       case _ =>
         EitherT(
-          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$resolverSchemaUri'")))
+          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$resolverSchemaUri'"))
+        )
     }
   }
 
   private def resolverValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
-      implicit caller: Caller): EitherT[F, Rejection, Resolver] = {
+      implicit caller: Caller
+  ): EitherT[F, Rejection, Resolver] = {
 
     val noIdentities = "The caller doesn't have some of the provided identities on the resolver"
 
@@ -338,9 +346,11 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
         resolver.labeled.flatMap { labeledResolver =>
           val graph = labeledResolver.asGraph[CId]
           val value =
-            Value(originalResource.value.source,
-                  resolverCtx.contextValue,
-                  RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata()))
+            Value(
+              originalResource.value.source,
+              resolverCtx.contextValue,
+              RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata())
+            )
           EitherT.rightT(originalResource.copy(value = value))
         }
       case _ => EitherT.rightT(originalResource)
@@ -354,7 +364,9 @@ object Resolvers {
     * @tparam F the monadic effect type
     * @return a new [[Resolvers]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect: ProjectCache: Materializer](implicit config: AppConfig,
-                                                                   repo: Repo[F]): Resolvers[F] =
+  final def apply[F[_]: Timer: Effect: ProjectCache: Materializer](
+      implicit config: AppConfig,
+      repo: Repo[F]
+  ): Resolvers[F] =
     new Resolvers[F](repo)
 }

@@ -52,7 +52,7 @@ final case class AppConfig(
     elasticSearch: ElasticSearchConfig,
     pagination: PaginationConfig,
     keyValueStore: StoreConfig,
-    sourcing: SourcingConfig,
+    sourcing: SourcingConfig
 )
 
 object AppConfig {
@@ -102,10 +102,12 @@ object AppConfig {
     * @param retry              the retry strategy configuration
     * @param indexing           the indexing configuration
     */
-  final case class StoreConfig(askTimeout: FiniteDuration,
-                               consistencyTimeout: FiniteDuration,
-                               retry: RetryStrategyConfig,
-                               indexing: IndexingConfig) {
+  final case class StoreConfig(
+      askTimeout: FiniteDuration,
+      consistencyTimeout: FiniteDuration,
+      retry: RetryStrategyConfig,
+      indexing: IndexingConfig
+  ) {
     val keyValueStoreConfig: KeyValueStoreConfig = KeyValueStoreConfig(askTimeout, consistencyTimeout, retry)
   }
 
@@ -117,10 +119,12 @@ object AppConfig {
     * @param shards             number of shards in the cluster
     * @param seeds              seed nodes in the cluster
     */
-  final case class ClusterConfig(passivationTimeout: FiniteDuration,
-                                 replicationTimeout: FiniteDuration,
-                                 shards: Int,
-                                 seeds: Option[String])
+  final case class ClusterConfig(
+      passivationTimeout: FiniteDuration,
+      replicationTimeout: FiniteDuration,
+      shards: Int,
+      seeds: Option[String]
+  )
 
   /**
     * Persistence configuration
@@ -141,12 +145,14 @@ object AppConfig {
     * @param salt        the associated salt
     * @param digestRetry the digest retry configuration
     */
-  final case class StorageConfig(disk: DiskStorageConfig,
-                                 remoteDisk: RemoteDiskStorageConfig,
-                                 amazon: S3StorageConfig,
-                                 password: String,
-                                 salt: String,
-                                 digestRetry: RetryStrategyConfig) {
+  final case class StorageConfig(
+      disk: DiskStorageConfig,
+      remoteDisk: RemoteDiskStorageConfig,
+      amazon: S3StorageConfig,
+      password: String,
+      salt: String,
+      digestRetry: RetryStrategyConfig
+  ) {
     val derivedKey: SecretKey = Crypto.deriveKey(password, salt)
   }
 
@@ -159,11 +165,13 @@ object AppConfig {
     * @param showLocation    flag to decide whether or not to show the absolute location of the files in the metadata response
     * @param maxFileSize     the default maximum allowed file size (in bytes) for uploaded files
     */
-  final case class S3StorageConfig(digestAlgorithm: String,
-                                   readPermission: Permission,
-                                   writePermission: Permission,
-                                   showLocation: Boolean,
-                                   maxFileSize: Long)
+  final case class S3StorageConfig(
+      digestAlgorithm: String,
+      readPermission: Permission,
+      writePermission: Permission,
+      showLocation: Boolean,
+      maxFileSize: Long
+  )
 
   /**
     * Disk storage configuration
@@ -175,12 +183,14 @@ object AppConfig {
     * @param showLocation    flag to decide whether or not to show the absolute location of the files in the metadata response
     * @param maxFileSize     the default maximum allowed file size (in bytes) for uploaded files
     */
-  final case class DiskStorageConfig(volume: Path,
-                                     digestAlgorithm: String,
-                                     readPermission: Permission,
-                                     writePermission: Permission,
-                                     showLocation: Boolean,
-                                     maxFileSize: Long)
+  final case class DiskStorageConfig(
+      volume: Path,
+      digestAlgorithm: String,
+      readPermission: Permission,
+      writePermission: Permission,
+      showLocation: Boolean,
+      maxFileSize: Long
+  )
 
   /**
     * Remote Disk storage configuration
@@ -192,13 +202,15 @@ object AppConfig {
     * @param showLocation       flag to decide whether or not to show the absolute location of the files in the metadata response
     * @param maxFileSize        the default maximum allowed file size (in bytes) for uploaded files
     */
-  final case class RemoteDiskStorageConfig(defaultEndpoint: Uri,
-                                           defaultCredentials: Option[AuthToken],
-                                           digestAlgorithm: String,
-                                           readPermission: Permission,
-                                           writePermission: Permission,
-                                           showLocation: Boolean,
-                                           maxFileSize: Long)
+  final case class RemoteDiskStorageConfig(
+      defaultEndpoint: Uri,
+      defaultCredentials: Option[AuthToken],
+      digestAlgorithm: String,
+      readPermission: Permission,
+      writePermission: Permission,
+      showLocation: Boolean,
+      maxFileSize: Long
+  )
 
   /**
     * IAM config
@@ -212,7 +224,7 @@ object AppConfig {
       publicIri: AbsoluteIri,
       internalIri: AbsoluteIri,
       serviceAccountToken: Option[AuthToken],
-      sseRetryDelay: FiniteDuration,
+      sseRetryDelay: FiniteDuration
   ) {
     val iamClient: IamClientConfig = IamClientConfig(publicIri, internalIri, sseRetryDelay)
   }
@@ -228,13 +240,15 @@ object AppConfig {
     * @param indexing     the indexing configuration
     * @param query        the query retry strategy configuration
     */
-  final case class SparqlConfig(base: Uri,
-                                indexPrefix: String,
-                                username: Option[String],
-                                password: Option[String],
-                                defaultIndex: String,
-                                indexing: IndexingConfig,
-                                query: RetryStrategyConfig) {
+  final case class SparqlConfig(
+      base: Uri,
+      indexPrefix: String,
+      username: Option[String],
+      password: Option[String],
+      defaultIndex: String,
+      indexing: IndexingConfig,
+      query: RetryStrategyConfig
+  ) {
 
     val akkaCredentials: Option[BasicHttpCredentials] =
       for {
@@ -252,11 +266,13 @@ object AppConfig {
     * @param indexing     the indexing configuration
     * @param query        the query retry strategy configuration
     */
-  final case class ElasticSearchConfig(base: Uri,
-                                       indexPrefix: String,
-                                       defaultIndex: String,
-                                       indexing: IndexingConfig,
-                                       query: RetryStrategyConfig)
+  final case class ElasticSearchConfig(
+      base: Uri,
+      indexPrefix: String,
+      defaultIndex: String,
+      indexing: IndexingConfig,
+      query: RetryStrategyConfig
+  )
 
   /**
     * Pagination configuration
@@ -313,7 +329,8 @@ object AppConfig {
       nxv.outgoing.prefix,
       nxv.instant.prefix,
       nxv.eventSubject.prefix
-    ))
+    )
+  )
 
   implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig               = appConfig.sparql
   implicit def toElasticSearch(implicit appConfig: AppConfig): ElasticSearchConfig = appConfig.elasticSearch

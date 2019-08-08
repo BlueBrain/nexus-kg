@@ -85,21 +85,25 @@ object File {
     * @param bytes     the size of the file file in bytes
     * @param digest    the digest information of the file
     */
-  final case class FileAttributes(uuid: UUID,
-                                  location: Uri,
-                                  path: Uri.Path,
-                                  filename: String,
-                                  mediaType: ContentType,
-                                  bytes: Long,
-                                  digest: Digest)
+  final case class FileAttributes(
+      uuid: UUID,
+      location: Uri,
+      path: Uri.Path,
+      filename: String,
+      mediaType: ContentType,
+      bytes: Long,
+      digest: Digest
+  )
   object FileAttributes {
 
-    def apply(location: Uri,
-              path: Uri.Path,
-              filename: String,
-              mediaType: ContentType,
-              size: Long,
-              digest: Digest): FileAttributes =
+    def apply(
+        location: Uri,
+        path: Uri.Path,
+        filename: String,
+        mediaType: ContentType,
+        size: Long,
+        digest: Digest
+    ): FileAttributes =
       FileAttributes(UUID.randomUUID, location, path, filename, mediaType, size, digest)
   }
 

@@ -15,9 +15,11 @@ import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import journal.Logger
 
-private class ViewIndexerMapping[F[_]: Timer](views: Views[F])(implicit projectCache: ProjectCache[F],
-                                                               F: MonadError[F, Throwable],
-                                                               indexing: IndexingConfig) {
+private class ViewIndexerMapping[F[_]: Timer](views: Views[F])(
+    implicit projectCache: ProjectCache[F],
+    F: MonadError[F, Throwable],
+    indexing: IndexingConfig
+) {
 
   private implicit val retry: Retry[F, Throwable] = Retry[F, Throwable](indexing.retry.retryStrategy)
   private implicit val log: Logger                = Logger[this.type]
@@ -52,7 +54,8 @@ object ViewIndexer {
       implicit projectCache: ProjectCache[F],
       as: ActorSystem,
       F: Effect[F],
-      config: AppConfig): StreamSupervisor[F, ProjectionProgress] = {
+      config: AppConfig
+  ): StreamSupervisor[F, ProjectionProgress] = {
 
     val kgErrorMonadError                 = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     implicit val indexing: IndexingConfig = config.keyValueStore.indexing
@@ -69,7 +72,8 @@ object ViewIndexer {
         .offset(Volatile)
         .mapping(mapper.apply)
         .index(_.traverse(viewCache.put)(F) >> F.unit)
-        .build)
+        .build
+    )
   }
 
   /**
@@ -81,7 +85,7 @@ object ViewIndexer {
   final def delay[F[_]: Timer: Effect](views: Views[F], viewCache: ViewCache[F])(
       implicit projectCache: ProjectCache[F],
       as: ActorSystem,
-      config: AppConfig,
+      config: AppConfig
   ): F[StreamSupervisor[F, ProjectionProgress]] =
     Effect[F].delay(start(views, viewCache))
   // $COVERAGE-ON$

@@ -58,8 +58,10 @@ class EventSerializerSpec
   "A Serializer" when {
 
     val key: ResId =
-      Id(ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
-         url"https://bbp.epfl.ch/nexus/data/resourceName".value)
+      Id(
+        ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
+        url"https://bbp.epfl.ch/nexus/data/resourceName".value
+      )
 
     val orgRef = OrganizationRef(UUID.fromString("17a62c6a-4dc4-4eaa-b418-42d0634695a1"))
 
@@ -77,39 +79,51 @@ class EventSerializerSpec
       val digest    = Digest("MD5", "1234")
       val filedUuid = UUID.fromString("b1d7cda2-1ec0-40d2-b12e-3baf4895f7d7")
       val fileAttr =
-        FileAttributes(filedUuid,
-                       Uri(Paths.get("/test/path").toUri.toString),
-                       Uri.Path("path"),
-                       "test-file.json",
-                       `application/json`,
-                       128L,
-                       digest)
+        FileAttributes(
+          filedUuid,
+          Uri(Paths.get("/test/path").toUri.toString),
+          Uri.Path("path"),
+          "test-file.json",
+          `application/json`,
+          128L,
+          digest
+        )
       val s3fileAttr =
-        FileAttributes(filedUuid,
-                       Uri("s3://test/path"),
-                       Uri.Path("path"),
-                       "test-file.json",
-                       `application/json`,
-                       128L,
-                       digest)
+        FileAttributes(
+          filedUuid,
+          Uri("s3://test/path"),
+          Uri.Path("path"),
+          "test-file.json",
+          `application/json`,
+          128L,
+          digest
+        )
       val results = List(
         Created(key, orgRef, schema, types, value, instant, Anonymous) -> jsonContentOf(
           "/serialization/created-resp.json",
-          rep),
-        Deprecated(key, orgRef, 1L, types, instant, subject) -> jsonContentOf("/serialization/deprecated-resp.json",
-                                                                              rep),
-        TagAdded(key, orgRef, 1L, 2L, "tagName", instant, subject) -> jsonContentOf("/serialization/tagged-resp.json",
-                                                                                    rep),
+          rep
+        ),
+        Deprecated(key, orgRef, 1L, types, instant, subject) -> jsonContentOf(
+          "/serialization/deprecated-resp.json",
+          rep
+        ),
+        TagAdded(key, orgRef, 1L, 2L, "tagName", instant, subject) -> jsonContentOf(
+          "/serialization/tagged-resp.json",
+          rep
+        ),
         FileCreated(key, orgRef, storage.reference, fileAttr, instant, subject) -> jsonContentOf(
           "/serialization/created-file-resp.json",
-          rep),
-        FileUpdated(key,
-                    orgRef,
-                    S3StorageReference(url"https://bbp.epfl.ch/nexus/storages/org/proj/s3".value, 2L),
-                    2L,
-                    s3fileAttr,
-                    instant,
-                    subject) -> jsonContentOf("/serialization/updated-file-resp.json", rep)
+          rep
+        ),
+        FileUpdated(
+          key,
+          orgRef,
+          S3StorageReference(url"https://bbp.epfl.ch/nexus/storages/org/proj/s3".value, 2L),
+          2L,
+          s3fileAttr,
+          instant,
+          subject
+        ) -> jsonContentOf("/serialization/updated-file-resp.json", rep)
       )
 
       "encode known events to UTF-8" in {

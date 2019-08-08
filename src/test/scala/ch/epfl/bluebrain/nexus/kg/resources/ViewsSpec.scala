@@ -90,11 +90,14 @@ class ViewsSpec
   val label1 = ProjectLabel("account1", "project1")
   val label2 = ProjectLabel("account1", "project2")
   projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO.pure(
-    Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref)))
+    Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref))
+  )
   viewCache.get(project1.ref) shouldReturn IO.pure(
-    Set[View](ElasticSearchView.default(project1.ref).copy(id = url"http://example.com/id2".value)))
+    Set[View](ElasticSearchView.default(project1.ref).copy(id = url"http://example.com/id2".value))
+  )
   viewCache.get(project2.ref) shouldReturn IO.pure(
-    Set[View](ElasticSearchView.default(project2.ref).copy(id = url"http://example.com/id3".value)))
+    Set[View](ElasticSearchView.default(project2.ref).copy(id = url"http://example.com/id3".value))
+  )
 
   private val views: Views[IO] = Views[IO]
 
@@ -125,10 +128,13 @@ class ViewsSpec
   trait EsView extends Base {
 
     val esView = jsonContentOf("/view/elasticview.json").removeKeys("_uuid") deepMerge Json.obj(
-      "@id" -> Json.fromString(id.show))
+      "@id" -> Json.fromString(id.show)
+    )
     def esViewSource(uuid: String, includeMeta: Boolean = false) =
-      jsonContentOf("/view/elasticview-source.json",
-                    Map(quote("{uuid}") -> uuid, quote("{includeMetadata}") -> includeMeta.toString)) deepMerge Json
+      jsonContentOf(
+        "/view/elasticview-source.json",
+        Map(quote("{uuid}") -> uuid, quote("{includeMetadata}") -> includeMeta.toString)
+      ) deepMerge Json
         .obj("@id" -> Json.fromString(id.show))
     val types = Set[AbsoluteIri](nxv.View, nxv.ElasticSearchView)
 
@@ -142,7 +148,8 @@ class ViewsSpec
       val resourceV =
         ResourceF.simpleV(resId, Value(json, viewCtx.contextValue, graph), rev, schema = viewRef, types = types)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata())))
+        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+      )
     }
 
   }
@@ -203,7 +210,8 @@ class ViewsSpec
 
       "prevent creating a ElasticSearchView when ElasticSearch client throws" in new EsView {
         esClient.createIndex(any[String], any[Json]) shouldReturn IO.raiseError(
-          ElasticServerError(StatusCodes.BadRequest, "Error on creation..."))
+          ElasticServerError(StatusCodes.BadRequest, "Error on creation...")
+        )
         whenReady(views.create(resId, esView).value.unsafeToFuture().failed)(_ shouldBe a[ElasticServerError])
       }
 
@@ -236,7 +244,8 @@ class ViewsSpec
         val ref1   = ProjectRef(genUUID)
         val ref2   = ProjectRef(genUUID)
         projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO(
-          Map(label1 -> Some(ref1), label2 -> Some(ref2)))
+          Map(label1 -> Some(ref1), label2 -> Some(ref2))
+        )
         viewCache.get(ref1) shouldReturn IO(Set.empty[View])
         viewCache.get(ref2) shouldReturn IO(Set.empty[View])
 
@@ -290,9 +299,12 @@ class ViewsSpec
         views.create(resId, esView).value.accepted shouldBe a[Resource]
         val result = views.fetch(resId).value.accepted
         val expected = resourceV(
-          esView deepMerge Json.obj("includeMetadata"   -> Json.fromBoolean(false),
-                                    "includeDeprecated" -> Json.fromBoolean(true),
-                                    "_uuid"             -> Json.fromString(uuid(result))))
+          esView deepMerge Json.obj(
+            "includeMetadata"   -> Json.fromBoolean(false),
+            "includeDeprecated" -> Json.fromBoolean(true),
+            "_uuid"             -> Json.fromString(uuid(result))
+          )
+        )
         result.value.source.removeKeys("@context") should equalIgnoreArrayOrder(expected.value.source)
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
@@ -301,8 +313,10 @@ class ViewsSpec
       }
 
       "return the requested view on a specific revision" in new EsViewMocked {
-        val viewUpdated = esView deepMerge Json.obj("includeMetadata" -> Json.fromBoolean(true),
-                                                    "includeDeprecated" -> Json.fromBoolean(true))
+        val viewUpdated = esView deepMerge Json.obj(
+          "includeMetadata"   -> Json.fromBoolean(true),
+          "includeDeprecated" -> Json.fromBoolean(true)
+        )
         views.create(resId, esView).value.accepted shouldBe a[Resource]
         views.update(resId, 1L, viewUpdated).value.accepted shouldBe a[Resource]
         val resultLatest = views.fetch(resId, 2L).value.accepted
@@ -320,9 +334,12 @@ class ViewsSpec
         views.fetchSource(resId).value.accepted should
           equalIgnoreArrayOrder(esViewSource(uuid(result), includeMeta = true))
         val expected = resourceV(
-          esView deepMerge Json.obj("includeMetadata"   -> Json.fromBoolean(false),
-                                    "includeDeprecated" -> Json.fromBoolean(true),
-                                    "_uuid"             -> Json.fromString(uuid(result))))
+          esView deepMerge Json.obj(
+            "includeMetadata"   -> Json.fromBoolean(false),
+            "includeDeprecated" -> Json.fromBoolean(true),
+            "_uuid"             -> Json.fromString(uuid(result))
+          )
+        )
         result.value.source.removeKeys("@context") should equalIgnoreArrayOrder(expected.value.source)
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph

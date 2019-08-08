@@ -132,13 +132,14 @@ object Command {
     * @param instant      the instant when this event was recorded
     * @param subject      the subject which generated this event
     */
-  final case class CreateFile(id: Id[ProjectRef],
-                              organization: OrganizationRef,
-                              storage: StorageReference,
-                              value: FileAttributes,
-                              instant: Instant,
-                              subject: Subject)
-      extends Command {
+  final case class CreateFile(
+      id: Id[ProjectRef],
+      organization: OrganizationRef,
+      storage: StorageReference,
+      value: FileAttributes,
+      instant: Instant,
+      subject: Subject
+  ) extends Command {
 
     /**
       * the initial command revision
@@ -166,13 +167,14 @@ object Command {
     * @param instant the instant when this event was recorded
     * @param subject the subject which generated this event
     */
-  final case class UpdateFileDigest(id: Id[ProjectRef],
-                                    storage: StorageReference,
-                                    rev: Long,
-                                    value: Digest,
-                                    instant: Instant,
-                                    subject: Subject)
-      extends Command {
+  final case class UpdateFileDigest(
+      id: Id[ProjectRef],
+      storage: StorageReference,
+      rev: Long,
+      value: Digest,
+      instant: Instant,
+      subject: Subject
+  ) extends Command {
 
     /**
       * the collection of known resource types
@@ -190,13 +192,14 @@ object Command {
     * @param instant the instant when this event was recorded
     * @param subject the subject which generated this event
     */
-  final case class UpdateFile(id: Id[ProjectRef],
-                              storage: StorageReference,
-                              rev: Long,
-                              value: FileAttributes,
-                              instant: Instant,
-                              subject: Subject)
-      extends Command {
+  final case class UpdateFile(
+      id: Id[ProjectRef],
+      storage: StorageReference,
+      rev: Long,
+      value: FileAttributes,
+      instant: Instant,
+      subject: Subject
+  ) extends Command {
 
     /**
       * the collection of known resource types

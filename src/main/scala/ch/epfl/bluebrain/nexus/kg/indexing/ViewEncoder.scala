@@ -41,8 +41,10 @@ object ViewEncoder {
   }
 
   implicit val viewGraphEncoder: GraphEncoder[Id, View] = GraphEncoder {
-    case (rootNode,
-          view @ ElasticSearchView(map, schemas, types, tags, includeMeta, includeDep, sourceAsText, _, _, _, _, _)) =>
+    case (
+        rootNode,
+        view @ ElasticSearchView(map, schemas, types, tags, includeMeta, includeDep, sourceAsText, _, _, _, _, _)
+        ) =>
       val triples = view.mainTriples(nxv.ElasticSearchView) ++ view.triplesFor(schemas, types) ++
         view.triplesFor(includeMeta, includeDep, tags) ++ view.triplesFor(sourceAsText, map)
       RootedGraph(rootNode, triples)
@@ -68,10 +70,12 @@ object ViewEncoder {
     private val s = IriNode(view.id)
 
     def mainTriples(tpe: AbsoluteIri*): Set[Triple] =
-      Set[Triple]((s, rdf.tpe, nxv.View),
-                  (s, nxv.uuid, view.uuid.toString),
-                  (s, nxv.deprecated, view.deprecated),
-                  (s, nxv.rev, view.rev)) ++ tpe.map(t => (s, rdf.tpe, t): Triple).toSet
+      Set[Triple](
+        (s, rdf.tpe, nxv.View),
+        (s, nxv.uuid, view.uuid.toString),
+        (s, nxv.deprecated, view.deprecated),
+        (s, nxv.rev, view.rev)
+      ) ++ tpe.map(t => (s, rdf.tpe, t): Triple).toSet
 
     def triplesFor(resourceSchemas: Set[AbsoluteIri], resourceTypes: Set[AbsoluteIri]): Set[Triple] =
       resourceSchemas.map(r => (s, nxv.resourceSchemas, r): Triple) ++
@@ -83,9 +87,11 @@ object ViewEncoder {
         Set[Triple]((s, nxv.views, ss), (ss, nxv.viewId, viewRef.id), (ss, nxv.project, viewRef.project))
       }
 
-    def triplesFor(includeMetadata: Boolean,
-                   includeDeprecated: Boolean,
-                   resourceTagOpt: Option[String]): Set[Triple] = {
+    def triplesFor(
+        includeMetadata: Boolean,
+        includeDeprecated: Boolean,
+        resourceTagOpt: Option[String]
+    ): Set[Triple] = {
       val triple: Set[Triple] =
         Set((s, nxv.includeMetadata, includeMetadata), (s, nxv.includeDeprecated, includeDeprecated))
       resourceTagOpt.map(resourceTag => triple + ((s, nxv.resourceTag, resourceTag): Triple)).getOrElse(triple)

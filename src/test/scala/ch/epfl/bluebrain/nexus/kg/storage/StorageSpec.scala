@@ -53,12 +53,15 @@ class StorageSpec
     val diskStorage = jsonContentOf("/storage/disk.json").appendContextOf(storageCtx)
     val s3Storage   = jsonContentOf("/storage/s3.json").appendContextOf(storageCtx)
     val remoteDiskStorage =
-      jsonContentOf("/storage/remoteDisk.json",
-                    Map(quote("{read}")   -> "myRead",
-                        quote("{write}")  -> "myWrite",
-                        quote("{folder}") -> "folder",
-                        quote("{cred}")   -> "credentials"))
-        .appendContextOf(storageCtx)
+      jsonContentOf(
+        "/storage/remoteDisk.json",
+        Map(
+          quote("{read}")   -> "myRead",
+          quote("{write}")  -> "myWrite",
+          quote("{folder}") -> "folder",
+          quote("{cred}")   -> "credentials"
+        )
+      ).appendContextOf(storageCtx)
 
     "constructing" should {
       val diskStoragePerms =
@@ -77,16 +80,18 @@ class StorageSpec
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = false).right.value shouldEqual
-          DiskStorage(projectRef,
-                      iri,
-                      1L,
-                      false,
-                      false,
-                      "SHA-256",
-                      Paths.get("/tmp"),
-                      expectedRead,
-                      expectedWrite,
-                      30000L)
+          DiskStorage(
+            projectRef,
+            iri,
+            1L,
+            false,
+            false,
+            "SHA-256",
+            Paths.get("/tmp"),
+            expectedRead,
+            expectedWrite,
+            30000L
+          )
       }
 
       "return a RemoteDiskStorage" in {
@@ -94,18 +99,20 @@ class StorageSpec
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = false).right.value shouldEqual
-          RemoteDiskStorage(projectRef,
-                            iri,
-                            1L,
-                            false,
-                            false,
-                            "SHA-256",
-                            "http://example.com/some",
-                            Some("credentials"),
-                            "folder",
-                            expectedRead,
-                            expectedWrite,
-                            2000L)
+          RemoteDiskStorage(
+            projectRef,
+            iri,
+            1L,
+            false,
+            false,
+            "SHA-256",
+            "http://example.com/some",
+            Some("credentials"),
+            "folder",
+            expectedRead,
+            expectedWrite,
+            2000L
+          )
       }
 
       "return a RemoteDiskStorage encrypted" in {
@@ -113,35 +120,39 @@ class StorageSpec
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
         Storage(resource, encrypt = true).right.value shouldEqual
-          RemoteDiskStorage(projectRef,
-                            iri,
-                            1L,
-                            false,
-                            false,
-                            "SHA-256",
-                            "http://example.com/some",
-                            Some("credentials".encrypt),
-                            "folder",
-                            expectedRead,
-                            expectedWrite,
-                            2000L)
+          RemoteDiskStorage(
+            projectRef,
+            iri,
+            1L,
+            false,
+            false,
+            "SHA-256",
+            "http://example.com/some",
+            Some("credentials".encrypt),
+            "folder",
+            expectedRead,
+            expectedWrite,
+            2000L
+          )
       }
 
       "return an S3Storage" in {
         val resource = simpleV(id, s3Minimal, types = Set(nxv.Storage, nxv.S3Storage))
 
         Storage(resource, encrypt = false).right.value shouldEqual
-          S3Storage(projectRef,
-                    iri,
-                    1L,
-                    false,
-                    true,
-                    "MD5",
-                    "bucket",
-                    S3Settings(None, None, None),
-                    readS3,
-                    writeS3,
-                    3000L)
+          S3Storage(
+            projectRef,
+            iri,
+            1L,
+            false,
+            true,
+            "MD5",
+            "bucket",
+            S3Settings(None, None, None),
+            readS3,
+            writeS3,
+            3000L
+          )
       }
 
       "return an S3Storage with credentials and region" in {
@@ -155,9 +166,11 @@ class StorageSpec
 
       "return an S3Storage with encrypted credentials" in {
         val resource = simpleV(id, s3Storage, types = Set(nxv.Storage, nxv.S3Storage))
-        val settings = S3Settings(Some(S3Credentials("MrAw2AGFs3T/+2M6nxOsuQ==", "Qa76lYhMOK9GPyTrxK26Jg==")),
-                                  Some("endpoint"),
-                                  Some("region"))
+        val settings = S3Settings(
+          Some(S3Credentials("MrAw2AGFs3T/+2M6nxOsuQ==", "Qa76lYhMOK9GPyTrxK26Jg==")),
+          Some("endpoint"),
+          Some("region")
+        )
         val expectedRead  = Permission.unsafe("my/read")
         val expectedWrite = Permission.unsafe("my/write")
         Storage(resource, encrypt = true).right.value shouldEqual
@@ -202,9 +215,12 @@ class StorageSpec
         // format: on
 
         forAll(
-          List(disk   -> jsonContentOf("/storage/disk-meta.json"),
-               s3     -> jsonContentOf("/storage/s3-meta.json"),
-               remote -> jsonContentOf("/storage/remoteDisk-meta.json"))) {
+          List(
+            disk   -> jsonContentOf("/storage/disk-meta.json"),
+            s3     -> jsonContentOf("/storage/s3-meta.json"),
+            remote -> jsonContentOf("/storage/remoteDisk-meta.json")
+          )
+        ) {
           case (storage, expectedJson) =>
             val json = storage.as[Json](storageCtx.appendContextOf(resourceCtx)).right.value.removeKeys("@context")
             json should equalIgnoreArrayOrder(expectedJson.removeKeys("@context"))

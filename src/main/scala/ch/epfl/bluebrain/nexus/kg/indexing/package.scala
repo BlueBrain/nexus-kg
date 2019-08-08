@@ -28,8 +28,9 @@ package object indexing {
     * @tparam F the effect type
     * @return the project wrapped on the effect type
     */
-  def fetchProject[F[_]](projectRef: ProjectRef)(implicit projectCache: ProjectCache[F],
-                                                 retry: Retry[F, Throwable]): F[Project] =
+  def fetchProject[F[_]](
+      projectRef: ProjectRef
+  )(implicit projectCache: ProjectCache[F], retry: Retry[F, Throwable]): F[Project] =
     projectCache
       .get(projectRef)
       .mapRetry({ case Some(p) => p }, KgError.NotFound(Some(projectRef.show)): Throwable)

@@ -56,13 +56,14 @@ class EventRoutesSpec extends EventsSpecBase {
 
 object EventRoutesSpec {
 
-  class TestableEventRoutes(events: List[Event], acls: AccessControlLists, caller: Caller)(implicit as: ActorSystem,
-                                                                                           config: AppConfig)
-      extends EventRoutes(acls, caller) {
+  class TestableEventRoutes(events: List[Event], acls: AccessControlLists, caller: Caller)(
+      implicit as: ActorSystem,
+      config: AppConfig
+  ) extends EventRoutes(acls, caller) {
 
     private val envelopes = events.zipWithIndex.map {
       case (ev, idx) =>
-        EventEnvelope(Sequence(idx.toLong), "persistenceid", 1l, ev)
+        EventEnvelope(Sequence(idx.toLong), "persistenceid", 1L, ev)
     }
 
     override protected def source(

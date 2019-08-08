@@ -60,21 +60,23 @@ class ResolverIndexerMappingSpec
     val subject               = base + "anonymous"
     val projectRef            = ProjectRef(genUUID)
     val id                    = Id(projectRef, iri)
-    implicit val project = Project(id.value,
-                                   "proj",
-                                   "org",
-                                   None,
-                                   base,
-                                   voc,
-                                   Map.empty,
-                                   projectRef.id,
-                                   genUUID,
-                                   1L,
-                                   deprecated = false,
-                                   Instant.now(clock),
-                                   subject,
-                                   Instant.now(clock),
-                                   subject)
+    implicit val project = Project(
+      id.value,
+      "proj",
+      "org",
+      None,
+      base,
+      voc,
+      Map.empty,
+      projectRef.id,
+      genUUID,
+      1L,
+      deprecated = false,
+      Instant.now(clock),
+      subject,
+      Instant.now(clock),
+      subject
+    )
     val schema = Ref(Schemas.resolverSchemaUri)
 
     val types = Set[AbsoluteIri](nxv.Resolver, nxv.CrossProject)

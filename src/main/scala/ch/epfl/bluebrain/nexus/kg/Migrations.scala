@@ -45,8 +45,10 @@ object Migrations {
 
     def migrate(c: AppConfig)(implicit as: ActorSystem, mt: ActorMaterializer, s: Scheduler, permit: CanBlock): Unit = {
       val log = Logger("V1 ====> V1.1")
-      val journal = new CassandraReadJournal(as.asInstanceOf[ExtendedActorSystem],
-                                             as.settings.config.getConfig("cassandra-query-journal"))
+      val journal = new CassandraReadJournal(
+        as.asInstanceOf[ExtendedActorSystem],
+        as.settings.config.getConfig("cassandra-query-journal")
+      )
       val session = journal.session
       val admin   = sys.env.getOrElse("ADMIN_KEYSPACE", "admin")
       val kg      = journal.config.keyspace
@@ -56,13 +58,13 @@ object Migrations {
           "metadata",
           "tag_views",
           "tag_scanning",
-          "tag_write_progress",
+          "tag_write_progress"
         )
         val dropTables = Set(
           "projections_progress",
           "projections_failures",
           "projections",
-          "index_failures",
+          "index_failures"
         )
         truncateTables.foreach { tableName =>
           log.info(s"Truncating table $kg.$tableName")
@@ -276,7 +278,8 @@ object Migrations {
                 "id"    -> Json.fromString("https://bluebrain.github.io/nexus/vocabulary/diskStorageDefault"),
                 "rev"   -> Json.fromLong(1L),
                 "@type" -> Json.fromString("DiskStorageReference")
-              ))
+              )
+            )
             newAttributes match {
               case Left(err) =>
                 log.error("Unable to transform file event", err)
@@ -320,19 +323,22 @@ object Migrations {
           .flatMapConcat { row =>
             Try {
 
-              (row.getObject("persistence_id"),
-               row.getObject("partition_nr"),
-               row.getObject("sequence_nr"),
-               row.getObject("timestamp"),
-               row.getObject("timebucket"),
-               StandardCharsets.UTF_8.decode(row.get[ByteBuffer]("event", TypeCodec.blob())).toString)
+              (
+                row.getObject("persistence_id"),
+                row.getObject("partition_nr"),
+                row.getObject("sequence_nr"),
+                row.getObject("timestamp"),
+                row.getObject("timebucket"),
+                StandardCharsets.UTF_8.decode(row.get[ByteBuffer]("event", TypeCodec.blob())).toString
+              )
             } match {
               case Success(value) => Source.single(value)
               case Failure(NonFatal(th)) =>
                 try {
                   log.error(
                     s"Failed to read event for pid '${row.getObject("persistence_id")}', seq '${row.getObject("sequence_nr")}'",
-                    th)
+                    th
+                  )
                 } catch {
                   case NonFatal(_) => log.error("Failed to read unknown row in messages table.")
                 }
@@ -370,14 +376,16 @@ object Migrations {
           }
           .mapAsync(1) {
             case (pid, partitionNr, seqNr, timestamp, timebucket, org, eventString) =>
-              session.executeWrite(updateEvent,
-                                   eventString,
-                                   new JHashSet(JArrays.asList(s"org=${org.toString}")): JSet[String],
-                                   pid,
-                                   partitionNr,
-                                   seqNr,
-                                   timestamp,
-                                   timebucket)
+              session.executeWrite(
+                updateEvent,
+                eventString,
+                new JHashSet(JArrays.asList(s"org=${org.toString}")): JSet[String],
+                pid,
+                partitionNr,
+                seqNr,
+                timestamp,
+                timebucket
+              )
           }
           .runFold(0) {
             case (acc, _) =>

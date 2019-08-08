@@ -74,8 +74,9 @@ final case class ResourceF[A](
   /**
     * Computes the metadata triples for this resource.
     */
-  def metadata(options: MetadataOptions = MetadataOptions())(implicit config: AppConfig,
-                                                             project: Project): Set[Triple] = {
+  def metadata(
+      options: MetadataOptions = MetadataOptions()
+  )(implicit config: AppConfig, project: Project): Set[Triple] = {
 
     def showLocation(storageRef: StorageReference): Boolean =
       storageRef match {
@@ -186,26 +187,30 @@ object ResourceF {
     * @param created    the identity that created this resource
     * @param updated    the last identity that updated this resource
     */
-  def simpleF(id: Id[ProjectRef],
-              value: Json,
-              rev: Long = 1L,
-              types: Set[AbsoluteIri] = Set.empty,
-              deprecated: Boolean = false,
-              schema: Ref = unconstrainedSchemaUri.ref,
-              created: Identity = Anonymous,
-              updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[Json] =
-    ResourceF(id,
-              rev,
-              types,
-              deprecated,
-              Map.empty,
-              None,
-              clock.instant(),
-              clock.instant(),
-              created,
-              updated,
-              schema,
-              value)
+  def simpleF(
+      id: Id[ProjectRef],
+      value: Json,
+      rev: Long = 1L,
+      types: Set[AbsoluteIri] = Set.empty,
+      deprecated: Boolean = false,
+      schema: Ref = unconstrainedSchemaUri.ref,
+      created: Identity = Anonymous,
+      updated: Identity = Anonymous
+  )(implicit clock: Clock): ResourceF[Json] =
+    ResourceF(
+      id,
+      rev,
+      types,
+      deprecated,
+      Map.empty,
+      None,
+      clock.instant(),
+      clock.instant(),
+      created,
+      updated,
+      schema,
+      value
+    )
 
   /**
     * Construct a [[ResourceF]] with default parameters
@@ -219,26 +224,30 @@ object ResourceF {
     * @param created    the identity that created this resource
     * @param updated    the last identity that updated this resource
     */
-  def simpleV(id: Id[ProjectRef],
-              value: Value,
-              rev: Long = 1L,
-              types: Set[AbsoluteIri] = Set.empty,
-              deprecated: Boolean = false,
-              schema: Ref = unconstrainedSchemaUri.ref,
-              created: Identity = Anonymous,
-              updated: Identity = Anonymous)(implicit clock: Clock = Clock.systemUTC): ResourceF[Value] =
-    ResourceF(id,
-              rev,
-              types,
-              deprecated,
-              Map.empty,
-              None,
-              clock.instant(),
-              clock.instant(),
-              created,
-              updated,
-              schema,
-              value)
+  def simpleV(
+      id: Id[ProjectRef],
+      value: Value,
+      rev: Long = 1L,
+      types: Set[AbsoluteIri] = Set.empty,
+      deprecated: Boolean = false,
+      schema: Ref = unconstrainedSchemaUri.ref,
+      created: Identity = Anonymous,
+      updated: Identity = Anonymous
+  )(implicit clock: Clock = Clock.systemUTC): ResourceF[Value] =
+    ResourceF(
+      id,
+      rev,
+      types,
+      deprecated,
+      Map.empty,
+      None,
+      clock.instant(),
+      clock.instant(),
+      created,
+      updated,
+      schema,
+      value
+    )
 }
 
 /**

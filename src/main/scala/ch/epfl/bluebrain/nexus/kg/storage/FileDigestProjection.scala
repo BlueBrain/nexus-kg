@@ -53,11 +53,13 @@ object FileDigestProjection {
       files: Files[F],
       project: Project,
       restartOffset: Boolean
-  )(implicit fetchDigest: FetchDigest[F],
-    P: Projections[F, Event],
-    as: ActorSystem,
-    config: AppConfig,
-    F: Effect[F]): StreamSupervisor[F, ProjectionProgress] = {
+  )(
+      implicit fetchDigest: FetchDigest[F],
+      P: Projections[F, Event],
+      as: ActorSystem,
+      config: AppConfig,
+      F: Effect[F]
+  ): StreamSupervisor[F, ProjectionProgress] = {
 
     val mapper = new FileDigestProjectionMapping(files)(fetchDigest, kgErrorMonadError)
 
@@ -97,6 +99,7 @@ object FileDigestProjection {
           processedEventsCount.set(p.processedCount)
           F.unit
         }
-        .build)
+        .build
+    )
   }
 }
