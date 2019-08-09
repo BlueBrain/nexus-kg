@@ -1,18 +1,26 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.ask
+import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import cats.effect.{Async, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewStatistics
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef, ProjectRef, Resources}
+import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
+import monix.eval.Task
+import monix.execution.Scheduler.Implicits.global
 
 /**
   * ProjectViewCoordinator backed by [[ProjectViewCoordinatorActor]] that sends messages to the underlying actor
@@ -87,5 +95,20 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(implicit con
     if (newProject.label != project.label || newProject.organizationLabel != project.organizationLabel)
       ref ! ProjectChanges(newProject.uuid, newProject)
     F.unit
+  }
+}
+
+object ProjectViewCoordinator {
+  def apply(resources: Resources[Task], cache: Caches[Task])(
+      implicit config: AppConfig,
+      as: ActorSystem,
+      ucl: HttpClient[Task, SparqlResults],
+      P: Projections[Task, Event]
+  ): ProjectViewCoordinator[Task] = {
+    implicit val mt: ActorMaterializer                          = ActorMaterializer()
+    implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]
+    implicit val elasticSearchClient: ElasticSearchClient[Task] = ElasticSearchClient[Task](config.elasticSearch.base)
+    val coordinatorRef                                          = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
+    new ProjectViewCoordinator[Task](cache, coordinatorRef)
   }
 }
