@@ -81,6 +81,7 @@ class ResourceRoutesSpec
   private implicit val storageCache  = mock[StorageCache[Task]]
   private implicit val resources     = mock[Resources[Task]]
   private implicit val tagsRes       = mock[Tags[Task]]
+  private implicit val initializer   = mock[ProjectInitializer[Task]]
 
   private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
 

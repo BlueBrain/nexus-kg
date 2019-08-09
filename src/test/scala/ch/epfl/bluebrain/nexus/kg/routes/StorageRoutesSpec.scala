@@ -80,6 +80,7 @@ class StorageRoutesSpec
   private implicit val storages      = mock[Storages[Task]]
   private implicit val resources     = mock[Resources[Task]]
   private implicit val tagsRes       = mock[Tags[Task]]
+  private implicit val initializer   = mock[ProjectInitializer[Task]]
 
   private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
 

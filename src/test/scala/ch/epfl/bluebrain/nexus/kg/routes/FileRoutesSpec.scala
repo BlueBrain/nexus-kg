@@ -99,6 +99,7 @@ class FileRoutesSpec
   private implicit val jsonClient    = withUnmarshaller[Task, Json]
   private implicit val sparql        = mock[BlazegraphClient[Task]]
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
+  private implicit val initializer   = mock[ProjectInitializer[Task]]
   private implicit val clients       = Clients()
 
   before {

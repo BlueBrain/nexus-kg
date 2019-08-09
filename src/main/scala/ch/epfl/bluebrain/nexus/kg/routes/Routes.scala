@@ -184,6 +184,7 @@ object Routes {
       implicit system: ActorSystem,
       clients: Clients[Task],
       cache: Caches[Task],
+      projectInitializer: ProjectInitializer[Task],
       config: AppConfig
   ): Route = {
     import clients._
