@@ -258,6 +258,23 @@ class FileRoutesSpec
       }
     }
 
+    "create a minimal link" in new Context {
+      val minimal = Json.obj("path" -> Json.fromString("/path/to/file.bin"))
+
+      files
+        .createLink(eqTo(storage), eqTo(minimal))(eqTo(caller.subject), eqTo(finalProject), any[Link[Task]])
+        .shouldReturn(EitherT.rightT[Task, Rejection](resource))
+
+      Post(s"/v1/files/$organization/$project", minimal) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.Created
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+      Post(s"/v1/resources/$organization/$project/file", minimal) ~> addCredentials(oauthToken) ~> routes ~> check {
+        status shouldEqual StatusCodes.Created
+        responseAs[Json] should equalIgnoreArrayOrder(fileResponse())
+      }
+    }
+
     "create a link without @id" in new Context {
       files
         .createLink(eqTo(storage), eqTo(fileLink))(eqTo(caller.subject), eqTo(finalProject), any[Link[Task]])

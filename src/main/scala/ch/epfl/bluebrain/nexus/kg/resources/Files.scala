@@ -85,13 +85,13 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
 
     // format: off
     for {
-      curr                <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref, schema = Some(fileRef)))
-      currFile            <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref, schema = Some(fileRef))))
-      (storageRef, attr)   = currFile
-      storage             <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
-      digest              <- if (attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path).recoverWith(storageServerErrToKgError)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
-      _                   <- if (digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
-      updated             <- repo.updateDigest(id, storage.reference, curr.rev, digest)
+      curr              <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref, schema = Some(fileRef)))
+      currFile          <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref, schema = Some(fileRef))))
+      (storageRef, attr) = currFile
+      storage           <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
+      digest            <- if (attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path).recoverWith(storageServerErrToKgError)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
+      _                 <- if (digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
+      updated           <- repo.updateDigest(id, storage.reference, curr.rev, digest)
     } yield updated
     // format: on
   }
@@ -159,7 +159,7 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     // format: off
     for {
       link      <- EitherT.fromEither[F](LinkDescription(id, source))
-      fileDesc   = FileDescription(link.filename, link.mediaType)
+      fileDesc   = FileDescription.from(link)
       _         <- repo.createLinkTest(id, orgRef, storage.reference, fileDesc.process(StoredSummary.empty))
       attr      <- EitherT.right(storage.link.apply(id, fileDesc, link.path))
       created   <- repo.createLink(id, orgRef, storage.reference, attr)
@@ -183,7 +183,7 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     // format: off
     for {
       link      <- EitherT.fromEither[F](LinkDescription(id, source))
-      fileDesc   = FileDescription(link.filename, link.mediaType)
+      fileDesc   = FileDescription.from(link)
       _         <- repo.updateLinkTest(id, storage.reference, fileDesc.process(StoredSummary.empty), rev)
       attr      <- EitherT.right(storage.link.apply(id, fileDesc, link.path))
       created   <- repo.updateLink(id, storage.reference, attr, rev)
