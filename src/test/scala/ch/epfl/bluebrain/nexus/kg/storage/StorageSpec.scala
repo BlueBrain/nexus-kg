@@ -71,7 +71,7 @@ class StorageSpec
 
       "return a DiskStorage" in {
         val resource = simpleV(id, diskStorage, types = Set(nxv.Storage, nxv.DiskStorage))
-        Storage(resource, encrypt = false).right.value shouldEqual
+        Storage(resource).right.value shouldEqual
           DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), readDisk, writeDisk, 1000L)
       }
 
@@ -79,7 +79,7 @@ class StorageSpec
         val resource      = simpleV(id, diskStoragePerms, types = Set(nxv.Storage, nxv.DiskStorage))
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
-        Storage(resource, encrypt = false).right.value shouldEqual
+        Storage(resource).right.value shouldEqual
           DiskStorage(
             projectRef,
             iri,
@@ -98,7 +98,7 @@ class StorageSpec
         val resource      = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage, nxv.RemoteDiskStorage))
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
-        Storage(resource, encrypt = false).right.value shouldEqual
+        Storage(resource).right.value shouldEqual
           RemoteDiskStorage(
             projectRef,
             iri,
@@ -119,7 +119,7 @@ class StorageSpec
         val resource      = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage, nxv.RemoteDiskStorage))
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
-        Storage(resource, encrypt = true).right.value shouldEqual
+        Storage(resource).right.value.encrypt shouldEqual
           RemoteDiskStorage(
             projectRef,
             iri,
@@ -139,7 +139,7 @@ class StorageSpec
       "return an S3Storage" in {
         val resource = simpleV(id, s3Minimal, types = Set(nxv.Storage, nxv.S3Storage))
 
-        Storage(resource, encrypt = false).right.value shouldEqual
+        Storage(resource).right.value shouldEqual
           S3Storage(
             projectRef,
             iri,
@@ -160,7 +160,7 @@ class StorageSpec
         val settings      = S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region"))
         val expectedRead  = Permission.unsafe("my/read")
         val expectedWrite = Permission.unsafe("my/write")
-        Storage(resource, encrypt = false).right.value shouldEqual
+        Storage(resource).right.value shouldEqual
           S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, expectedRead, expectedWrite, 3000L)
       }
 
@@ -173,33 +173,33 @@ class StorageSpec
         )
         val expectedRead  = Permission.unsafe("my/read")
         val expectedWrite = Permission.unsafe("my/write")
-        Storage(resource, encrypt = true).right.value shouldEqual
+        Storage(resource).right.value.encrypt shouldEqual
           S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, expectedRead, expectedWrite, 3000L)
       }
 
       "fail on DiskStorage when types are wrong" in {
         val resource = simpleV(id, diskStorage, types = Set(nxv.Storage))
-        Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on RemoteDiskStorage when types are wrong" in {
         val resource = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage))
-        Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on S3Storage when types are wrong" in {
         val resource = simpleV(id, s3Storage, types = Set(nxv.S3Storage))
-        Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on DiskStorage when required parameters are not present" in {
         val resource = simpleV(id, diskStorage.removeKeys("volume"), types = Set(nxv.Storage, nxv.DiskStorage))
-        Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on S3Storage when required parameters are not present" in {
         val resource = simpleV(id, s3Storage.removeKeys("default"), types = Set(nxv.Storage, nxv.S3Storage))
-        Storage(resource, encrypt = false).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
       }
     }
 

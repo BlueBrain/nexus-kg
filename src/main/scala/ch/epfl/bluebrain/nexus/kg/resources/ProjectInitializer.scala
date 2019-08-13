@@ -1,7 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import akka.actor.ActorSystem
-import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types._
@@ -22,7 +21,6 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
-import ch.epfl.bluebrain.nexus.kg.resources.Storages.TimedStorage
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
@@ -62,7 +60,6 @@ class ProjectInitializer[F[_]: Timer](
     * 2. Starts the asynchronous process to compute the digest of files with empty Digest
     * 3. Starts the project view coordinator, that will trigger indexing for all the views in that project
     * 4. Creates the default resources: ElasticSearchView, SparqView, InProjectResolver and DiskStorage
-    * 5. Adds to the respective caches the created resources
     *
     * @param project the targeted project
     * @param subject the caller who created the project
@@ -71,17 +68,10 @@ class ProjectInitializer[F[_]: Timer](
     implicit val caller: Caller = Caller(subject, Set(subject))
     implicit val p              = project
     for {
-      _          <- cache.project.replace(project)
-      _          <- coordinator.start(project)
-      _          <- F.pure(startDigestStream(project))
-      resolver   <- createResolver
-      _          <- resolver.map(cache.resolver.put).getOrElse(F.unit)
-      storage    <- createDiskStorage
-      _          <- storage.map { case (st, instant) => cache.storage.put(st)(instant) }.getOrElse(F.unit)
-      esView     <- createElasticSearchView
-      _          <- esView.map(cache.view.put).getOrElse(F.unit)
-      sparqlView <- createSparqlView
-      _          <- sparqlView.map(cache.view.put).getOrElse(F.unit)
+      _ <- cache.project.replace(project)
+      _ <- coordinator.start(project)
+      _ <- F.pure(startDigestStream(project))
+      _ <- List(createResolver, createDiskStorage, createElasticSearchView, createSparqlView).sequence
     } yield ()
   }
 
@@ -115,45 +105,41 @@ class ProjectInitializer[F[_]: Timer](
         F.pure(json.removeKeys(revK, deprecatedK, algorithmK).replaceContext(resolverCtxUri).addContext(resourceCtxUri))
     }
 
-  private def createElasticSearchView(implicit project: Project, c: Caller): F[Either[Rejection, View]] = {
+  private def createElasticSearchView(implicit project: Project, c: Caller): F[Either[Rejection, Resource]] = {
     implicit val acls: AccessControlLists = AccessControlLists.empty
     val view: View                        = ElasticSearchView.default(project.ref)
     asJson(view).flatMap { json =>
       withRetry(views.create(Id(project.ref, view.id), json, extractUuid = true).value, "ElasticSearchView")
-        .map(_ => view)
-        .value
     }
   }
 
-  private def createSparqlView(implicit project: Project, c: Caller): F[Either[Rejection, View]] = {
+  private def createSparqlView(implicit project: Project, c: Caller): F[Either[Rejection, Resource]] = {
     implicit val acls: AccessControlLists = AccessControlLists.empty
     val view: View                        = SparqlView.default(project.ref)
     asJson(view).flatMap { json =>
       withRetry(views.create(Id(project.ref, view.id), json, extractUuid = true).value, "SparqlView")
-        .map(_ => view)
-        .value
     }
   }
 
-  private def createResolver(implicit project: Project, c: Caller): F[Either[Rejection, Resolver]] = {
+  private def createResolver(implicit project: Project, c: Caller): F[Either[Rejection, Resource]] = {
     val resolver: Resolver = InProjectResolver.default(project.ref)
     asJson(resolver).flatMap { json =>
-      withRetry(resolvers.create(Id(project.ref, resolver.id), json).value, "InProject").map(_ => resolver).value
+      withRetry(resolvers.create(Id(project.ref, resolver.id), json).value, "InProject")
     }
   }
 
-  private def createDiskStorage(implicit project: Project, s: Subject): F[Either[Rejection, TimedStorage]] = {
+  private def createDiskStorage(implicit project: Project, s: Subject): F[Either[Rejection, Resource]] = {
     val storage: Storage = DiskStorage.default(project.ref)
     asJson(DiskStorage.default(project.ref)).flatMap { json =>
-      withRetry(storages.create(Id(project.ref, storage.id), json).value, "DiskStorage").map(storage -> _.updated).value
+      withRetry(storages.create(Id(project.ref, storage.id), json).value, "DiskStorage")
     }
   }
 
   private def withRetry(created: F[Either[Rejection, Resource]], resourceType: String)(
       implicit project: Project
-  ): EitherT[F, Rejection, Resource] = {
+  ): F[Either[Rejection, Resource]] = {
     val internalError: KgError = InternalError(s"Couldn't create default $resourceType for project '${project.ref}'")
-    EitherT(created.mapRetry(createdOrExists, internalError))
+    created.mapRetry(createdOrExists, internalError)
   }
 
 }

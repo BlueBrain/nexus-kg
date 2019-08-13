@@ -105,6 +105,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
       view    <- viewValidation(id, typedGraph, 1L, types)
       json    <- jsonForRepo(view)
       updated <- repo.update(id, viewRef, rev, types, json)
+      _       <- EitherT.right(viewCache.put(view))
     } yield updated
 
   /**
@@ -242,11 +243,12 @@ class Views[F[_]: Timer](repo: Repo[F])(
     val types      = typedGraph.rootTypes.map(_.value)
 
     for {
-      _        <- validateShacl(typedGraph)
-      view     <- viewValidation(id, typedGraph, 1L, types)
-      json     <- jsonForRepo(view)
-      resource <- repo.create(id, OrganizationRef(project.organizationUuid), viewRef, types, json)
-    } yield resource
+      _       <- validateShacl(typedGraph)
+      view    <- viewValidation(id, typedGraph, 1L, types)
+      json    <- jsonForRepo(view)
+      created <- repo.create(id, OrganizationRef(project.organizationUuid), viewRef, types, json)
+      _       <- EitherT.right(viewCache.put(view))
+    } yield created
   }
 
   private def addViewType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =

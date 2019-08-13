@@ -111,6 +111,7 @@ object Main {
     implicit val projectCache                     = cache.project
     implicit val viewCache                        = cache.view
     implicit val storageCache                     = cache.storage
+    implicit val resolverCache                    = cache.resolver
     import indexers.elasticSearch
 
     val resources: Resources[Task] = Resources[Task]

@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
+import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -39,7 +40,12 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
 
-class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: Materializer[F], config: AppConfig) {
+class Storages[F[_]: Timer](repo: Repo[F])(
+    implicit F: Effect[F],
+    materializer: Materializer[F],
+    config: AppConfig,
+    cache: StorageCache[F]
+) {
 
   /**
     * Creates a new storage attempting to extract the id from the source. If a primary node of the resulting graph
@@ -91,8 +97,9 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
       storage <- storageValidation(id, typedGraph, 1L, types)
-      json    <- jsonForRepo(storage)
+      json    <- jsonForRepo(storage.encrypt)
       updated <- repo.update(id, storageRef, rev, types, json)
+      _       <- EitherT.right(cache.put(storage)(updated.updated))
     } yield updated
 
   /**
@@ -113,7 +120,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     */
   def fetchStorage(id: ResId)(implicit project: Project): EitherT[F, Rejection, TimedStorage] = {
     val repoOrNotFound = repo.get(id, Some(storageRef)).toRight(notFound(id.ref, schema = Some(storageRef)))
-    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(r => Storage(r, encrypt = false).map(_ -> r.updated))
+    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(r => Storage(r).map(_ -> r.updated))
   }
 
   /**
@@ -249,11 +256,12 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     val types      = typedGraph.rootTypes.map(_.value)
 
     for {
-      _        <- validateShacl(typedGraph)
-      storage  <- storageValidation(id, typedGraph, 1L, types)
-      json     <- jsonForRepo(storage)
-      resource <- repo.create(id, OrganizationRef(project.organizationUuid), storageRef, types, json)
-    } yield resource
+      _       <- validateShacl(typedGraph)
+      storage <- storageValidation(id, typedGraph, 1L, types)
+      json    <- jsonForRepo(storage.encrypt)
+      created <- repo.create(id, OrganizationRef(project.organizationUuid), storageRef, types, json)
+      _       <- EitherT.right(cache.put(storage)(created.updated))
+    } yield created
   }
 
   private def addStorageType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
@@ -277,7 +285,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     val resource =
       ResourceF.simpleV(resId, Value(Json.obj(), Json.obj(), graph), rev = rev, types = types, schema = storageRef)
 
-    EitherT.fromEither[F](Storage(resource, encrypt = true)).flatMap { storage =>
+    EitherT.fromEither[F](Storage(resource)).flatMap { storage =>
       EitherT(storage.isValid.apply).map(_ => storage).leftMap(msg => InvalidResourceFormat(resId.value.ref, msg))
     }
   }
@@ -298,6 +306,10 @@ object Storages {
     * @tparam F the monadic effect type
     * @return a new [[Storages]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect: Materializer](implicit config: AppConfig, repo: Repo[F]): Storages[F] =
+  final def apply[F[_]: Timer: Effect: Materializer](
+      implicit config: AppConfig,
+      repo: Repo[F],
+      cache: StorageCache[F]
+  ): Storages[F] =
     new Storages[F](repo)
 }

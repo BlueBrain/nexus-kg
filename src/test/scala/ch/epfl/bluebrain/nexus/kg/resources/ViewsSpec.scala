@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
+import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.stream.ActorMaterializer
@@ -38,8 +39,8 @@ import io.circe.parser.parse
 import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
-
 import java.util.regex.Pattern.quote
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -92,20 +93,22 @@ class ViewsSpec
   projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO.pure(
     Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref))
   )
-  viewCache.get(project1.ref) shouldReturn IO.pure(
-    Set[View](ElasticSearchView.default(project1.ref).copy(id = url"http://example.com/id2".value))
-  )
-  viewCache.get(project2.ref) shouldReturn IO.pure(
-    Set[View](ElasticSearchView.default(project2.ref).copy(id = url"http://example.com/id3".value))
-  )
 
   private val views: Views[IO] = Views[IO]
 
   before {
-    Mockito.reset(resolverCache)
+    Mockito.reset(resolverCache, viewCache)
   }
 
   trait Base {
+
+    viewCache.get(project1.ref) shouldReturn IO.pure(
+      Set[View](ElasticSearchView.default(project1.ref).copy(id = url"http://example.com/id2".value))
+    )
+    viewCache.get(project2.ref) shouldReturn IO.pure(
+      Set[View](ElasticSearchView.default(project2.ref).copy(id = url"http://example.com/id3".value))
+    )
+
     implicit val caller = Caller(Anonymous, Set(Anonymous, Authenticated("realm")))
     val projectRef      = ProjectRef(genUUID)
     val base            = Iri.absolute(s"http://example.com/base/").right.value
@@ -122,6 +125,13 @@ class ViewsSpec
 
     implicit val acls =
       AccessControlLists(/ -> resourceAcls(AccessControlList(caller.subject -> Set(View.write, View.query))))
+
+    def matchesIgnoreId(that: View): View => Boolean = {
+      case view: View.AggregateElasticSearchView[_] => view.copy(uuid = that.uuid) == that
+      case view: View.AggregateSparqlView[_]        => view.copy(uuid = that.uuid) == that
+      case view: ElasticSearchView                  => view.copy(uuid = that.uuid) == that
+      case view: View.SparqlView                    => view.copy(uuid = that.uuid) == that
+    }
 
   }
 
@@ -156,7 +166,9 @@ class ViewsSpec
 
   trait EsViewMocked extends EsView {
     val mapping = esView.hcursor.get[String]("mapping").flatMap(parse).right.value
-
+    // format: off
+    val esViewModel = ElasticSearchView(mapping, Set(nxv.Schema.value, nxv.Resource.value), Set(nxv.withSuffix("MyType").value, nxv.withSuffix("MyType2").value), Some("one"), includeMetadata = false, includeDeprecated = true, sourceAsText = true, project.ref, id, UUID.randomUUID(), 1L, deprecated = false)
+    // format: on
     esClient.updateMapping(any[String], eqTo(mapping)) shouldReturn IO(true)
     aclsCache.list shouldReturn IO.pure(acls)
     esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
@@ -176,6 +188,7 @@ class ViewsSpec
       }
 
       "create a view" in {
+        viewCache.put(any[View]) shouldReturn IO(())
         val valid =
           List(jsonContentOf("/view/aggelasticviewrefs.json"), jsonContentOf("/view/aggelasticview.json"))
         val tpes = Set[AbsoluteIri](nxv.View, nxv.AggregateElasticSearchView)
@@ -203,6 +216,8 @@ class ViewsSpec
         esClient.updateMapping(any[String], eqTo(mapping)) shouldReturn IO(true)
         aclsCache.list shouldReturn IO.pure(acls)
         esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
+
+        viewCache.put(view) shouldReturn IO(())
 
         views.create(defaultId, json, extractUuid = true).value.accepted shouldEqual
           ResourceF.simpleF(defaultId, json, schema = viewRef, types = types)
@@ -263,7 +278,10 @@ class ViewsSpec
 
       "update a view" in new EsViewMocked {
         val viewUpdated = esView deepMerge Json.obj("includeMetadata" -> Json.fromBoolean(true))
+        viewCache.put(argThat(matchesIgnoreId(esViewModel), "")) shouldReturn IO(())
         views.create(resId, esView).value.accepted shouldBe a[Resource]
+        Mockito.reset(viewCache)
+        viewCache.put(argThat(matchesIgnoreId(esViewModel.copy(includeMetadata = true)), "")) shouldReturn IO(())
         val result   = views.update(resId, 1L, viewUpdated).value.accepted
         val expected = ResourceF.simpleF(resId, viewUpdated, 2L, schema = viewRef, types = types)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
@@ -278,6 +296,7 @@ class ViewsSpec
     "performing deprecate operations" should {
 
       "deprecate a view" in new EsViewMocked {
+        viewCache.put(argThat(matchesIgnoreId(esViewModel), "")) shouldReturn IO(())
         views.create(resId, esView).value.accepted shouldBe a[Resource]
         val result   = views.deprecate(resId, 1L).value.accepted
         val expected = ResourceF.simpleF(resId, esView, 2L, schema = viewRef, types = types, deprecated = true)
@@ -285,6 +304,7 @@ class ViewsSpec
       }
 
       "prevent deprecating a view already deprecated" in new EsViewMocked {
+        viewCache.put(argThat(matchesIgnoreId(esViewModel), "")) shouldReturn IO(())
         views.create(resId, esView).value.accepted shouldBe a[Resource]
         views.deprecate(resId, 1L).value.accepted shouldBe a[Resource]
         views.deprecate(resId, 2L).value.rejected[ResourceIsDeprecated] shouldBe a[ResourceIsDeprecated]
@@ -296,6 +316,7 @@ class ViewsSpec
       def uuid(resource: ResourceV) = resource.value.source.hcursor.get[String]("_uuid").right.value
 
       "return a view" in new EsViewMocked {
+        viewCache.put(argThat(matchesIgnoreId(esViewModel), "")) shouldReturn IO(())
         views.create(resId, esView).value.accepted shouldBe a[Resource]
         val result = views.fetch(resId).value.accepted
         val expected = resourceV(
@@ -317,7 +338,12 @@ class ViewsSpec
           "includeMetadata"   -> Json.fromBoolean(true),
           "includeDeprecated" -> Json.fromBoolean(true)
         )
+        viewCache.put(argThat(matchesIgnoreId(esViewModel), "")) shouldReturn IO(())
         views.create(resId, esView).value.accepted shouldBe a[Resource]
+        Mockito.reset(viewCache)
+        viewCache.put(argThat(matchesIgnoreId(esViewModel.copy(includeDeprecated = true, includeMetadata = true)), "")) shouldReturn IO(
+          ()
+        )
         views.update(resId, 1L, viewUpdated).value.accepted shouldBe a[Resource]
         val resultLatest = views.fetch(resId, 2L).value.accepted
         val expectedLatest =
