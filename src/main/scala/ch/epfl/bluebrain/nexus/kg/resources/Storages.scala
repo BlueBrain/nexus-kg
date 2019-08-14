@@ -16,6 +16,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -118,9 +119,9 @@ class Storages[F[_]: Timer](repo: Repo[F])(
     * @param id the id of the resolver
     * @return Some(storage) in the F context when found and None in the F context when not found
     */
-  def fetchStorage(id: ResId)(implicit project: Project): EitherT[F, Rejection, TimedStorage] = {
+  def fetchStorage(id: ResId)(implicit project: Project, config: StorageConfig): EitherT[F, Rejection, TimedStorage] = {
     val repoOrNotFound = repo.get(id, Some(storageRef)).toRight(notFound(id.ref, schema = Some(storageRef)))
-    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(r => Storage(r).map(_ -> r.updated))
+    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(r => Storage(r).map(_.decrypt -> r.updated))
   }
 
   /**

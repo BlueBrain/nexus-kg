@@ -19,7 +19,8 @@ import journal.Logger
 private class StorageIndexerMapping[F[_]: Timer](storages: Storages[F])(
     implicit projectCache: ProjectCache[F],
     F: MonadError[F, Throwable],
-    indexing: IndexingConfig
+    indexing: IndexingConfig,
+    storageConfig: StorageConfig
 ) {
 
   private implicit val retry: Retry[F, Throwable] = Retry[F, Throwable](indexing.retry.retryStrategy)
