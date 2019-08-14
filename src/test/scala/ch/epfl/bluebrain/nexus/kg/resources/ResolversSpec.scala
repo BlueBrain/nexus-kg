@@ -32,10 +32,12 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
+import org.scalactic.Equality
 import org.scalatest._
-
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.util.Try
 
 //noinspection TypeAnnotation
 class ResolversSpec
@@ -140,6 +142,17 @@ class ResolversSpec
     }
   }
 
+  private implicit val ordering: Ordering[Identity] = (x: Identity, y: Identity) =>
+    x.id.asString compareTo y.id.asString
+
+  private implicit val eqCrossProject: Equality[CrossProjectResolver[ProjectRef]] =
+    (a: CrossProjectResolver[ProjectRef], b: Any) => {
+      Try {
+        val that = b.asInstanceOf[CrossProjectResolver[ProjectRef]]
+        that.copy(identities = identities.sorted) == a.copy(identities = identities.sorted)
+      }.getOrElse(false)
+    }
+
   "A Resolver bundle" when {
 
     "performing create operations" should {
@@ -153,14 +166,17 @@ class ResolversSpec
       }
 
       "create a InProject resolver" in new Base {
+        resolverCache.put(InProjectResolver(project.ref, id, 1L, false, 10)) shouldReturn IO.pure(())
         val json   = updateId(jsonContentOf("/resolve/in-project.json"))
         val result = resolvers.create(json).value.accepted
-        val expected =
+        val expected = {
           ResourceF.simpleF(resId, json, schema = resolverRef, types = Set[AbsoluteIri](nxv.Resolver, nxv.InProject))
+        }
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
       }
 
       "create a CrossProject resolver" in new Base {
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 50)) shouldReturn IO.pure(())
         val result   = resolvers.create(resId, resolver).value.accepted
         val expected = ResourceF.simpleF(resId, resolver, schema = resolverRef, types = types)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
@@ -192,7 +208,9 @@ class ResolversSpec
 
       "update a resolver" in new Base {
         val resolverUpdated = resolver deepMerge Json.obj("priority" -> Json.fromInt(34))
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 50)) shouldReturn IO.pure(())
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 34)) shouldReturn IO.pure(())
         val result   = resolvers.update(resId, 1L, resolverUpdated).value.accepted
         val expected = ResourceF.simpleF(resId, resolverUpdated, 2L, schema = resolverRef, types = types)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
@@ -206,6 +224,7 @@ class ResolversSpec
     "performing deprecate operations" should {
 
       "deprecate a resolver" in new Base {
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 50)) shouldReturn IO.pure(())
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
         val result   = resolvers.deprecate(resId, 1L).value.accepted
         val expected = ResourceF.simpleF(resId, resolver, 2L, schema = resolverRef, types = types, deprecated = true)
@@ -213,6 +232,7 @@ class ResolversSpec
       }
 
       "prevent deprecating a resolver already deprecated" in new Base {
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 50)) shouldReturn IO.pure(())
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
         resolvers.deprecate(resId, 1L).value.accepted shouldBe a[Resource]
         resolvers.deprecate(resId, 2L).value.rejected[ResourceIsDeprecated] shouldBe a[ResourceIsDeprecated]
@@ -229,6 +249,7 @@ class ResolversSpec
       )
 
       "return a resolver" in new Base {
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 50)) shouldReturn IO.pure(())
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
         val result = resolvers.fetch(resId).value.accepted
         resolvers.fetchSource(resId).value.accepted should equalIgnoreArrayOrder(resolverSource())
@@ -239,9 +260,11 @@ class ResolversSpec
       }
 
       "return the requested resolver on a specific revision" in new Base {
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 50)) shouldReturn IO.pure(())
         val resolverUpdated         = resolver deepMerge Json.obj("priority"                      -> Json.fromInt(34))
         val resolverUpdatedForGraph = resolverForGraph(resId.value) deepMerge Json.obj("priority" -> Json.fromInt(34))
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 34)) shouldReturn IO.pure(())
         resolvers.update(resId, 1L, resolverUpdated).value.accepted shouldBe a[Resource]
 
         val resultLatest   = resolvers.fetch(resId, 2L).value.accepted
@@ -278,6 +301,7 @@ class ResolversSpec
         )
         val resourceId = genIri
         val orgRef     = OrganizationRef(project1.organizationUuid)
+        resolverCache.put(crossResolver.copy(id = resId.value, priority = 50)) shouldReturn IO.pure(())
         resolvers.create(resId, resolver).value.accepted shouldBe a[Resource]
         val json = Json.obj("key" -> Json.fromString("value")) deepMerge defaultCtx
         repo.create(Id(project1.ref, resourceId), orgRef, shaclRef, Set(nxv.Schema), json).value.accepted

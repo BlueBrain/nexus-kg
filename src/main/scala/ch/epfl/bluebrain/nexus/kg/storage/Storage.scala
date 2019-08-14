@@ -122,6 +122,11 @@ sealed trait Storage { self =>
     */
   def maxFileSize: Long
 
+  /**
+    * @return a new storage with the same values as the current but encrypting the sensitive information
+    */
+  def encrypt(implicit config: StorageConfig): Storage
+
 }
 
 object Storage {
@@ -155,7 +160,8 @@ object Storage {
       maxFileSize: Long
   ) extends Storage {
 
-    def reference: StorageReference = DiskStorageReference(id, rev)
+    def reference: StorageReference                      = DiskStorageReference(id, rev)
+    def encrypt(implicit config: StorageConfig): Storage = this
   }
 
   object DiskStorage {
@@ -220,6 +226,8 @@ object Storage {
       implicit val config = StorageClientConfig(url"$endpoint".value)
       StorageClient[F]
     }
+
+    def encrypt(implicit config: StorageConfig): Storage = copy(credentials = credentials.map(_.encrypt))
   }
 
   /**
@@ -251,6 +259,10 @@ object Storage {
       maxFileSize: Long
   ) extends Storage {
     def reference: StorageReference = S3StorageReference(id, rev)
+    def encrypt(implicit config: StorageConfig): Storage =
+      copy(settings = settings.copy(credentials = settings.credentials.map {
+        case S3Credentials(ak, as) => S3Credentials(ak.encrypt, as.encrypt)
+      }))
   }
 
   private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
@@ -335,14 +347,13 @@ object Storage {
     * Attempts to transform the resource into a [[Storage]].
     *
     * @param res     a materialized resource
-    * @param encrypt whether to encrypt the credentials during encoding
     * @return Right(storage) if the resource is compatible with a Storage, Left(rejection) otherwise
     */
-  final def apply(res: ResourceV, encrypt: Boolean)(implicit config: StorageConfig): Either[Rejection, Storage] =
+  final def apply(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, Storage] =
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage(res)
     else if (Set(nxv.Storage.value, nxv.RemoteDiskStorage.value).subsetOf(res.types))
-      remoteDiskStorage(res, encrypt)
-    else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res, encrypt)
+      remoteDiskStorage(res)
+    else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res)
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the storage types"))
 
   private def diskStorage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, DiskStorage] = {
@@ -358,9 +369,9 @@ object Storage {
     // format: on
   }
 
-  private def remoteDiskStorage(res: ResourceV, encrypt: Boolean)(
-      implicit config: StorageConfig
-  ): Either[Rejection, RemoteDiskStorage] = {
+  private def remoteDiskStorage(
+      res: ResourceV
+  )(implicit config: StorageConfig): Either[Rejection, RemoteDiskStorage] = {
     val c = res.value.graph.cursor()
 
     val cred =
@@ -379,15 +390,11 @@ object Storage {
       read          <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.remoteDisk.readPermission).toRejectionOnLeft(res.id.ref)
       write         <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.remoteDisk.writePermission).toRejectionOnLeft(res.id.ref)
       fileSize      <- c.downField(nxv.maxFileSize).focus.as[Long].orElse(config.remoteDisk.maxFileSize).toRejectionOnLeft(res.id.ref)
-    } yield
-      if (encrypt) RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials.map(_.encrypt), folder, read, write, fileSize)
-      else RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write, fileSize)
+    } yield RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write, fileSize)
     // format: on
   }
 
-  private def s3Storage(res: ResourceV, encrypt: Boolean)(
-      implicit config: StorageConfig
-  ): Either[Rejection, S3Storage] = {
+  private def s3Storage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, S3Storage] = {
     val c = res.value.graph.cursor()
     // format: off
     for {
@@ -401,9 +408,7 @@ object Storage {
       credentials = for {
         ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
         sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
-      } yield
-        if (encrypt) S3Credentials(ak.encrypt, sk.encrypt)
-        else S3Credentials(ak, sk)
+      } yield S3Credentials(ak, sk)
     } yield S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, bucket, S3Settings(credentials, endpoint, region), read, write, fileSize)
     // format: on
   }

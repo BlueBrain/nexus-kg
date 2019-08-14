@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{Caller, Identity}
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
-import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -41,7 +41,8 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(
     implicit F: Effect[F],
     materializer: Materializer[F],
     config: AppConfig,
-    projectCache: ProjectCache[F]
+    projectCache: ProjectCache[F],
+    resolverCache: ResolverCache[F]
 ) {
 
   /**
@@ -89,6 +90,8 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(
       resolver <- resolverValidation(id, typedGraph, 1L, types)
       json     <- jsonForRepo(resolver)
       updated  <- repo.update(id, resolverRef, rev, types, json)
+      _        <- EitherT.right(resolverCache.put(resolver))
+
     } yield updated
 
   /**
@@ -296,8 +299,10 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(
       _        <- validateShacl(typedGraph)
       resolver <- resolverValidation(id, typedGraph, 1L, types)
       json     <- jsonForRepo(resolver)
-      resource <- repo.create(id, OrganizationRef(project.organizationUuid), resolverRef, types, json)
-    } yield resource
+      created  <- repo.create(id, OrganizationRef(project.organizationUuid), resolverRef, types, json)
+      _        <- EitherT.right(resolverCache.put(resolver))
+
+    } yield created
   }
 
   private def addResolverType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
@@ -366,7 +371,8 @@ object Resolvers {
     */
   final def apply[F[_]: Timer: Effect: ProjectCache: Materializer](
       implicit config: AppConfig,
-      repo: Repo[F]
+      repo: Repo[F],
+      cache: ResolverCache[F]
   ): Resolvers[F] =
     new Resolvers[F](repo)
 }

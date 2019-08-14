@@ -12,14 +12,10 @@ import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
 import ch.epfl.bluebrain.nexus.kg.cache._
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
@@ -42,16 +38,14 @@ class ProjectInitializerSpec
 
   private implicit val appConfig                             = Settings(system).appConfig
   private val projectCache: ProjectCache[Task]               = mock[ProjectCache[Task]]
-  private val resolverCache: ResolverCache[Task]             = mock[ResolverCache[Task]]
   private val resolvers: Resolvers[Task]                     = mock[Resolvers[Task]]
-  private val viewCache: ViewCache[Task]                     = mock[ViewCache[Task]]
   private val views: Views[Task]                             = mock[Views[Task]]
-  private val storageCache: StorageCache[Task]               = mock[StorageCache[Task]]
   private val storages: Storages[Task]                       = mock[Storages[Task]]
   private val files: Files[Task]                             = mock[Files[Task]]
   private val coordinator: ProjectViewCoordinator[Task]      = mock[ProjectViewCoordinator[Task]]
   private implicit val projections: Projections[Task, Event] = mock[Projections[Task, Event]]
-  private implicit val cache                                 = Caches(projectCache, viewCache, resolverCache, storageCache)
+  private implicit val cache =
+    Caches(projectCache, mock[ViewCache[Task]], mock[ResolverCache[Task]], mock[StorageCache[Task]])
 
   private val initializer: ProjectInitializer[Task] =
     new ProjectInitializer[Task](storages, views, resolvers, files, coordinator)
@@ -90,10 +84,6 @@ class ProjectInitializerSpec
         any[Verify[Task]],
         eqTo(project)
       ) shouldReturn EitherT.rightT(resource)
-      resolverCache.put(InProjectResolver.default(project.ref)) shouldReturn Task.unit
-      viewCache.put(ElasticSearchView.default(project.ref)) shouldReturn Task.unit
-      viewCache.put(SparqlView.default(project.ref)) shouldReturn Task.unit
-      storageCache.put(DiskStorage.default(project.ref))(resource.updated) shouldReturn Task.unit
       initializer(project, subject).runToFuture.futureValue shouldEqual (())
     }
 
@@ -112,10 +102,7 @@ class ProjectInitializerSpec
         any[Verify[Task]],
         eqTo(project)
       ) shouldReturn EitherT.rightT(resource)
-      viewCache.put(ElasticSearchView.default(project.ref)) shouldReturn Task.unit
-      storageCache.put(DiskStorage.default(project.ref))(resource.updated) shouldReturn Task.unit
       initializer(project, subject).runToFuture.futureValue shouldEqual (())
     }
   }
-
 }

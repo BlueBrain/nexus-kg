@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache}
+import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache, StorageCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -31,7 +31,7 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
-import org.mockito.{IdiomaticMockito, Mockito}
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
 import java.util.regex.Pattern.quote
 
@@ -45,6 +45,7 @@ class StoragesSpec
     with IOOptionValues
     with WordSpecLike
     with IdiomaticMockito
+    with ArgumentMatchersSugar
     with Matchers
     with OptionValues
     with EitherValues
@@ -64,6 +65,7 @@ class StoragesSpec
 
   private implicit val repo          = Repo[IO].ioValue
   private implicit val resolverCache = mock[ResolverCache[IO]]
+  private implicit val storageCache  = mock[StorageCache[IO]]
   private val projectCache           = mock[ProjectCache[IO]]
 
   private val resolution =
@@ -78,7 +80,7 @@ class StoragesSpec
   }
 
   before {
-    Mockito.reset(resolverCache)
+    Mockito.reset(resolverCache, storageCache)
   }
 
   trait Base {
@@ -106,7 +108,7 @@ class StoragesSpec
 
     implicit val verify = new Verify[IO] {
       override def apply(storage: Storage): VerifyStorage[IO] =
-        if (storage == diskStorageModel || storage == s3StorageModelEncrypted || storage == remoteDiskStorageModelEncrypted || storage == diskStorageModel
+        if (storage == diskStorageModel || storage == s3StorageModel || storage == remoteDiskStorageModel || storage == diskStorageModel
               .copy(default = true, maxFileSize = 200L)) passVerify
         else throw new RuntimeException
     }
@@ -149,6 +151,7 @@ class StoragesSpec
       }
 
       "create a DiskStorage" in new Base {
+        storageCache.put(eqTo(diskStorageModel))(any[Instant]) shouldReturn IO.pure(())
         val result = storages.create(diskStorage).value.accepted
         val expected =
           ResourceF.simpleF(resId, diskStorage, schema = storageRef, types = typesDisk)
@@ -156,12 +159,14 @@ class StoragesSpec
       }
 
       "create a RemoteDiskStorage" in new Base {
+        storageCache.put(eqTo(remoteDiskStorageModel))(any[Instant]) shouldReturn IO.pure(())
         val result   = storages.create(resId, remoteDiskStorage).value.accepted
         val expected = ResourceF.simpleF(resId, remoteDiskStorage, schema = storageRef, types = typesRemote)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
       }
 
       "create a S3Storage" in new Base {
+        storageCache.put(eqTo(s3StorageModel))(any[Instant]) shouldReturn IO.pure(())
         val result   = storages.create(resId, s3Storage).value.accepted
         val expected = ResourceF.simpleF(resId, s3Storage, schema = storageRef, types = typesS3)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
@@ -181,7 +186,10 @@ class StoragesSpec
           "default"     -> Json.fromBoolean(true),
           "maxFileSize" -> Json.fromLong(200L)
         )
+        storageCache.put(eqTo(diskStorageModel))(any[Instant]) shouldReturn IO.pure(())
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
+        storageCache.put(eqTo(diskStorageModel.copy(default = true, maxFileSize = 200L)))(any[Instant]) shouldReturn IO
+          .pure(())
         val result   = storages.update(resId, 1L, storageUpdated).value.accepted
         val expected = ResourceF.simpleF(resId, storageUpdated, 2L, schema = storageRef, types = typesDisk)
         result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
@@ -195,6 +203,7 @@ class StoragesSpec
     "performing deprecate operations" should {
 
       "deprecate a storage" in new Base {
+        storageCache.put(eqTo(diskStorageModel))(any[Instant]) shouldReturn IO.pure(())
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         val result = storages.deprecate(resId, 1L).value.accepted
         val expected =
@@ -203,6 +212,7 @@ class StoragesSpec
       }
 
       "prevent deprecating a resolver already deprecated" in new Base {
+        storageCache.put(eqTo(diskStorageModel))(any[Instant]) shouldReturn IO.pure(())
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         storages.deprecate(resId, 1L).value.accepted shouldBe a[Resource]
         storages.deprecate(resId, 2L).value.rejected[ResourceIsDeprecated] shouldBe a[ResourceIsDeprecated]
@@ -223,6 +233,7 @@ class StoragesSpec
       )
 
       "return a storage" in new Base {
+        storageCache.put(eqTo(diskStorageModel))(any[Instant]) shouldReturn IO.pure(())
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
         val result   = storages.fetch(resId).value.accepted
         val expected = resourceV(diskStorage deepMerge diskAddedJson, 1L, typesDisk)
@@ -233,8 +244,11 @@ class StoragesSpec
       }
 
       "return the requested storage on a specific revision" in new Base {
+        storageCache.put(eqTo(diskStorageModel))(any[Instant]) shouldReturn IO.pure(())
         storages.create(resId, diskStorage).value.accepted shouldBe a[Resource]
+        storageCache.put(eqTo(s3StorageModel))(any[Instant]) shouldReturn IO.pure(())
         storages.update(resId, 1L, s3Storage).value.accepted shouldBe a[Resource]
+        storageCache.put(eqTo(remoteDiskStorageModel))(any[Instant]) shouldReturn IO.pure(())
         storages.update(resId, 2L, remoteDiskStorage).value.accepted shouldBe a[Resource]
 
         storages.fetch(resId, 3L).value.accepted shouldEqual storages.fetch(resId).value.accepted
